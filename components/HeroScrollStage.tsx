@@ -445,16 +445,10 @@ export default function HeroScrollStage({ children }: { children?: ReactNode }) 
     }
 
     // ── Canvas layer fade ────────────────────────────────────────────────────
-    // Over the last 18% of the hero animation, fade the entire canvas layer
-    // (canvas + vignettes + tint + paths) to 0 so the sticky div's solid
-    // background is revealed. HomeContent sections use the same base colour,
-    // making the transition seamless with no visible jump.
+    // Keep canvas visible so the final hero frame seamlessly blends into the 
+    // deep navy background of the HomeContent sections.
     if (canvasLayerRef.current) {
-      const FADE_START = 0.65
-      const layerOpacity = heroProgress < FADE_START
-        ? 1
-        : Math.max(0, 1 - (heroProgress - FADE_START) / (1 - FADE_START))
-      canvasLayerRef.current.style.opacity = String(layerOpacity)
+      canvasLayerRef.current.style.opacity = '1'
     }
 
   }, [loadFrame])
@@ -572,10 +566,13 @@ export default function HeroScrollStage({ children }: { children?: ReactNode }) 
           <FloatingPaths position={1} />
           <FloatingPaths position={-1} />
 
-          {/* Bottom fade */}
+          {/* Bottom fade - stronger blend for seamless handoff to next section */}
           <div
             className="absolute inset-x-0 bottom-0 pointer-events-none"
-            style={{ height: 120, background: 'linear-gradient(to top, #091421 0%, transparent 100%)' }}
+            style={{ 
+              height: 280, 
+              background: 'linear-gradient(to top, #091421 0%, rgba(9,20,33,0.8) 25%, transparent 100%)' 
+            }}
           />
         </div>
 

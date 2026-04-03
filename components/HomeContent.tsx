@@ -2,10 +2,7 @@
 import React, { useState } from 'react'
 
 // ── Palette — matches AeroVista design system exactly ─────────────────────────
-const BASE   = '#091421'   // surface          — matches sticky floor
-const LOW    = '#121c29'   // surface-container-low — alternate sections
-const DEEP   = '#050f1b'   // surface-container-lowest — FAQ
-const BORDER = 'rgba(68,71,78,0.18)'
+const BASE   = '#091421'   // surface — matches sticky floor & shared canvas
 
 // Text tokens from AeroVista
 const T_SURFACE  = '#d9e3f6'  // on-surface  — primary headings (h2)
@@ -13,156 +10,73 @@ const T_BLUE100  = '#dbeafe'  // blue-100    — sub-headings, stats, FAQ Qs
 const T_MUTED    = '#c4c6cf'  // on-surface-variant — body copy
 const T_PRIMARY  = '#aec7f7'  // primary     — accent, labels
 
-// ── Eyebrow label ─────────────────────────────────────────────────────────────
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="inline-block font-sans font-semibold tracking-[0.4em] uppercase mb-6"
-      style={{ fontSize: 10, color: T_PRIMARY }}
-    >
-      {children}
-    </div>
-  )
-}
-
 // ── Section 1: Aircraft Showcase ──────────────────────────────────────────────
 function AircraftShowcase() {
   return (
-    <section style={{ background: BASE }} className="pt-10 pb-28 px-6 md:px-12 lg:px-20">
-      <div className="max-w-6xl mx-auto flex flex-col gap-5">
+    <section className="relative pt-28 pb-28 px-6 md:px-12 lg:px-20">
+      {/* Soft gradient wipe effect to smoothly blend the hero frame into the solid navy section */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: `linear-gradient(to bottom, transparent 0%, ${BASE} 180px, ${BASE} 100%)` }}
+        aria-hidden="true"
+      />
+      <div className="relative z-10 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-12 lg:gap-20 items-center">
+        
+        {/* Left Side: Aircraft Visual */}
+        <div className="relative rounded-xl bg-[#091421] border border-white/5 w-full aspect-square md:aspect-[4/3] lg:aspect-square overflow-hidden shadow-2xl">
+          {/* Main Aircraft Image - To swap this image, change the 'src' path below */}
+          <img 
+            src="/Cessna-172.webp" 
+            alt="Featured Aircraft: Cessna 172 Skyhawk" 
+            className="absolute inset-0 w-full h-full object-cover object-center"
+          />
+        </div>
 
-        {/* Header row */}
-        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 mb-4">
-          <div>
-            <Eyebrow>Iconic Aviation</Eyebrow>
-            <h2
-              className="font-serif text-[3rem] md:text-[3.75rem] font-normal leading-[1.05] tracking-tight"
-              style={{ color: T_SURFACE }}
-            >
-              The Skyhawk{' '}
-              <span className="italic opacity-80">Spotlight</span>
-            </h2>
-          </div>
-          <p className="font-sans text-sm leading-relaxed max-w-[260px] lg:text-right" style={{ color: T_MUTED }}>
-            More than an aircraft, the Cessna 172 is the gold standard for
-            precision, stability, and pilot confidence.
+        {/* Right Side: Editorial Block */}
+        <div className="flex flex-col">
+          <p className="font-sans font-semibold tracking-[0.14em] uppercase mb-4" style={{ fontSize: '0.65rem', color: T_PRIMARY, opacity: 0.9 }}>
+            Featured Aircraft
           </p>
-        </div>
-
-        {/* Image + stat cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-
-          {/* Aircraft image */}
-          <div
-            className="lg:col-span-3 relative min-h-[260px] md:min-h-[340px] rounded-xl overflow-hidden flex items-end"
-            style={{ background: LOW, border: `1px solid ${BORDER}` }}
+          <h2 className="font-serif text-[2.75rem] md:text-5xl lg:text-[4rem] font-normal leading-[1.05] tracking-tight mb-12" style={{ color: T_SURFACE }}>
+            Cessna 172 <br />
+            Skyhawk
+          </h2>
+          
+          {/* Specs Grid */}
+          <div 
+            className="grid grid-cols-2 rounded-xl mb-12"
+            style={{ 
+              background: '#121c29',
+              border: '1px solid rgba(255,255,255,0.03)'
+            }}
           >
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="rgba(174,199,247,0.12)" />
-              </svg>
-              <p className="font-sans uppercase tracking-[0.22em]" style={{ fontSize: 9, color: 'rgba(174,199,247,0.22)' }}>
-                Aircraft Image
-              </p>
+            {/* Range */}
+            <div className="p-7 md:p-9 border-b border-r border-white/5">
+               <p className="font-sans text-[0.62em] uppercase tracking-[0.15em] mb-2.5" style={{ color: 'rgba(255,255,255,0.45)' }}>Range</p>
+               <p className="font-serif text-[1.4rem]" style={{ color: T_BLUE100 }}>640 nm</p>
             </div>
-            {/* Caption */}
-            <div className="relative z-10 w-full px-5 pb-5">
-              <div
-                className="inline-flex items-center rounded-full px-3 py-1 mb-2"
-                style={{ background: 'rgba(9,20,33,0.80)', border: `1px solid ${BORDER}` }}
-              >
-                <span className="font-sans font-semibold tracking-[0.28em] uppercase" style={{ fontSize: 8, color: 'rgba(174,199,247,0.65)' }}>
-                  Primary Fleet
-                </span>
-              </div>
-              <p className="font-serif text-[1.05rem] font-normal italic" style={{ color: T_SURFACE }}>
-                Cessna 172S Skyhawk SP
-              </p>
+            {/* Cruise Speed */}
+            <div className="p-7 md:p-9 border-b border-white/5">
+               <p className="font-sans text-[0.62em] uppercase tracking-[0.15em] mb-2.5" style={{ color: 'rgba(255,255,255,0.45)' }}>Cruise Speed</p>
+               <p className="font-serif text-[1.4rem]" style={{ color: T_BLUE100 }}>124 ktas</p>
+            </div>
+            {/* Occupancy */}
+            <div className="p-7 md:p-9 border-r border-white/5">
+               <p className="font-sans text-[0.62em] uppercase tracking-[0.15em] mb-2.5" style={{ color: 'rgba(255,255,255,0.45)' }}>Occupancy</p>
+               <p className="font-serif text-[1.4rem]" style={{ color: T_BLUE100 }}>4 Adults</p>
+            </div>
+            {/* Avionics */}
+            <div className="p-7 md:p-9">
+               <p className="font-sans text-[0.62em] uppercase tracking-[0.15em] mb-2.5" style={{ color: 'rgba(255,255,255,0.45)' }}>Avionics</p>
+               <p className="font-serif text-[1.4rem]" style={{ color: T_BLUE100 }}>G1000 NXi</p>
             </div>
           </div>
 
-          {/* Stat cards */}
-          <div className="lg:col-span-2 flex flex-row lg:flex-col gap-4">
-
-            <div
-              className="flex-1 rounded-xl p-6 flex flex-col justify-between"
-              style={{ background: LOW, border: `1px solid ${BORDER}` }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(174,199,247,0.55)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 6v6l4 2" />
-              </svg>
-              <div className="mt-6">
-                <p className="font-serif font-normal leading-none tracking-tight" style={{ fontSize: '2.4rem', color: T_BLUE100 }}>
-                  124 <span style={{ fontSize: '1.3rem', color: T_PRIMARY }}>kts</span>
-                </p>
-                <p className="font-sans font-semibold tracking-[0.28em] uppercase mt-1.5" style={{ fontSize: 9, color: 'rgba(174,199,247,0.45)' }}>
-                  Max Cruise Speed
-                </p>
-              </div>
-            </div>
-
-            <div
-              className="flex-1 rounded-xl p-6 flex flex-col justify-between"
-              style={{ background: 'rgba(174,199,247,0.08)', border: '1px solid rgba(174,199,247,0.22)' }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(174,199,247,0.80)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M12 2v20M12 2l-3 5m3-5l3 5M12 22l-3-5m3 5l3-5" />
-              </svg>
-              <div className="mt-6">
-                <p className="font-serif font-normal leading-none tracking-tight" style={{ fontSize: '2.4rem', color: T_BLUE100 }}>
-                  14,000 <span style={{ fontSize: '1.1rem', color: T_PRIMARY }}>ft</span>
-                </p>
-                <p className="font-sans font-semibold tracking-[0.28em] uppercase mt-1.5" style={{ fontSize: 9, color: 'rgba(174,199,247,0.55)' }}>
-                  Service Ceiling
-                </p>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        {/* Performance metrics + avionics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-          <div className="rounded-xl p-7" style={{ background: LOW, border: `1px solid ${BORDER}` }}>
-            <p className="font-sans font-semibold tracking-[0.32em] uppercase mb-5" style={{ fontSize: 9, color: 'rgba(174,199,247,0.45)' }}>
-              Performance Metrics
-            </p>
-            <div className="flex flex-col" style={{ borderTop: `1px solid ${BORDER}` }}>
-              {([
-                { label: 'Range',       value: '640 nm'  },
-                { label: 'Useful Load', value: '830 lbs' },
-                { label: 'Fuel Cap',    value: '53 gal'  },
-              ] as const).map((row) => (
-                <div key={row.label} className="flex items-center justify-between py-3.5" style={{ borderBottom: `1px solid ${BORDER}` }}>
-                  <span className="font-sans text-sm" style={{ color: T_MUTED }}>{row.label}</span>
-                  <span className="font-serif text-base italic" style={{ color: T_PRIMARY }}>{row.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="relative rounded-xl p-7 overflow-hidden" style={{ background: LOW, border: `1px solid ${BORDER}` }}>
-            <div className="absolute right-5 bottom-5 opacity-[0.05]">
-              <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="rgba(174,199,247,1)" strokeWidth="0.7" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />
-                <path d="M12 2v4M12 18v4M2 12h4M18 12h4M12 7l1.5 3.5L17 12l-3.5 1.5L12 17l-1.5-3.5L7 12l3.5-1.5z" />
-              </svg>
-            </div>
-            <div className="relative z-10">
-              <p className="font-sans font-semibold tracking-[0.32em] uppercase mb-4" style={{ fontSize: 9, color: 'rgba(174,199,247,0.45)' }}>
-                Precision Instrument
-              </p>
-              <h3 className="font-serif text-[1.6rem] font-normal leading-tight mb-3" style={{ color: T_BLUE100 }}>
-                Garmin G1000 NXi
-              </h3>
-              <p className="font-sans text-sm leading-relaxed" style={{ color: T_MUTED }}>
-                The latest in glass cockpit technology, bringing commercial-grade
-                situational awareness to your fingertips.
-              </p>
-            </div>
-          </div>
-
+          <p className="font-sans text-[0.95rem] leading-[1.8] max-w-[480px]" style={{ color: T_MUTED, opacity: 0.85 }}>
+            The world's most trusted flight training and personal aircraft.
+            Refined for the modern era with integrated flight decks and
+            unmatched reliability.
+          </p>
         </div>
       </div>
     </section>
@@ -180,10 +94,21 @@ function FlightManifest() {
   ]
 
   return (
-    <section style={{ background: LOW }} className="py-28 px-6 md:px-12 lg:px-20">
-      <div className="max-w-6xl mx-auto">
+    <section className="relative py-24 px-6 md:px-12 lg:px-20 overflow-hidden">
+      {/* Soft upward blue haze — airy, process-energy feel */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0"
+        style={{ background: 'radial-gradient(ellipse 140% 70% at 50% 0%, rgba(174,199,247,0.07) 0%, transparent 70%)' }}
+      />
+      {/* Faint linear tint reinforcing the top brightening */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0"
+        style={{ background: 'linear-gradient(to bottom, rgba(174,199,247,0.04) 0%, transparent 45%)' }}
+      />
 
-        <div className="text-center mb-20">
+      <div className="relative z-10 max-w-6xl mx-auto">
+
+        <div className="text-center mb-16">
           <h2 className="font-serif text-5xl font-normal leading-tight mb-3" style={{ color: T_SURFACE }}>
             Flight Manifest
           </h2>
@@ -192,12 +117,12 @@ function FlightManifest() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-8 md:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-8 md:gap-6 relative z-20">
           {steps.map((step) => (
             <div key={step.n}>
               <div
                 className="font-serif font-normal mb-3 leading-none select-none"
-                style={{ fontSize: '3.75rem', color: 'rgba(174,199,247,0.20)' }}
+                style={{ fontSize: '3.75rem', color: 'rgba(174,199,247,0.18)' }}
               >
                 {step.n}
               </div>
@@ -219,10 +144,35 @@ function FlightManifest() {
 // ── Section 3: The Licensed Pilot ─────────────────────────────────────────────
 function LicensedPilot() {
   return (
-    <section className="relative py-36 px-6 md:px-12 lg:px-20 overflow-hidden" style={{ background: BASE }}>
+    <section className="relative py-32 px-6 md:px-12 lg:px-20 overflow-hidden">
+      {/* 1. Background Image */}
+      <div 
+        className="absolute inset-0 pointer-events-none z-0 bg-cover bg-[center_right_10%]"
+        style={{ backgroundImage: 'url("/exclusivePilot.webp")' }}
+      />
+      
+      {/* 2. Base Dark/Navy Overlay (overall mood) */}
       <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: 'linear-gradient(to right, rgba(9,20,33,0.0) 0%, rgba(12,24,38,0.6) 100%)' }}
+        className="absolute inset-0 pointer-events-none z-0"
+        style={{ backgroundColor: 'rgba(4, 11, 22, 0.35)' }}
+      />
+
+      {/* 3. Directional Gradient: Darker on the left for text readability, fading to right */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0"
+        style={{ background: 'linear-gradient(to right, #091421 0%, rgba(9,20,33, 0.85) 45%, rgba(9,20,33, 0.1) 100%)' }}
+      />
+      
+      {/* 4. Cinematic Soft Blue Glow */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0 mix-blend-screen"
+        style={{ background: 'radial-gradient(ellipse 70% 80% at 75% 50%, rgba(30, 64, 120, 0.35) 0%, transparent 70%)' }}
+      />
+
+      {/* 5. Top and Bottom soft fade to blend seamlessly with adjacent BASE block */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0"
+        style={{ background: 'linear-gradient(to bottom, #091421 0%, transparent 12%, transparent 88%, #091421 100%)' }}
       />
 
       <div className="relative z-10 max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-16">
@@ -299,8 +249,14 @@ function MaintenanceTrust() {
   ]
 
   return (
-    <section style={{ background: BASE }} className="py-28 px-6 md:px-12 lg:px-20">
-      <div className="max-w-6xl mx-auto">
+    <section className="relative pt-24 pb-36 px-6 md:px-12 lg:px-20 overflow-hidden">
+      {/* Soft illuminated field — cards feel embedded and supported */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0"
+        style={{ background: 'radial-gradient(ellipse 90% 60% at 50% 55%, rgba(174,199,247,0.055) 0%, transparent 70%)' }}
+      />
+
+      <div className="relative z-10 max-w-6xl mx-auto">
 
         <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-8 mb-16">
           <div className="max-w-xl">
@@ -313,25 +269,26 @@ function MaintenanceTrust() {
             </p>
           </div>
           <div className="shrink-0 hidden md:flex items-center gap-4">
-            <div className="h-px w-24" style={{ background: BORDER }} />
+            <div className="h-px w-24" style={{ background: 'rgba(255,255,255,0.1)' }} />
             <span className="font-sans font-bold tracking-widest uppercase" style={{ fontSize: 10, color: T_PRIMARY }}>
               Safety First
             </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: '2px' }}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {cards.map((card) => (
             <div
               key={card.label}
-              className="p-10 transition-colors duration-200"
-              style={{ background: LOW }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#1a2a3a' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = LOW }}
+              className="p-10 rounded-2xl relative group overflow-hidden transition-all duration-300"
+              style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}
             >
-              <div className="mb-7">{card.icon}</div>
-              <h3 className="font-serif text-2xl font-normal mb-3" style={{ color: T_BLUE100 }}>{card.label}</h3>
-              <p className="font-sans text-sm leading-relaxed" style={{ color: T_MUTED }}>{card.sub}</p>
+              <div className="absolute inset-0 bg-gradient-to-b from-[rgba(174,199,247,0.04)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+              <div className="relative z-10">
+                <div className="mb-7">{card.icon}</div>
+                <h3 className="font-serif text-2xl font-normal mb-3" style={{ color: T_BLUE100 }}>{card.label}</h3>
+                <p className="font-sans text-sm leading-relaxed" style={{ color: T_MUTED }}>{card.sub}</p>
+              </div>
             </div>
           ))}
         </div>
@@ -361,22 +318,37 @@ function AviationFAQ() {
   ]
 
   return (
-    <section style={{ background: DEEP }} className="py-28 px-6 md:px-12 lg:px-20">
-      <div className="max-w-3xl mx-auto">
+    <section className="relative py-32 px-6 md:px-12 lg:px-20 overflow-hidden">
+      {/* Slight darkening wash — intentionally subdued, calmer than surrounding sections */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0"
+        style={{ background: 'linear-gradient(to bottom, rgba(3,7,15,0.35) 0%, rgba(3,7,15,0.35) 100%)' }}
+      />
+      {/* Very faint centred glow so it doesn't disappear into flat navy */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0"
+        style={{ background: 'radial-gradient(ellipse 70% 50% at 50% 50%, rgba(174,199,247,0.025) 0%, transparent 65%)' }}
+      />
 
-        <h2 className="font-serif text-5xl font-normal italic text-center mb-14 tracking-tight" style={{ color: T_SURFACE }}>
+      {/* Grid overlaps slightly upwards to interlock the sections */}
+      <div className="relative z-20 max-w-3xl mx-auto -mt-6">
+
+        <h2 className="font-serif text-5xl font-normal italic text-center mb-16 tracking-tight" style={{ color: T_SURFACE }}>
           Aviation Inquiries
         </h2>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5">
           {items.map((item, i) => (
             <div
               key={i}
-              className="rounded-lg overflow-hidden transition-colors duration-300"
-              style={{ background: open === i ? LOW : 'rgba(9,20,33,0.40)' }}
+              className="rounded-xl overflow-hidden transition-all duration-300 backdrop-blur-sm"
+              style={{ 
+                background: open === i ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.01)',
+                border: open === i ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.03)'
+              }}
             >
               <button
-                className="w-full flex justify-between items-center text-left px-6 py-5 gap-4"
+                className="w-full flex justify-between items-center text-left px-7 py-6 gap-4 outline-none"
                 onClick={() => setOpen(open === i ? null : i)}
               >
                 <span className="font-serif text-xl font-normal leading-snug" style={{ color: T_BLUE100 }}>{item.q}</span>
@@ -390,13 +362,15 @@ function AviationFAQ() {
                   <path d="M6 9l6 6 6-6" />
                 </svg>
               </button>
-              {open === i && (
-                <div className="px-6 pb-6" style={{ borderTop: `1px solid ${BORDER}` }}>
-                  <p className="font-sans text-sm leading-relaxed pt-5" style={{ color: T_MUTED }}>
+              <div 
+                className={`px-7 overflow-hidden transition-all duration-300 ${open === i ? 'max-h-48 pb-7 opacity-100' : 'max-h-0 pb-0 opacity-0'}`}
+              >
+                <div className="pt-5 border-t border-white/5">
+                  <p className="font-sans text-sm leading-relaxed" style={{ color: T_MUTED }}>
                     {item.a}
                   </p>
                 </div>
-              )}
+              </div>
             </div>
           ))}
         </div>
@@ -409,13 +383,19 @@ function AviationFAQ() {
 // ── Section 6: Your Clearance Awaits ──────────────────────────────────────────
 function ClearanceAwaits() {
   return (
-    <section className="relative py-44 px-6 md:px-12 lg:px-20 text-center overflow-hidden" style={{ background: LOW }}>
+    <section className="relative pt-36 pb-48 px-6 md:px-12 lg:px-20 text-center overflow-hidden">
+      {/* Bright centred glow — the emotional close of the page, feathered dark edges */}
       <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(circle at center, rgba(174,199,247,0.06) 0%, transparent 70%)' }}
+        className="absolute inset-0 pointer-events-none z-0"
+        style={{ background: 'radial-gradient(circle at center, rgba(174,199,247,0.16) 0%, rgba(174,199,247,0.05) 40%, transparent 70%)' }}
+      />
+      {/* Dark vignette at edges to frame and contain the glow */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0"
+        style={{ background: 'radial-gradient(ellipse 120% 100% at 50% 50%, transparent 40%, rgba(3,7,15,0.55) 100%)' }}
       />
       <div className="relative z-10 max-w-3xl mx-auto">
-        <h2 className="font-serif text-7xl font-normal leading-[1.02] tracking-tight mb-6" style={{ color: T_SURFACE }}>
+        <h2 className="font-serif text-7xl font-normal leading-[1.02] tracking-tight mb-8" style={{ color: T_SURFACE }}>
           Your clearance awaits.
         </h2>
         <p className="font-sans text-xl mb-12" style={{ color: T_MUTED }}>
@@ -440,12 +420,23 @@ function ClearanceAwaits() {
 export default function HomeContent() {
   return (
     <>
+      {/* The Image World */}
       <AircraftShowcase />
-      <FlightManifest />
-      <LicensedPilot />
-      <MaintenanceTrust />
-      <AviationFAQ />
-      <ClearanceAwaits />
+      
+      {/* 
+        The Navy World Shared Canvas
+        This opaque wrapper starts strictly after AircraftShowcase, acting as a solid floor 
+        which permanently ends the hero photographic image bleed. 
+        Because AircraftShowcase already fades fully into BASE at its bottom, this transition 
+        is organically seamless.
+      */}
+      <div className="relative z-20 w-full" style={{ backgroundColor: BASE }}>
+        <FlightManifest />
+        <LicensedPilot />
+        <MaintenanceTrust />
+        <AviationFAQ />
+        <ClearanceAwaits />
+      </div>
     </>
   )
 }

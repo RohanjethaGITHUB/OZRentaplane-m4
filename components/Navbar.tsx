@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from 'react'
 
 const NAV_LINKS = [
-  { label: 'Fleet', href: '#fleet' },
-  { label: 'How It Works', href: '#how-it-works' },
-  { label: 'Membership', href: '#who-its-for' },
-  { label: 'Safety', href: '#safety' },
-  { label: 'Support', href: '#booking' },
+  { label: 'Fleet', href: '/fleet' },
+  { label: 'Pilot Requirements', href: '/pilotRequirements' },
+  { label: 'How It Works', href: '/#how-it-works' },
+  { label: 'Membership', href: '/#who-its-for' },
+  { label: 'Safety', href: '/#safety' },
+  { label: 'Support', href: '/#booking' },
 ]
 
 export default function Navbar() {
