@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l public/seq-*/ezgif-frame-*)"
+    ]
+  }
+}
