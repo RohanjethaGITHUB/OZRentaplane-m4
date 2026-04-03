@@ -6,7 +6,7 @@ import { motion, useInView } from 'framer-motion'
 // ── Animation variants ────────────────────────────────────────────────────────
 const fadeSlide = (dir: -1 | 1) => ({
   hidden:  { opacity: 0, x: dir * 18, y: 8 },
-  visible: { opacity: 1, x: 0,        y: 0, transition: { duration: 0.72, ease: [0.33, 1, 0.68, 1] } },
+  visible: { opacity: 1, x: 0,        y: 0, transition: { duration: 0.72, ease: [0.33, 1, 0.68, 1] as [number, number, number, number] } },
 })
 
 const tileContainer = {
@@ -16,7 +16,7 @@ const tileContainer = {
 
 const tileItem = {
   hidden:  { opacity: 0, y: 13 },
-  visible: { opacity: 1, y: 0,  transition: { duration: 0.52, ease: [0.33, 1, 0.68, 1] } },
+  visible: { opacity: 1, y: 0,  transition: { duration: 0.52, ease: [0.33, 1, 0.68, 1] as [number, number, number, number] } },
 }
 
 // ── Process steps ─────────────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ export default function HowItWorksSection() {
           className="font-serif text-[1.85rem] sm:text-[2.35rem] md:text-[2.8rem] font-black text-oz-text leading-[1.07] tracking-tight text-center mb-14 md:mb-16"
           initial={{ opacity: 0, y: 10 }}
           animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
-          transition={{ duration: 0.62, delay: 0.09, ease: [0.33, 1, 0.68, 1] }}
+          transition={{ duration: 0.62, delay: 0.09, ease: [0.33, 1, 0.68, 1] as [number, number, number, number] }}
         >
           From approval to takeoff,<br className="hidden sm:block" /> kept simple.
         </motion.h2>
