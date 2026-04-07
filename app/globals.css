@@ -12,10 +12,14 @@ html {
 }
 
 body {
-  background-color: #00132f;
+  background-color: #091421;
   color: #d6e3ff;
   font-family: var(--font-manrope);
   overflow-x: hidden;
+}
+
+html {
+  background-color: #091421;
 }
 
 /* Canvas hero fill */
