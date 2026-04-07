@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;700&amp;family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary-fixed-dim": "#aec7f7",
+                    "surface-bright": "#303a48",
+                    "on-primary-fixed-variant": "#2e476f",
+                    "on-tertiary-fixed-variant": "#294a5f",
+                    "surface-variant": "#2b3544",
+                    "on-tertiary-container": "#81a3bb",
+                    "surface-dim": "#091421",
+                    "error": "#ffb4ab",
+                    "secondary-container": "#1b4b78",
+                    "on-surface-variant": "#c4c6cf",
+                    "on-secondary": "#003258",
+                    "surface-container-highest": "#2b3544",
+                    "inverse-on-surface": "#27313f",
+                    "tertiary-fixed-dim": "#a9cbe4",
+                    "inverse-primary": "#465f88",
+                    "primary-container": "#1b365d",
+                    "primary": "#aec7f7",
+                    "on-tertiary": "#0e3448",
+                    "primary-fixed": "#d6e3ff",
+                    "tertiary": "#a9cbe4",
+                    "surface": "#091421",
+                    "surface-container-lowest": "#050f1b",
+                    "on-tertiary-fixed": "#001e2e",
+                    "tertiary-fixed": "#c7e7ff",
+                    "secondary-fixed": "#d1e4ff",
+                    "on-secondary-fixed": "#001d36",
+                    "surface-container-high": "#212b38",
+                    "on-secondary-container": "#91bcef",
+                    "background": "#091421",
+                    "tertiary-container": "#15394d",
+                    "secondary-fixed-dim": "#a0cafe",
+                    "on-primary-container": "#87a0cd",
+                    "on-background": "#d9e3f6",
+                    "secondary": "#a0cafe",
+                    "on-error-container": "#ffdad6",
+                    "on-error": "#690005",
+                    "inverse-surface": "#d9e3f6",
+                    "error-container": "#93000a",
+                    "surface-tint": "#aec7f7",
+                    "surface-container-low": "#121c29",
+                    "on-surface": "#d9e3f6",
+                    "surface-container": "#16202e",
+                    "outline-variant": "#44474e",
+                    "on-primary": "#143057",
+                    "outline": "#8e9099",
+                    "on-secondary-fixed-variant": "#184975",
+                    "on-primary-fixed": "#001b3d"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Newsreader"],
+                    "body": ["Manrope"],
+                    "label": ["Manrope"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Manrope', sans-serif; background-color: #091421; color: #d9e3f6; }
+        .font-serif { font-family: 'Newsreader', serif; }
+        .atmospheric-gradient {
+            background: radial-gradient(circle at 50% -20%, #1b365d 0%, #091421 60%);
+        }
+        .arc-decoration {
+            border-top: 1px solid rgba(174, 199, 247, 0.1);
+            border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+        }
+        .mist-fade {
+            mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+        }
+        .contour-lines {
+            background-image: radial-gradient(circle at 2px 2px, rgba(174, 199, 247, 0.05) 1px, transparent 0);
+            background-size: 40px 40px;
+        }
+    </style>
+</head>
+<body class="selection:bg-primary selection:text-on-primary overflow-x-hidden">
+<!-- Top Navigation Shell -->
+<nav class="fixed top-0 w-full z-50 bg-[#091421]/80 backdrop-blur-xl transition-all duration-300">
+<div class="flex justify-between items-center px-12 py-6 w-full max-w-[1440px] mx-auto">
+<div class="text-2xl font-serif italic text-[#aec7f7] tracking-tight">OZRentAPlane</div>
+<div class="hidden md:flex items-center gap-10">
+<a class="text-[#aec7f7] border-b-2 border-[#aec7f7] pb-1 hover:text-white transition-colors duration-300 font-body text-sm font-medium" href="#">Fleet</a>
+<a class="text-[#c4c6cf] hover:text-white transition-colors duration-300 font-body text-sm font-medium" href="#">Charters</a>
+<a class="text-[#c4c6cf] hover:text-white transition-colors duration-300 font-body text-sm font-medium" href="#">Membership</a>
+<a class="text-[#c4c6cf] hover:text-white transition-colors duration-300 font-body text-sm font-medium" href="#">Safety</a>
+<a class="text-[#c4c6cf] hover:text-white transition-colors duration-300 font-body text-sm font-medium" href="#">Journal</a>
+</div>
+<button class="bg-gradient-to-br from-primary to-primary-container text-on-primary px-8 py-2.5 rounded-md font-body font-bold text-sm shadow-lg scale-95 active:opacity-80 transition-all">
+                Book Now
+            </button>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="relative">
+<!-- Hero Section -->
+<section class="relative min-h-screen flex flex-col justify-center px-12 pt-20 atmospheric-gradient">
+<div class="absolute inset-0 z-0 overflow-hidden">
+<img alt="Cinematic wide shot of a sunset sky with soft altocumulus clouds and a faint aircraft silhouette on the horizon" class="w-full h-full object-cover opacity-40 mix-blend-luminosity" data-alt="cinematic sunset sky with soft altocumulus clouds and a faint aircraft silhouette on the distant horizon at high altitude" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAr1_fhqAAfVPYcbERUqpud-tAvGBA_cMfh3b1-BM5up5F2iKn2qlbpohlhqy5B5E6b9WB2srOd365iiEvoZfd4uTN2H1d7pLYIRpdrtkcFHcKD9gWm_9Vr_LdjswX0B9KO8KhxBOqZnqIAGgzbZnjr2BV_HyCOl3YCtsiNK_tTmYxhh2p0GagNCKRNScNEZnmDi0fCjQY_zMZdoxXPjgnB01PQSAVMgKxmb6HygZfEjAc_1M7LYrTWg7wKcLFcXWsFEbHI0HaPuY8"/>
+<div class="absolute inset-0 bg-gradient-to-b from-transparent via-[#091421]/40 to-[#091421]"></div>
+</div>
+<div class="relative z-10 max-w-[1440px] mx-auto w-full">
+<div class="max-w-4xl">
+<h1 class="text-7xl md:text-8xl font-serif text-primary leading-[1.1] tracking-tight mb-8">
+                        The sky is no longer <br/>
+<span class="italic text-on-surface">a destination.</span>
+</h1>
+<p class="text-on-surface-variant font-body text-xl max-w-xl mb-12 leading-relaxed">
+                        Access a curated fleet of high-performance aircraft. From regional hops to transcontinental journeys, redefine your perspective with OZRentAPlane.
+                    </p>
+<div class="flex items-center gap-8">
+<button class="bg-primary text-on-primary px-10 py-4 rounded-md font-bold text-lg hover:brightness-110 transition-all shadow-[0_0_30px_rgba(174,199,247,0.3)]">
+                            Begin Exploration
+                        </button>
+<button class="text-primary font-bold flex items-center gap-2 group">
+                            View the Fleet 
+                            <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Instrument Motif Arc -->
+<div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-[120%] h-64 arc-decoration opacity-20 pointer-events-none"></div>
+</section>
+<!-- Aircraft Spotlight: Cessna 172 -->
+<section class="relative py-32 px-12 overflow-hidden bg-surface">
+<div class="max-w-[1440px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
+<div class="lg:col-span-7 relative group">
+<!-- Layered Translucent Surfaces -->
+<div class="absolute -inset-10 bg-primary/5 rounded-full blur-[100px] opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
+<img alt="close up of a Cessna 172 propeller and cockpit cowling in soft morning light on a tarmac" class="w-full aspect-[4/3] object-cover rounded-xl shadow-2xl relative z-10 grayscale hover:grayscale-0 transition-all duration-700" data-alt="close up of a Cessna 172 propeller and sleek cockpit cowling reflecting soft morning blue light on an airfield tarmac" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAOIAGXyu5_T1OSdT7WzXq6Cy2Qj26cAVZKxl1G86vzSz4Kt5bEg0C9uTtXOkknNEZPic5YiRSHkPftcIXJuryRrJt8XP-lNql9ULa7TcahYJxYm_LZ88hUsc_QFiz-Bx1f1UapYGZOpPB-j0oSavDzbV1ijLMd-BAb2jEYkrM9Aoy_JF8K2JvR_uxRKEHY73pYzNo-jUqbmd6BTFt8vaznnu8KCLQGrgIGS2n2-IDgAjlXWnAUyjkzR3aOOE-t-9AeC6AGxWcpy_U"/>
+</div>
+<div class="lg:col-span-5 space-y-12">
+<div class="space-y-4">
+<span class="font-body text-primary text-sm uppercase tracking-widest font-bold">Featured Aircraft</span>
+<h2 class="font-serif text-5xl text-on-surface">Cessna 172 <br/>Skyhawk</h2>
+</div>
+<div class="grid grid-cols-2 gap-px bg-outline-variant/10 p-px rounded-xl overflow-hidden backdrop-blur-sm bg-surface-container-low/50">
+<div class="p-8 bg-surface-container-high/30">
+<span class="block text-on-surface-variant text-xs uppercase tracking-tighter mb-1">Range</span>
+<span class="text-2xl font-serif text-primary">640 nm</span>
+</div>
+<div class="p-8 bg-surface-container-high/30">
+<span class="block text-on-surface-variant text-xs uppercase tracking-tighter mb-1">Cruise Speed</span>
+<span class="text-2xl font-serif text-primary">124 ktas</span>
+</div>
+<div class="p-8 bg-surface-container-high/30">
+<span class="block text-on-surface-variant text-xs uppercase tracking-tighter mb-1">Occupancy</span>
+<span class="text-2xl font-serif text-primary">4 Adults</span>
+</div>
+<div class="p-8 bg-surface-container-high/30">
+<span class="block text-on-surface-variant text-xs uppercase tracking-tighter mb-1">Avionics</span>
+<span class="text-2xl font-serif text-primary">G1000 NXi</span>
+</div>
+</div>
+<p class="text-on-surface-variant font-body leading-relaxed">
+                        The world's most popular flight training and personal aircraft. Refined for the modern era with integrated flight decks and unmatched reliability.
+                    </p>
+</div>
+</div>
+</section>
+<!-- Process Section: The Scanning Flow -->
+<section class="relative py-48 px-12 bg-surface-container-lowest contour-lines">
+<div class="max-w-[1440px] mx-auto text-center mb-32">
+<h2 class="font-serif text-6xl text-on-surface mb-6">From Ground to Horizon</h2>
+<p class="text-on-surface-variant font-body max-w-2xl mx-auto">A seamless digital hangar designed for the precision required in the cockpit.</p>
+</div>
+<div class="max-w-[1440px] mx-auto grid grid-cols-1 md:grid-cols-5 gap-4 relative">
+<!-- Connective Band -->
+<div class="hidden md:block absolute top-1/2 left-0 w-full h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent -translate-y-1/2"></div>
+<!-- Step 1 -->
+<div class="relative bg-surface-container-low/40 backdrop-blur-md p-10 rounded-2xl border border-outline-variant/10 hover:border-primary/40 transition-all group">
+<div class="w-12 h-12 bg-primary-container rounded-full flex items-center justify-center mb-8 shadow-inner">
+<span class="material-symbols-outlined text-primary" data-icon="app_registration">app_registration</span>
+</div>
+<h3 class="font-serif text-2xl text-on-surface mb-4">Register</h3>
+<p class="text-on-surface-variant text-sm font-body leading-relaxed">Securely onboard your pilot credentials and flight history.</p>
+</div>
+<!-- Step 2 -->
+<div class="relative bg-surface-container-low/40 backdrop-blur-md p-10 rounded-2xl border border-outline-variant/10 hover:border-primary/40 transition-all mt-8 md:mt-12 group">
+<div class="w-12 h-12 bg-primary-container rounded-full flex items-center justify-center mb-8 shadow-inner">
+<span class="material-symbols-outlined text-primary" data-icon="upload_file">upload_file</span>
+</div>
+<h3 class="font-serif text-2xl text-on-surface mb-4">Submit</h3>
+<p class="text-on-surface-variant text-sm font-body leading-relaxed">Upload mission details and flight planning documents.</p>
+</div>
+<!-- Step 3 -->
+<div class="relative bg-surface-container-low/40 backdrop-blur-md p-10 rounded-2xl border border-outline-variant/10 hover:border-primary/40 transition-all group">
+<div class="w-12 h-12 bg-primary-container rounded-full flex items-center justify-center mb-8 shadow-inner">
+<span class="material-symbols-outlined text-primary" data-icon="verified_user">verified_user</span>
+</div>
+<h3 class="font-serif text-2xl text-on-surface mb-4">Approve</h3>
+<p class="text-on-surface-variant text-sm font-body leading-relaxed">Swift verification by our operations and safety team.</p>
+</div>
+<!-- Step 4 -->
+<div class="relative bg-surface-container-low/40 backdrop-blur-md p-10 rounded-2xl border border-outline-variant/10 hover:border-primary/40 transition-all mt-8 md:mt-12 group">
+<div class="w-12 h-12 bg-primary-container rounded-full flex items-center justify-center mb-8 shadow-inner">
+<span class="material-symbols-outlined text-primary" data-icon="calendar_month">calendar_month</span>
+</div>
+<h3 class="font-serif text-2xl text-on-surface mb-4">Book</h3>
+<p class="text-on-surface-variant text-sm font-body leading-relaxed">Reserve your selected tail number across our network.</p>
+</div>
+<!-- Step 5 -->
+<div class="relative bg-surface-container-low/40 backdrop-blur-md p-10 rounded-2xl border border-outline-variant/10 hover:border-primary/40 transition-all group">
+<div class="w-12 h-12 bg-primary-container rounded-full flex items-center justify-center mb-8 shadow-inner">
+<span class="material-symbols-outlined text-primary" data-icon="flight_takeoff">flight_takeoff</span>
+</div>
+<h3 class="font-serif text-2xl text-on-surface mb-4">Fly</h3>
+<p class="text-on-surface-variant text-sm font-body leading-relaxed">Execute your journey with total autonomy and support.</p>
+</div>
+</div>
+</section>
+<!-- Licensed Pilot Section -->
+<section class="relative py-48 px-12 bg-surface overflow-hidden">
+<div class="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[150px] -translate-y-1/2 translate-x-1/2"></div>
+<div class="max-w-[1440px] mx-auto grid grid-cols-1 md:grid-cols-2 gap-24 items-center">
+<div class="order-2 md:order-1">
+<h2 class="font-serif text-5xl text-on-surface mb-8 leading-tight">A Community of <br/><span class="italic">Technical Mastery</span></h2>
+<div class="space-y-8">
+<div class="flex gap-6">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="shield_person">shield_person</span>
+<div>
+<h4 class="font-body font-bold text-lg text-on-surface">Rigorous Vetting</h4>
+<p class="text-on-surface-variant leading-relaxed">Every pilot in the OZRentAPlane network undergoes thorough credential verification and proficiency checks.</p>
+</div>
+</div>
+<div class="flex gap-6">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="precision_manufacturing">precision_manufacturing</span>
+<div>
+<h4 class="font-body font-bold text-lg text-on-surface">Precision Operations</h4>
+<p class="text-on-surface-variant leading-relaxed">Integrated logging and flight data tracking ensure peak operational efficiency for every member.</p>
+</div>
+</div>
+<div class="flex gap-6">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="workspace_premium">workspace_premium</span>
+<div>
+<h4 class="font-body font-bold text-lg text-on-surface">Membership Tiers</h4>
+<p class="text-on-surface-variant leading-relaxed">Curated benefits for professional pilots, instructors, and dedicated enthusiasts.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="order-1 md:order-2 relative">
+<img alt="close up of a pilot's hand on a sleek throttle quadrant in a modern cockpit with ambient blue lighting" class="rounded-3xl shadow-3xl grayscale hover:grayscale-0 transition-all duration-1000 aspect-[5/6] object-cover" data-alt="close up of a professional pilot's hand on a sleek throttle quadrant in a modern dark cockpit with ambient blue digital glow" src="https://lh3.googleusercontent.com/aida-public/AB6AXuApZb0Syt_FMCCSBhqmbzAnpQbSmFSmUusnXzmv6MxCsnFeZ8S6PZ_ottvB9HD4BCkEaONlB-1uSq2jKzKASRwQCI0oNaqcjZHtKiJVwPKR1Mmjlem5FICcYBkh7xe-_RW_Bi2FxtiN83kQEnFtU675TFOnop2wro0SL5E7WQQJEjXoKQjOvLPEdAlBqIaPGxDtz2qCVACq-PtoEPk_8wguxiaJco6oxAJ6YAuOGDFUplgV8V7ZP6EKxJyn8f-IJlRDRm3jAKf9qaY"/>
+<div class="absolute -bottom-10 -left-10 bg-surface-container-high p-8 rounded-2xl shadow-2xl max-w-xs backdrop-blur-xl">
+<span class="font-serif italic text-primary text-3xl italic block mb-2">99.8%</span>
+<p class="text-xs text-on-surface-variant uppercase tracking-widest font-bold">Member Retention Rate</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Safety & Maintenance -->
+<section class="relative py-48 px-12 bg-[#050f1b] overflow-hidden">
+<div class="absolute inset-0 opacity-10 mist-fade">
+<img alt="top down view of mountain ranges shrouded in mist" class="w-full h-full object-cover" data-alt="top down view of rugged mountain ranges partially shrouded in heavy morning mist and altitude haze" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCURMYk2xqpFrddL-qJeFBeMru6Z8W3nFuM3QktoOodB0xeZE1CEN28X8miQoRfsnqRqpjcsJQooRvAeYYQuhOAMkh3iNNF8CA7xxd-EGoYNRuQK6WzkovtmCvDF-zLiyeYqSeuxaRERo09_GuVjzRaTFmvc2yaD1-QrDT0pwtMfO9Wk4vqMLVSSz1jpeu8icTUwBawtDVB9J-x5eT8LQiEm6psS2-0aJP907MeFdMPV0Qkp5m01gUCXhr37EcbI2sh0BE0aqh5B1g"/>
+</div>
+<div class="max-w-[1440px] mx-auto relative z-10">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-32 items-end">
+<div>
+<h2 class="font-serif text-6xl text-on-surface mb-12">Calm in the <br/>Complex.</h2>
+<div class="space-y-12">
+<div class="p-8 border-l border-primary/20 bg-primary/5">
+<h3 class="font-body font-bold text-primary mb-2">Continuous Airworthiness</h3>
+<p class="text-on-surface-variant leading-relaxed">Our fleet follows a proactive maintenance schedule that exceeds regulatory requirements. Every airframe is inspected by certified master technicians.</p>
+</div>
+<div class="p-8 border-l border-primary/20 bg-primary/5">
+<h3 class="font-body font-bold text-primary mb-2">Avionics Standards</h3>
+<p class="text-on-surface-variant leading-relaxed">Standardized G1000 NXi suites across the fleet minimize transition training and maximize situational awareness.</p>
+</div>
+</div>
+</div>
+<div class="relative bg-surface-container-high/40 p-12 rounded-3xl backdrop-blur-2xl">
+<h3 class="font-serif text-3xl mb-8">Safety Dossier</h3>
+<ul class="space-y-6">
+<li class="flex justify-between items-center pb-4 border-b border-outline-variant/10">
+<span class="text-on-surface-variant">Fleet Average Airframe Age</span>
+<span class="font-serif text-primary">3.2 Years</span>
+</li>
+<li class="flex justify-between items-center pb-4 border-b border-outline-variant/10">
+<span class="text-on-surface-variant">Annual Maintenance Hours</span>
+<span class="font-serif text-primary">12,400+</span>
+</li>
+<li class="flex justify-between items-center pb-4 border-b border-outline-variant/10">
+<span class="text-on-surface-variant">Safety Incidents (CY 2023)</span>
+<span class="font-serif text-primary">0</span>
+</li>
+</ul>
+<button class="w-full mt-12 py-4 border border-primary/40 text-primary font-bold rounded-lg hover:bg-primary/10 transition-all">
+                            View Maintenance Protocol
+                        </button>
+</div>
+</div>
+</div>
+</section>
+<!-- FAQ & Final CTA -->
+<section class="relative py-48 px-12 bg-surface text-center">
+<div class="max-w-4xl mx-auto">
+<span class="font-body text-primary text-sm uppercase tracking-widest font-bold block mb-4">The Final Approach</span>
+<h2 class="font-serif text-7xl text-on-surface mb-12">Your clearance awaits.</h2>
+<p class="text-on-surface-variant font-body text-xl mb-16 max-w-2xl mx-auto leading-relaxed">
+                    Join the elite network of aviators who demand precision, luxury, and freedom. The sky is ready when you are.
+                </p>
+<div class="flex flex-col md:flex-row gap-6 justify-center items-center">
+<button class="bg-primary text-on-primary px-16 py-5 rounded-md font-bold text-xl shadow-2xl hover:scale-105 transition-transform">
+                        Establish Connection
+                    </button>
+<button class="px-16 py-5 rounded-md font-bold text-xl border border-outline text-on-surface hover:bg-surface-container-high transition-all">
+                        Consult Operations
+                    </button>
+</div>
+<div class="mt-40 grid grid-cols-1 md:grid-cols-2 text-left gap-12 max-w-4xl mx-auto">
+<div>
+<h4 class="font-serif text-2xl mb-4 text-on-surface">Is fuel included in the wet rate?</h4>
+<p class="text-on-surface-variant font-body text-sm">All quoted rates for members are inclusive of fuel at participating regional airports within our network.</p>
+</div>
+<div>
+<h4 class="font-serif text-2xl mb-4 text-on-surface">What license is required?</h4>
+<p class="text-on-surface-variant font-body text-sm">A Private Pilot License (PPL) with current medical and flight review is the baseline requirement for rental.</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer Shell -->
+<footer class="w-full bg-[#121c29] mt-24">
+<div class="flex flex-col md:flex-row justify-between items-center px-12 py-16 w-full max-w-[1440px] mx-auto">
+<div class="mb-12 md:mb-0">
+<div class="text-xl font-serif text-[#aec7f7] mb-2">OZRentAPlane</div>
+<p class="text-[#c4c6cf] font-body text-xs uppercase tracking-tighter">© 2024 OZRentAPlane. Elevating the Stratosphere.</p>
+</div>
+<div class="flex flex-wrap justify-center gap-10">
+<a class="text-[#c4c6cf] hover:text-[#aec7f7] transition-all font-body text-sm" href="#">Privacy Policy</a>
+<a class="text-[#c4c6cf] hover:text-[#aec7f7] transition-all font-body text-sm" href="#">Terms of Service</a>
+<a class="text-[#c4c6cf] hover:text-[#aec7f7] transition-all font-body text-sm" href="#">Fleet Directory</a>
+<a class="text-[#c4c6cf] hover:text-[#aec7f7] transition-all font-body text-sm" href="#">Contact Operations</a>
+</div>
+<div class="mt-12 md:mt-0 flex gap-4">
+<div class="w-10 h-10 rounded-full border border-outline-variant/30 flex items-center justify-center opacity-90 hover:opacity-100 transition-all cursor-pointer">
+<span class="material-symbols-outlined text-sm text-primary" data-icon="public">public</span>
+</div>
+<div class="w-10 h-10 rounded-full border border-outline-variant/30 flex items-center justify-center opacity-90 hover:opacity-100 transition-all cursor-pointer">
+<span class="material-symbols-outlined text-sm text-primary" data-icon="share">share</span>
+</div>
+</div>
+</div>
+</footer>
+</body></html>

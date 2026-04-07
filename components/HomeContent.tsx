@@ -89,53 +89,32 @@ function FlightManifest() {
     { n: '01', label: 'Register',   sub: 'Create your digital profile and upload your pilot credentials for initial review.' },
     { n: '02', label: 'Verify',     sub: 'Swift validation of certificates and ratings by our chief flight instructor.' },
     { n: '03', label: 'Book',       sub: 'Select your aircraft and window using our real-time availability engine.' },
-    { n: '04', label: 'Pre-Flight', sub: 'Digital walkaround logs and weather briefing provided 2 hours before takeoff.' },
+    { n: '04', label: 'Pre-flight', sub: 'Digital walkaround logs and weather briefing provided 2 hours before takeoff.' },
     { n: '05', label: 'Fly',        sub: 'The keys are in the box. Your clearance is active. The sky is yours.' },
   ]
 
   return (
-    <section className="relative py-24 px-6 md:px-12 lg:px-20 overflow-hidden">
-      {/* Soft upward blue haze — airy, process-energy feel */}
-      <div
-        className="absolute inset-0 pointer-events-none z-0"
-        style={{ background: 'radial-gradient(ellipse 140% 70% at 50% 0%, rgba(174,199,247,0.07) 0%, transparent 70%)' }}
-      />
-      {/* Faint linear tint reinforcing the top brightening */}
-      <div
-        className="absolute inset-0 pointer-events-none z-0"
-        style={{ background: 'linear-gradient(to bottom, rgba(174,199,247,0.04) 0%, transparent 45%)' }}
-      />
-
-      <div className="relative z-10 max-w-6xl mx-auto">
-
-        <div className="text-center mb-16">
-          <h2 className="font-serif text-5xl font-normal leading-tight mb-3" style={{ color: T_SURFACE }}>
-            Flight Manifest
-          </h2>
-          <p className="font-sans font-semibold tracking-widest uppercase" style={{ fontSize: 10, color: 'rgba(174,199,247,0.45)' }}>
-            Your path from the gate to the horizon
-          </p>
+    <section className="py-32 bg-[#121c29]">
+      <div className="max-w-7xl mx-auto px-12">
+        <div className="text-center mb-24">
+          <h2 className="font-serif text-5xl mb-4 text-[#d9e3f6]">Flight Manifest</h2>
+          <p className="text-[#c4c6cf] font-sans tracking-widest text-xs uppercase">Your path from the gate to the horizon</p>
         </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-8 md:gap-6 relative z-20">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-12">
           {steps.map((step) => (
-            <div key={step.n}>
-              <div
-                className="font-serif font-normal mb-3 leading-none select-none"
-                style={{ fontSize: '3.75rem', color: 'rgba(174,199,247,0.18)' }}
-              >
+            <div key={step.n} className="relative">
+              <div className="text-[#aec7f7] font-serif text-6xl opacity-20 mb-4">
                 {step.n}
               </div>
-              <h3 className="font-serif text-xl font-normal mb-2" style={{ color: T_BLUE100 }}>
+              <h3 className="font-serif text-xl text-[#dbeafe] mb-2">
                 {step.label}
               </h3>
-              <p className="font-sans text-sm leading-relaxed" style={{ color: T_MUTED, fontSize: '0.78rem' }}>
+              <p className="text-sm text-[#c4c6cf] leading-relaxed font-sans">
                 {step.sub}
               </p>
             </div>
           ))}
         </div>
-
       </div>
     </section>
   )

@@ -1,6 +1,10 @@
 import React from 'react'
+import AircraftSpotlight from '@/components/AircraftSpotlight'
+import FleetGallery from '@/components/FleetGallery'
+import { getFleetImages } from '@/lib/getFleetImages'
 
 export default function Cessna172nPage() {
+  const images = getFleetImages()
   return (
     <main className="min-h-screen bg-[#091421] text-[#d9e3f6]">
       
@@ -49,74 +53,15 @@ export default function Cessna172nPage() {
       {/* ─────────────────────────────────────────────────────────────
           2. Aircraft Spotlight Section
       ──────────────────────────────────────────────────────────────*/}
-      <section className="relative pt-24 pb-32 px-6 md:px-12 lg:px-20 max-w-6xl mx-auto">
-        
-        {/* Section Header */}
-        <div className="text-center mb-24 z-10 relative">
-          <p className="font-sans font-semibold uppercase tracking-[0.25em] text-[0.65rem] text-[#64748b] mb-4">
-            Aircraft Spotlight
-          </p>
-          <h2 className="font-serif text-4xl md:text-5xl font-normal tracking-tight text-[#d9e3f6]">
-            Aircraft Spotlight
-          </h2>
-        </div>
-
-        <div className="relative z-0 mt-12 w-full">
-          
-          {/* Floating Spec Panel - Absolute aligned over top border of the image */}
-          <div className="absolute -top-[4rem] left-1/2 -translate-x-1/2 z-20 flex bg-[#2a3647]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.5)] overflow-hidden divide-x divide-white/5">
-            
-            {/* Cruise Metric */}
-            <div className="px-6 py-5 md:px-10 md:py-7 flex flex-col items-center justify-center text-center">
-              <div className="mb-2 opacity-60 text-white">
-                <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 6v6l4 2" />
-                </svg>
-              </div>
-              <div className="font-serif text-xl md:text-2xl text-[#d9e3f6] mb-1">122 KTAS</div>
-              <div className="font-sans text-[0.6rem] uppercase tracking-widest text-[#94a3b8]">Cruise</div>
-            </div>
-            
-            {/* Range Metric */}
-            <div className="px-6 py-5 md:px-10 md:py-7 flex flex-col items-center justify-center text-center">
-              <div className="mb-2 opacity-60 text-white">
-                <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                </svg>
-              </div>
-              <div className="font-serif text-xl md:text-2xl text-[#d9e3f6] mb-1">640 NM</div>
-              <div className="font-sans text-[0.6rem] uppercase tracking-widest text-[#94a3b8]">Range</div>
-            </div>
-
-            {/* Avionics Metric */}
-            <div className="px-6 py-5 md:px-10 md:py-7 flex flex-col items-center justify-center text-center">
-              <div className="mb-2 opacity-60 text-white">
-                 <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                   <path d="M4 14v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
-                   <path d="M12 14v4M10 16h4M3 9h18" />
-                 </svg>
-              </div>
-              <div className="font-serif text-xl md:text-2xl text-[#d9e3f6] mb-1">Garmin</div>
-              <div className="font-sans text-[0.6rem] uppercase tracking-widest text-[#94a3b8]">Avionics</div>
-            </div>
-
-          </div>
-
-          {/* Main Hangar Image Block */}
-          <div className="w-full aspect-square md:aspect-[21/9] bg-[#0c1827] rounded-2xl overflow-hidden shadow-2xl relative border border-white/5">
-            <img 
-              src="/Cessna-hangar.webp" 
-              alt="Cessna 172N Hangar Spotlight" 
-              className="absolute inset-0 w-full h-full object-cover object-[center_70%] opacity-90 transition-transform duration-700 hover:scale-[1.02]"
-            />
-          </div>
-          
-        </div>
-      </section>
+      <AircraftSpotlight />
 
       {/* ─────────────────────────────────────────────────────────────
-          3. Editorial Section
+          3. Fleet Gallery Section
+      ──────────────────────────────────────────────────────────────*/}
+      <FleetGallery images={images} />
+
+      {/* ─────────────────────────────────────────────────────────────
+          4. Editorial Section
       ──────────────────────────────────────────────────────────────*/}
       <section className="relative py-24 px-6 md:px-12 lg:px-20 max-w-6xl mx-auto border-t border-white/5">
         <div className="mb-16">
@@ -378,8 +323,11 @@ export default function Cessna172nPage() {
             
             {/* Card 1 */}
             <div className="relative rounded-[1.5rem] overflow-hidden aspect-[3/4] md:aspect-[4/5] group shadow-2xl">
-              {/* IMAGE PLACEHOLDER (Swap this div with an <img /> tag when ready) */}
-              <div className="absolute inset-0 bg-gradient-to-br from-[#1a365d] to-[#0c1827] group-hover:scale-105 transition-transform duration-700" />
+              <img 
+                src="/StunningCoastalView.webp" 
+                alt="Scenic Coastal Tours"
+                className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+              />
               
               {/* Gradient Overlay for text readability (Keep this over the image) */}
               <div className="absolute inset-0 bg-gradient-to-t from-[#040810] via-[#040810]/40 to-transparent" />
@@ -395,8 +343,11 @@ export default function Cessna172nPage() {
 
             {/* Card 2 - Offset downwards */}
             <div className="relative rounded-[1.5rem] overflow-hidden aspect-[3/4] md:aspect-[4/5] md:mt-24 group shadow-2xl">
-              {/* IMAGE PLACEHOLDER (Swap this div with an <img /> tag when ready) */}
-              <div className="absolute inset-0 bg-gradient-to-b from-[#2a4365] to-[#0c1827] group-hover:scale-105 transition-transform duration-700" />
+              <img 
+                src="/CockpitRunwayView.webp" 
+                alt="Proficiency Flying"
+                className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+              />
               
               <div className="absolute inset-0 bg-gradient-to-t from-[#040810] via-[#040810]/40 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 p-8">
@@ -411,8 +362,11 @@ export default function Cessna172nPage() {
 
             {/* Card 3 */}
             <div className="relative rounded-[1.5rem] overflow-hidden aspect-[3/4] md:aspect-[4/5] group shadow-2xl">
-              {/* IMAGE PLACEHOLDER (Swap this div with an <img /> tag when ready) */}
-              <div className="absolute inset-0 bg-gradient-to-bl from-[#7c2d12] via-[#431407] to-[#0c1827] opacity-80 group-hover:scale-105 transition-transform duration-700" />
+              <img 
+                src="/CessnaGoldenSunset.webp" 
+                alt="Hour Building"
+                className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+              />
               
               <div className="absolute inset-0 bg-gradient-to-t from-[#040810] via-[#040810]/40 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 p-8">

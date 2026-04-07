@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed": "#001e2e",
+                        "surface-container-high": "#212b38",
+                        "on-secondary-container": "#91bcef",
+                        "on-secondary-fixed": "#001d36",
+                        "secondary-fixed": "#d1e4ff",
+                        "tertiary-fixed": "#c7e7ff",
+                        "tertiary-container": "#15394d",
+                        "secondary-fixed-dim": "#a0cafe",
+                        "on-primary-container": "#87a0cd",
+                        "background": "#091421",
+                        "secondary": "#a0cafe",
+                        "on-error-container": "#ffdad6",
+                        "on-error": "#690005",
+                        "inverse-surface": "#d9e3f6",
+                        "on-background": "#d9e3f6",
+                        "surface-tint": "#aec7f7",
+                        "surface-container-low": "#121c29",
+                        "on-surface": "#d9e3f6",
+                        "error-container": "#93000a",
+                        "on-primary": "#143057",
+                        "surface-container": "#16202e",
+                        "outline-variant": "#44474e",
+                        "outline": "#8e9099",
+                        "on-secondary-fixed-variant": "#184975",
+                        "on-primary-fixed": "#001b3d",
+                        "surface-bright": "#303a48",
+                        "on-primary-fixed-variant": "#2e476f",
+                        "primary-fixed-dim": "#aec7f7",
+                        "surface-variant": "#2b3544",
+                        "on-tertiary-container": "#81a3bb",
+                        "on-tertiary-fixed-variant": "#294a5f",
+                        "secondary-container": "#1b4b78",
+                        "error": "#ffb4ab",
+                        "surface-dim": "#091421",
+                        "surface-container-highest": "#2b3544",
+                        "inverse-on-surface": "#27313f",
+                        "on-surface-variant": "#c4c6cf",
+                        "on-secondary": "#003258",
+                        "primary-container": "#1b365d",
+                        "tertiary-fixed-dim": "#a9cbe4",
+                        "inverse-primary": "#465f88",
+                        "on-tertiary": "#0e3448",
+                        "primary": "#aec7f7",
+                        "tertiary": "#a9cbe4",
+                        "surface": "#091421",
+                        "primary-fixed": "#d6e3ff",
+                        "surface-container-lowest": "#050f1b"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Newsreader", "serif"],
+                        "body": ["Manrope", "sans-serif"],
+                        "label": ["Manrope", "sans-serif"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Manrope', sans-serif; background-color: #091421; color: #d9e3f6; }
+        .serif-text { font-family: 'Newsreader', serif; }
+        .glass-panel { backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-background text-on-background selection:bg-primary selection:text-on-primary">
+<!-- Top Navigation -->
+<nav class="fixed top-0 w-full z-50 flex justify-between items-center px-12 py-6 bg-[#091421]/80 backdrop-blur-xl">
+<div class="text-2xl font-serif italic text-[#aec7f7]">OZRentAPlane</div>
+<div class="hidden md:flex items-center space-gap-8 gap-10">
+<a class="text-[#c4c6cf] hover:text-[#aec7f7] font-body text-sm tracking-wide transition-all duration-300" href="#">Fleet</a>
+<a class="text-[#c4c6cf] hover:text-[#aec7f7] font-body text-sm tracking-wide transition-all duration-300" href="#">Services</a>
+<a class="text-[#c4c6cf] hover:text-[#aec7f7] font-body text-sm tracking-wide transition-all duration-300" href="#">Safety</a>
+<a class="text-[#c4c6cf] hover:text-[#aec7f7] font-body text-sm tracking-wide transition-all duration-300" href="#">About</a>
+</div>
+<button class="bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] px-8 py-2 rounded-md font-bold transition-all duration-300 active:scale-95">
+            Book Now
+        </button>
+</nav>
+<!-- Hero Section -->
+<header class="relative min-h-[870px] flex items-center justify-center pt-24 overflow-hidden">
+<div class="absolute inset-0 z-0">
+<div class="absolute inset-0 bg-gradient-to-b from-background via-transparent to-background"></div>
+<img class="w-full h-full object-cover opacity-40 mix-blend-luminosity" data-alt="atmospheric cinematic shot of a cockpit view into a deep navy blue and purple sunset horizon over a layer of soft clouds" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBdq87TH8F8T-edo4oy5AqELvQe5nGcV1Uem1WBtBGHUMIJ08Kaw69QuFHQxqkXQ6ySVPZZg5nS7pjUlV1_UDRkNrbXL38FLUAC8dMHtpOa0bToHdA2ylPXT-mQy1ykCqqRBCU96Orc_Rh2FVcsFHfPr0xfMERiMaUTKZfbqWxB6YEyedsL4eaIhT_64cLi7lJb6NxrjSJrD05h0P7QzIFOx_hwDnV3s2GbC8fDqiABiqqnWH_7PFfHppStlCsu1KhVwzYaHOQyOqM"/>
+</div>
+<div class="relative z-10 max-w-5xl px-8 text-center">
+<h1 class="serif-text text-6xl md:text-8xl font-extrabold tracking-tight text-on-surface leading-[1.1] mb-8">
+                Pilot Requirements
+            </h1>
+<p class="font-body text-on-surface-variant text-xl md:text-2xl max-w-3xl mx-auto mb-12 leading-relaxed font-light">
+                Excellence is standard. Review the prerequisites for commanding our Cessna 172N fleet within the Australian stratosphere.
+            </p>
+<div class="flex flex-col md:flex-row items-center justify-center gap-6">
+<button class="bg-gradient-to-r from-primary to-primary-container text-on-primary px-10 py-4 rounded-md font-bold tracking-widest text-sm transition-all duration-300 active:scale-90 w-full md:w-auto">
+                    START APPROVAL
+                </button>
+<button class="text-primary font-label font-bold tracking-widest text-sm border-b-2 border-primary/20 hover:border-primary transition-all duration-300 px-2 py-4 w-full md:w-auto">
+                    VIEW AIRCRAFT
+                </button>
+</div>
+</div>
+</header>
+<!-- Eligibility Overview (Bento Style) -->
+<section class="max-w-7xl mx-auto px-8 py-32">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+<div class="md:col-span-2 bg-surface-container-low p-10 rounded-xl relative overflow-hidden group">
+<div class="absolute -right-10 -bottom-10 opacity-5 group-hover:opacity-10 transition-opacity">
+<span class="material-symbols-outlined text-9xl">flight_takeoff</span>
+</div>
+<span class="material-symbols-outlined text-primary mb-6 text-4xl">badge</span>
+<h3 class="serif-text text-3xl mb-4">Valid CASA Licence</h3>
+<p class="font-body text-on-surface-variant leading-relaxed">Holders of a current PPL, CPL, or ATPL issued by the Civil Aviation Safety Authority of Australia.</p>
+</div>
+<div class="bg-surface-container-high p-10 rounded-xl">
+<span class="material-symbols-outlined text-primary mb-6 text-4xl">timer</span>
+<h3 class="serif-text text-2xl mb-4">100 Flight Hours</h3>
+<p class="font-body text-on-surface-variant text-sm leading-relaxed">Verified minimum total time logged, ensuring a baseline of operational competence.</p>
+</div>
+<div class="bg-surface-container-low p-10 rounded-xl">
+<span class="material-symbols-outlined text-primary mb-6 text-4xl">medical_services</span>
+<h3 class="serif-text text-2xl mb-4">Class 2 Medical</h3>
+<p class="font-body text-on-surface-variant text-sm leading-relaxed">Current aviation medical certification to ensure safety of flight.</p>
+</div>
+<div class="md:col-span-4 bg-surface-bright/30 p-10 rounded-xl flex flex-col md:flex-row items-center justify-between gap-8 glass-panel">
+<div class="max-w-xl">
+<h3 class="serif-text text-3xl mb-4">Recent Experience</h3>
+<p class="font-body text-on-surface-variant leading-relaxed">Evidence of at least 3 take-offs and landings in the preceding 90 days to maintain active proficiency.</p>
+</div>
+<div class="flex items-center gap-4 text-primary">
+<span class="font-headline italic text-5xl">90</span>
+<span class="font-label text-xs uppercase tracking-widest leading-tight">Days<br/>Proficiency</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Editorial: The Responsible Pilot -->
+<section class="bg-surface-container-low py-32 px-8 overflow-hidden relative">
+<div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-16 items-center">
+<div class="md:col-span-5">
+<h2 class="serif-text text-5xl md:text-6xl font-bold mb-8 leading-tight">The Responsible Pilot</h2>
+<div class="w-24 h-1 bg-primary mb-8"></div>
+<p class="font-body text-on-surface-variant text-lg mb-6 leading-relaxed">
+                    Our fleet of Cessna 172N aircraft represents more than just machinery; it is a shared resource for a community that values precision and integrity above all else.
+                </p>
+<p class="font-body text-on-surface-variant text-lg leading-relaxed">
+                    We select pilots who view aviation as a craft, not a commodity. Responsibility here means rigorous pre-flights, transparent reporting, and an unwavering commitment to operational limits.
+                </p>
+</div>
+<div class="md:col-span-7 relative">
+<div class="aspect-[16/10] bg-surface rounded-xl overflow-hidden shadow-2xl">
+<img class="w-full h-full object-cover" data-alt="dramatic wide angle shot of a pilot walking away from a parked white cessna aircraft on a dark tarmac at twilight with runway lights reflecting on the ground" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdiAtH80C_m_PQ2fVZnx07okn4RNKpJGOtVi2BNMiEhxoOswD6ym6GMgRLW5J1BMD0IxqLeO-QYTFKZFAtpCL7uZdJPBzUoYH34DmjZio_KEg0eKI7ixNpujenYB6MQhIY3OsE1b29Nr15468iR3I-AjLDnHFlyPy8nNt1ngTiNrXcYJAEyfi04va1rIbkfN_En2sLmu8qNqP9om13bOm6nQi2nEMOhdP3bmVmjT_9YOX38-fCtfSj9o2wirfv-_VaLJOx9KinnDo"/>
+</div>
+<div class="absolute -bottom-8 -left-8 bg-surface-container-highest p-8 max-w-xs rounded-lg glass-panel">
+<p class="serif-text italic text-xl text-primary">"Precision in every pre-flight defines the caliber of our community."</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Required Documentation -->
+<section class="max-w-7xl mx-auto px-8 py-32">
+<div class="text-center mb-20">
+<h2 class="serif-text text-4xl md:text-5xl mb-4">Mandatory Credentials</h2>
+<p class="font-body text-on-surface-variant">Digital copies required for the verification process</p>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+<div class="group border-b border-outline-variant/20 hover:border-primary pb-8 transition-all duration-500">
+<span class="font-headline text-primary/30 text-5xl block mb-6">01</span>
+<h4 class="font-body font-bold text-lg mb-2">Pilots Licence</h4>
+<p class="font-body text-on-surface-variant text-sm">CASA Part 61 compliant digital scan.</p>
+</div>
+<div class="group border-b border-outline-variant/20 hover:border-primary pb-8 transition-all duration-500">
+<span class="font-headline text-primary/30 text-5xl block mb-6">02</span>
+<h4 class="font-body font-bold text-lg mb-2">Logbook Evidence</h4>
+<p class="font-body text-on-surface-variant text-sm">Last 3 pages and total time summary.</p>
+</div>
+<div class="group border-b border-outline-variant/20 hover:border-primary pb-8 transition-all duration-500">
+<span class="font-headline text-primary/30 text-5xl block mb-6">03</span>
+<h4 class="font-body font-bold text-lg mb-2">Medical Cert</h4>
+<p class="font-body text-on-surface-variant text-sm">Current Class 1 or Class 2 certificate.</p>
+</div>
+<div class="group border-b border-outline-variant/20 hover:border-primary pb-8 transition-all duration-500">
+<span class="font-headline text-primary/30 text-5xl block mb-6">04</span>
+<h4 class="font-body font-bold text-lg mb-2">Photo ID</h4>
+<p class="font-body text-on-surface-variant text-sm">Current Passport or Drivers Licence.</p>
+</div>
+</div>
+</section>
+<!-- Approval Protocol (Step Flow) -->
+<section class="bg-surface-container-lowest py-32 px-8">
+<div class="max-w-6xl mx-auto">
+<div class="grid grid-cols-1 md:grid-cols-5 gap-12">
+<div class="relative">
+<div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-on-primary font-bold mb-6">1</div>
+<h5 class="font-body font-bold text-sm uppercase tracking-widest mb-4">Profile Submission</h5>
+<p class="text-xs text-on-surface-variant">Create your aviation identity in our secure portal.</p>
+</div>
+<div class="relative">
+<div class="w-12 h-12 rounded-full border border-outline flex items-center justify-center text-outline font-bold mb-6">2</div>
+<h5 class="font-body font-bold text-sm uppercase tracking-widest mb-4">Document Upload</h5>
+<p class="text-xs text-on-surface-variant">Securely provide your CASA and medical credentials.</p>
+</div>
+<div class="relative">
+<div class="w-12 h-12 rounded-full border border-outline flex items-center justify-center text-outline font-bold mb-6">3</div>
+<h5 class="font-body font-bold text-sm uppercase tracking-widest mb-4">Review &amp; Verification</h5>
+<p class="text-xs text-on-surface-variant">Our flight desk audits your hours and compliance.</p>
+</div>
+<div class="relative">
+<div class="w-12 h-12 rounded-full border border-outline flex items-center justify-center text-outline font-bold mb-6">4</div>
+<h5 class="font-body font-bold text-sm uppercase tracking-widest mb-4">Checkout Induction</h5>
+<p class="text-xs text-on-surface-variant">Brief 30-minute aircraft-specific orientation.</p>
+</div>
+<div class="relative">
+<div class="w-12 h-12 rounded-full border border-outline flex items-center justify-center text-outline font-bold mb-6">5</div>
+<h5 class="font-body font-bold text-sm uppercase tracking-widest mb-4">Booking Access</h5>
+<p class="text-xs text-on-surface-variant">Full access to the OzRentAPlane online fleet.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Operational Standards -->
+<section class="max-w-7xl mx-auto px-8 py-32">
+<div class="bg-surface-container-high rounded-3xl overflow-hidden flex flex-col lg:flex-row">
+<div class="p-16 lg:w-1/2">
+<h2 class="serif-text text-5xl mb-8">Operational Standards</h2>
+<ul class="space-y-8">
+<li class="flex gap-6">
+<span class="material-symbols-outlined text-primary">verified</span>
+<div>
+<h4 class="font-bold text-lg">Professional Handling</h4>
+<p class="text-on-surface-variant text-sm">Adherence to POH limitations and engine management protocols is non-negotiable.</p>
+</div>
+</li>
+<li class="flex gap-6">
+<span class="material-symbols-outlined text-primary">security_update_good</span>
+<div>
+<h4 class="font-bold text-lg">Operational Compliance</h4>
+<p class="text-on-surface-variant text-sm">Compliance with ERSA, NOTAMs, and local airfield requirements for every sortie.</p>
+</div>
+</li>
+<li class="flex gap-6">
+<span class="material-symbols-outlined text-primary">campaign</span>
+<div>
+<h4 class="font-bold text-lg">Maintenance Reporting</h4>
+<p class="text-on-surface-variant text-sm">Mandatory reporting of any squawks or anomalies within 30 minutes of engine shutdown.</p>
+</div>
+</li>
+</ul>
+</div>
+<div class="lg:w-1/2 min-h-[400px]">
+<img class="w-full h-full object-cover" data-alt="extreme close up of the sleek metal nose and propeller of a vintage aircraft with soft blue light highlighting the metallic sheen and rivets" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDlhCM2DBlTVzSEDUT8y5Zg6-MXrT4jx9hyhs3Z_IuSD_Ob1AM46e8mAXoZ8kBQUHgV01inVRrUkUXq65obYxdianDL6pwbKc1K87jPmrb8RdnW1rZTIygT5Bw2Wct5WlKqowM5K06eNBP4B4EOFcOJt9xjjQoqu3MXqtXzDiArLivatf0cFyAzdas6Jzs_gdH_9RmTEJJNx2njgBy_anEzVDplv-ry2GBUICVgu_GF2heOk81DxuqZjrCe5YBCswq_qeHoCOVykh8"/>
+</div>
+</div>
+</section>
+<!-- Safety & Discretion -->
+<section class="max-w-3xl mx-auto px-8 py-20 text-center">
+<span class="material-symbols-outlined text-error mb-4 opacity-60">gpp_maybe</span>
+<h3 class="serif-text text-2xl mb-4 italic">Safety &amp; Discretion</h3>
+<p class="font-body text-on-surface-variant text-sm leading-loose">
+            These standards exist to protect the longevity of our fleet and the safety of our community. OZRentAPlane reserves the right to decline or revoke booking privileges based on non-compliance with operational safety standards or maintenance protocols.
+        </p>
+</section>
+<!-- Final CTA -->
+<section class="relative py-40 overflow-hidden">
+<div class="absolute inset-0 z-0">
+<div class="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent"></div>
+<img class="w-full h-full object-cover opacity-20" data-alt="blurred motion shot of an airplane wing slicing through a deep blue cloud bank with small points of light in the distance" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA_kS-Y4M_QKCMAf4k1h8YarsSgbvh0pvvqPIBTMhWMYw8aJRTzfU8IlnRKoNnmUnv1AW1FrtsqRIvHJKjPyjOK5nmAI-PbcmPGyZTKU_XRbUsDf-h2py5qMuaQW1Tp6mENCacD2x0ob-zTh7uEytesTTtNrnq7JUjNkrFRAZD0Lo7O5UVprtHUvSFqLrcYs0zm4IVtw5FiTiY7XraPr5A2XyiId8wJ2clyFgB3g_B6yP36zMnZwAdv4hNyODxhKPcWJdnADSl23kE"/>
+</div>
+<div class="relative z-10 max-w-4xl mx-auto px-8 text-center">
+<h2 class="serif-text text-5xl md:text-7xl mb-12">The horizon awaits your command.</h2>
+<button class="bg-gradient-to-r from-primary to-primary-container text-on-primary px-16 py-6 rounded-md font-bold tracking-widest text-lg transition-all duration-300 hover:scale-105 active:scale-95 shadow-2xl shadow-primary/20">
+                BEGIN YOUR APPLICATION
+            </button>
+<p class="mt-12 font-label text-on-surface-variant tracking-widest text-xs uppercase">Est. MMXXIV • OZRentAPlane Signature Experience</p>
+</div>
+</section>
+<!-- Footer -->
+<footer class="bg-surface-container-lowest py-20 px-12">
+<div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start gap-12">
+<div>
+<div class="text-3xl font-serif italic text-primary mb-6">OZRentAPlane</div>
+<p class="max-w-xs text-on-surface-variant text-sm leading-relaxed">
+                    Premium aircraft rentals for the distinguished pilot. Operations based across major Australian hubs.
+                </p>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-3 gap-16">
+<div>
+<h5 class="font-bold mb-6 text-sm uppercase tracking-widest text-primary">Fleet</h5>
+<ul class="space-y-4 text-sm text-on-surface-variant">
+<li><a class="hover:text-primary transition-colors" href="#">Cessna 172N</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">Cessna 182T</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">Diamond DA40</a></li>
+</ul>
+</div>
+<div>
+<h5 class="font-bold mb-6 text-sm uppercase tracking-widest text-primary">Company</h5>
+<ul class="space-y-4 text-sm text-on-surface-variant">
+<li><a class="hover:text-primary transition-colors" href="#">Safety Portal</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">Our Story</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">Terms</a></li>
+</ul>
+</div>
+<div>
+<h5 class="font-bold mb-6 text-sm uppercase tracking-widest text-primary">Contact</h5>
+<ul class="space-y-4 text-sm text-on-surface-variant">
+<li><a class="hover:text-primary transition-colors" href="#">Flight Desk</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">Support</a></li>
+</ul>
+</div>
+</div>
+</div>
+<div class="max-w-7xl mx-auto border-t border-outline-variant/10 mt-20 pt-8 flex flex-col md:flex-row justify-between text-xs text-on-surface-variant/60">
+<p>© 2024 OZRentAPlane Aviation Group. All Rights Reserved.</p>
+<p>Fly with precision. Fly with responsibility.</p>
+</div>
+</footer>
+</body></html>

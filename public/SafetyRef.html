@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Safety Standards | OZ Rent A Plane</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "outline": "#8e9099",
+                        "on-primary-fixed": "#001b3d",
+                        "on-error-container": "#ffdad6",
+                        "tertiary": "#a9cbe4",
+                        "on-error": "#690005",
+                        "on-tertiary-fixed": "#001e2e",
+                        "error": "#ffb4ab",
+                        "on-tertiary-fixed-variant": "#294a5f",
+                        "surface-container-highest": "#2b3544",
+                        "inverse-primary": "#465f88",
+                        "on-surface-variant": "#c4c6cf",
+                        "error-container": "#93000a",
+                        "secondary-fixed": "#d1e4ff",
+                        "on-secondary": "#003258",
+                        "inverse-surface": "#d9e3f6",
+                        "on-tertiary": "#0e3448",
+                        "tertiary-fixed-dim": "#a9cbe4",
+                        "tertiary-fixed": "#c7e7ff",
+                        "primary-fixed-dim": "#aec7f7",
+                        "on-secondary-container": "#91bcef",
+                        "on-primary": "#143057",
+                        "surface-container-high": "#212b38",
+                        "surface-container-low": "#121c29",
+                        "background": "#091421",
+                        "outline-variant": "#44474e",
+                        "surface-container": "#16202e",
+                        "on-background": "#d9e3f6",
+                        "on-secondary-fixed-variant": "#184975",
+                        "secondary": "#a0cafe",
+                        "surface-variant": "#2b3544",
+                        "primary-container": "#1b365d",
+                        "surface-tint": "#aec7f7",
+                        "secondary-fixed-dim": "#a0cafe",
+                        "surface-dim": "#091421",
+                        "surface-container-lowest": "#050f1b",
+                        "on-secondary-fixed": "#001d36",
+                        "surface": "#091421",
+                        "tertiary-container": "#15394d",
+                        "surface-bright": "#303a48",
+                        "inverse-on-surface": "#27313f",
+                        "primary-fixed": "#d6e3ff",
+                        "on-tertiary-container": "#81a3bb",
+                        "on-primary-fixed-variant": "#2e476f",
+                        "secondary-container": "#1b4b78",
+                        "on-surface": "#d9e3f6",
+                        "primary": "#aec7f7",
+                        "on-primary-container": "#87a0cd"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    fontFamily: {
+                        "headline": ["Newsreader"],
+                        "body": ["Manrope"],
+                        "label": ["Manrope"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .atmospheric-blur {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body selection:bg-primary-container selection:text-primary">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-[#091421]/80 backdrop-blur-xl flex justify-between items-center px-8 py-4 max-w-full mx-auto">
+<div class="text-2xl font-serif italic text-[#aec7f7]">OZ Rent A Plane</div>
+<div class="hidden md:flex gap-12 items-center">
+<a class="text-[#c4c6cf] hover:text-[#aec7f7] transition-colors font-label uppercase tracking-widest text-xs" href="#">Fleet</a>
+<a class="text-[#aec7f7] border-b-2 border-[#aec7f7] pb-1 font-label uppercase tracking-widest text-xs" href="#">Safety</a>
+<a class="text-[#c4c6cf] hover:text-[#aec7f7] transition-colors font-label uppercase tracking-widest text-xs" href="#">Pilot Requirements</a>
+</div>
+<button class="bg-gradient-to-br from-primary to-secondary text-on-primary px-6 py-2.5 rounded-md font-label font-bold uppercase tracking-widest text-xs active:scale-95 transition-all">
+            Book Flight
+        </button>
+</nav>
+<main class="pt-20">
+<!-- Section 1: Hero -->
+<section class="relative min-h-screen flex items-center px-8 md:px-24 overflow-hidden">
+<div class="absolute inset-0 z-0">
+<img class="w-full h-full object-cover opacity-40 mix-blend-luminosity" data-alt="dramatic side view of a modern private jet inside a clean hangar with soft directional lighting creating deep shadows and highlights" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAoDrKUldkA2gZgJ4cls7Qk-4WITh6tRGFZQkcs2atHhcBfnOa9RNkNedrNOLQ86mYxYhRu30csjxLPa3lPhDXjVUSWEYgLngxHfV5Ot9-dGrhdTwyciXf1S7sOXPHPq1PZyyL5HJMqYIid8mdhU5kj1UKuj2OMcb_mHdBT7YAhQh06c_xSS4lkLCE0OXI3dJljOgyDzuxKZCizwmTn8joRDTQ0IZ9pgMFF3tZ0POLh3r1udZ4UI2yW7N1F6Zj2ym1V4j4BNHFdKSI"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent"></div>
+<div class="absolute inset-0 bg-gradient-to-r from-background via-background/40 to-transparent"></div>
+</div>
+<div class="relative z-10 max-w-4xl">
+<h1 class="font-headline text-5xl md:text-8xl leading-tight tracking-tight text-on-background mb-8 italic">
+                    Safety Built Into <br/>Every Flight
+                </h1>
+<p class="font-body text-xl md:text-2xl text-on-surface-variant max-w-2xl mb-12 leading-relaxed">
+                    Verified access and operational discipline aren't just protocols—they are the bedrock of our aviation ecosystem. We manage risk so you can manage the mission.
+                </p>
+<div class="flex flex-wrap gap-6">
+<button class="bg-gradient-to-br from-primary to-secondary text-on-primary px-8 py-4 rounded-md font-label font-bold uppercase tracking-widest text-sm hover:opacity-90 transition-all">
+                        View Pilot Requirements
+                    </button>
+<button class="border border-outline-variant/30 text-on-surface px-8 py-4 rounded-md font-label font-bold uppercase tracking-widest text-sm hover:bg-surface-container-high transition-all">
+                        Contact Us
+                    </button>
+</div>
+</div>
+</section>
+<!-- Section 2: Safety Philosophy -->
+<section class="py-32 px-8 md:px-24 bg-surface">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-20">
+<div class="lg:col-span-5">
+<h2 class="font-headline text-4xl md:text-5xl text-primary mb-6">Our Philosophy</h2>
+<p class="text-on-surface-variant text-lg font-body leading-relaxed">
+                        Aviation safety is a quiet, continuous process. It lives in the spaces between takeoff and landing, built upon a foundation of absolute transparency and relentless standardisation.
+                    </p>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="bg-surface-container-low p-10 flex flex-col justify-between h-80 group hover:bg-surface-container-high transition-all duration-500">
+<span class="material-symbols-outlined text-primary text-4xl" data-icon="verified_user">verified_user</span>
+<div>
+<h3 class="font-headline text-2xl text-on-surface mb-3">Qualified pilots only</h3>
+<p class="text-sm text-on-surface-variant leading-relaxed">Rigorous vetting ensures only those with proven proficiency handle our aircraft.</p>
+</div>
+</div>
+<div class="bg-surface-container-low p-10 flex flex-col justify-between h-80 group hover:bg-surface-container-high transition-all duration-500">
+<span class="material-symbols-outlined text-primary text-4xl" data-icon="build_circle">build_circle</span>
+<div>
+<h3 class="font-headline text-2xl text-on-surface mb-3">Maintained with care</h3>
+<p class="text-sm text-on-surface-variant leading-relaxed">Aircraft are kept in premium condition by certified technicians beyond minimum requirements.</p>
+</div>
+</div>
+<div class="bg-surface-container-low p-10 flex flex-col justify-between h-80 group hover:bg-surface-container-high transition-all duration-500">
+<span class="material-symbols-outlined text-primary text-4xl" data-icon="rule">rule</span>
+<div>
+<h3 class="font-headline text-2xl text-on-surface mb-3">Clear operating standards</h3>
+<p class="text-sm text-on-surface-variant leading-relaxed">Standardized SOPs remove ambiguity and ensure consistent flight deck outcomes.</p>
+</div>
+</div>
+<div class="bg-surface-container-low p-10 flex flex-col justify-between h-80 group hover:bg-surface-container-high transition-all duration-500">
+<span class="material-symbols-outlined text-primary text-4xl" data-icon="schedule">schedule</span>
+<div>
+<h3 class="font-headline text-2xl text-on-surface mb-3">Safety before schedule</h3>
+<p class="text-sm text-on-surface-variant leading-relaxed">We empower every pilot to make the conservative call, regardless of timing pressures.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 3: Pilot Approval Standards -->
+<section class="py-32 px-8 md:px-24 bg-surface-container-lowest">
+<div class="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
+<div>
+<h2 class="font-headline text-4xl md:text-6xl text-on-background mb-4">Pilot Approval Standards</h2>
+<p class="text-on-surface-variant max-w-xl font-body">The standard for flying an OZ aircraft is deliberate and uncompromising.</p>
+</div>
+<div class="h-px bg-outline-variant/20 flex-grow hidden md:block mx-12 mb-6"></div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-1">
+<div class="bg-surface-container-low p-8 border-l-2 border-primary/20">
+<span class="text-xs font-label uppercase tracking-[0.2em] text-primary/60 mb-6 block">Phase 01</span>
+<h4 class="font-headline text-2xl mb-4">Licence Verification</h4>
+<p class="text-sm text-on-surface-variant font-body leading-relaxed">Validation of current PPL/CPL credentials and medical certifications directly with regulatory databases.</p>
+</div>
+<div class="bg-surface-container-low p-8 border-l-2 border-primary/20">
+<span class="text-xs font-label uppercase tracking-[0.2em] text-primary/60 mb-6 block">Phase 02</span>
+<h4 class="font-headline text-2xl mb-4">Document Review</h4>
+<p class="text-sm text-on-surface-variant font-body leading-relaxed">Analysis of logbook history and currency requirements to ensure legal and operational compliance.</p>
+</div>
+<div class="bg-surface-container-low p-8 border-l-2 border-primary/20">
+<span class="text-xs font-label uppercase tracking-[0.2em] text-primary/60 mb-6 block">Phase 03</span>
+<h4 class="font-headline text-2xl mb-4">Experience Suitability</h4>
+<p class="text-sm text-on-surface-variant font-body leading-relaxed">Evaluating specific flight hours in type and complex environment operations to match our fleet profile.</p>
+</div>
+<div class="bg-surface-container-low p-8 border-l-2 border-primary/20">
+<span class="text-xs font-label uppercase tracking-[0.2em] text-primary/60 mb-6 block">Phase 04</span>
+<h4 class="font-headline text-2xl mb-4">Checkout Induction</h4>
+<p class="text-sm text-on-surface-variant font-body leading-relaxed">A mandatory flight with an OZ authorized instructor to verify handling and system knowledge.</p>
+</div>
+</div>
+</section>
+<!-- Section 4: Aircraft Maintenance Standards -->
+<section class="py-32 grid grid-cols-1 lg:grid-cols-2 bg-surface">
+<div class="relative min-h-[500px]">
+<img class="absolute inset-0 w-full h-full object-cover" data-alt="close-up detail of a high-performance aircraft engine with pristine components and technical precision during a scheduled inspection" src="https://lh3.googleusercontent.com/aida-public/AB6AXuABxN4eMA9GHc23JCgraaboz6N8rrsTZOr7uMmShCXlHL_PWQT8lV5Ye255cdTfTXBdY7qMlu8yaMLoD4Lx1xFd_j5mNcjRVuEQhepIJFnWFjHluYlJt0THC_vgPvnArrxpY3XqEsNutD2G8-8sLBQur43XrskZ-_n3pmrtzegVst291fqPYMqTivax1obaJpj-_hPmoMqngltLM4zARUXQBdUyzhGZ8bJJ-gEIcVQlIbFI1U_U31jrwV9VNvnEdOEV8Pr6K1nwMJo"/>
+<div class="absolute inset-0 bg-primary/10 mix-blend-overlay"></div>
+</div>
+<div class="flex items-center px-8 md:px-24 py-20 bg-surface-container-low">
+<div>
+<h2 class="font-headline text-4xl md:text-5xl text-on-background mb-8">Maintenance Standards</h2>
+<div class="space-y-8">
+<div class="flex gap-6">
+<span class="material-symbols-outlined text-primary mt-1" data-icon="settings_suggest">settings_suggest</span>
+<div>
+<h5 class="text-xl font-headline mb-2">Scheduled Inspections</h5>
+<p class="text-sm text-on-surface-variant">Our fleet adheres to a proactive maintenance schedule that exceeds manufacturer minimums, including deep-cycle inspections every 50 hours.</p>
+</div>
+</div>
+<div class="flex gap-6">
+<span class="material-symbols-outlined text-primary mt-1" data-icon="task_alt">task_alt</span>
+<div>
+<h5 class="text-xl font-headline mb-2">Return-to-Service Protocols</h5>
+<p class="text-sm text-on-surface-variant">No aircraft leaves the hangar without a dual-signature sign-off from both the engineering lead and the quality assurance officer.</p>
+</div>
+</div>
+<div class="flex gap-6">
+<span class="material-symbols-outlined text-primary mt-1" data-icon="monitoring">monitoring</span>
+<div>
+<h5 class="text-xl font-headline mb-2">Digital Health Monitoring</h5>
+<p class="text-sm text-on-surface-variant">Real-time data logging on our glass-cockpit fleet allows us to track engine trends and predict maintenance needs before they arise.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 5: Operational Safeguards -->
+<section class="py-32 px-8 md:px-24 bg-surface">
+<div class="max-w-4xl mx-auto text-center mb-20">
+<h2 class="font-headline text-4xl md:text-6xl mb-6">Operational Safeguards</h2>
+<p class="text-on-surface-variant font-body text-lg">We provide the structure; you provide the command.</p>
+</div>
+<div class="space-y-4">
+<div class="grid grid-cols-1 md:grid-cols-12 items-center bg-surface-container-low p-8 rounded-lg group">
+<div class="md:col-span-1 text-primary">
+<span class="material-symbols-outlined text-3xl" data-icon="shield">shield</span>
+</div>
+<div class="md:col-span-3">
+<h4 class="font-headline text-xl">Booking Controls</h4>
+</div>
+<div class="md:col-span-8">
+<p class="text-on-surface-variant text-sm font-body">Automated logic cross-references pilot currency and aircraft status at the moment of booking, preventing illegal or unsafe pairings.</p>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-12 items-center bg-surface-container-low p-8 rounded-lg">
+<div class="md:col-span-1 text-primary">
+<span class="material-symbols-outlined text-3xl" data-icon="psychology">psychology</span>
+</div>
+<div class="md:col-span-3">
+<h4 class="font-headline text-xl">Decision Support</h4>
+</div>
+<div class="md:col-span-8">
+<p class="text-on-surface-variant text-sm font-body">Conservative decision-making is reinforced through integrated risk assessment tools provided to every member pilot.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 6: Pre-flight/Post-flight Responsibility -->
+<section class="py-32 px-8 md:px-24 bg-surface-container-lowest">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-px bg-outline-variant/10">
+<div class="bg-surface p-12 md:p-20">
+<div class="flex items-center gap-4 mb-10">
+<span class="w-12 h-12 rounded-full bg-primary-container/30 flex items-center justify-center text-primary font-bold">01</span>
+<h2 class="font-headline text-3xl md:text-4xl">Pre-flight</h2>
+</div>
+<ul class="space-y-6">
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-tertiary" data-icon="check_circle">check_circle</span>
+<span class="text-on-surface-variant">Comprehensive external walkaround inspection</span>
+</li>
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-tertiary" data-icon="check_circle">check_circle</span>
+<span class="text-on-surface-variant">Fuel quantity and quality verification (Sumped)</span>
+</li>
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-tertiary" data-icon="check_circle">check_circle</span>
+<span class="text-on-surface-variant">Weight and balance calculation for actual load</span>
+</li>
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-tertiary" data-icon="check_circle">check_circle</span>
+<span class="text-on-surface-variant">Weather briefing and alternate selection</span>
+</li>
+</ul>
+</div>
+<div class="bg-surface p-12 md:p-20">
+<div class="flex items-center gap-4 mb-10">
+<span class="w-12 h-12 rounded-full bg-tertiary-container/30 flex items-center justify-center text-tertiary font-bold">02</span>
+<h2 class="font-headline text-3xl md:text-4xl">Post-flight</h2>
+</div>
+<ul class="space-y-6">
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-tertiary" data-icon="radio_button_checked">radio_button_checked</span>
+<span class="text-on-surface-variant">Detailed flight log entry including Hobbs/Tach</span>
+</li>
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-tertiary" data-icon="radio_button_checked">radio_button_checked</span>
+<span class="text-on-surface-variant">Reporting of any defects or 'squawks' immediately</span>
+</li>
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-tertiary" data-icon="radio_button_checked">radio_button_checked</span>
+<span class="text-on-surface-variant">Ensuring aircraft is secured and refueled for next use</span>
+</li>
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-tertiary" data-icon="radio_button_checked">radio_button_checked</span>
+<span class="text-on-surface-variant">Cabin cleanup and electronics master off check</span>
+</li>
+</ul>
+</div>
+</div>
+</section>
+<!-- Section 7: Weather & Go/No-Go -->
+<section class="relative py-48 px-8 md:px-24 flex items-center justify-center text-center overflow-hidden">
+<div class="absolute inset-0 z-0">
+<img class="w-full h-full object-cover opacity-30" data-alt="atmospheric soft focus view of distant storm clouds and light rays breaking through a hazy sky at dusk" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCJm2YoDInp3mFn3vNF2TEkn4xKk8gWZhaJNT46BIwTruzFAsFdTgoP85YoHcBlhWe8CiErXnik39WTfyGzIycZPjVIOoMbIl9eC-e6rES3tJqibPHN0eLewsWGO3QK61eULyK_q2HcwQOLq6WbAOJTa-BkgEC172ThkYyzDFguwysfzN4vzyNrgWZli8V42_DorpmdeJPzx5Y_MteWzP0ksqWLZ0kOWP4MwfhrL5NlUndaYaTjQ90jWAkk7cXWPbnUvv6hLKbpouM"/>
+<div class="absolute inset-0 bg-gradient-to-b from-background via-transparent to-background"></div>
+</div>
+<div class="relative z-10 max-w-3xl">
+<h2 class="font-headline text-5xl md:text-7xl mb-8">The Go/No-Go Culture</h2>
+<p class="font-body text-xl text-on-surface mb-10 leading-relaxed italic">
+                    "A superior pilot uses their superior judgment to avoid situations which require the use of their superior skill."
+                </p>
+<p class="text-on-surface-variant text-lg font-body mb-12">
+                    OZ Rent A Plane maintains a strict zero-penalty rescheduling policy for weather-related cancellations. If the conditions don't look right, we support your decision to stay on the ground.
+                </p>
+<div class="inline-flex items-center gap-2 text-primary font-label uppercase tracking-widest text-sm border-b border-primary pb-1">
+                    Read Our Weather Policy
+                </div>
+</div>
+</section>
+<!-- Section 8: Checkout / Familiarisation -->
+<section class="py-32 px-8 md:px-24 bg-surface">
+<div class="bg-surface-container p-12 md:p-24 rounded-lg flex flex-col md:flex-row gap-16 items-center">
+<div class="flex-1">
+<h2 class="font-headline text-4xl mb-8">Type Familiarisation</h2>
+<p class="text-on-surface-variant text-lg mb-8 font-body leading-relaxed">
+                        Even for highly experienced pilots, every cockpit is a unique ecosystem. Our mandatory checkouts aren't just about 'flying the plane'—they are about mastering the specific avionics, emergency procedures, and operational nuances of the OZ fleet.
+                    </p>
+<div class="grid grid-cols-2 gap-8">
+<div>
+<h6 class="font-bold text-primary mb-2 uppercase text-xs tracking-widest">Typical Duration</h6>
+<p class="font-headline text-2xl">1.5 - 3 Hours</p>
+</div>
+<div>
+<h6 class="font-bold text-primary mb-2 uppercase text-xs tracking-widest">Validity</h6>
+<p class="font-headline text-2xl">90 Days Recency</p>
+</div>
+</div>
+</div>
+<div class="flex-1 w-full">
+<div class="aspect-video bg-surface-container-highest rounded flex items-center justify-center relative overflow-hidden group">
+<img class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="internal cockpit view of a modern Garmin glass flight deck with glowing digital displays showing navigational charts" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAUuPLMyXY9_J4dNVZUeHTKD6bCACDMBICSlmbP407E17ovsXLOBUb3xmEesGzSmi3piC24WvC8RMLNwPDQTAhRBEXqKzpc06xPhlyB4KR1Ql4FuBNiDeA1yFQWlJr66493OUmvTKwjCxN8eCCWUAI8oZcekSxETWpJjz-hCrWMYLZ1bCOU1EMMBoo_NuBl_kP0id4e5tc5DQhpDIjaA7_h1eOsjFLGrbdrxxZ77J18MI0lUyV7PB8pLhXBdXDkxYQazkGhgqFmdgY"/>
+<div class="absolute inset-0 bg-background/40 flex items-center justify-center">
+<span class="material-symbols-outlined text-6xl text-white opacity-80" data-icon="play_circle">play_circle</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 9: Safety FAQ -->
+<section class="py-32 px-8 md:px-24 bg-surface-container-lowest">
+<div class="max-w-4xl mx-auto">
+<h2 class="font-headline text-4xl mb-16 text-center">Safety Questions</h2>
+<div class="space-y-1">
+<div class="bg-surface p-8">
+<div class="flex justify-between items-center cursor-pointer">
+<h4 class="font-headline text-xl">How is aircraft maintenance tracked?</h4>
+<span class="material-symbols-outlined text-primary" data-icon="expand_more">expand_more</span>
+</div>
+<div class="mt-4 text-on-surface-variant text-sm leading-relaxed max-w-3xl">
+                            We use a digital maintenance logbook accessible to all pilots during the pre-flight phase. This ensures you have a live view of the aircraft's airworthiness status and engine hours at all times.
+                        </div>
+</div>
+<div class="bg-surface p-8">
+<div class="flex justify-between items-center cursor-pointer">
+<h4 class="font-headline text-xl">What happens if I encounter a mechanical issue away from base?</h4>
+<span class="material-symbols-outlined text-primary" data-icon="expand_more">expand_more</span>
+</div>
+</div>
+<div class="bg-surface p-8">
+<div class="flex justify-between items-center cursor-pointer">
+<h4 class="font-headline text-xl">Do you allow flight into instrument meteorological conditions (IMC)?</h4>
+<span class="material-symbols-outlined text-primary" data-icon="expand_more">expand_more</span>
+</div>
+</div>
+<div class="bg-surface p-8">
+<div class="flex justify-between items-center cursor-pointer">
+<h4 class="font-headline text-xl">What is the insurance coverage for member pilots?</h4>
+<span class="material-symbols-outlined text-primary" data-icon="expand_more">expand_more</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 10: Final CTA -->
+<section class="py-32 px-8 md:px-24 text-center bg-surface">
+<div class="max-w-2xl mx-auto">
+<h2 class="font-headline text-4xl md:text-6xl mb-8">Ready to Apply for Access?</h2>
+<p class="text-on-surface-variant text-lg mb-12 font-body">Join a community of disciplined aviators who value safety as much as the freedom of flight.</p>
+<div class="flex flex-col sm:flex-row gap-4 justify-center">
+<button class="bg-gradient-to-br from-primary to-secondary text-on-primary px-8 py-4 rounded-md font-label font-bold uppercase tracking-widest text-sm active:scale-95 transition-all">
+                        View Pilot Requirements
+                    </button>
+<button class="bg-surface-container-high text-on-surface px-8 py-4 rounded-md font-label font-bold uppercase tracking-widest text-sm active:scale-95 transition-all">
+                        Contact Support
+                    </button>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-[#091421] w-full py-20 px-8 border-t border-[#44474e]/15">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 max-w-7xl mx-auto">
+<div>
+<div class="text-xl font-serif text-[#aec7f7] mb-6">OZ Rent A Plane</div>
+<p class="text-[#c4c6cf] text-sm leading-relaxed">
+                    © 2024 OZ Rent A Plane. Elevating Aviation Safety standards.
+                </p>
+</div>
+<div>
+<h6 class="text-[#aec7f7] font-headline text-lg mb-6">Operations</h6>
+<ul class="space-y-4">
+<li><a class="text-[#c4c6cf] hover:text-[#aec7f7] underline-offset-4 hover:underline text-sm font-label" href="#">Safety Protocols</a></li>
+<li><a class="text-[#c4c6cf] hover:text-[#aec7f7] underline-offset-4 hover:underline text-sm font-label" href="#">Fleet Maintenance</a></li>
+</ul>
+</div>
+<div>
+<h6 class="text-[#aec7f7] font-headline text-lg mb-6">Legal</h6>
+<ul class="space-y-4">
+<li><a class="text-[#c4c6cf] hover:text-[#aec7f7] underline-offset-4 hover:underline text-sm font-label" href="#">Insurance</a></li>
+<li><a class="text-[#c4c6cf] hover:text-[#aec7f7] underline-offset-4 hover:underline text-sm font-label" href="#">Privacy Policy</a></li>
+</ul>
+</div>
+<div>
+<h6 class="text-[#aec7f7] font-headline text-lg mb-6">Connect</h6>
+<ul class="space-y-4">
+<li><a class="text-[#c4c6cf] hover:text-[#aec7f7] underline-offset-4 hover:underline text-sm font-label" href="#">Contact Support</a></li>
+<li><a class="text-[#c4c6cf] hover:text-[#aec7f7] underline-offset-4 hover:underline text-sm font-label" href="#">Instagram</a></li>
+</ul>
+</div>
+</div>
+</footer>
+</body></html>

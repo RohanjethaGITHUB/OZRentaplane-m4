@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --font-noto-serif: 'Noto Serif', Georgia, serif;
+  --font-newsreader: 'Newsreader', Georgia, serif;
   --font-manrope: 'Manrope', system-ui, sans-serif;
 }
 

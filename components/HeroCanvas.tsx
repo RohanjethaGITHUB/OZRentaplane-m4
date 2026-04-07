@@ -8,17 +8,14 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 // frame numbers are zero-padded to 6 digits starting at 000001.
 function buildFrameSequence(): string[] {
   const frames: string[] = []
-  for (let i = 1; i <= 120; i++) frames.push(`/scrollyImages/seq-1/Cessna_flying_above_202604010949_${String(i).padStart(6, '0')}.webp`)
-  for (let i = 1; i <= 110; i++) frames.push(`/scrollyImages/seq-2/Aircraft_transition_outside_202604011034_${String(i).padStart(6, '0')}.webp`)
-  for (let i = 1; i <= 192; i++) frames.push(`/scrollyImages/seq-3/Cockpit_view_flying_202604011043_${String(i).padStart(6, '0')}.webp`)
-  // seq-4 is treated as a direct continuation of seq-3 — same scene, no new
-  // layout config or text overlay. Appended here so the transition is seamless.
-  for (let i = 1; i <= 192; i++) frames.push(`/scrollyImages/seq-4/Plane_climbing_into_202604011652_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-1_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-2_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-3_${String(i).padStart(6, '0')}.webp`)
   return frames
 }
 
 const FRAME_PATHS = buildFrameSequence()
-const TOTAL_FRAMES = FRAME_PATHS.length // 614
+const TOTAL_FRAMES = FRAME_PATHS.length // 192 * 3 = 576
 
 // ─── Tuning constants ─────────────────────────────────────────────────────────
 // How many viewport-heights to pin the hero. Higher = slower scrub.
@@ -33,11 +30,11 @@ const MOBILE_EAGER_FRAMES  = 15
 const DESKTOP_LOOKAHEAD = 4
 const MOBILE_LOOKAHEAD  = 3
 
-// ─── Sequence boundaries (absolute indices in the merged 614-frame sequence) ──
+// ─── Sequence boundaries (absolute indices in the merged sequence) ──
 const SEQ_BOUNDS = {
-  seq1End: 119, // frames   0–119  → seq-1 (120 frames)
-  seq2End: 229, // frames 120–229  → seq-2 (110 frames)
-  //             frames 230–613  → seq-3 + seq-4 (192 + 192 frames, one scene)
+  seq1End: 191, // frames   0–191  → seq-1 (192 frames)
+  seq2End: 383, // frames 192–383  → seq-2 (192 frames)
+  //             frames 384–575  → seq-3 (192 frames)
 }
 
 // ─── Opening poster ───────────────────────────────────────────────────────────
@@ -158,8 +155,8 @@ const TEXT_OVERLAYS = [
   },
   {
     id: 'aircraft',
-    startPct: 0.28,
-    endPct: 0.52,
+    startPct: 0.38,
+    endPct: 0.55,
     content: (
       <div className="max-w-xs md:max-w-md">
         <p className="font-sans text-[10px] md:text-xs font-bold tracking-[0.3em] uppercase text-oz-blue/70 mb-3 md:mb-4">
@@ -178,8 +175,8 @@ const TEXT_OVERLAYS = [
   },
   {
     id: 'cockpit',
-    startPct: 0.62,
-    endPct: 0.85,
+    startPct: 0.72,
+    endPct: 0.90,
     content: (
       // Mobile: editorial text, no background panel of any kind.
       // Readability comes from CSS drop-shadow on the text elements — the filter

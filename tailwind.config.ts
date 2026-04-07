@@ -22,7 +22,7 @@ const config: Config = {
         'oz-subtle':  '#8e9098',
       },
       fontFamily: {
-        serif: ['var(--font-noto-serif)', 'Georgia', 'serif'],
+        serif: ['var(--font-newsreader)', 'Georgia', 'serif'],
         sans:  ['var(--font-manrope)', 'system-ui', 'sans-serif'],
       },
       animation: {

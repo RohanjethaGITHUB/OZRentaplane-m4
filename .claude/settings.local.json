@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(wc -l public/seq-*/ezgif-frame-*)"
+      "Bash(wc -l public/seq-*/ezgif-frame-*)",
+      "WebFetch(domain:reactbits.dev)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

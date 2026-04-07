@@ -1,128 +1,217 @@
+'use client'
+
 import React from 'react'
+import { motion } from 'framer-motion'
 
 export default function PilotRequirementsPage() {
   return (
     <main className="min-h-screen bg-[#091421] text-[#d9e3f6]">
       
       {/* 1. Hero Section */}
-      <section className="relative pt-32 pb-24 md:pt-48 md:pb-32 px-6 md:px-12 lg:px-20 text-center overflow-hidden flex flex-col items-center justify-center min-h-[600px]">
-        {/* PLACEHOLDER: Replace this div with a real image later via an <img /> or bg class */}
-        <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#0c1827] via-[#112238] to-[#091421]" />
-        
-        <div className="relative z-10 max-w-4xl mx-auto">
-          <h1 className="font-serif text-5xl md:text-7xl font-bold tracking-tight text-white mb-6 text-shadow-lg">
+      <header className="relative min-h-[870px] flex items-center justify-center pt-24 overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <div className="absolute inset-0 bg-gradient-to-b from-[#091421] via-transparent to-[#091421]"></div>
+          <img 
+            className="w-full h-full object-cover opacity-40 mix-blend-luminosity" 
+            alt="Pilot Requirements Hero" 
+            src="/PilotRequirementsHero-Sunset.webp" 
+          />
+        </div>
+        <div className="relative z-10 max-w-5xl px-8 text-center">
+          <h1 className="font-serif text-6xl md:text-8xl font-extrabold tracking-tight text-[#d9e3f6] leading-[1.1] mb-8">
             Pilot Requirements
           </h1>
-          <p className="font-sans text-[1.1rem] leading-relaxed text-[#c4c6cf] mb-10 max-w-2xl mx-auto drop-shadow-md">
-            Experience is standard. Review the prerequisites for commanding our Cessna 172N fleet within the Australian airspace.
+          <p className="font-sans text-[#c4c6cf] text-xl md:text-2xl max-w-3xl mx-auto mb-12 leading-relaxed font-light">
+            Excellence is standard. Review the prerequisites for commanding our Cessna 172N fleet within the Australian stratosphere.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="flex flex-col md:flex-row items-center justify-center gap-6">
             <a 
-              href="#" 
-              className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded bg-[#aec7f7] text-[#001b3d] hover:bg-[#dbeafe] transition-colors shadow-lg"
+              href="#"
+              className="inline-block bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] px-10 py-4 rounded-md font-bold tracking-widest text-sm uppercase transition-all duration-300 active:scale-90 w-full md:w-auto"
             >
-              Start Application
+              Start Approval
             </a>
             <a 
-              href="/fleet" 
-              className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded border border-white/20 text-[#c4c6cf] hover:bg-white/5 transition-colors backdrop-blur-sm"
+              href="/fleet"
+              className="inline-block text-[#aec7f7] font-sans font-bold tracking-widest text-sm uppercase border-b-2 border-[#aec7f7]/20 hover:border-[#aec7f7] transition-all duration-300 px-2 py-4 w-full md:w-auto"
             >
               View Aircraft
             </a>
           </div>
         </div>
-      </section>
+      </header>
 
-      {/* 2. Eligibility Overview Cards */}
-      <section className="relative px-6 md:px-12 lg:px-20 max-w-6xl mx-auto -mt-16 z-20">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* 2. Eligibility Overview Cards — sits cleanly below hero, no aggressive overlap */}
+      <section className="relative px-6 md:px-12 lg:px-20 max-w-7xl mx-auto -mt-10 z-20">
+        <motion.div 
+          className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-50px" }}
+          variants={{
+            visible: { transition: { staggerChildren: 0.15 } }
+          }}
+        >
           {/* Card 1 */}
-          <div className="bg-[#0f1b2d]/95 backdrop-blur-xl border border-white/10 rounded-xl p-8 shadow-2xl">
-            <div className="mb-4 text-[#64748b]">
-              <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+          <motion.div 
+            variants={{
+              hidden: { opacity: 0, y: 30 },
+              visible: { 
+                opacity: 1, 
+                y: 0, 
+                transition: { duration: 0.8, ease: [0.21, 0.47, 0.32, 0.98], staggerChildren: 0.1 } 
+              }
+            }}
+            className="group relative bg-[#121c29] border border-white/5 rounded-2xl p-9 md:p-10 shadow-lg transition-all duration-500 ease-out hover:-translate-y-1.5 hover:bg-[#212b38] hover:border-[#aec7f7]/30 hover:shadow-2xl hover:shadow-[#aec7f7]/5"
+          >
+            <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } } }} className="mb-5 text-[#aec7f7] group-hover:brightness-110 transition-all duration-500">
+              <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <rect x="3" y="4" width="18" height="16" rx="2" />
                 <path d="M7 8h10M7 12h10M7 16h4" />
               </svg>
-            </div>
-            <h4 className="font-serif text-xl tracking-wide text-[#d9e3f6] mb-2">Valid CASA Licence</h4>
-            <p className="font-sans text-[0.85rem] text-[#94a3b8] leading-relaxed">
-              Hold a current PPL, CPL, or ATPL issued by the Civil Aviation Safety Authority of Australia.
-            </p>
-          </div>
+            </motion.div>
+            <motion.h4 variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } } }} className="font-serif text-[1.3rem] tracking-wide text-[#d9e3f6] mb-3 group-hover:text-white transition-colors duration-500">
+              Valid CASA Licence
+            </motion.h4>
+            <motion.p variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } } }} className="font-sans text-[0.88rem] text-[#c4c6cf] leading-[1.75] group-hover:text-white transition-colors duration-500">
+              Holders of a current PPL, CPL, or ATPL issued by the Civil Aviation Safety Authority of Australia.
+            </motion.p>
+          </motion.div>
+
           {/* Card 2 */}
-          <div className="bg-[#0f1b2d]/95 backdrop-blur-xl border border-white/10 rounded-xl p-8 shadow-2xl">
-            <div className="mb-4 text-[#64748b]">
-              <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+          <motion.div 
+            variants={{
+              hidden: { opacity: 0, y: 30 },
+              visible: { 
+                opacity: 1, 
+                y: 0, 
+                transition: { duration: 0.8, ease: [0.21, 0.47, 0.32, 0.98], staggerChildren: 0.1 } 
+              }
+            }}
+            className="group relative bg-[#121c29] border border-white/5 rounded-2xl p-9 md:p-10 shadow-lg transition-all duration-500 ease-out hover:-translate-y-1.5 hover:bg-[#212b38] hover:border-[#aec7f7]/30 hover:shadow-2xl hover:shadow-[#aec7f7]/5"
+          >
+            <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } } }} className="mb-5 text-[#aec7f7] group-hover:brightness-110 transition-all duration-500">
+              <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
               </svg>
-            </div>
-            <h4 className="font-serif text-xl tracking-wide text-[#d9e3f6] mb-2">100 Flight Hours+</h4>
-            <p className="font-sans text-[0.85rem] text-[#94a3b8] leading-relaxed">
-              Verified minimum of 100 hours of total logged time to ensure a foundational level of competence.
-            </p>
-          </div>
+            </motion.div>
+            <motion.h4 variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } } }} className="font-serif text-[1.3rem] tracking-wide text-[#d9e3f6] mb-3 group-hover:text-white transition-colors duration-500">
+              100 Flight Hours
+            </motion.h4>
+            <motion.p variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } } }} className="font-sans text-[0.88rem] text-[#c4c6cf] leading-[1.75] group-hover:text-white transition-colors duration-500">
+              Verified minimum total time logged, ensuring a baseline of operational competence.
+            </motion.p>
+          </motion.div>
+
           {/* Card 3 */}
-          <div className="bg-[#0f1b2d]/95 backdrop-blur-xl border border-white/10 rounded-xl p-8 shadow-2xl">
-            <div className="mb-4 text-[#64748b]">
-              <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+          <motion.div 
+            variants={{
+              hidden: { opacity: 0, y: 30 },
+              visible: { 
+                opacity: 1, 
+                y: 0, 
+                transition: { duration: 0.8, ease: [0.21, 0.47, 0.32, 0.98], staggerChildren: 0.1 } 
+              }
+            }}
+            className="group relative bg-[#121c29] border border-white/5 rounded-2xl p-9 md:p-10 shadow-lg transition-all duration-500 ease-out hover:-translate-y-1.5 hover:bg-[#212b38] hover:border-[#aec7f7]/30 hover:shadow-2xl hover:shadow-[#aec7f7]/5"
+          >
+            <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } } }} className="mb-5 text-[#aec7f7] group-hover:brightness-110 transition-all duration-500">
+              <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
               </svg>
-            </div>
-            <h4 className="font-serif text-xl tracking-wide text-[#d9e3f6] mb-2">Class 2 Medical</h4>
-            <p className="font-sans text-[0.85rem] text-[#94a3b8] leading-relaxed">
-              Current and valid Class 2 (or higher) Australian aviation medical certificate.
-            </p>
-          </div>
-        </div>
+            </motion.div>
+            <motion.h4 variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } } }} className="font-serif text-[1.3rem] tracking-wide text-[#d9e3f6] mb-3 group-hover:text-white transition-colors duration-500">
+              Class 2 Medical
+            </motion.h4>
+            <motion.p variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } } }} className="font-sans text-[0.88rem] text-[#c4c6cf] leading-[1.75] group-hover:text-white transition-colors duration-500">
+              Current aviation medical certification to ensure safety of flight.
+            </motion.p>
+          </motion.div>
+        </motion.div>
       </section>
 
       {/* 3. Recency / Experience Strip */}
-      <section className="relative px-6 md:px-12 lg:px-20 max-w-6xl mx-auto mt-6">
-        <div className="bg-[#0c1827] border border-white/5 rounded-xl p-8 md:p-10 flex flex-col md:flex-row items-center justify-between gap-8 py-10 shadow-lg">
-          <div className="flex-1">
-            <h3 className="font-serif text-2xl text-[#d9e3f6] mb-3">Recent Experience</h3>
-            <p className="font-sans text-[#94a3b8] text-[0.95rem] leading-relaxed max-w-xl">
+      <section className="relative px-6 md:px-12 lg:px-20 max-w-7xl mx-auto mt-5 pb-16">
+        <motion.div 
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-50px" }}
+          variants={{
+            hidden: { opacity: 0, y: 30 },
+            visible: { 
+              opacity: 1, 
+              y: 0, 
+              transition: { delay: 0.2, duration: 0.8, ease: [0.21, 0.47, 0.32, 0.98], staggerChildren: 0.1 } 
+            }
+          }}
+          className="bg-[#303a48]/30 backdrop-blur-[20px] border border-white/5 rounded-2xl flex flex-col md:flex-row items-center md:items-stretch justify-between gap-0 shadow-xl overflow-hidden group transition-all duration-500 ease-out hover:-translate-y-1.5 hover:bg-[#303a48]/40 hover:border-[#aec7f7]/30 hover:shadow-2xl hover:shadow-[#aec7f7]/5"
+        >
+          <div className="flex-1 p-9 md:p-12 lg:p-14">
+            <motion.h3 
+              variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } } }}
+              className="font-serif text-[1.5rem] text-[#d9e3f6] mb-4"
+            >
+              Recent Experience
+            </motion.h3>
+            <motion.p 
+              variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } } }}
+              className="font-sans text-[#c4c6cf] text-[0.92rem] leading-[1.78] max-w-md group-hover:text-white transition-colors duration-500"
+            >
               Evidence of at least 3 take-offs and landings in the preceding 90 days to maintain active proficiency.
-            </p>
+            </motion.p>
           </div>
-          <div className="flex items-baseline gap-2 shrink-0 border-l border-white/10 pl-8">
-            <span className="font-serif text-6xl md:text-7xl font-light italic text-[#c4c6cf]">90</span>
-            <span className="font-sans text-[0.65rem] font-bold uppercase tracking-[0.2em] text-[#64748b] leading-tight w-20">
-              Days <br/>Currency
+          <motion.div 
+            variants={{ hidden: { opacity: 0, x: 20 }, visible: { opacity: 1, x: 0, transition: { duration: 0.6, ease: "easeOut" } } }}
+            className="flex items-center gap-4 shrink-0 px-10 md:px-14 py-8 md:py-0 text-[#aec7f7]"
+          >
+            <span
+              className="font-serif font-light italic leading-none"
+              style={{ fontSize: 'clamp(4rem, 7vw, 6.5rem)' }}
+            >
+              90
             </span>
-          </div>
-        </div>
+            <div className="flex flex-col gap-0.5 mt-2">
+              <span className="font-sans font-bold uppercase tracking-widest leading-tight" style={{ fontSize: '0.65rem' }}>
+                Days <br /> Proficiency
+              </span>
+            </div>
+          </motion.div>
+        </motion.div>
       </section>
 
       {/* 4. Responsible Pilot Editorial Section */}
-      <section className="relative py-32 px-6 md:px-12 lg:px-20 max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center">
-          <div className="order-2 lg:order-1">
-            <h2 className="font-serif text-5xl md:text-6xl font-normal tracking-tight text-[#d9e3f6] leading-[1.1] mb-8">
-              The <br /> Responsible <br /> Pilot
-            </h2>
-            <div className="space-y-6 text-[#94a3b8] font-sans text-[1rem] leading-relaxed max-w-md">
-              <p>
-                Our fleet of Cessna 172N aircraft represents more than just machinery; it is a shared resource for a community that values precision and integrity above all else.
-              </p>
-              <p>
-                We select pilots who view aviation as a craft, not a commodity. Responsibility here is measured in pre-flight rigor, transparent reporting, and an unwavering commitment to operational limits.
-              </p>
-            </div>
-          </div>
-          <div className="order-1 lg:order-2 relative">
-            {/* IMAGE PLACEHOLDER: Swap div below for an <img /> later */}
-            <div className="relative rounded-lg overflow-hidden shadow-2xl aspect-[16/10] bg-gradient-to-tr from-[#1a2942] to-[#091421] border border-white/5">
-              <div className="absolute inset-0 flex items-center justify-center text-[#64748b] font-sans text-xs tracking-widest uppercase">
-                [ Responsible Pilot Image ]
+      <section className="relative py-32 bg-[#121c29] overflow-hidden">
+        <div className="px-6 md:px-12 lg:px-20 max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center">
+            <div className="order-2 lg:order-1">
+              <h2 className="font-serif text-5xl md:text-6xl font-normal tracking-tight text-[#d9e3f6] leading-[1.1] mb-6 md:mb-8">
+                The <br /> Responsible <br /> Pilot
+              </h2>
+              <div className="w-24 h-1 bg-[#aec7f7] mb-8"></div>
+              <div className="space-y-6 text-[#c4c6cf] font-sans text-[1rem] leading-relaxed max-w-md">
+                <p>
+                  Our fleet of Cessna 172N aircraft represents more than just machinery; it is a shared resource for a community that values precision and integrity above all else.
+                </p>
+                <p>
+                  We select pilots who view aviation as a craft, not a commodity. Responsibility here is measured in pre-flight rigor, transparent reporting, and an unwavering commitment to operational limits.
+                </p>
               </div>
             </div>
-            {/* Overlaid quote box */}
-            <div className="absolute -bottom-6 -left-6 md:bottom-8 md:-left-12 bg-[#1a2942]/95 backdrop-blur-md p-6 md:p-8 border border-white/10 max-w-[280px] shadow-2xl">
-              <p className="font-serif text-lg italic text-[#d9e3f6] leading-relaxed">
-                "Precise execution on the flight deck defines the culture of our community."
-              </p>
+            <div className="order-1 lg:order-2 relative">
+              <div className="aspect-[16/10] bg-[#091421] rounded-xl overflow-hidden shadow-2xl relative border border-white/5">
+                <img 
+                  src="/Pilot%26aircraftTwilight.webp" 
+                  alt="The Responsible Pilot"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              {/* Overlaid quote box */}
+              <div className="absolute -bottom-5 -left-5 md:-bottom-6 md:-left-6 bg-[#2b3544]/95 backdrop-blur-md p-5 md:p-6 rounded-lg border border-white/10 max-w-[240px] shadow-2xl">
+                <p className="font-serif text-lg italic text-[#aec7f7] leading-relaxed">
+                  "Precise execution on the flight deck defines the culture of our community."
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -199,7 +288,7 @@ export default function PilotRequirementsPage() {
       {/* 7. Operational Standards Section */}
       <section className="relative py-24 bg-[#091421] border-t border-white/5">
         <div className="px-6 md:px-12 lg:px-20 max-w-7xl mx-auto">
-          <div className="bg-[#111e30] rounded-2xl overflow-hidden flex flex-col lg:flex-row shadow-2xl">
+          <div className="bg-[#212b38] rounded-2xl overflow-hidden flex flex-col lg:flex-row shadow-2xl">
             
             {/* Left Content */}
             <div className="flex-1 p-10 md:p-16">
@@ -237,12 +326,11 @@ export default function PilotRequirementsPage() {
 
             {/* Right Image Placeholder */}
             <div className="lg:w-[50%] relative min-h-[300px] lg:min-h-auto bg-[#0c1827]">
-                {/* IMAGE PLACEHOLDER: Swap below div w/ img block */}
-                <div className="absolute inset-0 bg-gradient-to-tr from-[#1a2942] to-[#0c1827] flex items-center justify-center opacity-80">
-                  <span className="font-sans text-xs tracking-widest uppercase text-[#64748b]">
-                    [ Aircraft Details Prop Image ]
-                  </span>
-                </div>
+                <img 
+                  src="/Close-upNose.webp" 
+                  alt="Operational Standards"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
             </div>
             
           </div>
@@ -268,21 +356,27 @@ export default function PilotRequirementsPage() {
       </section>
 
       {/* 9. Final CTA Section */}
-      <section className="relative pt-32 pb-40 bg-[#0c1827] text-center overflow-hidden flex flex-col items-center justify-center border-t border-white/5">
-        {/* IMAGE PLACEHOLDER: Replace this div with your final skyline image */}
-        <div className="absolute inset-0 z-0 bg-gradient-to-t from-[#091421] to-[#152438]" />
+      <section className="relative py-40 bg-[#091421] overflow-hidden border-t border-white/5">
+        <div className="absolute inset-0 z-0 bg-black">
+          <img 
+            src="/TwilightFlight.webp" 
+            alt="The horizon awaits your command" 
+            className="absolute inset-0 w-full h-full object-cover" 
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#091421]/90 via-[#091421]/20 to-transparent pointer-events-none"></div>
+        </div>
         
-        <div className="relative z-10 px-6 md:px-12 max-w-3xl mx-auto">
-          <h2 className="font-serif text-5xl md:text-6xl font-normal tracking-tight text-[#d9e3f6] mb-12">
+        <div className="relative z-10 max-w-4xl mx-auto px-8 text-center">
+          <h2 className="font-serif text-5xl md:text-7xl font-normal tracking-tight text-[#d9e3f6] mb-12">
             The horizon awaits your command.
           </h2>
           <a 
             href="/contact" 
-            className="inline-block font-sans font-bold text-[0.8rem] tracking-widest uppercase px-12 py-5 rounded bg-[#aec7f7] text-[#001b3d] hover:bg-[#dbeafe] transition-colors shadow-lg"
+            className="inline-block bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] rounded-md font-sans font-bold tracking-widest uppercase text-lg px-16 py-6 shadow-2xl shadow-[#aec7f7]/20 transition-all active:scale-95 hover:brightness-110"
           >
             Begin Your Application
           </a>
-          <p className="font-sans text-[0.65rem] uppercase tracking-[0.25em] text-[#64748b] mt-10">
+          <p className="font-sans text-xs uppercase tracking-widest text-[#c4c6cf] mt-12">
             EST. APPROVAL = 24-48 HOURS AFTER SUBMITTING CREDENTIALS
           </p>
         </div>

@@ -6,14 +6,13 @@ import { motion } from 'framer-motion'
 // ─── Frame sequence ───────────────────────────────────────────────────────────
 function buildFrameSequence(): string[] {
   const frames: string[] = []
-  for (let i = 1; i <= 120; i++) frames.push(`/scrollyImages/seq-1/Cessna_flying_above_202604010949_${String(i).padStart(6, '0')}.webp`)
-  for (let i = 1; i <= 110; i++) frames.push(`/scrollyImages/seq-2/Aircraft_transition_outside_202604011034_${String(i).padStart(6, '0')}.webp`)
-  for (let i = 1; i <= 192; i++) frames.push(`/scrollyImages/seq-3/Cockpit_view_flying_202604011043_${String(i).padStart(6, '0')}.webp`)
-  for (let i = 1; i <= 192; i++) frames.push(`/scrollyImages/seq-4/Plane_climbing_into_202604011652_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-1_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-2_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-3_${String(i).padStart(6, '0')}.webp`)
   return frames
 }
 const FRAME_PATHS  = buildFrameSequence()
-const TOTAL_FRAMES = FRAME_PATHS.length // 614
+const TOTAL_FRAMES = FRAME_PATHS.length // 576
 
 // ─── Scroll timeline ──────────────────────────────────────────────────────────
 //
@@ -51,8 +50,8 @@ const MOBILE_LOOKAHEAD     = 3
 
 // ─── Sequence layout (rendering) ─────────────────────────────────────────────
 const SEQ_BOUNDS = {
-  seq1End: 119,
-  seq2End: 229,
+  seq1End: 191,
+  seq2End: 383,
 }
 const BG_DARKEN_ALPHA = 0.38
 
@@ -113,77 +112,108 @@ function FloatingPaths({ position }: { position: number }) {
 
 // ─── Hero text overlays ───────────────────────────────────────────────────────
 // startPct / endPct applied to heroProgress (0–1 over the hero phase only).
+// alwaysVisible: true → fades in at startPct then stays visible for rest of hero phase
 const TEXT_OVERLAYS = [
   {
     id: 'intro',
     startPct: 0,
     endPct: 0.18,
+    fullBleed: true,
+    alwaysVisible: false,
     content: (
-      <div className="max-w-sm md:max-w-xl">
-        <motion.p
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.10, duration: 0.5 }}
-          className="font-sans text-[10px] md:text-xs font-bold tracking-[0.3em] uppercase text-oz-blue/70 mb-3 md:mb-4"
-        >
-          Aircraft Rental Platform
-        </motion.p>
-        <h1 className="font-serif text-4xl md:text-7xl font-black leading-tight mb-4 md:mb-6">
-          <span className="block">
-            {'The sky is'.split('').map((char, i) => (
-              <motion.span
-                key={`l1-${i}`}
-                className={`inline-block text-oz-text${char === ' ' ? ' mr-[0.22em]' : ''}`}
-                initial={{ y: 60, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.18 + i * 0.028, type: 'spring', stiffness: 150, damping: 25 }}
-              >
-                {char === ' ' ? '\u00A0' : char}
-              </motion.span>
-            ))}
-          </span>
-          <span className="block italic text-oz-blue">
-            {'yours to fly.'.split('').map((char, i) => (
-              <motion.span
-                key={`l2-${i}`}
-                className={`inline-block${char === ' ' ? ' mr-[0.22em]' : ''}`}
-                initial={{ y: 60, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.44 + i * 0.028, type: 'spring', stiffness: 150, damping: 25 }}
-              >
-                {char === ' ' ? '\u00A0' : char}
-              </motion.span>
-            ))}
-          </span>
-        </h1>
-        <motion.p
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.95, duration: 0.6 }}
-          className="font-sans text-sm md:text-lg text-oz-muted font-light leading-relaxed max-w-xs md:max-w-md mb-5 md:mb-7"
-        >
-          A modern platform for licensed pilots. Rent, fly, and return — with zero friction.
-        </motion.p>
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.15, duration: 0.5 }}
-        >
-          <a
-            href="#how-it-works"
-            className="inline-flex items-center gap-2.5 font-sans text-[0.8125rem] font-medium text-oz-text/80 border border-oz-blue/28 rounded-full px-5 py-2.5 hover:border-oz-blue/55 hover:text-oz-text transition-all duration-300 group pointer-events-auto"
+      <>
+        {/* ── Zone 1: eyebrow + headline — centre-aligned, upper area ── */}
+        <div className="absolute left-0 right-0 flex flex-col items-center text-center px-6 md:px-12" style={{ top: '16vh' }}>
+          <motion.p
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.10, duration: 0.5 }}
+            className="font-sans text-[10px] md:text-xs font-bold tracking-[0.3em] uppercase text-oz-blue/70 mb-3 md:mb-5"
           >
-            <span className="opacity-90 group-hover:opacity-100 transition-opacity">Start your application</span>
-            <span className="inline-block opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300 text-oz-blue">→</span>
-          </a>
-        </motion.div>
-      </div>
+            Hassle-free Aircraft Rental
+          </motion.p>
+          <h1 className="font-serif text-4xl md:text-7xl font-black leading-tight">
+            <span className="block">
+              {'The sky is'.split('').map((char, i) => (
+                <motion.span
+                  key={`l1-${i}`}
+                  className={`inline-block text-oz-text${char === ' ' ? ' mr-[0.22em]' : ''}`}
+                  initial={{ y: 60, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.18 + i * 0.028, type: 'spring', stiffness: 150, damping: 25 }}
+                >
+                  {char === ' ' ? '\u00A0' : char}
+                </motion.span>
+              ))}
+            </span>
+            {/* "yours to fly" with handwritten-style SVG underline */}
+            <span className="block italic text-oz-blue relative pb-3">
+              {'yours to fly'.split('').map((char, i) => (
+                <motion.span
+                  key={`l2-${i}`}
+                  className={`inline-block${char === ' ' ? ' mr-[0.22em]' : ''}`}
+                  initial={{ y: 60, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.44 + i * 0.028, type: 'spring', stiffness: 150, damping: 25 }}
+                >
+                  {char === ' ' ? '\u00A0' : char}
+                </motion.span>
+              ))}
+              {/* Handwritten underline — draws in after the text settles */}
+              <svg
+                viewBox="0 0 340 20"
+                fill="none"
+                aria-hidden="true"
+                className="absolute left-1/2 -translate-x-1/2 bottom-[-2px] w-[90%] md:w-[85%] h-[14px] md:h-[18px]"
+              >
+                <motion.path
+                  d="M 6 13 C 45 5, 90 18, 145 10 C 200 3, 255 16, 310 10 C 322 8, 330 9, 334 11"
+                  stroke="rgba(167,200,255,0.55)"
+                  strokeWidth="2.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  initial={{ pathLength: 0, opacity: 0 }}
+                  animate={{ pathLength: 1, opacity: 1 }}
+                  transition={{ delay: 1.05, duration: 0.9, ease: 'easeOut' }}
+                />
+              </svg>
+            </span>
+          </h1>
+        </div>
+
+        {/* ── Zone 2: body text + CTA — pinned to bottom, centre-aligned ── */}
+        <div className="absolute left-0 right-0 bottom-[13vh] flex flex-col items-center text-center px-6 pointer-events-auto">
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.95, duration: 0.6 }}
+            className="font-sans text-sm md:text-lg text-oz-muted font-light leading-relaxed max-w-xs md:max-w-md mb-5 md:mb-7"
+          >
+            A modern platform for licensed pilots — rent, fly, and return with zero friction
+          </motion.p>
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.15, duration: 0.5 }}
+          >
+            <a
+              href="/pilotRequirements"
+              className="inline-flex items-center gap-2.5 font-sans text-[0.8125rem] font-medium text-oz-text/80 border border-oz-blue/28 rounded-full px-5 py-2.5 hover:border-oz-blue/55 hover:text-oz-text transition-all duration-300 group"
+            >
+              <span className="opacity-90 group-hover:opacity-100 transition-opacity">Start your application</span>
+              <span className="inline-block opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300 text-oz-blue">→</span>
+            </a>
+          </motion.div>
+        </div>
+      </>
     ),
   },
   {
     id: 'aircraft',
     startPct: 0.28,
     endPct: 0.52,
+    fullBleed: false,
+    alwaysVisible: false,
     content: (
       <div className="max-w-xs md:max-w-md">
         <motion.p
@@ -196,7 +226,7 @@ const TEXT_OVERLAYS = [
         </motion.p>
         <h2 className="font-serif text-3xl md:text-5xl font-black leading-tight mb-4 md:mb-5">
           <span className="block">
-            {'Built for pilots.'.split('').map((char, i) => (
+            {'Built for pilots'.split('').map((char, i) => (
               <motion.span
                 key={`fleet-l1-${i}`}
                 className={`inline-block text-oz-text${char === ' ' ? ' mr-[0.22em]' : ''}`}
@@ -209,7 +239,7 @@ const TEXT_OVERLAYS = [
             ))}
           </span>
           <span className="block italic text-oz-blue">
-            {'Not passengers.'.split('').map((char, i) => (
+            {'Not passengers'.split('').map((char, i) => (
               <motion.span
                 key={`fleet-l2-${i}`}
                 className={`inline-block${char === ' ' ? ' mr-[0.22em]' : ''}`}
@@ -228,8 +258,8 @@ const TEXT_OVERLAYS = [
           transition={{ delay: 0.92, duration: 0.6 }}
           className="font-sans text-sm md:text-base text-oz-muted font-light leading-relaxed"
         >
-          We start with a Cessna 172 — the most trusted training and touring aircraft in the world.
-          Well-maintained, thoroughly checked, and ready when you are.
+          We start with a Cessna 172 — the most trusted training and touring aircraft in the world,
+          well-maintained, thoroughly checked, and ready when you are
         </motion.p>
       </div>
     ),
@@ -237,9 +267,11 @@ const TEXT_OVERLAYS = [
   {
     id: 'cockpit',
     startPct: 0.62,
-    endPct: 0.85,
+    endPct: 1.0,
+    fullBleed: false,
+    alwaysVisible: true,
     content: (
-      <div className="max-w-[158px] md:max-w-md [filter:drop-shadow(0_1px_3px_rgb(0_0_0/0.95))_drop-shadow(0_4px_14px_rgb(0_0_0/0.55))] md:[filter:none]">
+      <div className="max-w-xs md:max-w-md">
         <motion.p
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -263,7 +295,7 @@ const TEXT_OVERLAYS = [
             ))}
           </span>
           <span className="block italic text-oz-blue">
-            {'your aircraft.'.split('').map((char, i) => (
+            {'your aircraft'.split('').map((char, i) => (
               <motion.span
                 key={`exp-l2-${i}`}
                 className={`inline-block${char === ' ' ? ' mr-[0.22em]' : ''}`}
@@ -282,8 +314,8 @@ const TEXT_OVERLAYS = [
           transition={{ delay: 0.88, duration: 0.6 }}
           className="hidden md:block font-sans text-base text-oz-muted font-light leading-relaxed"
         >
-          From pre-flight checks to touchdown, the aircraft is yours. No instructors required
-          for qualified pilots. No unnecessary oversight.
+          From pre-flight checks to touchdown, the aircraft is yours — no instructors required
+          for qualified pilots, no unnecessary oversight
         </motion.p>
       </div>
     ),
@@ -299,12 +331,14 @@ export default function HeroScrollStage({ children }: { children?: ReactNode }) 
   const scrollIndicatorRef = useRef<HTMLDivElement | null>(null)
   const homeContentRef     = useRef<HTMLDivElement>(null)
 
-  const imagesRef       = useRef<(HTMLImageElement | null)[]>(new Array(TOTAL_FRAMES).fill(null))
-  const posterRef       = useRef<HTMLImageElement | null>(null)
-  const currentFrameRef = useRef(0)
-  const rafRef          = useRef<number | null>(null)
-  const dirtyRef        = useRef(true)
-  const isMobileRef     = useRef(false)
+  const imagesRef          = useRef<(HTMLImageElement | null)[]>(new Array(TOTAL_FRAMES).fill(null))
+  const posterRef          = useRef<HTMLImageElement | null>(null)
+  const currentFrameRef    = useRef(0)
+  const targetProgressRef  = useRef(0)   // set by scroll events (raw)
+  const currentProgressRef = useRef(0)   // lerp'd toward target each rAF tick
+  const rafRef             = useRef<number | null>(null)
+  const dirtyRef           = useRef(true)
+  const isMobileRef        = useRef(false)
 
   const [sectionHeight,     setSectionHeight]     = useState(0)
   const [viewportHeight,    setViewportHeight]     = useState(0)
@@ -379,11 +413,45 @@ export default function HeroScrollStage({ children }: { children?: ReactNode }) 
   }, [])
 
   // ── rAF loop ───────────────────────────────────────────────────────────────
+  // Lerp currentProgress → targetProgress each tick for cinematic smoothness.
+  // Factor 0.075 = slow/buttery (like jeskojets.com). Raise toward 0.15 for
+  // a more responsive but still smooth feel.
+  const LERP_FACTOR = 0.075
+
   const renderLoop = useCallback(() => {
-    if (dirtyRef.current) {
+    const prev = currentProgressRef.current
+    const next = prev + (targetProgressRef.current - prev) * LERP_FACTOR
+
+    // Only redraw when the interpolated progress meaningfully changed
+    if (Math.abs(next - prev) > 0.0001) {
+      currentProgressRef.current = next
+      const frameIndex = Math.round(next * (TOTAL_FRAMES - 1))
+
+      if (frameIndex !== currentFrameRef.current || dirtyRef.current) {
+        currentFrameRef.current = frameIndex
+        drawFrame(frameIndex)
+        dirtyRef.current = false
+
+        // Preload neighbours around the interpolated position
+        const lookahead = isMobileRef.current ? MOBILE_LOOKAHEAD : DESKTOP_LOOKAHEAD
+        for (let i = -lookahead; i <= lookahead; i++) {
+          const idx = frameIndex + i
+          if (idx >= 0 && idx < TOTAL_FRAMES && !imagesRef.current[idx]) {
+            const img = new Image()
+            img.src = FRAME_PATHS[idx]
+            img.onload = () => {
+              imagesRef.current[idx] = img
+              if (idx === currentFrameRef.current) dirtyRef.current = true
+            }
+          }
+        }
+      }
+    } else if (dirtyRef.current) {
+      // Settled — draw once more to flush any pending dirty frame
       drawFrame(currentFrameRef.current)
       dirtyRef.current = false
     }
+
     rafRef.current = requestAnimationFrame(renderLoop)
   }, [drawFrame])
 
@@ -409,26 +477,31 @@ export default function HeroScrollStage({ children }: { children?: ReactNode }) 
       ? (heroFraction > 0 ? overallProgress / heroFraction : 1)
       : 1
 
-    // ── Frame selection ─────────────────────────────────────────────────────
-    // Only advances during hero phase; frozen at final frame during content phase.
-    const frameIndex = Math.round(heroProgress * (TOTAL_FRAMES - 1))
-    if (frameIndex !== currentFrameRef.current) {
-      currentFrameRef.current = frameIndex
-      dirtyRef.current = true
-      const lookahead = isMobileRef.current ? MOBILE_LOOKAHEAD : DESKTOP_LOOKAHEAD
-      for (let i = -lookahead; i <= lookahead; i++) loadFrame(frameIndex + i)
-    }
+    // ── Set target progress — the rAF loop lerps toward this each tick ────────
+    targetProgressRef.current = heroProgress
+
+    // Eagerly preload frames near the scroll target so they're ready when the
+    // lerp arrives — avoids blank frames on fast scrolls
+    const targetFrame = Math.round(heroProgress * (TOTAL_FRAMES - 1))
+    const lookahead   = isMobileRef.current ? MOBILE_LOOKAHEAD * 2 : DESKTOP_LOOKAHEAD * 3
+    for (let i = -lookahead; i <= lookahead; i++) loadFrame(targetFrame + i)
 
     // ── Hero text overlays ──────────────────────────────────────────────────
     // Hidden once hero phase completes (heroProgress === 1 and we've passed heroFraction).
+    // alwaysVisible overlays: fade in at startPct then stay visible for the rest of the hero.
     const inHeroPhase = overallProgress <= heroFraction
     overlayRefs.current.forEach((el, idx) => {
       if (!el) return
-      const { startPct, endPct } = TEXT_OVERLAYS[idx]
+      const { startPct, endPct, alwaysVisible } = TEXT_OVERLAYS[idx]
       const fadeDuration = 0.055
       let opacity = 0
       if (inHeroPhase) {
-        if (heroProgress >= startPct && heroProgress <= endPct) {
+        if (alwaysVisible) {
+          // Fade in once reached, never fade out within the hero phase
+          if (heroProgress >= startPct) {
+            opacity = Math.min(1, (heroProgress - startPct) / fadeDuration)
+          }
+        } else if (heroProgress >= startPct && heroProgress <= endPct) {
           const fadeIn  = startPct === 0 ? 1 : Math.min(1, (heroProgress - startPct) / fadeDuration)
           const fadeOut = Math.min(1, (endPct - heroProgress) / fadeDuration)
           opacity = Math.min(fadeIn, fadeOut)
@@ -552,9 +625,8 @@ export default function HeroScrollStage({ children }: { children?: ReactNode }) 
             aria-hidden="true"
           />
 
-          {/* Vignettes */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#091421]/50 via-transparent to-[#091421]/80 pointer-events-none" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#091421]/70 via-transparent to-transparent pointer-events-none" />
+          {/* Vignettes — top kept very faint to avoid a visible stripe */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#091421]/15 via-transparent to-[#091421]/80 pointer-events-none" />
 
           {/* Cooling tint */}
           <div
@@ -581,16 +653,26 @@ export default function HeroScrollStage({ children }: { children?: ReactNode }) 
           <div
             key={overlay.id}
             ref={(el) => { overlayRefs.current[idx] = el }}
-            className={`absolute inset-0 flex pointer-events-none md:items-center ${
-              overlay.id === 'cockpit'
-                ? 'items-start pt-20 md:pt-0'
-                : 'items-end pb-28 md:pb-0'
+            className={`absolute inset-0 pointer-events-none ${
+              overlay.fullBleed
+                ? ''
+                : `flex md:items-center ${
+                    overlay.id === 'cockpit'
+                      ? 'items-start pt-20 md:pt-0'
+                      : 'items-end pb-28 md:pb-0'
+                  }`
             }`}
             style={{ opacity: idx === 0 ? 1 : 0, transition: 'opacity 0.1s linear' }}
           >
-            <div className="px-6 md:px-12 lg:px-20 relative z-10">
-              {overlay.content}
-            </div>
+            {overlay.fullBleed ? (
+              // Full-bleed overlays: content uses absolute positioning directly
+              // inside this absolute-inset-0 div — no padding wrapper
+              overlay.content
+            ) : (
+              <div className="px-6 md:px-12 lg:px-20 relative z-10 w-full">
+                {overlay.content}
+              </div>
+            )}
           </div>
         ))}
 
