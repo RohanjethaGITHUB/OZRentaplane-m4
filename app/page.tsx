@@ -4,9 +4,8 @@ import HomeContent from '@/components/HomeContent'
 export default function Home() {
   return (
     <main>
-      <HeroScrollStage>
-        <HomeContent />
-      </HeroScrollStage>
+      <HeroScrollStage />
+      <HomeContent />
     </main>
   )
 }

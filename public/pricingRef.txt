@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Pricing | OZ Rent A Plane</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&amp;family=Manrope:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed-dim": "#a9cbe4",
+                        "primary-fixed": "#d6e3ff",
+                        "on-tertiary-fixed-variant": "#294a5f",
+                        "on-secondary-fixed-variant": "#184975",
+                        "on-tertiary-fixed": "#001e2e",
+                        "secondary": "#a0cafe",
+                        "primary-fixed-dim": "#aec7f7",
+                        "surface-container-highest": "#2b3544",
+                        "surface-container-lowest": "#050f1b",
+                        "on-surface-variant": "#c4c6cf",
+                        "on-error-container": "#ffdad6",
+                        "on-background": "#d9e3f6",
+                        "primary": "#aec7f7",
+                        "surface-container-low": "#121c29",
+                        "inverse-surface": "#d9e3f6",
+                        "on-secondary-container": "#91bcef",
+                        "tertiary-container": "#15394d",
+                        "surface-container": "#16202e",
+                        "surface-bright": "#303a48",
+                        "surface-tint": "#aec7f7",
+                        "on-tertiary": "#0e3448",
+                        "on-surface": "#d9e3f6",
+                        "on-primary-fixed-variant": "#2e476f",
+                        "on-primary-fixed": "#001b3d",
+                        "error": "#ffb4ab",
+                        "surface-dim": "#091421",
+                        "on-error": "#690005",
+                        "surface": "#091421",
+                        "secondary-container": "#1b4b78",
+                        "background": "#091421",
+                        "surface-variant": "#2b3544",
+                        "inverse-primary": "#465f88",
+                        "secondary-fixed": "#d1e4ff",
+                        "on-primary": "#143057",
+                        "on-secondary": "#003258",
+                        "tertiary": "#a9cbe4",
+                        "surface-container-high": "#212b38",
+                        "tertiary-fixed": "#c7e7ff",
+                        "outline": "#8e9099",
+                        "secondary-fixed-dim": "#a0cafe",
+                        "outline-variant": "#44474e",
+                        "inverse-on-surface": "#27313f",
+                        "error-container": "#93000a",
+                        "primary-container": "#1b365d",
+                        "on-tertiary-container": "#81a3bb",
+                        "on-primary-container": "#87a0cd",
+                        "on-secondary-fixed": "#001d36"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Newsreader"],
+                        "body": ["Manrope"],
+                        "label": ["Manrope"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Manrope', sans-serif;
+            background-color: #091421;
+            color: #d9e3f6;
+        }
+        .newsreader-italic { font-family: 'Newsreader'; font-style: italic; }
+        .newsreader { font-family: 'Newsreader'; }
+    </style>
+</head>
+<body class="bg-background text-on-background overflow-x-hidden">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-[#091421]/80 backdrop-blur-[20px] shadow-[0_20px_40px_rgba(5,15,27,0.4)]">
+<div class="flex justify-between items-center px-6 md:px-12 py-6 w-full">
+<span class="font-['Newsreader'] text-2xl font-medium tracking-tighter text-[#aec7f7]">OZ Rent A Plane</span>
+<div class="hidden md:flex gap-10 items-center">
+<a class="text-[#c4c6cf] font-['Manrope'] text-sm tracking-widest uppercase hover:text-white transition-all duration-500" href="#">Fleet</a>
+<a class="text-[#c4c6cf] font-['Manrope'] text-sm tracking-widest uppercase hover:text-white transition-all duration-500" href="#">Safety</a>
+<a class="text-[#c4c6cf] font-['Manrope'] text-sm tracking-widest uppercase hover:text-white transition-all duration-500" href="#">Pilot Requirements</a>
+<a class="text-[#aec7f7] font-semibold border-b-2 border-[#aec7f7] pb-1 uppercase text-sm tracking-widest" href="#">Pricing</a>
+</div>
+<button class="bg-gradient-to-br from-primary to-primary-container text-on-primary px-6 py-2.5 rounded-md font-medium text-sm scale-95 active:scale-90 transition-transform">
+                Reserve Aircraft
+            </button>
+</div>
+<div class="bg-gradient-to-b from-[#121c29] to-transparent h-[1.5rem]"></div>
+</nav>
+<!-- Hero Section -->
+<header class="relative w-full min-h-[870px] flex items-center pt-24 overflow-hidden">
+<div class="absolute inset-0 z-0">
+<img class="w-full h-full object-cover opacity-40 mix-blend-luminosity" data-alt="cinematic wide shot of a luxury private aircraft on a dark runway at dusk with atmospheric blue mist and distant hangar lights" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCh4J1bvscb03Sn77mvJgCnWWbko8yM0_ko7te_JD-z_GnF4nf9EtrXbOfccahYi3Dvz3NnRpX_qSCWTC3E5_SVoevUfSUZgrAvYO6TqAqRrxYtk91hiGm2V3axNgftg6iG4-sr3qQ2dag0yRgi70-juvsx_BsGkPfmijqd6QonHQZ_3OUnKxuWnDd9y5eiUkKbzUSsFjrSOrjNAHhk4cKWuGcRPq2t3yGjVOt2tbFGYdFgNuj2nQAbwXiTxKuTExgFvEoLkC4Slb0"/>
+<div class="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent"></div>
+</div>
+<div class="relative z-10 max-w-7xl mx-auto px-8 w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+<div class="lg:col-span-8">
+<h1 class="font-headline text-5xl md:text-7xl lg:text-8xl italic leading-[1.1] tracking-tight text-white mb-8">
+                    Transparent <br/>Aircraft Rental Pricing
+                </h1>
+<p class="font-body text-xl text-on-surface-variant max-w-2xl mb-12 leading-relaxed">
+                    Elevate your journey with predictable costs. Our premium fleet is accessible to approved pilots with a clear structure designed for both casual sorties and regular navigation.
+                </p>
+<div class="flex flex-wrap gap-6">
+<button class="bg-gradient-to-br from-primary to-primary-container text-on-primary px-10 py-4 rounded-md font-semibold tracking-wide hover:shadow-[0_0_25px_rgba(174,199,247,0.3)] transition-all">
+                        Get Approved to Fly
+                    </button>
+<button class="border border-outline-variant text-primary px-10 py-4 rounded-md font-semibold tracking-wide hover:bg-white/5 transition-all">
+                        View Pilot Requirements
+                    </button>
+</div>
+</div>
+</div>
+</header>
+<!-- Pricing Cards Section -->
+<section class="max-w-7xl mx-auto px-8 -mt-24 relative z-20">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<!-- Casual Hourly -->
+<div class="bg-surface-container-low/90 backdrop-blur-xl p-10 rounded-xl flex flex-col h-full border-t border-white/5 hover:bg-surface-container transition-colors duration-500">
+<span class="font-label text-xs tracking-[0.2em] uppercase text-on-surface-variant mb-4">On-Demand</span>
+<h3 class="font-headline text-3xl italic text-white mb-6">Casual Hourly Rate</h3>
+<div class="mb-8">
+<span class="text-5xl font-light text-primary">$320</span>
+<span class="text-on-surface-variant font-body">/ hour</span>
+</div>
+<p class="text-on-surface-variant font-body mb-8 text-sm leading-relaxed">Perfect for the occasional pilot seeking spontaneous access to the skies without long-term commitment.</p>
+<div class="mt-auto">
+<button class="w-full py-4 border border-outline-variant hover:border-primary text-on-surface hover:text-primary transition-all rounded-md font-medium">Select Plan</button>
+</div>
+</div>
+<!-- 10 Hour Package -->
+<div class="bg-surface-container-high/90 backdrop-blur-xl p-10 rounded-xl flex flex-col h-full border-t border-primary/20 shadow-[0_20px_40px_rgba(0,0,0,0.3)] relative overflow-hidden">
+<div class="absolute top-0 right-0 bg-primary/10 px-4 py-1 text-[10px] uppercase tracking-widest text-primary border-b border-l border-primary/20">Standard</div>
+<span class="font-label text-xs tracking-[0.2em] uppercase text-on-surface-variant mb-4">The Weekend Flyer</span>
+<h3 class="font-headline text-3xl italic text-white mb-6">10 Hour Package</h3>
+<div class="mb-8">
+<span class="text-5xl font-light text-primary">$3,000</span>
+</div>
+<div class="flex items-center gap-2 mb-8 text-on-surface-variant">
+<span class="material-symbols-outlined text-primary text-sm">check_circle</span>
+<span class="font-body text-sm">$300 effective hourly rate</span>
+</div>
+<p class="text-on-surface-variant font-body mb-8 text-sm leading-relaxed">Balanced flexibility for those who aim to fly regularly while maintaining a budget.</p>
+<div class="mt-auto">
+<button class="w-full py-4 bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary transition-all rounded-md font-medium">Select Plan</button>
+</div>
+</div>
+<!-- 30 Hour Package -->
+<div class="bg-gradient-to-br from-surface-container-highest to-surface-container-low p-10 rounded-xl flex flex-col h-full border border-primary/30 relative shadow-2xl">
+<div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-on-primary px-6 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest">Best Value</div>
+<span class="font-label text-xs tracking-[0.2em] uppercase text-primary mb-4">Atmospheric Navigator</span>
+<h3 class="font-headline text-3xl italic text-white mb-6">30 Hour Package</h3>
+<div class="mb-8">
+<span class="text-5xl font-light text-primary">$8,400</span>
+</div>
+<div class="flex flex-col gap-3 mb-8">
+<div class="flex items-center gap-2 text-primary font-semibold">
+<span class="material-symbols-outlined text-sm">stars</span>
+<span class="font-body text-sm">$280 effective hourly rate</span>
+</div>
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-sm">savings</span>
+<span class="font-body text-sm">Save $1,200 over casual rates</span>
+</div>
+</div>
+<p class="text-on-surface-variant font-body mb-8 text-sm leading-relaxed">Our most prestigious tier for dedicated pilots who call the stratosphere their second home.</p>
+<div class="mt-auto">
+<button class="w-full py-4 bg-gradient-to-r from-primary to-secondary text-on-primary rounded-md font-bold uppercase tracking-wider scale-[1.02] shadow-lg">Select Best Value</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Comparison Strip -->
+<section class="mt-24 max-w-7xl mx-auto px-8">
+<div class="bg-surface-container-low border-y border-white/5 py-8 px-12 rounded-lg">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-8 items-center text-center">
+<div class="font-headline text-xl italic text-on-surface-variant">Comparative Overview</div>
+<div>
+<p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Investment</p>
+<p class="text-2xl font-light text-white">$320 <span class="text-xs text-outline">vs</span> $8,400</p>
+</div>
+<div>
+<p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Hourly Efficiency</p>
+<p class="text-2xl font-light text-white">$320 <span class="text-xs text-outline">→</span> $280</p>
+</div>
+<div>
+<p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Savings</p>
+<p class="text-2xl font-medium text-tertiary">12.5% Optimized</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Inclusion/Exclusion Bento -->
+<section class="py-32 max-w-7xl mx-auto px-8">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12">
+<div class="lg:col-span-7">
+<h2 class="font-headline text-4xl italic text-white mb-12">The Integrated Experience</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="bg-surface-container-low p-8 rounded-xl border-l-2 border-primary/20">
+<span class="material-symbols-outlined text-primary mb-4" style="font-size: 32px;">flight</span>
+<h4 class="text-lg font-semibold mb-2">Aircraft Access</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">Unrestricted access to our meticulously maintained fleet of Cessna and Piper models.</p>
+</div>
+<div class="bg-surface-container-low p-8 rounded-xl border-l-2 border-primary/20">
+<span class="material-symbols-outlined text-primary mb-4" style="font-size: 32px;">schedule</span>
+<h4 class="text-lg font-semibold mb-2">Booking Platform</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">24/7 digital reservation system with real-time fleet availability and weather integration.</p>
+</div>
+<div class="bg-surface-container-low p-8 rounded-xl border-l-2 border-primary/20">
+<span class="material-symbols-outlined text-primary mb-4" style="font-size: 32px;">support_agent</span>
+<h4 class="text-lg font-semibold mb-2">Concierge Support</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">Direct line to our operations team for maintenance logs, fuel logistics, and trip planning.</p>
+</div>
+<div class="bg-surface-container-low p-8 rounded-xl border-l-2 border-primary/20">
+<span class="material-symbols-outlined text-primary mb-4" style="font-size: 32px;">cleaning_services</span>
+<h4 class="text-lg font-semibold mb-2">Post-Flight Valet</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">Basic aircraft cleaning and hangar service included after every successful journey.</p>
+</div>
+</div>
+</div>
+<div class="lg:col-span-5 bg-surface-container p-10 rounded-xl border border-error/10">
+<h2 class="font-headline text-4xl italic text-white mb-8">Not Included</h2>
+<p class="text-on-surface-variant mb-10 text-sm">To ensure maximum transparency, please note the following operational costs are handled separately:</p>
+<ul class="space-y-6">
+<li class="flex items-start gap-4">
+<span class="material-symbols-outlined text-error mt-0.5">remove_circle</span>
+<div>
+<p class="font-bold text-white text-sm">Fuel (Wet Rate Adjustments)</p>
+<p class="text-xs text-on-surface-variant mt-1">Billed based on actual consumption at current FBO market rates.</p>
+</div>
+</li>
+<li class="flex items-start gap-4">
+<span class="material-symbols-outlined text-error mt-0.5">remove_circle</span>
+<div>
+<p class="font-bold text-white text-sm">Landing &amp; Hangarage Fees</p>
+<p class="text-xs text-on-surface-variant mt-1">External airport fees incurred during your itinerary are your responsibility.</p>
+</div>
+</li>
+<li class="flex items-start gap-4">
+<span class="material-symbols-outlined text-error mt-0.5">remove_circle</span>
+<div>
+<p class="font-bold text-white text-sm">Instructor Fees</p>
+<p class="text-xs text-on-surface-variant mt-1">Checkout flights or instructional hours are billed separately per session.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</section>
+<!-- Audience Profiles -->
+<section class="bg-surface-dim py-32">
+<div class="max-w-7xl mx-auto px-8">
+<h2 class="font-headline text-5xl italic text-center text-white mb-20">Tailored for Every Pilot</h2>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-12">
+<div class="text-center group">
+<div class="w-20 h-20 bg-surface-container mx-auto rounded-full flex items-center justify-center mb-8 border border-white/5 group-hover:border-primary/40 transition-colors">
+<span class="material-symbols-outlined text-primary" style="font-size: 32px;">cloud_queue</span>
+</div>
+<h4 class="font-headline text-2xl italic mb-4">Casual Flyer</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">"I fly three or four times a year for the pure joy of it. The Hourly Rate gives me total freedom without overhead."</p>
+</div>
+<div class="text-center group">
+<div class="w-20 h-20 bg-surface-container mx-auto rounded-full flex items-center justify-center mb-8 border border-white/5 group-hover:border-primary/40 transition-colors">
+<span class="material-symbols-outlined text-primary" style="font-size: 32px;">weekend</span>
+</div>
+<h4 class="font-headline text-2xl italic mb-4">Regular Weekend Flyer</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">"I aim for one solid flight a month. The 10 Hour Package locks in a better rate while fitting my predictable schedule."</p>
+</div>
+<div class="text-center group">
+<div class="w-20 h-20 bg-surface-container mx-auto rounded-full flex items-center justify-center mb-8 border border-white/5 group-hover:border-primary/40 transition-colors">
+<span class="material-symbols-outlined text-primary" style="font-size: 32px;">flight_takeoff</span>
+</div>
+<h4 class="font-headline text-2xl italic mb-4">Frequent Pilot</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">"I'm building hours or commuting by air. The 30 Hour Package is the only logical choice for high-frequency utility."</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Booking Rules & Eligibility -->
+<section class="max-w-7xl mx-auto px-8 py-32 grid grid-cols-1 lg:grid-cols-2 gap-20">
+<div>
+<h2 class="font-headline text-4xl italic text-white mb-10">Operational Standards</h2>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-y-12 gap-x-8">
+<div>
+<h5 class="text-xs uppercase tracking-widest text-primary mb-3">Minimum Booking</h5>
+<p class="text-sm text-on-surface-variant">1.5 hours per daily reservation to ensure fleet rotation efficiency.</p>
+</div>
+<div>
+<h5 class="text-xs uppercase tracking-widest text-primary mb-3">Block Validity</h5>
+<p class="text-sm text-on-surface-variant">Pre-paid packages are valid for 12 months from the date of activation.</p>
+</div>
+<div>
+<h5 class="text-xs uppercase tracking-widest text-primary mb-3">Cancellation</h5>
+<p class="text-sm text-on-surface-variant">24-hour notice required for standard flights; no charge for weather-related grounded flights.</p>
+</div>
+<div>
+<h5 class="text-xs uppercase tracking-widest text-primary mb-3">Overnight Policy</h5>
+<p class="text-sm text-on-surface-variant">2-hour daily minimum applies for aircraft kept away from home base overnight.</p>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-high p-12 rounded-xl flex flex-col justify-center border border-primary/20 relative">
+<div class="absolute inset-0 opacity-10 pointer-events-none overflow-hidden rounded-xl">
+<img class="w-full h-full object-cover" data-alt="monochrome technical blueprint of an aircraft wing structure subtle overlay" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDw0NwFe51GBt0vo9-Qluf6USgjnA0Hf5VXzNVRXeL54DPgbwIa9jRMSAEZKpIidEJMwU0F3emP8BXtGWTNOGOz0kMBPscYn7X-udSqBlnRj3R02ud_0MW2yvrw_qVt5Ci4yThthycEm5YRoYRfaVlWejsBElSK0UVhKlXf3w13STkHOd2MTtMMpX_6RN0fdnNQaz5PNfuRAFR_5s6YmoVQQ55C-KQiMFb8Nk6bteIJ2mTxPNhlImUiAVT5dbPPvzMflsxY7TnOZDE"/>
+</div>
+<div class="relative z-10">
+<h3 class="font-headline text-3xl italic text-white mb-6">Are you eligible to fly?</h3>
+<p class="text-on-surface-variant mb-8 text-sm leading-relaxed">Before booking, all pilots must complete a localized check-out and meet our insurance minimums (100 hours total time, 10 hours in type).</p>
+<button class="bg-white/10 hover:bg-white/20 text-white px-8 py-3 rounded-md text-sm font-semibold transition-all">Review Full Requirements</button>
+</div>
+</div>
+</section>
+<!-- FAQ Section -->
+<section class="max-w-4xl mx-auto px-8 py-32">
+<h2 class="font-headline text-5xl italic text-center text-white mb-16">Common Enquiries</h2>
+<div class="space-y-4">
+<!-- FAQ 1 -->
+<div class="bg-surface-container-low rounded-lg overflow-hidden border border-white/5">
+<button class="w-full px-8 py-6 text-left flex justify-between items-center hover:bg-surface-container transition-colors">
+<span class="font-semibold text-on-surface">How is fuel billing handled exactly?</span>
+<span class="material-symbols-outlined text-primary">expand_more</span>
+</button>
+<div class="px-8 pb-6 text-sm text-on-surface-variant leading-relaxed">
+                    We operate on a "Wet-Rate" equivalent. The base price is provided, and fuel is billed at the pump price minus our membership discount. This ensures you only pay for what you burn.
+                </div>
+</div>
+<!-- FAQ 2 -->
+<div class="bg-surface-container-low rounded-lg overflow-hidden border border-white/5">
+<button class="w-full px-8 py-6 text-left flex justify-between items-center hover:bg-surface-container transition-colors">
+<span class="font-semibold text-on-surface">What happens if my package expires?</span>
+<span class="material-symbols-outlined text-primary">expand_more</span>
+</button>
+<div class="hidden px-8 pb-6 text-sm text-on-surface-variant">...</div>
+</div>
+<!-- FAQ 3 -->
+<div class="bg-surface-container-low rounded-lg overflow-hidden border border-white/5">
+<button class="w-full px-8 py-6 text-left flex justify-between items-center hover:bg-surface-container transition-colors">
+<span class="font-semibold text-on-surface">Is insurance included in these rates?</span>
+<span class="material-symbols-outlined text-primary">expand_more</span>
+</button>
+<div class="hidden px-8 pb-6 text-sm text-on-surface-variant">...</div>
+</div>
+<!-- FAQ 4 -->
+<div class="bg-surface-container-low rounded-lg overflow-hidden border border-white/5">
+<button class="w-full px-8 py-6 text-left flex justify-between items-center hover:bg-surface-container transition-colors">
+<span class="font-semibold text-on-surface">Can I use hours for multi-day trips?</span>
+<span class="material-symbols-outlined text-primary">expand_more</span>
+</button>
+<div class="hidden px-8 pb-6 text-sm text-on-surface-variant">...</div>
+</div>
+<!-- FAQ 5 -->
+<div class="bg-surface-container-low rounded-lg overflow-hidden border border-white/5">
+<button class="w-full px-8 py-6 text-left flex justify-between items-center hover:bg-surface-container transition-colors">
+<span class="font-semibold text-on-surface">What is the weather refund policy?</span>
+<span class="material-symbols-outlined text-primary">expand_more</span>
+</button>
+<div class="hidden px-8 pb-6 text-sm text-on-surface-variant">...</div>
+</div>
+<!-- FAQ 6 -->
+<div class="bg-surface-container-low rounded-lg overflow-hidden border border-white/5">
+<button class="w-full px-8 py-6 text-left flex justify-between items-center hover:bg-surface-container transition-colors">
+<span class="font-semibold text-on-surface">Do you offer aircraft for commercial training?</span>
+<span class="material-symbols-outlined text-primary">expand_more</span>
+</button>
+<div class="hidden px-8 pb-6 text-sm text-on-surface-variant">...</div>
+</div>
+</div>
+</section>
+<!-- Final CTA -->
+<section class="relative py-40 overflow-hidden text-center">
+<div class="absolute inset-0 z-0">
+<img class="w-full h-full object-cover opacity-20" data-alt="close up of an airplane propeller with soft focus sky background in deep blue tones" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBPJ0dQNAUAkPkejnAAtPAGHPcYkTpxXswQ13g0GEF8a3g_c3zwa2yACYqjjlO5nBdGqcNUSi6PONh5YbrfvLpian6eR3i6TKi-OKxzGTE6fNfApEDbQQ4C14dyBSMmsgMAuvFzmNLmTeNqLkZjAbjqYI2d6_zdX9zlRi-0_Xf9jbSmNHbCMM_lna3Rol49b8JCnmoBQr-GOnH4nhYrunhtpsA6ZOk6Ujs-T5zhUi_-MqtMPix8LrPTCpmVxKi8QlDEMlwO7PDgfkQ"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background"></div>
+</div>
+<div class="relative z-10 max-w-4xl mx-auto px-8">
+<h2 class="font-headline text-6xl italic text-white mb-8">Ready to Fly?</h2>
+<p class="text-xl text-on-surface-variant mb-12">The horizon is waiting. Begin your journey toward approved pilot status today.</p>
+<div class="flex flex-wrap justify-center gap-6">
+<button class="bg-gradient-to-br from-primary to-primary-container text-on-primary px-12 py-5 rounded-md font-bold uppercase tracking-widest shadow-xl">Get Approved</button>
+<button class="border border-outline-variant text-on-surface px-12 py-5 rounded-md font-bold uppercase tracking-widest hover:bg-white/5 transition-all">Requirements</button>
+</div>
+</div>
+</section>
+<!-- Footer -->
+<footer class="bg-[#091421] w-full border-t border-white/5">
+<div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center px-8 mt-20 pt-10 pb-20">
+<div class="mb-8 md:mb-0">
+<span class="font-['Newsreader'] text-xl italic text-white">OZ Rent A Plane</span>
+<p class="text-[#c4c6cf] font-['Manrope'] text-xs tracking-widest uppercase mt-2">© 2024 OZ Rent A Plane. The Atmospheric Navigator.</p>
+</div>
+<div class="flex flex-wrap justify-center gap-8">
+<a class="text-[#c4c6cf] font-['Manrope'] text-xs tracking-widest uppercase hover:text-[#aec7f7] transition-colors" href="#">Terms of Service</a>
+<a class="text-[#c4c6cf] font-['Manrope'] text-xs tracking-widest uppercase hover:text-[#aec7f7] transition-colors" href="#">Privacy Policy</a>
+<a class="text-[#c4c6cf] font-['Manrope'] text-xs tracking-widest uppercase hover:text-[#aec7f7] transition-colors" href="#">Charter Agreement</a>
+<a class="text-[#c4c6cf] font-['Manrope'] text-xs tracking-widest uppercase hover:text-[#aec7f7] transition-colors" href="#">Safety Standards</a>
+</div>
+</div>
+</footer>
+</body></html>

@@ -33,9 +33,9 @@ export default function Cessna172nPage() {
               The legacy of reliability meets precise handling. The Cessna 172N is the backbone of the OZRentAPlane fleet, maintained to the highest standards for the rigorous demands of open flight.
             </p>
             <div className="flex flex-wrap items-center gap-4">
-              <a 
-                href="#" 
-                className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded bg-[#aec7f7] text-[#001b3d] hover:bg-[#dbeafe] transition-colors shadow-lg"
+              <a
+                href="/pilotRequirements"
+                className="inline-block bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] rounded-md font-sans font-bold tracking-widest uppercase text-[0.8rem] px-8 py-4 shadow-2xl shadow-[#aec7f7]/20 transition-all active:scale-95 hover:brightness-110"
               >
                 Apply to Fly
               </a>

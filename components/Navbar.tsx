@@ -1,99 +1,75 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 
 const NAV_LINKS = [
-  { label: 'Fleet', href: '/fleet' },
-  { label: 'Safety', href: '/safety' },
-  { label: 'Pilot Requirements', href: '/pilotRequirements' },
+  { label: 'Fleet',        href: '/fleet' },
+  { label: 'Safety',       href: '/safety' },
+  { label: 'Requirements', href: '/pilotRequirements' },
+  { label: 'Pricing',      href: '/pricing' },
 ]
 
 export default function Navbar() {
-  const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const navRef = useRef<HTMLElement>(null)
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40)
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
 
   return (
-    <header className="fixed top-4 md:top-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 md:gap-4 w-fit max-w-[96vw] transition-all duration-500">
-      
-      {/* Standalone Logo Pill */}
-      <a
-        href="/"
-        className={`flex items-center justify-center shrink-0 h-[3.5rem] md:h-[4.25rem] px-6 md:px-8 rounded-full transition-all duration-500 ${
-          scrolled 
-            ? 'bg-[#091421]/80 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_rgba(0,14,37,0.5)]'
-            : 'bg-[#091421]/45 backdrop-blur-lg border border-white/10 shadow-[0_4px_24px_rgba(0,14,37,0.3)]'
-        }`}
-        style={{ boxShadow: 'inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 8px 32px rgba(0, 14, 37, 0.5)' }}
-      >
-        <img 
-          src="/Nav-logo.png" 
-          alt="OZRentAPlane" 
-          className="h-10 md:h-12 w-auto object-contain scale-[1.7] md:scale-[2.0] drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]"
-        />
-      </a>
+    <header
+      className="fixed top-0 left-0 right-0 z-50 bg-[#091421] shadow-[0_1px_0_rgba(255,255,255,0.07)]"
+    >
+      <div className="max-w-[1400px] mx-auto px-6 md:px-10 h-[62px] flex items-center justify-between gap-8">
 
-      {/* Main Nav Pill */}
-      <nav
-        ref={navRef}
-        className={`flex items-center px-6 md:px-8 h-[3.5rem] md:h-[4.25rem] rounded-full transition-all duration-500 ${
-          scrolled
-            ? 'bg-[#091421]/80 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_rgba(0,14,37,0.5)]'
-            : 'bg-[#091421]/45 backdrop-blur-lg border border-white/10 shadow-[0_4px_24px_rgba(0,14,37,0.3)]'
-        }`}
-        style={{ boxShadow: 'inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 8px 32px rgba(0, 14, 37, 0.5)' }}
-      >
-        <div className="flex items-center gap-6 lg:gap-10">
-          {/* Desktop links */}
-          <div className="hidden lg:flex items-center gap-6 lg:gap-8">
-            {NAV_LINKS.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className="whitespace-nowrap font-sans text-[13px] lg:text-sm font-medium text-[rgba(255,255,255,0.7)] hover:text-white transition-colors duration-200 tracking-wide drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
-              >
-                {link.label}
-              </a>
-            ))}
-          </div>
+        {/* Logo */}
+        <a
+          href="/"
+          className="shrink-0 font-serif italic font-bold text-[1.25rem] tracking-tight text-oz-blue select-none"
+        >
+          OZRentAPlane
+        </a>
 
-          {/* CTA / Hamburger */}
-          <div className="flex items-center gap-4 shrink-0 lg:border-l lg:border-white/10 lg:pl-8">
+        {/* Desktop links */}
+        <nav className="hidden lg:flex items-center gap-7 xl:gap-9">
+          {NAV_LINKS.map((link) => (
             <a
-              href="#booking"
-              className="hidden md:flex bg-oz-blue text-oz-deep px-6 py-2.5 rounded-full font-sans font-bold text-[13px] lg:text-sm hover:bg-white hover:shadow-[0_0_15px_rgba(167,200,255,0.4)] transition-all duration-300 tracking-wide whitespace-nowrap"
+              key={link.label}
+              href={link.href}
+              className="whitespace-nowrap font-sans text-[13.5px] font-medium text-white/70 hover:text-white transition-colors duration-200"
             >
-              Book a Flight
+              {link.label}
             </a>
+          ))}
+        </nav>
 
-            <button
-              className="lg:hidden flex flex-col gap-1.5 p-2"
-              onClick={() => setMenuOpen(!menuOpen)}
-              aria-label="Toggle menu"
-            >
-              <span className={`block w-6 h-0.5 bg-oz-blue transition-all duration-300 ${menuOpen ? 'rotate-45 translate-y-2' : ''}`} />
-              <span className={`block w-6 h-0.5 bg-oz-blue transition-all duration-300 ${menuOpen ? 'opacity-0' : ''}`} />
-              <span className={`block w-6 h-0.5 bg-oz-blue transition-all duration-300 ${menuOpen ? '-rotate-45 -translate-y-2' : ''}`} />
-            </button>
-          </div>
+        {/* CTA + hamburger */}
+        <div className="flex items-center gap-4 shrink-0">
+          <a
+            href="#booking"
+            className="hidden md:inline-flex items-center font-sans font-semibold text-[13px] text-[#0c1a2e] bg-[#c8dcff] hover:bg-white px-5 py-2 rounded-full transition-colors duration-200 whitespace-nowrap"
+          >
+            Book a Flight
+          </a>
+
+          {/* Hamburger — mobile only */}
+          <button
+            className="lg:hidden flex flex-col justify-center gap-[5px] w-8 h-8"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Toggle menu"
+          >
+            <span className={`block w-6 h-0.5 bg-white/70 transition-all duration-300 origin-center ${menuOpen ? 'rotate-45 translate-y-[7px]' : ''}`} />
+            <span className={`block w-6 h-0.5 bg-white/70 transition-all duration-300 ${menuOpen ? 'opacity-0' : ''}`} />
+            <span className={`block w-6 h-0.5 bg-white/70 transition-all duration-300 origin-center ${menuOpen ? '-rotate-45 -translate-y-[7px]' : ''}`} />
+          </button>
         </div>
-      </nav>
+      </div>
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="fixed top-[5.5rem] left-1/2 -translate-x-1/2 w-[92vw] lg:hidden bg-[#091421]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-6 flex flex-col gap-5 shadow-2xl z-40">
+        <div className="lg:hidden bg-[#091421]/98 backdrop-blur-xl border-t border-white/8 px-6 py-5 flex flex-col gap-4">
           {NAV_LINKS.map((link) => (
             <a
               key={link.label}
               href={link.href}
               onClick={() => setMenuOpen(false)}
-              className="font-sans text-base font-semibold text-white/90 hover:text-oz-blue transition-colors whitespace-nowrap"
+              className="font-sans text-[15px] font-medium text-white/80 hover:text-white transition-colors"
             >
               {link.label}
             </a>
@@ -101,7 +77,7 @@ export default function Navbar() {
           <a
             href="#booking"
             onClick={() => setMenuOpen(false)}
-            className="bg-oz-blue text-oz-deep px-5 py-3 rounded-full font-bold text-sm text-center mt-2 whitespace-nowrap"
+            className="mt-2 inline-flex justify-center font-sans font-semibold text-sm text-[#0c1a2e] bg-[#c8dcff] hover:bg-white px-5 py-3 rounded-full transition-colors"
           >
             Book a Flight
           </a>

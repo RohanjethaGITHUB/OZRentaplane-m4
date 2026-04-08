@@ -32,7 +32,7 @@ export default function SafetyPage() {
           <div className="flex flex-wrap gap-6">
             <a
               href="/pilotRequirements"
-              className="bg-gradient-to-br from-[#aec7f7] to-[#a0cafe] text-[#143057] px-8 py-4 rounded-md font-label font-bold uppercase tracking-widest text-sm hover:opacity-90 transition-all"
+              className="inline-block bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] px-8 py-4 rounded-md font-label font-bold uppercase tracking-widest text-sm shadow-2xl shadow-[#aec7f7]/20 transition-all active:scale-95 hover:brightness-110"
             >
               View Pilot Requirements
             </a>
@@ -382,7 +382,7 @@ export default function SafetyPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
               href="/pilotRequirements"
-              className="bg-gradient-to-br from-[#aec7f7] to-[#a0cafe] text-[#143057] px-8 py-4 rounded-md font-label font-bold uppercase tracking-widest text-sm active:scale-95 transition-all"
+              className="inline-block bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] px-8 py-4 rounded-md font-label font-bold uppercase tracking-widest text-sm shadow-2xl shadow-[#aec7f7]/20 transition-all active:scale-95 hover:brightness-110"
             >
               View Pilot Requirements
             </a>

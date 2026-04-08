@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 
 // ─── Frame sequence ───────────────────────────────────────────────────────────
@@ -9,10 +9,11 @@ function buildFrameSequence(): string[] {
   for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-1_${String(i).padStart(6, '0')}.webp`)
   for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-2_${String(i).padStart(6, '0')}.webp`)
   for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-3_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/snc-4_${String(i).padStart(6, '0')}.webp`)
   return frames
 }
 const FRAME_PATHS  = buildFrameSequence()
-const TOTAL_FRAMES = FRAME_PATHS.length // 576
+const TOTAL_FRAMES = FRAME_PATHS.length // 768
 
 // ─── Scroll timeline ──────────────────────────────────────────────────────────
 //
@@ -52,29 +53,137 @@ const MOBILE_LOOKAHEAD     = 3
 const SEQ_BOUNDS = {
   seq1End: 191,
   seq2End: 383,
+  seq3End: 575,
 }
 const BG_DARKEN_ALPHA = 0.38
 
-interface SequenceLayout { fgBlend: number; focalX: number; focalY: number }
+// ─── scn-4 scale correction ───────────────────────────────────────────────────
+// The scn-4 source frames were exported ~10% more zoomed-in than the final
+// frames of scn-3 (camera framing difference at capture time).  Without
+// correction this causes a visible zoom-pop at the scn-3→scn-4 boundary.
+//
+// Fix: apply a sub-unity scale multiplier to the fg-pass render at the start
+// of scn-4, then smoothly ease it back to 1.0 over the first 20 % of the
+// scene.  Pass-1 (cover fill, 38 % darken) handles any canvas-edge exposure
+// during the ease, producing a subtle cinematic vignette rather than a hard
+// gap.
+const SCN4_START_FRAME   = SEQ_BOUNDS.seq3End + 1          // frame index 576
+const SCN4_SCALE_ENTER   = 0.91                             // ~9 % zoom-out at entry
+const SCN4_EASE_FRAMES   = Math.round(192 * 0.20)           // ease over first ~38 frames
 
-const SEQUENCE_LAYOUT: Record<'desktop' | 'mobile', Record<'seq1' | 'seq2' | 'seq3', SequenceLayout>> = {
-  desktop: {
-    seq1: { fgBlend: 0.72, focalX: 0.50, focalY: 0.40 },
-    seq2: { fgBlend: 0.72, focalX: 0.50, focalY: 0.48 },
-    seq3: { fgBlend: 0.62, focalX: 0.50, focalY: 0.62 },
-  },
-  mobile: {
-    seq1: { fgBlend: 0.90, focalX: 0.50, focalY: 0.40 },
-    seq2: { fgBlend: 0.90, focalX: 0.50, focalY: 0.48 },
-    seq3: { fgBlend: 0.78, focalX: 0.65, focalY: 0.70 },
-  },
+function getScn4ScaleCorrection(frameIndex: number): number {
+  if (frameIndex < SCN4_START_FRAME) return 1.0
+  const f = frameIndex - SCN4_START_FRAME
+  if (f >= SCN4_EASE_FRAMES) return 1.0
+  const t     = f / SCN4_EASE_FRAMES
+  const eased = t * t * (3 - 2 * t)   // smoothstep
+  return SCN4_SCALE_ENTER + (1.0 - SCN4_SCALE_ENTER) * eased
 }
 
+// ─── Sequence layout types ────────────────────────────────────────────────────
+interface SequenceLayout {
+  fgBlend: number   // 0=contain … 1=cover for fg pass scale
+  focalX:  number   // horizontal anchor: 0=left edge, 0.5=centre, 1=right edge
+  focalY:  number   // vertical anchor:   0=top  edge, 0.5=centre, 1=bottom edge
+}
+
+// ─── Desktop art direction ────────────────────────────────────────────────────
+// Landscape canvas — wide images, generous framing.
+const DESKTOP_LAYOUT: Record<'seq1' | 'seq2' | 'seq3' | 'seq4', SequenceLayout> = {
+  seq1: { fgBlend: 0.72, focalX: 0.50, focalY: 0.40 },
+  seq2: { fgBlend: 0.72, focalX: 0.50, focalY: 0.48 },
+  seq3: { fgBlend: 0.62, focalX: 0.50, focalY: 0.62 },
+  seq4: { fgBlend: 0.72, focalX: 0.50, focalY: 0.50 },
+}
+
+// ─── Mobile art direction ─────────────────────────────────────────────────────
+// Portrait canvas crops images very differently from desktop.  Each scene has
+// its own focal point tuned so the relevant subject stays centred on a narrow
+// screen — do NOT derive these from desktop values.
+//
+// Key fixes vs. the old shared config:
+//   scn-2  focalX was 0.65 → drifted to the right on portrait.  Reset to 0.50
+//          so the cockpit/plane body stays centred.
+//   scn-3  focalY raised (0.70 → 0.55) to keep the horizon in frame on mobile.
+//   scn-4  Slightly tighter blend to compensate for the source zoom difference.
+//
+// fgBlend is raised across all mobile scenes (≥ 0.82) because portrait crops
+// need a higher scale to keep the subject filling the narrow canvas.
+const MOBILE_LAYOUT: Record<'seq1' | 'seq2' | 'seq3' | 'seq4', SequenceLayout> = {
+  seq1: { fgBlend: 0.88, focalX: 0.50, focalY: 0.38 }, // plane in upper-centre
+  seq2: { fgBlend: 0.88, focalX: 0.50, focalY: 0.45 }, // re-centred; was drifting right
+  seq3: { fgBlend: 0.82, focalX: 0.50, focalY: 0.55 }, // horizon centred vertically
+  seq4: { fgBlend: 0.90, focalX: 0.50, focalY: 0.50 }, // neutral centre
+}
+
+// ─── Mobile cross-scene interpolation ────────────────────────────────────────
+// On mobile a hard layout switch at the scene boundary is visible as a flicker
+// because the focal point can jump.  We blend the outgoing → incoming layout
+// over a small window of frames around each boundary.
+//
+// BLEND_WINDOW = number of frames on EACH side of the boundary to interpolate.
+// 12 frames ≈ 6 % of a 192-frame scene — smooth but not sluggish.
+const MOBILE_BLEND_WINDOW = 12
+
+/** Smoothstep (0→1) for a value t already in [0,1]. */
+function smoothstep(t: number): number { return t * t * (3 - 2 * t) }
+
+/**
+ * Returns an interpolated SequenceLayout for mobile, blending between adjacent
+ * scene configs near each scene boundary to eliminate focal-point jumps.
+ */
+function getMobileLayout(frameIndex: number): SequenceLayout {
+  const seqs = ['seq1', 'seq2', 'seq3', 'seq4'] as const
+  const ends  = [SEQ_BOUNDS.seq1End, SEQ_BOUNDS.seq2End, SEQ_BOUNDS.seq3End, Infinity]
+
+  // Determine which scene we're in and how far into / from its end.
+  for (let s = 0; s < seqs.length; s++) {
+    const sceneStart = s === 0 ? 0 : ends[s - 1] + 1
+    const sceneEnd   = ends[s]
+    if (frameIndex > sceneEnd) continue
+
+    const current = MOBILE_LAYOUT[seqs[s]]
+
+    // ── Blend-in from previous scene (start of this scene) ───────────────────
+    if (s > 0) {
+      const framesIn = frameIndex - sceneStart
+      if (framesIn < MOBILE_BLEND_WINDOW) {
+        const prev = MOBILE_LAYOUT[seqs[s - 1]]
+        const t    = smoothstep(framesIn / MOBILE_BLEND_WINDOW)
+        return {
+          fgBlend: prev.fgBlend + (current.fgBlend - prev.fgBlend) * t,
+          focalX:  prev.focalX  + (current.focalX  - prev.focalX)  * t,
+          focalY:  prev.focalY  + (current.focalY  - prev.focalY)  * t,
+        }
+      }
+    }
+
+    // ── Blend-out to next scene (end of this scene) ───────────────────────────
+    if (s < seqs.length - 1 && sceneEnd !== Infinity) {
+      const framesFromEnd = sceneEnd - frameIndex
+      if (framesFromEnd < MOBILE_BLEND_WINDOW) {
+        const next = MOBILE_LAYOUT[seqs[s + 1]]
+        const t    = smoothstep(1 - framesFromEnd / MOBILE_BLEND_WINDOW)
+        return {
+          fgBlend: current.fgBlend + (next.fgBlend - current.fgBlend) * t,
+          focalX:  current.focalX  + (next.focalX  - current.focalX)  * t,
+          focalY:  current.focalY  + (next.focalY  - current.focalY)  * t,
+        }
+      }
+    }
+
+    return current
+  }
+  return MOBILE_LAYOUT.seq4
+}
+
+// ─── Layout selector (desktop uses direct lookup; mobile uses interpolation) ──
 function getLayout(frameIndex: number, isMobile: boolean): SequenceLayout {
-  const device = isMobile ? SEQUENCE_LAYOUT.mobile : SEQUENCE_LAYOUT.desktop
-  if (frameIndex <= SEQ_BOUNDS.seq1End) return device.seq1
-  if (frameIndex <= SEQ_BOUNDS.seq2End) return device.seq2
-  return device.seq3
+  if (isMobile) return getMobileLayout(frameIndex)
+  if (frameIndex <= SEQ_BOUNDS.seq1End) return DESKTOP_LAYOUT.seq1
+  if (frameIndex <= SEQ_BOUNDS.seq2End) return DESKTOP_LAYOUT.seq2
+  if (frameIndex <= SEQ_BOUNDS.seq3End) return DESKTOP_LAYOUT.seq3
+  return DESKTOP_LAYOUT.seq4
 }
 
 // ─── Opening poster ───────────────────────────────────────────────────────────
@@ -198,10 +307,9 @@ const TEXT_OVERLAYS = [
           >
             <a
               href="/pilotRequirements"
-              className="inline-flex items-center gap-2.5 font-sans text-[0.8125rem] font-medium text-oz-text/80 border border-oz-blue/28 rounded-full px-5 py-2.5 hover:border-oz-blue/55 hover:text-oz-text transition-all duration-300 group"
+              className="inline-block bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] rounded-md font-sans font-bold tracking-widest uppercase text-sm px-10 py-4 shadow-2xl shadow-[#aec7f7]/20 transition-all active:scale-95 hover:brightness-110"
             >
-              <span className="opacity-90 group-hover:opacity-100 transition-opacity">Start your application</span>
-              <span className="inline-block opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300 text-oz-blue">→</span>
+              Start your application
             </a>
           </motion.div>
         </div>
@@ -323,13 +431,12 @@ const TEXT_OVERLAYS = [
 ]
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function HeroScrollStage({ children }: { children?: ReactNode }) {
+export default function HeroScrollStage() {
   const sectionRef         = useRef<HTMLDivElement>(null)
   const canvasRef          = useRef<HTMLCanvasElement>(null)
   const canvasLayerRef     = useRef<HTMLDivElement>(null)
   const overlayRefs        = useRef<(HTMLDivElement | null)[]>([])
   const scrollIndicatorRef = useRef<HTMLDivElement | null>(null)
-  const homeContentRef     = useRef<HTMLDivElement>(null)
 
   const imagesRef          = useRef<(HTMLImageElement | null)[]>(new Array(TOTAL_FRAMES).fill(null))
   const posterRef          = useRef<HTMLImageElement | null>(null)
@@ -340,9 +447,8 @@ export default function HeroScrollStage({ children }: { children?: ReactNode }) 
   const dirtyRef           = useRef(true)
   const isMobileRef        = useRef(false)
 
-  const [sectionHeight,     setSectionHeight]     = useState(0)
-  const [viewportHeight,    setViewportHeight]     = useState(0)
-  const [homeContentHeight, setHomeContentHeight]  = useState(0)
+  const [sectionHeight,  setSectionHeight]  = useState(0)
+  const [viewportHeight, setViewportHeight] = useState(0)
 
   // ── 2-pass canvas draw ─────────────────────────────────────────────────────
   const drawFrame = useCallback((index: number) => {
@@ -372,13 +478,23 @@ export default function HeroScrollStage({ children }: { children?: ReactNode }) 
     ctx.fillStyle = `rgba(0,0,0,${BG_DARKEN_ALPHA})`
     ctx.fillRect(0, 0, cw, ch)
 
-    // Pass 2 — foreground: gentler fit, more composition preserved
-    const layout  = getLayout(index, isMobileRef.current)
-    const fgScale = containScale + (coverScale - containScale) * layout.fgBlend
-    const fgW     = iw * fgScale
-    const fgH     = ih * fgScale
-    const fgImg   = (index === 0 && posterRef.current) ? posterRef.current : img
-    ctx.drawImage(fgImg, (cw - fgW) * layout.focalX, (ch - fgH) * layout.focalY, fgW, fgH)
+    // Pass 2 — foreground: gentler fit, more composition preserved.
+    // Base scale is clamped so fgH >= ch and fgW >= cw (no exposed-band risk).
+    // For scn-4 a per-frame correction is applied on top to compensate for the
+    // source footage being ~10 % more zoomed-in than scn-3's end frames.
+    // During the ease window Pass-1 (darkened cover fill) handles edge exposure,
+    // producing a natural vignette rather than a hard gap.
+    const layout          = getLayout(index, isMobileRef.current)
+    const blendScale      = containScale + (coverScale - containScale) * layout.fgBlend
+    const baseScale       = Math.max(blendScale, cw / iw, ch / ih)
+    const scaleCorrection = getScn4ScaleCorrection(index)
+    const fgScale         = baseScale * scaleCorrection
+    const fgW             = iw * fgScale
+    const fgH             = ih * fgScale
+    const fgImg           = (index === 0 && posterRef.current) ? posterRef.current : img
+    const fgX             = (cw - fgW) * layout.focalX
+    const fgY             = (ch - fgH) * layout.focalY
+    ctx.drawImage(fgImg, fgX, fgY, fgW, fgH)
   }, [])
 
   // ── Resize ────────────────────────────────────────────────────────────────
@@ -582,23 +698,11 @@ export default function HeroScrollStage({ children }: { children?: ReactNode }) 
     }
   }, [resizeCanvas, onScroll, loadFrame, renderLoop])
 
-  // ── HomeContent height — measured so outerStyle includes it ───────────────
-  useEffect(() => {
-    const el = homeContentRef.current
-    if (!el) return
-    const ro = new ResizeObserver(() => setHomeContentHeight(el.offsetHeight))
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
   // ── Heights ────────────────────────────────────────────────────────────────
-  // spacerHeight = (heroMult−1)×vh  so HomeContent enters the viewport
-  // exactly when heroProgress reaches 1 (final frame).  outerStyle includes
-  // homeContentHeight so the sticky releases cleanly with no tail scroll.
   const spacerHeight = sectionHeight > 0 ? sectionHeight - viewportHeight : undefined
 
-  const outerStyle: React.CSSProperties = sectionHeight > 0 && spacerHeight !== undefined
-    ? { height: `${sectionHeight + homeContentHeight}px` }
+  const outerStyle: React.CSSProperties = sectionHeight > 0
+    ? { height: `${sectionHeight}px` }
     : { height: `${DESKTOP_SCROLL_MULTIPLIER * 100}svh` }
 
   const stickyStyle: React.CSSProperties = viewportHeight > 0
@@ -625,8 +729,8 @@ export default function HeroScrollStage({ children }: { children?: ReactNode }) 
             aria-hidden="true"
           />
 
-          {/* Vignettes — top kept very faint to avoid a visible stripe */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#091421]/15 via-transparent to-[#091421]/80 pointer-events-none" />
+          {/* Vignettes — very faint top fade only */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#091421]/15 via-transparent to-transparent pointer-events-none" />
 
           {/* Cooling tint */}
           <div
@@ -638,14 +742,6 @@ export default function HeroScrollStage({ children }: { children?: ReactNode }) 
           <FloatingPaths position={1} />
           <FloatingPaths position={-1} />
 
-          {/* Bottom fade - stronger blend for seamless handoff to next section */}
-          <div
-            className="absolute inset-x-0 bottom-0 pointer-events-none"
-            style={{ 
-              height: 280, 
-              background: 'linear-gradient(to top, #091421 0%, rgba(9,20,33,0.8) 25%, transparent 100%)' 
-            }}
-          />
         </div>
 
         {/* ── Hero text overlays ──────────────────────────────────────────── */}
@@ -699,14 +795,6 @@ export default function HeroScrollStage({ children }: { children?: ReactNode }) 
           : { height: `${(DESKTOP_SCROLL_MULTIPLIER - 1) * 100}svh` }}
       />
 
-      {/* HomeContent — normal flow inside the scroll container, z-20 so it   */}
-      {/* scrolls over the z-10 sticky canvas. Frozen sky stays visible        */}
-      {/* through the frosted glass panels as each section rises into view.    */}
-      {children && (
-        <div ref={homeContentRef} className="relative z-20">
-          {children}
-        </div>
-      )}
     </div>
   )
 }
