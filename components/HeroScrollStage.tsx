@@ -4,16 +4,22 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 
 // ─── Frame sequence ───────────────────────────────────────────────────────────
+// V2 images: /public/hero-scrollyImages-V2/{seq-1..seq-4}/
+// seq-1: 120 frames  prefix Cessna_flying_above_202604010949_
+// seq-2:  92 frames  prefix Aircraft_transition_outside_202604011034_
+// seq-3: 192 frames  prefix Cockpit_view_flying_202604011043_
+// seq-4: 192 frames  prefix Plane_climbing_into_202604011652_
+// Total:  596 frames
 function buildFrameSequence(): string[] {
   const frames: string[] = []
-  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-1_${String(i).padStart(6, '0')}.webp`)
-  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-2_${String(i).padStart(6, '0')}.webp`)
-  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-3_${String(i).padStart(6, '0')}.webp`)
-  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/snc-4_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <= 120; i++) frames.push(`/hero-scrollyImages-V2/seq-1/Cessna_flying_above_202604010949_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <=  92; i++) frames.push(`/hero-scrollyImages-V2/seq-2/Aircraft_transition_outside_202604011034_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <= 192; i++) frames.push(`/hero-scrollyImages-V2/seq-3/Cockpit_view_flying_202604011043_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <= 192; i++) frames.push(`/hero-scrollyImages-V2/seq-4/Plane_climbing_into_202604011652_${String(i).padStart(6, '0')}.webp`)
   return frames
 }
 const FRAME_PATHS  = buildFrameSequence()
-const TOTAL_FRAMES = FRAME_PATHS.length // 768
+const TOTAL_FRAMES = FRAME_PATHS.length // 596
 
 // ─── Scroll timeline ──────────────────────────────────────────────────────────
 //
@@ -51,9 +57,10 @@ const MOBILE_LOOKAHEAD     = 3
 
 // ─── Sequence layout (rendering) ─────────────────────────────────────────────
 const SEQ_BOUNDS = {
-  seq1End: 191,
-  seq2End: 383,
-  seq3End: 575,
+  seq1End: 119,   // frames  0–119  (120 frames)
+  seq2End: 211,   // frames 120–211  (92 frames)
+  seq3End: 403,   // frames 212–403 (192 frames)
+  //  seq4   404–595 (192 frames)
 }
 const BG_DARKEN_ALPHA = 0.22
 
@@ -67,7 +74,7 @@ const BG_DARKEN_ALPHA = 0.22
 // scene.  Pass-1 (cover fill, 38 % darken) handles any canvas-edge exposure
 // during the ease, producing a subtle cinematic vignette rather than a hard
 // gap.
-const SCN4_START_FRAME   = SEQ_BOUNDS.seq3End + 1          // frame index 576
+const SCN4_START_FRAME   = SEQ_BOUNDS.seq3End + 1          // frame index 404 (V2)
 const SCN4_SCALE_ENTER   = 0.91                             // ~9 % zoom-out at entry
 const SCN4_EASE_FRAMES   = Math.round(192 * 0.20)           // ease over first ~38 frames
 
