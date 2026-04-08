@@ -55,7 +55,7 @@ const SEQ_BOUNDS = {
   seq2End: 383,
   seq3End: 575,
 }
-const BG_DARKEN_ALPHA = 0.38
+const BG_DARKEN_ALPHA = 0.22
 
 // ─── scn-4 scale correction ───────────────────────────────────────────────────
 // The scn-4 source frames were exported ~10% more zoomed-in than the final
@@ -185,9 +185,6 @@ function getLayout(frameIndex: number, isMobile: boolean): SequenceLayout {
   if (frameIndex <= SEQ_BOUNDS.seq3End) return DESKTOP_LAYOUT.seq3
   return DESKTOP_LAYOUT.seq4
 }
-
-// ─── Opening poster ───────────────────────────────────────────────────────────
-const POSTER_SRC: string | null = null
 
 // ─── Floating paths (BackgroundPaths adaptation) ──────────────────────────────
 // Durations are index-derived to avoid Math.random() SSR/client hydration mismatch.
@@ -438,8 +435,12 @@ export default function HeroScrollStage() {
   const overlayRefs        = useRef<(HTMLDivElement | null)[]>([])
   const scrollIndicatorRef = useRef<HTMLDivElement | null>(null)
 
-  const imagesRef          = useRef<(HTMLImageElement | null)[]>(new Array(TOTAL_FRAMES).fill(null))
-  const posterRef          = useRef<HTMLImageElement | null>(null)
+  const imagesRef              = useRef<(HTMLImageElement | null)[]>(new Array(TOTAL_FRAMES).fill(null))
+  const loadingRef             = useRef<boolean[]>(new Array(TOTAL_FRAMES).fill(false))
+  const posterCanvasRef        = useRef<HTMLCanvasElement>(null)
+  const isOpeningChunkReadyRef = useRef(false)
+  const hasRevealedLiveHeroRef = useRef(false)
+
   const currentFrameRef    = useRef(0)
   const targetProgressRef  = useRef(0)   // set by scroll events (raw)
   const currentProgressRef = useRef(0)   // lerp'd toward target each rAF tick
@@ -449,20 +450,24 @@ export default function HeroScrollStage() {
 
   const [sectionHeight,  setSectionHeight]  = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
+  const [posterVisible,  setPosterVisible]  = useState(true)
 
   // ── 2-pass canvas draw ─────────────────────────────────────────────────────
-  const drawFrame = useCallback((index: number) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+  const drawFrame = useCallback((index: number, targetCanvas?: HTMLCanvasElement): boolean => {
+    const canvas = targetCanvas || canvasRef.current
+    if (!canvas) return false
     const img = imagesRef.current[index]
-    if (!img) { dirtyRef.current = true; return }
+    if (!img) { 
+      if (canvas === canvasRef.current) dirtyRef.current = true
+      return false
+    }
     const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    if (!ctx) return false
 
     const { width: cw, height: ch } = canvas
     const iw = img.naturalWidth
     const ih = img.naturalHeight
-    if (!iw || !ih) return
+    if (!iw || !ih) return false
 
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = 'high'
@@ -491,11 +496,17 @@ export default function HeroScrollStage() {
     const fgScale         = baseScale * scaleCorrection
     const fgW             = iw * fgScale
     const fgH             = ih * fgScale
-    const fgImg           = (index === 0 && posterRef.current) ? posterRef.current : img
     const fgX             = (cw - fgW) * layout.focalX
     const fgY             = (ch - fgH) * layout.focalY
-    ctx.drawImage(fgImg, fgX, fgY, fgW, fgH)
+    ctx.drawImage(img, fgX, fgY, fgW, fgH)
+    return true
   }, [])
+
+  const drawPosterFrame = useCallback(() => {
+    if (posterCanvasRef.current) {
+      drawFrame(0, posterCanvasRef.current)
+    }
+  }, [drawFrame])
 
   // ── Resize ────────────────────────────────────────────────────────────────
   const resizeCanvas = useCallback(() => {
@@ -509,24 +520,40 @@ export default function HeroScrollStage() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     canvas.width  = Math.round(w * dpr)
     canvas.height = Math.round(h * dpr)
+    
+    if (posterCanvasRef.current) {
+      posterCanvasRef.current.width  = canvas.width
+      posterCanvasRef.current.height = canvas.height
+      drawPosterFrame()
+    }
+    
     dirtyRef.current = true
 
     const heroMult  = isMobileRef.current ? MOBILE_SCROLL_MULTIPLIER : DESKTOP_SCROLL_MULTIPLIER
     setSectionHeight(h * (heroMult + CONTENT_BEATS_VH))
     setViewportHeight(h)
-  }, [])
+  }, [drawPosterFrame])
 
   // ── Frame loader ───────────────────────────────────────────────────────────
-  const loadFrame = useCallback((index: number) => {
+  const loadFrameAsync = useCallback(async (index: number) => {
     if (index < 0 || index >= TOTAL_FRAMES) return
     if (imagesRef.current[index]) return
-    const img = new Image()
-    img.src = FRAME_PATHS[index]
-    img.onload = () => {
-      imagesRef.current[index] = img
-      if (index === currentFrameRef.current) dirtyRef.current = true
-    }
-  }, [])
+    if (loadingRef.current[index]) return
+
+    loadingRef.current[index] = true
+    return new Promise<void>((resolve) => {
+      const img = new Image()
+      img.src = FRAME_PATHS[index]
+      img.onload = async () => {
+        try { await img.decode() } catch (e) {}
+        imagesRef.current[index] = img
+        if (index === 0) drawPosterFrame()
+        if (index === currentFrameRef.current) dirtyRef.current = true
+        resolve()
+      }
+      img.onerror = () => resolve()
+    })
+  }, [drawPosterFrame])
 
   // ── rAF loop ───────────────────────────────────────────────────────────────
   // Lerp currentProgress → targetProgress each tick for cinematic smoothness.
@@ -545,31 +572,36 @@ export default function HeroScrollStage() {
 
       if (frameIndex !== currentFrameRef.current || dirtyRef.current) {
         currentFrameRef.current = frameIndex
-        drawFrame(frameIndex)
-        dirtyRef.current = false
+        const didDraw = drawFrame(frameIndex)
+        
+        if (didDraw) {
+          dirtyRef.current = false
+          if (isOpeningChunkReadyRef.current && !hasRevealedLiveHeroRef.current) {
+            hasRevealedLiveHeroRef.current = true
+            setPosterVisible(false)
+          }
+        }
 
         // Preload neighbours around the interpolated position
         const lookahead = isMobileRef.current ? MOBILE_LOOKAHEAD : DESKTOP_LOOKAHEAD
         for (let i = -lookahead; i <= lookahead; i++) {
-          const idx = frameIndex + i
-          if (idx >= 0 && idx < TOTAL_FRAMES && !imagesRef.current[idx]) {
-            const img = new Image()
-            img.src = FRAME_PATHS[idx]
-            img.onload = () => {
-              imagesRef.current[idx] = img
-              if (idx === currentFrameRef.current) dirtyRef.current = true
-            }
-          }
+          loadFrameAsync(frameIndex + i)
         }
       }
     } else if (dirtyRef.current) {
       // Settled — draw once more to flush any pending dirty frame
-      drawFrame(currentFrameRef.current)
-      dirtyRef.current = false
+      const didDraw = drawFrame(currentFrameRef.current)
+      if (didDraw) {
+        dirtyRef.current = false
+        if (isOpeningChunkReadyRef.current && !hasRevealedLiveHeroRef.current) {
+          hasRevealedLiveHeroRef.current = true
+          setPosterVisible(false)
+        }
+      }
     }
 
     rafRef.current = requestAnimationFrame(renderLoop)
-  }, [drawFrame])
+  }, [drawFrame, loadFrameAsync])
 
   // ── Unified scroll handler ─────────────────────────────────────────────────
   const onScroll = useCallback(() => {
@@ -600,7 +632,7 @@ export default function HeroScrollStage() {
     // lerp arrives — avoids blank frames on fast scrolls
     const targetFrame = Math.round(heroProgress * (TOTAL_FRAMES - 1))
     const lookahead   = isMobileRef.current ? MOBILE_LOOKAHEAD * 2 : DESKTOP_LOOKAHEAD * 3
-    for (let i = -lookahead; i <= lookahead; i++) loadFrame(targetFrame + i)
+    for (let i = -lookahead; i <= lookahead; i++) loadFrameAsync(targetFrame + i)
 
     // ── Hero text overlays ──────────────────────────────────────────────────
     // Hidden once hero phase completes (heroProgress === 1 and we've passed heroFraction).
@@ -640,7 +672,7 @@ export default function HeroScrollStage() {
       canvasLayerRef.current.style.opacity = '1'
     }
 
-  }, [loadFrame])
+  }, [loadFrameAsync])
 
   // ── Mount / unmount ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -654,38 +686,46 @@ export default function HeroScrollStage() {
 
     onScroll()
 
-    if (POSTER_SRC) {
-      const p = new Image()
-      p.src = POSTER_SRC
-      p.onload = () => {
-        posterRef.current = p
-        if (currentFrameRef.current === 0) dirtyRef.current = true
-      }
+    const chunkCount = isMobileRef.current ? 12 : 20
+    const promises: Promise<void>[] = []
+    
+    for (let i = 0; i < chunkCount; i++) {
+       const p = loadFrameAsync(i)
+       if (p) promises.push(p)
     }
-
-    loadFrame(0)
+    
+    Promise.all(promises).then(() => {
+       isOpeningChunkReadyRef.current = true
+    })
 
     const eagerCount = isMobileRef.current ? MOBILE_EAGER_FRAMES : DESKTOP_EAGER_FRAMES
-    for (let i = 1; i < eagerCount; i++) loadFrame(i)
+    for (let i = chunkCount; i < eagerCount; i++) loadFrameAsync(i)
 
     let loadIdx = eagerCount
     const loadBatch = () => {
-      const batchSize = isMobileRef.current ? 8 : 12
+      if (!isOpeningChunkReadyRef.current) {
+        setTimeout(loadBatch, 100)
+        return
+      }
+
+      const batchSize = isMobileRef.current ? 4 : 8
       const end = Math.min(loadIdx + batchSize, TOTAL_FRAMES)
-      for (let i = loadIdx; i < end; i++) loadFrame(i)
+      for (let i = loadIdx; i < end; i++) loadFrameAsync(i)
       loadIdx = end
+
       if (loadIdx < TOTAL_FRAMES) {
         if ('requestIdleCallback' in window) {
-          requestIdleCallback(loadBatch, { timeout: isMobileRef.current ? 800 : 500 })
+          requestIdleCallback(loadBatch, { timeout: 800 })
         } else {
-          setTimeout(loadBatch, isMobileRef.current ? 80 : 50)
+          setTimeout(loadBatch, 100)
         }
       }
     }
+
     if ('requestIdleCallback' in window) {
-      requestIdleCallback(loadBatch, { timeout: isMobileRef.current ? 800 : 500 })
+      requestIdleCallback(loadBatch, { timeout: 800 })
     } else {
-      setTimeout(loadBatch, isMobileRef.current ? 300 : 200)
+      setTimeout(loadBatch, 300)
     }
 
     rafRef.current = requestAnimationFrame(renderLoop)
@@ -696,7 +736,7 @@ export default function HeroScrollStage() {
       window.removeEventListener('scroll',            onScroll)
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [resizeCanvas, onScroll, loadFrame, renderLoop])
+  }, [resizeCanvas, onScroll, loadFrameAsync, renderLoop])
 
   // ── Heights ────────────────────────────────────────────────────────────────
   const spacerHeight = sectionHeight > 0 ? sectionHeight - viewportHeight : undefined
@@ -722,20 +762,41 @@ export default function HeroScrollStage() {
       >
         {/* ── Canvas layer — fades out at end of hero so content sits on clean bg ── */}
         <div ref={canvasLayerRef} className="absolute inset-0">
-          {/* Canvas */}
+          {/* Main interactive canvas */}
           <canvas
             ref={canvasRef}
             className="absolute inset-0 w-full h-full"
             aria-hidden="true"
           />
+          
+          {/* Premium smart reveal poster layer */}
+          <div 
+            className="absolute inset-0 pointer-events-none transition-opacity duration-1000 ease-out bg-[#091421]"
+            style={{ opacity: posterVisible ? 1 : 0 }}
+          >
+            {/* Instant HTML display before script/canvas mounts */}
+            <img 
+              src={FRAME_PATHS[0]} 
+              className="absolute inset-0 w-full h-full object-cover object-top opacity-60 mix-blend-screen"
+              alt=""
+              decoding="sync"
+              loading="eager"
+            />
+            {/* Math-perfect visual clone tracking original cover/focal blend */}
+            <canvas
+              ref={posterCanvasRef}
+              className="absolute inset-0 w-full h-full"
+              aria-hidden="true"
+            />
+          </div>
 
           {/* Vignettes — very faint top fade only */}
           <div className="absolute inset-0 bg-gradient-to-b from-[#091421]/15 via-transparent to-transparent pointer-events-none" />
 
-          {/* Cooling tint */}
+          {/* Cooling tint — reduced so source colours read through */}
           <div
             className="absolute inset-0 pointer-events-none"
-            style={{ background: 'rgba(2,10,30,0.44)', mixBlendMode: 'multiply' }}
+            style={{ background: 'rgba(2,10,30,0.28)', mixBlendMode: 'multiply' }}
           />
 
           {/* Floating paths */}

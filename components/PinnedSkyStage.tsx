@@ -13,8 +13,8 @@ const FINAL_FRAME_SRC =
 // These must match the values in HeroCanvas.tsx exactly so the pinned
 // background is pixel-identical to the hero's last rendered frame.
 const BG_DARKEN_ALPHA = 0.38
-const DESKTOP_LAYOUT  = { fgBlend: 0.62, focalX: 0.50, focalY: 0.62 }
-const MOBILE_LAYOUT   = { fgBlend: 0.78, focalX: 0.65, focalY: 0.70 }
+const DESKTOP_LAYOUT = { fgBlend: 0.62, focalX: 0.50, focalY: 0.62 }
+const MOBILE_LAYOUT = { fgBlend: 0.78, focalX: 0.65, focalY: 0.70 }
 
 // ─── Stage configuration ──────────────────────────────────────────────────────
 // Total scroll height of the pinned stage.
@@ -28,10 +28,10 @@ const STAGE_HEIGHT_VH = 400
 interface BeatConfig { id: string; startPct: number; endPct: number }
 
 const BEATS: BeatConfig[] = [
-  { id: 'intro',    startPct: 0.03, endPct: 0.27 },
+  { id: 'intro', startPct: 0.03, endPct: 0.27 },
   { id: 'aircraft', startPct: 0.26, endPct: 0.52 },
-  { id: 'process',  startPct: 0.50, endPct: 0.74 },
-  { id: 'ready',    startPct: 0.73, endPct: 0.96 },
+  { id: 'process', startPct: 0.50, endPct: 0.74 },
+  { id: 'ready', startPct: 0.73, endPct: 0.96 },
 ]
 
 // ─── SkyBeat ──────────────────────────────────────────────────────────────────
@@ -55,12 +55,12 @@ function SkyBeat({
   const opacity = useTransform(
     scrollYProgress,
     [0, startPct, startPct + fade, endPct - fade, endPct, 1],
-    [0,        0,               1,             1,      0, 0],
+    [0, 0, 1, 1, 0, 0],
   )
   const y = useTransform(
     scrollYProgress,
     [0, startPct, startPct + fade, 1],
-    [28,      28,               0, 0],
+    [28, 28, 0, 0],
   )
 
   return (
@@ -77,9 +77,9 @@ function SkyBeat({
 
 // ─── PinnedSkyStage ───────────────────────────────────────────────────────────
 export default function PinnedSkyStage() {
-  const outerRef  = useRef<HTMLDivElement>(null)
+  const outerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const imgRef    = useRef<HTMLImageElement | null>(null)
+  const imgRef = useRef<HTMLImageElement | null>(null)
 
   // Scroll progress across the full 400vh outer container.
   // progress 0 = top of stage at top of viewport
@@ -94,14 +94,14 @@ export default function PinnedSkyStage() {
   // pixel-perfect continuous with the hero's final painted state.
   function drawFrame() {
     const canvas = canvasRef.current
-    const img    = imgRef.current
+    const img = imgRef.current
     if (!canvas || !img || !img.naturalWidth) return
 
-    const w   = window.innerWidth
-    const h   = window.innerHeight
+    const w = window.innerWidth
+    const h = window.innerHeight
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
 
-    canvas.width  = Math.round(w * dpr)
+    canvas.width = Math.round(w * dpr)
     canvas.height = Math.round(h * dpr)
 
     const ctx = canvas.getContext('2d')
@@ -115,10 +115,10 @@ export default function PinnedSkyStage() {
     const iw = img.naturalWidth
     const ih = img.naturalHeight
 
-    const isMobile     = w < 768
-    const layout       = isMobile ? MOBILE_LAYOUT : DESKTOP_LAYOUT
+    const isMobile = w < 768
+    const layout = isMobile ? MOBILE_LAYOUT : DESKTOP_LAYOUT
     const containScale = Math.min(cw / iw, ch / ih)
-    const coverScale   = Math.max(cw / iw, ch / ih)
+    const coverScale = Math.max(cw / iw, ch / ih)
 
     // Pass 1 — background: pure cover, always full-bleed, centered
     const bgW = iw * coverScale
@@ -131,8 +131,8 @@ export default function PinnedSkyStage() {
 
     // Pass 2 — foreground: lerped fit, more composition preserved
     const fgScale = containScale + (coverScale - containScale) * layout.fgBlend
-    const fgW     = iw * fgScale
-    const fgH     = ih * fgScale
+    const fgW = iw * fgScale
+    const fgH = ih * fgScale
     ctx.drawImage(img, (cw - fgW) * layout.focalX, (ch - fgH) * layout.focalY, fgW, fgH)
   }
 
@@ -145,14 +145,14 @@ export default function PinnedSkyStage() {
     }
 
     const onResize = () => { if (imgRef.current) drawFrame() }
-    window.addEventListener('resize',            onResize, { passive: true })
+    window.addEventListener('resize', onResize, { passive: true })
     window.addEventListener('orientationchange', onResize, { passive: true })
 
     return () => {
-      window.removeEventListener('resize',            onResize)
+      window.removeEventListener('resize', onResize)
       window.removeEventListener('orientationchange', onResize)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (
@@ -176,7 +176,7 @@ export default function PinnedSkyStage() {
         <div
           className="absolute inset-x-0 bottom-0 pointer-events-none z-10"
           style={{
-            height:     140,
+            height: 140,
             background: 'linear-gradient(to top, #000e25 0%, transparent 100%)',
           }}
         />
@@ -223,7 +223,7 @@ export default function PinnedSkyStage() {
               The Aircraft
             </p>
             <h2 className="font-serif text-[2.1rem] sm:text-[2.7rem] md:text-[3.3rem] font-black text-oz-text leading-[1.07] tracking-tight mb-4">
-              Cessna 172 Skyhawk
+              Cessna 172N
             </h2>
             <p className="font-sans text-sm md:text-[0.9375rem] font-light leading-[1.8] text-oz-muted max-w-sm mx-auto mb-7">
               The world's most trusted training and touring aircraft. Well-maintained, thoroughly
@@ -256,9 +256,9 @@ export default function PinnedSkyStage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-7 text-left">
               {([
                 { n: '01', label: 'Register', sub: 'Create your profile and submit pilot credentials.' },
-                { n: '02', label: 'Review',   sub: 'Our team verifies your licence and approves access.' },
-                { n: '03', label: 'Book',     sub: 'Choose a date and time. Instantly confirmed.' },
-                { n: '04', label: 'Fly',      sub: 'Pre-flight check, then the aircraft is yours.' },
+                { n: '02', label: 'Review', sub: 'Our team verifies your licence and approves access.' },
+                { n: '03', label: 'Book', sub: 'Choose a date and time. Instantly confirmed.' },
+                { n: '04', label: 'Fly', sub: 'Pre-flight check, then the aircraft is yours.' },
               ] as const).map(step => (
                 <div key={step.n} className="flex flex-col gap-1.5">
                   <span

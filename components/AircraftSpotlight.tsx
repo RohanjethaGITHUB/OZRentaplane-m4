@@ -19,30 +19,30 @@ const EASE_OUT = [0.22, 1, 0.36, 1] as [number, number, number, number]
 
 // ─── Reveal variants ──────────────────────────────────────────────────────────
 const fadeUp = {
-  hidden:  { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0  },
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 },
 }
 const cardReveal = {
-  hidden:  { opacity: 0, y: 32, scale: 0.984 },
-  visible: { opacity: 1, y: 0,  scale: 1      },
+  hidden: { opacity: 0, y: 32, scale: 0.984 },
+  visible: { opacity: 1, y: 0, scale: 1 },
 }
 const aircraftReveal = {
-  hidden:  { opacity: 0, scale: 0.94 },
-  visible: { opacity: 1, scale: 1    },
+  hidden: { opacity: 0, scale: 0.94 },
+  visible: { opacity: 1, scale: 1 },
 }
 const chipItem = {
-  hidden:  { opacity: 0, y: 8 },
+  hidden: { opacity: 0, y: 8 },
   visible: { opacity: 1, y: 0 },
 }
 const chipStagger = {
-  hidden:  {},
+  hidden: {},
   visible: { transition: { staggerChildren: 0.07, delayChildren: 0.42 } },
 }
 
 // ─── Metric chip ──────────────────────────────────────────────────────────────
 interface ChipProps {
   value: string
-  unit:  string
+  unit: string
   label: string
   align?: 'left' | 'right'
 }
@@ -53,12 +53,12 @@ function MetricChip({ value, unit, label, align = 'left' }: ChipProps) {
       variants={chipItem}
       className="flex flex-col select-none rounded-xl px-4 py-3 gap-1"
       style={{
-        background:           'rgba(9,20,33,0.68)',
-        border:               '1px solid rgba(174,199,247,0.10)',
-        backdropFilter:       'blur(14px)',
+        background: 'rgba(9,20,33,0.68)',
+        border: '1px solid rgba(174,199,247,0.10)',
+        backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
-        boxShadow:            '0 2px 12px -2px rgba(0,0,0,0.45)',
-        textAlign:            align === 'right' ? 'right' : 'left',
+        boxShadow: '0 2px 12px -2px rgba(0,0,0,0.45)',
+        textAlign: align === 'right' ? 'right' : 'left',
       }}
     >
       <div
@@ -89,9 +89,9 @@ function MetricChip({ value, unit, label, align = 'left' }: ChipProps) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function AircraftSpotlight() {
-  const sectionRef  = useRef<HTMLElement>(null)
-  const cardRef     = useRef<HTMLDivElement>(null)
-  const isInView    = useInView(sectionRef, { once: true, margin: '-8% 0px' })
+  const sectionRef = useRef<HTMLElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const isInView = useInView(sectionRef, { once: true, margin: '-25% 0px' })
   const [isTouch, setIsTouch] = useState(false)
 
   useEffect(() => {
@@ -102,8 +102,8 @@ export default function AircraftSpotlight() {
   const rawX = useMotionValue(0)
   const rawY = useMotionValue(0)
   const springCfg = { stiffness: 72, damping: 22, mass: 0.85 }
-  const rotateX = useSpring(useTransform(rawY, [-1, 1], [ 3.5, -3.5]), springCfg)
-  const rotateY = useSpring(useTransform(rawX, [-1, 1], [-5.0,  5.0]), springCfg)
+  const rotateX = useSpring(useTransform(rawY, [-1, 1], [3.5, -3.5]), springCfg)
+  const rotateY = useSpring(useTransform(rawX, [-1, 1], [-5.0, 5.0]), springCfg)
 
   // ── Pointer-tracking glow ─────────────────────────────────────────────────
   const glowX = useSpring(useMotionValue(52), { stiffness: 48, damping: 26 })
@@ -118,9 +118,9 @@ export default function AircraftSpotlight() {
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (isTouch || !cardRef.current) return
-      const r  = cardRef.current.getBoundingClientRect()
-      const nx = Math.min(1, Math.max(-1, (e.clientX - r.left) / r.width  * 2 - 1))
-      const ny = Math.min(1, Math.max(-1, (e.clientY - r.top)  / r.height * 2 - 1))
+      const r = cardRef.current.getBoundingClientRect()
+      const nx = Math.min(1, Math.max(-1, (e.clientX - r.left) / r.width * 2 - 1))
+      const ny = Math.min(1, Math.max(-1, (e.clientY - r.top) / r.height * 2 - 1))
       rawX.set(nx)
       rawY.set(ny)
       glowX.set(((nx + 1) / 2) * 100)
@@ -159,7 +159,7 @@ export default function AircraftSpotlight() {
           variants={fadeUp}
           initial="hidden"
           animate={isInView ? 'visible' : 'hidden'}
-          transition={{ duration: 0.72, ease: EASE_OUT }}
+          transition={{ duration: 1.5, ease: EASE_OUT }}
           className="mb-10 md:mb-14"
         >
           <p
@@ -191,10 +191,10 @@ export default function AircraftSpotlight() {
           variants={cardReveal}
           initial="hidden"
           animate={isInView ? 'visible' : 'hidden'}
-          transition={{ duration: 0.82, delay: 0.08, ease: EASE_OUT }}
+          transition={{ duration: 1.8, delay: 0.15, ease: EASE_OUT }}
           style={{
-            rotateX:              isTouch ? 0 : rotateX,
-            rotateY:              isTouch ? 0 : rotateY,
+            rotateX: isTouch ? 0 : rotateX,
+            rotateY: isTouch ? 0 : rotateY,
             transformPerspective: 1100,
           }}
           onMouseMove={handleMouseMove}
@@ -206,7 +206,7 @@ export default function AircraftSpotlight() {
             className="relative w-full overflow-hidden rounded-[1.75rem] md:rounded-[2.25rem]"
             style={{
               background: 'linear-gradient(148deg, #0f2040 0%, #091520 42%, #060d1b 100%)',
-              border:     '1px solid rgba(174,199,247,0.08)',
+              border: '1px solid rgba(174,199,247,0.08)',
               boxShadow:
                 '0 48px 96px -20px rgba(0,0,0,0.75), inset 0 1px 0 rgba(174,199,247,0.055)',
             }}
@@ -287,8 +287,8 @@ export default function AircraftSpotlight() {
                 className="hidden md:flex flex-col justify-center gap-3 p-8 lg:p-10 z-20 flex-shrink-0"
                 style={{ width: 'clamp(160px, 14vw, 200px)' }}
               >
-                <MetricChip value="4"   unit="Seats" label="Capacity" />
-                <MetricChip value="640" unit="NM"    label="Range"    />
+                <MetricChip value="4" unit="Seats" label="Capacity" />
+                <MetricChip value="640" unit="NM" label="Range" />
               </motion.div>
 
               {/* Aircraft — takes remaining space */}
@@ -309,22 +309,22 @@ export default function AircraftSpotlight() {
                   variants={aircraftReveal}
                   initial="hidden"
                   animate={isInView ? 'visible' : 'hidden'}
-                  transition={{ duration: 1.0, delay: 0.14, ease: EASE_OUT }}
+                  transition={{ duration: 2.2, delay: 0.25, ease: EASE_OUT }}
                   className="w-full max-w-[640px] md:max-w-[88%] relative z-10 mx-auto"
                 >
                   {/* Idle float */}
                   <motion.div
                     animate={{ y: [0, -7, 0] }}
                     transition={{
-                      duration:   6.5,
-                      repeat:     Infinity,
-                      ease:       'easeInOut',
+                      duration: 6.5,
+                      repeat: Infinity,
+                      ease: 'easeInOut',
                       repeatType: 'loop',
                     }}
                   >
                     <Image
                       src="/Cessna-fleet.png"
-                      alt="Cessna 172 Skyhawk — OZRentAPlane primary fleet aircraft"
+                      alt="Cessna 172 N — OZRentAPlane primary fleet aircraft"
                       width={900}
                       height={560}
                       className="w-full h-auto object-contain select-none"
@@ -347,7 +347,7 @@ export default function AircraftSpotlight() {
                 className="hidden md:flex flex-col justify-center gap-3 p-8 lg:p-10 z-20 flex-shrink-0"
                 style={{ width: 'clamp(160px, 14vw, 200px)' }}
               >
-                <MetricChip value="122"    unit="KTAS"    label="Cruise"    align="right" />
+                <MetricChip value="122" unit="KTAS" label="Cruise" align="right" />
                 <MetricChip value="Garmin" unit="G1000 NXi" label="Avionics" align="right" />
               </motion.div>
 
@@ -360,10 +360,10 @@ export default function AircraftSpotlight() {
               animate={isInView ? 'visible' : 'hidden'}
               className="md:hidden grid grid-cols-2 gap-2 px-5 pb-7 relative z-20"
             >
-              <MetricChip value="4"      unit="Seats"    label="Capacity" />
-              <MetricChip value="122"    unit="KTAS"     label="Cruise"   />
-              <MetricChip value="640"    unit="NM"       label="Range"    />
-              <MetricChip value="Garmin" unit="G1000"    label="Avionics" />
+              <MetricChip value="4" unit="Seats" label="Capacity" />
+              <MetricChip value="122" unit="KTAS" label="Cruise" />
+              <MetricChip value="640" unit="NM" label="Range" />
+              <MetricChip value="Garmin" unit="G1000" label="Avionics" />
             </motion.div>
 
             {/* ── BG layer 5: model label strip at card bottom ── */}
@@ -376,7 +376,7 @@ export default function AircraftSpotlight() {
                 className="font-sans font-semibold tracking-[0.30em] uppercase"
                 style={{ fontSize: '0.52rem', color: 'rgba(174,199,247,0.28)' }}
               >
-                Cessna 172 Skyhawk · Primary Fleet
+                Cessna 172N · Primary Fleet
               </span>
               <div
                 className="h-px flex-1"
@@ -390,8 +390,8 @@ export default function AircraftSpotlight() {
                 aria-hidden="true"
                 className="absolute inset-0 pointer-events-none z-30"
                 initial={{ x: '-110%' }}
-                animate={{ x:  '210%' }}
-                transition={{ duration: 1.6, delay: 0.35, ease: EASE_OUT }}
+                animate={{ x: '210%' }}
+                transition={{ duration: 3.5, delay: 0.6, ease: EASE_OUT }}
                 style={{
                   background:
                     'linear-gradient(108deg, transparent 22%, rgba(174,199,247,0.065) 50%, transparent 78%)',

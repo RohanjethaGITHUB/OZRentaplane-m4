@@ -5,36 +5,36 @@ import { motion, useInView } from 'framer-motion'
 
 // ── Animation variants ────────────────────────────────────────────────────────
 const fadeSlide = (dir: -1 | 1) => ({
-  hidden:  { opacity: 0, x: dir * 18, y: 8 },
-  visible: { opacity: 1, x: 0,        y: 0, transition: { duration: 0.72, ease: [0.33, 1, 0.68, 1] as [number, number, number, number] } },
+  hidden: { opacity: 0, x: dir * 18, y: 8 },
+  visible: { opacity: 1, x: 0, y: 0, transition: { duration: 0.72, ease: [0.33, 1, 0.68, 1] as [number, number, number, number] } },
 })
 
 const tileContainer = {
-  hidden:  {},
+  hidden: {},
   visible: { transition: { staggerChildren: 0.10, delayChildren: 0.30 } },
 }
 
 const tileItem = {
-  hidden:  { opacity: 0, y: 13 },
-  visible: { opacity: 1, y: 0,  transition: { duration: 0.52, ease: [0.33, 1, 0.68, 1] as [number, number, number, number] } },
+  hidden: { opacity: 0, y: 13 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.52, ease: [0.33, 1, 0.68, 1] as [number, number, number, number] } },
 }
 
 // ── Process steps ─────────────────────────────────────────────────────────────
 const STEPS = [
   {
-    n:     '01',
+    n: '01',
     label: 'Apply & Upload Documents',
-    sub:   'Submit your pilot licence, medical certificate, and flight experience log. Takes about five minutes.',
+    sub: 'Submit your pilot licence, medical certificate, and flight experience log. Takes about five minutes.',
   },
   {
-    n:     '02',
+    n: '02',
     label: 'Get Reviewed & Approved',
-    sub:   'Our team verifies your credentials. Most pilots receive approval within 48 hours.',
+    sub: 'Our team verifies your credentials. Most pilots receive approval within 48 hours.',
   },
   {
-    n:     '03',
+    n: '03',
     label: 'Book & Fly',
-    sub:   'Choose your slot, complete the pre-flight check, and the aircraft is yours.',
+    sub: 'Choose your slot, complete the pre-flight check, and the aircraft is yours.',
   },
 ]
 
@@ -43,41 +43,41 @@ type CellState = 'empty' | 'past' | 'today' | 'off' | 'avail' | 'booked' | 'sel'
 
 const CAL: { d: number; s: CellState }[] = [
   // Row 1
-  { d: 0,  s: 'empty'  }, { d: 0,  s: 'empty'  },
-  { d: 1,  s: 'past'   }, { d: 2,  s: 'today'  }, { d: 3,  s: 'avail'  }, { d: 4,  s: 'off'    }, { d: 5,  s: 'off'    },
+  { d: 0, s: 'empty' }, { d: 0, s: 'empty' },
+  { d: 1, s: 'past' }, { d: 2, s: 'today' }, { d: 3, s: 'avail' }, { d: 4, s: 'off' }, { d: 5, s: 'off' },
   // Row 2
-  { d: 6,  s: 'avail'  }, { d: 7,  s: 'avail'  }, { d: 8,  s: 'avail'  }, { d: 9,  s: 'sel'    }, { d: 10, s: 'booked' }, { d: 11, s: 'off'    }, { d: 12, s: 'off'    },
+  { d: 6, s: 'avail' }, { d: 7, s: 'avail' }, { d: 8, s: 'avail' }, { d: 9, s: 'sel' }, { d: 10, s: 'booked' }, { d: 11, s: 'off' }, { d: 12, s: 'off' },
   // Row 3
-  { d: 13, s: 'avail'  }, { d: 14, s: 'avail'  }, { d: 15, s: 'booked' }, { d: 16, s: 'avail'  }, { d: 17, s: 'avail'  }, { d: 18, s: 'off'    }, { d: 19, s: 'off'    },
+  { d: 13, s: 'avail' }, { d: 14, s: 'avail' }, { d: 15, s: 'booked' }, { d: 16, s: 'avail' }, { d: 17, s: 'avail' }, { d: 18, s: 'off' }, { d: 19, s: 'off' },
   // Row 4
-  { d: 20, s: 'avail'  }, { d: 21, s: 'booked' }, { d: 22, s: 'avail'  }, { d: 23, s: 'avail'  }, { d: 24, s: 'avail'  }, { d: 25, s: 'off'    }, { d: 26, s: 'off'    },
+  { d: 20, s: 'avail' }, { d: 21, s: 'booked' }, { d: 22, s: 'avail' }, { d: 23, s: 'avail' }, { d: 24, s: 'avail' }, { d: 25, s: 'off' }, { d: 26, s: 'off' },
 ]
 
 function cellClass(s: CellState): string {
   const base = 'w-7 h-7 rounded-lg flex items-center justify-center text-[11.5px] font-sans font-medium transition-colors duration-150'
   switch (s) {
-    case 'empty':  return `${base} pointer-events-none`
-    case 'past':   return `${base} text-oz-subtle/25`
-    case 'today':  return `${base} text-oz-subtle/50 ring-1 ring-inset ring-oz-blue/25`
-    case 'off':    return `${base} text-oz-subtle/20`
-    case 'avail':  return `${base} text-oz-text/75 hover:bg-oz-blue/15 cursor-pointer`
+    case 'empty': return `${base} pointer-events-none`
+    case 'past': return `${base} text-oz-subtle/25`
+    case 'today': return `${base} text-oz-subtle/50 ring-1 ring-inset ring-oz-blue/25`
+    case 'off': return `${base} text-oz-subtle/20`
+    case 'avail': return `${base} text-oz-text/75 hover:bg-oz-blue/15 cursor-pointer`
     case 'booked': return `${base} text-oz-subtle/35 line-through decoration-oz-subtle/25`
-    case 'sel':    return `${base} bg-oz-blue text-oz-deep font-bold`
-    default:       return base
+    case 'sel': return `${base} bg-oz-blue text-oz-deep font-bold`
+    default: return base
   }
 }
 
 // ── Time slots ────────────────────────────────────────────────────────────────
 const TIME_SLOTS = [
-  { label: '07:00 – 09:00', sel: false, avail: true  },
-  { label: '09:00 – 11:00', sel: true,  avail: true  },
+  { label: '07:00 – 09:00', sel: false, avail: true },
+  { label: '09:00 – 11:00', sel: true, avail: true },
   { label: '14:00 – 16:00', sel: false, avail: false },
 ]
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function HowItWorksSection() {
   const sectionRef = useRef<HTMLDivElement>(null)
-  const inView     = useInView(sectionRef, { once: true, margin: '-80px' })
+  const inView = useInView(sectionRef, { once: true, margin: '-80px' })
 
   return (
     <section
@@ -123,10 +123,10 @@ export default function HowItWorksSection() {
           <motion.div
             className="how-it-works-glow flex-1 lg:flex-[3] rounded-[28px] p-8 md:p-10 flex flex-col"
             style={{
-              background:            'rgba(10,31,61,0.58)',
-              backdropFilter:        'blur(24px)',
-              WebkitBackdropFilter:  'blur(24px)',
-              border:                '1px solid rgba(167,200,255,0.08)',
+              background: 'rgba(10,31,61,0.58)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              border: '1px solid rgba(167,200,255,0.08)',
             }}
             variants={fadeSlide(-1)}
             initial="hidden"
@@ -165,7 +165,7 @@ export default function HowItWorksSection() {
                     className="mt-0.5 shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
                     style={{
                       background: 'rgba(167,200,255,0.06)',
-                      border:     '1px solid rgba(167,200,255,0.12)',
+                      border: '1px solid rgba(167,200,255,0.12)',
                     }}
                   >
                     <span
@@ -215,11 +215,11 @@ export default function HowItWorksSection() {
           <motion.div
             className="flex-1 lg:flex-[2] rounded-[28px] p-7 md:p-8 flex flex-col gap-5"
             style={{
-              background:           'rgba(5,27,57,0.62)',
-              backdropFilter:       'blur(28px)',
+              background: 'rgba(5,27,57,0.62)',
+              backdropFilter: 'blur(28px)',
               WebkitBackdropFilter: 'blur(28px)',
-              border:               '1px solid rgba(167,200,255,0.07)',
-              boxShadow:            '0 20px 60px -16px rgba(0,0,0,0.58)',
+              border: '1px solid rgba(167,200,255,0.07)',
+              boxShadow: '0 20px 60px -16px rgba(0,0,0,0.58)',
             }}
             variants={fadeSlide(1)}
             initial="hidden"
@@ -231,7 +231,7 @@ export default function HowItWorksSection() {
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div>
                   <p className="font-serif text-[1.08rem] font-black text-oz-text leading-tight">
-                    Cessna 172 Skyhawk
+                    Cessna 172N
                   </p>
                   <p className="font-sans text-[11px] text-oz-subtle font-light tracking-wide mt-0.5">
                     VH-OZR · Bankstown Airport
@@ -241,11 +241,11 @@ export default function HowItWorksSection() {
                 <span
                   className="shrink-0 inline-flex items-center gap-1.5 font-sans font-semibold rounded-full px-2.5 py-1"
                   style={{
-                    fontSize:       9.5,
-                    letterSpacing:  '0.05em',
-                    color:          'rgba(134,216,163,0.88)',
-                    background:     'rgba(134,216,163,0.09)',
-                    border:         '1px solid rgba(134,216,163,0.18)',
+                    fontSize: 9.5,
+                    letterSpacing: '0.05em',
+                    color: 'rgba(134,216,163,0.88)',
+                    background: 'rgba(134,216,163,0.09)',
+                    border: '1px solid rgba(134,216,163,0.18)',
                   }}
                 >
                   <span
@@ -280,7 +280,7 @@ export default function HowItWorksSection() {
 
               {/* Day-of-week header */}
               <div className="grid grid-cols-7 mb-1">
-                {['M','T','W','T','F','S','S'].map((d, i) => (
+                {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
                   <div
                     key={i}
                     className="w-7 h-6 flex items-center justify-center font-sans font-semibold"

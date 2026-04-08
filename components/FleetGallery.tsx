@@ -196,11 +196,11 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
             className="relative z-10 w-full"
           >
             {/* Subtle background abstract shapes / technical linework */}
-            <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none opacity-40">
-               <div className="w-[800px] h-[800px] border border-white/[0.04] rounded-full absolute mix-blend-screen" />
-               <div className="w-[600px] h-[600px] border border-white/[0.03] rounded-full absolute mix-blend-screen" />
-               <div className="w-px h-full bg-white/[0.03] absolute" />
-               <div className="w-full h-px bg-white/[0.03] absolute" />
+            <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none opacity-80">
+               <div className="w-[800px] h-[800px] border border-white/[0.15] rounded-full absolute mix-blend-screen" />
+               <div className="w-[600px] h-[600px] border border-white/[0.12] rounded-full absolute mix-blend-screen" />
+               <div className="w-px h-full bg-white/[0.12] absolute" />
+               <div className="w-full h-px bg-white/[0.12] absolute" />
                
                {/* Faint technical corner brackets backing the collage area */}
                <div className="absolute w-[460px] h-[340px]">
@@ -218,12 +218,9 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
                 <div className="flex flex-col items-center pointer-events-auto">
 
                   {/* Stack */}
-                  <motion.div
+                  <div
                     className="relative"
                     style={{ width: 420, height: 290, overflow: 'visible' }}
-                    initial={{ opacity: 0, y: 24 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.78, delay: 0.16, ease: EASE_OUT }}
                   >
                     {/* Ambient glow behind stack */}
                     <div
@@ -240,18 +237,38 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
                     {STACK_CARDS.map((card, i) => {
                       const img = teaserImgs ? teaserImgs[i] : null
                       const isFront = i === STACK_CARDS.length - 1
+
+                      // Custom motion starting points mapping
+                      const offXs = [-120, 160, -90, 0]
+                      const offYs = [-80, 100, 110, 80]
+                      const stRot = [-15, 12, -8, 0]
+                      const initDrop = { 
+                        x: offXs[i % 4], 
+                        y: offYs[i % 4], 
+                        rotate: stRot[i % 4], 
+                        opacity: 0, 
+                        scale: 0.85 
+                      }
+
                       return (
                         <motion.div
                           key={i}
                           className="absolute overflow-hidden rounded-2xl cursor-pointer"
+                          initial={initDrop}
+                          whileInView={{ 
+                            x: 0, 
+                            y: 0, 
+                            rotate: card.rotate, 
+                            opacity: card.opacity, 
+                            scale: 1 
+                          }}
+                          viewport={{ once: true, margin: '-20%' }}
                           style={{
                             width:     card.w,
                             height:    card.h,
                             left:      card.left,
                             top:       card.top,
                             zIndex:    card.z,
-                            opacity:   card.opacity,
-                            rotate:    card.rotate,
                             boxShadow: card.shadow,
                             border:    '1px solid rgba(174,199,247,0.09)',
                           }}
@@ -268,7 +285,7 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
                                   opacity: Math.min(1, card.opacity + 0.12),
                                 }
                           }
-                          transition={{ duration: 0.38, ease: EASE_OUT }}
+                          transition={{ duration: 1.8, delay: 0.15 + (i * 0.1), ease: EASE_OUT }}
                           onClick={openExpanded}
                         >
                           {img ? (
@@ -293,7 +310,7 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
                         </motion.div>
                       )
                     })}
-                  </motion.div>
+                  </div>
 
                   {/* CTA — centered below the stack */}
                   {!isEmpty && (
@@ -306,9 +323,10 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
                         color:          '#aec7f7',
                         backdropFilter: 'blur(10px)',
                       }}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.55, delay: 0.36, ease: EASE_OUT }}
+                      initial={{ opacity: 0, y: 30 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: '-20%' }}
+                      transition={{ duration: 1.4, delay: 1.0, ease: EASE_OUT }}
                       whileHover={{ background: 'rgba(174,199,247,0.12)', scale: 1.03 }}
                       whileTap={{ scale: 0.97 }}
                     >
@@ -328,9 +346,10 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
                 {/* ── LEFT: Title block ─────────────────────────── */}
                 <motion.div
                   className="pointer-events-auto max-w-[45%]"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.72, delay: 0.08, ease: EASE_OUT }}
+                  initial={{ opacity: 0, x: -60 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true, margin: '-20%' }}
+                  transition={{ duration: 1.4, delay: 0.4, ease: EASE_OUT }}
                 >
                   <p
                     className="font-sans font-semibold tracking-[0.44em] uppercase mb-4"
@@ -350,9 +369,10 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
                 {/* ── RIGHT: Support Copy ─────────────────────────── */}
                 <motion.div
                   className="pointer-events-auto md:text-right max-w-xs md:max-w-[32%]"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.72, delay: 0.12, ease: EASE_OUT }}
+                  initial={{ opacity: 0, x: 60 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true, margin: '-20%' }}
+                  transition={{ duration: 1.6, delay: 0.6, ease: EASE_OUT }}
                 >
                   <div
                     className="md:ml-auto h-px mb-4 w-12"

@@ -33,7 +33,7 @@ export default function FleetSection() {
               <div className="flex items-start justify-between mb-6 gap-4">
                 <div>
                   <span className="font-sans text-xs font-bold tracking-widest uppercase text-oz-blue/60">Now Available</span>
-                  <h3 className="font-serif text-3xl font-black text-oz-text mt-1">Cessna 172 Skyhawk</h3>
+                  <h3 className="font-serif text-3xl font-black text-oz-text mt-1">Cessna 172N</h3>
                 </div>
                 <span className="bg-oz-blue/10 border border-oz-blue/20 text-oz-blue px-3 py-1 rounded text-xs font-bold tracking-wide uppercase shrink-0">
                   Active
