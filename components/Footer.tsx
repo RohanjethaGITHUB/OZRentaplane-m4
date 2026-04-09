@@ -39,14 +39,15 @@ export default function Footer() {
             <h4 className="font-sans font-bold text-[0.85rem] text-[#dbeafe] mb-1">Support</h4>
             <a href="#" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#dbeafe] transition-colors opacity-70">Help Center</a>
             <a href="#" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#dbeafe] transition-colors opacity-70">Contact Support</a>
-            <a href="#" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#dbeafe] transition-colors opacity-70">FAQ</a>
+            <a href="/faq" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#dbeafe] transition-colors opacity-70">FAQ</a>
           </div>
 
           {/* Column 4 */}
           <div className="flex flex-col gap-[0.85rem]">
             <h4 className="font-sans font-bold text-[0.85rem] text-[#dbeafe] mb-1">Legal</h4>
-            <a href="#" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#dbeafe] transition-colors opacity-70">Privacy Policy</a>
-            <a href="#" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#dbeafe] transition-colors opacity-70">Terms of Service</a>
+            <a href="/terms-and-conditions" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#dbeafe] transition-colors opacity-70">Terms &amp; Conditions</a>
+            <a href="/privacy-policy" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#dbeafe] transition-colors opacity-70">Privacy Policy</a>
+            <a href="/safety-disclaimer" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#dbeafe] transition-colors opacity-70">Safety Disclaimer</a>
           </div>
 
         </div>

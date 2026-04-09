@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { usePathname } from 'next/navigation'
 
 const NAV_LINKS = [
   { label: 'Fleet',        href: '/fleet' },
+  { label: 'How It Works', href: '/how-it-works' },
   { label: 'Safety',       href: '/safety' },
   { label: 'Requirements', href: '/pilotRequirements' },
   { label: 'Pricing',      href: '/pricing' },
@@ -11,6 +13,7 @@ const NAV_LINKS = [
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const pathname = usePathname()
 
   return (
     <header
@@ -28,15 +31,22 @@ export default function Navbar() {
 
         {/* Desktop links */}
         <nav className="hidden lg:flex items-center gap-7 xl:gap-9">
-          {NAV_LINKS.map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              className="whitespace-nowrap font-sans text-[13.5px] font-medium text-white/70 hover:text-white transition-colors duration-200"
-            >
-              {link.label}
-            </a>
-          ))}
+          {NAV_LINKS.map((link) => {
+            const isActive = pathname === link.href
+            return (
+              <a
+                key={link.label}
+                href={link.href}
+                className={`whitespace-nowrap font-sans text-[13.5px] font-medium transition-colors duration-200 ${
+                  isActive
+                    ? 'text-white border-b border-oz-blue pb-0.5'
+                    : 'text-white/70 hover:text-white'
+                }`}
+              >
+                {link.label}
+              </a>
+            )
+          })}
         </nav>
 
         {/* CTA + hamburger */}
@@ -64,16 +74,21 @@ export default function Navbar() {
       {/* Mobile menu */}
       {menuOpen && (
         <div className="lg:hidden bg-[#091421]/98 backdrop-blur-xl border-t border-white/8 px-6 py-5 flex flex-col gap-4">
-          {NAV_LINKS.map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              onClick={() => setMenuOpen(false)}
-              className="font-sans text-[15px] font-medium text-white/80 hover:text-white transition-colors"
-            >
-              {link.label}
-            </a>
-          ))}
+          {NAV_LINKS.map((link) => {
+            const isActive = pathname === link.href
+            return (
+              <a
+                key={link.label}
+                href={link.href}
+                onClick={() => setMenuOpen(false)}
+                className={`font-sans text-[15px] font-medium transition-colors ${
+                  isActive ? 'text-white' : 'text-white/80 hover:text-white'
+                }`}
+              >
+                {link.label}
+              </a>
+            )
+          })}
           <a
             href="#booking"
             onClick={() => setMenuOpen(false)}

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AeroJournal - FAQ &amp; Pilot Briefing</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+                  "on-surface": "#d9e3f6",
+                  "on-secondary": "#003258",
+                  "background": "#091421",
+                  "surface": "#091421",
+                  "on-surface-variant": "#c4c6cf",
+                  "secondary": "#a0cafe",
+                  "on-secondary-fixed-variant": "#184975",
+                  "on-tertiary-fixed-variant": "#294a5f",
+                  "tertiary-fixed-dim": "#a9cbe4",
+                  "secondary-fixed-dim": "#a0cafe",
+                  "inverse-primary": "#465f88",
+                  "on-primary": "#143057",
+                  "primary-container": "#1b365d",
+                  "on-secondary-container": "#91bcef",
+                  "on-tertiary-fixed": "#001e2e",
+                  "surface-dim": "#091421",
+                  "surface-container": "#16202e",
+                  "on-background": "#d9e3f6",
+                  "tertiary-container": "#15394d",
+                  "on-primary-container": "#87a0cd",
+                  "secondary-fixed": "#d1e4ff",
+                  "surface-container-high": "#212b38",
+                  "on-error": "#690005",
+                  "on-secondary-fixed": "#001d36",
+                  "surface-container-lowest": "#050f1b",
+                  "surface-container-highest": "#2b3544",
+                  "primary": "#aec7f7",
+                  "outline": "#8e9099",
+                  "inverse-surface": "#d9e3f6",
+                  "error-container": "#93000a",
+                  "surface-variant": "#2b3544",
+                  "primary-fixed": "#d6e3ff",
+                  "inverse-on-surface": "#27313f",
+                  "on-primary-fixed": "#001b3d",
+                  "surface-bright": "#303a48",
+                  "secondary-container": "#1b4b78",
+                  "on-error-container": "#ffdad6",
+                  "surface-tint": "#aec7f7",
+                  "error": "#ffb4ab",
+                  "tertiary": "#a9cbe4",
+                  "primary-fixed-dim": "#aec7f7",
+                  "on-tertiary-container": "#81a3bb",
+                  "outline-variant": "#44474e",
+                  "tertiary-fixed": "#c7e7ff",
+                  "on-tertiary": "#0e3448",
+                  "surface-container-low": "#121c29",
+                  "on-primary-fixed-variant": "#2e476f"
+          },
+          "borderRadius": {
+                  "DEFAULT": "0.125rem",
+                  "lg": "0.25rem",
+                  "xl": "0.5rem",
+                  "full": "0.75rem"
+          },
+          "fontFamily": {
+                  "headline": ["Newsreader"],
+                  "body": ["Manrope"],
+                  "label": ["Manrope"]
+          }
+        },
+      }
+    }
+  </script>
+<style>
+    body {
+      background-color: #091421;
+      color: #d9e3f6;
+      font-family: 'Manrope', sans-serif;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+    }
+    .glass-panel {
+      background: rgba(22, 32, 46, 0.8);
+      backdrop-filter: blur(20px);
+    }
+    .newsreader-italic {
+      font-family: 'Newsreader', serif;
+      font-style: italic;
+    }
+    /* Hide scrollbar for category jump row */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface selection:bg-primary-container selection:text-primary">
+<!-- TopNavBar Navigation Shell -->
+<nav class="fixed top-0 w-full z-50 bg-[#091421]/80 backdrop-blur-xl">
+<div class="flex justify-between items-center w-full px-8 py-6 max-w-screen-2xl mx-auto">
+<div class="text-2xl font-['Newsreader'] italic text-[#aec7f7] tracking-tight">AeroJournal</div>
+<div class="hidden md:flex items-center space-gap-8 gap-x-8">
+<a class="text-[#c4c6cf] font-medium font-['Manrope'] title-sm hover:text-[#aec7f7] transition-colors duration-300" href="#">Fleet</a>
+<a class="text-[#c4c6cf] font-medium font-['Manrope'] title-sm hover:text-[#aec7f7] transition-colors duration-300" href="#">Experience</a>
+<a class="text-[#c4c6cf] font-medium font-['Manrope'] title-sm hover:text-[#aec7f7] transition-colors duration-300" href="#">Safety</a>
+<a class="text-[#aec7f7] font-bold border-b-2 border-[#aec7f7] pb-1 font-['Manrope'] title-sm" href="#">FAQ</a>
+</div>
+<button class="bg-gradient-to-br from-[#aec7f7] to-[#1b365d] text-[#143057] px-6 py-2 rounded-md font-bold transition-transform active:scale-95">
+        Book Now
+      </button>
+</div>
+</nav>
+<main>
+<!-- 1. Hero Section -->
+<section class="relative h-[870px] flex items-center overflow-hidden">
+<div class="absolute inset-0 z-0">
+<img class="w-full h-full object-cover opacity-60" data-alt="Cinematic wide shot of a private jet soaring through ethereal morning mist with soft golden sunlight breaking through clouds" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCfHu6vCIM5lzvfiegDMCGzVgkA4hiosr-OgSYZW9PGAwpROvrZHOPYfGU-Nb6t58KVDyXtMuqqrHgZZuqunLE3VxR_usssscarQAdyP8ziZ0NuEZmHg59iAkh2cFOifupKdsX2fTc23zZOjJDd96yy3zZ93vnxGWlyGD5bKNyKUkAPm_VyK-uqWxowLAwyKocG2e7NbCrvsMDsGnMGugWPG_4kFPPb9A_hIy_UWe9OFqn7BcrfpviNpIy1bCNdhEr2EwXWhkIN6vE"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface via-surface/40 to-transparent"></div>
+</div>
+<div class="relative z-10 max-w-screen-2xl mx-auto px-8 w-full">
+<div class="max-w-3xl">
+<h1 class="font-headline text-6xl md:text-8xl leading-tight mb-8 tracking-tight">
+            Everything You Need <br/><span class="newsreader-italic">Before You Fly</span>
+</h1>
+<p class="font-body text-xl text-on-surface-variant leading-relaxed mb-10 max-w-2xl">
+            Preparation is the cornerstone of exceptional aviation. From pilot eligibility to advanced safety protocols, we have curated the essential knowledge for your journey with AeroJournal.
+          </p>
+<div class="flex flex-wrap gap-4">
+<span class="flex items-center gap-2 text-primary font-medium tracking-wide">
+<span class="material-symbols-outlined text-sm">check_circle</span> 
+              PILOT ELIGIBILITY
+            </span>
+<span class="flex items-center gap-2 text-primary font-medium tracking-wide">
+<span class="material-symbols-outlined text-sm">check_circle</span> 
+              SAFETY PROTOCOLS
+            </span>
+<span class="flex items-center gap-2 text-primary font-medium tracking-wide">
+<span class="material-symbols-outlined text-sm">check_circle</span> 
+              AIRCRAFT SPECS
+            </span>
+</div>
+</div>
+</div>
+</section>
+<!-- 2. Category Jump Row -->
+<div class="sticky top-[88px] z-40 bg-surface/90 backdrop-blur-md border-y border-outline-variant/10">
+<div class="max-w-screen-2xl mx-auto px-8">
+<div class="flex items-center overflow-x-auto no-scrollbar py-6 gap-x-12">
+<a class="whitespace-nowrap font-label text-sm uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors" href="#eligibility">Pilot Eligibility</a>
+<a class="whitespace-nowrap font-label text-sm uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors" href="#approval">Approval Process</a>
+<a class="whitespace-nowrap font-label text-sm uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors" href="#booking">Booking &amp; Availability</a>
+<a class="whitespace-nowrap font-label text-sm uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors" href="#pricing">Pricing</a>
+<a class="whitespace-nowrap font-label text-sm uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors" href="#safety">Safety &amp; Insurance</a>
+<a class="whitespace-nowrap font-label text-sm uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors" href="#aircraft">Aircraft</a>
+</div>
+</div>
+</div>
+<!-- 3. Main FAQ Section -->
+<section class="py-24 max-w-screen-2xl mx-auto px-8">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-16">
+<!-- Sidebar Navigation (Implicit Content Anchor) -->
+<div class="lg:col-span-4">
+<div class="sticky top-40 space-y-2">
+<h2 class="font-headline text-4xl mb-12">Flight Briefing <br/><span class="newsreader-italic">Categories</span></h2>
+<div class="space-y-6">
+<div class="flex items-center gap-4 group cursor-pointer">
+<div class="w-8 h-px bg-primary/30 group-hover:w-12 transition-all"></div>
+<span class="font-body text-lg text-primary">Overview</span>
+</div>
+<div class="flex items-center gap-4 group cursor-pointer">
+<div class="w-8 h-px bg-outline-variant group-hover:w-12 transition-all"></div>
+<span class="font-body text-lg text-on-surface-variant group-hover:text-on-surface">Emergency Procedures</span>
+</div>
+<div class="flex items-center gap-4 group cursor-pointer">
+<div class="w-8 h-px bg-outline-variant group-hover:w-12 transition-all"></div>
+<span class="font-body text-lg text-on-surface-variant group-hover:text-on-surface">Member Benefits</span>
+</div>
+</div>
+</div>
+</div>
+<!-- FAQ Content Area -->
+<div class="lg:col-span-8 space-y-32">
+<!-- Category: Pilot Eligibility -->
+<div id="eligibility">
+<div class="flex items-baseline gap-4 mb-10">
+<span class="font-label text-xs tracking-tighter text-outline">01</span>
+<h3 class="font-headline text-3xl">Pilot Eligibility</h3>
+</div>
+<div class="space-y-4">
+<div class="bg-surface-container-low rounded-lg overflow-hidden transition-all duration-300">
+<button class="w-full flex items-center justify-between p-8 text-left hover:bg-surface-container transition-colors">
+<span class="font-body text-xl font-medium">What licenses are required to rent with AeroJournal?</span>
+<span class="material-symbols-outlined text-primary">expand_more</span>
+</button>
+<div class="px-8 pb-8 text-on-surface-variant leading-relaxed">
+                  We require a minimum of a Private Pilot License (PPL) with a current medical certificate and a minimum of 200 total flight hours. Specific airframes may require additional type ratings or endorsements.
+                </div>
+</div>
+<div class="bg-surface-container-low rounded-lg overflow-hidden transition-all duration-300">
+<button class="w-full flex items-center justify-between p-8 text-left hover:bg-surface-container transition-colors">
+<span class="font-body text-xl font-medium">Do you accept international flight licenses?</span>
+<span class="material-symbols-outlined text-primary">expand_more</span>
+</button>
+</div>
+<div class="bg-surface-container-low rounded-lg overflow-hidden transition-all duration-300">
+<button class="w-full flex items-center justify-between p-8 text-left hover:bg-surface-container transition-colors">
+<span class="font-body text-xl font-medium">Is there a minimum age requirement for pilots?</span>
+<span class="material-symbols-outlined text-primary">expand_more</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Category: Approval Process -->
+<div id="approval">
+<div class="flex items-baseline gap-4 mb-10">
+<span class="font-label text-xs tracking-tighter text-outline">02</span>
+<h3 class="font-headline text-3xl">Approval Process</h3>
+</div>
+<div class="space-y-4">
+<div class="bg-surface-container-low rounded-lg overflow-hidden">
+<button class="w-full flex items-center justify-between p-8 text-left hover:bg-surface-container transition-colors">
+<span class="font-body text-xl font-medium">How long does the initial vetting take?</span>
+<span class="material-symbols-outlined text-primary">expand_more</span>
+</button>
+</div>
+<div class="bg-surface-container-low rounded-lg overflow-hidden">
+<button class="w-full flex items-center justify-between p-8 text-left hover:bg-surface-container transition-colors">
+<span class="font-body text-xl font-medium">What documents do I need for the check-ride?</span>
+<span class="material-symbols-outlined text-primary">expand_more</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 4. Mid-page Support: Pre-Flight Checklist -->
+<section class="py-24 bg-surface-container-lowest">
+<div class="max-w-screen-2xl mx-auto px-8">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-0 border border-outline-variant/20 rounded-xl overflow-hidden glass-panel">
+<div class="relative min-h-[400px]">
+<img class="w-full h-full object-cover" data-alt="Close up of a pilot's hand performing pre-flight controls check in a modern cockpit with soft interior lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBeTOTasyhCL59sDPTbCe6VF2-6L90BbDRO0N_yUpak8KOKaPBPagRkUFAr_rbpwTSg80qbL5pW_lIMkl4XKRogvpuXNQc11HM08dG-M88LN0pbh_LWMRdC3ptUsaYItFKpfHNIIal9daJGTqFa8lkju433YJ49yx9_8YAOmw-j_hOJFmAKmZuJCodmFgrhms5ktWBals9bUzPZnDq3GmX96Pdy-7Al7hnYMNT-8Oh-g6WF-5sB-ms7Vt98EJ-noqyxwNaLLYEVi3Y"/>
+<div class="absolute inset-0 bg-primary-container/20 mix-blend-multiply"></div>
+</div>
+<div class="p-12 md:p-20 flex flex-col justify-center">
+<h2 class="font-headline text-4xl mb-8">The Essential <br/><span class="newsreader-italic">Pre-Flight Checklist</span></h2>
+<ul class="space-y-6">
+<li class="flex gap-4">
+<span class="text-primary font-bold">01</span>
+<div>
+<p class="font-body text-lg font-semibold">Document Verification</p>
+<p class="text-on-surface-variant text-sm">Ensure your pilot credentials and medical are digitally uploaded 24h prior.</p>
+</div>
+</li>
+<li class="flex gap-4">
+<span class="text-primary font-bold">02</span>
+<div>
+<p class="font-body text-lg font-semibold">Weather Briefing</p>
+<p class="text-on-surface-variant text-sm">Review real-time METAR and TAF reports via the AeroJournal portal.</p>
+</div>
+</li>
+<li class="flex gap-4">
+<span class="text-primary font-bold">03</span>
+<div>
+<p class="font-body text-lg font-semibold">Weight &amp; Balance</p>
+<p class="text-on-surface-variant text-sm">Submit your final flight manifest for center-of-gravity confirmation.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<!-- 5. Final CTA -->
+<section class="relative py-40 overflow-hidden">
+<div class="absolute inset-0 z-0">
+<div class="absolute inset-0 bg-gradient-to-r from-background to-surface-container-high/30"></div>
+</div>
+<div class="relative z-10 max-w-screen-2xl mx-auto px-8 text-center">
+<h2 class="font-headline text-5xl md:text-7xl mb-6">Still need help <br/><span class="newsreader-italic">before you fly?</span></h2>
+<p class="font-body text-on-surface-variant text-xl mb-12 max-w-xl mx-auto">
+          Our flight operations team is available 24/7 to assist with technical queries or booking logistics.
+        </p>
+<div class="flex flex-col md:flex-row gap-6 justify-center items-center">
+<button class="px-10 py-4 bg-primary text-on-primary font-bold rounded-md hover:brightness-110 transition-all">
+            Contact Flight Ops
+          </button>
+<button class="px-10 py-4 border border-outline-variant text-on-surface font-bold rounded-md hover:bg-surface-container-high transition-all">
+            View Requirements
+          </button>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer Shell -->
+<footer class="bg-[#091421] w-full py-20 px-12 border-t-0">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-12 max-w-screen-2xl mx-auto">
+<div>
+<div class="text-xl font-['Newsreader'] text-[#aec7f7] mb-8">AeroJournal</div>
+<p class="font-['Manrope'] label-sm text-[#c4c6cf] leading-relaxed">
+          The ultimate navigational companion for private aviation. Defined by precision, curated for the elite.
+        </p>
+</div>
+<div>
+<h4 class="font-['Newsreader'] headline-sm text-[#aec7f7] mb-6">Experience</h4>
+<ul class="space-y-4">
+<li><a class="text-[#c4c6cf] hover:text-white transition-opacity duration-200 font-['Manrope'] label-sm" href="#">The Fleet</a></li>
+<li><a class="text-[#c4c6cf] hover:text-white transition-opacity duration-200 font-['Manrope'] label-sm" href="#">Destinations</a></li>
+<li><a class="text-[#c4c6cf] hover:text-white transition-opacity duration-200 font-['Manrope'] label-sm" href="#">Safety Charter</a></li>
+</ul>
+</div>
+<div>
+<h4 class="font-['Newsreader'] headline-sm text-[#aec7f7] mb-6">Corporate</h4>
+<ul class="space-y-4">
+<li><a class="text-[#c4c6cf] hover:text-white transition-opacity duration-200 font-['Manrope'] label-sm" href="#">Carbon Offset Program</a></li>
+<li><a class="text-[#c4c6cf] hover:text-white transition-opacity duration-200 font-['Manrope'] label-sm" href="#">Contact Support</a></li>
+<li><a class="text-[#c4c6cf] hover:text-white transition-opacity duration-200 font-['Manrope'] label-sm" href="#">Press Kit</a></li>
+</ul>
+</div>
+<div>
+<h4 class="font-['Newsreader'] headline-sm text-[#aec7f7] mb-6">Legal</h4>
+<ul class="space-y-4">
+<li><a class="text-[#c4c6cf] hover:text-white transition-opacity duration-200 font-['Manrope'] label-sm" href="#">Privacy Policy</a></li>
+<li><a class="text-[#c4c6cf] hover:text-white transition-opacity duration-200 font-['Manrope'] label-sm" href="#">Terms of Service</a></li>
+</ul>
+</div>
+</div>
+<div class="max-w-screen-2xl mx-auto px-8 mt-20 pt-8 border-t border-outline-variant/10">
+<p class="text-[#c4c6cf] font-['Manrope'] label-sm opacity-60">
+        © 2024 Atmospheric Navigator Aviation. All rights reserved.
+      </p>
+</div>
+</footer>
+</body></html>

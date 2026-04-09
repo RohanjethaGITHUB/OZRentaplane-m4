@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>How It Works | AeroRental</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "inverse-surface": "#d9e3f6",
+                        "surface-container-low": "#121c29",
+                        "surface": "#091421",
+                        "secondary-fixed-dim": "#a0cafe",
+                        "primary-fixed": "#d6e3ff",
+                        "secondary-container": "#1b4b78",
+                        "error": "#ffb4ab",
+                        "on-surface-variant": "#c4c6cf",
+                        "tertiary-fixed-dim": "#a0cbe4",
+                        "surface-variant": "#2b3544",
+                        "on-primary-container": "#87a0cd",
+                        "outline": "#8e9099",
+                        "inverse-primary": "#465f88",
+                        "surface-tint": "#aec7f7",
+                        "on-secondary-container": "#91bcef",
+                        "on-error-container": "#ffdad6",
+                        "background": "#091421",
+                        "on-secondary-fixed": "#001d36",
+                        "on-error": "#690005",
+                        "surface-dim": "#091421",
+                        "surface-bright": "#303a48",
+                        "on-surface": "#d9e3f6",
+                        "error-container": "#93000a",
+                        "on-primary-fixed": "#001b3d",
+                        "on-tertiary-fixed-variant": "#294a5f",
+                        "inverse-on-surface": "#27313f",
+                        "tertiary-fixed": "#c7e7ff",
+                        "secondary": "#a0cafe",
+                        "primary-container": "#1b365d",
+                        "primary-fixed-dim": "#aec7f7",
+                        "secondary-fixed": "#d1e4ff",
+                        "on-background": "#d9e3f6",
+                        "on-primary": "#143057",
+                        "surface-container": "#16202e",
+                        "on-secondary": "#003258",
+                        "on-tertiary": "#0e3448",
+                        "tertiary-container": "#15394d",
+                        "on-tertiary-container": "#81a3bb",
+                        "surface-container-high": "#212b38",
+                        "outline-variant": "#44474e",
+                        "on-primary-fixed-variant": "#2e476f",
+                        "surface-container-lowest": "#050f1b",
+                        "on-tertiary-fixed": "#001e2e",
+                        "tertiary": "#a9cbe4",
+                        "primary": "#aec7f7",
+                        "on-secondary-fixed-variant": "#184975",
+                        "surface-container-highest": "#2b3544"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Newsreader"],
+                        "body": ["Manrope"],
+                        "label": ["Manrope"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Manrope', sans-serif; background-color: #091421; color: #d9e3f6; }
+        .serif { font-family: 'Newsreader', serif; }
+        .flight-corridor {
+            background: linear-gradient(to right, transparent, rgba(174, 199, 247, 0.03) 50%, transparent);
+        }
+        .glow-active {
+            box-shadow: 0 0 30px rgba(174, 199, 247, 0.1), inset 0 0 1px rgba(174, 199, 247, 0.3);
+        }
+        .waypoint-outer {
+            box-shadow: 0 0 15px rgba(174, 199, 247, 0.4);
+        }
+        .route-line-solid {
+            background: linear-gradient(to bottom, #aec7f7 0%, rgba(174, 199, 247, 0.2) 100%);
+            width: 1px;
+            box-shadow: 0 0 8px rgba(174, 199, 247, 0.5);
+        }
+        @keyframes flight-motion {
+            0% { transform: translateY(0px) rotate(-90deg); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(120px) rotate(-90deg); opacity: 0; }
+        }
+        .flight-marker {
+            animation: flight-motion 8s ease-in-out infinite;
+        }
+        .step-module:hover .connector-line {
+            opacity: 1;
+            width: 32px;
+        }
+        .connector-line {
+            height: 1px;
+            background: rgba(174, 199, 247, 0.4);
+            width: 24px;
+            transition: all 0.5s ease;
+        }
+    </style>
+</head>
+<body class="overflow-x-hidden selection:bg-primary-container selection:text-primary bg-surface">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-slate-950/80 backdrop-blur-xl border-b border-white/5">
+<div class="flex justify-between items-center w-full px-12 py-6 max-w-screen-2xl mx-auto">
+<div class="text-2xl font-semibold tracking-tight text-blue-200 italic serif">AeroRental</div>
+<div class="hidden md:flex gap-10 items-center">
+<a class="text-slate-400 font-medium hover:text-blue-100 transition-colors" href="#">Fleet</a>
+<a class="text-slate-400 font-medium hover:text-blue-100 transition-colors" href="#">Destinations</a>
+<a class="text-blue-200 border-b-2 border-blue-400 pb-1" href="#">How It Works</a>
+<a class="text-slate-400 font-medium hover:text-blue-100 transition-colors" href="#">Support</a>
+</div>
+<button class="bg-gradient-to-br from-primary to-secondary text-on-primary font-bold px-6 py-2 rounded-lg hover:scale-95 transition-transform">
+                Book Flight
+            </button>
+</div>
+</nav>
+<!-- Section 1: Hero -->
+<header class="relative pt-48 pb-32 px-12 overflow-hidden bg-surface">
+<div class="absolute inset-0 z-0">
+<div class="absolute inset-0 bg-gradient-to-b from-surface/0 via-surface/80 to-surface"></div>
+<img class="w-full h-full object-cover opacity-30 mix-blend-overlay" data-alt="dramatic wide angle shot of a luxury private jet wings above a thick layer of clouds during twilight with soft blue and purple lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAVLogWB7B2Jk5UiEyI8zDbHoo-qN1NmFYztFKXNvovEPmE9j9oevl2skLyXZ6IA6Dsq3WBxuVUcEsfjRtsroc3YtiRPQIgjulqETfleWU0tvpV0XcGsTied_VI9WTdtaQ4v1aTzw1Lo86dEwE5vtgHpUpDRWkozaYd8zC3VY5kJM65CcZTHFghAEEQ_i9KMAufNc7Bo2294dVY9BqnwPJ1h3htFaDYSMZZciUwjyA_qpIUFwjcz30IjIrsN_KBdNtKU5_dcFYYhnw"/>
+</div>
+<div class="relative z-10 max-w-screen-xl mx-auto">
+<span class="font-label text-primary tracking-[0.2em] text-sm font-bold block mb-6 uppercase">The Operational Journey</span>
+<h1 class="serif text-7xl md:text-8xl text-on-surface leading-none mb-8">How It Works</h1>
+<p class="max-w-2xl text-on-surface-variant text-xl leading-relaxed">
+                Experience seamless aviation. From initial verification to the final landing, we have refined the flight rental process into a sophisticated, guided path for modern aviators.
+            </p>
+</div>
+</header>
+<!-- Section 2: Choose Your Path -->
+<section class="py-24 px-12 bg-surface">
+<div class="max-w-screen-xl mx-auto">
+<div class="flex flex-col md:flex-row gap-8 items-stretch">
+<!-- New User Card (Active) -->
+<div class="flex-1 bg-surface-container-high p-12 rounded-2xl relative overflow-hidden group cursor-pointer border border-primary/30 glow-active">
+<div class="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent"></div>
+<div class="absolute -right-10 -top-10 opacity-20 group-hover:scale-110 transition-transform duration-700">
+<span class="material-symbols-outlined text-[12rem] text-primary" data-icon="flight_takeoff">flight_takeoff</span>
+</div>
+<div class="relative z-10">
+<span class="text-xs font-bold text-primary tracking-widest uppercase mb-4 block">Recommended for first flight</span>
+<h3 class="serif text-4xl text-on-surface mb-4">New User</h3>
+<p class="text-on-surface-variant mb-8 max-w-xs">Complete our one-time verification process to unlock the full AeroRental fleet and global network.</p>
+<div class="flex items-center gap-2 text-primary font-bold">
+<span>EXPLORE FLOW</span>
+<span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>
+</div>
+</div>
+</div>
+<!-- Returning User Card -->
+<div class="flex-1 bg-surface-container-low p-12 rounded-2xl relative overflow-hidden group cursor-pointer hover:bg-surface-container-high transition-all border border-white/5">
+<div class="absolute -right-10 -top-10 opacity-5">
+<span class="material-symbols-outlined text-[12rem]" data-icon="verified_user">verified_user</span>
+</div>
+<div class="relative z-10">
+<h3 class="serif text-4xl text-on-surface mb-4">Returning User</h3>
+<p class="text-on-surface-variant mb-8 max-w-xs">Already verified? Skip the documentation and proceed directly to flight booking and dispatch.</p>
+<div class="flex items-center gap-2 text-on-surface-variant font-bold group-hover:text-primary transition-colors">
+<span>VIEW FAST-TRACK</span>
+<span class="material-symbols-outlined" data-icon="lock_open">lock_open</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 3: The Guided Journey -->
+<section class="py-32 bg-surface relative overflow-hidden">
+<!-- Premium Flight Corridor -->
+<div class="absolute left-1/2 top-0 bottom-0 w-64 -translate-x-1/2 flight-corridor hidden md:block"></div>
+<!-- Central Spine & Waypoints -->
+<div class="absolute left-1/2 top-0 bottom-0 w-px route-line-solid hidden md:block z-0"></div>
+<!-- Animated Aircraft Marker -->
+<div class="absolute left-1/2 top-10 hidden md:block z-30 flight-marker -translate-x-1/2">
+<span class="material-symbols-outlined text-primary text-2xl bg-surface rounded-full p-1" style="font-variation-settings: 'FILL' 1;">flight</span>
+</div>
+<div class="max-w-screen-xl mx-auto px-12 relative z-10">
+<!-- Step 01: Create your account -->
+<div class="step-module flex flex-col md:flex-row items-center mb-64 relative group">
+<div class="md:w-1/2 md:pr-24 text-right mb-12 md:mb-0">
+<div class="inline-block p-8 bg-surface-container-low/40 rounded-2xl border border-white/5 group-hover:bg-surface-container-low transition-colors duration-500">
+<span class="font-label text-primary text-xs font-black tracking-widest block mb-4">WAYPOINT 01</span>
+<h4 class="serif text-4xl text-on-surface mb-6">Create your account</h4>
+<p class="text-on-surface-variant leading-relaxed text-lg">Secure your credentials on our private stratosphere network. Your portal to ultra-luxury aviation begins with profile registration.</p>
+</div>
+</div>
+<!-- Center Node with Connectors -->
+<div class="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center justify-center z-20">
+<div class="connector-line mr-6"></div>
+<div class="w-14 h-14 bg-surface border border-primary/50 rounded-full flex items-center justify-center waypoint-outer group-hover:scale-110 group-hover:border-primary transition-all duration-500">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="person_add">person_add</span>
+</div>
+<div class="connector-line ml-6"></div>
+</div>
+<div class="md:w-1/2 md:pl-24">
+<div class="bg-surface-container-high p-1.5 rounded-3xl border border-white/5 overflow-hidden glow-active">
+<div class="bg-surface-container-highest rounded-2xl aspect-video overflow-hidden">
+<img class="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-1000" data-alt="clean minimal dark interface showing a digital registration form on a sleek glass tablet device with soft atmospheric lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbGPvwq5DHz08S1xR1eYhEpZmlukPM2QN5BBUPAeAQKCE7yIG70R30E30nDlnVoy9QBOj4NB1KtDbFMBnZerN_d4_sqaiWIfjrbwNA45Dakx6ut24QtLC2TqY_4cS0CjHpUyLFunTQeWs1_wPwvm2p3JrNdOxOXL1VdP29EA_tqjxGZrbRP_kbaaXW-FZSiiNfx7vRIZmtFMSSQbNXBfOPzfHZ_g71ddUfLGb7aQheoF5RouRk5a8fmkVFVsfhnx81LyBTn8Iuf34"/>
+</div>
+</div>
+</div>
+</div>
+<!-- Step 02: Upload documents -->
+<div class="step-module flex flex-col md:flex-row-reverse items-center mb-64 relative group">
+<div class="md:w-1/2 md:pl-24 text-left mb-12 md:mb-0">
+<div class="inline-block p-8 bg-surface-container-low/40 rounded-2xl border border-white/5 group-hover:bg-surface-container-low transition-colors duration-500">
+<span class="font-label text-primary text-xs font-black tracking-widest block mb-4">WAYPOINT 02</span>
+<h4 class="serif text-4xl text-on-surface mb-6">Upload pilot documents</h4>
+<p class="text-on-surface-variant leading-relaxed text-lg">We require high-resolution digital copies of your pilot license, medical certificates, and insurance for safety compliance.</p>
+</div>
+</div>
+<div class="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center justify-center z-20">
+<div class="connector-line mr-6"></div>
+<div class="w-14 h-14 bg-surface border border-primary/50 rounded-full flex items-center justify-center waypoint-outer group-hover:scale-110 group-hover:border-primary transition-all duration-500">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="cloud_upload">cloud_upload</span>
+</div>
+<div class="connector-line ml-6"></div>
+</div>
+<div class="md:w-1/2 md:pr-24">
+<div class="bg-surface-container-high p-1.5 rounded-3xl border border-white/5 overflow-hidden glow-active">
+<div class="bg-surface-container-highest rounded-2xl aspect-video overflow-hidden">
+<img class="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-1000" data-alt="close up of an aviator license and gold pilot wings resting on a dark leather surface with moody dramatic side lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDpZB2GcEk3CoIvC_Ub4ujCe4JpwdeoNGdIZyvaQMD_rCVaq6iJauc9e3DXk7Vok9cd7LCXxcQIDdnqJAQuraxB74BNAowMzn56JnqPhYScJ2_I0ybrypvc85KqQlkTSinn-lcT25vBoEXaTAefb839zuoi8Eb9veqxoW7K-pJzuY8nT9I7LJJgaDE8avP6bjYqdTxPwIoLj9JzJmy8NJvZHE_zEqx2pFppqy2mgjEStLQpeCMrV-XNOj_2_sfdJihJxyYYKzf0j5g"/>
+</div>
+</div>
+</div>
+</div>
+<!-- Step 03: Approval Review -->
+<div class="step-module flex flex-col md:flex-row items-center mb-64 relative group">
+<div class="md:w-1/2 md:pr-24 text-right mb-12 md:mb-0">
+<div class="inline-block p-8 bg-surface-container-low/40 rounded-2xl border border-white/5 group-hover:bg-surface-container-low transition-colors duration-500">
+<span class="font-label text-primary text-xs font-black tracking-widest block mb-4">WAYPOINT 03</span>
+<h4 class="serif text-4xl text-on-surface mb-6">Approval review</h4>
+<p class="text-on-surface-variant leading-relaxed text-lg">Our flight safety department reviews your credentials. Verification is typically finalized within 24 hours.</p>
+</div>
+</div>
+<div class="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center justify-center z-20">
+<div class="connector-line mr-6"></div>
+<div class="w-14 h-14 bg-surface border border-primary/50 rounded-full flex items-center justify-center waypoint-outer group-hover:scale-110 group-hover:border-primary transition-all duration-500">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="verified">verified</span>
+</div>
+<div class="connector-line ml-6"></div>
+</div>
+<div class="md:w-1/2 md:pl-24">
+<div class="p-10 bg-surface-container-high rounded-3xl border border-primary/20 glow-active">
+<div class="flex items-center gap-4 mb-8">
+<div class="w-4 h-4 rounded-full bg-green-400 animate-pulse shadow-[0_0_10px_rgba(74,222,128,0.5)]"></div>
+<span class="text-sm font-bold uppercase tracking-[0.3em] text-on-surface">Verification Processing</span>
+</div>
+<div class="h-2 w-full bg-surface-container-low rounded-full overflow-hidden mb-8">
+<div class="h-full bg-gradient-to-r from-primary to-secondary w-3/4"></div>
+</div>
+<div class="flex items-center gap-3 text-on-surface-variant italic font-medium">
+<span class="material-symbols-outlined text-primary text-sm">schedule</span>
+<span class="text-sm">Priority queue: Est. completion in 4h 12m</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Step 04: Request Booking -->
+<div class="step-module flex flex-col md:flex-row-reverse items-center mb-64 relative group">
+<div class="md:w-1/2 md:pl-24 text-left mb-12 md:mb-0">
+<div class="inline-block p-8 bg-surface-container-low/40 rounded-2xl border border-white/5 group-hover:bg-surface-container-low transition-colors duration-500">
+<span class="font-label text-primary text-xs font-black tracking-widest block mb-4">WAYPOINT 04</span>
+<h4 class="serif text-4xl text-on-surface mb-6">Request your booking</h4>
+<p class="text-on-surface-variant leading-relaxed text-lg">Select your aircraft and destination. A $100 advance deposit initiates the dispatch sequence and locks your flight window.</p>
+</div>
+</div>
+<div class="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center justify-center z-20">
+<div class="connector-line mr-6"></div>
+<div class="w-14 h-14 bg-surface border border-primary/50 rounded-full flex items-center justify-center waypoint-outer group-hover:scale-110 group-hover:border-primary transition-all duration-500">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="calendar_month">calendar_month</span>
+</div>
+<div class="connector-line ml-6"></div>
+</div>
+<div class="md:w-1/2 md:pr-24">
+<div class="bg-surface-container-high p-1.5 rounded-3xl border border-white/5 overflow-hidden glow-active">
+<div class="bg-surface-container-highest rounded-2xl aspect-video overflow-hidden">
+<img class="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-1000" data-alt="top view of a luxury aircraft cockpit control panel with glowing blue buttons and high tech digital displays" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBnTN5FKV9FDx1t5ufqVD-Tk0OqBBqrVm9g37d4B4o9ST4e8rn-XQ5gcEOk8Y3jwXk-Map7TLAps_z-rlHdHRinr56pk-Tf-U-0xFi5jNl3Zd30ABHOIuiTfQ7SVMQ7EXqnZuSky1oW9EHpWt3IPHKwDOe5pGNnApYWLPKpqGtzNiHXLH6lM2cUf8i4mMEyyR7j2gPN23Gbl9R1mWcZSOIv8hwLihgDYpezKMwH_uTpudz3IhVaLpSz2mQmI8TgZni1kzr9MVMPLnU"/>
+</div>
+</div>
+</div>
+</div>
+<!-- Step 05: Confirmation checks -->
+<div class="step-module flex flex-col md:flex-row items-center mb-64 relative group">
+<div class="md:w-1/2 md:pr-24 text-right mb-12 md:mb-0">
+<div class="inline-block p-8 bg-surface-container-low/40 rounded-2xl border border-white/5 group-hover:bg-surface-container-low transition-colors duration-500">
+<span class="font-label text-primary text-xs font-black tracking-widest block mb-4">WAYPOINT 05</span>
+<h4 class="serif text-4xl text-on-surface mb-6">Confirmation checks</h4>
+<p class="text-on-surface-variant leading-relaxed text-lg">We perform a tripartite check: METAR/TAF weather updates, airworthiness, and pilot currency validation.</p>
+</div>
+</div>
+<div class="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center justify-center z-20">
+<div class="connector-line mr-6"></div>
+<div class="w-14 h-14 bg-surface border border-primary/50 rounded-full flex items-center justify-center waypoint-outer group-hover:scale-110 group-hover:border-primary transition-all duration-500">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="task_alt">task_alt</span>
+</div>
+<div class="connector-line ml-6"></div>
+</div>
+<div class="md:w-1/2 md:pl-24">
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container-high border border-primary/20 p-6 rounded-2xl flex items-center gap-4 group-hover:bg-primary/5 transition-all duration-500">
+<span class="material-symbols-outlined text-primary" data-icon="wb_sunny">wb_sunny</span>
+<span class="text-xs uppercase font-bold tracking-widest text-on-surface">Weather Verified</span>
+</div>
+<div class="bg-surface-container-high border border-primary/20 p-6 rounded-2xl flex items-center gap-4 group-hover:bg-primary/5 transition-all duration-500 delay-75">
+<span class="material-symbols-outlined text-primary" data-icon="build">build</span>
+<span class="text-xs uppercase font-bold tracking-widest text-on-surface">Maintenance OK</span>
+</div>
+<div class="bg-surface-container-high border border-primary/20 p-6 rounded-2xl flex items-center gap-4 group-hover:bg-primary/5 transition-all duration-500 delay-150">
+<span class="material-symbols-outlined text-primary" data-icon="badge">badge</span>
+<span class="text-xs uppercase font-bold tracking-widest text-on-surface">Pilot Current</span>
+</div>
+<div class="bg-surface-container-high border border-primary/20 p-6 rounded-2xl flex items-center gap-4 group-hover:bg-primary/5 transition-all duration-500 delay-200">
+<span class="material-symbols-outlined text-primary" data-icon="done_all">done_all</span>
+<span class="text-xs uppercase font-bold tracking-widest text-on-surface">ATC Approval</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Step 06: Flight details -->
+<div class="step-module flex flex-col md:flex-row-reverse items-center mb-64 relative group">
+<div class="md:w-1/2 md:pl-24 text-left mb-12 md:mb-0">
+<div class="inline-block p-8 bg-surface-container-low/40 rounded-2xl border border-white/5 group-hover:bg-surface-container-low transition-colors duration-500">
+<span class="font-label text-primary text-xs font-black tracking-widest block mb-4">WAYPOINT 06</span>
+<h4 class="serif text-4xl text-on-surface mb-6">Receive flight details</h4>
+<p class="text-on-surface-variant leading-relaxed text-lg">Your digital Dispatch Pack includes weight and balance tools, fuel planning, and tail-specific avionics manuals.</p>
+</div>
+</div>
+<div class="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center justify-center z-20">
+<div class="connector-line mr-6"></div>
+<div class="w-14 h-14 bg-surface border border-primary/50 rounded-full flex items-center justify-center waypoint-outer group-hover:scale-110 group-hover:border-primary transition-all duration-500">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="description">description</span>
+</div>
+<div class="connector-line ml-6"></div>
+</div>
+<div class="md:w-1/2 md:pr-24">
+<div class="bg-surface-container-high p-1.5 rounded-3xl border border-white/5 overflow-hidden glow-active">
+<div class="bg-surface-container-highest rounded-2xl aspect-video overflow-hidden">
+<img class="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-1000" data-alt="a stack of digital maps and aeronautical charts glowing on a professional tablet device in a dark room" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDcdytRH5o8vQbIfIalNRzZ_YXB-QBrPgDtsRENu3O9TrybXZnEeppyGyb8LAg_FWCf2L4ZuZ8d4ppyrEXgd6N9MxuREzNFXWaRCqUe80SDHkPwlUbX0YPTAHb4YXTjPbugO7TZI3NN6g8OrG_Hi86bldqyAdR0jW-uq38XtlIYa4vs50xqUzm5YZq4ATKQxYgD5hodG81k7beZCNq9ZUN_hIfl32MjbfMEq_nSzRQ5DAdY_GICoHV9HUb6Ma7ndgwdDz9J8_YHcKc"/>
+</div>
+</div>
+</div>
+</div>
+<!-- Step 07: Fly and Finalize -->
+<div class="step-module flex flex-col md:flex-row items-center relative group">
+<div class="md:w-1/2 md:pr-24 text-right mb-12 md:mb-0">
+<div class="inline-block p-8 bg-surface-container-low/40 rounded-2xl border border-white/5 group-hover:bg-surface-container-low transition-colors duration-500">
+<span class="font-label text-primary text-xs font-black tracking-widest block mb-4">WAYPOINT 07</span>
+<h4 class="serif text-4xl text-on-surface mb-6">Fly and Finalize</h4>
+<p class="text-on-surface-variant leading-relaxed text-lg">Execute your flight. Submit readings via app on landing. We calculate the final balance and issue your invoice instantly.</p>
+</div>
+</div>
+<div class="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center justify-center z-20">
+<div class="connector-line mr-6"></div>
+<div class="w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-on-primary text-2xl" data-icon="flight" style="font-variation-settings: 'FILL' 1;">flight</span>
+</div>
+<div class="connector-line ml-6"></div>
+</div>
+<div class="md:w-1/2 md:pl-24">
+<div class="bg-surface-container-high p-12 rounded-3xl border border-primary/30 glow-active">
+<div class="text-6xl serif text-primary mb-2 italic">Ready.</div>
+<div class="text-6xl serif text-on-surface mb-10 italic">Set. Fly.</div>
+<div class="flex items-center gap-4 bg-surface-container-low/60 p-5 rounded-2xl border border-white/5">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="receipt_long">receipt_long</span>
+</div>
+<div>
+<div class="text-[10px] font-bold text-primary uppercase tracking-[0.3em] mb-1">Post-Flight Ops</div>
+<div class="text-sm text-on-surface font-semibold">Automated Digital Settlement</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 4: Trust Section -->
+<section class="py-24 px-12 bg-surface-container-low/50 relative">
+<div class="absolute inset-0 bg-gradient-to-b from-surface via-surface-container-low/30 to-surface pointer-events-none"></div>
+<div class="max-w-screen-xl mx-auto flex flex-col md:flex-row items-center gap-16 relative z-10">
+<div class="md:w-1/2">
+<h2 class="serif text-5xl text-on-surface mb-8">Built on Absolute Trust</h2>
+<div class="space-y-10">
+<div class="flex gap-6">
+<div class="mt-1 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary" data-icon="verified_user" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+</div>
+<div>
+<h5 class="font-bold text-on-surface text-lg mb-2">Secure Advance Payments</h5>
+<p class="text-on-surface-variant leading-relaxed">Your $100 advance payment is a security commitment. If we cannot confirm your flight due to weather or maintenance, it is returned in full within 24 hours.</p>
+</div>
+</div>
+<div class="flex gap-6">
+<div class="mt-1 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary" data-icon="shield" style="font-variation-settings: 'FILL' 1;">shield</span>
+</div>
+<div>
+<h5 class="font-bold text-on-surface text-lg mb-2">Tier 1 Safety Protocols</h5>
+<p class="text-on-surface-variant leading-relaxed">Our verification process adheres strictly to international aviation standards, ensuring every pilot and aircraft on our platform meets elite criteria.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="md:w-1/2">
+<div class="bg-surface-container-highest p-12 rounded-3xl relative border border-white/5">
+<div class="absolute top-0 right-0 p-8 opacity-5">
+<span class="material-symbols-outlined text-[8rem]" data-icon="format_quote">format_quote</span>
+</div>
+<div class="relative z-10">
+<blockquote class="serif text-2xl text-on-surface mb-8 italic leading-relaxed">
+                            "The transparency of the AeroRental journey is what sets it apart. I knew exactly where my booking stood at every waypoint."
+                        </blockquote>
+<div class="flex items-center gap-5">
+<div class="w-14 h-14 rounded-full border-2 border-primary/20 p-1">
+<img class="w-full h-full object-cover rounded-full" data-alt="portrait of a professional male pilot in his 40s wearing an aviator headset and blue captain shirt" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCu3UVf9Tafs_9PyQj3O3fEICxmo2jfmYMbIkHDUCMuuAq3jhXeX--JklsX2EgCJwq8uXa06NNw_58vGdyKGWSq3plMgbleRt5EeqaYjrL9zdirc8i1llBTrZoRRh8UxQn3J1mO6rsjvgigkXxVgBDdE35E5wXaAJC2WFcqT26zmkGG92Bah414TAxMD1ASWTqmVbt0vPaWacbMLK1egFE22JdGdDYUiN6r3Is4XGmBtKDJfYlutZ9eiVkConhj40NOQr9JlEDCH-0"/>
+</div>
+<div>
+<div class="font-bold text-on-surface">Captain Marcus Vance</div>
+<div class="text-sm text-on-surface-variant uppercase tracking-widest font-bold">1,200 Flight Hours</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 5: Final CTA -->
+<section class="py-40 px-12 text-center relative overflow-hidden bg-surface">
+<div class="absolute inset-0 z-0">
+<div class="absolute inset-0 bg-gradient-to-t from-surface via-surface/60 to-surface"></div>
+<img class="w-full h-full object-cover opacity-20" data-alt="cinematic wide view of a clear starry night sky above a silhouetted airport runway with blue navigation lights" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBkld0FpGCX1_h-5FJhjC4zjt9cXYdhALbTBLPYB3sbrrik7Pq1_ZuDTenOC4fXNyGZydjqMs3sohQxkJSFdU5MeAWASP22aNpFLk8jdf-FPK8kPey0U_Xpy0LwlrTzFmxOz6Heeuh5O7axplkteWD3Kxbnc5SeAnOEofkqMIIHGMsao8pVeqET8_7CkdQ7EAfYtY7EFxwNtCsXmxRlOeT_yOAGte3AIL65i5wNxQBYlBxeK2gZPcsaPbBBPz99u1pizbrPA0Ntqnk"/>
+</div>
+<div class="relative z-10 max-w-3xl mx-auto">
+<h2 class="serif text-7xl text-on-surface mb-8">Ready for Departure?</h2>
+<p class="text-on-surface-variant text-xl mb-12 leading-relaxed">Whether you're joining our elite pilot network for the first time or returning for another mission, we've cleared the path for you.</p>
+<div class="flex flex-col sm:flex-row gap-6 justify-center">
+<button class="bg-gradient-to-br from-primary to-secondary text-on-primary font-black px-12 py-5 rounded-xl hover:scale-105 transition-all shadow-xl shadow-primary/20 uppercase tracking-widest text-sm">
+                    Start as a New User
+                </button>
+<button class="bg-surface-container-highest/50 backdrop-blur-md text-on-surface font-black px-12 py-5 rounded-xl hover:bg-surface-bright transition-all border border-white/10 uppercase tracking-widest text-sm">
+                    Book next mission
+                </button>
+</div>
+</div>
+</section>
+<!-- Footer -->
+<footer class="bg-slate-950 border-t border-white/5">
+<div class="flex flex-col md:flex-row justify-between items-center w-full px-12 py-16 max-w-screen-2xl mx-auto">
+<div class="mb-8 md:mb-0">
+<div class="text-xl font-bold text-blue-200 serif italic">AeroRental Stratosphere</div>
+<div class="text-slate-500 text-sm mt-2 font-body">© 2024 AeroRental Stratosphere. Precision Managed.</div>
+</div>
+<div class="flex flex-wrap justify-center gap-10">
+<a class="text-slate-500 text-sm font-bold uppercase tracking-widest hover:text-blue-300 transition-colors" href="#">Privacy</a>
+<a class="text-slate-500 text-sm font-bold uppercase tracking-widest hover:text-blue-300 transition-colors" href="#">Terms</a>
+<a class="text-slate-500 text-sm font-bold uppercase tracking-widest hover:text-blue-300 transition-colors" href="#">Safety</a>
+<a class="text-slate-500 text-sm font-bold uppercase tracking-widest hover:text-blue-300 transition-colors" href="#">Maintenance</a>
+</div>
+</div>
+</footer>
+</body></html>
