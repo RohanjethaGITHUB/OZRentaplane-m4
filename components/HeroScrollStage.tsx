@@ -2,18 +2,18 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
+import HeroAtmosphere from './HeroAtmosphere'
 
 // ─── Frame sequence ───────────────────────────────────────────────────────────
 function buildFrameSequence(): string[] {
   const frames: string[] = []
-  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-1_${String(i).padStart(6, '0')}.webp`)
-  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-2_${String(i).padStart(6, '0')}.webp`)
-  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-3_${String(i).padStart(6, '0')}.webp`)
-  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/snc-4_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <= 120; i++) frames.push(`/heroScroll-DarkImages/scn1_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <= 120; i++) frames.push(`/heroScroll-DarkImages/scn2_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <= 120; i++) frames.push(`/heroScroll-DarkImages/scn3_${String(i).padStart(6, '0')}.webp`)
   return frames
 }
 const FRAME_PATHS  = buildFrameSequence()
-const TOTAL_FRAMES = FRAME_PATHS.length // 768
+const TOTAL_FRAMES = FRAME_PATHS.length // 360
 
 // ─── Scroll timeline ──────────────────────────────────────────────────────────
 //
@@ -51,49 +51,25 @@ const MOBILE_LOOKAHEAD     = 3
 
 // ─── Sequence layout (rendering) ─────────────────────────────────────────────
 const SEQ_BOUNDS = {
-  seq1End: 191,
-  seq2End: 383,
-  seq3End: 575,
+  seq1End: 119,
+  seq2End: 239,
+  seq3End: 359,
 }
 const BG_DARKEN_ALPHA = 0.22
 
-// ─── scn-4 scale correction ───────────────────────────────────────────────────
-// The scn-4 source frames were exported ~10% more zoomed-in than the final
-// frames of scn-3 (camera framing difference at capture time).  Without
-// correction this causes a visible zoom-pop at the scn-3→scn-4 boundary.
-//
-// Fix: apply a sub-unity scale multiplier to the fg-pass render at the start
-// of scn-4, then smoothly ease it back to 1.0 over the first 20 % of the
-// scene.  Pass-1 (cover fill, 38 % darken) handles any canvas-edge exposure
-// during the ease, producing a subtle cinematic vignette rather than a hard
-// gap.
-const SCN4_START_FRAME   = SEQ_BOUNDS.seq3End + 1          // frame index 576
-const SCN4_SCALE_ENTER   = 0.91                             // ~9 % zoom-out at entry
-const SCN4_EASE_FRAMES   = Math.round(192 * 0.20)           // ease over first ~38 frames
-
-function getScn4ScaleCorrection(frameIndex: number): number {
-  if (frameIndex < SCN4_START_FRAME) return 1.0
-  const f = frameIndex - SCN4_START_FRAME
-  if (f >= SCN4_EASE_FRAMES) return 1.0
-  const t     = f / SCN4_EASE_FRAMES
-  const eased = t * t * (3 - 2 * t)   // smoothstep
-  return SCN4_SCALE_ENTER + (1.0 - SCN4_SCALE_ENTER) * eased
-}
-
 // ─── Sequence layout types ────────────────────────────────────────────────────
 interface SequenceLayout {
-  fgBlend: number   // 0=contain … 1=cover for fg pass scale
+  fgScale: number   // 0=contain … 1=cover for fg pass scale
   focalX:  number   // horizontal anchor: 0=left edge, 0.5=centre, 1=right edge
   focalY:  number   // vertical anchor:   0=top  edge, 0.5=centre, 1=bottom edge
 }
 
 // ─── Desktop art direction ────────────────────────────────────────────────────
 // Landscape canvas — wide images, generous framing.
-const DESKTOP_LAYOUT: Record<'seq1' | 'seq2' | 'seq3' | 'seq4', SequenceLayout> = {
-  seq1: { fgBlend: 0.72, focalX: 0.50, focalY: 0.40 },
-  seq2: { fgBlend: 0.72, focalX: 0.50, focalY: 0.48 },
-  seq3: { fgBlend: 0.62, focalX: 0.50, focalY: 0.62 },
-  seq4: { fgBlend: 0.72, focalX: 0.50, focalY: 0.50 },
+const DESKTOP_LAYOUT: Record<'seq1' | 'seq2' | 'seq3', SequenceLayout> = {
+  seq1: { focalX: 0.50, focalY: 0.45, fgScale: 0.50 },
+  seq2: { focalX: 0.50, focalY: 0.48, fgScale: 0.50 },
+  seq3: { focalX: 0.50, focalY: 0.55, fgScale: 0.50 },
 }
 
 // ─── Mobile art direction ─────────────────────────────────────────────────────
@@ -105,15 +81,13 @@ const DESKTOP_LAYOUT: Record<'seq1' | 'seq2' | 'seq3' | 'seq4', SequenceLayout> 
 //   scn-2  focalX was 0.65 → drifted to the right on portrait.  Reset to 0.50
 //          so the cockpit/plane body stays centred.
 //   scn-3  focalY raised (0.70 → 0.55) to keep the horizon in frame on mobile.
-//   scn-4  Slightly tighter blend to compensate for the source zoom difference.
 //
-// fgBlend is raised across all mobile scenes (≥ 0.82) because portrait crops
+// fgScale is raised across all mobile scenes (≥ 0.82) because portrait crops
 // need a higher scale to keep the subject filling the narrow canvas.
-const MOBILE_LAYOUT: Record<'seq1' | 'seq2' | 'seq3' | 'seq4', SequenceLayout> = {
-  seq1: { fgBlend: 0.88, focalX: 0.50, focalY: 0.38 }, // plane in upper-centre
-  seq2: { fgBlend: 0.88, focalX: 0.50, focalY: 0.45 }, // re-centred; was drifting right
-  seq3: { fgBlend: 0.82, focalX: 0.50, focalY: 0.55 }, // horizon centred vertically
-  seq4: { fgBlend: 0.90, focalX: 0.50, focalY: 0.50 }, // neutral centre
+const MOBILE_LAYOUT: Record<'seq1' | 'seq2' | 'seq3', SequenceLayout> = {
+  seq1: { focalX: 0.50, focalY: 0.40, fgScale: 0.60 },
+  seq2: { focalX: 0.50, focalY: 0.45, fgScale: 0.60 },
+  seq3: { focalX: 0.50, focalY: 0.58, fgScale: 0.60 },
 }
 
 // ─── Mobile cross-scene interpolation ────────────────────────────────────────
@@ -133,8 +107,8 @@ function smoothstep(t: number): number { return t * t * (3 - 2 * t) }
  * scene configs near each scene boundary to eliminate focal-point jumps.
  */
 function getMobileLayout(frameIndex: number): SequenceLayout {
-  const seqs = ['seq1', 'seq2', 'seq3', 'seq4'] as const
-  const ends  = [SEQ_BOUNDS.seq1End, SEQ_BOUNDS.seq2End, SEQ_BOUNDS.seq3End, Infinity]
+  const seqs = ['seq1', 'seq2', 'seq3'] as const
+  const ends  = [SEQ_BOUNDS.seq1End, SEQ_BOUNDS.seq2End, Infinity]
 
   // Determine which scene we're in and how far into / from its end.
   for (let s = 0; s < seqs.length; s++) {
@@ -151,7 +125,7 @@ function getMobileLayout(frameIndex: number): SequenceLayout {
         const prev = MOBILE_LAYOUT[seqs[s - 1]]
         const t    = smoothstep(framesIn / MOBILE_BLEND_WINDOW)
         return {
-          fgBlend: prev.fgBlend + (current.fgBlend - prev.fgBlend) * t,
+          fgScale: prev.fgScale + (current.fgScale - prev.fgScale) * t,
           focalX:  prev.focalX  + (current.focalX  - prev.focalX)  * t,
           focalY:  prev.focalY  + (current.focalY  - prev.focalY)  * t,
         }
@@ -165,7 +139,7 @@ function getMobileLayout(frameIndex: number): SequenceLayout {
         const next = MOBILE_LAYOUT[seqs[s + 1]]
         const t    = smoothstep(1 - framesFromEnd / MOBILE_BLEND_WINDOW)
         return {
-          fgBlend: current.fgBlend + (next.fgBlend - current.fgBlend) * t,
+          fgScale: current.fgScale + (next.fgScale - current.fgScale) * t,
           focalX:  current.focalX  + (next.focalX  - current.focalX)  * t,
           focalY:  current.focalY  + (next.focalY  - current.focalY)  * t,
         }
@@ -174,7 +148,7 @@ function getMobileLayout(frameIndex: number): SequenceLayout {
 
     return current
   }
-  return MOBILE_LAYOUT.seq4
+  return MOBILE_LAYOUT.seq3
 }
 
 // ─── Layout selector (desktop uses direct lookup; mobile uses interpolation) ──
@@ -182,8 +156,7 @@ function getLayout(frameIndex: number, isMobile: boolean): SequenceLayout {
   if (isMobile) return getMobileLayout(frameIndex)
   if (frameIndex <= SEQ_BOUNDS.seq1End) return DESKTOP_LAYOUT.seq1
   if (frameIndex <= SEQ_BOUNDS.seq2End) return DESKTOP_LAYOUT.seq2
-  if (frameIndex <= SEQ_BOUNDS.seq3End) return DESKTOP_LAYOUT.seq3
-  return DESKTOP_LAYOUT.seq4
+  return DESKTOP_LAYOUT.seq3
 }
 
 // ─── Floating paths (BackgroundPaths adaptation) ──────────────────────────────
@@ -440,6 +413,7 @@ export default function HeroScrollStage() {
   const posterCanvasRef        = useRef<HTMLCanvasElement>(null)
   const isOpeningChunkReadyRef = useRef(false)
   const hasRevealedLiveHeroRef = useRef(false)
+  const hasDrawnFirstFrameRef  = useRef(false)
 
   const currentFrameRef    = useRef(0)
   const targetProgressRef  = useRef(0)   // set by scroll events (raw)
@@ -450,7 +424,8 @@ export default function HeroScrollStage() {
 
   const [sectionHeight,  setSectionHeight]  = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
-  const [posterVisible,  setPosterVisible]  = useState(true)
+  const [showTopOverlay, setShowTopOverlay]  = useState(true)
+  const showTopOverlayRef = useRef(true)
 
   // ── 2-pass canvas draw ─────────────────────────────────────────────────────
   const drawFrame = useCallback((index: number, targetCanvas?: HTMLCanvasElement): boolean => {
@@ -485,15 +460,9 @@ export default function HeroScrollStage() {
 
     // Pass 2 — foreground: gentler fit, more composition preserved.
     // Base scale is clamped so fgH >= ch and fgW >= cw (no exposed-band risk).
-    // For scn-4 a per-frame correction is applied on top to compensate for the
-    // source footage being ~10 % more zoomed-in than scn-3's end frames.
-    // During the ease window Pass-1 (darkened cover fill) handles edge exposure,
-    // producing a natural vignette rather than a hard gap.
     const layout          = getLayout(index, isMobileRef.current)
-    const blendScale      = containScale + (coverScale - containScale) * layout.fgBlend
-    const baseScale       = Math.max(blendScale, cw / iw, ch / ih)
-    const scaleCorrection = getScn4ScaleCorrection(index)
-    const fgScale         = baseScale * scaleCorrection
+    const blendScale      = containScale + (coverScale - containScale) * layout.fgScale
+    const fgScale         = Math.max(blendScale, cw / iw, ch / ih)
     const fgW             = iw * fgScale
     const fgH             = ih * fgScale
     const fgX             = (cw - fgW) * layout.focalX
@@ -562,6 +531,70 @@ export default function HeroScrollStage() {
   const LERP_FACTOR = 0.075
 
   const renderLoop = useCallback(() => {
+    // ── 1. Read highly-reliable visual boundaries unconditionally on every tick 
+    // This entirely bypasses iOS Safari's buggy scroll event dispatch during touch gestures.
+    const section = sectionRef.current
+    if (section) {
+      const rect = section.getBoundingClientRect()
+      const scrolled = -rect.top
+      const vh = window.innerHeight
+      const totalScrollable = section.offsetHeight - vh
+
+      if (totalScrollable > 0) {
+        const overallProgress = Math.max(0, Math.min(1, scrolled / totalScrollable))
+        const heroMult = isMobileRef.current ? MOBILE_SCROLL_MULTIPLIER : DESKTOP_SCROLL_MULTIPLIER
+        const heroScrollPx = (heroMult - 1) * vh
+        const heroFraction = heroScrollPx / totalScrollable
+
+        // heroProgress: 0→1 during scroll animation, then frozen at 1
+        const heroProgress = overallProgress <= heroFraction
+          ? (heroFraction > 0 ? overallProgress / heroFraction : 1)
+          : 1
+
+        targetProgressRef.current = heroProgress
+
+        // Eagerly preload frames near the scroll target
+        const targetFrame = Math.round(heroProgress * (TOTAL_FRAMES - 1))
+        const lookahead   = isMobileRef.current ? MOBILE_LOOKAHEAD * 2 : DESKTOP_LOOKAHEAD * 3
+        for (let i = -lookahead; i <= lookahead; i++) loadFrameAsync(targetFrame + i)
+
+        // ── Hero text overlays (Updated deterministically without scroll events)
+        const inHeroPhase = overallProgress <= heroFraction
+        overlayRefs.current.forEach((el, idx) => {
+          if (!el) return
+          const { startPct, endPct, alwaysVisible } = TEXT_OVERLAYS[idx]
+          const fadeDuration = 0.055
+          let opacity = 0
+          if (inHeroPhase) {
+            if (alwaysVisible) {
+              if (heroProgress >= startPct) {
+                opacity = Math.min(1, (heroProgress - startPct) / fadeDuration)
+              }
+            } else if (heroProgress >= startPct && heroProgress <= endPct) {
+              const fadeIn  = startPct === 0 ? 1 : Math.min(1, (heroProgress - startPct) / fadeDuration)
+              const fadeOut = Math.min(1, (endPct - heroProgress) / fadeDuration)
+              opacity = Math.min(fadeIn, fadeOut)
+            }
+          }
+          el.style.opacity = String(opacity)
+        })
+
+        // ── Scroll indicator
+        if (scrollIndicatorRef.current) {
+          const indOpacity = Math.max(0, 1 - heroProgress / 0.10) * 0.5
+          scrollIndicatorRef.current.style.opacity = String(indOpacity)
+        }
+
+        // ── Overlay Visibility logic
+        const isTop = heroProgress <= 0.02
+        if (showTopOverlayRef.current !== isTop) {
+          showTopOverlayRef.current = isTop
+          setShowTopOverlay(isTop)
+        }
+      }
+    }
+
+    // ── 2. Hardware-accelerated cinematic lerp interpolation ──────────
     const prev = currentProgressRef.current
     const next = prev + (targetProgressRef.current - prev) * LERP_FACTOR
 
@@ -576,10 +609,11 @@ export default function HeroScrollStage() {
         
         if (didDraw) {
           dirtyRef.current = false
-          if (isOpeningChunkReadyRef.current && !hasRevealedLiveHeroRef.current) {
-            hasRevealedLiveHeroRef.current = true
-            setPosterVisible(false)
-          }
+          hasDrawnFirstFrameRef.current = true
+        }
+
+        if (isOpeningChunkReadyRef.current && hasDrawnFirstFrameRef.current && !hasRevealedLiveHeroRef.current) {
+          hasRevealedLiveHeroRef.current = true
         }
 
         // Preload neighbours around the interpolated position
@@ -593,86 +627,16 @@ export default function HeroScrollStage() {
       const didDraw = drawFrame(currentFrameRef.current)
       if (didDraw) {
         dirtyRef.current = false
-        if (isOpeningChunkReadyRef.current && !hasRevealedLiveHeroRef.current) {
-          hasRevealedLiveHeroRef.current = true
-          setPosterVisible(false)
-        }
+        hasDrawnFirstFrameRef.current = true
+      }
+      
+      if (isOpeningChunkReadyRef.current && hasDrawnFirstFrameRef.current && !hasRevealedLiveHeroRef.current) {
+        hasRevealedLiveHeroRef.current = true
       }
     }
 
     rafRef.current = requestAnimationFrame(renderLoop)
   }, [drawFrame, loadFrameAsync])
-
-  // ── Unified scroll handler ─────────────────────────────────────────────────
-  const onScroll = useCallback(() => {
-    const section = sectionRef.current
-    if (!section) return
-
-    const rect            = section.getBoundingClientRect()
-    const scrolled        = -rect.top
-    const totalScrollable = section.offsetHeight - window.innerHeight
-    if (totalScrollable <= 0) return
-
-    const overallProgress = Math.max(0, Math.min(1, scrolled / totalScrollable))
-
-    const heroMult     = isMobileRef.current ? MOBILE_SCROLL_MULTIPLIER : DESKTOP_SCROLL_MULTIPLIER
-    const vh           = window.innerHeight
-    const heroScrollPx = (heroMult - 1) * vh
-    const heroFraction = heroScrollPx / totalScrollable
-
-    // heroProgress: 0→1 during scroll animation, then frozen at 1
-    const heroProgress = overallProgress <= heroFraction
-      ? (heroFraction > 0 ? overallProgress / heroFraction : 1)
-      : 1
-
-    // ── Set target progress — the rAF loop lerps toward this each tick ────────
-    targetProgressRef.current = heroProgress
-
-    // Eagerly preload frames near the scroll target so they're ready when the
-    // lerp arrives — avoids blank frames on fast scrolls
-    const targetFrame = Math.round(heroProgress * (TOTAL_FRAMES - 1))
-    const lookahead   = isMobileRef.current ? MOBILE_LOOKAHEAD * 2 : DESKTOP_LOOKAHEAD * 3
-    for (let i = -lookahead; i <= lookahead; i++) loadFrameAsync(targetFrame + i)
-
-    // ── Hero text overlays ──────────────────────────────────────────────────
-    // Hidden once hero phase completes (heroProgress === 1 and we've passed heroFraction).
-    // alwaysVisible overlays: fade in at startPct then stay visible for the rest of the hero.
-    const inHeroPhase = overallProgress <= heroFraction
-    overlayRefs.current.forEach((el, idx) => {
-      if (!el) return
-      const { startPct, endPct, alwaysVisible } = TEXT_OVERLAYS[idx]
-      const fadeDuration = 0.055
-      let opacity = 0
-      if (inHeroPhase) {
-        if (alwaysVisible) {
-          // Fade in once reached, never fade out within the hero phase
-          if (heroProgress >= startPct) {
-            opacity = Math.min(1, (heroProgress - startPct) / fadeDuration)
-          }
-        } else if (heroProgress >= startPct && heroProgress <= endPct) {
-          const fadeIn  = startPct === 0 ? 1 : Math.min(1, (heroProgress - startPct) / fadeDuration)
-          const fadeOut = Math.min(1, (endPct - heroProgress) / fadeDuration)
-          opacity = Math.min(fadeIn, fadeOut)
-        }
-      }
-      el.style.opacity = String(opacity)
-    })
-
-    // ── Scroll indicator ────────────────────────────────────────────────────
-    // Fades out after the first ~10% of the hero phase.
-    if (scrollIndicatorRef.current) {
-      const indOpacity = Math.max(0, 1 - heroProgress / 0.10) * 0.5
-      scrollIndicatorRef.current.style.opacity = String(indOpacity)
-    }
-
-    // ── Canvas layer fade ────────────────────────────────────────────────────
-    // Keep canvas visible so the final hero frame seamlessly blends into the 
-    // deep navy background of the HomeContent sections.
-    if (canvasLayerRef.current) {
-      canvasLayerRef.current.style.opacity = '1'
-    }
-
-  }, [loadFrameAsync])
 
   // ── Mount / unmount ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -682,9 +646,6 @@ export default function HeroScrollStage() {
 
     window.addEventListener('resize',            resizeCanvas, { passive: true })
     window.addEventListener('orientationchange', resizeCanvas, { passive: true })
-    window.addEventListener('scroll',            onScroll,     { passive: true })
-
-    onScroll()
 
     const chunkCount = isMobileRef.current ? 12 : 20
     const promises: Promise<void>[] = []
@@ -694,8 +655,21 @@ export default function HeroScrollStage() {
        if (p) promises.push(p)
     }
     
+    // ── Pre-flight Safety Guardrail ──
+    const failsafeTimer = setTimeout(() => {
+      isOpeningChunkReadyRef.current = true
+      if (hasDrawnFirstFrameRef.current && !hasRevealedLiveHeroRef.current) {
+        hasRevealedLiveHeroRef.current = true
+      }
+    }, 2500)
+
     Promise.all(promises).then(() => {
        isOpeningChunkReadyRef.current = true
+       clearTimeout(failsafeTimer)
+       
+       if (hasDrawnFirstFrameRef.current && !hasRevealedLiveHeroRef.current) {
+         hasRevealedLiveHeroRef.current = true
+       }
     })
 
     const eagerCount = isMobileRef.current ? MOBILE_EAGER_FRAMES : DESKTOP_EAGER_FRAMES
@@ -733,10 +707,9 @@ export default function HeroScrollStage() {
     return () => {
       window.removeEventListener('resize',            resizeCanvas)
       window.removeEventListener('orientationchange', resizeCanvas)
-      window.removeEventListener('scroll',            onScroll)
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [resizeCanvas, onScroll, loadFrameAsync, renderLoop])
+  }, [resizeCanvas, loadFrameAsync, renderLoop])
 
   // ── Heights ────────────────────────────────────────────────────────────────
   const spacerHeight = sectionHeight > 0 ? sectionHeight - viewportHeight : undefined
@@ -769,26 +742,16 @@ export default function HeroScrollStage() {
             aria-hidden="true"
           />
           
-          {/* Premium smart reveal poster layer */}
-          <div 
-            className="absolute inset-0 pointer-events-none transition-opacity duration-1000 ease-out bg-[#091421]"
-            style={{ opacity: posterVisible ? 1 : 0 }}
-          >
-            {/* Instant HTML display before script/canvas mounts */}
-            <img 
-              src={FRAME_PATHS[0]} 
-              className="absolute inset-0 w-full h-full object-cover object-top opacity-60 mix-blend-screen"
-              alt=""
-              decoding="sync"
-              loading="eager"
-            />
-            {/* Math-perfect visual clone tracking original cover/focal blend */}
-            <canvas
-              ref={posterCanvasRef}
-              className="absolute inset-0 w-full h-full"
-              aria-hidden="true"
-            />
-          </div>
+          {/* Failsafe static canvas to ensure frame 0 renders before hydration completes */}
+          <canvas
+            ref={posterCanvasRef}
+            className="absolute inset-0 w-full h-full"
+            aria-hidden="true"
+            style={{ opacity: hasRevealedLiveHeroRef.current ? 0 : 1, transition: 'opacity 0.6s' }}
+          />
+          
+          {/* ── Top-State Animated Atmosphere (Propeller & Clouds) ── */}
+          <HeroAtmosphere isVisible={showTopOverlay} />
 
           {/* Vignettes — very faint top fade only */}
           <div className="absolute inset-0 bg-gradient-to-b from-[#091421]/15 via-transparent to-transparent pointer-events-none" />
@@ -798,6 +761,9 @@ export default function HeroScrollStage() {
             className="absolute inset-0 pointer-events-none"
             style={{ background: 'rgba(2,10,30,0.28)', mixBlendMode: 'multiply' }}
           />
+          
+          {/* Global Light Colour Filter — unifies all scroll sequences with a gentle aviation blue wash */}
+          <div className="absolute inset-0 bg-[#8baeda] mix-blend-screen opacity-10 pointer-events-none" />
 
           {/* Floating paths */}
           <FloatingPaths position={1} />

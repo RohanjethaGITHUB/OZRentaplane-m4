@@ -3,19 +3,19 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 
 // ─── Frame sequence config ────────────────────────────────────────────────────
-// Frames are WebP files under /public/scrollyImages/{seq-N}/.
+// Frames are WebP files under /public/heroScroll-DarkImages/.
 // Each sequence has a unique filename prefix derived from its source render;
 // frame numbers are zero-padded to 6 digits starting at 000001.
 function buildFrameSequence(): string[] {
   const frames: string[] = []
-  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-1_${String(i).padStart(6, '0')}.webp`)
-  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-2_${String(i).padStart(6, '0')}.webp`)
-  for (let i = 1; i <= 192; i++) frames.push(`/home-hero-scrolly-Images/scn-3_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <= 120; i++) frames.push(`/heroScroll-DarkImages/scn1_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <= 120; i++) frames.push(`/heroScroll-DarkImages/scn2_${String(i).padStart(6, '0')}.webp`)
+  for (let i = 1; i <= 120; i++) frames.push(`/heroScroll-DarkImages/scn3_${String(i).padStart(6, '0')}.webp`)
   return frames
 }
 
 const FRAME_PATHS = buildFrameSequence()
-const TOTAL_FRAMES = FRAME_PATHS.length // 192 * 3 = 576
+const TOTAL_FRAMES = FRAME_PATHS.length // 120 * 3 = 360
 
 // ─── Tuning constants ─────────────────────────────────────────────────────────
 // How many viewport-heights to pin the hero. Higher = slower scrub.
@@ -32,9 +32,9 @@ const MOBILE_LOOKAHEAD  = 3
 
 // ─── Sequence boundaries (absolute indices in the merged sequence) ──
 const SEQ_BOUNDS = {
-  seq1End: 191, // frames   0–191  → seq-1 (192 frames)
-  seq2End: 383, // frames 192–383  → seq-2 (192 frames)
-  //             frames 384–575  → seq-3 (192 frames)
+  seq1End: 119, // frames   0–119  → seq-1 (120 frames)
+  seq2End: 239, // frames 120–239  → seq-2 (120 frames)
+  //             frames 240–359  → seq-3 (120 frames)
 }
 
 // ─── Opening poster ───────────────────────────────────────────────────────────

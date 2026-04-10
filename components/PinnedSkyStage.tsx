@@ -7,7 +7,7 @@ import { useScroll, useTransform, motion, MotionValue } from 'framer-motion'
 // Must be the last frame of the hero sequence so the visual is identical to
 // the hero's final state when this stage takes over.
 const FINAL_FRAME_SRC =
-  '/home-hero-scrolly-Images/scn-3_000192.webp'
+  '/heroScroll-DarkImages/scn3_000120.webp'
 
 // ─── Rendering constants ──────────────────────────────────────────────────────
 // These must match the values in HeroCanvas.tsx exactly so the pinned
