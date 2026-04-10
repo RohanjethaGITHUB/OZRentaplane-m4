@@ -32,7 +32,7 @@ export default function HeroAtmosphere({ isVisible }: HeroAtmosphereProps) {
       const fgY          = (ch - fgH) * layout.focalY
 
       // Precise visual tuning for scn1_000001 (overlapping the real propeller hub)
-      const propAnchor = { x: 0.86, y: 0.515 } 
+      const propAnchor = { x: 0.705, y: 0.475 } 
       const hubX = fgX + fgW * propAnchor.x
       const hubY = fgY + fgH * propAnchor.y
 

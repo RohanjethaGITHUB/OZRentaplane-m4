@@ -1,5 +1,6 @@
 'use client'
 import React, { useState } from 'react'
+import { motion } from 'framer-motion'
 import { FadeUp, StaggerContainer, StaggerItem, HoverEmphasize } from '@/components/MotionPresets'
 
 // ── Palette — matches AeroVista design system exactly ─────────────────────────
@@ -503,6 +504,31 @@ function ClearanceAwaits() {
         className="absolute inset-0 pointer-events-none z-0"
         style={{ background: 'radial-gradient(ellipse 120% 100% at 50% 50%, transparent 40%, rgba(3,7,15,0.55) 100%)' }}
       />
+
+      {/* Real Floating Cloud Shapes */}
+      <div className="absolute left-0 right-0 bottom-0 top-[20%] pointer-events-none z-0 overflow-hidden opacity-90">
+        {/* Cloud 1 */}
+        <motion.div
+           className="absolute w-[150%] h-[80%] left-[-25%] bottom-[-20%] rounded-[100%]"
+           style={{ background: 'radial-gradient(ellipse at center, rgba(160, 185, 235, 0.16) 0%, transparent 65%)', filter: 'blur(45px)' }}
+           animate={{ x: ['-3%', '3%'], y: ['2%', '-1%'] }}
+           transition={{ duration: 22, ease: 'easeInOut', repeat: Infinity, repeatType: 'mirror' }}
+        />
+        {/* Cloud 2 */}
+        <motion.div
+           className="absolute w-[180%] h-[90%] left-[-10%] bottom-[-30%] rounded-[100%]"
+           style={{ background: 'radial-gradient(ellipse at center, rgba(210, 230, 255, 0.11) 0%, transparent 70%)', filter: 'blur(60px)' }}
+           animate={{ x: ['2%', '-4%'], y: ['-2%', '3%'] }}
+           transition={{ duration: 28, ease: 'easeInOut', repeat: Infinity, repeatType: 'mirror' }}
+        />
+        {/* Cloud 3 */}
+        <motion.div
+           className="absolute w-[100%] h-[70%] left-[20%] bottom-[-10%] rounded-[100%]"
+           style={{ background: 'radial-gradient(ellipse at center, rgba(130, 170, 230, 0.14) 0%, transparent 60%)', filter: 'blur(40px)' }}
+           animate={{ x: ['-2%', '4%'] }}
+           transition={{ duration: 18, ease: 'easeInOut', repeat: Infinity, repeatType: 'mirror' }}
+        />
+      </div>
 
       <div className="relative z-10 max-w-3xl mx-auto">
 

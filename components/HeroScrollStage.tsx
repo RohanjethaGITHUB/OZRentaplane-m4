@@ -227,7 +227,7 @@ const TEXT_OVERLAYS = [
             </span>
             {/* "yours to fly" with handwritten-style SVG underline */}
             <span className="block italic text-oz-blue relative pb-3">
-              {'yours to fly'.split('').map((char, i) => (
+              {'yours to fly'.split('').map((char, i, arr) => (
                 <motion.span
                   key={`l2-${i}`}
                   className={`inline-block${char === ' ' ? ' mr-[0.22em]' : ''}`}
@@ -235,7 +235,18 @@ const TEXT_OVERLAYS = [
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.44 + i * 0.028, type: 'spring', stiffness: 150, damping: 25 }}
                 >
-                  {char === ' ' ? '\u00A0' : char}
+                  <motion.span
+                    className="inline-block origin-bottom"
+                    animate={{ y: [0, -3.5, 0], rotate: [0, -2, 0] }}
+                    transition={{
+                      duration: 2.8,
+                      ease: 'easeInOut',
+                      repeat: Infinity,
+                      delay: 2.0 + (arr.length - i) * 0.12,
+                    }}
+                  >
+                    {char === ' ' ? '\u00A0' : char}
+                  </motion.span>
                 </motion.span>
               ))}
               {/* Handwritten underline — draws in after the text settles */}
@@ -243,17 +254,30 @@ const TEXT_OVERLAYS = [
                 viewBox="0 0 340 20"
                 fill="none"
                 aria-hidden="true"
-                className="absolute left-1/2 -translate-x-1/2 bottom-[-2px] w-[90%] md:w-[85%] h-[14px] md:h-[18px]"
+                className="absolute left-1/2 -translate-x-1/2 bottom-[-2px] w-[105%] md:w-[102%] h-[14px] md:h-[18px]"
               >
                 <motion.path
-                  d="M 6 13 C 45 5, 90 18, 145 10 C 200 3, 255 16, 310 10 C 322 8, 330 9, 334 11"
                   stroke="rgba(167,200,255,0.55)"
                   strokeWidth="2.8"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  initial={{ pathLength: 0, opacity: 0 }}
-                  animate={{ pathLength: 1, opacity: 1 }}
-                  transition={{ delay: 1.05, duration: 0.9, ease: 'easeOut' }}
+                  initial={{ pathLength: 0, opacity: 0, d: "M 4 10 C 115 18, 225 18, 336 10" }}
+                  animate={{
+                    pathLength: 1,
+                    opacity: 1,
+                    d: [
+                      "M 4 10 C 115 18, 225 18, 336 10",
+                      "M 4 10 C 115 18, 225 2, 336 10",
+                      "M 4 10 C 115 2, 225 2, 336 10",
+                      "M 4 10 C 115 2, 225 18, 336 10",
+                      "M 4 10 C 115 18, 225 18, 336 10"
+                    ]
+                  }}
+                  transition={{ 
+                    pathLength: { delay: 1.05, duration: 0.9, ease: 'easeOut' },
+                    opacity: { delay: 1.05, duration: 0.9, ease: 'easeOut' },
+                    d: { delay: 1.95, duration: 2.8, ease: 'linear', repeat: Infinity }
+                  }}
                 />
               </svg>
             </span>
@@ -403,6 +427,7 @@ const TEXT_OVERLAYS = [
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function HeroScrollStage() {
   const sectionRef         = useRef<HTMLDivElement>(null)
+  const stickyContainerRef = useRef<HTMLDivElement>(null)
   const canvasRef          = useRef<HTMLCanvasElement>(null)
   const canvasLayerRef     = useRef<HTMLDivElement>(null)
   const overlayRefs        = useRef<(HTMLDivElement | null)[]>([])
@@ -477,6 +502,8 @@ export default function HeroScrollStage() {
     }
   }, [drawFrame])
 
+  const lastWidthRef = useRef(0)
+
   // ── Resize ────────────────────────────────────────────────────────────────
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current
@@ -484,6 +511,12 @@ export default function HeroScrollStage() {
 
     const w = window.innerWidth
     const h = window.innerHeight
+    
+    // Ignore height-only resize events (like iOS Safari address bar hiding during scroll).
+    // Updating height during a swipe dynamically alters track height and destroys physics.
+    if (lastWidthRef.current === w) return
+    lastWidthRef.current = w
+
     isMobileRef.current = w < 768
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
@@ -537,7 +570,7 @@ export default function HeroScrollStage() {
     if (section) {
       const rect = section.getBoundingClientRect()
       const scrolled = -rect.top
-      const vh = window.innerHeight
+      const vh = stickyContainerRef.current ? stickyContainerRef.current.offsetHeight : window.innerHeight
       const totalScrollable = section.offsetHeight - vh
 
       if (totalScrollable > 0) {
@@ -730,6 +763,7 @@ export default function HeroScrollStage() {
     >
       {/* One sticky viewport for the entire timeline */}
       <div
+        ref={stickyContainerRef}
         className="sticky top-0 z-10 w-full overflow-hidden"
         style={{ ...stickyStyle, backgroundColor: '#091421' }}
       >
