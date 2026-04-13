@@ -131,9 +131,8 @@ function AircraftShowcase() {
           {/* Supporting paragraph */}
           <StaggerItem duration={1.2}>
             <p className="font-sans text-[0.95rem] leading-[1.8] max-w-[480px]" style={{ color: T_MUTED, opacity: 0.85 }}>
-              The world's most trusted flight training and personal aircraft.
-              Refined for the modern era with integrated flight decks and
-              unmatched reliability.
+              The premier Cessna 172 rental in Sydney for licensed pilots.
+              We provide streamlined vetting, a simple booking flow, and an impeccably maintained aircraft ready for your next flight.
             </p>
           </StaggerItem>
         </StaggerContainer>
@@ -146,9 +145,9 @@ function AircraftShowcase() {
 function FlightManifest() {
   const steps = [
     { n: '01', label: 'Register', sub: 'Create your digital profile and upload your pilot credentials for initial review.' },
-    { n: '02', label: 'Verify', sub: 'Swift validation of certificates and ratings by our chief flight instructor.' },
-    { n: '03', label: 'Book', sub: 'Select your aircraft and window using our real-time availability engine.' },
-    { n: '04', label: 'Pre-flight', sub: 'Digital walkaround logs and weather briefing provided 2 hours before takeoff.' },
+    { n: '02', label: 'Verify', sub: 'Swift vetting of certificates and ratings by our chief flight instructor.' },
+    { n: '03', label: 'Book', sub: 'Select your flight window using our simple booking flow and secure the Cessna.' },
+    { n: '04', label: 'Pre-flight', sub: 'Digital walkaround logs and Sydney weather briefing provided 2 hours before takeoff.' },
     { n: '05', label: 'Fly', sub: 'The keys are in the box. Your clearance is active. The sky is yours.' },
   ]
 
@@ -263,9 +262,9 @@ function LicensedPilot() {
           {/* Supporting paragraph */}
           <StaggerItem duration={1.2}>
             <p className="font-sans text-sm leading-relaxed mb-12" style={{ color: T_MUTED }}>
-              OZRentAPlane is built by pilots, for pilots. We maintain a high standard of
-              entry to ensure our fleet remains in peak condition and our community remains
-              elite. All members must hold a valid CASA licence with a minimum of 200 hours
+              OZRentAPlane is built by pilots, for pilots in Sydney. We maintain a strict standard of
+              entry to ensure our Cessna 172 remains in peak condition and our community remains
+              expert-driven. All members must hold a valid CASA licence and undergo our vetting process with a minimum of 100 hours
               total flight time.
             </p>
           </StaggerItem>
@@ -277,7 +276,7 @@ function LicensedPilot() {
               staggerDelay={0.18}
             >
               {([
-                { value: '200h', label: 'Min. Experience' },
+                { value: '100h', label: 'Min. Experience' },
                 { value: 'IVR', label: 'Preferred Rating' },
                 { value: 'CASA', label: 'Standard Compliance' },
               ] as const).map((s) => (

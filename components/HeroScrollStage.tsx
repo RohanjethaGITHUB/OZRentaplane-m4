@@ -216,6 +216,109 @@ function FloatingPaths({ position }: { position: number }) {
   )
 }
 
+// ─── Ambient Overlays (Living Poster Elements) ────────────────────────────────
+// Tweak these values independently to align the clouds and propeller per-device
+const AMBIENT_TUNING = {
+  mobile: {
+    // Cloud A: much wider and shifted up to counteract narrow portrait framing
+    cloudA: 'w-[300%] h-[75%] bottom-[2%]',
+    // Cloud B: 
+    cloudB: 'w-[250%] h-[65%] bottom-[0%]',
+    // Propeller: shifted further down and to the right on mobile
+    propeller: 'left-[56%] top-[47%]'
+  },
+  desktop: {
+    cloudA: 'md:w-[180%] md:h-[95%] md:bottom-[-2%]',
+    cloudB: 'md:w-[150%] md:h-[80%] md:bottom-[-8%]',
+    propeller: 'md:left-[53%] md:top-[48%]'
+  }
+}
+
+function AmbientOverlays({ innerRef }: { innerRef: React.Ref<HTMLDivElement> }) {
+  return (
+    <div
+      ref={innerRef}
+      className="absolute inset-0 pointer-events-none z-10 overflow-hidden"
+      style={{ opacity: 1 }}
+    >
+      {/* Cloud Layer A - Main oversized structure */}
+      <div 
+        className={`absolute left-[50%] ${AMBIENT_TUNING.mobile.cloudA} ${AMBIENT_TUNING.desktop.cloudA} flex items-end justify-center will-change-transform opacity-[0.45] mix-blend-screen`}
+        style={{ animation: 'drift-cloud-a 14s ease-in-out infinite alternate', transform: 'translateX(-50%)' }}
+      >
+        <img 
+          src="/CloudLayerA.webp" 
+          alt="" 
+          className="w-full h-full object-cover"
+          style={{ 
+            // Dropped brightness to pull away from pure white, shifted hue to lavender/cool-blue
+            filter: 'brightness(0.90) contrast(1.05) sepia(0.15) hue-rotate(230deg) saturate(1.1)', 
+            maskImage: 'radial-gradient(ellipse 90% 100% at 50% 100%, black 15%, rgba(0,0,0,0.4) 50%, transparent 80%)', 
+            WebkitMaskImage: 'radial-gradient(ellipse 90% 100% at 50% 100%, black 15%, rgba(0,0,0,0.4) 50%, transparent 80%)' 
+          }}
+        />
+      </div>
+
+      {/* Cloud Layer B - Inner depth */}
+      <div 
+        className={`absolute left-[50%] ${AMBIENT_TUNING.mobile.cloudB} ${AMBIENT_TUNING.desktop.cloudB} flex items-end justify-center will-change-transform opacity-[0.40] mix-blend-screen`}
+        style={{ animation: 'drift-cloud-b 11s ease-in-out infinite alternate', transform: 'translateX(-50%)' }}
+      >
+        <img 
+          src="/CloudLayerB.webp" 
+          alt="" 
+          className="w-full h-full object-cover"
+          style={{ 
+            // Slightly deeper lavender tint and lower brightness for depth separation
+            filter: 'brightness(0.85) contrast(1.05) sepia(0.20) hue-rotate(230deg) saturate(1.2)',
+            maskImage: 'radial-gradient(ellipse 85% 100% at 50% 100%, black 20%, rgba(0,0,0,0.5) 50%, transparent 85%)', 
+            WebkitMaskImage: 'radial-gradient(ellipse 85% 100% at 50% 100%, black 20%, rgba(0,0,0,0.5) 50%, transparent 85%)' 
+          }}
+        />
+      </div>
+
+      {/* Soft CSS Propeller Blur */}
+      <div className={`absolute z-30 ${AMBIENT_TUNING.mobile.propeller} ${AMBIENT_TUNING.desktop.propeller} -translate-x-1/2 -translate-y-1/2 w-56 h-56 md:w-80 md:h-80 overflow-hidden rounded-full flex flex-col justify-center items-center pointer-events-none mix-blend-screen opacity-[0.60]`}>
+         <div className="w-[85%] h-[85%] rounded-full absolute shadow-[0_0_30px_rgba(255,255,255,0.1)]" style={{ background: 'radial-gradient(circle, rgba(240,245,255,0.4) 0%, rgba(200,210,230,0.1) 40%, transparent 70%)' }} />
+         <div className="w-full h-full rounded-full animate-spin-fast absolute" style={{ animationDuration: '0.1s' }}>
+           <div className="w-full h-full rounded-full" style={{ background: 'conic-gradient(from 0deg, transparent 0deg, rgba(220, 230, 255, 0.18) 25deg, transparent 60deg, transparent 180deg, rgba(220, 230, 255, 0.12) 205deg, transparent 240deg)' }} />
+         </div>
+         <div className="w-full h-full rounded-full animate-spin-fast absolute" style={{ animationDuration: '0.07s', animationDirection: 'reverse' }}>
+           <div className="w-full h-full rounded-full" style={{ background: 'conic-gradient(from 90deg, transparent 0deg, rgba(255, 255, 255, 0.14) 20deg, transparent 50deg, transparent 180deg, rgba(255, 255, 255, 0.08) 200deg, transparent 230deg)' }} />
+         </div>
+      </div>
+      
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes drift-cloud-a {
+          0% { transform: translateX(-56%); }
+          100% { transform: translateX(-44%); }
+        }
+        @keyframes drift-cloud-b {
+          0% { transform: translateX(-45%); }
+          100% { transform: translateX(-55%); }
+        }
+        @keyframes spin-fast {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .animate-spin-fast {
+          animation: spin-fast 0.15s linear infinite;
+        }
+        @keyframes airy-float {
+          0% { transform: translateY(0px) rotate(0deg); }
+          50% { transform: translateY(-12px) rotate(0.8deg); }
+          100% { transform: translateY(0px) rotate(0deg); }
+        }
+        .animate-airy-float {
+          animation: airy-float 9s ease-in-out infinite;
+          transform-origin: center center;
+          will-change: transform;
+        }
+      `}} />
+    </div>
+  )
+}
+
 // ─── Hero text overlays ───────────────────────────────────────────────────────
 // startPct / endPct applied to heroProgress (0–1 over the hero phase only).
 // alwaysVisible: true → fades in at startPct then stays visible for rest of hero phase
@@ -233,34 +336,34 @@ const TEXT_OVERLAYS = [
           <motion.p
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.10, duration: 0.5 }}
+            transition={{ delay: 0.20, duration: 0.8, ease: 'easeOut' }}
             className="font-sans text-[10px] md:text-xs font-bold tracking-[0.3em] uppercase text-oz-blue/70 mb-3 md:mb-5"
           >
-            Hassle-free Aircraft Rental
+            Sydney Cessna 172 Rental
           </motion.p>
           <h1 className="font-serif text-4xl md:text-7xl font-black leading-tight">
             <span className="block">
-              {'The sky is'.split('').map((char, i) => (
+              {'FLY'.split('').map((char, i) => (
                 <motion.span
                   key={`l1-${i}`}
                   className={`inline-block text-oz-text${char === ' ' ? ' mr-[0.22em]' : ''}`}
                   initial={{ y: 60, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.18 + i * 0.028, type: 'spring', stiffness: 150, damping: 25 }}
+                  transition={{ delay: 0.40 + i * 0.05, type: 'spring', stiffness: 70, damping: 20 }}
                 >
                   {char === ' ' ? '\u00A0' : char}
                 </motion.span>
               ))}
             </span>
-            {/* "yours to fly" with handwritten-style SVG underline */}
-            <span className="block italic text-oz-blue relative pb-3">
-              {'yours to fly'.split('').map((char, i) => (
+            {/* "YOUR WAY" with handwritten-style SVG underline */}
+            <span className="block italic text-oz-blue relative pb-3 animate-airy-float">
+              {'YOUR WAY'.split('').map((char, i) => (
                 <motion.span
                   key={`l2-${i}`}
                   className={`inline-block${char === ' ' ? ' mr-[0.22em]' : ''}`}
                   initial={{ y: 60, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.44 + i * 0.028, type: 'spring', stiffness: 150, damping: 25 }}
+                  transition={{ delay: 0.80 + i * 0.05, type: 'spring', stiffness: 70, damping: 20 }}
                 >
                   {char === ' ' ? '\u00A0' : char}
                 </motion.span>
@@ -280,7 +383,7 @@ const TEXT_OVERLAYS = [
                   strokeLinejoin="round"
                   initial={{ pathLength: 0, opacity: 0 }}
                   animate={{ pathLength: 1, opacity: 1 }}
-                  transition={{ delay: 1.05, duration: 0.9, ease: 'easeOut' }}
+                  transition={{ delay: 1.5, duration: 1.2, ease: 'easeOut' }}
                 />
               </svg>
             </span>
@@ -292,21 +395,21 @@ const TEXT_OVERLAYS = [
           <motion.p
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.95, duration: 0.6 }}
+            transition={{ delay: 1.4, duration: 0.8, ease: 'easeOut' }}
             className="font-sans text-sm md:text-lg text-oz-muted font-light leading-relaxed max-w-xs md:max-w-md mb-5 md:mb-7"
           >
-            A modern platform for licensed pilots — rent, fly, and return with zero friction
+            A modern platform for pilots — rent, fly, and enjoy
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.15, duration: 0.5 }}
+            transition={{ delay: 1.7, duration: 0.8, ease: 'easeOut' }}
           >
             <a
               href="/pilotRequirements"
-              className="inline-block bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] rounded-md font-sans font-bold tracking-widest uppercase text-sm px-10 py-4 shadow-2xl shadow-[#aec7f7]/20 transition-all active:scale-95 hover:brightness-110"
+              className="inline-block bg-gradient-to-r from-[#4168a6] to-[#172c4a] text-white rounded-md font-sans font-bold tracking-widest uppercase text-sm px-10 py-4 shadow-xl shadow-[#4168a6]/30 transition-all duration-300 hover:shadow-2xl hover:shadow-[#4168a6]/50 hover:scale-[1.02] active:scale-95"
             >
-              Start your application
+              Schedule your checkout Flight
             </a>
           </motion.div>
         </div>
@@ -433,6 +536,7 @@ export default function HeroScrollStage() {
   const canvasRef          = useRef<HTMLCanvasElement>(null)
   const canvasLayerRef     = useRef<HTMLDivElement>(null)
   const overlayRefs        = useRef<(HTMLDivElement | null)[]>([])
+  const ambientRefs        = useRef<HTMLDivElement | null>(null)
   const scrollIndicatorRef = useRef<HTMLDivElement | null>(null)
 
   const imagesRef              = useRef<(HTMLImageElement | null)[]>(new Array(TOTAL_FRAMES).fill(null))
@@ -442,11 +546,29 @@ export default function HeroScrollStage() {
   const hasRevealedLiveHeroRef = useRef(false)
 
   const currentFrameRef    = useRef(0)
+  const prevWidthRef       = useRef(0)
   const targetProgressRef  = useRef(0)   // set by scroll events (raw)
   const currentProgressRef = useRef(0)   // lerp'd toward target each rAF tick
   const rafRef             = useRef<number | null>(null)
   const dirtyRef           = useRef(true)
   const isMobileRef        = useRef(false)
+
+  // Scroll Lock + Timeline State
+  const [isScrollLocked, setIsScrollLocked] = useState(true)
+  const scrollLockedRef    = useRef(true)
+  const introCompleteRef   = useRef(false)
+
+  const checkUnlock = useCallback(() => {
+    if (
+      scrollLockedRef.current &&
+      introCompleteRef.current &&
+      isOpeningChunkReadyRef.current &&
+      hasRevealedLiveHeroRef.current
+    ) {
+      scrollLockedRef.current = false
+      setIsScrollLocked(false)
+    }
+  }, [])
 
   const [sectionHeight,  setSectionHeight]  = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
@@ -514,9 +636,14 @@ export default function HeroScrollStage() {
     if (!canvas) return
 
     const w = window.innerWidth
-    const h = window.innerHeight
-    isMobileRef.current = w < 768
+    const isMobile = w < 768
 
+    // iPhone Safari jump fix: ignore height-only resizes (address bar scrolling)
+    if (isMobile && prevWidthRef.current === w) return
+    prevWidthRef.current = w
+    isMobileRef.current = isMobile
+
+    const h = window.innerHeight
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     canvas.width  = Math.round(w * dpr)
     canvas.height = Math.round(h * dpr)
@@ -579,6 +706,7 @@ export default function HeroScrollStage() {
           if (isOpeningChunkReadyRef.current && !hasRevealedLiveHeroRef.current) {
             hasRevealedLiveHeroRef.current = true
             setPosterVisible(false)
+            checkUnlock()
           }
         }
 
@@ -596,6 +724,7 @@ export default function HeroScrollStage() {
         if (isOpeningChunkReadyRef.current && !hasRevealedLiveHeroRef.current) {
           hasRevealedLiveHeroRef.current = true
           setPosterVisible(false)
+          checkUnlock()
         }
       }
     }
@@ -608,15 +737,19 @@ export default function HeroScrollStage() {
     const section = sectionRef.current
     if (!section) return
 
-    const rect            = section.getBoundingClientRect()
-    const scrolled        = -rect.top
-    const totalScrollable = section.offsetHeight - window.innerHeight
+    // iOS Safari measurement fix
+    const scrollY         = window.pageYOffset || document.documentElement.scrollTop || 0
+    const sectionTop      = section.offsetTop || 0
+    const scrolled        = scrollY - sectionTop
+    
+    // Stable viewport height ignoring Safari address bar dynamics
+    const vh              = document.documentElement.clientHeight || window.innerHeight
+    const totalScrollable = section.offsetHeight - vh
     if (totalScrollable <= 0) return
 
     const overallProgress = Math.max(0, Math.min(1, scrolled / totalScrollable))
 
     const heroMult     = isMobileRef.current ? MOBILE_SCROLL_MULTIPLIER : DESKTOP_SCROLL_MULTIPLIER
-    const vh           = window.innerHeight
     const heroScrollPx = (heroMult - 1) * vh
     const heroFraction = heroScrollPx / totalScrollable
 
@@ -658,6 +791,16 @@ export default function HeroScrollStage() {
       el.style.opacity = String(opacity)
     })
 
+    // ── Ambient Overlays ────────────────────────────────────────────────────
+    if (ambientRefs.current) {
+      const startFade = 0.05
+      const endFade = 0.25
+      let ambientOp = 1
+      if (heroProgress >= endFade) ambientOp = 0
+      else if (heroProgress > startFade) ambientOp = 1 - (heroProgress - startFade) / (endFade - startFade)
+      ambientRefs.current.style.opacity = String(ambientOp)
+    }
+
     // ── Scroll indicator ────────────────────────────────────────────────────
     // Fades out after the first ~10% of the hero phase.
     if (scrollIndicatorRef.current) {
@@ -696,6 +839,8 @@ export default function HeroScrollStage() {
     
     Promise.all(promises).then(() => {
        isOpeningChunkReadyRef.current = true
+       dirtyRef.current = true // Forces render loop to wipe poster and unlock progression
+       checkUnlock()
     })
 
     const eagerCount = isMobileRef.current ? MOBILE_EAGER_FRAMES : DESKTOP_EAGER_FRAMES
@@ -736,7 +881,45 @@ export default function HeroScrollStage() {
       window.removeEventListener('scroll',            onScroll)
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [resizeCanvas, onScroll, loadFrameAsync, renderLoop])
+  }, [resizeCanvas, onScroll, loadFrameAsync, renderLoop, checkUnlock])
+
+  // ── Scroll Lock Enforcer ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (isScrollLocked) {
+      document.body.style.overflow = 'hidden'
+      document.documentElement.style.overflow = 'hidden'
+      
+      const handler = (e: TouchEvent) => e.preventDefault()
+      document.addEventListener('touchmove', handler, { passive: false })
+      
+      return () => {
+        document.body.style.overflow = ''
+        document.documentElement.style.overflow = ''
+        document.removeEventListener('touchmove', handler)
+      }
+    } else {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+    }
+  }, [isScrollLocked])
+
+  // ── Intro + Failsafe Timers ────────────────────────────────────────────────
+  useEffect(() => {
+    const introTimer = setTimeout(() => {
+      introCompleteRef.current = true
+      checkUnlock()
+    }, 2800)
+
+    const failsafe = setTimeout(() => {
+      scrollLockedRef.current = false
+      setIsScrollLocked(false)
+    }, 4500)
+
+    return () => {
+      clearTimeout(introTimer)
+      clearTimeout(failsafe)
+    }
+  }, [checkUnlock])
 
   // ── Heights ────────────────────────────────────────────────────────────────
   const spacerHeight = sectionHeight > 0 ? sectionHeight - viewportHeight : undefined
@@ -778,7 +961,7 @@ export default function HeroScrollStage() {
             <img 
               src={FRAME_PATHS[0]} 
               className="absolute inset-0 w-full h-full object-cover object-top opacity-60 mix-blend-screen"
-              alt=""
+              alt="Cessna 172 aircraft flying at twilight"
               decoding="sync"
               loading="eager"
             />
@@ -798,6 +981,16 @@ export default function HeroScrollStage() {
             className="absolute inset-0 pointer-events-none"
             style={{ background: 'rgba(2,10,30,0.28)', mixBlendMode: 'multiply' }}
           />
+
+          {/* Lavender / Cool Purple Unifying Tint (Visual Test) */}
+          {/* Tweak the RGBA values, opacity, and mixBlendMode here */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ background: 'rgba(135, 145, 215, 0.14)', mixBlendMode: 'normal' }}
+          />
+
+          {/* Ambient Overlays (Clouds & Propeller) */}
+          <AmbientOverlays innerRef={ambientRefs} />
 
           {/* Floating paths */}
           <FloatingPaths position={1} />

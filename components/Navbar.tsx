@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 
 const NAV_LINKS = [
-  { label: 'Fleet',        href: '/fleet' },
+  { label: 'Cessna-172N',  href: '/fleet' },
   { label: 'How It Works', href: '/how-it-works' },
   { label: 'Safety',       href: '/safety' },
-  { label: 'Requirements', href: '/pilotRequirements' },
+  { label: 'Resources',    href: '/pilotRequirements' },
   { label: 'Pricing',      href: '/pricing' },
 ]
 
@@ -19,14 +19,14 @@ export default function Navbar() {
     <header
       className="fixed top-0 left-0 right-0 z-50 bg-[#091421] shadow-[0_1px_0_rgba(255,255,255,0.07)]"
     >
-      <div className="max-w-[1400px] mx-auto px-6 md:px-10 h-[62px] flex items-center justify-between gap-8">
+      <div className="max-w-[1400px] mx-auto px-6 md:px-10 h-[84px] flex items-center justify-between gap-8">
 
         {/* Logo */}
         <a
           href="/"
-          className="shrink-0 font-serif italic font-bold text-[1.25rem] tracking-tight text-oz-blue select-none"
+          className="shrink-0 flex items-center select-none"
         >
-          OZRentAPlane
+          <img src="/OZRentAPlanelogo.png" alt="OZRentAPlane logo" className="h-[64px] w-auto object-contain scale-[2.5] origin-left" />
         </a>
 
         {/* Desktop links */}
@@ -55,7 +55,7 @@ export default function Navbar() {
             href="#booking"
             className="hidden md:inline-flex items-center font-sans font-semibold text-[13px] text-[#0c1a2e] bg-[#c8dcff] hover:bg-white px-5 py-2 rounded-full transition-colors duration-200 whitespace-nowrap"
           >
-            Book a Flight
+            Renter Login/Register
           </a>
 
           {/* Hamburger — mobile only */}
@@ -94,7 +94,7 @@ export default function Navbar() {
             onClick={() => setMenuOpen(false)}
             className="mt-2 inline-flex justify-center font-sans font-semibold text-sm text-[#0c1a2e] bg-[#c8dcff] hover:bg-white px-5 py-3 rounded-full transition-colors"
           >
-            Book a Flight
+            Renter Login/Register
           </a>
         </div>
       )}

@@ -18,12 +18,9 @@ export default function Footer() {
         {/* Right Link Columns */}
         <div className="flex flex-wrap md:flex-nowrap gap-x-16 lg:gap-x-24 gap-y-12">
           
-          {/* Column 1 */}
           <div className="flex flex-col gap-[0.85rem]">
             <h4 className="font-sans font-bold text-[0.85rem] text-[#dbeafe] mb-1">Fleet</h4>
-            <a href="#" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#dbeafe] transition-colors opacity-70">Cessna 172</a>
-            <a href="#" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#dbeafe] transition-colors opacity-70">Cirrus SR22</a>
-            <a href="#" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#dbeafe] transition-colors opacity-70">Piper Archer</a>
+            <a href="/fleet" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#dbeafe] transition-colors opacity-70">Cessna 172</a>
           </div>
 
           {/* Column 2 */}

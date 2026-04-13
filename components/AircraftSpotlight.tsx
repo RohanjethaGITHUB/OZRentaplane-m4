@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useCallback, useEffect, useState } from 'react'
-import Image from 'next/image'
 import {
   motion,
   useInView,
@@ -10,6 +9,7 @@ import {
   useTransform,
 } from 'framer-motion'
 import CubeGrid from '@/components/CubeGrid'
+import AircraftViewerCard from '@/components/AircraftViewerCard'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const BASE = '#091421'
@@ -273,10 +273,10 @@ export default function AircraftSpotlight() {
                 Mobile:  aircraft top (centred) | 2×2 chip grid bottom
             ═══════════════════════════════════════════════════════════════ */}
 
-            {/* Desktop side-chip columns + aircraft row */}
+            {/* Desktop side-chip columns + aircraft viewer row */}
             <div
               className="relative flex items-stretch"
-              style={{ minHeight: 'clamp(360px, 46vw, 560px)' }}
+              style={{ minHeight: 'clamp(420px, 52vw, 620px)' }}
             >
 
               {/* Left chip column — desktop only */}
@@ -291,18 +291,8 @@ export default function AircraftSpotlight() {
                 <MetricChip value="640" unit="NM" label="Range" />
               </motion.div>
 
-              {/* Aircraft — takes remaining space */}
-              <div className="flex-1 relative flex items-center justify-center md:justify-center py-10 md:py-8 z-10 overflow-visible">
-
-                {/* Subtle blue halo directly behind the aircraft */}
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-0 pointer-events-none"
-                  style={{
-                    background:
-                      'radial-gradient(ellipse 72% 65% at 52% 50%, rgba(90,148,230,0.065) 0%, transparent 62%)',
-                  }}
-                />
+              {/* Aircraft viewer — takes remaining space */}
+              <div className="flex-1 relative flex items-center justify-center py-6 md:py-8 z-10 overflow-visible">
 
                 {/* Reveal wrapper */}
                 <motion.div
@@ -310,32 +300,9 @@ export default function AircraftSpotlight() {
                   initial="hidden"
                   animate={isInView ? 'visible' : 'hidden'}
                   transition={{ duration: 2.2, delay: 0.25, ease: EASE_OUT }}
-                  className="w-full max-w-[640px] md:max-w-[88%] relative z-10 mx-auto"
+                  className="w-full relative z-10 mx-auto px-2"
                 >
-                  {/* Idle float */}
-                  <motion.div
-                    animate={{ y: [0, -7, 0] }}
-                    transition={{
-                      duration: 6.5,
-                      repeat: Infinity,
-                      ease: 'easeInOut',
-                      repeatType: 'loop',
-                    }}
-                  >
-                    <Image
-                      src="/Cessna-fleet.png"
-                      alt="Cessna 172 N — OZRentAPlane primary fleet aircraft"
-                      width={900}
-                      height={560}
-                      className="w-full h-auto object-contain select-none"
-                      style={{
-                        filter:
-                          'drop-shadow(0 22px 44px rgba(0,0,0,0.62)) drop-shadow(0 2px 10px rgba(80,140,230,0.10))',
-                      }}
-                      priority
-                      draggable={false}
-                    />
-                  </motion.div>
+                  <AircraftViewerCard />
                 </motion.div>
               </div>
 
