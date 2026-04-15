@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { usePathname } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
+import type { User } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/client'
 
 const NAV_LINKS = [
   { label: 'Cessna-172N',  href: '/fleet' },
@@ -11,13 +13,41 @@ const NAV_LINKS = [
   { label: 'Pricing',      href: '/pricing' },
 ]
 
-export default function Navbar() {
+export default function Navbar({ initialUser }: { initialUser: User | null }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [user, setUser] = useState<User | null>(initialUser)
   const pathname = usePathname()
+  const router = useRouter()
+  const isAuthPage = pathname === '/login'
+
+  useEffect(() => {
+    const supabase = createClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
+
+  // Early return must come after ALL hook calls — placing it before any hook
+  // causes a Rules of Hooks violation when pathname crosses the /dashboard boundary.
+  if (pathname.startsWith('/dashboard')) return null
+
+  const ctaClass = 'font-sans font-semibold text-[#0c1a2e] bg-[#c8dcff] hover:bg-white rounded-full transition-colors duration-200'
 
   return (
     <header
-      className="fixed top-0 left-0 right-0 z-50 bg-[#091421] shadow-[0_1px_0_rgba(255,255,255,0.07)]"
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+        isAuthPage
+          ? 'bg-transparent border-b border-white/5 backdrop-blur-md opacity-40 hover:opacity-100'
+          : 'bg-[#091421] shadow-[0_1px_0_rgba(255,255,255,0.07)]'
+      }`}
     >
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 h-[84px] flex items-center justify-between gap-8">
 
@@ -51,12 +81,21 @@ export default function Navbar() {
 
         {/* CTA + hamburger */}
         <div className="flex items-center gap-4 shrink-0">
-          <a
-            href="#booking"
-            className="hidden md:inline-flex items-center font-sans font-semibold text-[13px] text-[#0c1a2e] bg-[#c8dcff] hover:bg-white px-5 py-2 rounded-full transition-colors duration-200 whitespace-nowrap"
-          >
-            Renter Login/Register
-          </a>
+          {user ? (
+            <button
+              onClick={handleLogout}
+              className={`hidden md:inline-flex items-center text-[13px] px-5 py-2 whitespace-nowrap ${ctaClass}`}
+            >
+              Logout
+            </button>
+          ) : (
+            <a
+              href="/login"
+              className={`hidden md:inline-flex items-center text-[13px] px-5 py-2 whitespace-nowrap ${ctaClass}`}
+            >
+              Renter Login
+            </a>
+          )}
 
           {/* Hamburger — mobile only */}
           <button
@@ -89,13 +128,22 @@ export default function Navbar() {
               </a>
             )
           })}
-          <a
-            href="#booking"
-            onClick={() => setMenuOpen(false)}
-            className="mt-2 inline-flex justify-center font-sans font-semibold text-sm text-[#0c1a2e] bg-[#c8dcff] hover:bg-white px-5 py-3 rounded-full transition-colors"
-          >
-            Renter Login/Register
-          </a>
+          {user ? (
+            <button
+              onClick={() => { setMenuOpen(false); handleLogout() }}
+              className={`mt-2 inline-flex justify-center text-sm px-5 py-3 ${ctaClass}`}
+            >
+              Logout
+            </button>
+          ) : (
+            <a
+              href="/login"
+              onClick={() => setMenuOpen(false)}
+              className={`mt-2 inline-flex justify-center text-sm px-5 py-3 ${ctaClass}`}
+            >
+              Renter Login
+            </a>
+          )}
         </div>
       )}
     </header>

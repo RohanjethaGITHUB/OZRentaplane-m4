@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#b7c8de",
+                        "secondary-container": "#354958",
+                        "on-background": "#e2e2e6",
+                        "tertiary-fixed-dim": "#adcae6",
+                        "on-surface": "#e2e2e6",
+                        "error-container": "#93000a",
+                        "error": "#ffb4ab",
+                        "on-secondary-container": "#a3b8c9",
+                        "outline": "#8e9197",
+                        "surface-dim": "#111316",
+                        "secondary-fixed-dim": "#b4c9db",
+                        "on-tertiary-fixed": "#001d31",
+                        "primary": "#b7c8de",
+                        "tertiary-fixed": "#cce5ff",
+                        "on-surface-variant": "#c4c6cd",
+                        "background": "#111316",
+                        "on-secondary-fixed-variant": "#354958",
+                        "on-error-container": "#ffdad6",
+                        "on-primary-container": "#8192a7",
+                        "on-tertiary-container": "#7894ae",
+                        "primary-fixed": "#d2e4fb",
+                        "inverse-surface": "#e2e2e6",
+                        "surface-bright": "#37393d",
+                        "on-error": "#690005",
+                        "tertiary": "#adcae6",
+                        "tertiary-container": "#0d2c42",
+                        "surface-variant": "#333538",
+                        "primary-container": "#1a2b3c",
+                        "surface-tint": "#b7c8de",
+                        "secondary-fixed": "#d0e5f7",
+                        "inverse-primary": "#4f6073",
+                        "on-primary": "#213243",
+                        "on-secondary-fixed": "#081e2b",
+                        "on-secondary": "#1e3340",
+                        "on-tertiary": "#153349",
+                        "surface-container-high": "#282a2d",
+                        "surface-container-lowest": "#0c0e11",
+                        "inverse-on-surface": "#2f3034",
+                        "secondary": "#b4c9db",
+                        "on-primary-fixed": "#0b1d2d",
+                        "outline-variant": "#44474c",
+                        "surface-container": "#1e2023",
+                        "surface-container-low": "#1a1c1f",
+                        "on-tertiary-fixed-variant": "#2e4961",
+                        "on-primary-fixed-variant": "#38485a",
+                        "surface-container-highest": "#333538",
+                        "surface": "#111316"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Noto Serif"],
+                        "body": ["Manrope"],
+                        "label": ["Manrope"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: linear-gradient(135deg, rgba(183, 200, 222, 0.08) 0%, rgba(255, 255, 255, 0) 100%);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+        .grain-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3C%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+        .runway-divider {
+            width: 2px;
+            height: 60px;
+            background: linear-gradient(to bottom, transparent, #44474c, transparent);
+        }
+    </style>
+</head>
+<body class="bg-surface-dim text-on-surface font-body min-h-screen flex items-center justify-center p-6 lg:p-12">
+<div class="grain-overlay"></div>
+<main class="w-full max-w-7xl h-[870px] bg-surface-container-lowest rounded-xl overflow-hidden flex flex-col md:flex-row relative shadow-2xl ring-1 ring-surface-bright/10">
+<section class="flex-1 relative overflow-hidden group">
+<div class="absolute inset-0 z-0">
+<img alt="Close-up cockpit details" class="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" data-alt="close-up of a modern private jet cockpit controls and instruments at blue hour with soft glowing amber and blue lights" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAo5RG4doeVoJ5x9Gdw7__7hKHwKnevjRiOy_RLi6m0QBr4fiqNPVqOYus7sXqc1QjzayPqNlsxYFRxT9IBOxRVgUnwjoF1E3xxcbrDH-5OTM7XvjoAqd3Lm8pdhz7iQLx3ejrSjMMU1lbrLP7DA35Pyefwy4UhjOf0ev8pV5wRyhWQjUd-LsKy0jCN6VVBrTEQAPKjQoajI24OIrnYsNsKTt1ikD9jU8w5eFDA3lB0wQ5IS4KGcRZJEBoF4omJZbQnsAblkKBSnK_R"/>
+<div class="absolute inset-0 bg-gradient-to-r from-surface-dim/90 via-surface-dim/40 to-transparent"></div>
+</div>
+<div class="relative z-10 h-full flex flex-col p-10 lg:p-16">
+<header class="mb-12">
+<h1 class="text-2xl font-headline italic text-slate-100 tracking-widest uppercase">The Blue Hour</h1>
+</header>
+<div class="flex-1 flex flex-col justify-center max-w-md">
+<h2 class="text-5xl lg:text-6xl font-headline text-on-surface mb-4 leading-tight">Welcome Back, Captain</h2>
+<p class="text-on-surface-variant font-body mb-10 tracking-wide text-lg">Your next horizon is waiting. Please authenticate your flight credentials.</p>
+<form class="space-y-8">
+<div class="space-y-1">
+<label class="block text-[10px] font-label uppercase tracking-[0.2em] text-primary/70 ml-1">Email Address</label>
+<input class="w-full bg-surface-container-low border-0 border-b border-outline-variant/30 py-4 px-1 text-on-surface placeholder:text-outline/40 focus:ring-0 focus:border-primary transition-all duration-500 rounded-none outline-none" placeholder="captain@bluehour.com" type="email"/>
+</div>
+<div class="space-y-1">
+<label class="block text-[10px] font-label uppercase tracking-[0.2em] text-primary/70 ml-1">Access Password</label>
+<input class="w-full bg-surface-container-low border-0 border-b border-outline-variant/30 py-4 px-1 text-on-surface placeholder:text-outline/40 focus:ring-0 focus:border-primary transition-all duration-500 rounded-none outline-none" placeholder="••••••••" type="password"/>
+</div>
+<div class="pt-6 flex items-center justify-between">
+<button class="bg-gradient-to-br from-primary to-primary-container text-on-primary px-10 py-4 rounded-full font-label text-xs uppercase tracking-widest font-bold hover:shadow-[0_0_20px_rgba(183,200,222,0.3)] transition-all duration-500 transform hover:-translate-y-0.5" type="submit">
+                                Sign In
+                            </button>
+<a class="text-xs font-label uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors duration-300" href="#">Forgot Code?</a>
+</div>
+</form>
+</div>
+<footer class="mt-auto pt-10">
+<div class="runway-divider mb-6"></div>
+<p class="text-[10px] font-label uppercase tracking-widest text-outline/60">Part of the OZRentAPlane Network</p>
+</footer>
+</div>
+</section>
+<section class="hidden md:flex flex-1 relative overflow-hidden group">
+<div class="absolute inset-0 z-0 scale-110">
+<img alt="Runway lights at dusk" class="w-full h-full object-cover blur-sm brightness-[0.4]" data-alt="expansive view of an airport runway at deep blue hour with rows of glowing white and blue runway lights leading to the horizon" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCBhQCv387fHd9nmqaNh6nwxWQgqzOxubSnNp6fjGWOgRu64N82MgOtPbtzi8eVwITmdT8gHoC9mE-WDN87dCgtlZTPzP4LSro6eEAMe9lVs1KNT-MLikZJOugDEcXSS1xaU_tv2if1oOxZMQHpgQXOsZvEUK8WQP2X2BXeDzikwgosoyN62RlpoqeebXa6fLQWXhdd_bhl30gT5c8figpRdFRmAZNJ-b6clAyEnjoN2q1ydv5zFWD8iv6Qq3D7VgCEZwE1QB4Gy7aE"/>
+<div class="absolute inset-0 bg-surface-dim/60"></div>
+</div>
+<div class="relative z-10 h-full w-full flex flex-col items-center justify-center p-12 text-center">
+<div class="glass-panel p-12 lg:p-20 rounded-xl border border-white/5 max-w-lg">
+<span class="material-symbols-outlined text-primary/40 text-5xl mb-6" data-icon="flight_takeoff">flight_takeoff</span>
+<h2 class="text-4xl font-headline text-on-surface mb-6 opacity-60">Join the Fleet</h2>
+<p class="text-on-surface-variant font-body mb-10 tracking-wide leading-relaxed">
+                        Access the world's most exclusive private hangars. Experience the silence and speed of The Blue Hour.
+                    </p>
+<button class="border border-outline-variant/50 text-on-surface px-12 py-4 rounded-full font-label text-xs uppercase tracking-widest hover:bg-white/5 transition-all duration-500 backdrop-blur-md">
+                        Create Account
+                    </button>
+</div>
+<div class="absolute bottom-16 w-full px-12 flex justify-between items-center text-[10px] font-label uppercase tracking-widest text-outline/40">
+<span>Privacy Protocol</span>
+<div class="flex items-center gap-4">
+<span>Terminal 4.0</span>
+<div class="w-1.5 h-1.5 rounded-full bg-primary/20 shadow-[0_0_8px_rgba(183,200,222,0.4)]"></div>
+</div>
+</div>
+</div>
+<div class="absolute left-0 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2">
+<div class="w-0.5 h-12 bg-gradient-to-b from-transparent via-primary/30 to-transparent"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_12px_rgba(183,200,222,0.8)]"></div>
+<div class="w-0.5 h-12 bg-gradient-to-b from-transparent via-primary/30 to-transparent"></div>
+</div>
+</section>
+</main>
+<div class="fixed bottom-8 left-1/2 -translate-x-1/2 text-center pointer-events-none">
+<p class="text-[10px] font-label text-outline/40 uppercase tracking-[0.4em]">Aviation Editorial Design System © 2024</p>
+</div>
+</body></html>

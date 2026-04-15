@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&amp;family=Manrope:wght@200;300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-low": "#1a1c1f",
+                    "on-primary-fixed-variant": "#38485a",
+                    "tertiary-fixed": "#cce5ff",
+                    "on-secondary-container": "#a3b8c9",
+                    "error-container": "#93000a",
+                    "primary-fixed": "#d2e4fb",
+                    "surface-container": "#1e2023",
+                    "on-tertiary-fixed-variant": "#2e4961",
+                    "on-secondary-fixed-variant": "#354958",
+                    "on-tertiary": "#153349",
+                    "on-error": "#690005",
+                    "surface-container-lowest": "#0c0e11",
+                    "on-background": "#e2e2e6",
+                    "surface-bright": "#37393d",
+                    "on-surface-variant": "#c4c6cd",
+                    "tertiary-container": "#0d2c42",
+                    "background": "#111316",
+                    "surface-variant": "#333538",
+                    "outline-variant": "#44474c",
+                    "tertiary": "#adcae6",
+                    "primary": "#b7c8de",
+                    "inverse-on-surface": "#2f3034",
+                    "secondary-fixed": "#d0e5f7",
+                    "inverse-surface": "#e2e2e6",
+                    "on-primary": "#213243",
+                    "surface-tint": "#b7c8de",
+                    "secondary-fixed-dim": "#b4c9db",
+                    "surface-dim": "#111316",
+                    "surface-container-highest": "#333538",
+                    "outline": "#8e9197",
+                    "secondary-container": "#354958",
+                    "secondary": "#b4c9db",
+                    "on-tertiary-fixed": "#001d31",
+                    "on-secondary": "#1e3340",
+                    "error": "#ffb4ab",
+                    "tertiary-fixed-dim": "#adcae6",
+                    "surface-container-high": "#282a2d",
+                    "primary-fixed-dim": "#b7c8de",
+                    "surface": "#111316",
+                    "on-error-container": "#ffdad6",
+                    "on-secondary-fixed": "#081e2b",
+                    "on-primary-container": "#8192a7",
+                    "primary-container": "#1a2b3c",
+                    "inverse-primary": "#4f6073",
+                    "on-tertiary-container": "#7894ae",
+                    "on-surface": "#e2e2e6",
+                    "on-primary-fixed": "#0b1d2d"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Noto Serif"],
+                    "body": ["Manrope"],
+                    "label": ["Manrope"]
+            }
+          },
+        },
+      }
+    </script>
+<style>body {
+    background-color: #111316;
+    font-family: "Manrope", sans-serif;
+    color: #e2e2e6;
+    overflow-x: hidden
+    }
+.serif {
+    font-family: "Noto Serif", serif
+    }
+.glass-panel {
+    background: rgba(30, 32, 35, 0.6);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(183, 200, 222, 0.05)
+    }
+.grain-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.03;
+    background-image: url(https://lh3.googleusercontent.com/aida-public/AB6AXuDFT1QKgMZSrf0S2yDKASYRLBNvXJPYUpTM-HK3lt8mJrmE5yY91axWzchFixmTF3Oiji35GL_3aaR-GDoaIuIpQfzGjiWQpkwfY1Q6sADtIcczHrcnPi-t-J8OCltuLIaEe6x5NyINIhm-lVRf0IbFjEFxGTJteBKHTQzKeT06Pbdhk9HF7L8Hi39slaBOZMxfslwAO1cL1TqWTE8SXjk51Ry2Fbwg4JOmjLjhyPti7IvoExilhXFQvHVZ6FcWp7ORZ6MJdNMCwRDT)
+    }
+.runway-divider {
+    height: 2px;
+    width: 40px;
+    background: #44474c;
+    margin: 1.5rem 0
+    }
+.bloom-focus:focus-within {
+    box-shadow: 0 0 15px rgba(183, 200, 222, 0.2)
+    }</style>
+</head>
+<body class="flex min-h-screen">
+<div class="grain-overlay"></div>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full flex flex-col py-8 px-6 h-full w-72 border-r border-white/5 bg-slate-950/80 backdrop-blur-xl z-50">
+<div class="mb-12 px-4">
+<h1 class="text-xl font-serif italic text-blue-100 tracking-wider">Blue Hour</h1>
+<p class="text-xs uppercase tracking-widest text-slate-500 mt-1 font-body">Aviation Command</p>
+</div>
+<nav class="flex-1 space-y-2">
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 text-blue-200 font-bold border-r-2 border-blue-300/50 bg-white/5" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-body text-sm tracking-wide">Overview</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl transition-colors text-slate-400 font-normal hover:text-blue-100 hover:bg-white/5 transition-all duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="pending_actions">pending_actions</span>
+<span class="font-body text-sm tracking-wide">Pending Verifications</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl transition-colors text-slate-400 font-normal hover:text-blue-100 hover:bg-white/5 transition-all duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="verified_user">verified_user</span>
+<span class="font-body text-sm tracking-wide">Verified Users</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl transition-colors text-slate-400 font-normal hover:text-blue-100 hover:bg-white/5 transition-all duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="person_off">person_off</span>
+<span class="font-body text-sm tracking-wide">Rejected Users</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl transition-colors text-slate-400 font-normal hover:text-blue-100 hover:bg-white/5 transition-all duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="event_seat">event_seat</span>
+<span class="font-body text-sm tracking-wide">Bookings</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl transition-colors text-slate-400 font-normal hover:text-blue-100 hover:bg-white/5 transition-all duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="flight">flight</span>
+<span class="font-body text-sm tracking-wide">Aircraft Availability</span>
+</a>
+<div class="pt-8 mt-8 border-t border-white/5">
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl transition-colors text-slate-400 font-normal hover:text-blue-100 hover:bg-white/5 transition-all duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-body text-sm tracking-wide">Settings</span>
+</a>
+</div>
+</nav>
+<div class="mt-auto px-4 flex items-center gap-3">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-container-highest">
+<img class="w-full h-full object-cover" data-alt="portrait of a professional male aviation administrator in a crisp white shirt with soft office lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBnhAzvPXQluPqhEnXl9_eH-M6nu40id71aryJKvw5nAFqrhkiuLf7lCtclU6sEvspcs6_7S_6z3EFw8NCxYzFnJR2v3VKV394bCbarpCnYWKu9HZRzNGWHbybI9krq5VXxsGeoAgPFrU5qm2w_izVoqJ9ugKbw9jJdpfbgjQh7LYi8Wgv0YmsmxvJwuVZeiK6UJzxNDWfVcCufJqBWiAY_FkjpEBifLuo4DGidy-ssbMNFuPnr_UgJV0VH_QBp9fVfSrP6kcXaTqLT"/>
+</div>
+<div>
+<p class="text-sm font-semibold text-blue-100">Administrator</p>
+<p class="text-xs text-slate-500">Level 4 Clearance</p>
+</div>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="flex-1 ml-72 min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full pl-8 pr-10 h-20 bg-slate-950/40 backdrop-blur-lg sticky top-0 z-40">
+<div class="flex items-center gap-8 w-1/2">
+<div class="relative w-full max-w-md bloom-focus">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-lg" data-icon="search">search</span>
+<input class="w-full bg-surface-container-low border-none border-b border-outline-variant/20 focus:ring-0 focus:border-primary text-sm pl-10 transition-all duration-300 rounded-lg" placeholder="Search customer records..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<button class="relative text-slate-400 hover:text-blue-100 transition-opacity">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-0 right-0 w-2 h-2 bg-primary rounded-full"></span>
+</button>
+<button class="text-slate-400 hover:text-blue-100 transition-opacity">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+</button>
+<div class="h-6 w-px bg-white/10 mx-2"></div>
+<div class="text-right">
+<p class="text-xs text-slate-500 font-label uppercase tracking-widest">System Status</p>
+<p class="text-sm font-semibold text-primary">Operational</p>
+</div>
+</div>
+</header>
+<!-- Content Body -->
+<div class="p-10 max-w-7xl">
+<!-- Hero Header -->
+<header class="mb-12">
+<h2 class="serif text-4xl font-light text-on-background tracking-tight">Admin Dashboard</h2>
+<p class="text-on-surface-variant mt-2 font-body font-light tracking-wide">Manage customer verification and booking readiness</p>
+<div class="runway-divider"></div>
+</header>
+<!-- Summary Bento Grid -->
+<section class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+<div class="glass-panel p-6 rounded-xl flex flex-col justify-between group hover:bg-surface-container-high transition-all">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary" data-icon="pending">pending</span>
+<span class="text-xs font-label text-slate-500 uppercase tracking-tighter">+4 today</span>
+</div>
+<div class="mt-8">
+<p class="text-3xl font-light serif text-on-background">24</p>
+<p class="text-xs font-label text-slate-400 uppercase tracking-widest mt-1">Pending Review</p>
+</div>
+</div>
+<div class="glass-panel p-6 rounded-xl flex flex-col justify-between group hover:bg-surface-container-high transition-all">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary" data-icon="verified">verified</span>
+<span class="text-xs font-label text-slate-500 uppercase tracking-tighter">98% rate</span>
+</div>
+<div class="mt-8">
+<p class="text-3xl font-light serif text-on-background">1,240</p>
+<p class="text-xs font-label text-slate-400 uppercase tracking-widest mt-1">Verified Customers</p>
+</div>
+</div>
+<div class="glass-panel p-6 rounded-xl flex flex-col justify-between group hover:bg-surface-container-high transition-all">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-error" data-icon="gavel">gavel</span>
+<span class="text-xs font-label text-slate-500 uppercase tracking-tighter">Last 30d</span>
+</div>
+<div class="mt-8">
+<p class="text-3xl font-light serif text-on-background">12</p>
+<p class="text-xs font-label text-slate-400 uppercase tracking-widest mt-1">Rejected Cases</p>
+</div>
+</div>
+<div class="glass-panel p-6 rounded-xl flex flex-col justify-between group hover:bg-surface-container-high transition-all">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-tertiary" data-icon="notification_important">notification_important</span>
+<span class="text-xs font-label text-slate-500 uppercase tracking-tighter">High Priority</span>
+</div>
+<div class="mt-8">
+<p class="text-3xl font-light serif text-on-background">08</p>
+<p class="text-xs font-label text-slate-400 uppercase tracking-widest mt-1">Bookings Awaiting</p>
+</div>
+</div>
+</section>
+<!-- Main Queue Section -->
+<section class="glass-panel rounded-2xl overflow-hidden">
+<div class="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+<h3 class="serif text-2xl font-light">Verification Queue</h3>
+<div class="flex gap-2">
+<button class="px-4 py-2 text-xs font-label uppercase tracking-widest border border-outline-variant/30 rounded-full hover:bg-white/5 transition-all">Filter</button>
+<button class="px-4 py-2 text-xs font-label uppercase tracking-widest border border-outline-variant/30 rounded-full hover:bg-white/5 transition-all">Export</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="text-xs font-label uppercase tracking-widest text-slate-500 bg-white/[0.01]">
+<th class="px-8 py-5 font-medium">Customer Name</th>
+<th class="px-8 py-5 font-medium">Email</th>
+<th class="px-8 py-5 font-medium text-center">Submitted Documents</th>
+<th class="px-8 py-5 font-medium">Submitted At</th>
+<th class="px-8 py-5 font-medium">Status</th>
+<th class="px-8 py-5 font-medium text-right">Review Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/5">
+<!-- Row 1 -->
+<tr class="group hover:bg-white/[0.02] transition-colors">
+<td class="px-8 py-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-primary text-xs font-bold">JD</div>
+<span class="text-sm font-semibold text-blue-100">Julianna Sterling</span>
+</div>
+</td>
+<td class="px-8 py-6 text-sm text-slate-400">j.sterling@aero-mail.com</td>
+<td class="px-8 py-6">
+<div class="flex justify-center gap-3">
+<span class="material-symbols-outlined text-lg text-primary" data-icon="badge" title="Licence">badge</span>
+<span class="material-symbols-outlined text-lg text-primary" data-icon="medical_services" title="Medical">medical_services</span>
+<span class="material-symbols-outlined text-lg text-primary" data-icon="fingerprint" title="ID">fingerprint</span>
+</div>
+</td>
+<td class="px-8 py-6 text-xs text-slate-400 font-label">Oct 12, 2023 • 14:20</td>
+<td class="px-8 py-6">
+<span class="px-3 py-1 bg-secondary-container/50 text-on-secondary-container text-[10px] uppercase tracking-widest font-bold rounded-full">Pending Review</span>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="px-5 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-on-primary text-xs font-label uppercase tracking-widest rounded-full transition-all duration-300">Review</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="group hover:bg-white/[0.02] transition-colors">
+<td class="px-8 py-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-tertiary-container flex items-center justify-center text-tertiary text-xs font-bold">MK</div>
+<span class="text-sm font-semibold text-blue-100">Marcus Kovic</span>
+</div>
+</td>
+<td class="px-8 py-6 text-sm text-slate-400">m.kovic@horizon.net</td>
+<td class="px-8 py-6">
+<div class="flex justify-center gap-3">
+<span class="material-symbols-outlined text-lg text-primary" data-icon="badge">badge</span>
+<span class="material-symbols-outlined text-lg text-outline/30" data-icon="medical_services">medical_services</span>
+<span class="material-symbols-outlined text-lg text-primary" data-icon="fingerprint">fingerprint</span>
+</div>
+</td>
+<td class="px-8 py-6 text-xs text-slate-400 font-label">Oct 12, 2023 • 11:05</td>
+<td class="px-8 py-6">
+<span class="px-3 py-1 bg-secondary-container/50 text-on-secondary-container text-[10px] uppercase tracking-widest font-bold rounded-full">Pending Review</span>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="px-5 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-on-primary text-xs font-label uppercase tracking-widest rounded-full transition-all duration-300">Review</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="group hover:bg-white/[0.02] transition-colors">
+<td class="px-8 py-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-on-primary-fixed-variant flex items-center justify-center text-primary-fixed text-xs font-bold">EL</div>
+<span class="text-sm font-semibold text-blue-100">Elena Laurent</span>
+</div>
+</td>
+<td class="px-8 py-6 text-sm text-slate-400">elena.l@globaljet.com</td>
+<td class="px-8 py-6">
+<div class="flex justify-center gap-3">
+<span class="material-symbols-outlined text-lg text-primary" data-icon="badge">badge</span>
+<span class="material-symbols-outlined text-lg text-primary" data-icon="medical_services">medical_services</span>
+<span class="material-symbols-outlined text-lg text-primary" data-icon="fingerprint">fingerprint</span>
+</div>
+</td>
+<td class="px-8 py-6 text-xs text-slate-400 font-label">Oct 11, 2023 • 18:45</td>
+<td class="px-8 py-6">
+<span class="px-3 py-1 bg-secondary-container/50 text-on-secondary-container text-[10px] uppercase tracking-widest font-bold rounded-full">Pending Review</span>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="px-5 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-on-primary text-xs font-label uppercase tracking-widest rounded-full transition-all duration-300">Review</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="group hover:bg-white/[0.02] transition-colors">
+<td class="px-8 py-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-blue-100 text-xs font-bold">TH</div>
+<span class="text-sm font-semibold text-blue-100">Thomas Heider</span>
+</div>
+</td>
+<td class="px-8 py-6 text-sm text-slate-400">t.heider@skybound.de</td>
+<td class="px-8 py-6">
+<div class="flex justify-center gap-3">
+<span class="material-symbols-outlined text-lg text-primary" data-icon="badge">badge</span>
+<span class="material-symbols-outlined text-lg text-primary" data-icon="medical_services">medical_services</span>
+<span class="material-symbols-outlined text-lg text-outline/30" data-icon="fingerprint">fingerprint</span>
+</div>
+</td>
+<td class="px-8 py-6 text-xs text-slate-400 font-label">Oct 11, 2023 • 09:30</td>
+<td class="px-8 py-6">
+<span class="px-3 py-1 bg-secondary-container/50 text-on-secondary-container text-[10px] uppercase tracking-widest font-bold rounded-full">Pending Review</span>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="px-5 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-on-primary text-xs font-label uppercase tracking-widest rounded-full transition-all duration-300">Review</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-6 border-t border-white/5 flex justify-between items-center">
+<p class="text-xs text-slate-500 font-label uppercase tracking-wider">Showing 4 of 24 records</p>
+<div class="flex gap-4">
+<button class="text-slate-500 hover:text-primary transition-colors cursor-not-allowed">
+<span class="material-symbols-outlined" data-icon="chevron_left">chevron_left</span>
+</button>
+<button class="text-blue-100 hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Bottom Context Panel -->
+<section class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="relative rounded-2xl overflow-hidden h-64 group">
+<img class="w-full h-full object-cover grayscale opacity-40 group-hover:grayscale-0 group-hover:opacity-60 transition-all duration-700" data-alt="dramatic wide angle shot of a private jet on a dark runway at dusk with blue hour lighting and distant airport lights" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCJOEmwARjFCouab8UB9s_UXy9qzRbUGpm9sJoA3Oicodm8eQvfCMOuiQVHxQ-So3v-SRNl82wjJUqqrTFAs2Yng7LXlizJnPCTvYZzgERUoqq4d-EGf9ppQwJfgZrmr0L_3j_Ks8XneW4Gtb6gTaqEavGdDNKLprpFxmi8OynXEHKnyk98kC8MpyTEtEwgKiMjvXx9y1MIqeQg5M63niut-N0slM8xemeyNS6jRcz-jBOkWVBUQjaiDpFbJOleSOm-yBiA2HBbUirg"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background to-transparent"></div>
+<div class="absolute bottom-8 left-8">
+<h4 class="serif text-xl font-light">Operational Insight</h4>
+<p class="text-sm text-slate-400 mt-1">Verification speed has improved by 12% this week.</p>
+</div>
+</div>
+<div class="glass-panel rounded-2xl p-8 flex flex-col justify-center">
+<div class="flex items-center gap-4 mb-4">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="auto_awesome">auto_awesome</span>
+</div>
+<div>
+<h4 class="serif text-lg font-light">AI Assistance Ready</h4>
+<p class="text-xs text-slate-500 font-label uppercase tracking-widest">Document OCR Analysis</p>
+</div>
+</div>
+<p class="text-sm text-on-surface-variant leading-relaxed">
+                        Our internal verification engine has pre-scanned all pending documents. 85% show a high confidence match with global aviation databases.
+                    </p>
+<button class="mt-6 self-start text-xs font-label uppercase tracking-widest text-primary hover:underline transition-all">View Analytics Report →</button>
+</div>
+</section>
+</div>
+</main>
+</body></html>

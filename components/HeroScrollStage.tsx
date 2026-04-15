@@ -530,6 +530,104 @@ const TEXT_OVERLAYS = [
   },
 ]
 
+// ─── Safari desktop static text overlays ─────────────────────────────────────
+// Plain HTML equivalents of TEXT_OVERLAYS — no Framer Motion components at all.
+// Identical text, identical className and layout; zero animation overhead.
+// Used when isSafariDesktop = true.
+const SAFARI_TEXT_OVERLAYS = [
+  {
+    id: 'intro',
+    startPct: 0,
+    endPct: 0.18,
+    fullBleed: true,
+    alwaysVisible: false,
+    content: (
+      <>
+        <div className="absolute left-0 right-0 flex flex-col items-center text-center px-6 md:px-12" style={{ top: '16vh' }}>
+          <p className="font-sans text-[10px] md:text-xs font-bold tracking-[0.3em] uppercase text-oz-blue/70 mb-3 md:mb-5">
+            Sydney Cessna 172 Rental
+          </p>
+          <h1 className="font-serif text-4xl md:text-7xl font-black leading-tight">
+            <span className="block text-oz-text">FLY</span>
+            <span className="block italic text-oz-blue relative pb-3">
+              YOUR WAY
+              <svg
+                viewBox="0 0 340 20"
+                fill="none"
+                aria-hidden="true"
+                className="absolute left-1/2 -translate-x-1/2 bottom-[-2px] w-[90%] md:w-[85%] h-[14px] md:h-[18px]"
+              >
+                <path
+                  d="M 6 13 C 45 5, 90 18, 145 10 C 200 3, 255 16, 310 10 C 322 8, 330 9, 334 11"
+                  stroke="rgba(167,200,255,0.55)"
+                  strokeWidth="2.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+          </h1>
+        </div>
+        <div className="absolute left-0 right-0 bottom-[13vh] flex flex-col items-center text-center px-6 pointer-events-auto">
+          <p className="font-sans text-sm md:text-lg text-oz-muted font-light leading-relaxed max-w-xs md:max-w-md mb-5 md:mb-7">
+            A modern platform for pilots — rent, fly, and enjoy
+          </p>
+          <a
+            href="/pilotRequirements"
+            className="inline-block bg-gradient-to-r from-[#4168a6] to-[#172c4a] text-white rounded-md font-sans font-bold tracking-widest uppercase text-sm px-10 py-4 shadow-xl shadow-[#4168a6]/30 transition-all duration-300 hover:shadow-2xl hover:shadow-[#4168a6]/50 hover:scale-[1.02] active:scale-95"
+          >
+            Schedule your checkout Flight
+          </a>
+        </div>
+      </>
+    ),
+  },
+  {
+    id: 'aircraft',
+    startPct: 0.28,
+    endPct: 0.52,
+    fullBleed: false,
+    alwaysVisible: false,
+    content: (
+      <div className="max-w-xs md:max-w-md">
+        <p className="font-sans text-[10px] md:text-xs font-bold tracking-[0.3em] uppercase text-oz-blue/70 mb-3 md:mb-4">
+          Our Fleet
+        </p>
+        <h2 className="font-serif text-3xl md:text-5xl font-black leading-tight mb-4 md:mb-5">
+          <span className="block text-oz-text">Built for pilots</span>
+          <span className="block italic text-oz-blue">Not passengers</span>
+        </h2>
+        <p className="font-sans text-sm md:text-base text-oz-muted font-light leading-relaxed">
+          We start with a Cessna 172 — the most trusted training and touring aircraft in the world,
+          well-maintained, thoroughly checked, and ready when you are
+        </p>
+      </div>
+    ),
+  },
+  {
+    id: 'cockpit',
+    startPct: 0.62,
+    endPct: 1.0,
+    fullBleed: false,
+    alwaysVisible: true,
+    content: (
+      <div className="max-w-xs md:max-w-md">
+        <p className="font-sans text-[9px] font-semibold tracking-[0.38em] uppercase text-oz-blue/75 mb-2.5 md:mb-4">
+          The Experience
+        </p>
+        <h2 className="font-serif text-2xl md:text-5xl font-black leading-tight mb-0 md:mb-5">
+          <span className="block text-oz-text">Command</span>
+          <span className="block italic text-oz-blue">your aircraft</span>
+        </h2>
+        <p className="hidden md:block font-sans text-base text-oz-muted font-light leading-relaxed">
+          From pre-flight checks to touchdown, the aircraft is yours — no instructors required
+          for qualified pilots, no unnecessary oversight
+        </p>
+      </div>
+    ),
+  },
+]
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function HeroScrollStage() {
   const sectionRef         = useRef<HTMLDivElement>(null)
@@ -553,8 +651,41 @@ export default function HeroScrollStage() {
   const dirtyRef           = useRef(true)
   const isMobileRef        = useRef(false)
 
+  // ── Performance refs ───────────────────────────────────────────────────────
+  // lastDrawnFrameRef: skip the canvas draw when frame index hasn't changed
+  const lastDrawnFrameRef  = useRef(-1)
+  // overallProgress and heroFraction stored by onScroll, read by renderLoop
+  const overallProgressRef = useRef(0)
+  const heroFractionRef    = useRef(1)
+  // Stable pointer to the latest renderLoop so onScroll / loadFrameAsync can
+  // wake the idle RAF without creating a circular useCallback dependency
+  const renderLoopRef      = useRef<FrameRequestCallback>(() => {})
+  // ResizeObserver handle + last measured CSS size for change-detection
+  const roRef              = useRef<ResizeObserver | null>(null)
+  const prevCanvasSizeRef  = useRef({ w: 0, h: 0 })
+  // Sticky viewport container — ResizeObserver target
+  const stickyRef          = useRef<HTMLDivElement>(null)
+  // Dev-only diagnostic counters (tree-shaken in production builds)
+  const devDrawCountRef    = useRef(0)
+  const devSkipCountRef    = useRef(0)
+  const devWakeCountRef    = useRef(0)
+  const devResizeCountRef  = useRef(0)
+
+  // ── Safari desktop active-scroll performance mode ──────────────────────────
+  // isSafariDesktopRef: set once at mount, never changes
+  // isScrubbingRef:     true while the user is actively scrolling (+ 200 ms cooldown)
+  // scrubTimerRef:      handle for the cooldown setTimeout
+  // floatingPathsWrapRef: wraps both FloatingPaths groups so we can hide them as one unit
+  const isSafariDesktopRef   = useRef(false)
+  const isScrubbingRef       = useRef(false)
+  const scrubTimerRef        = useRef<number | null>(null)
+  const floatingPathsWrapRef = useRef<HTMLDivElement>(null)
+
   // Scroll Lock + Timeline State
   const [isScrollLocked, setIsScrollLocked] = useState(true)
+  // Set to true after mount if running on Safari desktop — drives hard fallback
+  // conditional rendering in JSX (no re-render once locked in).
+  const [isSafariDesktop, setIsSafariDesktop] = useState(false)
   const scrollLockedRef    = useRef(true)
   const introCompleteRef   = useRef(false)
 
@@ -575,7 +706,7 @@ export default function HeroScrollStage() {
   const [posterVisible,  setPosterVisible]  = useState(true)
 
   // ── 2-pass canvas draw ─────────────────────────────────────────────────────
-  const drawFrame = useCallback((index: number, targetCanvas?: HTMLCanvasElement): boolean => {
+  const drawFrame = useCallback((index: number, targetCanvas?: HTMLCanvasElement, singlePass = false): boolean => {
     const canvas = targetCanvas || canvasRef.current
     if (!canvas) return false
     const img = imagesRef.current[index]
@@ -602,6 +733,10 @@ export default function HeroScrollStage() {
     const bgH = ih * coverScale
     ctx.drawImage(img, (cw - bgW) * 0.5, (ch - bgH) * 0.5, bgW, bgH)
 
+    // singlePass (Safari desktop hard fallback): one drawImage and done.
+    // No darkening fillRect, no focal-blend foreground pass — maximum speed.
+    if (singlePass) return true
+
     ctx.fillStyle = `rgba(0,0,0,${BG_DARKEN_ALPHA})`
     ctx.fillRect(0, 0, cw, ch)
 
@@ -609,8 +744,6 @@ export default function HeroScrollStage() {
     // Base scale is clamped so fgH >= ch and fgW >= cw (no exposed-band risk).
     // For scn-4 a per-frame correction is applied on top to compensate for the
     // source footage being ~10 % more zoomed-in than scn-3's end frames.
-    // During the ease window Pass-1 (darkened cover fill) handles edge exposure,
-    // producing a natural vignette rather than a hard gap.
     const layout          = getLayout(index, isMobileRef.current)
     const blendScale      = containScale + (coverScale - containScale) * layout.fgBlend
     const baseScale       = Math.max(blendScale, cw / iw, ch / ih)
@@ -644,7 +777,11 @@ export default function HeroScrollStage() {
     isMobileRef.current = isMobile
 
     const h = window.innerHeight
-    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    // Safari desktop gets an extra-conservative DPR cap (1.25) to reduce canvas
+    // buffer area.  Other desktop browsers use 1.5.  Mobile keeps 2 for sharpness.
+    // Safari desktop hard fallback: DPR 1.0 — smallest possible canvas buffer.
+    const dprCap = isMobile ? 2 : (isSafariDesktopRef.current ? 1.0 : 1.5)
+    const dpr    = Math.min(window.devicePixelRatio || 1, dprCap)
     canvas.width  = Math.round(w * dpr)
     canvas.height = Math.round(h * dpr)
     
@@ -675,7 +812,11 @@ export default function HeroScrollStage() {
         try { await img.decode() } catch (e) {}
         imagesRef.current[index] = img
         if (index === 0) drawPosterFrame()
-        if (index === currentFrameRef.current) dirtyRef.current = true
+        if (index === currentFrameRef.current) {
+          dirtyRef.current = true
+          // Wake the RAF loop if it went idle while waiting for this frame
+          if (!rafRef.current) rafRef.current = requestAnimationFrame(renderLoopRef.current)
+        }
         resolve()
       }
       img.onerror = () => resolve()
@@ -684,55 +825,161 @@ export default function HeroScrollStage() {
 
   // ── rAF loop ───────────────────────────────────────────────────────────────
   // Lerp currentProgress → targetProgress each tick for cinematic smoothness.
-  // Factor 0.075 = slow/buttery (like jeskojets.com). Raise toward 0.15 for
-  // a more responsive but still smooth feel.
+  // Factor 0.075 = slow/buttery. Raise toward 0.15 for a snappier feel.
+  //
+  // KEY PERF CONTRACT:
+  //   • Clears rafRef.current at tick start — callers use !rafRef.current to
+  //     detect idle and wake the loop rather than letting it spin constantly.
+  //   • Only re-schedules when the lerp is still moving OR canvas is dirty.
+  //     When the user stops scrolling the loop drains the lerp then goes quiet.
+  //   • lastDrawnFrameRef skip: identical frame → no canvas work at all.
+  //   • ALL style writes (overlays, ambient, scroll indicator) happen here in
+  //     one batched pass — nothing touches the DOM inside onScroll.
   const LERP_FACTOR = 0.075
 
-  const renderLoop = useCallback(() => {
-    const prev = currentProgressRef.current
-    const next = prev + (targetProgressRef.current - prev) * LERP_FACTOR
+  const renderLoop = useCallback((): void => {
+    rafRef.current = null   // mark idle; re-set below if more work remains
 
-    // Only redraw when the interpolated progress meaningfully changed
-    if (Math.abs(next - prev) > 0.0001) {
-      currentProgressRef.current = next
-      const frameIndex = Math.round(next * (TOTAL_FRAMES - 1))
+    const prev   = currentProgressRef.current
+    const target = targetProgressRef.current
+    const delta  = target - prev
 
-      if (frameIndex !== currentFrameRef.current || dirtyRef.current) {
-        currentFrameRef.current = frameIndex
-        const didDraw = drawFrame(frameIndex)
-        
-        if (didDraw) {
-          dirtyRef.current = false
-          if (isOpeningChunkReadyRef.current && !hasRevealedLiveHeroRef.current) {
-            hasRevealedLiveHeroRef.current = true
-            setPosterVisible(false)
-            checkUnlock()
+    // Safari desktop hard fallback: snap directly to targetProgress — no lerp.
+    // Eliminates the long tail of intermediate RAF frames that drain the lerp
+    // queue while compositing.  settled = true always → loop goes idle after
+    // one draw per scroll event.
+    const settled = isSafariDesktopRef.current
+      ? true
+      : Math.abs(delta) <= 0.0001
+    currentProgressRef.current = (settled || isSafariDesktopRef.current)
+      ? target
+      : prev + delta * LERP_FACTOR
+
+    const cp = currentProgressRef.current
+
+    // Safari desktop hard fallback: sample every 2nd source frame.
+    // Maps progress → {0, 2, 4, …, 766} (384 effective frames out of 768).
+    // Halves decode/draw pressure while preserving scene order and flow.
+    const frameIndex = isSafariDesktopRef.current
+      ? Math.round(cp * ((TOTAL_FRAMES / 2) - 1)) * 2
+      : Math.round(cp * (TOTAL_FRAMES - 1))
+    const isNewFrame = frameIndex !== lastDrawnFrameRef.current
+
+    // ── Canvas draw ──────────────────────────────────────────────────────────
+    if (isNewFrame || dirtyRef.current) {
+      currentFrameRef.current = frameIndex
+      // Safari desktop hard fallback: always use truly minimal single-pass draw
+      // (pure cover only — no darkening fillRect, no focal-blend Pass 2).
+      const useSinglePass = isSafariDesktopRef.current
+      const didDraw = drawFrame(frameIndex, undefined, useSinglePass)
+
+      if (didDraw) {
+        if (process.env.NODE_ENV === 'development') {
+          devDrawCountRef.current++
+          if (!isNewFrame) devSkipCountRef.current++
+          // Log every 60th draw to avoid console spam
+          if (devDrawCountRef.current % 60 === 0) {
+            const actualDpr = canvasRef.current
+              ? (canvasRef.current.width / (window.innerWidth || 1)).toFixed(2)
+              : '?'
+            console.debug(
+              `[Hero] safariDesktop=${isSafariDesktopRef.current} safariFallback=${isSafariDesktopRef.current}` +
+              ` singlePass=${useSinglePass} dpr=${actualDpr}` +
+              ` frameStep=${isSafariDesktopRef.current ? 2 : 1} frame=${frameIndex}` +
+              ` draws=${devDrawCountRef.current} dupSkips=${devSkipCountRef.current}` +
+              ` wakes=${devWakeCountRef.current} resizes=${devResizeCountRef.current}`
+            )
           }
         }
-
-        // Preload neighbours around the interpolated position
-        const lookahead = isMobileRef.current ? MOBILE_LOOKAHEAD : DESKTOP_LOOKAHEAD
-        for (let i = -lookahead; i <= lookahead; i++) {
-          loadFrameAsync(frameIndex + i)
-        }
-      }
-    } else if (dirtyRef.current) {
-      // Settled — draw once more to flush any pending dirty frame
-      const didDraw = drawFrame(currentFrameRef.current)
-      if (didDraw) {
+        lastDrawnFrameRef.current = frameIndex
         dirtyRef.current = false
         if (isOpeningChunkReadyRef.current && !hasRevealedLiveHeroRef.current) {
           hasRevealedLiveHeroRef.current = true
           setPosterVisible(false)
           checkUnlock()
         }
+      } else {
+        // Frame not loaded yet — stay dirty so we retry when it arrives.
+        // loadFrameAsync.onload will also wake the RAF loop then.
+        dirtyRef.current = true
+      }
+
+      // Lookahead preload — only when frame index moves, not every tick.
+      // Safari desktop gets a minimal window (±1) to avoid decode pressure.
+      if (isNewFrame) {
+        const lookahead = isMobileRef.current
+          ? MOBILE_LOOKAHEAD
+          : (isSafariDesktopRef.current ? 1 : DESKTOP_LOOKAHEAD)
+        for (let lo = -lookahead; lo <= lookahead; lo++) {
+          loadFrameAsync(frameIndex + lo)
+        }
       }
     }
 
-    rafRef.current = requestAnimationFrame(renderLoop)
-  }, [drawFrame, loadFrameAsync])
+    // ── All style writes batched here, not in onScroll ───────────────────────
+    // Reads lerped cp so animations stay tied to the smooth canvas motion.
+    const heroProgress    = cp
+    const overallProgress = overallProgressRef.current
+    const heroFraction    = heroFractionRef.current
+    const inHeroPhase     = overallProgress <= heroFraction
 
-  // ── Unified scroll handler ─────────────────────────────────────────────────
+    overlayRefs.current.forEach((el, idx) => {
+      if (!el) return
+      const { startPct, endPct, alwaysVisible } = TEXT_OVERLAYS[idx]
+      const fadeDuration = 0.055
+      let opacity = 0
+      if (inHeroPhase) {
+        if (alwaysVisible) {
+          if (heroProgress >= startPct) opacity = Math.min(1, (heroProgress - startPct) / fadeDuration)
+        } else if (heroProgress >= startPct && heroProgress <= endPct) {
+          const fadeIn  = startPct === 0 ? 1 : Math.min(1, (heroProgress - startPct) / fadeDuration)
+          const fadeOut = Math.min(1, (endPct - heroProgress) / fadeDuration)
+          opacity = Math.min(fadeIn, fadeOut)
+        }
+      }
+      el.style.opacity = String(opacity)
+    })
+
+    if (ambientRefs.current) {
+      const startFade = 0.05
+      const endFade   = 0.25
+      let ambientOp = 1
+      if (heroProgress >= endFade) ambientOp = 0
+      else if (heroProgress > startFade) ambientOp = 1 - (heroProgress - startFade) / (endFade - startFade)
+      // Suppress cloud + propeller compositing during Safari active scrubbing.
+      // The RAF loop restores it naturally once isScrubbingRef flips back to false.
+      if (isSafariDesktopRef.current && isScrubbingRef.current) ambientOp = 0
+      ambientRefs.current.style.opacity = String(ambientOp)
+    }
+
+    if (scrollIndicatorRef.current) {
+      const indOpacity = Math.max(0, 1 - heroProgress / 0.10) * 0.5
+      scrollIndicatorRef.current.style.opacity = String(indOpacity)
+    }
+
+    // ── Continue or idle ─────────────────────────────────────────────────────
+    if (!settled || dirtyRef.current) {
+      rafRef.current = requestAnimationFrame(renderLoopRef.current)
+    }
+  }, [drawFrame, loadFrameAsync, checkUnlock])
+
+  // Keep renderLoopRef current so onScroll and loadFrameAsync can wake the
+  // idle loop without a circular useCallback dependency chain.
+  renderLoopRef.current = renderLoop
+
+  // ── Unified scroll handler — ultra-light, zero DOM writes ─────────────────
+  // Only job: compute heroProgress from the scroll position and store it in
+  // refs so the RAF renderLoop can read it on the next animation frame.
+  //
+  // Everything removed from here vs the original:
+  //   • preload loop (was calling loadFrameAsync up to 14× per scroll event)
+  //   • overlay opacity writes  (now batched in renderLoop)
+  //   • ambient opacity write   (now batched in renderLoop)
+  //   • scroll indicator write  (now batched in renderLoop)
+  //   • canvas layer write      (no longer needed — always 1)
+  //
+  // This is the single biggest Safari scroll-jank fix: the scroll handler now
+  // runs in well under 0.1 ms rather than triggering layout + multiple paints.
   const onScroll = useCallback(() => {
     const section = sectionRef.current
     if (!section) return
@@ -741,8 +988,8 @@ export default function HeroScrollStage() {
     const scrollY         = window.pageYOffset || document.documentElement.scrollTop || 0
     const sectionTop      = section.offsetTop || 0
     const scrolled        = scrollY - sectionTop
-    
-    // Stable viewport height ignoring Safari address bar dynamics
+
+    // Stable viewport height — ignores Safari address-bar resize noise
     const vh              = document.documentElement.clientHeight || window.innerHeight
     const totalScrollable = section.offsetHeight - vh
     if (totalScrollable <= 0) return
@@ -758,70 +1005,119 @@ export default function HeroScrollStage() {
       ? (heroFraction > 0 ? overallProgress / heroFraction : 1)
       : 1
 
-    // ── Set target progress — the rAF loop lerps toward this each tick ────────
-    targetProgressRef.current = heroProgress
+    // Store in refs — renderLoop reads these on the next RAF tick
+    targetProgressRef.current  = heroProgress
+    overallProgressRef.current = overallProgress
+    heroFractionRef.current    = heroFraction
 
-    // Eagerly preload frames near the scroll target so they're ready when the
-    // lerp arrives — avoids blank frames on fast scrolls
-    const targetFrame = Math.round(heroProgress * (TOTAL_FRAMES - 1))
-    const lookahead   = isMobileRef.current ? MOBILE_LOOKAHEAD * 2 : DESKTOP_LOOKAHEAD * 3
-    for (let i = -lookahead; i <= lookahead; i++) loadFrameAsync(targetFrame + i)
+    // Wake the RAF loop if it went idle between scroll events
+    if (!rafRef.current) {
+      if (process.env.NODE_ENV === 'development') devWakeCountRef.current++
+      rafRef.current = requestAnimationFrame(renderLoopRef.current)
+    }
 
-    // ── Hero text overlays ──────────────────────────────────────────────────
-    // Hidden once hero phase completes (heroProgress === 1 and we've passed heroFraction).
-    // alwaysVisible overlays: fade in at startPct then stay visible for the rest of the hero.
-    const inHeroPhase = overallProgress <= heroFraction
-    overlayRefs.current.forEach((el, idx) => {
-      if (!el) return
-      const { startPct, endPct, alwaysVisible } = TEXT_OVERLAYS[idx]
-      const fadeDuration = 0.055
-      let opacity = 0
-      if (inHeroPhase) {
-        if (alwaysVisible) {
-          // Fade in once reached, never fade out within the hero phase
-          if (heroProgress >= startPct) {
-            opacity = Math.min(1, (heroProgress - startPct) / fadeDuration)
-          }
-        } else if (heroProgress >= startPct && heroProgress <= endPct) {
-          const fadeIn  = startPct === 0 ? 1 : Math.min(1, (heroProgress - startPct) / fadeDuration)
-          const fadeOut = Math.min(1, (endPct - heroProgress) / fadeDuration)
-          opacity = Math.min(fadeIn, fadeOut)
+    // ── Safari desktop active-scroll compositing budget ─────────────────────
+    // While the user is scrubbing, expensive decorative layers are suppressed
+    // to free up compositor bandwidth for the frame-sequence canvas.
+    //
+    // Reduced layers (Safari desktop only, during active scroll):
+    //   • FloatingPaths  — both SVG groups hidden (72 animated motion.paths)
+    //   • AmbientOverlays — clouds + propeller zeroed via renderLoop ambientOp
+    //   • canvas draw    — single-pass (Pass 2 focal blend skipped)
+    //
+    // All layers restore automatically 200 ms after scrolling stops.
+    if (isSafariDesktopRef.current) {
+      if (!isScrubbingRef.current) {
+        // First scroll event of this scrub burst — kill decorative layers now
+        isScrubbingRef.current = true
+        if (floatingPathsWrapRef.current) {
+          floatingPathsWrapRef.current.style.transition = 'none'
+          floatingPathsWrapRef.current.style.opacity    = '0'
+        }
+        if (process.env.NODE_ENV === 'development') {
+          console.debug('[Hero Safari] scrub START — FloatingPaths + ambient + Pass2 suppressed')
         }
       }
-      el.style.opacity = String(opacity)
-    })
-
-    // ── Ambient Overlays ────────────────────────────────────────────────────
-    if (ambientRefs.current) {
-      const startFade = 0.05
-      const endFade = 0.25
-      let ambientOp = 1
-      if (heroProgress >= endFade) ambientOp = 0
-      else if (heroProgress > startFade) ambientOp = 1 - (heroProgress - startFade) / (endFade - startFade)
-      ambientRefs.current.style.opacity = String(ambientOp)
+      // Reset the cooldown on every scroll event
+      if (scrubTimerRef.current !== null) clearTimeout(scrubTimerRef.current)
+      scrubTimerRef.current = window.setTimeout(() => {
+        isScrubbingRef.current = false
+        scrubTimerRef.current  = null
+        // Fade FloatingPaths back in smoothly
+        if (floatingPathsWrapRef.current) {
+          floatingPathsWrapRef.current.style.transition = 'opacity 0.5s ease'
+          floatingPathsWrapRef.current.style.opacity    = '1'
+          // Clean up inline transition after it completes
+          window.setTimeout(() => {
+            if (floatingPathsWrapRef.current) floatingPathsWrapRef.current.style.transition = ''
+          }, 550)
+        }
+        // Wake RAF so renderLoop restores ambient opacity via its normal path
+        dirtyRef.current = true
+        if (!rafRef.current) rafRef.current = requestAnimationFrame(renderLoopRef.current)
+        if (process.env.NODE_ENV === 'development') {
+          console.debug('[Hero Safari] scrub END — decorative layers restoring')
+        }
+      }, 200)
     }
-
-    // ── Scroll indicator ────────────────────────────────────────────────────
-    // Fades out after the first ~10% of the hero phase.
-    if (scrollIndicatorRef.current) {
-      const indOpacity = Math.max(0, 1 - heroProgress / 0.10) * 0.5
-      scrollIndicatorRef.current.style.opacity = String(indOpacity)
-    }
-
-    // ── Canvas layer fade ────────────────────────────────────────────────────
-    // Keep canvas visible so the final hero frame seamlessly blends into the 
-    // deep navy background of the HomeContent sections.
-    if (canvasLayerRef.current) {
-      canvasLayerRef.current.style.opacity = '1'
-    }
-
-  }, [loadFrameAsync])
+  }, [])
 
   // ── Mount / unmount ────────────────────────────────────────────────────────
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
+    // ── Safari desktop detection ─────────────────────────────────────────────
+    // Must run before resizeCanvas() so the DPR cap is correct on first paint.
+    // Heuristic: UA contains "Safari" but not Chrome/Chromium/CriOS/Edge,
+    // and not a mobile UA token.  Reliable for all desktop Safari versions.
+    const detectedSafari =
+      /Safari/.test(navigator.userAgent) &&
+      !/Chrome|Chromium|CriOS|EdgA/.test(navigator.userAgent) &&
+      !/iPhone|iPad|iPod|Android/.test(navigator.userAgent)
+
+    isSafariDesktopRef.current = detectedSafari
+    // Trigger a React re-render so JSX conditionals (no FloatingPaths, no
+    // AmbientOverlays, static text overlays) take effect before first scroll.
+    if (detectedSafari) setIsSafariDesktop(true)
+
+    if (process.env.NODE_ENV === 'development') {
+      console.debug(
+        `[Hero] safariDesktop=${detectedSafari} safariFallback=${detectedSafari}` +
+        ` nativeDPR=${window.devicePixelRatio}` +
+        ` effectiveDPR=${detectedSafari ? 1.0 : Math.min(window.devicePixelRatio, 1.5)}` +
+        ` frameStep=${detectedSafari ? 2 : 1}` +
+        ` decorativeLayers=${detectedSafari ? 'DISABLED' : 'enabled'}` +
+        ` framerMotion=${detectedSafari ? 'DISABLED' : 'enabled'}`
+      )
+    }
+
     resizeCanvas()
+
+    // ── ResizeObserver on the sticky viewport ────────────────────────────────
+    // Fires only when the rendered size actually changes (≥1 px delta), so it
+    // never triggers on Safari address-bar flicker or sub-pixel jitter.
+    // Window 'resize' is kept below as a fallback for older Safari / rotation.
+    if (typeof ResizeObserver !== 'undefined' && stickyRef.current) {
+      const ro = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const { width, height } = entry.contentRect
+          if (
+            Math.abs(width  - prevCanvasSizeRef.current.w) > 1 ||
+            Math.abs(height - prevCanvasSizeRef.current.h) > 1
+          ) {
+            prevCanvasSizeRef.current = { w: width, h: height }
+            if (process.env.NODE_ENV === 'development') {
+              devResizeCountRef.current++
+              console.debug(`[Hero] resize #${devResizeCountRef.current} → ${Math.round(width)}×${Math.round(height)}`)
+            }
+            resizeCanvas()
+            if (!rafRef.current) rafRef.current = requestAnimationFrame(renderLoopRef.current)
+          }
+        }
+      })
+      ro.observe(stickyRef.current)
+      roRef.current = ro
+    }
 
     window.addEventListener('resize',            resizeCanvas, { passive: true })
     window.addEventListener('orientationchange', resizeCanvas, { passive: true })
@@ -831,16 +1127,18 @@ export default function HeroScrollStage() {
 
     const chunkCount = isMobileRef.current ? 12 : 20
     const promises: Promise<void>[] = []
-    
+
     for (let i = 0; i < chunkCount; i++) {
-       const p = loadFrameAsync(i)
-       if (p) promises.push(p)
+      const p = loadFrameAsync(i)
+      if (p) promises.push(p)
     }
-    
+
     Promise.all(promises).then(() => {
-       isOpeningChunkReadyRef.current = true
-       dirtyRef.current = true // Forces render loop to wipe poster and unlock progression
-       checkUnlock()
+      isOpeningChunkReadyRef.current = true
+      dirtyRef.current = true
+      checkUnlock()
+      // Wake RAF now that the opening chunk is decoded and ready to display
+      if (!rafRef.current) rafRef.current = requestAnimationFrame(renderLoopRef.current)
     })
 
     const eagerCount = isMobileRef.current ? MOBILE_EAGER_FRAMES : DESKTOP_EAGER_FRAMES
@@ -873,9 +1171,13 @@ export default function HeroScrollStage() {
       setTimeout(loadBatch, 300)
     }
 
+    // Initial RAF tick — draws frame 0 / handles poster reveal on first paint
     rafRef.current = requestAnimationFrame(renderLoop)
 
     return () => {
+      if (scrubTimerRef.current !== null) clearTimeout(scrubTimerRef.current)
+      roRef.current?.disconnect()
+      roRef.current = null
       window.removeEventListener('resize',            resizeCanvas)
       window.removeEventListener('orientationchange', resizeCanvas)
       window.removeEventListener('scroll',            onScroll)
@@ -940,6 +1242,7 @@ export default function HeroScrollStage() {
     >
       {/* One sticky viewport for the entire timeline */}
       <div
+        ref={stickyRef}
         className="sticky top-0 z-10 w-full overflow-hidden"
         style={{ ...stickyStyle, backgroundColor: '#091421' }}
       >
@@ -989,17 +1292,25 @@ export default function HeroScrollStage() {
             style={{ background: 'rgba(135, 145, 215, 0.14)', mixBlendMode: 'normal' }}
           />
 
-          {/* Ambient Overlays (Clouds & Propeller) */}
-          <AmbientOverlays innerRef={ambientRefs} />
+          {/* Ambient Overlays (Clouds & Propeller)
+               Not rendered at all on Safari desktop — animations still consume
+               compositor resources even behind opacity:0. Hard removal only. */}
+          {!isSafariDesktop && <AmbientOverlays innerRef={ambientRefs} />}
 
-          {/* Floating paths */}
-          <FloatingPaths position={1} />
-          <FloatingPaths position={-1} />
+          {/* Floating paths — also fully absent on Safari desktop.
+               72 animated motion.path SVGs have measurable rAF cost even hidden. */}
+          {!isSafariDesktop && (
+            <div ref={floatingPathsWrapRef} className="absolute inset-0 pointer-events-none">
+              <FloatingPaths position={1} />
+              <FloatingPaths position={-1} />
+            </div>
+          )}
 
         </div>
 
         {/* ── Hero text overlays ──────────────────────────────────────────── */}
-        {TEXT_OVERLAYS.map((overlay, idx) => (
+        {/* Safari desktop uses SAFARI_TEXT_OVERLAYS (plain HTML, no Framer Motion). */}
+        {(isSafariDesktop ? SAFARI_TEXT_OVERLAYS : TEXT_OVERLAYS).map((overlay, idx) => (
           <div
             key={overlay.id}
             ref={(el) => { overlayRefs.current[idx] = el }}

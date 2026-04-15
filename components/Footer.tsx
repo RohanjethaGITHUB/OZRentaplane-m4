@@ -1,6 +1,12 @@
+'use client'
+
 import React from 'react'
+import { usePathname } from 'next/navigation'
 
 export default function Footer() {
+  const pathname = usePathname()
+  if (pathname.startsWith('/dashboard')) return null
+
   return (
     <footer className="bg-[#050B14] pt-24 pb-12 px-6 md:px-12 lg:px-20 border-t border-white/5">
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start gap-16 md:gap-8 mb-24">
