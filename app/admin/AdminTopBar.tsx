@@ -153,10 +153,21 @@ export default function AdminTopBar({ pendingCount }: Props) {
 
       {/* Right controls */}
       <div className="flex items-center gap-5">
+        {/* Settings */}
+        <Link
+          href="/admin/settings"
+          className="relative text-slate-400 hover:text-blue-100 transition-colors flex items-center justify-center p-1 rounded-full hover:bg-white/5"
+          title="Settings"
+        >
+          <span className="material-symbols-outlined" style={{ fontVariationSettings: "'wght' 300" }}>
+            settings
+          </span>
+        </Link>
+        <div className="h-4 w-px bg-white/10" />
         {/* Bell — links to pending verifications, badge shows real count */}
         <Link
           href="/admin/pending-verifications"
-          className="relative text-slate-400 hover:text-blue-100 transition-colors"
+          className="relative text-slate-400 hover:text-blue-100 transition-colors flex items-center justify-center p-1 rounded-full hover:bg-white/5"
           title="Pending Verifications"
         >
           <span className="material-symbols-outlined" style={{ fontVariationSettings: "'wght' 300" }}>

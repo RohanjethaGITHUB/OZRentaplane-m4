@@ -1,159 +1,146 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import AdminQueueTable from './AdminQueueTable'
-import type { QueueProfile } from './AdminQueueTable'
 
-export const metadata = { title: 'Admin Overview' }
+export const metadata = { title: 'Admin Overview | OZRentAPlane' }
 
-export default async function AdminPage() {
+export default async function AdminMasterOverview() {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // ── Fetch stats ──────────────────────────────────────────────────────────
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') redirect('/dashboard')
+
+  // 1. EXACT COUNTS FETCHING
   const [
-    { count: pendingCount  },
-    { count: onHoldCount   },
-    { count: verifiedCount },
-    { count: rejectedCount },
+    { count: totalCustomers },
+    { count: pendingVerifs },
+    { count: totalBookings },
+    { count: pendingBookingReqs },
+    { count: activeFlights },
+    { count: pendingPostReviews },
+    { count: openSquawks },
   ] = await Promise.all([
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer').eq('verification_status', 'pending_review'),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer').eq('verification_status', 'on_hold'),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer').eq('verification_status', 'verified'),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer').eq('verification_status', 'rejected'),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'pending_confirmation'),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'dispatched'),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'awaiting_review'),
+    supabase.from('squawks').select('*', { count: 'exact', head: true }).in('status', ['open', 'in_progress']),
   ])
 
-  // ── Fetch pending queue ───────────────────────────────────────────────────
-  const { data: pendingProfiles } = await supabase
-    .from('profiles')
-    .select('id, full_name, verification_status, updated_at, reviewed_at, admin_review_note')
-    .eq('role', 'customer')
-    .eq('verification_status', 'pending_review')
-    .order('updated_at', { ascending: false })
-    .limit(20)
+  // Fetch KZG status
+  const { data: fleet } = await supabase.from('aircraft').select('registration, status').eq('registration', 'VH-KZG').single()
 
-  const profileIds = (pendingProfiles ?? []).map(p => p.id)
-  const { data: allDocs } = profileIds.length > 0
-    ? await supabase.from('user_documents').select('user_id, document_type, uploaded_at').in('user_id', profileIds)
-    : { data: [] }
-
-  const docsByUser: Record<string, Array<{ document_type: string; uploaded_at: string }>> = {}
-  for (const doc of allDocs ?? []) {
-    if (!docsByUser[doc.user_id]) docsByUser[doc.user_id] = []
-    docsByUser[doc.user_id].push(doc)
-  }
-
-  const stats = [
-    { icon: 'pending',       label: 'Pending Review',     value: pendingCount  ?? 0, note: 'Awaiting action',        noteColor: 'text-slate-500',      href: '/admin/pending-verifications' },
-    { icon: 'pause_circle',  label: 'On Hold',            value: onHoldCount   ?? 0, note: 'Awaiting customer info', noteColor: 'text-amber-500/60',   href: '/admin/on-hold' },
-    { icon: 'verified',      label: 'Verified Customers', value: verifiedCount ?? 0, note: 'Approved',               noteColor: 'text-blue-400/60',    href: '/admin/verified-users' },
-    { icon: 'gavel',         label: 'Rejected Cases',     value: rejectedCount ?? 0, note: 'Reviewed',               noteColor: 'text-red-400/60',     href: '/admin/rejected-users' },
-  ]
+  // High Priority Attentions
+  const attentions = [
+    { label: 'Pending Verifications', count: pendingVerifs || 0, href: '/admin/pending-verifications', color: 'text-amber-400', icon: 'pending_actions' },
+    { label: 'Booking Requests', count: pendingBookingReqs || 0, href: '/admin/bookings/requests', color: 'text-blue-400', icon: 'fact_check' },
+    { label: 'Post-Flight Reviews', count: pendingPostReviews || 0, href: '/admin/bookings/post-flight-reviews', color: 'text-purple-400', icon: 'assignment_turned_in' },
+    { label: 'Open Squawks', count: openSquawks || 0, href: '/admin', color: 'text-red-400', icon: 'build_circle' }
+  ].filter(a => a.count > 0)
 
   return (
-    <div className="p-10 max-w-7xl">
-      {/* Page header */}
+    <div className="p-10 max-w-7xl mx-auto pb-24">
       <header className="mb-12">
-        <h2 className="font-serif text-4xl font-light text-[#e2e2e6] tracking-tight">Admin Dashboard</h2>
-        <p className="text-slate-400 mt-2 font-light tracking-wide">Manage customer verification and booking readiness</p>
+        <h2 className="font-serif text-4xl font-light text-[#e2e2e6] tracking-tight">Master Overview</h2>
+        <p className="text-slate-400 mt-2 font-light tracking-wide">Operational telemetry across customers, bookings, and fleet status.</p>
         <div className="h-0.5 w-10 bg-[#44474c] mt-6" />
       </header>
 
-      {/* Stat bento grid */}
-      <section className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-        {stats.map(stat => (
-          <Link
-            key={stat.label}
-            href={stat.href}
-            className={`bg-[#1e2023]/60 backdrop-blur-xl border p-6 rounded-xl flex flex-col justify-between group hover:bg-[#282a2d] transition-all duration-300 ${
-              stat.label === 'On Hold' ? 'border-amber-500/10' : 'border-white/5'
-            }`}
-          >
-            <div className="flex justify-between items-start">
-              <span
-                className={`material-symbols-outlined ${stat.label === 'On Hold' ? 'text-amber-500/60' : 'text-blue-300/70'}`}
-                style={{ fontVariationSettings: "'wght' 300" }}
-              >
-                {stat.icon}
-              </span>
-              <span className={`text-[10px] uppercase tracking-tighter font-medium ${stat.noteColor}`}>{stat.note}</span>
-            </div>
-            <div className="mt-8">
-              <p className="text-3xl font-light font-serif text-[#e2e2e6]">
-                {String(stat.value).padStart(2, '0')}
-              </p>
-              <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mt-1">{stat.label}</p>
-            </div>
-          </Link>
-        ))}
-      </section>
-
-      {/* Verification Queue */}
-      <section className="mb-12">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="font-serif text-2xl font-light">Verification Queue</h3>
-          <Link
-            href="/admin/pending-verifications"
-            className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest border border-white/10 rounded-full hover:bg-white/5 transition-all"
-          >
-            View All
-          </Link>
-        </div>
-        <AdminQueueTable
-          profiles={pendingProfiles as QueueProfile[] ?? []}
-          docsByUser={docsByUser}
-          totalCount={pendingCount ?? 0}
-          dateMode="submitted"
-          actionLabel="Review"
-        />
-      </section>
-
-      {/* Latest Submissions strip */}
-      {(pendingProfiles ?? []).length > 0 && (
-        <section className="bg-[#1e2023]/60 backdrop-blur-xl border border-white/5 rounded-2xl overflow-hidden">
-          <div className="px-8 py-5 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
-            <div className="flex items-center gap-3">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-              <h3 className="font-sans text-xs font-bold uppercase tracking-widest text-slate-400">Latest Pending Submissions</h3>
-            </div>
-            <Link
-              href="/admin/pending-verifications"
-              className="text-[10px] text-slate-500 hover:text-blue-300 uppercase tracking-widest transition-colors"
-            >
-              See all →
-            </Link>
-          </div>
-          <div className="divide-y divide-white/5">
-            {(pendingProfiles ?? []).slice(0, 5).map(profile => {
-              const name    = profile.full_name ?? 'Unknown User'
-              const initials = name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
-              const when    = profile.updated_at
-                ? new Date(profile.updated_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-                : '—'
-              return (
-                <Link
-                  key={profile.id}
-                  href={`/admin/users/${profile.id}`}
-                  className="flex items-center gap-4 px-8 py-4 hover:bg-white/[0.02] transition-colors group"
-                >
-                  <div className="w-7 h-7 rounded-full bg-blue-900/50 border border-blue-300/20 flex items-center justify-center text-blue-200 text-[10px] font-bold flex-shrink-0">
-                    {initials}
-                  </div>
-                  <span className="text-sm font-medium text-[#e2e2e6] group-hover:text-blue-200 transition-colors flex-1 truncate">
-                    {name}
-                  </span>
-                  <span className="text-[10px] text-slate-500 font-mono whitespace-nowrap">{when}</span>
-                  <span className="material-symbols-outlined text-slate-600 group-hover:text-blue-300 text-base transition-colors" style={{ fontVariationSettings: "'wght' 300" }}>
-                    arrow_forward
-                  </span>
-                </Link>
-              )
-            })}
+      {/* Attention Required Panel */}
+      {attentions.length > 0 && (
+        <section className="mb-12 bg-amber-500/10 border border-amber-500/20 rounded-[1.25rem] p-6 shadow-2xl overflow-hidden relative">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/20 blur-[80px] pointer-events-none rounded-full" />
+          <h3 className="text-xs font-bold uppercase tracking-widest text-amber-500 mb-6 flex items-center gap-2 relative z-10">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" /> Action Required
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
+            {attentions.map(a => (
+              <Link key={a.label} href={a.href} className="bg-black/20 hover:bg-black/30 border border-amber-500/10 hover:border-amber-500/30 rounded-xl p-4 transition-colors flex items-center gap-4">
+                <span className={`material-symbols-outlined text-[24px] ${a.color}`} style={{ fontVariationSettings: "'wght' 300" }}>{a.icon}</span>
+                <div>
+                  <div className={`text-xl font-medium ${a.color}`}>{a.count}</div>
+                  <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">{a.label}</div>
+                </div>
+              </Link>
+            ))}
           </div>
         </section>
       )}
+
+      {/* Cross-system Metrics */}
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        {/* CUSTOMERS */}
+        <Link href="/admin/customers" className="bg-[#1e2023]/60 backdrop-blur-xl border border-white/5 p-6 rounded-2xl group hover:bg-[#282a2d] transition-colors relative overflow-hidden flex flex-col justify-between min-h-[140px]">
+          <span className="material-symbols-outlined text-4xl absolute -right-4 -bottom-4 text-white/5 group-hover:text-white/10 transition-colors" style={{ fontVariationSettings: "'FILL' 1" }}>groups</span>
+          <div className="flex justify-between items-start">
+            <span className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Total Customers</span>
+            <span className="material-symbols-outlined text-sm text-slate-600">arrow_forward</span>
+          </div>
+          <div className="text-3xl font-light font-serif text-[#e2e2e6]">{totalCustomers || 0}</div>
+        </Link>
+
+        {/* BOOKINGS */}
+        <Link href="/admin/bookings" className="bg-[#1e2023]/60 backdrop-blur-xl border border-white/5 p-6 rounded-2xl group hover:bg-[#282a2d] transition-colors relative overflow-hidden flex flex-col justify-between min-h-[140px]">
+          <span className="material-symbols-outlined text-4xl absolute -right-4 -bottom-4 text-white/5 group-hover:text-white/10 transition-colors" style={{ fontVariationSettings: "'FILL' 1" }}>event_seat</span>
+          <div className="flex justify-between items-start">
+            <span className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Lifetime Bookings</span>
+            <span className="material-symbols-outlined text-sm text-slate-600">arrow_forward</span>
+          </div>
+          <div className="text-3xl font-light font-serif text-[#e2e2e6]">{totalBookings || 0}</div>
+        </Link>
+
+        {/* FLIGHTS */}
+        <div className="bg-[#1e2023]/60 backdrop-blur-xl border border-white/5 p-6 rounded-2xl relative overflow-hidden flex flex-col justify-between min-h-[140px]">
+          <span className="material-symbols-outlined text-4xl absolute -right-4 -bottom-4 text-white/5" style={{ fontVariationSettings: "'FILL' 1" }}>flight_takeoff</span>
+          <div className="flex justify-between items-start">
+            <span className="text-[10px] uppercase tracking-widest font-bold text-blue-400">Active Flights</span>
+          </div>
+          <div className="text-3xl font-light font-serif text-blue-300">{activeFlights || 0}</div>
+        </div>
+
+        {/* FLEET */}
+        <Link href="/admin/aircraft" className="bg-[#1e2023]/60 backdrop-blur-xl border border-white/5 p-6 rounded-2xl group hover:bg-[#282a2d] transition-colors relative overflow-hidden flex flex-col justify-between min-h-[140px]">
+          <span className="material-symbols-outlined text-4xl absolute -right-4 -bottom-4 text-white/5 group-hover:text-white/10 transition-colors" style={{ fontVariationSettings: "'FILL' 1" }}>airlines</span>
+          <div className="flex justify-between items-start">
+            <span className="text-[10px] uppercase tracking-widest font-bold text-slate-500">{fleet?.registration || 'Fleet'}</span>
+            <span className="material-symbols-outlined text-sm text-slate-600">arrow_forward</span>
+          </div>
+          <span className={`px-3 py-1 rounded inline-flex w-max text-[10px] font-bold uppercase tracking-wider border ${fleet?.status === 'active' ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-slate-500/10 border-slate-500/20 text-slate-400'}`}>
+            {fleet?.status || 'Unknown'}
+          </span>
+        </Link>
+      </section>
+
+      {/* Timeline Placeholder */}
+      <section className="mb-12">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
+          Operational Timeline
+        </h3>
+        <div className="bg-white/5 border border-white/5 rounded-[1.25rem] p-12 text-center text-slate-500 flex flex-col items-center justify-center opacity-70">
+          <span className="material-symbols-outlined text-4xl mb-4 opacity-50" style={{ fontVariationSettings: "'wght' 200" }}>timeline</span>
+          <p className="text-sm">7-Day Operational Timeline Graph (TODO)</p>
+          <p className="text-xs opacity-60 mt-1">Will display density matching active blocks against pending reservations.</p>
+        </div>
+      </section>
+
+      {/* Activity Feed Placeholder */}
+      <section>
+        <div className="flex justify-between items-end mb-6 border-b border-white/5 pb-4">
+          <h3 className="text-lg font-light text-white tracking-wide">Recent Activity</h3>
+        </div>
+        <div className="space-y-4 opacity-50">
+          <div className="bg-white/5 border border-white/5 p-4 rounded-xl flex items-center gap-4">
+            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"><span className="material-symbols-outlined text-sm">history</span></div>
+            <div className="text-sm text-slate-400">Activity stream feed pending real data tracking implementations (TODO).</div>
+          </div>
+        </div>
+      </section>
+
     </div>
   )
 }
