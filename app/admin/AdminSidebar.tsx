@@ -13,11 +13,18 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'On Hold',               icon: 'pause_circle',     href: '/admin/on-hold' },
   { label: 'Verified Users',        icon: 'verified_user',    href: '/admin/verified-users' },
   { label: 'Rejected Users',        icon: 'person_off',       href: '/admin/rejected-users' },
+  { label: 'Messages',              icon: 'chat',             href: '/admin/messages' },
   { label: 'Bookings',              icon: 'event_seat',       href: '/admin/bookings' },
   { label: 'Aircraft Availability', icon: 'flight',           href: '/admin/aircraft' },
 ]
 
-export default function AdminSidebar({ displayName }: { displayName: string }) {
+export default function AdminSidebar({
+  displayName,
+  unreadMessageCount = 0,
+}: {
+  displayName: string
+  unreadMessageCount?: number
+}) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -49,30 +56,40 @@ export default function AdminSidebar({ displayName }: { displayName: string }) {
 
       {/* Nav */}
       <nav className="flex-1 space-y-1">
-        {NAV_ITEMS.map(item => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 text-sm
-              ${isActive(item.href)
-                ? 'text-blue-200 font-bold border-r-2 border-blue-300/50 bg-white/5'
-                : 'text-slate-400 font-normal hover:text-blue-100 hover:bg-white/5'}`}
-          >
-            <span
-              className={`material-symbols-outlined ${
-                item.href === '/admin/on-hold' && isActive(item.href)
-                  ? 'text-amber-400'
-                  : item.href === '/admin/on-hold'
-                  ? 'text-amber-600/60'
-                  : ''
-              }`}
-              style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}
+        {NAV_ITEMS.map(item => {
+          const active = isActive(item.href)
+          const isMessages = item.href === '/admin/messages'
+          const isOnHold   = item.href === '/admin/on-hold'
+          const showBadge  = isMessages && unreadMessageCount > 0
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 text-sm
+                ${active
+                  ? 'text-blue-200 font-bold border-r-2 border-blue-300/50 bg-white/5'
+                  : 'text-slate-400 font-normal hover:text-blue-100 hover:bg-white/5'}`}
             >
-              {item.icon}
-            </span>
-            <span className="tracking-wide">{item.label}</span>
-          </Link>
-        ))}
+              <span
+                className={`material-symbols-outlined ${
+                  isOnHold && active ? 'text-amber-400' :
+                  isOnHold           ? 'text-amber-600/60' :
+                  ''
+                }`}
+                style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}
+              >
+                {item.icon}
+              </span>
+              <span className="tracking-wide flex-1">{item.label}</span>
+              {showBadge && (
+                <span className="flex items-center justify-center min-w-[18px] h-4 px-1 rounded-full bg-blue-500 text-[9px] font-bold text-white tabular-nums">
+                  {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
+                </span>
+              )}
+            </Link>
+          )
+        })}
         <div className="pt-6 mt-6 border-t border-white/5">
           <Link
             href="/admin/settings"

@@ -21,12 +21,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const adminName = profile.full_name ?? user.email?.split('@')[0] ?? 'Administrator'
 
-  // Real pending count for the bell badge
-  const { count: pendingCount } = await supabase
-    .from('profiles')
-    .select('*', { count: 'exact', head: true })
-    .eq('role', 'customer')
-    .eq('verification_status', 'pending_review')
+  // Fetch pending verifications count (bell badge) and admin unread message count in parallel
+  const [{ count: pendingCount }, { count: unreadMessageCount }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'customer')
+      .eq('verification_status', 'pending_review'),
+    supabase
+      .from('verification_events')
+      .select('*', { count: 'exact', head: true })
+      .eq('actor_role', 'customer')
+      .is('admin_read_at', null),
+  ])
 
   return (
     <div className="min-h-screen flex bg-[#111316] text-[#e2e2e6] font-sans">
@@ -36,7 +43,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         style={{ backgroundImage: 'url("https://grainy-gradients.vercel.app/noise.svg")' }}
       />
 
-      <AdminSidebar displayName={adminName} />
+      <AdminSidebar displayName={adminName} unreadMessageCount={unreadMessageCount ?? 0} />
 
       {/* Right column: topbar + page content */}
       <div className="flex-1 ml-72 flex flex-col min-h-screen">

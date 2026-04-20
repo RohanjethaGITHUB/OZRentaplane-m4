@@ -6,12 +6,13 @@ import Image from 'next/image'
 import type { User } from '@supabase/supabase-js'
 import type { Profile, VerificationStatus, UserDocument, VerificationEvent, RequestKind } from '@/lib/supabase/types'
 import DocumentsPanel from './DocumentsPanel'
+import CustomerChatPanel from './CustomerChatPanel'
 import { createClient } from '@/lib/supabase/client'
 import { fmtTimestamp } from '@/lib/utils/format'
 
 // ─── Shell types ─────────────────────────────────────────────────────────────
 
-type Tab = 'Dashboard' | 'My Profile' | 'Documents' | 'Bookings' | 'Support'
+type Tab = 'Dashboard' | 'My Profile' | 'Documents' | 'Messages' | 'Bookings' | 'Support'
 
 type Props = {
   user: User
@@ -584,6 +585,7 @@ const TABS: { label: Tab; icon: string }[] = [
   { label: 'Dashboard',  icon: 'dashboard' },
   { label: 'My Profile', icon: 'account_circle' },
   { label: 'Documents',  icon: 'description' },
+  { label: 'Messages',   icon: 'chat' },
   { label: 'Bookings',   icon: 'calendar_month' },
   { label: 'Support',    icon: 'contact_support' },
 ]
@@ -603,6 +605,13 @@ export default function DashboardContent({ user, profile, documents, events }: P
   const status      = (profile?.verification_status ?? 'not_started') as VerificationStatus
   const statusCfg   = STATUS_CONFIG[status]
   const sidebarRole = role === 'admin' ? 'Administrator' : 'Aviator Member'
+
+  // Unread chat messages for the customer = admin messages the customer hasn't read
+  const chatUnreadCount = events.filter(
+    ev => (ev.event_type === 'message' || (ev.event_type === 'on_hold' && ev.body))
+      && ev.actor_role === 'admin'
+      && !ev.is_read
+  ).length
 
   return (
     <div className="min-h-screen flex overflow-hidden bg-[#050B14] text-oz-text font-sans relative">
@@ -626,22 +635,31 @@ export default function DashboardContent({ user, profile, documents, events }: P
         </div>
 
         <nav className="flex-1 space-y-2">
-          {TABS.map(tab => (
-            <button
-              key={tab.label}
-              onClick={() => setActiveTab(tab.label)}
-              className={`w-full flex items-center gap-4 py-3 px-4 rounded-xl transition-all duration-300 ease-in-out font-sans ${
-                activeTab === tab.label
-                  ? 'text-oz-blue font-bold border-r-2 border-oz-blue pr-4 bg-white/5'
-                  : 'text-oz-subtle hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>
-                {tab.icon}
-              </span>
-              <span className="text-xs font-semibold uppercase tracking-widest">{tab.label}</span>
-            </button>
-          ))}
+          {TABS.map(tab => {
+            const isActive  = activeTab === tab.label
+            const showBadge = tab.label === 'Messages' && chatUnreadCount > 0
+            return (
+              <button
+                key={tab.label}
+                onClick={() => setActiveTab(tab.label)}
+                className={`w-full flex items-center gap-4 py-3 px-4 rounded-xl transition-all duration-300 ease-in-out font-sans ${
+                  isActive
+                    ? 'text-oz-blue font-bold border-r-2 border-oz-blue pr-4 bg-white/5'
+                    : 'text-oz-subtle hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>
+                  {tab.icon}
+                </span>
+                <span className="text-xs font-semibold uppercase tracking-widest flex-1 text-left">{tab.label}</span>
+                {showBadge && (
+                  <span className="flex items-center justify-center min-w-[18px] h-4 px-1 rounded-full bg-oz-blue text-[9px] font-bold text-oz-deep tabular-nums">
+                    {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </nav>
 
         <div className="mt-auto pt-6 border-t border-white/5 flex items-center gap-3">
@@ -692,6 +710,28 @@ export default function DashboardContent({ user, profile, documents, events }: P
             )
           ) : activeTab === 'Documents' ? (
             <DocumentsPanel user={user} documents={documents} status={status} events={events} />
+          ) : activeTab === 'Messages' ? (
+            <div className="space-y-8 animate-fade-in flex-1">
+              <section className="flex justify-between items-end">
+                <div>
+                  <h2 className="text-3xl md:text-4xl font-serif italic tracking-tight text-white mb-2">
+                    Messages
+                  </h2>
+                  <p className="text-oz-muted font-sans font-light">
+                    Your conversation with the OZRentAPlane verification team.
+                  </p>
+                </div>
+                {chatUnreadCount > 0 && (
+                  <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-oz-blue/10 border border-oz-blue/20 backdrop-blur-md rounded-full">
+                    <span className="w-2 h-2 rounded-full bg-oz-blue animate-pulse" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-oz-blue">
+                      {chatUnreadCount} unread
+                    </span>
+                  </div>
+                )}
+              </section>
+              <CustomerChatPanel events={events} status={status} displayName={displayName} />
+            </div>
           ) : (
             <div className="flex-1 flex items-center justify-center animate-fade-in opacity-50">
               <div className="text-center space-y-4">

@@ -18,6 +18,8 @@ type Props = {
   dateMode: 'submitted' | 'reviewed' | 'joined'
   actionLabel?: string
   showDocs?: boolean
+  /** Map of user_id → unread customer message count for admin */
+  unreadByUser?: Record<string, number>
 }
 
 function getInitials(name: string | null, fallback: string): string {
@@ -48,6 +50,7 @@ export default function AdminQueueTable({
   dateMode,
   actionLabel = 'Review',
   showDocs = true,
+  unreadByUser = {},
 }: Props) {
   const dateLabel =
     dateMode === 'submitted' ? 'Submitted At' :
@@ -93,16 +96,25 @@ export default function AdminQueueTable({
               const statusClass = STATUS_BADGE[profile.verification_status] ?? 'bg-white/5 text-slate-400'
               const statusLabel = STATUS_LABEL[profile.verification_status] ?? profile.verification_status
 
+              const unreadCount = unreadByUser[profile.id] ?? 0
+
               return (
                 <tr key={profile.id} className="group hover:bg-white/[0.02] transition-colors">
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                        profile.verification_status === 'on_hold'
-                          ? 'bg-amber-900/30 border-amber-300/20 text-amber-200'
-                          : 'bg-blue-900/50 border-blue-300/20 text-blue-200'
-                      }`}>
-                        {initials}
+                      <div className="relative flex-shrink-0">
+                        <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold ${
+                          profile.verification_status === 'on_hold'
+                            ? 'bg-amber-900/30 border-amber-300/20 text-amber-200'
+                            : 'bg-blue-900/50 border-blue-300/20 text-blue-200'
+                        }`}>
+                          {initials}
+                        </div>
+                        {unreadCount > 0 && (
+                          <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[14px] h-3.5 px-0.5 rounded-full bg-blue-500 text-[8px] font-bold text-white tabular-nums">
+                            {unreadCount > 9 ? '9+' : unreadCount}
+                          </span>
+                        )}
                       </div>
                       <div>
                         <span className="text-sm font-semibold text-blue-100 block">{name}</span>

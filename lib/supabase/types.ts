@@ -54,6 +54,21 @@ export type RequestKind =
   | 'confirmation_request'
   | 'general_update'
 
+// ─── Admin inbox thread summary ───────────────────────────────────────────────
+// Aggregated view of one customer's chat thread for the admin inbox list.
+
+export type ThreadSummary = {
+  customerId: string
+  customerName: string | null
+  customerEmail: string | null
+  verificationStatus: VerificationStatus
+  lastMessageBody: string | null
+  lastMessageAt: string | null
+  lastMessageRole: ActorRole | null
+  unreadCount: number
+  totalMessages: number
+}
+
 export type VerificationEvent = {
   id: string
   user_id: string
@@ -66,6 +81,7 @@ export type VerificationEvent = {
   body: string | null
   request_kind: RequestKind | null
   is_read: boolean
+  admin_read_at: string | null
   email_status: EmailStatus
   email_sent_at: string | null
   created_at: string

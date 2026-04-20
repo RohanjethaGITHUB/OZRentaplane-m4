@@ -107,14 +107,15 @@ export async function submitForReview(skipDocCheck = false) {
   revalidatePath('/admin/all-customers')
 }
 
-// ─── Customer reply in verification thread ────────────────────────────────────
-// Customer sends a text reply inside their verification thread.
+// ─── Customer chat message ────────────────────────────────────────────────────
+// Customer sends a message in their verification thread.
 // This does NOT change verification_status — it just adds a message event.
-// The admin will see the reply when they open the detail page.
+// Available whenever the customer has started the process (not_started blocked).
+// The admin will see it as unread when they open the detail page.
 
 export async function sendCustomerReply(message: string): Promise<void> {
   if (!message.trim()) {
-    throw new Error('VALIDATION: Reply message cannot be empty.')
+    throw new Error('VALIDATION: Message cannot be empty.')
   }
 
   const supabase = await createClient()
@@ -128,10 +129,12 @@ export async function sendCustomerReply(message: string): Promise<void> {
     .eq('id', user.id)
     .single()
 
-  // Only allow replies when on_hold (guard against arbitrary message spam)
-  if (profile?.verification_status !== 'on_hold') {
-    throw new Error('VALIDATION: Replies are only available when your verification is on hold.')
+  // Block if customer hasn't even started — prevents orphaned messages
+  if (profile?.verification_status === 'not_started') {
+    throw new Error('VALIDATION: Please submit your documents before sending messages.')
   }
+
+  const currentStatus = profile?.verification_status ?? 'not_started'
 
   const { error: insertError } = await supabase
     .from('verification_events')
@@ -140,18 +143,37 @@ export async function sendCustomerReply(message: string): Promise<void> {
       actor_user_id: user.id,
       actor_role:    'customer',
       event_type:    'message',
-      from_status:   'on_hold',
-      to_status:     'on_hold',  // status unchanged
-      title:         'Customer Reply',
+      from_status:   currentStatus,
+      to_status:     currentStatus,  // status unchanged
+      title:         'Customer Message',
       body:          message.trim(),
       email_status:  'skipped',  // customer-initiated, no email to customer
+      // admin_read_at left NULL so admin sees it as unread
     })
 
   if (insertError) {
     console.error('[sendCustomerReply] Insert failed:', insertError)
-    throw new Error('Failed to send reply. Please try again.')
+    throw new Error('Failed to send message. Please try again.')
   }
 
   revalidatePath('/dashboard')
   revalidatePath(`/admin/users/${user.id}`)
+}
+
+// ─── Mark customer messages as read ──────────────────────────────────────────
+// Called when customer opens the Messages tab or Verification Updates section.
+// Marks all unread admin events for this customer as read (is_read = true).
+
+export async function markCustomerMessagesRead(): Promise<void> {
+  const supabase = await createClient()
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) return  // Non-throwing — read-marking is not critical
+
+  await supabase
+    .from('verification_events')
+    .update({ is_read: true })
+    .eq('user_id', user.id)
+    .eq('is_read', false)
+  // No revalidatePath needed — this is a background read-state update
 }

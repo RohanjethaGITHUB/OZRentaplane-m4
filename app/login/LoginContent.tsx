@@ -3,40 +3,142 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 
-type AuthMode = 'signin' | 'signup'
+type AuthMode     = 'signin' | 'signup'
+type OAuthProvider = 'google' | 'facebook' | 'apple'
 
-// ─── Animation config ─────────────────────────────────────────────────────────────
+// ─── Animation config ─────────────────────────────────────────────────────────
 const EASE_PREMIUM = [0.25, 1, 0.35, 1] as const
-const TRANSITION = { duration: 1.4, ease: EASE_PREMIUM }
+const TRANSITION   = { duration: 1.4, ease: EASE_PREMIUM }
 
+// ─── Provider SVG icons ───────────────────────────────────────────────────────
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+    </svg>
+  )
+}
+
+function FacebookIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+    </svg>
+  )
+}
+
+function AppleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+    </svg>
+  )
+}
+
+function SpinIcon() {
+  return (
+    <svg className="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="40" strokeDashoffset="30" />
+    </svg>
+  )
+}
+
+// ─── Social buttons strip ─────────────────────────────────────────────────────
+const PROVIDERS: { id: OAuthProvider; label: string; Icon: () => JSX.Element }[] = [
+  { id: 'google',   label: 'Google',   Icon: GoogleIcon   },
+  { id: 'facebook', label: 'Facebook', Icon: FacebookIcon },
+  { id: 'apple',    label: 'Apple',    Icon: AppleIcon    },
+]
+
+interface SocialButtonsProps {
+  context:      'signin' | 'signup'
+  oauthLoading: OAuthProvider | null
+  oauthError:   string
+  disabled:     boolean
+  onSignIn:     (provider: OAuthProvider) => void
+}
+
+function SocialButtons({ context, oauthLoading, oauthError, disabled, onSignIn }: SocialButtonsProps) {
+  return (
+    <div className="pt-5 space-y-4">
+      {/* Divider */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-white/10" />
+        <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-oz-subtle whitespace-nowrap">
+          {context === 'signin' ? 'or sign in with' : 'or sign up with'}
+        </span>
+        <div className="flex-1 h-px bg-white/10" />
+      </div>
+
+      {/* Buttons */}
+      <div className="flex gap-2">
+        {PROVIDERS.map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onSignIn(id)}
+            disabled={disabled}
+            aria-label={`Continue with ${label}`}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] hover:border-white/20 transition-all duration-300 text-white/60 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {oauthLoading === id ? <SpinIcon /> : <Icon />}
+            <span className="text-[10px] font-sans uppercase tracking-[0.12em] hidden sm:block">
+              {label}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {oauthError && (
+        <p className="text-red-400 text-[11px] font-sans font-light tracking-wide">
+          {oauthError}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function LoginContent() {
   const [mode, setMode] = useState<AuthMode>('signin')
-  const router = useRouter()
+  const router   = useRouter()
   const supabase = createClient()
 
   // ─── Sign In state ───────────────────────────────────────────────────────────
-  const [siEmail, setSiEmail] = useState('')
+  const [siEmail,    setSiEmail]    = useState('')
   const [siPassword, setSiPassword] = useState('')
-  const [siError, setSiError] = useState('')
+  const [siError,    setSiError]    = useState('')
 
   // ─── Sign Up state ───────────────────────────────────────────────────────────
-  const [suName, setSuName] = useState('')
-  const [suEmail, setSuEmail] = useState('')
+  const [suName,    setSuName]    = useState('')
+  const [suEmail,   setSuEmail]   = useState('')
   const [suPassword, setSuPassword] = useState('')
-  const [suConfirm, setSuConfirm] = useState('')
-  const [suError, setSuError] = useState('')
-  const [suSuccess, setSuSuccess] = useState(false)
+  const [suConfirm,  setSuConfirm]  = useState('')
+  const [suError,    setSuError]    = useState('')
+  const [suSuccess,  setSuSuccess]  = useState(false)
 
-  const [loading, setLoading] = useState(false)
+  const [loading,      setLoading]      = useState(false)
+  const [oauthLoading, setOauthLoading] = useState<OAuthProvider | null>(null)
+  const [oauthError,   setOauthError]   = useState('')
+
+  const anyLoading = loading || !!oauthLoading
 
   // ─── Handlers ────────────────────────────────────────────────────────────────
+  function clearErrors() {
+    setSiError('')
+    setSuError('')
+    setOauthError('')
+  }
+
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault()
-    setSiError('')
+    clearErrors()
     setLoading(true)
     const { error } = await supabase.auth.signInWithPassword({ email: siEmail, password: siPassword })
     setLoading(false)
@@ -49,7 +151,7 @@ export default function LoginContent() {
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault()
-    setSuError('')
+    clearErrors()
     if (suPassword !== suConfirm) {
       setSuError('Passwords do not match.')
       return
@@ -73,6 +175,22 @@ export default function LoginContent() {
     }
   }
 
+  async function handleOAuthSignIn(provider: OAuthProvider) {
+    clearErrors()
+    setOauthLoading(provider)
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
+    if (error) {
+      setOauthError(error.message)
+      setOauthLoading(null)
+    }
+    // On success, Supabase redirects the browser — loading state intentionally not reset
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#050B14] via-[#0A111F] to-[#04080F] flex flex-col items-center justify-center pt-[120px] pb-12 px-6 md:px-12 lg:px-24 relative overflow-hidden">
       {/* Background ambient lighting */}
@@ -86,7 +204,7 @@ export default function LoginContent() {
       />
 
       {/* Main split card container */}
-      <main className="w-full max-w-[1300px] h-auto my-auto md:min-h-[700px] md:h-[calc(100vh-160px)] md:max-h-[850px] bg-[#0A101C]/80 backdrop-blur-2xl rounded-2xl md:rounded-[2rem] overflow-hidden flex flex-col md:flex-row relative shadow-[0_40px_100px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.1)] ring-1 ring-white/10">
+      <main className="w-full max-w-[1300px] h-auto my-auto md:min-h-[700px] md:h-[calc(100vh-160px)] md:max-h-[900px] bg-[#0A101C]/80 backdrop-blur-2xl rounded-2xl md:rounded-[2rem] overflow-hidden flex flex-col md:flex-row relative shadow-[0_40px_100px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.1)] ring-1 ring-white/10">
 
         {/* ════════════════════════════════════════════════════════════════════════
             LEFT SIDE: SIGN IN
@@ -98,7 +216,7 @@ export default function LoginContent() {
               className="w-full h-full"
               initial={false}
               animate={{
-                scale: mode === 'signin' ? 1.0 : 1.15,
+                scale:  mode === 'signin' ? 1.0 : 1.15,
                 filter: mode === 'signin' ? 'blur(0px) brightness(1)' : 'blur(20px) brightness(0.15)',
               }}
               transition={TRANSITION}
@@ -111,7 +229,6 @@ export default function LoginContent() {
                 priority
               />
             </motion.div>
-            {/* Gradient mask */}
             <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-[#0c121e] via-[#0c121e]/85 to-[#0c121e]/20 pointer-events-none" />
           </div>
 
@@ -173,7 +290,7 @@ export default function LoginContent() {
                       <div className="pt-8 flex items-center justify-between">
                         <button
                           type="submit"
-                          disabled={loading}
+                          disabled={anyLoading}
                           className="bg-gradient-to-br from-oz-blue to-oz-blue-dim text-oz-deep px-8 py-3.5 rounded-full font-sans text-xs uppercase tracking-[0.15em] font-bold shadow-[0_4px_16px_rgba(167,200,255,0.15)] hover:shadow-[0_4px_24px_rgba(167,200,255,0.25)] hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                         >
                           {loading ? 'Signing In…' : 'Sign In'}
@@ -183,7 +300,16 @@ export default function LoginContent() {
                         </a>
                       </div>
 
-                      <div className="pt-6 mt-6 border-t border-white/5 flex items-center justify-between">
+                      {/* Social auth */}
+                      <SocialButtons
+                        context="signin"
+                        oauthLoading={oauthLoading}
+                        oauthError={oauthError}
+                        disabled={anyLoading}
+                        onSignIn={handleOAuthSignIn}
+                      />
+
+                      <div className="pt-6 mt-2 border-t border-white/5 flex items-center justify-between">
                         <span className="text-oz-muted text-xs font-sans font-light">New pilot?</span>
                         <button
                           type="button"
@@ -237,10 +363,10 @@ export default function LoginContent() {
               />
               <defs>
                 <linearGradient id="subtle-glow" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="transparent" />
-                  <stop offset="20%" stopColor="rgba(255,255,255,0.4)" />
-                  <stop offset="50%" stopColor="rgba(255,255,255,1)" />
-                  <stop offset="80%" stopColor="rgba(255,255,255,0.4)" />
+                  <stop offset="0%"   stopColor="transparent" />
+                  <stop offset="20%"  stopColor="rgba(255,255,255,0.4)" />
+                  <stop offset="50%"  stopColor="rgba(255,255,255,1)" />
+                  <stop offset="80%"  stopColor="rgba(255,255,255,0.4)" />
                   <stop offset="100%" stopColor="transparent" />
                 </linearGradient>
               </defs>
@@ -258,7 +384,7 @@ export default function LoginContent() {
               className="w-full h-full"
               initial={false}
               animate={{
-                scale: mode === 'signup' ? 1.0 : 1.15,
+                scale:  mode === 'signup' ? 1.0 : 1.15,
                 filter: mode === 'signup' ? 'blur(0px) brightness(1)' : 'blur(20px) brightness(0.15)',
               }}
               transition={TRANSITION}
@@ -271,12 +397,11 @@ export default function LoginContent() {
                 priority
               />
             </motion.div>
-            {/* Gradient mask */}
             <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-l from-[#0c121e] via-[#0c121e]/85 to-[#0c121e]/20 pointer-events-none" />
           </div>
 
           {/* Foreground Layer */}
-          <div className="relative z-10 w-full h-full p-8 md:p-14 lg:p-20 flex flex-col items-center justify-center">
+          <div className="relative z-10 w-full h-full p-8 md:p-14 lg:p-20 flex flex-col items-center justify-center overflow-y-auto">
 
             <AnimatePresence mode="popLayout" initial={false}>
               {mode === 'signup' ? (
@@ -376,7 +501,7 @@ export default function LoginContent() {
                       <div className="pt-6">
                         <button
                           type="submit"
-                          disabled={loading}
+                          disabled={anyLoading}
                           className="w-full bg-white text-oz-deep py-4 rounded-full font-sans text-xs uppercase tracking-[0.15em] font-bold shadow-[0_4px_16px_rgba(255,255,255,0.1)] hover:bg-gray-100 transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {loading ? 'Processing…' : (
@@ -388,19 +513,28 @@ export default function LoginContent() {
                         </button>
                       </div>
 
-                      <div className="pt-6 mt-2 flex items-center justify-between px-2">
-                         <span className="text-oz-muted text-xs font-sans font-light">Already have access?</span>
-                         <button
-                           type="button"
-                           onClick={() => setMode('signin')}
-                           className="text-[10px] font-sans uppercase tracking-[0.15em] text-oz-blue hover:text-white transition-colors"
-                         >
-                           Sign In
-                         </button>
+                      {/* Social auth */}
+                      <SocialButtons
+                        context="signup"
+                        oauthLoading={oauthLoading}
+                        oauthError={oauthError}
+                        disabled={anyLoading}
+                        onSignIn={handleOAuthSignIn}
+                      />
+
+                      <div className="pt-4 mt-2 border-t border-white/5 flex items-center justify-between px-2">
+                        <span className="text-oz-muted text-xs font-sans font-light">Already have access?</span>
+                        <button
+                          type="button"
+                          onClick={() => setMode('signin')}
+                          className="text-[10px] font-sans uppercase tracking-[0.15em] text-oz-blue hover:text-white transition-colors"
+                        >
+                          Sign In
+                        </button>
                       </div>
 
                       {/* Verification Context Card */}
-                      <div className="mt-8 p-5 rounded-xl bg-white/[0.03] border border-white/10 backdrop-blur-sm flex gap-4 items-start">
+                      <div className="mt-4 p-5 rounded-xl bg-white/[0.03] border border-white/10 backdrop-blur-sm flex gap-4 items-start">
                         <span className="material-symbols-outlined text-oz-blue mt-0.5 text-xl">verified_user</span>
                         <div className="text-xs text-oz-muted font-sans font-light leading-relaxed">
                           <span className="text-white block mb-1 uppercase tracking-widest text-[10px] font-semibold">Pilot Verification Required</span>

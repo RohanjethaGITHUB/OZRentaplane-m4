@@ -8,6 +8,7 @@ import {
   buildRejectedEmail,
   buildOnHoldEmail,
 } from '@/lib/email'
+import type { ThreadSummary, VerificationEvent, ActorRole } from '@/lib/supabase/types'
 
 // ─── Admin guard ──────────────────────────────────────────────────────────────
 
@@ -329,6 +330,170 @@ export async function getSignedDocumentUrl(storagePath: string): Promise<string>
 
   if (error || !data?.signedUrl) throw new Error('Could not generate secure file URL')
   return data.signedUrl
+}
+
+// ─── Admin chat message ───────────────────────────────────────────────────────
+// Admin sends a direct chat message to a customer without changing their status.
+// This is separate from placeCustomerOnHold which changes status + sends a message.
+
+export async function sendAdminChatMessage(
+  customerId: string,
+  message: string,
+): Promise<void> {
+  if (!message.trim()) {
+    throw new Error('VALIDATION: Message cannot be empty.')
+  }
+
+  const { supabase, adminId } = await requireAdmin()
+
+  const { error } = await supabase
+    .from('verification_events')
+    .insert({
+      user_id:       customerId,
+      actor_user_id: adminId,
+      actor_role:    'admin',
+      event_type:    'message',
+      from_status:   null,
+      to_status:     null,
+      title:         'Message from Admin',
+      body:          message.trim(),
+      email_status:  'skipped',
+      admin_read_at: new Date().toISOString(), // admin sent it, so already read by admin
+    })
+
+  if (error) {
+    console.error('[sendAdminChatMessage] Insert failed:', error)
+    throw new Error('Failed to send message. Please try again.')
+  }
+
+  revalidatePath(`/admin/users/${customerId}`)
+  revalidatePath('/admin/messages')
+  revalidatePath('/dashboard')
+}
+
+// ─── Mark admin chat messages as read ────────────────────────────────────────
+// Called when admin opens the chat panel for a customer.
+// Marks all customer-sent events for this customer as read by admin.
+
+export async function markAdminChatRead(customerId: string): Promise<void> {
+  const { supabase } = await requireAdmin()
+  const now = new Date().toISOString()
+
+  await supabase
+    .from('verification_events')
+    .update({ admin_read_at: now })
+    .eq('user_id', customerId)
+    .eq('actor_role', 'customer')
+    .is('admin_read_at', null)
+  // Non-throwing — read-marking failure is not critical
+}
+
+// ─── Admin inbox: thread list ─────────────────────────────────────────────────
+// Returns one ThreadSummary per customer who has at least one chat event.
+// Sorted: unread threads first, then by latest message timestamp desc.
+
+export async function getAdminThreadList(): Promise<ThreadSummary[]> {
+  const { supabase } = await requireAdmin()
+
+  // All customers
+  const { data: customers } = await supabase
+    .from('profiles')
+    .select('id, full_name, email, verification_status')
+    .eq('role', 'customer')
+
+  if (!customers || customers.length === 0) return []
+
+  const customerIds = customers.map(c => c.id)
+
+  // All chat events for these customers — message events OR on_hold events with a body
+  const { data: events } = await supabase
+    .from('verification_events')
+    .select('user_id, body, created_at, actor_role, admin_read_at, event_type')
+    .in('user_id', customerIds)
+    .in('event_type', ['message', 'on_hold'])
+    .not('body', 'is', null)
+    .order('created_at', { ascending: false })
+
+  if (!events || events.length === 0) return []
+
+  // Aggregate: latest message + unread count per customer
+  // events are sorted DESC so the first entry per user is the most recent
+  const agg = new Map<string, {
+    latestEvent: typeof events[0]
+    unreadCount: number
+    total: number
+  }>()
+
+  for (const ev of events) {
+    if (!agg.has(ev.user_id)) {
+      agg.set(ev.user_id, { latestEvent: ev, unreadCount: 0, total: 0 })
+    }
+    const entry = agg.get(ev.user_id)!
+    entry.total++
+    if (ev.actor_role === 'customer' && !ev.admin_read_at) {
+      entry.unreadCount++
+    }
+  }
+
+  // Build thread summaries for customers who have chat events
+  const threads: ThreadSummary[] = customers
+    .filter(c => agg.has(c.id))
+    .map(c => {
+      const a = agg.get(c.id)!
+      return {
+        customerId:          c.id,
+        customerName:        c.full_name,
+        customerEmail:       c.email,
+        verificationStatus:  c.verification_status,
+        lastMessageBody:     a.latestEvent.body,
+        lastMessageAt:       a.latestEvent.created_at,
+        lastMessageRole:     a.latestEvent.actor_role as ActorRole,
+        unreadCount:         a.unreadCount,
+        totalMessages:       a.total,
+      }
+    })
+
+  // Unread first, then most-recently-updated
+  threads.sort((a, b) => {
+    if (a.unreadCount > 0 && b.unreadCount === 0) return -1
+    if (a.unreadCount === 0 && b.unreadCount > 0) return 1
+    return new Date(b.lastMessageAt ?? 0).getTime() - new Date(a.lastMessageAt ?? 0).getTime()
+  })
+
+  return threads
+}
+
+// ─── Admin inbox: single thread ───────────────────────────────────────────────
+// Returns all chat events for one customer, chronological order.
+
+export async function getAdminThread(customerId: string): Promise<VerificationEvent[]> {
+  const { supabase } = await requireAdmin()
+
+  const { data } = await supabase
+    .from('verification_events')
+    .select('*')
+    .eq('user_id', customerId)
+    .in('event_type', ['message', 'on_hold'])
+    .not('body', 'is', null)
+    .order('created_at', { ascending: true })
+
+  return (data ?? []) as VerificationEvent[]
+}
+
+// ─── Admin inbox: total unread count ─────────────────────────────────────────
+// Fast scalar count of all customer messages not yet read by admin.
+// Used to power the sidebar badge.
+
+export async function getAdminUnreadCount(): Promise<number> {
+  const { supabase } = await requireAdmin()
+
+  const { count } = await supabase
+    .from('verification_events')
+    .select('*', { count: 'exact', head: true })
+    .eq('actor_role', 'customer')
+    .is('admin_read_at', null)
+
+  return count ?? 0
 }
 
 // ─── Customer search ──────────────────────────────────────────────────────────

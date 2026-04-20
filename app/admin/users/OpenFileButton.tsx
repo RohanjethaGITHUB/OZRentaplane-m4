@@ -6,13 +6,21 @@ import { getSignedDocumentUrl } from '@/app/actions/admin'
 type Props = {
   storagePath: string
   fileName: string
+  /**
+   * When true, renders as an invisible full-card overlay instead of a visible button.
+   * Use this to make the entire document card clickable while keeping the
+   * explicit "Open File" button separately rendered for visibility.
+   */
+  asCardOverlay?: boolean
 }
 
-export default function OpenFileButton({ storagePath, fileName }: Props) {
+export default function OpenFileButton({ storagePath, fileName, asCardOverlay = false }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError]    = useState('')
 
-  async function handleOpen() {
+  async function handleOpen(e: React.MouseEvent) {
+    // Prevent double-triggering if both overlay and button are in the same card
+    e.stopPropagation()
     setLoading(true)
     setError('')
     try {
@@ -25,8 +33,22 @@ export default function OpenFileButton({ storagePath, fileName }: Props) {
     }
   }
 
+  // Invisible full-card overlay — sits on top of the card content
+  if (asCardOverlay) {
+    return (
+      <button
+        onClick={handleOpen}
+        disabled={loading}
+        aria-label={`Open ${fileName}`}
+        className="absolute inset-0 z-0 cursor-pointer rounded-xl"
+        tabIndex={-1}  // skip in tab order — explicit button handles keyboard
+      />
+    )
+  }
+
+  // Standard visible button
   return (
-    <div>
+    <div className="relative z-10">
       <button
         onClick={handleOpen}
         disabled={loading}
