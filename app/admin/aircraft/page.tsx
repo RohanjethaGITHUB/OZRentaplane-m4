@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { formatSydDateTime } from '@/lib/utils/sydney-time'
 
 export const metadata = { title: 'Aircraft Overview | Admin' }
 
@@ -155,7 +156,7 @@ export default async function AdminAircraftOverview() {
           <div className="p-6">
             <ul className="space-y-4">
               {upcomingBlocks?.map(block => {
-                const startStr = new Date(block.start_time).toLocaleString('en-AU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                const startStr = formatSydDateTime(block.start_time)
                 const isMaintenance = block.block_type === 'maintenance'
                 
                 return (

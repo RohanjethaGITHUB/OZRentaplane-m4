@@ -513,3 +513,66 @@ export async function searchCustomers(
 
   return data ?? []
 }
+
+// ─── Pilot Metadata Management ────────────────────────────────────────────────
+
+export async function updateCustomerPilotArn(customerId: string, pilotArn: string): Promise<void> {
+  if (!pilotArn.trim()) throw new Error('VALIDATION: Pilot ARN cannot be empty.')
+  
+  const { supabase, adminId } = await requireAdmin()
+
+  // Update profile
+  const { error } = await supabase
+    .from('profiles')
+    .update({ pilot_arn: pilotArn.trim() })
+    .eq('id', customerId)
+    .eq('role', 'customer')
+
+  if (error) {
+    console.error('[updateCustomerPilotArn] Failed:', error)
+    throw new Error('Failed to update Pilot ARN. Please try again.')
+  }
+
+  // Audit event
+  await supabase.from('verification_events').insert({
+    user_id: customerId,
+    actor_user_id: adminId,
+    actor_role: 'admin',
+    event_type: 'message', // using message as a generic audit bucket for metadata change for now
+    title: 'Pilot ARN Updated',
+    body: `Admin updated Pilot ARN to: ${pilotArn.trim()}`,
+    email_status: 'skipped'
+  })
+
+  revalidatePath(`/admin/users/${customerId}`)
+  revalidatePath('/admin/all-customers')
+  revalidatePath('/admin')
+}
+
+export async function updateDocumentExpiryDate(documentId: string, customerId: string, expiryDate: string | null): Promise<void> {
+  const { supabase, adminId } = await requireAdmin()
+
+  const { error } = await supabase
+    .from('user_documents')
+    .update({ expiry_date: expiryDate })
+    .eq('id', documentId)
+    .eq('user_id', customerId)
+
+  if (error) {
+    console.error('[updateDocumentExpiryDate] Failed:', error)
+    throw new Error('Failed to update document expiry date.')
+  }
+
+  // Audit event
+  await supabase.from('verification_events').insert({
+    user_id: customerId,
+    actor_user_id: adminId,
+    actor_role: 'admin',
+    event_type: 'message',
+    title: 'Document Expiry Updated',
+    body: `Admin updated document expiry date to: ${expiryDate || 'None'}`,
+    email_status: 'skipped'
+  })
+
+  revalidatePath(`/admin/users/${customerId}`)
+}

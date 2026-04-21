@@ -1,11 +1,19 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import {
+  sydneyDateKey,
+  todaySydneyDateKey,
+  formatAircraftTimeRange,
+  debugBlockTimes,
+} from '@/lib/utils/sydney-time'
 
 export const metadata = { title: 'Calendar | Admin' }
 
+const IS_DEV = process.env.NODE_ENV !== 'production'
+
 function getStatusBadge(status: string) {
-  if (status === 'active') return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+  if (status === 'active')    return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
   if (status === 'cancelled') return 'bg-rose-500/10 text-rose-500 border-rose-500/20'
   if (status === 'completed') return 'bg-slate-500/10 text-slate-400 border-slate-500/20'
   return 'bg-white/10 text-slate-300 border-white/10'
@@ -14,18 +22,12 @@ function getStatusBadge(status: string) {
 function getBlockTypeColor(type: string) {
   switch (type) {
     case 'maintenance':
-    case 'inspection':
-      return 'text-amber-400'
-    case 'customer_booking':
-      return 'text-blue-400'
-    case 'owner_use':
-      return 'text-purple-400'
-    case 'grounded':
-      return 'text-rose-500'
-    case 'buffer':
-      return 'text-slate-500'
-    default:
-      return 'text-slate-300'
+    case 'inspection':    return 'text-amber-400'
+    case 'customer_booking': return 'text-blue-400'
+    case 'owner_use':     return 'text-purple-400'
+    case 'grounded':      return 'text-rose-500'
+    case 'buffer':        return 'text-slate-500'
+    default:              return 'text-slate-300'
   }
 }
 
@@ -40,7 +42,7 @@ export default async function AdminCalendarPage() {
   // Attempt to load VH-KZG specifically, fallback to first active aircraft
   let targetAircraftId = ''
   let targetAircraftReg = ''
-  
+
   const { data: kzg } = await supabase.from('aircraft').select('id, registration').eq('registration', 'VH-KZG').single()
   if (kzg) {
     targetAircraftId = kzg.id
@@ -58,8 +60,8 @@ export default async function AdminCalendarPage() {
   }
 
   // Fetch blocks: -7 days to +30 days
-  const now = new Date()
-  const past = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  const now    = new Date()
+  const past   = new Date(now.getTime() - 7  * 24 * 60 * 60 * 1000).toISOString()
   const future = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
   const { data: blocks } = await supabase
@@ -80,16 +82,18 @@ export default async function AdminCalendarPage() {
     .lte('start_time', future)
     .order('start_time', { ascending: true })
 
-  // Group by YYYY-MM-DD
+  // Group by Sydney local date (YYYY-MM-DD in Australia/Sydney).
+  // Critical: blocks are filed under their Sydney date, not UTC date.
   const groupedBlocks: Record<string, typeof blocks> = {}
   for (const block of blocks ?? []) {
-    // Determine the local date of the block start
-    const dateKey = new Date(block.start_time).toLocaleDateString('en-CA') // YYYY-MM-DD local format roughly
+    if (IS_DEV) console.log(debugBlockTimes(block.start_time, block.end_time, block.block_type))
+    const dateKey = sydneyDateKey(block.start_time)
     if (!groupedBlocks[dateKey]) groupedBlocks[dateKey] = []
     groupedBlocks[dateKey]!.push(block)
   }
 
   const sortedDates = Object.keys(groupedBlocks).sort()
+  const todayKey   = todaySydneyDateKey()
 
   return (
     <div className="p-10 max-w-5xl mx-auto">
@@ -97,12 +101,16 @@ export default async function AdminCalendarPage() {
         <div>
           <h2 className="font-serif text-4xl font-light text-[#e2e2e6] tracking-tight">Calendar</h2>
           <p className="text-slate-400 mt-2 font-light tracking-wide flex items-center gap-2">
-            Operational schedule for <span className="px-2 py-0.5 rounded bg-blue-900/30 text-blue-200 border border-blue-500/20 font-medium text-xs">{targetAircraftReg}</span>
+            Operational schedule for{' '}
+            <span className="px-2 py-0.5 rounded bg-blue-900/30 text-blue-200 border border-blue-500/20 font-medium text-xs">
+              {targetAircraftReg}
+            </span>
+            <span className="text-[10px] text-slate-600 ml-1">· All times Sydney (AEST/AEDT)</span>
           </p>
           <div className="h-0.5 w-10 bg-[#44474c] mt-6" />
         </div>
-        <Link 
-          href="/admin/bookings/blocks/new" 
+        <Link
+          href="/admin/bookings/blocks/new"
           className="flex items-center gap-2 bg-white text-slate-900 hover:bg-slate-200 px-4 py-2 rounded-xl text-sm font-medium transition-colors"
         >
           <span className="material-symbols-outlined text-[18px]">add</span>
@@ -117,13 +125,15 @@ export default async function AdminCalendarPage() {
       ) : (
         <div className="space-y-8">
           {sortedDates.map(dateStr => {
-            const dateObj = new Date(dateStr)
-            const isToday = new Date().toLocaleDateString('en-CA') === dateStr
-
-            const formattedDate = dateObj.toLocaleDateString('en-AU', {
+            const isToday = todayKey === dateStr
+            // Use the first block's start_time to format the date header in Sydney time.
+            // This guarantees the header matches the Sydney date key we grouped by.
+            const sampleBlock = groupedBlocks[dateStr]![0]!
+            const formattedDate = new Date(sampleBlock.start_time).toLocaleDateString('en-AU', {
+              timeZone: 'Australia/Sydney',
               weekday: 'long',
               month: 'long',
-              day: 'numeric'
+              day: 'numeric',
             })
 
             return (
@@ -146,23 +156,31 @@ export default async function AdminCalendarPage() {
                 {/* Blocks container */}
                 <div className="space-y-3 mt-2">
                   {groupedBlocks[dateStr]!.map(block => {
-                    const s = new Date(block.start_time)
-                    const e = new Date(block.end_time)
-                    
-                    const timeWindow = `${s.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })} – ${e.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })}`
-                    const isCustomer = block.block_type === 'customer_booking'
+                    const durationHrs  = (new Date(block.end_time).getTime() - new Date(block.start_time).getTime()) / (1000 * 60 * 60)
+                    // formatAircraftTimeRange shows date context when block spans multiple Sydney days
+                    const timeWindow   = formatAircraftTimeRange(block.start_time, block.end_time)
+                    const isCustomer   = block.block_type === 'customer_booking'
                     const bookingArray = Array.isArray(block.bookings) ? block.bookings : [block.bookings]
-                    const bData = bookingArray[0]
+                    const bData        = bookingArray[0]
 
                     return (
-                      <div key={block.id} className="group relative flex items-stretch gap-4 p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors">
-                        
+                      <div
+                        key={block.id}
+                        className="group relative flex items-stretch gap-4 p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors"
+                      >
                         {/* Time span */}
-                        <div className="w-24 flex-shrink-0 pt-0.5">
-                          <p className="text-sm font-medium text-slate-300 tabular-nums tracking-tight">{timeWindow}</p>
-                          <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wider">
-                            {(e.getTime() - s.getTime()) / (1000 * 60 * 60)} hrs
+                        <div className="w-48 flex-shrink-0 pt-0.5">
+                          <p className="text-sm font-medium text-slate-300 tabular-nums tracking-tight leading-snug">
+                            {timeWindow}
                           </p>
+                          <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wider">
+                            {durationHrs % 1 === 0 ? `${durationHrs} hrs` : `${durationHrs.toFixed(1)} hrs`}
+                          </p>
+                          {IS_DEV && (
+                            <p className="text-[9px] text-slate-700 mt-1 font-mono leading-tight">
+                              {new Date(block.start_time).toISOString().slice(0, 16)}Z
+                            </p>
+                          )}
                         </div>
 
                         {/* Divider */}
@@ -183,7 +201,7 @@ export default async function AdminCalendarPage() {
                               </span>
                             )}
                           </div>
-                          
+
                           {isCustomer && bData && (
                             <p className="text-sm font-light text-slate-300 mt-2">
                               <span className="text-slate-500 mr-2">PIC:</span> {bData.pic_name || '—'}
@@ -200,7 +218,6 @@ export default async function AdminCalendarPage() {
                             </p>
                           )}
                         </div>
-                        
                       </div>
                     )
                   })}

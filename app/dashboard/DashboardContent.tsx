@@ -3,16 +3,20 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
 import type { Profile, VerificationStatus, UserDocument, VerificationEvent, RequestKind } from '@/lib/supabase/types'
 import DocumentsPanel from './DocumentsPanel'
 import CustomerChatPanel from './CustomerChatPanel'
 import { createClient } from '@/lib/supabase/client'
 import { fmtTimestamp } from '@/lib/utils/format'
+import CustomerSidebar from './CustomerSidebar'
+import type { DashTab } from './CustomerSidebar'
 
 // ─── Shell types ─────────────────────────────────────────────────────────────
 
-type Tab = 'Dashboard' | 'My Profile' | 'Documents' | 'Messages' | 'Bookings' | 'Support'
+// local alias kept for backwards compat with existing tab‑content render logic
+type Tab = DashTab
 
 type Props = {
   user: User
@@ -581,17 +585,8 @@ function CustomerPanel({
 
 // ─── Dashboard shell ─────────────────────────────────────────────────────────
 
-const TABS: { label: Tab; icon: string }[] = [
-  { label: 'Dashboard',  icon: 'dashboard' },
-  { label: 'My Profile', icon: 'account_circle' },
-  { label: 'Documents',  icon: 'description' },
-  { label: 'Messages',   icon: 'chat' },
-  { label: 'Bookings',   icon: 'calendar_month' },
-  { label: 'Support',    icon: 'contact_support' },
-]
-
 export default function DashboardContent({ user, profile, documents, events }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>('Dashboard')
+  const [activeTab, setActiveTab] = useState<DashTab>('Dashboard')
   const router = useRouter()
   const supabase = createClient()
 
@@ -627,51 +622,16 @@ export default function DashboardContent({ user, profile, documents, events }: P
         <Image src="/Pilot&aircraftTwilight.webp" alt="Cessna 172 at twilight" fill className="object-cover" />
       </div>
 
-      {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-screen w-64 border-r border-white/5 bg-[#091421]/90 backdrop-blur-xl flex flex-col py-8 px-6 z-50">
-        <div className="mb-12">
-          <h1 className="text-xl font-serif italic text-white tracking-tight">The Blue Hour</h1>
-          <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-oz-blue/60 mt-1">{sidebarRole}</p>
-        </div>
-
-        <nav className="flex-1 space-y-2">
-          {TABS.map(tab => {
-            const isActive  = activeTab === tab.label
-            const showBadge = tab.label === 'Messages' && chatUnreadCount > 0
-            return (
-              <button
-                key={tab.label}
-                onClick={() => setActiveTab(tab.label)}
-                className={`w-full flex items-center gap-4 py-3 px-4 rounded-xl transition-all duration-300 ease-in-out font-sans ${
-                  isActive
-                    ? 'text-oz-blue font-bold border-r-2 border-oz-blue pr-4 bg-white/5'
-                    : 'text-oz-subtle hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>
-                  {tab.icon}
-                </span>
-                <span className="text-xs font-semibold uppercase tracking-widest flex-1 text-left">{tab.label}</span>
-                {showBadge && (
-                  <span className="flex items-center justify-center min-w-[18px] h-4 px-1 rounded-full bg-oz-blue text-[9px] font-bold text-oz-deep tabular-nums">
-                    {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </nav>
-
-        <div className="mt-auto pt-6 border-t border-white/5 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
-            <span className="material-symbols-outlined text-white/30 text-xl" style={{ fontVariationSettings: "'FILL' 0, 'wght' 200" }}>account_circle</span>
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-white truncate">{displayName}</p>
-            <p className="text-[10px] text-oz-subtle uppercase tracking-widest">{sidebarRole}</p>
-          </div>
-        </div>
-      </aside>
+      {/* Shared collapsible sidebar */}
+      <CustomerSidebar
+        displayName={displayName}
+        sidebarRole={sidebarRole}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        chatUnreadCount={chatUnreadCount}
+        isVerified={status === 'verified'}
+        onLogout={handleLogout}
+      />
 
       {/* Main */}
       <main className="ml-64 flex-1 flex flex-col relative w-[calc(100%-16rem)]">
@@ -680,9 +640,9 @@ export default function DashboardContent({ user, profile, documents, events }: P
             <button className="flex items-center justify-center text-oz-subtle hover:text-white transition-colors">
               <span className="material-symbols-outlined" style={{ fontVariationSettings: "'wght' 300" }}>notifications</span>
             </button>
-            <button className="flex items-center justify-center text-oz-subtle hover:text-white transition-colors">
+            <Link href={role === 'admin' ? '/admin/settings' : '/dashboard/settings'} className="flex items-center justify-center text-oz-subtle hover:text-white transition-colors">
               <span className="material-symbols-outlined" style={{ fontVariationSettings: "'wght' 300" }}>settings</span>
-            </button>
+            </Link>
             <div className="h-8 w-[1px] bg-white/5" />
             <button
               onClick={handleLogout}

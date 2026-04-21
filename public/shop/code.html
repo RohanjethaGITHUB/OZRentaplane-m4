@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Shop - The Blue Hour Aviation</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-container": "#0d2c42",
+                        "primary-fixed": "#d2e4fb",
+                        "background": "#111316",
+                        "tertiary-fixed": "#cce5ff",
+                        "primary-fixed-dim": "#b7c8de",
+                        "outline": "#8e9197",
+                        "on-secondary-fixed-variant": "#354958",
+                        "on-primary-fixed": "#0b1d2d",
+                        "on-error-container": "#ffdad6",
+                        "inverse-on-surface": "#2f3034",
+                        "on-background": "#e2e2e6",
+                        "on-tertiary-fixed-variant": "#2e4961",
+                        "on-tertiary-fixed": "#001d31",
+                        "surface-variant": "#333538",
+                        "surface-tint": "#b7c8de",
+                        "inverse-surface": "#e2e2e6",
+                        "outline-variant": "#44474c",
+                        "surface-dim": "#111316",
+                        "on-primary-container": "#8192a7",
+                        "surface-container-low": "#1a1c1f",
+                        "primary-container": "#1a2b3c",
+                        "secondary-fixed-dim": "#b4c9db",
+                        "surface-container-high": "#282a2d",
+                        "tertiary-fixed-dim": "#adcae6",
+                        "secondary-container": "#354958",
+                        "surface": "#111316",
+                        "on-secondary": "#1e3340",
+                        "secondary-fixed": "#d0e5f7",
+                        "primary": "#b7c8de",
+                        "inverse-primary": "#4f6073",
+                        "secondary": "#b4c9db",
+                        "on-tertiary-container": "#7894ae",
+                        "surface-container-lowest": "#0c0e11",
+                        "on-surface-variant": "#c4c6cd",
+                        "on-surface": "#e2e2e6",
+                        "on-secondary-container": "#a3b8c9",
+                        "on-tertiary": "#153349",
+                        "on-primary": "#213243",
+                        "surface-container-highest": "#333538",
+                        "on-error": "#690005",
+                        "error": "#ffb4ab",
+                        "on-secondary-fixed": "#081e2b",
+                        "tertiary": "#adcae6",
+                        "error-container": "#93000a",
+                        "surface-container": "#1e2023",
+                        "surface-bright": "#37393d",
+                        "on-primary-fixed-variant": "#38485a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Noto Serif", "serif"],
+                        "body": ["Manrope", "sans-serif"],
+                        "label": ["Manrope", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Manrope', sans-serif; }
+        h1, h2, h3, h4, h5, h6, .font-headline { font-family: 'Noto Serif', serif; }
+        
+        .haze-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+
+        .glass-panel {
+            background: rgba(26, 28, 31, 0.7);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+        
+        .ambient-shadow {
+            box-shadow: 0 20px 60px -10px rgba(183, 200, 222, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-surface-dim text-on-surface antialiased overflow-x-hidden selection:bg-primary selection:text-on-primary">
+<div class="haze-overlay"></div>
+<!-- TopNavBar -->
+<nav class="fixed top-6 left-1/2 -translate-x-1/2 w-[95%] max-w-7xl rounded-full px-8 py-4 border border-white/5 bg-slate-900/70 backdrop-blur-2xl dark:bg-[#111316]/80 shadow-[0_20px_50px_rgba(183,200,222,0.08)] flex justify-between items-center z-50 transition-all duration-300 hover:backdrop-blur-3xl hover:bg-white/5">
+<div class="text-2xl font-serif tracking-[0.2em] text-slate-100 uppercase">AERO CLUB</div>
+<div class="hidden md:flex items-center gap-8 font-serif tracking-tight text-lg dark:text-slate-100 headline-sm:tracking-widest">
+<a class="text-slate-400 hover:text-slate-100 transition-all duration-300" href="#">Home</a>
+<a class="text-slate-400 hover:text-slate-100 transition-all duration-300" href="#">Fleet</a>
+<a class="text-slate-400 hover:text-slate-100 transition-all duration-300" href="#">Requirements</a>
+<a class="text-slate-400 hover:text-slate-100 transition-all duration-300" href="#">Safety</a>
+<a class="text-slate-400 hover:text-slate-100 transition-all duration-300" href="#">Pricing</a>
+<a class="text-[#b7c8de] font-bold border-b border-[#b7c8de]/40 pb-1" href="#">Shop</a>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-slate-400 hover:text-slate-100 transition-colors">
+<span class="material-symbols-outlined">search</span>
+</button>
+<button class="bg-primary/10 text-primary hover:bg-primary/20 px-6 py-2 rounded-full font-label text-sm uppercase tracking-wider transition-all scale-95 active:scale-90 duration-200">
+                Book a Flight
+            </button>
+</div>
+</nav>
+<!-- SideNavBar (Mobile) - Hidden on desktop based on rules -->
+<!-- Content Canvas -->
+<main class="min-h-screen pt-32 pb-24">
+<!-- Hero Section -->
+<section class="relative w-full max-w-7xl mx-auto px-6 mb-24">
+<div class="relative h-[400px] rounded-[2rem] overflow-hidden bg-surface-container-low flex items-center">
+<div class="absolute inset-0 z-0">
+<img alt="Flat-lay arrangement of aviation checklist, pilot cap, keyring, and polo shirt resting on a dark surface beside a Cessna aircraft on an apron during serene blue hour lighting" class="w-full h-full object-cover opacity-40 mix-blend-luminosity" data-alt="Flat-lay arrangement of aviation checklist, pilot cap, keyring, and polo shirt resting on a dark surface beside a Cessna aircraft on an apron during serene blue hour lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDTLI5-Ba5TW1npxX9_0QOJnfDY8-y05a-lJfKqAiubJdGfDtM9wDPSyACPMBXZIvB4oDBnReLk2Mz5MAaGDR_2fiEHOxhn95pquvgeBy7wBZXkNqf0pSWshGjGr1tTqSujjILnOhYIVhvsQH9exGicda6cpUKO29kAafKWiIEfYXxa8ZUvXkf7DXTfHKI6LhA_LkUCod6LuAIdBfY4Vq-438yTEiLWiSngrR_WbY2lvwG0r93gjJDgp6AqpwCUpcgK7R2ynlooGNDz"/>
+<div class="absolute inset-0 bg-gradient-to-r from-surface-dim via-surface-dim/80 to-transparent"></div>
+</div>
+<div class="relative z-10 max-w-2xl px-12">
+<div class="flex items-center gap-3 mb-6">
+<span class="h-px w-8 bg-primary"></span>
+<span class="text-primary font-label text-sm uppercase tracking-[0.2em]">The Store</span>
+</div>
+<h1 class="font-headline text-5xl lg:text-6xl text-on-surface mb-6 leading-tight tracking-wide">
+                        Pilot Essentials &amp; <br/>Aero Club Gear
+                    </h1>
+<p class="font-body text-lg text-on-surface-variant leading-relaxed max-w-xl">
+                        Printed checklists, cockpit-ready resources, and simple branded gear for pilots, students, and flying enthusiasts.
+                    </p>
+</div>
+</div>
+</section>
+<!-- Main Content Grid -->
+<div class="max-w-7xl mx-auto px-6">
+<!-- Product Navigation Pill Filters -->
+<div class="flex flex-wrap items-center gap-3 mb-12">
+<button class="px-6 py-2.5 rounded-full bg-secondary-container text-on-secondary-container font-label text-sm uppercase tracking-wider transition-all">All</button>
+<button class="px-6 py-2.5 rounded-full border border-outline-variant/20 text-on-surface-variant hover:bg-white/5 hover:text-on-surface font-label text-sm uppercase tracking-wider transition-all">Checklists &amp; Documents</button>
+<button class="px-6 py-2.5 rounded-full border border-outline-variant/20 text-on-surface-variant hover:bg-white/5 hover:text-on-surface font-label text-sm uppercase tracking-wider transition-all">Apparel</button>
+<button class="px-6 py-2.5 rounded-full border border-outline-variant/20 text-on-surface-variant hover:bg-white/5 hover:text-on-surface font-label text-sm uppercase tracking-wider transition-all">Accessories</button>
+<button class="px-6 py-2.5 rounded-full border border-outline-variant/20 text-on-surface-variant hover:bg-white/5 hover:text-on-surface font-label text-sm uppercase tracking-wider transition-all">Pilot Gear</button>
+<button class="px-6 py-2.5 rounded-full border border-outline-variant/20 text-on-surface-variant hover:bg-white/5 hover:text-on-surface font-label text-sm uppercase tracking-wider transition-all">Gifts</button>
+</div>
+<!-- Main Product Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-32">
+<!-- Product Card 1 -->
+<div class="group relative bg-surface-container-low rounded-xl overflow-hidden ambient-shadow transition-all duration-500 hover:bg-surface-container border border-transparent hover:border-outline-variant/20">
+<div class="absolute top-4 left-4 z-10 px-3 py-1 rounded-full bg-surface-dim/80 backdrop-blur-md text-primary font-label text-xs uppercase tracking-wider border border-white/5">
+                        Checklists &amp; Documents
+                    </div>
+<div class="h-64 bg-surface-container-highest relative overflow-hidden">
+<img alt="Close-up of a laminated Cessna 172N printed flight checklist resting on a dark cockpit dashboard, soft blue hour lighting" class="w-full h-full object-cover opacity-70 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" data-alt="Close-up of a laminated Cessna 172N printed flight checklist resting on a dark cockpit dashboard, soft blue hour lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDPEhIc9YEwm-TFFk5GsGZKju5-NOnWgvmpV2VCVSwQohCE-xhFKdy--dAm_RMxdoKMiwoLaTTYFWG3rGdsU95I8ONE2gh7VBn-2vkhfG9Ip0vM-4U6xlGRqx7GXnBWuwFsChCFcgUfM4bUbzGyBEFkvLAThsKOKCZNinRdo7jl9l-A38dKV3wpvbPbp2QrSySGU4YhQE7FKlvo8ZCKDING7ul-q23joAKqKaaTqTCSyzxzNfIPqVnyp-N3MdpoYA3CjbykebYo07z3"/>
+</div>
+<div class="p-6">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline text-xl text-on-surface">Cessna 172N Printed Checklist</h3>
+<span class="font-label text-lg text-primary">$24.95</span>
+</div>
+<p class="font-body text-sm text-on-surface-variant mb-6">Pickup available</p>
+<button class="w-full py-3 rounded-full bg-gradient-to-r from-primary to-primary-container text-on-primary font-label text-sm uppercase tracking-wider hover:brightness-110 transition-all">
+                            Buy Now
+                        </button>
+</div>
+</div>
+<!-- Product Card 2 -->
+<div class="group relative bg-surface-container-low rounded-xl overflow-hidden ambient-shadow transition-all duration-500 hover:bg-surface-container border border-transparent hover:border-outline-variant/20">
+<div class="absolute top-4 left-4 z-10 px-3 py-1 rounded-full bg-surface-dim/80 backdrop-blur-md text-primary font-label text-xs uppercase tracking-wider border border-white/5">
+                        Apparel
+                    </div>
+<div class="h-64 bg-surface-container-highest relative overflow-hidden">
+<img alt="Dark navy blue polo shirt neatly folded on a minimalist surface, subtle aviation logo embroidery visible, moody directional lighting" class="w-full h-full object-cover opacity-70 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700 grayscale mix-blend-luminosity" data-alt="Dark navy blue polo shirt neatly folded on a minimalist surface, subtle aviation logo embroidery visible, moody directional lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAi0ahLUCyByg_S2Gt5qJX_8bW4r2GkMd1zkTK5VWc-1iXZsZcCxLfqK6VNcNxdky33CWhbWvpSfgtmbmw6VSc_9IsA3rR5q59jr3CUAIyMve7HB2l4y6JyFbV_ottx5NASe-h0eWAvPVueh3ahCjM4kTf0kwrmsMuTyufLivdgbrbQikPtvjFt5lj_nT26xLDfE2J26jxfdT3B1BggXLo7FZNN-Xb5pzBuLipYFSoYES6DMN1QNaJ2NSNAxNSkHAWur_bJHrYrBKXT"/>
+</div>
+<div class="p-6">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline text-xl text-on-surface">Aero Club Polo Shirt</h3>
+<span class="font-label text-lg text-primary">$49.95</span>
+</div>
+<p class="font-body text-sm text-on-surface-variant mb-6">Sizes coming soon</p>
+<button class="w-full py-3 rounded-full border border-outline-variant/20 text-on-surface hover:bg-white/5 font-label text-sm uppercase tracking-wider transition-all">
+                            Coming Soon
+                        </button>
+</div>
+</div>
+<!-- Product Card 3 -->
+<div class="group relative bg-surface-container-low rounded-xl overflow-hidden ambient-shadow transition-all duration-500 hover:bg-surface-container border border-transparent hover:border-outline-variant/20">
+<div class="absolute top-4 left-4 z-10 px-3 py-1 rounded-full bg-surface-dim/80 backdrop-blur-md text-primary font-label text-xs uppercase tracking-wider border border-white/5">
+                        Accessories
+                    </div>
+<div class="h-64 bg-surface-container-highest relative overflow-hidden">
+<div class="w-full h-full bg-gradient-to-br from-surface-container-high to-surface-container-lowest flex items-center justify-center">
+<span class="material-symbols-outlined text-6xl text-primary/40">key</span>
+</div>
+</div>
+<div class="p-6">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline text-xl text-on-surface">Aviation Keyring</h3>
+<span class="font-label text-lg text-primary">$12.95</span>
+</div>
+<p class="font-body text-sm text-on-surface-variant mb-6">Postage available</p>
+<button class="w-full py-3 rounded-full bg-gradient-to-r from-primary to-primary-container text-on-primary font-label text-sm uppercase tracking-wider hover:brightness-110 transition-all">
+                            Buy Now
+                        </button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="w-full pt-20 pb-10 px-12 border-t border-white/5 bg-[#111316] dark:bg-[#111316] flex flex-col md:flex-row justify-between items-end gap-8 text-[#b7c8de] font-serif text-sm tracking-wide">
+<div class="font-serif text-lg text-slate-100">THE BLUE HOUR</div>
+<div class="flex gap-6">
+<a class="text-slate-500 hover:text-white transition-colors duration-500" href="#">Fleet Status</a>
+<a class="text-slate-500 hover:text-white transition-colors duration-500" href="#">Pilot Portal</a>
+<a class="text-slate-500 hover:text-white transition-colors duration-500" href="#">Terms of Service</a>
+<a class="text-slate-500 hover:text-white transition-colors duration-500" href="#">Safety Report</a>
+</div>
+<div class="text-slate-400">© 2024 THE BLUE HOUR AVIATION. ALL RIGHTS RESERVED.</div>
+</footer>
+</body></html>

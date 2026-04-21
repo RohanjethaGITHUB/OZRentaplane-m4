@@ -350,13 +350,15 @@ export type FlightRecordAttachment = {
 // ─── Customer calendar block (safe RPC result) ────────────────────────────────
 // Returned by get_customer_aircraft_calendar_blocks().
 // Contains only calendar-safe fields — no internal_reason, no admin metadata.
+// `label` is already resolved by the SQL function (never exposes internal_reason).
 
 export type CustomerCalendarBlock = {
-  block_id:     string
-  start_time:   string
-  end_time:     string
-  block_type:   string
-  public_label: string | null
+  block_id:    string
+  aircraft_id: string
+  start_time:  string
+  end_time:    string
+  label:       string
+  block_type:  string
 }
 
 // ─── Availability ─────────────────────────────────────────────────────────────

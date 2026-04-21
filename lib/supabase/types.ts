@@ -16,6 +16,7 @@ export type Profile = {
   email: string | null
   role: Role
   verification_status: VerificationStatus
+  pilot_arn: string | null   // Aviation Reference Number — set after verification
   created_at: string
   updated_at: string
 }
@@ -29,6 +30,7 @@ export type UserDocument = {
   status: DocumentStatus
   review_notes: string | null
   uploaded_at: string
+  expiry_date: string | null   // YYYY-MM-DD — optional document expiry
   reviewed_at: string | null
   created_at: string
   updated_at: string

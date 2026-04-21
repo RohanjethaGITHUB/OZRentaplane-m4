@@ -5,6 +5,8 @@ import VerdictPanel from '../VerdictPanel'
 import OpenFileButton from '../OpenFileButton'
 import CollapsibleSection from '../CollapsibleSection'
 import AdminChatPanel from '../AdminChatPanel'
+import PilotMetadataEditor from '../PilotMetadataEditor'
+import DocumentExpiryEditor from '../DocumentExpiryEditor'
 import type { UserDocument, VerificationEvent } from '@/lib/supabase/types'
 
 const DOC_META: Record<string, { label: string; icon: string }> = {
@@ -53,7 +55,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
   // Fetch customer profile
   const { data: customerProfile } = await supabase
     .from('profiles')
-    .select('id, full_name, verification_status, created_at, updated_at, reviewed_at, admin_review_note')
+    .select('id, full_name, email, verification_status, created_at, updated_at, reviewed_at, admin_review_note, pilot_arn')
     .eq('id', params.id)
     .eq('role', 'customer')
     .single()
@@ -131,11 +133,19 @@ export default async function AdminUserPage({ params }: { params: { id: string }
 
             <div className="flex flex-wrap gap-10">
               <div>
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Account</p>
+                <p className="text-blue-200 text-sm">{customerProfile.email || '—'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Pilot ARN</p>
+                <PilotMetadataEditor customerId={params.id} initialArn={customerProfile.pilot_arn} />
+              </div>
+              <div>
                 <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Submission Date</p>
                 <p className="text-blue-200 text-sm">{submittedAt}</p>
               </div>
               <div>
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Documents Uploaded</p>
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Documents</p>
                 <p className="text-blue-200 text-sm">{(documents ?? []).length} / 3</p>
               </div>
             </div>
@@ -317,6 +327,13 @@ export default async function AdminUserPage({ params }: { params: { id: string }
                       </div>
                       <OpenFileButton storagePath={doc.storage_path} fileName={doc.file_name} />
                     </div>
+
+                    <DocumentExpiryEditor 
+                      documentId={doc.id} 
+                      customerId={params.id} 
+                      initialExpiry={doc.expiry_date} 
+                      documentType={doc.document_type} 
+                    />
 
                     {/* Full-card overlay link — sits above card content, below the button */}
                     <OpenFileButton
