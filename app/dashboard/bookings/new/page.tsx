@@ -6,7 +6,7 @@ import BookingRequestForm from './BookingRequestForm'
 import type { User } from '@supabase/supabase-js'
 import type { Profile, UserDocument } from '@/lib/supabase/types'
 
-export const metadata = { title: 'Request a Booking | Pilot Dashboard' }
+export const metadata = { title: 'Book a Flight | Pilot Dashboard' }
 
 // ── Helper: check document validity ─────────────────────────────────────────
 type DocGateResult =
@@ -25,7 +25,6 @@ function checkDocumentGate(documents: UserDocument[]): DocGateResult {
   if (licence.status === 'rejected') return { ok: false, reason: 'rejected' }
   if (medical.status === 'rejected') return { ok: false, reason: 'rejected' }
 
-  // Check expiry (only if expiry_date is set)
   if (licence.expiry_date && licence.expiry_date < today) return { ok: false, reason: 'expired_licence' }
   if (medical.expiry_date && medical.expiry_date < today) return { ok: false, reason: 'expired_medical' }
 
@@ -34,23 +33,21 @@ function checkDocumentGate(documents: UserDocument[]): DocGateResult {
 
 type GateReason = 'missing_licence' | 'missing_medical' | 'expired_licence' | 'expired_medical' | 'rejected' | 'pending'
 
-function gateMessage(reason: GateReason): {
-  title: string; body: string; icon: string; color: string
-} {
+function gateMessage(reason: GateReason): { title: string; body: string } {
   switch (reason) {
     case 'missing_licence':
-      return { title: 'Pilot Licence Required', body: 'Upload your pilot licence to request a booking.', icon: 'description', color: 'amber' }
+      return { title: 'Pilot Licence Required', body: 'Upload your pilot licence to request a booking.' }
     case 'missing_medical':
-      return { title: 'Medical Certificate Required', body: 'Upload your medical certificate to request a booking.', icon: 'medical_information', color: 'amber' }
+      return { title: 'Medical Certificate Required', body: 'Upload your medical certificate to request a booking.' }
     case 'expired_licence':
-      return { title: 'Pilot Licence Expired', body: 'One or more required pilot documents has expired. Please upload updated documents before requesting a booking.', icon: 'event_busy', color: 'red' }
+      return { title: 'Pilot Licence Expired', body: 'Your pilot licence has expired. Please upload an updated document.' }
     case 'expired_medical':
-      return { title: 'Medical Certificate Expired', body: 'Your medical certificate has expired. Please upload an updated document before requesting a booking.', icon: 'event_busy', color: 'red' }
+      return { title: 'Medical Certificate Expired', body: 'Your medical certificate has expired. Please upload an updated document.' }
     case 'rejected':
-      return { title: 'Document Issue', body: 'One or more documents was rejected. Please contact the operations team or re-upload.', icon: 'cancel', color: 'red' }
+      return { title: 'Document Issue', body: 'One or more documents was rejected. Please contact the operations team or re-upload.' }
     case 'pending':
     default:
-      return { title: 'Verification Pending', body: 'Your documents are under review. Booking access will be enabled once approved.', icon: 'verified_user', color: 'blue' }
+      return { title: 'Verification Pending', body: 'Your documents are under review. Booking access will be enabled once approved.' }
   }
 }
 
@@ -112,10 +109,10 @@ export default async function NewBookingPage() {
 
   const docGate = checkDocumentGate((documents ?? []) as UserDocument[])
 
-  // ── Fetch aircraft ────────────────────────────────────────────────────────
+  // ── Fetch aircraft (expanded fields for info bar + pricing) ───────────────
   const { data: aircraft } = await supabase
     .from('aircraft')
-    .select('id, registration, status')
+    .select('id, registration, aircraft_type, display_name, status, default_hourly_rate')
     .eq('registration', 'VH-KZG')
     .single()
 
@@ -132,108 +129,30 @@ export default async function NewBookingPage() {
   }
 
   const typedProfile = profile as Profile | null
+  const eligibilityBlocked = !typedProfile?.full_name || !typedProfile?.pilot_arn || !docGate.ok
+
+  // Build eligibility warning lines for display in the form
+  const eligibilityWarnings: string[] = []
+  if (!typedProfile?.full_name) eligibilityWarnings.push('Your profile name is missing. Please update your profile.')
+  if (!typedProfile?.pilot_arn) eligibilityWarnings.push('Your Aviation Reference Number has not been recorded. Please contact operations.')
+  if (!docGate.ok) eligibilityWarnings.push(gateMessage(docGate.reason).body)
+
+  // Standard hourly rate — use DB value when confirmed; override to $320 in the interim
+  const BOOKING_HOURLY_RATE = 320
 
   return (
     <CustomerBookingShell user={user as User} profile={typedProfile}>
-      <div className="pt-28 px-8 md:px-12 xl:px-16 pb-16 w-full max-w-5xl mx-auto">
-
-        <header className="mb-10">
-          <Link href="/dashboard/bookings" className="inline-flex items-center gap-1 text-oz-blue hover:text-blue-300 text-sm mb-5 transition-colors">
-            <span className="material-symbols-outlined text-base">arrow_back</span>My Bookings
-          </Link>
-          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-oz-blue/60 mb-2">Fleet Booking</p>
-          <h2 className="text-3xl md:text-4xl font-serif italic tracking-tight text-white">Request a Booking</h2>
-          <p className="text-oz-muted text-sm font-light mt-1">
-            Submit a flight request for VH-KZG. Booking requests are reviewed by the operations team.
-          </p>
-          {aircraft.status !== 'available' && (
-            <div className="mt-4 flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 rounded-xl px-5 py-3">
-              <span className="material-symbols-outlined text-amber-400 text-lg">warning</span>
-              <p className="text-sm text-amber-300">
-                VH-KZG is currently <strong>{aircraft.status}</strong>. Requests may be delayed.
-              </p>
-            </div>
-          )}
-        </header>
-
-        {/* ── Booking Eligibility Section ── */}
-        <section className="mb-12">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-oz-blue/70 mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined text-sm">verified_user</span> Pilot Verification Status
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            
-            {/* Aircraft */}
-            <div className="bg-[#0c121e]/60 border border-white/5 rounded-xl p-4 flex items-start gap-3">
-              <span className="material-symbols-outlined text-oz-blue mt-0.5" style={{ fontVariationSettings: "'wght' 300" }}>flight</span>
-              <div>
-                <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1">Aircraft</p>
-                <p className="text-xs text-white font-medium">VH-KZG — Cessna 172</p>
-              </div>
-            </div>
-
-            {/* Pilot Name */}
-            <div className={`bg-[#0c121e]/60 border rounded-xl p-4 flex items-start gap-3 ${!typedProfile?.full_name ? 'border-red-500/30' : 'border-white/5'}`}>
-              <span className={`material-symbols-outlined mt-0.5 ${!typedProfile?.full_name ? 'text-red-400' : 'text-oz-blue'}`} style={{ fontVariationSettings: "'wght' 300" }}>
-                {!typedProfile?.full_name ? 'warning' : 'account_circle'}
-              </span>
-              <div>
-                <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1">Pilot Name</p>
-                <p className={`text-xs font-medium ${!typedProfile?.full_name ? 'text-red-300' : 'text-white'}`}>
-                  {typedProfile?.full_name || 'Missing Profile Name'}
-                </p>
-              </div>
-            </div>
-
-            {/* ARN */}
-            <div className={`bg-[#0c121e]/60 border rounded-xl p-4 flex items-start gap-3 ${!typedProfile?.pilot_arn ? 'border-amber-500/30' : 'border-white/5'}`}>
-              <span className={`material-symbols-outlined mt-0.5 ${!typedProfile?.pilot_arn ? 'text-amber-400' : 'text-oz-blue'}`} style={{ fontVariationSettings: "'wght' 300" }}>
-                {!typedProfile?.pilot_arn ? 'info' : 'badge'}
-              </span>
-              <div>
-                <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1">Pilot ARN</p>
-                <p className={`text-xs font-medium font-mono ${!typedProfile?.pilot_arn ? 'text-amber-300' : 'text-white'}`}>
-                  {typedProfile?.pilot_arn || 'Missing ARN'}
-                </p>
-              </div>
-            </div>
-
-            {/* Documents */}
-            <div className={`bg-[#0c121e]/60 border rounded-xl p-4 flex items-start gap-3 ${!docGate.ok ? 'border-red-500/30' : 'border-white/5'}`}>
-              <span className={`material-symbols-outlined mt-0.5 ${!docGate.ok ? 'text-red-400' : 'text-oz-blue'}`} style={{ fontVariationSettings: "'wght' 300" }}>
-                {!docGate.ok ? 'event_busy' : 'description'}
-              </span>
-              <div>
-                <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1">Documents</p>
-                <p className={`text-xs font-medium ${!docGate.ok ? 'text-red-300' : 'text-white'}`}>
-                  {!docGate.ok ? gateMessage(docGate.reason).title : 'Valid & Current'}
-                </p>
-              </div>
-            </div>
-            
-          </div>
-          
-          {/* Eligibility Warnings */}
-          {(!typedProfile?.pilot_arn || !docGate.ok || !typedProfile?.full_name) && (
-            <div className="mt-4 bg-amber-500/10 border border-amber-500/20 rounded-xl px-5 py-4 flex items-start gap-3">
-              <span className="material-symbols-outlined text-amber-400 mt-0.5">notification_important</span>
-              <div>
-                <p className="text-sm font-bold text-amber-400 mb-1">Booking Access Suspended</p>
-                <ul className="text-xs text-amber-300/80 space-y-1 list-disc list-inside">
-                  {!typedProfile?.full_name && <li>Your profile name is missing. Please update your profile.</li>}
-                  {!typedProfile?.pilot_arn && <li>Your Aviation Reference Number has not been recorded yet. Please contact operations.</li>}
-                  {!docGate.ok && <li>{gateMessage(docGate.reason).body} <Link href="/dashboard" className="underline hover:text-amber-200">Manage Documents</Link></li>}
-                </ul>
-              </div>
-            </div>
-          )}
-        </section>
-
+      <div className="pt-28 px-6 md:px-10 xl:px-14 pb-16 w-full max-w-7xl mx-auto">
         <BookingRequestForm
           aircraftId={aircraft.id}
+          aircraftRegistration={aircraft.registration}
+          aircraftType={aircraft.display_name || aircraft.aircraft_type}
+          aircraftStatus={aircraft.status}
+          hourlyRate={BOOKING_HOURLY_RATE}
           picName={typedProfile?.full_name ?? null}
           picArn={typedProfile?.pilot_arn ?? null}
-          eligibilityBlocked={!typedProfile?.full_name || !typedProfile?.pilot_arn || !docGate.ok}
+          eligibilityBlocked={eligibilityBlocked}
+          eligibilityWarnings={eligibilityWarnings}
         />
       </div>
     </CustomerBookingShell>
