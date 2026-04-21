@@ -142,7 +142,7 @@ export default function HowItWorksPage() {
         />
         {/* Gradient veils — dark at bottom so heading stays readable */}
         <div className="absolute inset-0 bg-gradient-to-b from-[#091421]/10 via-[#091421]/30 to-[#091421]" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#091421]/50 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#040f1e]/95 via-[#040f1e]/55 to-[#040f1e]/10" />
 
         <div className="relative z-10 max-w-[1400px] mx-auto w-full">
           <StaggerContainer staggerDelay={0.18}>

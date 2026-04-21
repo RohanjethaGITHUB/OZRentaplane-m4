@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Book a Flight - OZRentAPlane</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&amp;family=Noto+Serif:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-bright": "#373942",
+                        "outline": "#8d90a0",
+                        "on-primary-fixed": "#00174b",
+                        "background": "#11131b",
+                        "tertiary": "#ffb596",
+                        "on-tertiary": "#581e00",
+                        "on-secondary-container": "#a9bad3",
+                        "primary-fixed": "#dbe1ff",
+                        "surface-tint": "#b4c5ff",
+                        "tertiary-fixed-dim": "#ffb596",
+                        "secondary-fixed": "#d3e4fe",
+                        "surface-container-highest": "#32343d",
+                        "on-surface-variant": "#c3c6d7",
+                        "error-container": "#93000a",
+                        "secondary-container": "#3a4a5f",
+                        "surface-container-high": "#282a32",
+                        "on-background": "#e1e2ed",
+                        "surface-dim": "#11131b",
+                        "on-tertiary-fixed": "#360f00",
+                        "tertiary-fixed": "#ffdbcd",
+                        "surface-container-lowest": "#0c0e16",
+                        "inverse-on-surface": "#2e3039",
+                        "surface-container-low": "#191b23",
+                        "surface-container": "#1d1f27",
+                        "error": "#ffb4ab",
+                        "on-secondary": "#213145",
+                        "inverse-surface": "#e1e2ed",
+                        "primary-container": "#2563eb",
+                        "on-tertiary-container": "#ffede6",
+                        "on-error": "#690005",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "on-tertiary-fixed-variant": "#7d2d00",
+                        "tertiary-container": "#bc4800",
+                        "outline-variant": "#434655",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "on-error-container": "#ffdad6",
+                        "surface": "#11131b",
+                        "primary": "#b4c5ff",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "on-primary": "#002a78",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "secondary": "#b7c8e1",
+                        "on-surface": "#e1e2ed",
+                        "on-primary-container": "#eeefff",
+                        "surface-variant": "#32343d",
+                        "on-secondary-fixed": "#0b1c30",
+                        "inverse-primary": "#0053db"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin": "24px",
+                        "gutter": "20px",
+                        "md": "16px",
+                        "base": "4px",
+                        "xs": "8px",
+                        "xl": "32px",
+                        "sm": "12px",
+                        "lg": "24px"
+                    },
+                    "fontFamily": {
+                        "section-heading": ["Noto Serif"],
+                        "data-tabular": ["Inter"],
+                        "display-serif": ["Noto Serif"],
+                        "body-ui": ["Inter"],
+                        "label-caps": ["Inter"]
+                    },
+                    "fontSize": {
+                        "section-heading": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                        "data-tabular": ["13px", {"lineHeight": "1", "letterSpacing": "0.01em", "fontWeight": "500"}],
+                        "display-serif": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-ui": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "label-caps": ["11px", {"lineHeight": "1", "letterSpacing": "0.08em", "fontWeight": "700"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-ui antialiased min-h-screen flex">
+<!-- SideNavBar -->
+<nav class="hidden md:flex flex-col h-screen left-0 w-64 border-r border-slate-800 bg-slate-900/90 backdrop-blur-lg py-6 space-y-2 shadow-xl shadow-black z-50 sticky top-0">
+<div class="px-6 mb-8">
+<h1 class="text-lg font-serif font-bold text-blue-500">OZRentAPlane</h1>
+<p class="font-serif text-slate-200 text-sm">Flight Operations</p>
+</div>
+<ul class="flex flex-col flex-1 gap-1">
+<li>
+<a class="flex items-center px-6 py-3 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all duration-200 ease-in-out active:translate-x-1 font-serif text-slate-200" href="#">
+<span class="material-symbols-outlined mr-4">dashboard</span>
+                    Dashboard
+                </a>
+</li>
+<li>
+<a class="flex items-center px-6 py-3 text-blue-400 font-bold border-r-4 border-blue-500 bg-blue-500/10 transition-all duration-200 ease-in-out active:translate-x-1 font-serif text-slate-200" href="#">
+<span class="material-symbols-outlined mr-4" style="font-variation-settings: 'FILL' 1;">flight_takeoff</span>
+                    Book a Flight
+                </a>
+</li>
+<li>
+<a class="flex items-center px-6 py-3 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all duration-200 ease-in-out active:translate-x-1 font-serif text-slate-200" href="#">
+<span class="material-symbols-outlined mr-4">calendar_month</span>
+                    My Bookings
+                </a>
+</li>
+<li>
+<a class="flex items-center px-6 py-3 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all duration-200 ease-in-out active:translate-x-1 font-serif text-slate-200" href="#">
+<span class="material-symbols-outlined mr-4">description</span>
+                    Documents
+                </a>
+</li>
+<li>
+<a class="flex items-center px-6 py-3 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all duration-200 ease-in-out active:translate-x-1 font-serif text-slate-200" href="#">
+<span class="material-symbols-outlined mr-4">help_outline</span>
+                    Help
+                </a>
+</li>
+</ul>
+<div class="mt-auto px-6">
+<a class="flex items-center py-3 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all duration-200 ease-in-out active:translate-x-1 font-serif text-slate-200" href="#">
+<span class="material-symbols-outlined mr-4">person</span>
+                Account
+            </a>
+</div>
+</nav>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col min-h-screen">
+<!-- TopNavBar (Mobile) -->
+<header class="md:hidden flex justify-between items-center w-full px-6 py-3 bg-slate-950/80 backdrop-blur-md shadow-2xl shadow-black/50 border-b border-slate-800 sticky top-0 z-40">
+<h1 class="text-xl font-serif font-bold text-white tracking-widest">OZRentAPlane</h1>
+<div class="flex gap-4">
+<button class="text-slate-400 hover:text-slate-100 hover:bg-slate-800/40 transition-colors cursor-pointer active:opacity-80 p-2 rounded-full"><span class="material-symbols-outlined">notifications</span></button>
+<button class="text-slate-400 hover:text-slate-100 hover:bg-slate-800/40 transition-colors cursor-pointer active:opacity-80 p-2 rounded-full"><span class="material-symbols-outlined">settings</span></button>
+</div>
+</header>
+<div class="p-margin max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start">
+<!-- Left Canvas -->
+<div class="lg:col-span-8 flex flex-col gap-lg">
+<!-- Page Header & Progress -->
+<div class="flex flex-col gap-md mb-xs">
+<div>
+<h1 class="font-display-serif text-display-serif text-on-surface mb-base">Book a Flight</h1>
+<p class="font-body-ui text-body-ui text-on-surface-variant">Choose your preferred time and we'll confirm availability before your booking is final.</p>
+</div>
+<!-- Progress Bar -->
+<div class="flex items-center gap-2 mt-sm">
+<div class="flex items-center gap-xs">
+<div class="w-6 h-6 rounded-full bg-surface-variant text-on-surface-variant flex items-center justify-center text-label-caps font-label-caps"><span class="material-symbols-outlined text-[14px]">check</span></div>
+<span class="text-label-caps font-label-caps text-on-surface-variant">Requirements</span>
+</div>
+<div class="h-px bg-surface-variant flex-1 mx-2"></div>
+<div class="flex items-center gap-xs">
+<div class="w-6 h-6 rounded-full bg-primary-container text-on-primary-container border border-primary-container flex items-center justify-center text-label-caps font-label-caps">2</div>
+<span class="text-label-caps font-label-caps text-on-surface font-bold">Flight Time</span>
+</div>
+<div class="h-px bg-surface-variant flex-1 mx-2"></div>
+<div class="flex items-center gap-xs opacity-40">
+<div class="w-6 h-6 rounded-full border border-outline text-outline flex items-center justify-center text-label-caps font-label-caps">3</div>
+<span class="text-label-caps font-label-caps text-outline">Review &amp; Submit</span>
+</div>
+</div>
+</div>
+<!-- Section 1: Pilot & Aircraft Info Bar -->
+<div class="bg-surface-dim rounded border border-surface-variant/50 p-sm flex flex-wrap items-center justify-between gap-sm shadow-none opacity-80">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-surface-variant flex items-center justify-center text-on-surface-variant text-sm">
+<span class="material-symbols-outlined text-[18px]">person</span>
+</div>
+<div>
+<p class="font-label-caps text-[9px] text-on-surface-variant uppercase">Pilot</p>
+<p class="font-data-tabular text-xs text-on-surface mt-0.5">Rohan</p>
+</div>
+<div class="h-6 w-px bg-surface-variant mx-1 hidden sm:block"></div>
+<div class="hidden sm:block">
+<p class="font-label-caps text-[9px] text-on-surface-variant uppercase">Licence No</p>
+<p class="font-data-tabular text-xs text-on-surface mt-0.5">1234567</p>
+</div>
+</div>
+<div class="flex items-center gap-sm bg-surface-container-low p-2 rounded border border-surface-variant/50">
+<div>
+<p class="font-label-caps text-[9px] text-on-surface-variant uppercase">Aircraft</p>
+<div class="flex items-center gap-1.5 mt-0.5">
+<span class="font-data-tabular text-xs text-on-surface">VH-KZG</span>
+<span class="text-[10px] text-outline bg-surface-bright px-1 py-0.5 rounded">Cessna 172N</span>
+</div>
+</div>
+<div class="h-6 w-px bg-surface-variant mx-1"></div>
+<div>
+<p class="font-label-caps text-[9px] text-on-surface-variant uppercase">Hourly Rate</p>
+<p class="font-data-tabular text-xs text-primary mt-0.5">$320/hr</p>
+</div>
+</div>
+</div>
+<!-- Section 2: Choose your flight time -->
+<div class="bg-surface-container-high rounded-xl border border-primary-container/80 shadow-[0_0_20px_rgba(37,99,235,0.15)] p-xl relative overflow-hidden transition-all">
+<div class="absolute top-0 left-0 w-1.5 h-full bg-primary-container shadow-[0_0_10px_rgba(37,99,235,0.5)]"></div>
+<span class="text-[11px] font-bold text-primary tracking-widest uppercase mb-1 block">Step 2 — Flight Time</span>
+<h2 class="font-section-heading text-2xl text-on-surface mb-1">Choose your flight time</h2>
+<p class="font-body-ui text-sm text-on-surface-variant mb-xl">Start by selecting your departure and estimated return time.</p>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-gutter mb-xl">
+<div class="flex flex-col gap-sm">
+<label class="font-label-caps text-label-caps text-on-surface-variant">DEPARTURE</label>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline text-[20px] group-hover:text-primary transition-colors">calendar_today</span>
+<input class="w-full bg-surface-dim border border-surface-variant rounded-lg py-3.5 pl-12 pr-4 font-data-tabular text-base text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/30 hover:border-primary/50 outline-none transition-all shadow-inner" type="text" value="27 Oct 2026, 9:00 AM"/>
+</div>
+</div>
+<div class="flex flex-col gap-sm">
+<label class="font-label-caps text-label-caps text-on-surface-variant">ESTIMATED RETURN</label>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline text-[20px] group-hover:text-primary transition-colors">calendar_today</span>
+<input class="w-full bg-surface-dim border border-surface-variant rounded-lg py-3.5 pl-12 pr-4 font-data-tabular text-base text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/30 hover:border-primary/50 outline-none transition-all shadow-inner" type="text" value="27 Oct 2026, 2:30 PM"/>
+</div>
+</div>
+</div>
+<!-- Availability Timeline -->
+<div class="mt-lg border-t border-surface-variant/50 pt-lg">
+<div class="flex flex-col gap-1 mb-md">
+<div class="flex justify-between items-end">
+<h3 class="font-label-caps text-label-caps text-on-surface-variant">AIRCRAFT AVAILABILITY: VH-KZG</h3>
+<div class="flex gap-4">
+<div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-green-500/80"></div><span class="text-[10px] text-outline">Available</span></div>
+<div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-red-500/80"></div><span class="text-[10px] text-outline">Maintenance</span></div>
+<div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-primary-container"></div><span class="text-[10px] text-outline">Selected</span></div>
+</div>
+</div>
+<p class="font-body-ui text-sm text-on-surface-variant">Review aircraft availability for your selected time.</p>
+</div>
+<div class="relative h-12 bg-surface-dim border border-surface-variant rounded flex overflow-hidden">
+<!-- 06:00 - 08:00 Outside Hours -->
+<div class="h-full w-[10%] bg-surface-variant/30 border-r border-surface-variant/50 relative group">
+<div class="absolute inset-0 pattern-diagonal-lines opacity-20"></div>
+</div>
+<!-- 08:00 - 09:00 Available -->
+<div class="h-full w-[5%] bg-green-500/10 border-r border-green-500/20"></div>
+<!-- 09:00 - 14:30 Selected -->
+<div class="h-full w-[35%] bg-primary-container/20 border-x-2 border-primary-container relative">
+<div class="absolute inset-0 bg-primary-container/10"></div>
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-primary-fixed drop-shadow-md">YOUR FLIGHT</div>
+</div>
+<!-- 14:30 - 16:00 Available -->
+<div class="h-full w-[15%] bg-green-500/10 border-r border-green-500/20"></div>
+<!-- 16:00 - 18:00 Maintenance -->
+<div class="h-full w-[20%] bg-red-500/10 border-r border-red-500/30 relative flex items-center justify-center">
+<span class="text-[10px] font-bold text-error uppercase tracking-wider">Maintenance</span>
+</div>
+<!-- 18:00 - 20:00 Available -->
+<div class="h-full w-[15%] bg-green-500/10"></div>
+</div>
+<!-- Timeline Labels -->
+<div class="flex justify-between mt-1 px-1">
+<span class="text-[10px] text-outline">06:00</span>
+<span class="text-[10px] text-outline">08:00</span>
+<span class="text-[10px] text-on-surface font-bold">09:00</span>
+<span class="text-[10px] text-outline">12:00</span>
+<span class="text-[10px] text-on-surface font-bold">14:30</span>
+<span class="text-[10px] text-outline">16:00</span>
+<span class="text-[10px] text-outline">18:00</span>
+<span class="text-[10px] text-outline">20:00</span>
+</div>
+</div>
+</div>
+<!-- Section 3: Review & Submit -->
+<div class="grid grid-cols-1 gap-md">
+<!-- Flight Notes -->
+<div class="bg-surface-container rounded-xl border border-surface-variant p-md shadow-sm">
+<div class="flex items-center gap-xs mb-sm">
+<span class="material-symbols-outlined text-on-surface-variant">edit_note</span>
+<h3 class="font-section-heading text-base font-semibold text-on-surface">Flight Notes</h3>
+</div>
+<textarea class="w-full h-24 bg-surface-dim border border-surface-variant rounded-md p-3 font-body-ui text-body-ui text-on-surface focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none resize-none" placeholder="Add any specific requests, route intentions, or passenger details here..."></textarea>
+</div>
+<!-- Before You Submit -->
+<div class="bg-surface-container-high rounded-xl border border-surface-variant p-md shadow-sm">
+<h3 class="font-section-heading text-base font-semibold text-on-surface mb-sm">Before You Submit</h3>
+<div class="flex flex-col gap-3">
+<label class="flex items-start gap-3 cursor-pointer group">
+<input class="mt-1 w-4 h-4 rounded border-outline bg-surface-dim text-primary-container focus:ring-primary-container focus:ring-offset-surface-container-high" type="checkbox"/>
+<span class="font-body-ui text-sm text-on-surface-variant group-hover:text-on-surface transition-colors">I confirm that I hold a valid medical certificate and will ensure it is carried during the flight.</span>
+</label>
+<label class="flex items-start gap-3 cursor-pointer group">
+<input class="mt-1 w-4 h-4 rounded border-outline bg-surface-dim text-primary-container focus:ring-primary-container focus:ring-offset-surface-container-high" type="checkbox"/>
+<span class="font-body-ui text-sm text-on-surface-variant group-hover:text-on-surface transition-colors">I agree to the <a class="text-primary hover:underline" href="#">Terms &amp; Conditions</a> and understand the cancellation policy.</span>
+</label>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Sticky Sidebar -->
+<div class="lg:col-span-4 relative">
+<div class="sticky top-24 bg-surface-container/70 backdrop-blur-md rounded-xl border border-surface-variant/40 shadow-md overflow-hidden flex flex-col z-10">
+<!-- Header -->
+<div class="bg-surface-container-high p-md border-b border-surface-variant">
+<h2 class="font-section-heading text-section-heading text-on-surface flex items-center justify-between">
+                            Booking Summary
+                            <span class="material-symbols-outlined text-primary">receipt_long</span>
+</h2>
+</div>
+<!-- Details -->
+<div class="p-md flex flex-col gap-sm border-b border-surface-variant">
+<div class="flex justify-between items-center py-1">
+<span class="font-body-ui text-sm text-on-surface-variant">Aircraft</span>
+<span class="font-data-tabular text-sm text-on-surface font-semibold">VH-KZG</span>
+</div>
+<div class="flex justify-between items-center py-1">
+<span class="font-body-ui text-sm text-on-surface-variant">Departure</span>
+<span class="font-data-tabular text-sm text-on-surface">27 Oct, 9:00 AM</span>
+</div>
+<div class="flex justify-between items-center py-1">
+<span class="font-body-ui text-sm text-on-surface-variant">Estimated Return</span>
+<span class="font-data-tabular text-sm text-on-surface">27 Oct, 2:30 PM</span>
+</div>
+<div class="h-px w-full bg-surface-variant my-1"></div>
+<div class="flex justify-between items-center py-1">
+<span class="font-body-ui text-sm text-on-surface-variant">Estimated Duration</span>
+<span class="font-data-tabular text-sm text-primary font-medium">5h 30m</span>
+</div>
+<div class="flex justify-between items-center py-1">
+<span class="font-body-ui text-sm text-on-surface-variant">Hourly Rate</span>
+<span class="font-data-tabular text-sm text-on-surface">$320/hr</span>
+</div>
+</div>
+<!-- Total -->
+<div class="p-md bg-surface-dim">
+<div class="flex justify-between items-end mb-2">
+<span class="font-section-heading text-base text-on-surface">Estimated Cost</span>
+<span class="font-display-serif text-2xl text-on-surface font-bold">$1,760</span>
+</div>
+<p class="text-[11px] text-outline italic">Estimate only. Final charges are based on actual billed flight time.</p>
+</div>
+<!-- Savings Pack -->
+<div class="border-t border-surface-variant">
+<details class="group p-md [&amp;_summary::-webkit-details-marker]:hidden">
+<summary class="flex items-center justify-between cursor-pointer list-none">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary text-sm">savings</span>
+<span class="font-label-caps text-label-caps text-on-surface">FLIGHT PACK SAVINGS</span>
+</div>
+<span class="material-symbols-outlined text-outline transition group-open:rotate-180">expand_more</span>
+</summary>
+<div class="mt-md flex flex-col gap-2">
+<!-- Standard -->
+<div class="flex justify-between items-center p-2 rounded bg-surface-container-high border border-surface-variant/50 opacity-60">
+<div class="flex flex-col">
+<span class="text-xs font-semibold text-on-surface">Standard</span>
+<span class="text-[10px] text-outline">$320/hr</span>
+</div>
+<span class="text-sm font-data-tabular text-on-surface">$1,760</span>
+</div>
+<!-- 10 Hour -->
+<div class="flex justify-between items-center p-2 rounded bg-primary-container/10 border border-primary/30 relative overflow-hidden">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
+<div class="flex flex-col pl-2">
+<div class="flex items-center gap-1">
+<span class="text-xs font-semibold text-primary">10-Hour Pack</span>
+<span class="text-[9px] bg-primary text-on-primary px-1 rounded uppercase font-bold tracking-wider">Save $264</span>
+</div>
+<span class="text-[10px] text-on-surface-variant">$272/hr</span>
+</div>
+<span class="text-sm font-data-tabular text-primary font-bold">$1,496</span>
+</div>
+<!-- 20 Hour -->
+<div class="flex justify-between items-center p-2 rounded bg-surface-container-high border border-surface-variant/50">
+<div class="flex flex-col">
+<div class="flex items-center gap-1">
+<span class="text-xs font-semibold text-on-surface">20-Hour Pack</span>
+<span class="text-[9px] bg-surface-variant text-on-surface-variant px-1 rounded uppercase font-bold tracking-wider">Save $440</span>
+</div>
+<span class="text-[10px] text-outline">$240/hr</span>
+</div>
+<span class="text-sm font-data-tabular text-on-surface">$1,320</span>
+</div>
+</div>
+</details>
+</div>
+<!-- Action Area -->
+<div class="p-md bg-surface-container-highest border-t border-surface-variant flex flex-col gap-md">
+<div class="flex items-center gap-2 text-sm text-green-400 bg-green-400/10 p-2 rounded border border-green-400/20">
+<span class="material-symbols-outlined text-lg">check_circle</span>
+<span>Aircraft is available for selected time.</span>
+</div>
+<button class="w-full bg-primary-container hover:bg-primary-fixed-variant text-on-primary-container font-bold py-3 px-4 rounded-md shadow-lg transition-all active:translate-y-px border-t border-white/20">
+                            Submit Booking Request
+                        </button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

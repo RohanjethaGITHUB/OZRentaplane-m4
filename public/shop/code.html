@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OZRentAPlane - Shop</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-fixed-variant": "#38485a",
+                        "on-primary-container": "#8192a7",
+                        "surface-dim": "#111316",
+                        "surface-container-low": "#1a1c1f",
+                        "inverse-on-surface": "#2f3034",
+                        "surface-container-high": "#282a2d",
+                        "inverse-surface": "#e2e2e6",
+                        "on-background": "#e2e2e6",
+                        "on-primary-fixed": "#0b1d2d",
+                        "secondary-fixed-dim": "#b4c9db",
+                        "inverse-primary": "#4f6073",
+                        "tertiary-fixed-dim": "#adcae6",
+                        "outline-variant": "#44474c",
+                        "on-tertiary-container": "#7894ae",
+                        "error": "#ffb4ab",
+                        "primary-container": "#1a2b3c",
+                        "on-error-container": "#ffdad6",
+                        "primary-fixed": "#d2e4fb",
+                        "on-primary": "#213243",
+                        "background": "#111316",
+                        "on-tertiary": "#153349",
+                        "secondary": "#b4c9db",
+                        "on-surface-variant": "#c4c6cd",
+                        "on-secondary-fixed-variant": "#354958",
+                        "on-secondary": "#1e3340",
+                        "on-secondary-container": "#a3b8c9",
+                        "on-tertiary-fixed": "#001d31",
+                        "tertiary-fixed": "#cce5ff",
+                        "surface-container-highest": "#333538",
+                        "on-secondary-fixed": "#081e2b",
+                        "tertiary-container": "#0d2c42",
+                        "surface-container": "#1e2023",
+                        "on-surface": "#e2e2e6",
+                        "tertiary": "#adcae6",
+                        "surface-tint": "#b7c8de",
+                        "surface-container-lowest": "#0c0e11",
+                        "surface-bright": "#37393d",
+                        "secondary-container": "#354958",
+                        "secondary-fixed": "#d0e5f7",
+                        "surface": "#111316",
+                        "primary": "#b7c8de",
+                        "primary-fixed-dim": "#b7c8de",
+                        "error-container": "#93000a",
+                        "outline": "#8e9197",
+                        "on-tertiary-fixed-variant": "#2e4961",
+                        "surface-variant": "#333538",
+                        "on-error": "#690005"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Noto Serif", "serif"],
+                        "body": ["Manrope", "sans-serif"],
+                        "label": ["Manrope", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Manrope', sans-serif;
+            background-color: #111316;
+            color: #e2e2e6;
+        }
+        h1, h2, h3, h4, h5, h6, .font-headline {
+            font-family: 'Noto Serif', serif;
+        }
+        .grain-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.03;
+            background-image: url('data:image/svg+xml,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noiseFilter)"/%3E%3C/svg%3E');
+        }
+        .glass-panel {
+            background-color: rgba(30, 32, 35, 0.7);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+        .glass-gradient {
+            background: linear-gradient(135deg, rgba(183, 200, 222, 0.05) 0%, transparent 100%);
+        }
+        .ghost-border-bottom {
+            border-bottom: 1px solid rgba(68, 71, 76, 0.2);
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col relative overflow-x-hidden">
+<div class="grain-overlay"></div>
+<main class="flex-grow w-full max-w-screen-2xl mx-auto px-6 py-12 md:py-24 space-y-24 md:space-y-32">
+<!-- 1. Printed Aircraft Documents Section -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+<div class="lg:col-span-5 space-y-8">
+<div>
+<h2 class="font-headline text-4xl md:text-5xl text-primary font-normal tracking-wide leading-tight mb-6">Printed Aircraft<br/>Documents</h2>
+<p class="font-body text-on-surface-variant text-lg leading-relaxed max-w-lg">
+                        Some resources are available as downloadable files in the Resources section. Printed versions can be purchased for pilots who prefer cockpit-ready laminated copies.
+                    </p>
+</div>
+<a class="inline-flex items-center gap-2 text-primary hover:text-primary-fixed transition-colors group" href="#">
+<span class="font-label text-sm uppercase tracking-widest">View digital resources</span>
+<span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</a>
+</div>
+<div class="lg:col-span-7 grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+<!-- Large Visual Area -->
+<div class="md:col-span-2 relative h-64 md:h-80 rounded-xl overflow-hidden mb-4">
+<img alt="Cockpit clipboard" class="absolute inset-0 w-full h-full object-cover" data-alt="Lifestyle image of a laminated checklist and clipboard resting on the co-pilot seat in a Cessna cockpit during blue hour, soft instrument lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDlM6snF5DiUtkVoZj11D6nfAGxe9NpipZKcJEIF7iK1veLmtBRhANGA2xTyvRcQe-SLkbtSrt3PllzXiZuQYZfN2ebLDT3l1-QH0Owd25D0Tbjs3cqLTzvCINvsGOUpikIuXkWCeOFNapcDjYUWhyNDgbtQ4ty1EHafQg-MTytjwYUJDdp_FrYcJ8KSxxIKHnrSMaYRr7AtEsITKSLWDJQAzOY4USCGSJM4knz6J8-Ug7DZqAX7iP2LmmJvIPx2VJBI6u_RjC0GEsd"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-dim to-transparent opacity-80"></div>
+</div>
+<!-- Cards -->
+<div class="glass-panel glass-gradient rounded-xl p-6 relative overflow-hidden group hover:bg-surface-container-high transition-colors duration-500">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500/50 to-transparent"></div>
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-primary text-2xl font-light">menu_book</span>
+<span class="bg-primary/10 text-primary text-xs font-label uppercase tracking-wider px-2 py-1 rounded-full border border-primary/20">Available</span>
+</div>
+<h3 class="font-headline text-xl text-on-surface mb-2">Cessna 172N Checklist</h3>
+<p class="font-body text-sm text-on-surface-variant">Laminated cockpit-ready copy</p>
+</div>
+<div class="glass-panel glass-gradient rounded-xl p-6 relative overflow-hidden group hover:bg-surface-container-high transition-colors duration-500">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-secondary text-2xl font-light">library_books</span>
+<span class="bg-outline-variant/10 text-outline text-xs font-label uppercase tracking-wider px-2 py-1 rounded-full border border-outline-variant/20">Coming Soon</span>
+</div>
+<h3 class="font-headline text-xl text-on-surface mb-2">POH Reference Pack</h3>
+<p class="font-body text-sm text-on-surface-variant">Aircraft reference pack</p>
+</div>
+<div class="glass-panel glass-gradient rounded-xl p-6 relative overflow-hidden group hover:bg-surface-container-high transition-colors duration-500 md:col-span-2">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-secondary text-2xl font-light">balance</span>
+<span class="bg-outline-variant/10 text-outline text-xs font-label uppercase tracking-wider px-2 py-1 rounded-full border border-outline-variant/20">Coming Soon</span>
+</div>
+<h3 class="font-headline text-xl text-on-surface mb-2">Weight &amp; Balance Sheet</h3>
+<p class="font-body text-sm text-on-surface-variant">Printed planning reference</p>
+</div>
+</div>
+</section>
+<!-- 2. Pickup during aircraft handover Section -->
+<section class="bg-surface-container-low rounded-xl p-8 md:p-16 relative overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent pointer-events-none"></div>
+<div class="max-w-3xl mb-16 relative z-10">
+<h2 class="font-headline text-3xl md:text-4xl text-on-surface font-normal mb-4">Pickup during aircraft handover</h2>
+<p class="font-body text-on-surface-variant text-lg">
+                    Selected items can be collected when you arrive for your aircraft booking. Smaller items can also be posted where available.
+                </p>
+</div>
+<!-- Timeline Flow -->
+<div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-8 md:gap-0 mt-12">
+<!-- Line background (desktop) -->
+<div class="hidden md:block absolute top-1/2 left-0 w-full h-px bg-outline-variant/20 -translate-y-1/2"></div>
+<div class="hidden md:block absolute top-1/2 left-0 w-2/3 h-px bg-gradient-to-r from-primary to-transparent -translate-y-1/2"></div>
+<!-- Line background (mobile) -->
+<div class="md:hidden absolute left-[23px] top-4 bottom-4 w-px bg-outline-variant/20"></div>
+<!-- Steps -->
+<div class="relative flex md:flex-col items-center md:items-start gap-4 md:gap-6 bg-surface-container-low md:pr-8">
+<div class="w-12 h-12 rounded-full bg-surface-container-highest border border-primary/30 flex items-center justify-center relative z-10 shadow-[0_0_15px_rgba(183,200,222,0.15)]">
+<span class="material-symbols-outlined text-primary text-xl">shopping_cart</span>
+</div>
+<div>
+<h4 class="font-headline text-lg text-on-surface mb-1">Select item</h4>
+<p class="font-body text-sm text-on-surface-variant">Choose your resources</p>
+</div>
+</div>
+<div class="relative flex md:flex-col items-center md:items-start gap-4 md:gap-6 bg-surface-container-low md:px-8">
+<div class="w-12 h-12 rounded-full bg-surface-container-highest border border-primary/30 flex items-center justify-center relative z-10">
+<span class="material-symbols-outlined text-primary text-xl">credit_card</span>
+</div>
+<div>
+<h4 class="font-headline text-lg text-on-surface mb-1">Reserve or buy</h4>
+<p class="font-body text-sm text-on-surface-variant">Secure your items</p>
+</div>
+</div>
+<div class="relative flex md:flex-col items-center md:items-start gap-4 md:gap-6 bg-surface-container-low md:pl-8">
+<div class="w-12 h-12 rounded-full bg-surface-container-highest border border-outline-variant/30 flex items-center justify-center relative z-10">
+<span class="material-symbols-outlined text-outline text-xl">flight_takeoff</span>
+</div>
+<div>
+<h4 class="font-headline text-lg text-on-surface mb-1">Collect at handover</h4>
+<p class="font-body text-sm text-on-surface-variant">Ready for your flight</p>
+</div>
+</div>
+</div>
+<!-- Options Chips -->
+<div class="flex flex-wrap gap-3 mt-16 relative z-10">
+<div class="bg-secondary-container text-on-secondary-container px-4 py-2 rounded-full font-label text-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">local_mall</span>
+                    Pickup available
+                </div>
+<div class="border border-outline-variant/20 text-on-surface-variant px-4 py-2 rounded-full font-label text-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">local_shipping</span>
+                    Postage options
+                </div>
+<div class="border border-outline-variant/20 text-on-surface-variant px-4 py-2 rounded-full font-label text-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">cloud_download</span>
+                    Digital resources separate
+                </div>
+</div>
+</section>
+<!-- 3. Simple gear for pilots and supporters Section -->
+<section class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+<div class="order-2 lg:order-1 relative h-[500px] rounded-xl overflow-hidden">
+<img alt="Aviation apparel and gear" class="absolute inset-0 w-full h-full object-cover" data-alt="Premium lifestyle shot of a branded aviation polo shirt, cap, and metallic keyring laid out neatly on a dark surface near an aircraft wing, warm hangar lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDipGb8tRKUgplVn24bhzOdRuBrnsSX1FzCDgGAVlGQxccSXroyuMY4XBQUjXsfmo79sQuEESQupU9737YXXfgnleQX7fIu8m8ZRP--dLWsQuCSOi7cNbWfm-TvpxOihKCSTlQkCNRuiepJMC0FiH8dktmXJqKM8ppdkNn01pj2Ui6kE_SPXL-6Bpzkd3LQ5Gzz9zCdeEwHVIyrE0S909CaCfBXY65ex3d6NEvn1aj-GkOpMxh_Lchb2F9s8HU2AzSmyRsnWOKt7UI7"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-dim via-transparent to-transparent opacity-90"></div>
+</div>
+<div class="order-1 lg:order-2 space-y-10">
+<div>
+<h2 class="font-headline text-3xl md:text-4xl text-on-surface font-normal mb-6">Simple gear for pilots and supporters</h2>
+<p class="font-body text-on-surface-variant text-lg leading-relaxed">
+                        A small range of clean, practical OZRentAPlane gear for pilots, students, and aviation supporters.
+                    </p>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container rounded-xl p-6 hover:bg-surface-container-high transition-colors duration-300">
+<span class="material-symbols-outlined text-primary mb-4 text-3xl font-light">checkroom</span>
+<h4 class="font-headline text-lg text-on-surface">Polo shirt</h4>
+</div>
+<div class="bg-surface-container rounded-xl p-6 hover:bg-surface-container-high transition-colors duration-300">
+<span class="material-symbols-outlined text-primary mb-4 text-3xl font-light">sports_baseball</span>
+<h4 class="font-headline text-lg text-on-surface">Cap</h4>
+</div>
+<div class="bg-surface-container rounded-xl p-6 hover:bg-surface-container-high transition-colors duration-300">
+<span class="material-symbols-outlined text-primary mb-4 text-3xl font-light">key</span>
+<h4 class="font-headline text-lg text-on-surface">Keyring</h4>
+</div>
+<div class="bg-surface-container rounded-xl p-6 hover:bg-surface-container-high transition-colors duration-300">
+<span class="material-symbols-outlined text-primary mb-4 text-3xl font-light">sticky_note_2</span>
+<h4 class="font-headline text-lg text-on-surface">Stickers</h4>
+</div>
+</div>
+</div>
+</section>
+<!-- 4. More items coming soon Section -->
+<section class="bg-surface-container-low rounded-xl border border-outline-variant/10 overflow-hidden relative">
+<!-- Flight plan faint line background -->
+<div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(183,200,222,0.5) 40px, rgba(183,200,222,0.5) 41px);"></div>
+<div class="absolute top-0 left-0 w-1/3 h-full bg-gradient-to-r from-primary/5 to-transparent pointer-events-none"></div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-12 p-8 md:p-12 relative z-10">
+<div class="space-y-6">
+<h2 class="font-headline text-3xl text-primary font-normal">More items coming soon</h2>
+<p class="font-body text-on-surface-variant text-base leading-relaxed">
+                        We are starting with practical pilot resources and a small range of branded gear. More cockpit tools, apparel, and aviation accessories will be added over time.
+                    </p>
+<button class="bg-gradient-to-r from-primary to-primary-container text-on-primary font-label text-sm uppercase tracking-[0.05em] px-6 py-3 rounded-full hover:backdrop-blur-md transition-all duration-300">
+                        Suggest an item
+                    </button>
+</div>
+<div class="flex flex-col justify-center">
+<ul class="space-y-4">
+<li class="flex items-center gap-4 text-on-surface ghost-border-bottom pb-4">
+<span class="material-symbols-outlined text-outline-variant">build</span>
+<span class="font-body">Cockpit tools</span>
+</li>
+<li class="flex items-center gap-4 text-on-surface ghost-border-bottom pb-4">
+<span class="material-symbols-outlined text-outline-variant">apparel</span>
+<span class="font-body">Branded apparel</span>
+</li>
+<li class="flex items-center gap-4 text-on-surface ghost-border-bottom pb-4">
+<span class="material-symbols-outlined text-outline-variant">headphones</span>
+<span class="font-body">Aircraft accessories</span>
+</li>
+<li class="flex items-center gap-4 text-on-surface">
+<span class="material-symbols-outlined text-outline-variant">redeem</span>
+<span class="font-body">Gift items</span>
+</li>
+</ul>
+</div>
+</div>
+</section>
+<!-- 5. Shop FAQ Section -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+<div class="lg:col-span-4 sticky top-12">
+<h2 class="font-headline text-3xl md:text-4xl text-on-surface font-normal mb-4">Shop FAQ</h2>
+<p class="font-body text-on-surface-variant text-base">
+                    Common questions about pickup, postage, and aircraft-specific resources.
+                </p>
+</div>
+<div class="lg:col-span-8 space-y-2">
+<!-- Accordion Items (Visual structure) -->
+<div class="bg-surface-container-low rounded-xl p-6 ghost-border-bottom hover:bg-surface-container transition-colors cursor-pointer group flex justify-between items-center">
+<h4 class="font-body text-lg text-on-surface">Can I pick up items when I arrive for a flight?</h4>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">add</span>
+</div>
+<div class="bg-surface-container-low rounded-xl p-6 ghost-border-bottom hover:bg-surface-container transition-colors cursor-pointer group flex justify-between items-center">
+<h4 class="font-body text-lg text-on-surface">Are the checklist documents aircraft-specific?</h4>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">add</span>
+</div>
+<div class="bg-surface-container-low rounded-xl p-6 ghost-border-bottom hover:bg-surface-container transition-colors cursor-pointer group flex justify-between items-center">
+<h4 class="font-body text-lg text-on-surface">Do you offer postage?</h4>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">add</span>
+</div>
+<div class="bg-surface-container-low rounded-xl p-6 hover:bg-surface-container transition-colors cursor-pointer group flex justify-between items-center">
+<h4 class="font-body text-lg text-on-surface">Can I download the digital checklist instead?</h4>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors">add</span>
+</div>
+</div>
+</section>
+</main>
+</body></html>

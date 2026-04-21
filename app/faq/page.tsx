@@ -294,7 +294,7 @@ export default function FaqPage() {
           className="absolute inset-0 z-0 bg-cover bg-center"
           style={{ backgroundImage: 'url("/Pilot&aircraftTwilight.webp")', opacity: 0.75 }}
         />
-        <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#091421]/60 via-[#091421]/30 to-transparent" />
+        <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#040f1e]/95 via-[#040f1e]/55 to-[#040f1e]/10" />
         <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#091421]/25 via-transparent to-[#091421]/35" />
 
         <div className="relative z-10 max-w-7xl mx-auto w-full pt-16">

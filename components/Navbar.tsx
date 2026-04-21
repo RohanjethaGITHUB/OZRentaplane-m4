@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { label: 'Safety',       href: '/safety' },
   { label: 'Resources',    href: '/pilotRequirements' },
   { label: 'Pricing',      href: '/pricing' },
+  { label: 'Shop',         href: '/shop' },
 ]
 
 export default function Navbar() {
@@ -55,7 +56,7 @@ export default function Navbar() {
             href="#booking"
             className="hidden md:inline-flex items-center font-sans font-semibold text-[13px] text-[#0c1a2e] bg-[#c8dcff] hover:bg-white px-5 py-2 rounded-full transition-colors duration-200 whitespace-nowrap"
           >
-            Renter Login/Register
+            Renter Login
           </a>
 
           {/* Hamburger — mobile only */}
@@ -94,7 +95,7 @@ export default function Navbar() {
             onClick={() => setMenuOpen(false)}
             className="mt-2 inline-flex justify-center font-sans font-semibold text-sm text-[#0c1a2e] bg-[#c8dcff] hover:bg-white px-5 py-3 rounded-full transition-colors"
           >
-            Renter Login/Register
+            Renter Login
           </a>
         </div>
       )}
