@@ -30,10 +30,15 @@ export type UserDocument = {
   status: DocumentStatus
   review_notes: string | null
   uploaded_at: string
-  expiry_date: string | null   // YYYY-MM-DD — optional document expiry
+  expiry_date: string | null    // YYYY-MM-DD — optional document expiry
   reviewed_at: string | null
   created_at: string
   updated_at: string
+  // Per-document metadata (migration 017)
+  licence_type: string | null   // RPL | PPL | CPL | Other (pilot_licence)
+  licence_number: string | null // Pilot licence reference number (pilot_licence)
+  medical_class: string | null  // Class 1 | Class 2 | Basic Class 2 | Other (medical_certificate)
+  id_type: string | null        // Passport | Driver Licence | Other (photo_id)
 }
 
 // ─── Verification events ──────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import PendingBookingActions from './PendingBookingActions'
-import { formatSydDateTime } from '@/lib/utils/sydney-time'
+import { formatDateTime } from '@/lib/formatDateTime'
 
 export const metadata = { title: 'Booking Requests | Admin' }
 
@@ -63,9 +63,9 @@ export default async function AdminBookingRequestsPage() {
           {bookings.map(booking => {
             const author = getProfile(booking.booking_owner_user_id)
             const aircraft = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
-            const startStr     = formatSydDateTime(booking.scheduled_start)
-            const endStr       = formatSydDateTime(booking.scheduled_end)
-            const submittedStr = formatSydDateTime(booking.created_at)
+            const startStr     = formatDateTime(booking.scheduled_start)
+            const endStr       = formatDateTime(booking.scheduled_end)
+            const submittedStr = formatDateTime(booking.created_at)
 
             return (
               <div key={booking.id} className="bg-white/5 border border-white/5 rounded-2xl overflow-hidden flex flex-col md:flex-row">

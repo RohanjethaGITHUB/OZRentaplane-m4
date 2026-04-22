@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { formatDateTime } from '@/lib/formatDateTime'
 
 export const metadata = { title: 'Meter History | Admin' }
 
@@ -86,9 +87,7 @@ export default async function AdminMeterHistoryPage({
               </thead>
               <tbody className="divide-y divide-white/5">
                 {history.map(row => {
-                  const aprvStr = new Date(row.approved_at).toLocaleString('en-AU', {
-                    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                  })
+                  const aprvStr = formatDateTime(row.approved_at)
                   
                   const frData = Array.isArray(row.flight_records) ? row.flight_records[0] : row.flight_records
                   const adminData = Array.isArray(row.approved_by_profile) ? row.approved_by_profile[0] : row.approved_by_profile

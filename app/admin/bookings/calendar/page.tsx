@@ -7,6 +7,7 @@ import {
   formatAircraftTimeRange,
   debugBlockTimes,
 } from '@/lib/utils/sydney-time'
+import { formatDateLong } from '@/lib/formatDateTime'
 
 export const metadata = { title: 'Calendar | Admin' }
 
@@ -126,15 +127,7 @@ export default async function AdminCalendarPage() {
         <div className="space-y-8">
           {sortedDates.map(dateStr => {
             const isToday = todayKey === dateStr
-            // Use the first block's start_time to format the date header in Sydney time.
-            // This guarantees the header matches the Sydney date key we grouped by.
-            const sampleBlock = groupedBlocks[dateStr]![0]!
-            const formattedDate = new Date(sampleBlock.start_time).toLocaleDateString('en-AU', {
-              timeZone: 'Australia/Sydney',
-              weekday: 'long',
-              month: 'long',
-              day: 'numeric',
-            })
+            const formattedDate = formatDateLong(dateStr)
 
             return (
               <div key={dateStr} className="relative">

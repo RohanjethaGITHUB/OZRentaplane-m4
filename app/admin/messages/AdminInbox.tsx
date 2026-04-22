@@ -9,6 +9,7 @@ import {
   searchCustomers,
 } from '@/app/actions/admin'
 import type { ThreadSummary, VerificationEvent } from '@/lib/supabase/types'
+import { formatDateTime, formatDateFromISO } from '@/lib/formatDateTime'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -21,14 +22,11 @@ function fmtRelative(iso: string): string {
   if (h < 24) return `${h}h ago`
   const d = Math.floor(h / 24)
   if (d < 7)  return `${d}d ago`
-  return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+  return formatDateFromISO(iso)
 }
 
 function fmtFull(iso: string): string {
-  return new Date(iso).toLocaleString('en-AU', {
-    day: 'numeric', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
+  return formatDateTime(iso)
 }
 
 function getInitials(name: string | null): string {

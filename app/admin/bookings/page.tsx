@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { formatDateTime } from '@/lib/formatDateTime'
 
 export const metadata = { title: 'Bookings Overview | Admin' }
 
@@ -196,9 +197,7 @@ export default async function AdminBookingsOverviewPage() {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {recentBookings?.map(booking => {
-                  const start = new Date(booking.scheduled_start).toLocaleString('en-AU', {
-                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                  })
+                  const start = formatDateTime(booking.scheduled_start)
                   const isPending = booking.status === 'pending_confirmation'
                   const aircraft = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
 

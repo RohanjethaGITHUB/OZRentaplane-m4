@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import FlightRecordApprovalForm from './FlightRecordApprovalForm'
+import { formatDateTime } from '@/lib/formatDateTime'
 
 export const metadata = { title: 'Review Detail | Admin' }
 
@@ -31,8 +32,8 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
   const booking = Array.isArray(record.bookings) ? record.bookings[0] : record.bookings
 
   const flags = Array.isArray(record.review_flags) ? record.review_flags : []
-  const startStr = booking?.scheduled_start ? new Date(booking.scheduled_start).toLocaleString('en-AU') : 'Unknown'
-  const endStr = booking?.scheduled_end ? new Date(booking.scheduled_end).toLocaleString('en-AU') : 'Unknown'
+  const startStr = booking?.scheduled_start ? formatDateTime(booking.scheduled_start) : 'Unknown'
+  const endStr = booking?.scheduled_end ? formatDateTime(booking.scheduled_end) : 'Unknown'
 
   // Estimate bill
   // We don't bill inside page render natively (done inside atomic), but we display what it will look like based on tacho usually.

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { formatDateTime } from '@/lib/formatDateTime'
 
 export const metadata = { title: 'Post-Flight Reviews | Admin' }
 
@@ -71,9 +72,7 @@ export default async function AdminPostFlightReviewsPage() {
               <tbody className="divide-y divide-white/5">
                 {records.map(record => {
                   const aircraft = Array.isArray(record.aircraft) ? record.aircraft[0] : record.aircraft
-                  const submittedStr = new Date(record.submitted_at).toLocaleString('en-AU', {
-                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                  })
+                  const submittedStr = formatDateTime(record.submitted_at)
                   
                   // Parse flags
                   let flagCount = 0

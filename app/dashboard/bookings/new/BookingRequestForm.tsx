@@ -15,6 +15,7 @@ import {
   sydneyInputToUTC,
   formatSydTime,
 } from '@/lib/utils/sydney-time'
+import { formatDate, formatDateTime, formatDateLong } from '@/lib/formatDateTime'
 
 // ── Pricing constants (replace with DB config when available) ─────────────────
 
@@ -43,16 +44,18 @@ type Props = {
   eligibilityWarnings:  string[]
 }
 
-// ── Time options (5 AM – 9:30 PM, 30-min increments) ─────────────────────────
+// ── Time options (full day 12:00 AM – 11:30 PM, 30-min increments) ───────────
+// Covers the entire 24-hour window in Sydney local time.
+// Departure/return dropdowns are filtered dynamically based on context.
 
 const ALL_TIME_OPTIONS: TimeOption[] = (() => {
   const opts: TimeOption[] = []
-  for (let h = 5; h <= 21; h++) {
+  for (let h = 0; h < 24; h++) {
     for (let m = 0; m < 60; m += 30) {
-      const value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-      const ampm  = h < 12 ? 'AM' : 'PM'
-      const h12   = h === 0 ? 12 : h > 12 ? h - 12 : h
-      opts.push({ value, label: `${h12}:${String(m).padStart(2, '0')} ${ampm}` })
+      const value  = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+      const period = h < 12 ? 'AM' : 'PM'
+      const h12    = h === 0 ? 12 : h > 12 ? h - 12 : h
+      opts.push({ value, label: `${h12}:${String(m).padStart(2, '0')} ${period}` })
     }
   }
   return opts
@@ -62,13 +65,7 @@ const ALL_TIME_OPTIONS: TimeOption[] = (() => {
 
 /** Format a YYYY-MM-DD string for display as "22 Apr 2026". */
 function formatDateDisplay(dateStr: string): string {
-  if (!dateStr) return ''
-  return new Date(`${dateStr}T12:00:00`).toLocaleDateString('en-AU', {
-    timeZone: 'Australia/Sydney',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
+  return formatDate(dateStr)
 }
 
 /** Format a combined "YYYY-MM-DDTHH:MM" Sydney-local value as AU-style string. */
@@ -76,15 +73,7 @@ function formatInputAsAU(dtLocal: string): string {
   if (!dtLocal) return '—'
   const utc = sydneyInputToUTC(dtLocal)
   if (!utc) return '—'
-  return new Date(utc).toLocaleString('en-AU', {
-    timeZone: 'Australia/Sydney',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  })
+  return formatDateTime(utc)
 }
 
 /** Format fractional hours as "Xh Ym". */
@@ -102,9 +91,18 @@ function formatCurrency(amount: number): string {
 
 // ── Availability Timeline ──────────────────────────────────────────────────────
 //
-// Architecture: two separate layers so red and blue never visually blend.
+// Covers the full Sydney day (midnight → midnight) in two layers:
 //   Layer 1 — the bar (overflow-hidden): green base + red unavailable blocks clipped inside.
 //   Layer 2 — absolute overlay outside the clip: blue selected-window bracket on top.
+//
+// Tick scale: every hour on desktop (lg+), every 3 hours on smaller screens.
+
+// Add one day to a YYYY-MM-DD string without relying on Date parsing assumptions.
+function addOneDay(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(Date.UTC(y!, m! - 1, d! + 1))
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
+}
 
 function AvailabilityTimeline({
   selectedDate,
@@ -117,17 +115,11 @@ function AvailabilityTimeline({
   startDT: string
   endDT: string
 }) {
-  const OP_START = 5  // 5 AM
-  const OP_END   = 21 // 9 PM
-
   if (!selectedDate) return null
 
-  const opStartUTC = sydneyInputToUTC(
-    `${selectedDate}T${String(OP_START).padStart(2, '0')}:00`,
-  )
-  const opEndUTC = sydneyInputToUTC(
-    `${selectedDate}T${String(OP_END).padStart(2, '0')}:00`,
-  )
+  // Full day: midnight Sydney → midnight Sydney (next day)
+  const opStartUTC = sydneyInputToUTC(`${selectedDate}T00:00`)
+  const opEndUTC   = sydneyInputToUTC(`${addOneDay(selectedDate)}T00:00`)
   if (!opStartUTC || !opEndUTC) return null
 
   const opStartMs = new Date(opStartUTC).getTime()
@@ -144,19 +136,20 @@ function AvailabilityTimeline({
   const hasSelection =
     !!(selStartUTC && selEndUTC && new Date(selEndUTC) > new Date(selStartUTC))
 
+  // Only render unavailable slots that overlap the visible window
   const visibleSlots = daySlots.filter(s => {
-    const end   = new Date(s.end_time).getTime()
-    const start = new Date(s.start_time).getTime()
-    return end > opStartMs && start < opEndMs
+    const slotEnd   = new Date(s.end_time).getTime()
+    const slotStart = new Date(s.start_time).getTime()
+    return slotEnd > opStartMs && slotStart < opEndMs
   })
 
-  // Hour ticks every 3h
-  const ticks: number[] = []
-  for (let h = OP_START; h <= OP_END; h += 3) ticks.push(h)
+  // One tick per hour (0–23); label format "12 AM", "1 PM", etc.
+  const ticks = Array.from({ length: 24 }, (_, h) => h)
 
-  function hourLabel(h: number) {
-    if (h === 12) return '12pm'
-    return h < 12 ? `${h}am` : `${h - 12}pm`
+  function hourLabel(h: number): string {
+    if (h === 0)  return '12 AM'
+    if (h === 12) return '12 PM'
+    return h < 12 ? `${h} AM` : `${h - 12} PM`
   }
 
   const selLeft  = hasSelection ? toPercent(selStartUTC!) : 0
@@ -168,7 +161,7 @@ function AvailabilityTimeline({
       {/* ── Two-layer timeline ── */}
       <div className="relative">
 
-        {/* Layer 1: bar with green base + red unavailable blocks (clipped) */}
+        {/* Layer 1: green base + red unavailable blocks (clipped to bar) */}
         <div className="relative h-6 bg-green-500/20 rounded-full overflow-hidden border border-green-500/15">
           {visibleSlots.map((slot, i) => (
             <div
@@ -183,7 +176,7 @@ function AvailabilityTimeline({
           ))}
         </div>
 
-        {/* Layer 2: blue selected-window bracket (sits on top, outside clip) */}
+        {/* Layer 2: blue selected-window bracket (outside clip, on top) */}
         {hasSelection && (
           <div
             className="absolute inset-y-[-2px] rounded-full border-2 border-blue-400/90 bg-blue-500/10 pointer-events-none"
@@ -192,14 +185,17 @@ function AvailabilityTimeline({
         )}
       </div>
 
-      {/* Hour tick labels */}
+      {/* Hourly tick labels — all hours on lg+, every 3h on smaller screens */}
       <div className="relative h-4">
         {ticks.map(h => {
-          const pct = ((h - OP_START) / (OP_END - OP_START)) * 100
+          const pct = (h / 24) * 100
+          // On small screens only show multiples of 3 (0, 3, 6 … 21)
+          const hiddenOnSmall = h % 3 !== 0
           return (
             <span
               key={h}
-              className="absolute text-[9px] text-slate-600 -translate-x-1/2 select-none"
+              className={`absolute text-[8px] text-slate-600 -translate-x-1/2 select-none leading-none
+                ${hiddenOnSmall ? 'hidden lg:block' : ''}`}
               style={{ left: `${pct}%` }}
             >
               {hourLabel(h)}
@@ -869,12 +865,7 @@ export default function BookingRequestForm({
                 </h3>
                 {selectedDate && (
                   <span className="text-[10px] text-slate-600">
-                    {new Date(`${selectedDate}T12:00:00`).toLocaleDateString('en-AU', {
-                      timeZone: 'Australia/Sydney',
-                      weekday: 'short',
-                      day: 'numeric',
-                      month: 'long',
-                    })}
+                    {formatDateLong(selectedDate)}
                   </span>
                 )}
               </div>

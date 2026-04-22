@@ -5,6 +5,7 @@ import CustomerBookingShell from '../CustomerBookingShell'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
 import type { BookingStatus } from '@/lib/supabase/booking-types'
+import { formatDateTime } from '@/lib/formatDateTime'
 
 export const metadata = { title: 'Booking Details | Pilot Dashboard' }
 
@@ -43,11 +44,7 @@ function getPipelineState(current: string): 'done' | 'active' | 'pending' | 'can
 }
 
 function formatSYD(iso: string) {
-  return new Date(iso).toLocaleString('en-AU', {
-    timeZone: 'Australia/Sydney',
-    weekday: 'long', month: 'long', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
+  return formatDateTime(iso)
 }
 
 // ── Next action card ─────────────────────────────────────────────────────────

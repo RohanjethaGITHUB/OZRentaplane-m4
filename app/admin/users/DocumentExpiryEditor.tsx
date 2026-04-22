@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { updateDocumentExpiryDate } from '@/app/actions/admin'
+import { formatDate } from '@/lib/formatDateTime'
 
 type Props = {
   documentId: string
@@ -56,9 +57,7 @@ export default function DocumentExpiryEditor({ documentId, customerId, initialEx
   }
 
   // Formatting date
-  const displayExpiry = initialExpiry 
-    ? new Date(initialExpiry).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
-    : 'None Set'
+  const displayExpiry = initialExpiry ? formatDate(initialExpiry) : 'None Set'
 
   if (!isEditing) {
     return (

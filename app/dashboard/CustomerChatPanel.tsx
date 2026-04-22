@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { sendCustomerReply, markCustomerMessagesRead } from '@/app/actions/verification'
 import type { VerificationEvent, VerificationStatus } from '@/lib/supabase/types'
+import { formatDateTime } from '@/lib/formatDateTime'
 
 // Show message events + on_hold events that carry a customer-facing body
 function isChatEvent(ev: VerificationEvent): boolean {
@@ -13,10 +14,7 @@ function isChatEvent(ev: VerificationEvent): boolean {
 }
 
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-AU', {
-    day: 'numeric', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
+  return formatDateTime(iso)
 }
 
 interface Props {

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { approveCustomer, rejectCustomer, placeCustomerOnHold } from '@/app/actions/admin'
+import { formatDateTime } from '@/lib/formatDateTime'
 import type { RequestKind } from '@/lib/supabase/types'
 
 type DecisionAction = 'approve' | 'hold' | 'reject'
@@ -75,12 +76,7 @@ export default function VerdictPanel({
   const [warning, setWarning]         = useState('')
   const router = useRouter()
 
-  const formattedReviewedAt = reviewedAt
-    ? new Date(reviewedAt).toLocaleString('en-AU', {
-        day: 'numeric', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      })
-    : null
+  const formattedReviewedAt = reviewedAt ? formatDateTime(reviewedAt) : null
 
   // ── Transition helpers ────────────────────────────────────────────────────────
 

@@ -8,6 +8,7 @@ import AdminChatPanel from '../AdminChatPanel'
 import PilotMetadataEditor from '../PilotMetadataEditor'
 import DocumentExpiryEditor from '../DocumentExpiryEditor'
 import type { UserDocument, VerificationEvent } from '@/lib/supabase/types'
+import { formatDateTime } from '@/lib/formatDateTime'
 
 const DOC_META: Record<string, { label: string; icon: string }> = {
   pilot_licence:       { label: 'Commercial Pilot Licence',    icon: 'badge' },
@@ -78,9 +79,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
 
   const displayName = customerProfile.full_name ?? 'Unknown Customer'
   const submittedAt = customerProfile.updated_at
-    ? new Date(customerProfile.updated_at).toLocaleDateString('en-AU', {
-        day: 'numeric', month: 'long', year: 'numeric',
-      })
+    ? formatDateTime(customerProfile.updated_at)
     : '—'
 
   const isDecided =
@@ -209,10 +208,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
                   <p className="text-[10px] text-slate-500 uppercase tracking-widest pt-5 mt-5 border-t border-white/5">
                     Recorded{' '}
                     <span className="text-slate-400 font-semibold">
-                      {new Date(customerProfile.reviewed_at).toLocaleString('en-AU', {
-                        day: 'numeric', month: 'short', year: 'numeric',
-                        hour: '2-digit', minute: '2-digit',
-                      })}
+                      {formatDateTime(customerProfile.reviewed_at)}
                     </span>
                   </p>
                 )}
@@ -226,10 +222,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
                 <div className="space-y-3">
                   {(events as VerificationEvent[]).map(ev => {
                     const style = EVENT_STYLE[ev.event_type] ?? EVENT_STYLE.message
-                    const when  = new Date(ev.created_at).toLocaleString('en-AU', {
-                      day: 'numeric', month: 'short', year: 'numeric',
-                      hour: '2-digit', minute: '2-digit',
-                    })
+                    const when  = formatDateTime(ev.created_at)
                     return (
                       <div
                         key={ev.id}

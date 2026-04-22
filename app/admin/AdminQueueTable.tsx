@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { formatDateTime } from '@/lib/formatDateTime'
 
 type DocSummary = { document_type: string; uploaded_at: string }
 
@@ -90,9 +91,7 @@ export default function AdminQueueTable({
                 dateMode === 'reviewed'  ? profile.reviewed_at :
                 dateMode === 'submitted' ? profile.updated_at  :
                 profile.updated_at
-              const displayDate = rawDate
-                ? new Date(rawDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
-                : '—'
+              const displayDate = rawDate ? formatDateTime(rawDate) : '—'
               const statusClass = STATUS_BADGE[profile.verification_status] ?? 'bg-white/5 text-slate-400'
               const statusLabel = STATUS_LABEL[profile.verification_status] ?? profile.verification_status
 

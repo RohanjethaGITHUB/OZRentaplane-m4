@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { sendAdminChatMessage, markAdminChatRead } from '@/app/actions/admin'
 import type { VerificationEvent } from '@/lib/supabase/types'
+import { formatDateTime } from '@/lib/formatDateTime'
 
 // Chat shows: 'message' events + 'on_hold' events with a body
 // (on_hold events are admin-to-customer messages that start conversation threads)
@@ -14,10 +15,7 @@ function isChatEvent(ev: VerificationEvent): boolean {
 }
 
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-AU', {
-    day: 'numeric', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
+  return formatDateTime(iso)
 }
 
 interface Props {

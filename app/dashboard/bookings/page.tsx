@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import CustomerBookingShell from './CustomerBookingShell'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
+import { formatDateTime } from '@/lib/formatDateTime'
 
 export const metadata = { title: 'My Bookings | Pilot Dashboard' }
 
@@ -37,11 +38,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function formatSYD(iso: string) {
-  return new Date(iso).toLocaleString('en-AU', {
-    timeZone: 'Australia/Sydney',
-    weekday: 'short', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
+  return formatDateTime(iso)
 }
 
 type BookingRow = {

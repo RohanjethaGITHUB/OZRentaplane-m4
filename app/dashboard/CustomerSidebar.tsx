@@ -126,8 +126,8 @@ export default function CustomerSidebar({
     <aside className="fixed left-0 top-0 h-screen w-64 border-r border-white/5 bg-[#091421]/90 backdrop-blur-xl flex flex-col py-8 z-50">
       {/* Brand */}
       <div className="mb-10 px-6">
-        <h1 className="text-xl font-serif italic text-white tracking-tight">The Blue Hour</h1>
-        <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-oz-blue/60 mt-1">{sidebarRole}</p>
+        <h1 className="text-xl font-serif italic text-white tracking-tight">OZRentAPlane</h1>
+        <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-oz-blue/60 mt-1">Pilot Portal</p>
       </div>
 
       {/* Collapsible Nav Groups */}
