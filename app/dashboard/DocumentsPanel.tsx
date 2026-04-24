@@ -12,7 +12,7 @@ import type {
 } from '@/lib/supabase/types'
 import { uploadVerificationDocument } from '@/app/actions/upload'
 import { getDocumentSignedUrl } from '@/app/actions/documents'
-import { submitForReview, sendCustomerReply } from '@/app/actions/verification'
+import { submitForReview, sendCustomerReply, saveCustomerArn } from '@/app/actions/verification'
 import { fmtTimestamp, fmtDate } from '@/lib/utils/format'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -781,19 +781,44 @@ function CustomerReplyPanel() {
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 type Props = {
-  user:      User
-  documents: UserDocument[]
-  status:    VerificationStatus
-  events:    VerificationEvent[]
+  user:       User
+  documents:  UserDocument[]
+  status:     VerificationStatus
+  events:     VerificationEvent[]
+  currentArn: string | null
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function DocumentsPanel({ user: _user, documents, status, events }: Props) {
+export default function DocumentsPanel({ user: _user, documents, status, events, currentArn }: Props) {
   const router = useRouter()
   const [modalDocType, setModalDocType] = useState<DocumentType | null>(null)
   const [submitting,   setSubmitting]   = useState(false)
   const [submitError,  setSubmitError]  = useState('')
+
+  // ── ARN field state ──────────────────────────────────────────────────────────
+  const [arnValue,   setArnValue]   = useState(currentArn ?? '')
+  const [arnSaving,  setArnSaving]  = useState(false)
+  const [arnError,   setArnError]   = useState('')
+  const [arnSaved,   setArnSaved]   = useState(false)
+  const arnChanged = arnValue.trim() !== (currentArn ?? '')
+
+  async function handleSaveArn() {
+    if (!arnValue.trim()) { setArnError('ARN cannot be empty.'); return }
+    setArnSaving(true)
+    setArnError('')
+    setArnSaved(false)
+    try {
+      await saveCustomerArn(arnValue.trim())
+      setArnSaved(true)
+      router.refresh()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save.'
+      setArnError(msg.replace('VALIDATION:', '').trim())
+    } finally {
+      setArnSaving(false)
+    }
+  }
 
   // ── Derived state ──────────────────────────────────────────────────────────
 
@@ -896,7 +921,7 @@ export default function DocumentsPanel({ user: _user, documents, status, events 
         />
       )}
 
-      <div className="space-y-10 animate-fade-in flex-1 max-w-4xl">
+      <div className="space-y-10 animate-fade-in flex-1 max-w-4xl mx-auto">
 
         {/* ── Page header ── */}
         <section className="flex flex-col gap-4">
@@ -931,6 +956,66 @@ export default function DocumentsPanel({ user: _user, documents, status, events 
               </p>
             </div>
           </div>
+        </section>
+
+        {/* ── ARN field ── */}
+        <section className="bg-[#0c121e]/60 border border-white/[0.07] rounded-[1.25rem] p-6">
+          <div className="flex items-start gap-4 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-oz-blue/10 border border-oz-blue/20 flex items-center justify-center flex-shrink-0">
+              <span
+                className="material-symbols-outlined text-oz-blue text-base"
+                style={{ fontVariationSettings: "'wght' 300" }}
+              >
+                badge
+              </span>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-white">Aviation Reference Number (ARN)</h3>
+              <p className="text-xs text-oz-muted mt-0.5">
+                Your CASA-issued ARN is required before you can request a booking.
+              </p>
+            </div>
+            {currentArn && (
+              <span className="ml-auto flex-shrink-0 text-[9px] font-bold uppercase px-2 py-0.5 rounded-full tracking-widest text-green-400 bg-green-500/10">
+                Saved
+              </span>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            <input
+              type="text"
+              value={arnValue}
+              onChange={e => { setArnValue(e.target.value); setArnSaved(false); setArnError('') }}
+              placeholder="e.g. 123456"
+              maxLength={20}
+              className="flex-1 bg-white/[0.03] border border-white/[0.08] focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5 placeholder:text-white/20"
+            />
+            <button
+              type="button"
+              onClick={handleSaveArn}
+              disabled={arnSaving || !arnValue.trim() || !arnChanged}
+              className="flex items-center gap-2 px-5 py-2.5 bg-oz-blue/15 border border-oz-blue/30 text-oz-blue hover:bg-oz-blue hover:text-oz-deep rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              {arnSaving && (
+                <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+              )}
+              {arnSaving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+
+          {arnSaved && !arnError && (
+            <p className="mt-2 text-xs text-green-400 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+              ARN saved successfully.
+            </p>
+          )}
+          {arnError && (
+            <p className="mt-2 text-xs text-red-400 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-sm">error</span>
+              {arnError}
+            </p>
+          )}
         </section>
 
         {/* ── Expired document alert (page-level) ── */}

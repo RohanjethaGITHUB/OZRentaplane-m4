@@ -217,7 +217,7 @@ export default function LoginContent() {
               initial={false}
               animate={{
                 scale:  mode === 'signin' ? 1.0 : 1.15,
-                filter: mode === 'signin' ? 'blur(0px) brightness(1)' : 'blur(20px) brightness(0.15)',
+                filter: mode === 'signin' ? 'blur(0px) brightness(0.45)' : 'blur(20px) brightness(0.15)',
               }}
               transition={TRANSITION}
             >
@@ -229,7 +229,7 @@ export default function LoginContent() {
                 priority
               />
             </motion.div>
-            <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-[#0c121e] via-[#0c121e]/85 to-[#0c121e]/20 pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-[#0c121e] via-[#0c121e]/85 to-[#0c121e]/55 pointer-events-none" />
           </div>
 
           {/* Foreground Layer */}
@@ -385,7 +385,7 @@ export default function LoginContent() {
               initial={false}
               animate={{
                 scale:  mode === 'signup' ? 1.0 : 1.15,
-                filter: mode === 'signup' ? 'blur(0px) brightness(1)' : 'blur(20px) brightness(0.15)',
+                filter: mode === 'signup' ? 'blur(0px) brightness(0.45)' : 'blur(20px) brightness(0.15)',
               }}
               transition={TRANSITION}
             >
@@ -397,7 +397,7 @@ export default function LoginContent() {
                 priority
               />
             </motion.div>
-            <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-l from-[#0c121e] via-[#0c121e]/85 to-[#0c121e]/20 pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-l from-[#0c121e] via-[#0c121e]/85 to-[#0c121e]/55 pointer-events-none" />
           </div>
 
           {/* Foreground Layer */}

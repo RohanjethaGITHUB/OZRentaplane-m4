@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { formatDateTime } from '@/lib/formatDateTime'
+import AdminPortalHero from '@/components/AdminPortalHero'
 
 export const metadata = { title: 'Aircraft Overview | Admin' }
 
@@ -44,23 +45,27 @@ export default async function AdminAircraftOverview() {
     .order('start_time', { ascending: true })
     .limit(3)
 
+  const heroActions = (
+    <>
+      <Link href="/admin/aircraft/meter-history" className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 border border-white/10">
+        <span className="material-symbols-outlined text-sm">av_timer</span> Meter Logs
+      </Link>
+      <Link href="/admin/squawks" className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 border border-white/10 opacity-50 pointer-events-none">
+        <span className="material-symbols-outlined text-sm">construction</span> Squawks
+      </Link>
+    </>
+  )
+
   return (
-    <div className="p-10 max-w-7xl mx-auto pb-24">
-      <header className="mb-12 flex justify-between items-end">
-        <div>
-          <h2 className="font-serif text-4xl font-light text-[#e2e2e6] tracking-tight">Aircraft Operations</h2>
-          <p className="text-slate-400 mt-2 font-light tracking-wide">Telemetry, maintenance routing, and fleet configurations.</p>
-          <div className="h-0.5 w-10 bg-[#44474c] mt-6" />
-        </div>
-        <div className="flex gap-4">
-          <Link href="/admin/aircraft/meter-history" className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2 border border-white/10">
-            <span className="material-symbols-outlined text-sm">av_timer</span> Meter Logs
-          </Link>
-          <Link href="/admin/squawks" className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2 border border-white/10 opacity-50 pointer-events-none">
-            <span className="material-symbols-outlined text-sm">construction</span> Squawks
-          </Link>
-        </div>
-      </header>
+    <>
+      <AdminPortalHero
+        eyebrow="Fleet Operations"
+        title="Aircraft"
+        subtitle="Telemetry, maintenance routing, and fleet configurations."
+        actions={heroActions}
+      />
+
+      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24">
 
       {/* Primary Status Card */}
       <section className="mb-12">
@@ -182,7 +187,8 @@ export default async function AdminAircraftOverview() {
           </div>
         </section>
 
-      </div>
-    </div>
+      </div>{/* closes grid */}
+      </div>{/* closes container */}
+    </>
   )
 }

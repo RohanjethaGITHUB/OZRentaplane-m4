@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { formatDateTime } from '@/lib/formatDateTime'
+import AdminPortalHero from '@/components/AdminPortalHero'
 
 export const metadata = { title: 'Bookings Overview | Admin' }
 
@@ -77,7 +78,7 @@ export default async function AdminBookingsOverviewPage() {
       scheduled_end,
       status,
       pic_name,
-      aircraft ( id, registration, type )
+      aircraft ( id, registration )
     `)
     .order('created_at', { ascending: false })
     .limit(5)
@@ -85,23 +86,27 @@ export default async function AdminBookingsOverviewPage() {
   // Booking Pipeline total volume
   const totalInPipeline = pendingCount + confirmedCount + activeCount + awaitingRecordCount + pendingReviewCount
 
+  const heroActions = (
+    <>
+      <Link href="/admin/bookings/calendar" className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 border border-white/10">
+        <span className="material-symbols-outlined text-sm">calendar_month</span> Calendar
+      </Link>
+      <Link href="/admin/bookings/requests" className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 border border-white/10">
+        <span className="material-symbols-outlined text-sm">fact_check</span> Requests
+      </Link>
+    </>
+  )
+
   return (
-    <div className="p-10 max-w-7xl mx-auto pb-24">
-      <header className="mb-12 flex flex-col md:flex-row justify-between items-start md:items-end">
-        <div>
-          <h2 className="font-serif text-4xl font-light text-[#e2e2e6] tracking-tight">Bookings Overview</h2>
-          <p className="text-slate-400 mt-2 font-light tracking-wide">Live overview of fleet utilization and post-flight requirements.</p>
-          <div className="h-0.5 w-10 bg-[#44474c] mt-6" />
-        </div>
-        <div className="flex gap-4 mt-6 md:mt-0">
-          <Link href="/admin/bookings/calendar" className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2 border border-white/10">
-            <span className="material-symbols-outlined text-sm">calendar_month</span> Calendar
-          </Link>
-          <Link href="/admin/bookings/requests" className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2 border border-white/10">
-            <span className="material-symbols-outlined text-sm">fact_check</span> Requests
-          </Link>
-        </div>
-      </header>
+    <>
+      <AdminPortalHero
+        eyebrow="Booking Operations"
+        title="Booking Requests"
+        subtitle="Review aircraft booking requests and confirm customer flights."
+        actions={heroActions}
+      />
+
+      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24">
 
       {/* Booking Status Pipeline */}
       <section className="mb-12 border border-white/5 rounded-2xl p-8 bg-[#0c1326]/30 overflow-hidden relative">
@@ -232,6 +237,7 @@ export default async function AdminBookingsOverviewPage() {
         </div>
       </div>
 
-    </div>
+      </div>
+    </>
   )
 }

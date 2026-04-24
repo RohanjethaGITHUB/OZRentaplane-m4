@@ -344,6 +344,7 @@ export type FlightRecordAttachment = {
   storage_path: string
   file_name: string
   mime_type: string
+  file_size: number | null
   created_at: string
 }
 
@@ -440,4 +441,53 @@ export type ApproveFlightRecordInput = {
   correction_reason?: string | null
   admin_notes?: string | null
   admin_booking_notes?: string | null
+}
+
+export type ResubmitFlightRecordInput = {
+  flight_record_id: string
+  booking_id: string
+  tacho_start?: number | null
+  tacho_stop?: number | null
+  vdo_start?: number | null
+  vdo_stop?: number | null
+  air_switch_start?: number | null
+  air_switch_stop?: number | null
+  add_to_mr?: number | null
+  oil_added?: number | null
+  oil_total?: number | null
+  fuel_added?: number | null
+  fuel_actual?: number | null
+  landings?: number | null
+  customer_notes?: string | null
+}
+
+export type FlightRecordClarification = {
+  id: string
+  flight_record_id: string
+  booking_id: string
+  requested_by: string
+  category: string
+  message: string
+  is_resolved: boolean
+  resolved_at: string | null
+  created_at: string
+}
+
+export type ClarificationCategory =
+  | 'missing_evidence'
+  | 'unreadable_image'
+  | 'meter_reading_mismatch'
+  | 'missing_field_values'
+  | 'fuel_oil_unclear'
+  | 'landings_unclear'
+  | 'other'
+
+export const CLARIFICATION_CATEGORY_LABELS: Record<ClarificationCategory, string> = {
+  missing_evidence:       'Missing evidence photos',
+  unreadable_image:       'Unreadable image',
+  meter_reading_mismatch: 'Meter reading mismatch',
+  missing_field_values:   'Missing field values',
+  fuel_oil_unclear:       'Fuel or oil detail unclear',
+  landings_unclear:       'Landings unclear',
+  other:                  'Other',
 }

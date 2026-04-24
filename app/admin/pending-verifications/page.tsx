@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import AdminQueueTable from '../AdminQueueTable'
 import type { QueueProfile } from '../AdminQueueTable'
+import AdminPortalHero from '@/components/AdminPortalHero'
 
 export const metadata = { title: 'Pending Verifications' }
 
@@ -46,21 +47,23 @@ export default async function PendingVerificationsPage() {
   }
 
   return (
-    <div className="p-10 max-w-7xl">
-      <header className="mb-12">
-        <h2 className="font-serif text-4xl font-light text-[#e2e2e6] tracking-tight">Pending Verifications</h2>
-        <p className="text-slate-400 mt-2 font-light tracking-wide">Customers awaiting document review and approval</p>
-        <div className="h-0.5 w-10 bg-[#44474c] mt-6" />
-      </header>
-
-      <AdminQueueTable
-        profiles={profiles as QueueProfile[] ?? []}
-        docsByUser={docsByUser}
-        totalCount={count ?? 0}
-        dateMode="submitted"
-        actionLabel="Review"
-        unreadByUser={unreadByUser}
+    <>
+      <AdminPortalHero
+        eyebrow="Customer Verification"
+        title="Pending Verifications"
+        subtitle="Review submitted pilot credentials and approve aircraft access."
       />
-    </div>
+
+      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24">
+        <AdminQueueTable
+          profiles={profiles as QueueProfile[] ?? []}
+          docsByUser={docsByUser}
+          totalCount={count ?? 0}
+          dateMode="submitted"
+          actionLabel="Review"
+          unreadByUser={unreadByUser}
+        />
+      </div>
+    </>
   )
 }

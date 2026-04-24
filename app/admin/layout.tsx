@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import AdminSidebar from './AdminSidebar'
-import AdminTopBar from './AdminTopBar'
+import AdminPortalTopNav from './AdminPortalTopNav'
+import AdminPortalSubNav from './AdminPortalSubNav'
+import Footer from '@/components/Footer'
 
 // Server-side guard: only admins can access any /admin route.
-// Fetches real pending count to power the bell badge in the topbar.
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
 
@@ -21,7 +21,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const adminName = profile.full_name ?? user.email?.split('@')[0] ?? 'Administrator'
 
-  // Fetch pending verifications count (bell badge) and admin unread message count in parallel
+  // Fetch pending verifications count and unread message count in parallel
   const [{ count: pendingCount }, { count: unreadMessageCount }] = await Promise.all([
     supabase
       .from('profiles')
@@ -36,24 +36,32 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   ])
 
   return (
-    <div className="min-h-screen flex bg-[#111316] text-[#e2e2e6] font-sans">
+    <div className="min-h-screen flex flex-col bg-[#0d1117] text-[#e2e2e6] font-sans relative">
+
       {/* Grain overlay */}
       <div
-        className="fixed inset-0 pointer-events-none z-[9999] opacity-[0.03] mix-blend-overlay"
+        className="fixed inset-0 pointer-events-none z-[9999] opacity-[0.025] mix-blend-overlay"
         style={{ backgroundImage: 'url("https://grainy-gradients.vercel.app/noise.svg")' }}
       />
 
-      <AdminSidebar displayName={adminName} unreadMessageCount={unreadMessageCount ?? 0} />
+      {/* Ambient glow */}
+      <div className="fixed top-0 left-0 w-[500px] h-[400px] bg-[#a7c8ff]/[0.025] blur-[130px] rounded-full pointer-events-none -z-10" />
 
-      {/* Right column: topbar + page content */}
-      <div className="flex-1 ml-72 flex flex-col min-h-screen">
-        <AdminTopBar pendingCount={pendingCount ?? 0} />
+      {/* Navigation */}
+      <AdminPortalTopNav
+        adminName={adminName}
+        pendingCount={pendingCount ?? 0}
+        unreadMessageCount={unreadMessageCount ?? 0}
+      />
+      <AdminPortalSubNav />
 
-        {/* Page content */}
-        <main className="flex-1">
-          {children}
-        </main>
-      </div>
+      {/* Page content */}
+      <main className="flex-1">
+        {children}
+      </main>
+
+      {/* Global footer */}
+      <Footer forceShow />
     </div>
   )
 }

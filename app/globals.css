@@ -52,6 +52,14 @@ html, body {
   overscroll-behavior: none;
 }
 
+/* Portal subnav horizontal scroll — hide scrollbar visually */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* ── How It Works section: animated border glow on left card ─────────────── */
 @keyframes card-glow-pulse {
   0%, 100% {

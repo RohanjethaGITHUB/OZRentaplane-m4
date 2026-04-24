@@ -3,9 +3,11 @@
 import React from 'react'
 import { usePathname } from 'next/navigation'
 
-export default function Footer() {
+type FooterProps = { forceShow?: boolean }
+
+export default function Footer({ forceShow = false }: FooterProps) {
   const pathname = usePathname()
-  if (pathname.startsWith('/dashboard')) return null
+  if (!forceShow && (pathname.startsWith('/dashboard') || pathname.startsWith('/admin'))) return null
 
   return (
     <footer className="bg-[#050B14] pt-24 pb-12 px-6 md:px-12 lg:px-20 border-t border-white/5">

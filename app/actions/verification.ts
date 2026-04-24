@@ -177,3 +177,29 @@ export async function markCustomerMessagesRead(): Promise<void> {
     .eq('is_read', false)
   // No revalidatePath needed — this is a background read-state update
 }
+
+// ─── Save customer ARN ────────────────────────────────────────────────────────
+// Customer enters their own Aviation Reference Number during verification.
+// Stored on profiles.pilot_arn — admin can also set/override this separately.
+
+export async function saveCustomerArn(arn: string): Promise<void> {
+  const trimmed = arn.trim()
+  if (!trimmed) throw new Error('VALIDATION: ARN cannot be empty.')
+  if (trimmed.length > 20) throw new Error('VALIDATION: ARN must be 20 characters or fewer.')
+
+  const supabase = await createClient()
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) throw new Error('Unauthorized')
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ pilot_arn: trimmed })
+    .eq('id', user.id)
+
+  if (error) throw new Error('Failed to save ARN. Please try again.')
+
+  revalidatePath('/dashboard/documents')
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard/bookings/new')
+}

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import AdminPortalHero from '@/components/AdminPortalHero'
 
 export const metadata = { title: 'Admin Overview | OZRentAPlane' }
 
@@ -44,12 +45,14 @@ export default async function AdminMasterOverview() {
   ].filter(a => a.count > 0)
 
   return (
-    <div className="p-10 max-w-7xl mx-auto pb-24">
-      <header className="mb-12">
-        <h2 className="font-serif text-4xl font-light text-[#e2e2e6] tracking-tight">Master Overview</h2>
-        <p className="text-slate-400 mt-2 font-light tracking-wide">Operational telemetry across customers, bookings, and fleet status.</p>
-        <div className="h-0.5 w-10 bg-[#44474c] mt-6" />
-      </header>
+    <>
+      <AdminPortalHero
+        eyebrow="Operations Overview"
+        title="Operations Dashboard"
+        subtitle="Monitor verification requests, bookings, aircraft availability, and customer messages."
+      />
+
+      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24">
 
       {/* Attention Required Panel */}
       {attentions.length > 0 && (
@@ -141,6 +144,7 @@ export default async function AdminMasterOverview() {
         </div>
       </section>
 
-    </div>
+      </div>
+    </>
   )
 }

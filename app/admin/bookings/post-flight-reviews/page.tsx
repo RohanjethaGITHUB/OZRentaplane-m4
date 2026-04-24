@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { formatDateTime } from '@/lib/formatDateTime'
+import { FLIGHT_RECORD_REVIEW_STATUSES } from '@/lib/booking/status-constants'
 
 export const metadata = { title: 'Post-Flight Reviews | Admin' }
 
@@ -32,9 +33,9 @@ export default async function AdminPostFlightReviewsPage() {
       review_flags,
       submitted_at,
       status,
-      aircraft ( id, registration, type )
+      aircraft ( id, registration, aircraft_type )
     `)
-    .in('status', ['submitted', 'pending_review', 'needs_clarification', 'resubmitted'])
+    .in('status', FLIGHT_RECORD_REVIEW_STATUSES)
     .order('submitted_at', { ascending: true })
 
   return (
@@ -59,6 +60,7 @@ export default async function AdminPostFlightReviewsPage() {
               <thead className="bg-[#111316]">
                 <tr className="border-b border-white/5 text-slate-500 font-medium">
                   <th className="px-6 py-4 font-normal">Aircraft</th>
+                  <th className="px-6 py-4 font-normal">Status</th>
                   <th className="px-6 py-4 font-normal">Date Submitted</th>
                   <th className="px-6 py-4 font-normal">PIC</th>
                   <th className="px-6 py-4 font-normal text-right">Tacho</th>
@@ -82,10 +84,26 @@ export default async function AdminPostFlightReviewsPage() {
 
                   return (
                     <tr key={record.id} className="text-slate-300 hover:bg-white/[0.02] transition-colors">
-                      <td className="px-6 py-4 font-medium text-white flex items-center gap-2">
+                      <td className="px-6 py-4 font-medium text-white">
                         {aircraft?.registration || 'Unknown'}
+                      </td>
+                      <td className="px-6 py-4">
+                        {record.status === 'pending_review' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                            Pending
+                          </span>
+                        )}
+                        {record.status === 'needs_clarification' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                            <span className="material-symbols-outlined text-[11px]">hourglass_empty</span>
+                            Awaiting Customer
+                          </span>
+                        )}
                         {record.status === 'resubmitted' && (
-                          <span className="w-2 h-2 rounded-full bg-amber-500" title="Resubmitted"></span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <span className="material-symbols-outlined text-[11px]">refresh</span>
+                            Resubmitted
+                          </span>
                         )}
                       </td>
                       <td className="px-6 py-4 tabular-nums">{submittedStr}</td>

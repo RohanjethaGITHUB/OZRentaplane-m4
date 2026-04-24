@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import AdminQueueTable from '../AdminQueueTable'
 import type { QueueProfile } from '../AdminQueueTable'
+import AdminPortalHero from '@/components/AdminPortalHero'
 
 export const metadata = { title: 'Customers | Admin' }
 
@@ -52,23 +53,27 @@ export default async function AdminCustomersOverview() {
   const safeTotal = totalCustomers || 0
   const notStartedCount = safeTotal - ((verifiedCount || 0) + (pendingCount || 0) + (actionRequiredCount || 0))
 
+  const heroActions = (
+    <>
+      <Link href="/admin/all-customers" className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 border border-white/10">
+        <span className="material-symbols-outlined text-sm">people</span> Directory
+      </Link>
+      <Link href="/admin/messages" className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-2 border border-white/10">
+        <span className="material-symbols-outlined text-sm">chat</span> Messages
+      </Link>
+    </>
+  )
+
   return (
-    <div className="p-10 max-w-7xl mx-auto pb-24">
-      <header className="mb-12 flex justify-between items-end">
-        <div>
-          <h2 className="font-serif text-4xl font-light text-[#e2e2e6] tracking-tight">Customers Overview</h2>
-          <p className="text-slate-400 mt-2 font-light tracking-wide">Onboarding, verifications, and member distribution.</p>
-          <div className="h-0.5 w-10 bg-[#44474c] mt-6" />
-        </div>
-        <div className="flex gap-4">
-          <Link href="/admin/all-customers" className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2 border border-white/10">
-            <span className="material-symbols-outlined text-sm">people</span> Directory
-          </Link>
-          <Link href="/admin/messages" className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2 border border-white/10">
-            <span className="material-symbols-outlined text-sm">chat</span> Messages
-          </Link>
-        </div>
-      </header>
+    <>
+      <AdminPortalHero
+        eyebrow="Customer Management"
+        title="Customers"
+        subtitle="View customer profiles, verification state, documents, and booking history."
+        actions={heroActions}
+      />
+
+      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24">
 
       {/* Metrics Row */}
       <section className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
@@ -131,7 +136,8 @@ export default async function AdminCustomersOverview() {
           actionLabel="Review"
         />
       </section>
-      
-    </div>
+
+      </div>
+    </>
   )
 }

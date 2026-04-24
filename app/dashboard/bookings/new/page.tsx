@@ -74,7 +74,7 @@ export default async function NewBookingPage() {
 
     return (
       <CustomerBookingShell user={user as User} profile={profile as Profile | null}>
-        <div className="pt-28 px-8 md:px-12 xl:px-16 pb-16 max-w-2xl mx-auto w-full">
+        <div className="px-6 md:px-10 py-10 max-w-2xl mx-auto w-full">
           <Link href="/dashboard/bookings" className="inline-flex items-center gap-1 text-oz-blue hover:text-blue-300 text-sm mb-6 transition-colors">
             <span className="material-symbols-outlined text-base">arrow_back</span>My Bookings
           </Link>
@@ -119,7 +119,7 @@ export default async function NewBookingPage() {
   if (!aircraft) {
     return (
       <CustomerBookingShell user={user as User} profile={profile as Profile | null}>
-        <div className="pt-28 px-8 md:px-12 xl:px-16 pb-16 max-w-2xl mx-auto w-full">
+        <div className="px-6 md:px-10 py-10 max-w-2xl mx-auto w-full">
           <div className="bg-red-500/10 border border-red-500/20 rounded-[1.25rem] p-10 text-center">
             <p className="text-red-300 text-sm">Aircraft configuration unavailable. Please contact the operations team.</p>
           </div>
@@ -142,8 +142,7 @@ export default async function NewBookingPage() {
 
   return (
     <CustomerBookingShell user={user as User} profile={typedProfile}>
-      <div className="pt-28 px-6 md:px-10 xl:px-14 pb-16 w-full max-w-7xl mx-auto">
-        <BookingRequestForm
+      <BookingRequestForm
           aircraftId={aircraft.id}
           aircraftRegistration={aircraft.registration}
           aircraftType={aircraft.display_name || aircraft.aircraft_type}
@@ -154,7 +153,6 @@ export default async function NewBookingPage() {
           eligibilityBlocked={eligibilityBlocked}
           eligibilityWarnings={eligibilityWarnings}
         />
-      </div>
     </CustomerBookingShell>
   )
 }

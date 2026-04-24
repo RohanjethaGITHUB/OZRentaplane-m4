@@ -82,12 +82,20 @@ export default function Navbar({ initialUser }: { initialUser: User | null }) {
         {/* CTA + hamburger */}
         <div className="flex items-center gap-4 shrink-0">
           {user ? (
-            <button
-              onClick={handleLogout}
-              className={`hidden md:inline-flex items-center text-[13px] px-5 py-2 whitespace-nowrap ${ctaClass}`}
-            >
-              Logout
-            </button>
+            <>
+              <a
+                href="/dashboard"
+                className={`hidden md:inline-flex items-center text-[13px] px-5 py-2 whitespace-nowrap font-sans font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-full transition-colors duration-200 shadow-[0_0_15px_rgba(37,99,235,0.4)]`}
+              >
+                Pilot Portal
+              </a>
+              <button
+                onClick={handleLogout}
+                className={`hidden md:inline-flex items-center text-[13px] px-4 py-2 whitespace-nowrap text-white/50 hover:text-white transition-colors duration-200`}
+              >
+                Logout
+              </button>
+            </>
           ) : (
             <a
               href="/login"
@@ -129,12 +137,21 @@ export default function Navbar({ initialUser }: { initialUser: User | null }) {
             )
           })}
           {user ? (
-            <button
-              onClick={() => { setMenuOpen(false); handleLogout() }}
-              className={`mt-2 inline-flex justify-center text-sm px-5 py-3 ${ctaClass}`}
-            >
-              Logout
-            </button>
+            <>
+              <a
+                href="/dashboard"
+                onClick={() => setMenuOpen(false)}
+                className={`mt-2 inline-flex justify-center text-sm px-5 py-3 font-sans font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-full transition-colors duration-200`}
+              >
+                Pilot Portal
+              </a>
+              <button
+                onClick={() => { setMenuOpen(false); handleLogout() }}
+                className={`mt-1 inline-flex justify-center text-sm px-5 py-3 text-white/50 hover:text-white transition-colors duration-200`}
+              >
+                Logout
+              </button>
+            </>
           ) : (
             <a
               href="/login"

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import AdminPortalHero from '@/components/AdminPortalHero'
 
 export const metadata = { title: 'Settings | Admin' }
 
@@ -17,14 +18,14 @@ export default async function AdminSettingsPage() {
   const aircraft = fleet?.[0]
 
   return (
-    <div className="p-10 max-w-7xl mx-auto space-y-12 pb-24">
-      <header>
-        <h2 className="font-serif text-4xl font-light text-[#e2e2e6] tracking-tight">System Settings</h2>
-        <p className="text-slate-400 mt-2 font-light tracking-wide">
-          Core operational parameters and platform configuration. <span className="text-amber-500 font-medium ml-2">Editing capability coming soon.</span>
-        </p>
-        <div className="h-0.5 w-10 bg-[#44474c] mt-6" />
-      </header>
+    <>
+      <AdminPortalHero
+        eyebrow="Platform Configuration"
+        title="System Settings"
+        subtitle="Core operational parameters and platform configuration."
+      />
+
+      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 space-y-12 pb-24">
 
       <section className="space-y-6">
         <h3 className="text-xl font-light text-white tracking-wide">1. Aircraft Settings</h3>
@@ -155,6 +156,7 @@ export default async function AdminSettingsPage() {
         </div>
       </section>
 
-    </div>
+      </div>
+    </>
   )
 }
