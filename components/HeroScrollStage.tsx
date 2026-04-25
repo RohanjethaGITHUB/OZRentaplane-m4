@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 
 // ─── Frame sequence ───────────────────────────────────────────────────────────
@@ -243,7 +243,7 @@ function AmbientOverlays({ innerRef }: { innerRef: React.Ref<HTMLDivElement> }) 
     >
       {/* Cloud Layer A - Main oversized structure */}
       <div 
-        className={`cloud-layer absolute left-[50%] ${AMBIENT_TUNING.mobile.cloudA} ${AMBIENT_TUNING.desktop.cloudA} flex items-end justify-center will-change-transform opacity-[0.45] mix-blend-screen`}
+        className={`absolute left-[50%] ${AMBIENT_TUNING.mobile.cloudA} ${AMBIENT_TUNING.desktop.cloudA} flex items-end justify-center will-change-transform opacity-[0.45] mix-blend-screen`}
         style={{ animation: 'drift-cloud-a 14s ease-in-out infinite alternate', transform: 'translateX(-50%)' }}
       >
         <img 
@@ -261,7 +261,7 @@ function AmbientOverlays({ innerRef }: { innerRef: React.Ref<HTMLDivElement> }) 
 
       {/* Cloud Layer B - Inner depth */}
       <div 
-        className={`cloud-layer absolute left-[50%] ${AMBIENT_TUNING.mobile.cloudB} ${AMBIENT_TUNING.desktop.cloudB} flex items-end justify-center will-change-transform opacity-[0.40] mix-blend-screen`}
+        className={`absolute left-[50%] ${AMBIENT_TUNING.mobile.cloudB} ${AMBIENT_TUNING.desktop.cloudB} flex items-end justify-center will-change-transform opacity-[0.40] mix-blend-screen`}
         style={{ animation: 'drift-cloud-b 11s ease-in-out infinite alternate', transform: 'translateX(-50%)' }}
       >
         <img 
@@ -278,7 +278,7 @@ function AmbientOverlays({ innerRef }: { innerRef: React.Ref<HTMLDivElement> }) 
       </div>
 
       {/* Soft CSS Propeller Blur */}
-      <div className={`propeller-layer absolute z-30 ${AMBIENT_TUNING.mobile.propeller} ${AMBIENT_TUNING.desktop.propeller} -translate-x-1/2 -translate-y-1/2 w-56 h-56 md:w-80 md:h-80 overflow-hidden rounded-full flex flex-col justify-center items-center pointer-events-none mix-blend-screen opacity-[0.60]`}>
+      <div className={`absolute z-30 ${AMBIENT_TUNING.mobile.propeller} ${AMBIENT_TUNING.desktop.propeller} -translate-x-1/2 -translate-y-1/2 w-56 h-56 md:w-80 md:h-80 overflow-hidden rounded-full flex flex-col justify-center items-center pointer-events-none mix-blend-screen opacity-[0.60]`}>
          <div className="w-[85%] h-[85%] rounded-full absolute shadow-[0_0_30px_rgba(255,255,255,0.1)]" style={{ background: 'radial-gradient(circle, rgba(240,245,255,0.4) 0%, rgba(200,210,230,0.1) 40%, transparent 70%)' }} />
          <div className="w-full h-full rounded-full animate-spin-fast absolute" style={{ animationDuration: '0.1s' }}>
            <div className="w-full h-full rounded-full" style={{ background: 'conic-gradient(from 0deg, transparent 0deg, rgba(220, 230, 255, 0.18) 25deg, transparent 60deg, transparent 180deg, rgba(220, 230, 255, 0.12) 205deg, transparent 240deg)' }} />
@@ -313,88 +313,6 @@ function AmbientOverlays({ innerRef }: { innerRef: React.Ref<HTMLDivElement> }) 
           animation: airy-float 9s ease-in-out infinite;
           transform-origin: center center;
           will-change: transform;
-        }
-        .safari-scrub-active .cloud-layer {
-          animation-play-state: paused !important;
-        }
-        .safari-scrub-active .propeller-layer {
-          opacity: 0 !important;
-          transition: opacity 0.2s;
-        }
-      `}} />
-    </div>
-  )
-}
-
-// ─── Safari desktop lightweight cloud overlay ─────────────────────────────────
-// Used instead of AmbientOverlays on Safari desktop.
-// Constraints vs the full version:
-//   • NO mix-blend-screen  (forces composited blend pass every frame on Safari)
-//   • NO maskImage / WebkitMaskImage  (triggers offscreen rasterisation)
-//   • NO CSS filter stack  (brightness/contrast/sepia/hue-rotate/saturate)
-//   • One cloud image only (halves texture memory and blend cost)
-//   • Transform-only drift — compositor-promoted, zero paint cost
-//   • No propeller (fast conic-gradient spin is expensive on Safari GPU)
-//   • No FloatingPaths (72 Framer Motion animated SVG paths — hard-removed)
-function SafariAmbientCloud({ innerRef }: { innerRef: React.Ref<HTMLDivElement> }) {
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.debug('[Hero Safari] SafariAmbientCloud mounted')
-    }
-  }, [])
-
-  return (
-    <div
-      ref={innerRef}
-      className="absolute inset-0 pointer-events-none z-10 overflow-hidden"
-      style={{ opacity: 1 }}
-    >
-      {/* Cloud — mix-blend-mode: lighten (per-channel max, NOT screen).
-          Dark sky pixels in CloudLayerA are darker than the hero canvas, so the
-          canvas shows through them. Only the bright cloud mass is visible.
-          This solves the "thin strip" problem — the strip was the sky at high
-          opacity with no blend mode covering the canvas.
-          h-[85%] bottom-0 keeps the cloud in the lower hero, same as Chrome.  */}
-      <div
-        className="absolute bottom-[-3%] w-[210%] h-[85%] md:h-[78%] opacity-[0.38]"
-        style={{
-          left: '50%',
-          mixBlendMode: 'lighten',
-          willChange: 'transform',
-          animation: 'safari-cloud-drift 22s ease-in-out infinite alternate',
-        }}
-      >
-        <img
-          src="/CloudLayerA.webp"
-          alt=""
-          className="w-full h-full object-cover"
-          style={{ objectPosition: 'center 70%' }}
-        />
-      </div>
-
-      {/* Lightweight propeller — single conic-gradient layer, no mix-blend-screen.
-          Safari-specific position: ~4% right of previous. */}
-      <div
-        className="absolute -translate-x-1/2 -translate-y-1/2 left-[46%] top-[35%] md:left-[43%] md:top-[36%] w-52 h-52 md:w-72 md:h-72 rounded-full overflow-hidden pointer-events-none opacity-[0.35]"
-        style={{
-          willChange: 'transform',
-          animation: 'safari-prop-spin 0.15s linear infinite',
-        }}
-      >
-        <div
-          className="w-full h-full rounded-full"
-          style={{ background: 'conic-gradient(from 0deg, transparent 0deg, rgba(255,255,255,0.28) 22deg, transparent 55deg, transparent 180deg, rgba(255,255,255,0.20) 202deg, transparent 235deg)' }}
-        />
-      </div>
-
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes safari-cloud-drift {
-          0%   { transform: translateX(-58%); }
-          100% { transform: translateX(-42%); }
-        }
-        @keyframes safari-prop-spin {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
         }
       `}} />
     </div>
@@ -612,6 +530,104 @@ const TEXT_OVERLAYS = [
   },
 ]
 
+// ─── Safari desktop static text overlays ─────────────────────────────────────
+// Plain HTML equivalents of TEXT_OVERLAYS — no Framer Motion components at all.
+// Identical text, identical className and layout; zero animation overhead.
+// Used when isSafariDesktop = true.
+const SAFARI_TEXT_OVERLAYS = [
+  {
+    id: 'intro',
+    startPct: 0,
+    endPct: 0.18,
+    fullBleed: true,
+    alwaysVisible: false,
+    content: (
+      <>
+        <div className="absolute left-0 right-0 flex flex-col items-center text-center px-6 md:px-12" style={{ top: '16vh' }}>
+          <p className="font-sans text-[10px] md:text-xs font-bold tracking-[0.3em] uppercase text-oz-blue/70 mb-3 md:mb-5">
+            Sydney Cessna 172 Rental
+          </p>
+          <h1 className="font-serif text-4xl md:text-7xl font-black leading-tight">
+            <span className="block text-oz-text">FLY</span>
+            <span className="block italic text-oz-blue relative pb-3">
+              YOUR WAY
+              <svg
+                viewBox="0 0 340 20"
+                fill="none"
+                aria-hidden="true"
+                className="absolute left-1/2 -translate-x-1/2 bottom-[-2px] w-[90%] md:w-[85%] h-[14px] md:h-[18px]"
+              >
+                <path
+                  d="M 6 13 C 45 5, 90 18, 145 10 C 200 3, 255 16, 310 10 C 322 8, 330 9, 334 11"
+                  stroke="rgba(167,200,255,0.55)"
+                  strokeWidth="2.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+          </h1>
+        </div>
+        <div className="absolute left-0 right-0 bottom-[13vh] flex flex-col items-center text-center px-6 pointer-events-auto">
+          <p className="font-sans text-sm md:text-lg text-oz-muted font-light leading-relaxed max-w-xs md:max-w-md mb-5 md:mb-7">
+            A modern platform for pilots — rent, fly, and enjoy
+          </p>
+          <a
+            href="/pilotRequirements"
+            className="inline-block bg-gradient-to-r from-[#4168a6] to-[#172c4a] text-white rounded-md font-sans font-bold tracking-widest uppercase text-sm px-10 py-4 shadow-xl shadow-[#4168a6]/30 transition-all duration-300 hover:shadow-2xl hover:shadow-[#4168a6]/50 hover:scale-[1.02] active:scale-95"
+          >
+            Schedule your checkout Flight
+          </a>
+        </div>
+      </>
+    ),
+  },
+  {
+    id: 'aircraft',
+    startPct: 0.28,
+    endPct: 0.52,
+    fullBleed: false,
+    alwaysVisible: false,
+    content: (
+      <div className="max-w-xs md:max-w-md">
+        <p className="font-sans text-[10px] md:text-xs font-bold tracking-[0.3em] uppercase text-oz-blue/70 mb-3 md:mb-4">
+          Our Fleet
+        </p>
+        <h2 className="font-serif text-3xl md:text-5xl font-black leading-tight mb-4 md:mb-5">
+          <span className="block text-oz-text">Built for pilots</span>
+          <span className="block italic text-oz-blue">Not passengers</span>
+        </h2>
+        <p className="font-sans text-sm md:text-base text-oz-muted font-light leading-relaxed">
+          We start with a Cessna 172 — the most trusted training and touring aircraft in the world,
+          well-maintained, thoroughly checked, and ready when you are
+        </p>
+      </div>
+    ),
+  },
+  {
+    id: 'cockpit',
+    startPct: 0.62,
+    endPct: 1.0,
+    fullBleed: false,
+    alwaysVisible: true,
+    content: (
+      <div className="max-w-xs md:max-w-md">
+        <p className="font-sans text-[9px] font-semibold tracking-[0.38em] uppercase text-oz-blue/75 mb-2.5 md:mb-4">
+          The Experience
+        </p>
+        <h2 className="font-serif text-2xl md:text-5xl font-black leading-tight mb-0 md:mb-5">
+          <span className="block text-oz-text">Command</span>
+          <span className="block italic text-oz-blue">your aircraft</span>
+        </h2>
+        <p className="hidden md:block font-sans text-base text-oz-muted font-light leading-relaxed">
+          From pre-flight checks to touchdown, the aircraft is yours — no instructors required
+          for qualified pilots, no unnecessary oversight
+        </p>
+      </div>
+    ),
+  },
+]
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function HeroScrollStage() {
   const sectionRef         = useRef<HTMLDivElement>(null)
@@ -667,23 +683,9 @@ export default function HeroScrollStage() {
 
   // Scroll Lock + Timeline State
   const [isScrollLocked, setIsScrollLocked] = useState(true)
-  // decorativeMode drives the decorative layer tree.
-  //
-  //   'safari' (default) — SSR / initial client render.
-  //               Renders SafariAmbientCloud only (lightweight, no propeller,
-  //               no FloatingPaths, no blend/mask/filter).
-  //               Safe baseline for all browsers on first paint.
-  //
-  //   'rich'    — Set by useLayoutEffect on non-Safari browsers before first paint.
-  //               Renders the full AmbientOverlays + FloatingPaths tree.
-  //
-  // Why this eliminates the rich-tree flash on Safari:
-  //   SSR and initial render default to 'safari' (lightweight tree).
-  //   Safari stays on 'safari' — it never sees AmbientOverlays or propeller.
-  //   Non-Safari browsers upgrade to 'rich' via useLayoutEffect before first paint.
-  //   Chrome tolerates the brief lightweight→rich swap since it happens before paint.
-  type DecorativeMode = 'safari' | 'rich'
-  const [decorativeMode, setDecorativeMode] = useState<DecorativeMode>('safari')
+  // Set to true after mount if running on Safari desktop — drives hard fallback
+  // conditional rendering in JSX (no re-render once locked in).
+  const [isSafariDesktop, setIsSafariDesktop] = useState(false)
   const scrollLockedRef    = useRef(true)
   const introCompleteRef   = useRef(false)
 
@@ -702,21 +704,6 @@ export default function HeroScrollStage() {
   const [sectionHeight,  setSectionHeight]  = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
   const [posterVisible,  setPosterVisible]  = useState(true)
-
-  // ── Safari detection — fires before browser paint ─────────────────────────
-  // useLayoutEffect is synchronous with DOM commit: the state update + re-render
-  // completes before the browser paints any pixels, so Safari never sees the
-  // non-Safari decorative tree flash in.
-  // The ref is set here too so resizeCanvas() called later in useEffect already
-  // has the correct DPR cap without needing to re-detect.
-  useLayoutEffect(() => {
-    const detected =
-      /Safari/.test(navigator.userAgent) &&
-      !/Chrome|Chromium|CriOS|EdgA/.test(navigator.userAgent) &&
-      !/iPhone|iPad|iPod|Android/.test(navigator.userAgent)
-    isSafariDesktopRef.current = detected
-    setDecorativeMode(detected ? 'safari' : 'rich')
-  }, [])
 
   // ── 2-pass canvas draw ─────────────────────────────────────────────────────
   const drawFrame = useCallback((index: number, targetCanvas?: HTMLCanvasElement, singlePass = false): boolean => {
@@ -954,30 +941,14 @@ export default function HeroScrollStage() {
     })
 
     if (ambientRefs.current) {
+      const startFade = 0.05
+      const endFade   = 0.25
       let ambientOp = 1
-      if (isSafariDesktopRef.current) {
-        // Scene-1-only Safari ambient: opacity=1 during frames 0–175, then smooth
-        // fade to 0 by frame 208 (just into scene 2). Bidirectional — scrolling
-        // back into scene 1 restores the clouds and propeller automatically.
-        const FADE_START = 176   // last ~16 frames of scene 1
-        const FADE_END   = 208   // 16 frames into scene 2
-        if (frameIndex <= FADE_START) {
-          ambientOp = 1
-        } else if (frameIndex < FADE_END) {
-          ambientOp = 1 - (frameIndex - FADE_START) / (FADE_END - FADE_START)
-        } else {
-          ambientOp = 0
-        }
-        if (process.env.NODE_ENV === 'development') {
-          console.debug('[Hero Safari] ambient opacity', ambientOp.toFixed(2), 'frame', frameIndex)
-        }
-      } else {
-        // Non-Safari: original heroProgress-based fade (ambient fades with overlays).
-        const startFade = 0.05
-        const endFade   = 0.25
-        if (heroProgress >= endFade) ambientOp = 0
-        else if (heroProgress > startFade) ambientOp = 1 - (heroProgress - startFade) / (endFade - startFade)
-      }
+      if (heroProgress >= endFade) ambientOp = 0
+      else if (heroProgress > startFade) ambientOp = 1 - (heroProgress - startFade) / (endFade - startFade)
+      // Suppress cloud + propeller compositing during Safari active scrubbing.
+      // The RAF loop restores it naturally once isScrubbingRef flips back to false.
+      if (isSafariDesktopRef.current && isScrubbingRef.current) ambientOp = 0
       ambientRefs.current.style.opacity = String(ambientOp)
     }
 
@@ -1059,9 +1030,6 @@ export default function HeroScrollStage() {
       if (!isScrubbingRef.current) {
         // First scroll event of this scrub burst — kill decorative layers now
         isScrubbingRef.current = true
-        if (ambientRefs.current) {
-          ambientRefs.current.classList.add('safari-scrub-active')
-        }
         if (floatingPathsWrapRef.current) {
           floatingPathsWrapRef.current.style.transition = 'none'
           floatingPathsWrapRef.current.style.opacity    = '0'
@@ -1074,9 +1042,6 @@ export default function HeroScrollStage() {
       if (scrubTimerRef.current !== null) clearTimeout(scrubTimerRef.current)
       scrubTimerRef.current = window.setTimeout(() => {
         isScrubbingRef.current = false
-        if (ambientRefs.current) {
-          ambientRefs.current.classList.remove('safari-scrub-active')
-        }
         scrubTimerRef.current  = null
         // Fade FloatingPaths back in smoothly
         if (floatingPathsWrapRef.current) {
@@ -1101,16 +1066,28 @@ export default function HeroScrollStage() {
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
-    // Safari detection already handled in useLayoutEffect (before first paint).
-    // isSafariDesktopRef.current and isSafariDesktop state are both correct here.
+    // ── Safari desktop detection ─────────────────────────────────────────────
+    // Must run before resizeCanvas() so the DPR cap is correct on first paint.
+    // Heuristic: UA contains "Safari" but not Chrome/Chromium/CriOS/Edge,
+    // and not a mobile UA token.  Reliable for all desktop Safari versions.
+    const detectedSafari =
+      /Safari/.test(navigator.userAgent) &&
+      !/Chrome|Chromium|CriOS|EdgA/.test(navigator.userAgent) &&
+      !/iPhone|iPad|iPod|Android/.test(navigator.userAgent)
+
+    isSafariDesktopRef.current = detectedSafari
+    // Trigger a React re-render so JSX conditionals (no FloatingPaths, no
+    // AmbientOverlays, static text overlays) take effect before first scroll.
+    if (detectedSafari) setIsSafariDesktop(true)
+
     if (process.env.NODE_ENV === 'development') {
-      const s = isSafariDesktopRef.current
       console.debug(
-        `[Hero] safariDesktop=${s}` +
+        `[Hero] safariDesktop=${detectedSafari} safariFallback=${detectedSafari}` +
         ` nativeDPR=${window.devicePixelRatio}` +
-        ` effectiveDPR=${s ? 1.0 : Math.min(window.devicePixelRatio, 1.5)}` +
-        ` frameStep=${s ? 2 : 1}` +
-        ` decorativeTree=${s ? 'safari-lightweight' : 'full-rich'}`
+        ` effectiveDPR=${detectedSafari ? 1.0 : Math.min(window.devicePixelRatio, 1.5)}` +
+        ` frameStep=${detectedSafari ? 2 : 1}` +
+        ` decorativeLayers=${detectedSafari ? 'DISABLED' : 'enabled'}` +
+        ` framerMotion=${detectedSafari ? 'DISABLED' : 'enabled'}`
       )
     }
 
@@ -1315,14 +1292,14 @@ export default function HeroScrollStage() {
             style={{ background: 'rgba(135, 145, 215, 0.14)', mixBlendMode: 'normal' }}
           />
 
-          {/* Decorative overlay tree — gated on decorativeMode to prevent SSR flash.
-               'pending': neither tree renders (SSR + pre-hydration state).
-               'safari':  SafariAmbientCloud only — no propeller, no FloatingPaths.
-               'rich':    full AmbientOverlays + FloatingPaths for all other browsers. */}
-          {decorativeMode === 'safari' && <SafariAmbientCloud innerRef={ambientRefs} />}
-          {decorativeMode === 'rich'   && <AmbientOverlays innerRef={ambientRefs} />}
+          {/* Ambient Overlays (Clouds & Propeller)
+               Not rendered at all on Safari desktop — animations still consume
+               compositor resources even behind opacity:0. Hard removal only. */}
+          {!isSafariDesktop && <AmbientOverlays innerRef={ambientRefs} />}
 
-          {decorativeMode === 'rich' && (
+          {/* Floating paths — also fully absent on Safari desktop.
+               72 animated motion.path SVGs have measurable rAF cost even hidden. */}
+          {!isSafariDesktop && (
             <div ref={floatingPathsWrapRef} className="absolute inset-0 pointer-events-none">
               <FloatingPaths position={1} />
               <FloatingPaths position={-1} />
@@ -1332,8 +1309,8 @@ export default function HeroScrollStage() {
         </div>
 
         {/* ── Hero text overlays ──────────────────────────────────────────── */}
-        {/* ── Hero text overlays ──────────────────────────────────────────── */}
-        {TEXT_OVERLAYS.map((overlay, idx) => (
+        {/* Safari desktop uses SAFARI_TEXT_OVERLAYS (plain HTML, no Framer Motion). */}
+        {(isSafariDesktop ? SAFARI_TEXT_OVERLAYS : TEXT_OVERLAYS).map((overlay, idx) => (
           <div
             key={overlay.id}
             ref={(el) => { overlayRefs.current[idx] = el }}

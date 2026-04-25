@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Blue Hour - Pilot Registration</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#b7c8de",
+                        "secondary-container": "#354958",
+                        "on-background": "#e2e2e6",
+                        "tertiary-fixed-dim": "#adcae6",
+                        "on-surface": "#e2e2e6",
+                        "error-container": "#93000a",
+                        "error": "#ffb4ab",
+                        "on-secondary-container": "#a3b8c9",
+                        "outline": "#8e9197",
+                        "surface-dim": "#111316",
+                        "secondary-fixed-dim": "#b4c9db",
+                        "on-tertiary-fixed": "#001d31",
+                        "primary": "#b7c8de",
+                        "tertiary-fixed": "#cce5ff",
+                        "on-surface-variant": "#c4c6cd",
+                        "background": "#111316",
+                        "on-secondary-fixed-variant": "#354958",
+                        "on-error-container": "#ffdad6",
+                        "on-primary-container": "#8192a7",
+                        "on-tertiary-container": "#7894ae",
+                        "primary-fixed": "#d2e4fb",
+                        "inverse-surface": "#e2e2e6",
+                        "surface-bright": "#37393d",
+                        "on-error": "#690005",
+                        "tertiary": "#adcae6",
+                        "tertiary-container": "#0d2c42",
+                        "surface-variant": "#333538",
+                        "primary-container": "#1a2b3c",
+                        "surface-tint": "#b7c8de",
+                        "secondary-fixed": "#d0e5f7",
+                        "inverse-primary": "#4f6073",
+                        "on-primary": "#213243",
+                        "on-secondary-fixed": "#081e2b",
+                        "on-secondary": "#1e3340",
+                        "on-tertiary": "#153349",
+                        "surface-container-high": "#282a2d",
+                        "surface-container-lowest": "#0c0e11",
+                        "inverse-on-surface": "#2f3034",
+                        "secondary": "#b4c9db",
+                        "on-primary-fixed": "#0b1d2d",
+                        "outline-variant": "#44474c",
+                        "surface-container": "#1e2023",
+                        "surface-container-low": "#1a1c1f",
+                        "on-tertiary-fixed-variant": "#2e4961",
+                        "on-primary-fixed-variant": "#38485a",
+                        "surface-container-highest": "#333538",
+                        "surface": "#111316"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Noto Serif"],
+                        "body": ["Manrope"],
+                        "label": ["Manrope"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Manrope', sans-serif;
+            background-color: #111316;
+            background-image: radial-gradient(circle at 50% 50%, #1a1c1f 0%, #111316 100%);
+            -webkit-font-smoothing: antialiased;
+        }
+        .grain {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: url("https://www.transparenttextures.com/patterns/carbon-fibre.png");
+            opacity: 0.03;
+            pointer-events: none;
+            z-index: 99;
+        }
+        .serif-hero {
+            font-family: 'Noto Serif', serif;
+            letter-spacing: -0.02em;
+        }
+        .all-caps-label {
+            font-family: 'Manrope', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+        }
+        .glass-panel {
+            background: rgba(30, 32, 35, 0.7);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+    </style>
+</head>
+<body class="text-on-background min-h-screen flex items-center justify-center p-4 md:p-8">
+<div class="grain"></div>
+<!-- Main Responsive Split Container -->
+<main class="w-full max-w-7xl h-full min-h-[850px] grid grid-cols-1 md:grid-cols-2 bg-surface-container-lowest rounded-xl overflow-hidden shadow-2xl relative">
+<!-- Left Side: Inactive Sign In -->
+<section class="relative group cursor-pointer transition-all duration-700 flex flex-col justify-end p-12 overflow-hidden border-r border-white/5">
+<!-- Background Image (Blurred) -->
+<div class="absolute inset-0 z-0">
+<img alt="Cockpit Interior" class="w-full h-full object-cover filter blur-md grayscale-[0.5] opacity-40 scale-105" data-alt="Close-up of a luxury private jet cockpit instrument panel at blue hour with glowing buttons and soft ambient lighting, heavily blurred" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC-SrjFI0N1fDdM4qTuYfEFhwmHDEAKW940G2JXVOYEqdVgGT_9u5xhZjnnDpVhxU-tsRuKwGlvtcamjT1LVQP5djO4xvk7J915WrhjOj5zRV9zz8GRYyhjbaWCQohHtpi3yAhgmRm29AiihiDt5VMgxlCLq_4PiW2a8auifMxusSJXgncYZNm1g7OFo7sApAVvGO8Dihl0Fpdb2R45cCsKI7O6u58zuhio0giXWcX5T10DLUNySCXJqwOJzTPpOsQi63andc5IXPW0"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent"></div>
+</div>
+<div class="relative z-10 space-y-4">
+<span class="all-caps-label text-primary/60 text-xs">Existing Members</span>
+<h2 class="serif-hero text-4xl lg:text-5xl text-on-surface-variant">Member Access</h2>
+<p class="text-on-surface-variant/60 max-w-xs font-light">Return to the cockpit. Access your private fleet and managed charters.</p>
+<div class="pt-8">
+<button class="all-caps-label text-xs border border-outline-variant/30 px-8 py-4 rounded-full text-on-surface hover:bg-white/5 transition-all">
+                        Switch to Sign In
+                    </button>
+</div>
+</div>
+<!-- Runway Divider Detail -->
+<div class="absolute right-0 top-1/4 bottom-1/4 w-[1px] bg-gradient-to-b from-transparent via-primary/20 to-transparent"></div>
+</section>
+<!-- Right Side: Active Sign Up -->
+<section class="relative flex flex-col justify-center p-8 md:p-16 lg:p-24 bg-surface-container-low">
+<!-- Background Image (Sharp) -->
+<div class="absolute inset-0 z-0">
+<img alt="Runway Lights" class="w-full h-full object-cover opacity-10" data-alt="Distant perspective of runway center lights at blue hour, glowing primary blue and white stretching into a dark horizon with misty atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3rzgcraVltMeo6oU_d1H95Sq6ID6kXtAFCyRgtI6asq2Nu3WGmuOmJAwCYSAkWGkhqf3N2DkYn40ZGLUmBLNrAlFvoGaJ0wQiw4Iq03EJAsXi4nAVXrVTy2FAZ9datlzRjTlNeHnthaX7hq8MDVWXOqbxnESqSUL9PcztIgdsidIeqvFwwDDP2-3UbJbspHxcHSoxrGL5R_ugoCPbtwHI-XrzjSJmigIeaM_MHX7GpzUNqPVbSl8Zu0pPysMdUfSG74S4lENJCa0r"/>
+<!-- Rim lighting simulation -->
+<div class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent"></div>
+</div>
+<div class="relative z-10 w-full max-w-md mx-auto">
+<div class="mb-12">
+<span class="all-caps-label text-primary text-xs font-bold">New Aviator Profile</span>
+<h1 class="serif-hero text-4xl lg:text-6xl mt-4 mb-6 leading-tight">Create Pilot Profile</h1>
+<p class="text-on-surface-variant font-light text-lg">Join an exclusive network of private aviation professionals.</p>
+</div>
+<form class="space-y-8">
+<div class="space-y-6">
+<!-- Custom Editorial Input -->
+<div class="group">
+<label class="all-caps-label text-[10px] text-outline mb-2 block transition-colors group-focus-within:text-primary">Full Name</label>
+<input class="w-full bg-surface-container-low border-0 border-b border-outline-variant/30 px-0 py-3 text-on-surface focus:ring-0 focus:border-primary placeholder:text-outline-variant transition-all" placeholder="e.g. Capt. Julian Vance" type="text"/>
+</div>
+<div class="group">
+<label class="all-caps-label text-[10px] text-outline mb-2 block transition-colors group-focus-within:text-primary">Email Address</label>
+<input class="w-full bg-surface-container-low border-0 border-b border-outline-variant/30 px-0 py-3 text-on-surface focus:ring-0 focus:border-primary placeholder:text-outline-variant transition-all" placeholder="julian@thebluehour.aero" type="email"/>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="group">
+<label class="all-caps-label text-[10px] text-outline mb-2 block transition-colors group-focus-within:text-primary">Password</label>
+<input class="w-full bg-surface-container-low border-0 border-b border-outline-variant/30 px-0 py-3 text-on-surface focus:ring-0 focus:border-primary placeholder:text-outline-variant transition-all" placeholder="••••••••" type="password"/>
+</div>
+<div class="group">
+<label class="all-caps-label text-[10px] text-outline mb-2 block transition-colors group-focus-within:text-primary">Confirm</label>
+<input class="w-full bg-surface-container-low border-0 border-b border-outline-variant/30 px-0 py-3 text-on-surface focus:ring-0 focus:border-primary placeholder:text-outline-variant transition-all" placeholder="••••••••" type="password"/>
+</div>
+</div>
+</div>
+<div class="pt-4">
+<button class="w-full bg-primary text-on-primary py-5 rounded-full all-caps-label text-sm font-bold shadow-lg shadow-primary/10 hover:shadow-primary/20 hover:scale-[1.01] transition-all duration-300 flex items-center justify-center gap-3" type="submit">
+                            Start Application
+                            <span class="material-symbols-outlined text-lg" data-icon="east">east</span>
+</button>
+</div>
+<div class="p-6 rounded-xl bg-surface-container-highest/30 backdrop-blur-md border border-white/5 flex gap-4">
+<span class="material-symbols-outlined text-primary" data-icon="verified_user">verified_user</span>
+<div class="text-xs text-on-surface-variant leading-relaxed">
+<strong class="text-on-surface">Pilot Verification Required.</strong>
+                            Applications are reviewed within 24 hours. Valid FAA/EASA licensing information will be requested in the next step.
+                        </div>
+</div>
+</form>
+</div>
+</section>
+<!-- Brand Watermark -->
+<div class="absolute top-12 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+<div class="text-2xl font-serif italic text-slate-100 tracking-[0.4em]">THE BLUE HOUR</div>
+</div>
+</main>
+<!-- Background Decoration -->
+<div class="fixed top-0 right-0 w-[500px] h-[500px] bg-primary/5 blur-[120px] -z-10 rounded-full"></div>
+<div class="fixed bottom-0 left-0 w-[500px] h-[500px] bg-secondary-container/10 blur-[120px] -z-10 rounded-full"></div>
+</body></html>

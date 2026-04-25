@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-tint": "#b7c8de",
+                        "on-primary": "#213243",
+                        "surface-variant": "#333538",
+                        "on-background": "#e2e2e6",
+                        "surface": "#111316",
+                        "secondary-fixed": "#d0e5f7",
+                        "on-secondary-fixed-variant": "#354958",
+                        "inverse-on-surface": "#2f3034",
+                        "on-primary-container": "#8192a7",
+                        "error": "#ffb4ab",
+                        "on-error": "#690005",
+                        "on-primary-fixed": "#0b1d2d",
+                        "error-container": "#93000a",
+                        "primary-fixed-dim": "#b7c8de",
+                        "primary-fixed": "#d2e4fb",
+                        "surface-container-lowest": "#0c0e11",
+                        "surface-bright": "#37393d",
+                        "on-secondary-container": "#a3b8c9",
+                        "secondary-fixed-dim": "#b4c9db",
+                        "primary-container": "#1a2b3c",
+                        "surface-container-low": "#1a1c1f",
+                        "secondary-container": "#354958",
+                        "tertiary-fixed": "#cce5ff",
+                        "outline-variant": "#44474c",
+                        "on-tertiary-fixed-variant": "#2e4961",
+                        "on-primary-fixed-variant": "#38485a",
+                        "on-tertiary-container": "#7894ae",
+                        "tertiary": "#adcae6",
+                        "inverse-surface": "#e2e2e6",
+                        "tertiary-container": "#0d2c42",
+                        "secondary": "#b4c9db",
+                        "tertiary-fixed-dim": "#adcae6",
+                        "surface-container": "#1e2023",
+                        "on-surface": "#e2e2e6",
+                        "inverse-primary": "#4f6073",
+                        "surface-container-high": "#282a2d",
+                        "on-secondary-fixed": "#081e2b",
+                        "surface-dim": "#111316",
+                        "on-surface-variant": "#c4c6cd",
+                        "surface-container-highest": "#333538",
+                        "background": "#111316",
+                        "primary": "#b7c8de",
+                        "on-error-container": "#ffdad6",
+                        "on-tertiary": "#153349",
+                        "outline": "#8e9197",
+                        "on-tertiary-fixed": "#001d31",
+                        "on-secondary": "#1e3340"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Noto Serif"],
+                        "body": ["Manrope"],
+                        "label": ["Manrope"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #111316;
+            font-family: 'Manrope', sans-serif;
+            color: #e2e2e6;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(183, 200, 222, 0.03) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(180, 201, 219, 0.05) 0px, transparent 50%);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(30, 32, 35, 0.6);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+        .grain-overlay {
+            pointer-events: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: url('https://grainy-gradients.vercel.app/noise.svg');
+            opacity: 0.03;
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex overflow-hidden">
+<div class="grain-overlay"></div>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-screen w-64 border-r border-white/5 bg-slate-900/80 backdrop-blur-xl flex flex-col py-8 px-6 z-50">
+<div class="mb-12">
+<h1 class="text-xl font-serif italic text-blue-100 tracking-tight">The Blue Hour</h1>
+<p class="text-[10px] font-medium uppercase tracking-[0.2em] text-blue-200/60 mt-1">Aviator Member</p>
+</div>
+<nav class="flex-1 space-y-2">
+<a class="flex items-center gap-4 py-3 px-4 rounded-xl text-blue-200 font-bold border-r-2 border-blue-200 pr-4 hover:bg-white/5 transition-all duration-500 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-xs font-medium uppercase tracking-widest">Dashboard</span>
+</a>
+<a class="flex items-center gap-4 py-3 px-4 rounded-xl text-slate-400 hover:text-blue-100 transition-colors duration-300 hover:bg-white/5 transition-all duration-500 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+<span class="text-xs font-medium uppercase tracking-widest">My Profile</span>
+</a>
+<a class="flex items-center gap-4 py-3 px-4 rounded-xl text-slate-400 hover:text-blue-100 transition-colors duration-300 hover:bg-white/5 transition-all duration-500 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="text-xs font-medium uppercase tracking-widest">Documents</span>
+</a>
+<a class="flex items-center gap-4 py-3 px-4 rounded-xl text-slate-400 hover:text-blue-100 transition-colors duration-300 hover:bg-white/5 transition-all duration-500 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
+<span class="text-xs font-medium uppercase tracking-widest">Bookings</span>
+</a>
+<a class="flex items-center gap-4 py-3 px-4 rounded-xl text-slate-400 hover:text-blue-100 transition-colors duration-300 hover:bg-white/5 transition-all duration-500 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="contact_support">contact_support</span>
+<span class="text-xs font-medium uppercase tracking-widest">Support</span>
+</a>
+</nav>
+<div class="mt-auto pt-6 border-t border-white/5 flex items-center gap-3">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-container-highest">
+<img alt="Member Profile Avatar" class="w-full h-full object-cover grayscale opacity-80" data-alt="professional headshot of a middle-aged pilot with a kind expression and dark hair, soft studio lighting on dark background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAxlLMomJcxzhltbIJoKFAS0bBJC4YE19ZP_LD-BEfOIOFBUiMao2sGAMdItz5yvIadQA5JJ3OlkleqaPyVUP1PlnNs0wTeSfGB2eNri8rmzNdf1K4b2LDS-vPzhzPEqN3ilJxWiTWG6dQteNjVkOxEFJ-x_DWbsxFX5RgEDLT9OFdJjOJLgRv0TpBvEinWe8_2rLK5PHhP1HJ49aL8s3kTiAAqkFfzbfwolhtlb0nXV8pNBrIyXMWeLwKtcOrcipvkYSSJTXehexBB"/>
+</div>
+<div>
+<p class="text-sm font-semibold text-blue-100">Julian Vance</p>
+<p class="text-[10px] text-slate-500 uppercase tracking-widest">Captain</p>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 flex-1 flex flex-col relative">
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 w-[calc(100%-16rem)] h-20 flex justify-end items-center px-12 gap-6 z-40">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2 text-slate-400 hover:text-blue-100 transition-opacity cursor-pointer">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</div>
+<div class="flex items-center gap-2 text-slate-400 hover:text-blue-100 transition-opacity cursor-pointer">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</div>
+<div class="h-8 w-[1px] bg-white/5"></div>
+<div class="flex items-center gap-3">
+<span class="text-xs font-medium uppercase tracking-widest text-blue-200">Member Portal</span>
+</div>
+</div>
+</header>
+<!-- Content Canvas -->
+<div class="pt-28 px-12 pb-12 w-full max-w-7xl mx-auto space-y-10">
+<!-- Header Section -->
+<section class="flex justify-between items-end">
+<div>
+<h2 class="text-4xl font-headline italic tracking-tight text-on-surface">Welcome back, Capt. Julian Vance</h2>
+<p class="mt-2 text-on-surface-variant font-body">Your application for the Sydney Cessna 172 fleet is in progress.</p>
+</div>
+<div class="flex items-center gap-3 px-4 py-2 bg-secondary-container/30 backdrop-blur-md rounded-full border border-white/5">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="text-xs font-bold uppercase tracking-widest text-primary">Pending</span>
+</div>
+</section>
+<!-- Primary Card: Hero Status -->
+<section class="relative group">
+<div class="absolute -inset-0.5 bg-gradient-to-tr from-primary/10 to-transparent rounded-xl opacity-20 blur group-hover:opacity-30 transition duration-1000"></div>
+<div class="glass-panel rounded-xl p-10 relative overflow-hidden flex items-center justify-between">
+<div class="space-y-6 max-w-2xl">
+<div class="space-y-2">
+<span class="text-[10px] uppercase tracking-[0.3em] text-primary/70 font-medium">Certification Stage</span>
+<h3 class="text-3xl font-headline text-on-surface leading-tight">Account Status: Pending Review</h3>
+</div>
+<p class="text-lg text-on-surface-variant leading-relaxed font-light">
+                            We’ve received your documents and your account is currently under review. 
+                            Our safety officers are validating your certifications for the Sydney fleet. 
+                            You’ll be notified via email once you’re approved to book.
+                        </p>
+<div class="flex gap-4">
+<button class="bg-primary hover:bg-primary/90 text-on-primary px-8 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all">
+                                View Documents
+                            </button>
+<button class="border border-outline-variant/20 hover:border-outline-variant/50 text-on-surface px-8 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all">
+                                Contact Support
+                            </button>
+</div>
+</div>
+<div class="hidden lg:block opacity-10">
+<span class="material-symbols-outlined text-[180px] text-primary" style="font-variation-settings: 'wght' 100;">verified_user</span>
+</div>
+</div>
+</section>
+<!-- 2x2 Grid Section -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<!-- Next Steps Checklist -->
+<div class="glass-panel rounded-xl p-8 space-y-6">
+<div class="flex items-center justify-between border-b border-white/5 pb-4">
+<h4 class="text-sm font-bold uppercase tracking-widest text-primary">Next Steps</h4>
+<span class="text-[10px] text-on-surface-variant">75% Complete</span>
+</div>
+<ul class="space-y-5">
+<li class="flex items-center gap-4 text-on-surface/50">
+<span class="material-symbols-outlined text-primary text-xl" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-sm">Profile completed</span>
+</li>
+<li class="flex items-center gap-4 text-on-surface/50">
+<span class="material-symbols-outlined text-primary text-xl" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-sm">Licence uploaded</span>
+</li>
+<li class="flex items-center gap-4 text-on-surface/50">
+<span class="material-symbols-outlined text-primary text-xl" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-sm">Medical uploaded</span>
+</li>
+<li class="flex items-center gap-4 text-on-surface">
+<div class="w-5 h-5 flex items-center justify-center">
+<div class="w-2 h-2 rounded-full bg-primary ring-4 ring-primary/20"></div>
+</div>
+<span class="text-sm font-bold">Awaiting approval</span>
+</li>
+</ul>
+</div>
+<!-- My Documents Summary -->
+<div class="glass-panel rounded-xl p-8 flex flex-col justify-between">
+<div class="space-y-6">
+<div class="flex items-center justify-between border-b border-white/5 pb-4">
+<h4 class="text-sm font-bold uppercase tracking-widest text-primary">My Documents</h4>
+<span class="material-symbols-outlined text-on-surface-variant text-sm" data-icon="description">description</span>
+</div>
+<div class="space-y-4">
+<div class="flex items-center justify-between">
+<span class="text-sm text-on-surface-variant">Commercial Pilot Licence</span>
+<span class="text-[10px] font-bold text-primary uppercase px-2 py-1 bg-primary/10 rounded">Uploaded</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="text-sm text-on-surface-variant">Class 1 Medical Certificate</span>
+<span class="text-[10px] font-bold text-primary uppercase px-2 py-1 bg-primary/10 rounded">Uploaded</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="text-sm text-on-surface-variant">National Identity Card</span>
+<span class="text-[10px] font-bold text-primary uppercase px-2 py-1 bg-primary/10 rounded">Uploaded</span>
+</div>
+</div>
+</div>
+<button class="mt-8 w-full py-4 border-b border-outline-variant/10 text-on-surface-variant hover:text-on-surface transition-colors text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2">
+                        Manage Documents
+                        <span class="material-symbols-outlined text-xs" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+<!-- Bookings Empty State -->
+<div class="glass-panel rounded-xl p-8 flex flex-col items-center justify-center text-center space-y-4">
+<div class="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-2">
+<span class="material-symbols-outlined text-primary/30 text-3xl" data-icon="flight_takeoff">flight_takeoff</span>
+</div>
+<h4 class="text-lg font-headline italic">No bookings yet</h4>
+<p class="text-sm text-on-surface-variant max-w-xs leading-relaxed">
+                        Once your account is approved, you’ll be able to request aircraft bookings here.
+                    </p>
+<button class="mt-4 text-xs font-bold uppercase tracking-widest text-primary border-b border-primary/30 pb-1 hover:border-primary transition-all">
+                        Learn About Booking
+                    </button>
+</div>
+<!-- Support Panel -->
+<div class="glass-panel rounded-xl p-8 relative overflow-hidden flex flex-col justify-between">
+<div class="absolute -right-10 -bottom-10 opacity-5">
+<span class="material-symbols-outlined text-[160px]" data-icon="contact_support">contact_support</span>
+</div>
+<div class="space-y-4 relative z-10">
+<h4 class="text-sm font-bold uppercase tracking-widest text-primary">Need help?</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">
+                            Questions about the onboarding process or urgent approval requirements for an upcoming trip? Our member concierges are standing by.
+                        </p>
+</div>
+<button class="relative z-10 w-fit mt-6 px-6 py-3 bg-white/5 hover:bg-white/10 rounded-full text-xs font-bold uppercase tracking-widest transition-all">
+                        Message Concierge
+                    </button>
+</div>
+</section>
+<!-- Footer-style Branding -->
+<footer class="pt-12 border-t border-white/5 flex justify-between items-center opacity-40 grayscale">
+<p class="text-[10px] uppercase tracking-[0.4em]">OZRentAPlane Operational Portal</p>
+<div class="flex gap-6">
+<span class="text-[10px] uppercase tracking-widest">Fleet Status</span>
+<span class="text-[10px] uppercase tracking-widest">Weather Systems</span>
+<span class="text-[10px] uppercase tracking-widest">Safety Compliance</span>
+</div>
+</footer>
+</div>
+</main>
+<!-- Visual Backdrop Element -->
+<div class="fixed top-0 right-0 w-1/3 h-full -z-10 pointer-events-none opacity-20">
+<div class="absolute inset-0 bg-gradient-to-l from-primary/5 to-transparent"></div>
+<img alt="Cessna 172 on runway at twilight" class="w-full h-full object-cover" data-alt="dramatic wide shot of a small propeller plane on a runway tarmac at dusk, deep blue sky with orange horizon glow, cinematic lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAXIRKAxgd1bAACzVMLY841NjC1m5X8ersW0JccviwJjbRxTOGR-YD3tb9qDe8Dsm-IxX5cJJOJHzPf0PlHOgcWaic4KUqYtoGc2bz2efp0nInwe_31JAGSTJaZ53U3nWs9t5NkDKfqlURthJBI9hbtvihTNJDtLsZR-h9QpFEdHBFgxK5RjUr4rX2Z8lk-AJ0S3CkuQYdcb27cUdK1iotOtj8tf3vIly9nrns2XyO_3B62T62_5hXDuyac5XbVwy26XRZ8552EqjyJ"/>
+</div>
+</body></html>

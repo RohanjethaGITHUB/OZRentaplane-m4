@@ -1,0 +1,6 @@
+const fs = require('fs')
+const keys = fs.readFileSync('.env.local', 'utf8')
+  .split('\n')
+  .map(line => line.split('=')[0])
+  .filter(Boolean)
+console.log('Available keys in .env.local:', keys)
