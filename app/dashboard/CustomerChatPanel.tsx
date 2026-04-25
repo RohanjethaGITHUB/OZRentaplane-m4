@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { sendCustomerReply, markCustomerMessagesRead } from '@/app/actions/verification'
-import type { VerificationEvent, VerificationStatus } from '@/lib/supabase/types'
+import type { VerificationEvent } from '@/lib/supabase/types'
 import { formatDateTime } from '@/lib/formatDateTime'
 
 // Show message events + on_hold events that carry a customer-facing body
@@ -18,20 +18,17 @@ function fmtTime(iso: string): string {
 }
 
 interface Props {
-  events: VerificationEvent[]
-  status: VerificationStatus
+  events:      VerificationEvent[]
   displayName: string
 }
 
-export default function CustomerChatPanel({ events, status, displayName }: Props) {
+export default function CustomerChatPanel({ events, displayName }: Props) {
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
   const [sent, setSent]       = useState(false)
   const router = useRouter()
   const bottomRef = useRef<HTMLDivElement>(null)
-
-  const canSend = status !== 'not_started'
 
   const chatEvents = events
     .filter(isChatEvent)
@@ -48,7 +45,7 @@ export default function CustomerChatPanel({ events, status, displayName }: Props
   }, [chatEvents.length])
 
   async function handleSend() {
-    if (!message.trim() || !canSend) return
+    if (!message.trim()) return
     setError('')
     setSent(false)
     setLoading(true)
@@ -162,51 +159,43 @@ export default function CustomerChatPanel({ events, status, displayName }: Props
       )}
 
       {/* ── Compose area ──────────────────────────────────────────── */}
-      {canSend ? (
-        <div className="bg-[#0c121e]/60 backdrop-blur-2xl border border-white/5 rounded-[1.25rem] p-4 space-y-3">
-          <textarea
-            value={message}
-            onChange={e => setMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={loading}
-            placeholder="Send a message to our team…"
-            rows={3}
-            className="w-full bg-transparent focus:outline-none text-sm text-[#e2e2e6] placeholder:text-oz-subtle/40 resize-none disabled:opacity-50"
-          />
+      <div className="bg-[#0c121e]/60 backdrop-blur-2xl border border-white/5 rounded-[1.25rem] p-4 space-y-3">
+        <textarea
+          value={message}
+          onChange={e => setMessage(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={loading}
+          placeholder="Send a message to our team…"
+          rows={3}
+          className="w-full bg-transparent focus:outline-none text-sm text-[#e2e2e6] placeholder:text-oz-subtle/40 resize-none disabled:opacity-50"
+        />
 
-          {error && (
-            <p className="text-xs text-red-400/80 leading-relaxed">{error}</p>
-          )}
-          {sent && (
-            <p className="text-xs text-green-400/80 leading-relaxed">Message sent.</p>
-          )}
+        {error && (
+          <p className="text-xs text-red-400/80 leading-relaxed">{error}</p>
+        )}
+        {sent && (
+          <p className="text-xs text-green-400/80 leading-relaxed">Message sent.</p>
+        )}
 
-          <div className="flex items-center justify-between pt-2 border-t border-white/5">
-            <p className="text-[10px] text-oz-subtle/40 italic">
-              ⌘ + Enter to send
-            </p>
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={loading || !message.trim()}
-              className="flex items-center gap-2 px-5 py-2.5 bg-oz-blue/15 border border-oz-blue/20 text-oz-blue hover:bg-oz-blue/25 hover:text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
-            >
-              {loading ? (
-                <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
-              ) : (
-                <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>send</span>
-              )}
-              Send
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-[#0c121e]/60 border border-white/5 rounded-[1.25rem] p-5 text-center">
-          <p className="text-sm text-oz-muted font-light">
-            Submit your documents to unlock messaging.
+        <div className="flex items-center justify-between pt-2 border-t border-white/5">
+          <p className="text-[10px] text-oz-subtle/40 italic">
+            ⌘ + Enter to send
           </p>
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={loading || !message.trim()}
+            className="flex items-center gap-2 px-5 py-2.5 bg-oz-blue/15 border border-oz-blue/20 text-oz-blue hover:bg-oz-blue/25 hover:text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
+          >
+            {loading ? (
+              <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+            ) : (
+              <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>send</span>
+            )}
+            Send
+          </button>
         </div>
-      )}
+      </div>
 
     </div>
   )

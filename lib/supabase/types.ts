@@ -7,6 +7,16 @@ export type VerificationStatus =
   | 'rejected'
   | 'on_hold'
 
+export type PilotClearanceStatus =
+  | 'checkout_required'
+  | 'checkout_requested'
+  | 'checkout_confirmed'
+  | 'checkout_completed_under_review'
+  | 'cleared_for_solo_hire'
+  | 'additional_supervised_time_required'
+  | 'reschedule_required'
+  | 'not_currently_eligible'
+
 export type DocumentType = 'pilot_licence' | 'medical_certificate' | 'photo_id'
 export type DocumentStatus = 'uploaded' | 'approved' | 'rejected'
 
@@ -16,6 +26,7 @@ export type Profile = {
   email: string | null
   role: Role
   verification_status: VerificationStatus
+  pilot_clearance_status: PilotClearanceStatus
   pilot_arn: string | null   // Aviation Reference Number — set after verification
   created_at: string
   updated_at: string
@@ -30,15 +41,17 @@ export type UserDocument = {
   status: DocumentStatus
   review_notes: string | null
   uploaded_at: string
-  expiry_date: string | null    // YYYY-MM-DD — optional document expiry
+  expiry_date: string | null     // YYYY-MM-DD — expiry date (medical_certificate required)
+  issue_date: string | null      // YYYY-MM-DD — date of issue (medical_certificate)
   reviewed_at: string | null
   created_at: string
   updated_at: string
-  // Per-document metadata (migration 017)
-  licence_type: string | null   // RPL | PPL | CPL | Other (pilot_licence)
-  licence_number: string | null // Pilot licence reference number (pilot_licence)
-  medical_class: string | null  // Class 1 | Class 2 | Basic Class 2 | Other (medical_certificate)
-  id_type: string | null        // Passport | Driver Licence | Other (photo_id)
+  // Per-document metadata (migration 017 + 024)
+  licence_type: string | null    // RPL | PPL | CPL | Other (pilot_licence)
+  licence_number: string | null  // Pilot licence number / ARN (pilot_licence)
+  medical_class: string | null   // Class 1 | Class 2 | Basic Class 2 | Other (medical_certificate)
+  id_type: string | null         // Passport | Driver Licence | Other (photo_id)
+  document_number: string | null // Document reference number (photo_id)
 }
 
 // ─── Verification events ──────────────────────────────────────────────────────

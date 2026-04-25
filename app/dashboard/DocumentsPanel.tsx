@@ -7,12 +7,10 @@ import type {
   UserDocument,
   DocumentType,
   VerificationStatus,
-  VerificationEvent,
-  RequestKind,
 } from '@/lib/supabase/types'
 import { uploadVerificationDocument } from '@/app/actions/upload'
 import { getDocumentSignedUrl } from '@/app/actions/documents'
-import { submitForReview, sendCustomerReply, saveCustomerArn } from '@/app/actions/verification'
+import { saveCustomerArn } from '@/app/actions/verification'
 import { fmtTimestamp, fmtDate } from '@/lib/utils/format'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -102,21 +100,25 @@ function StatusChip({ state }: { state: DocUiState }) {
 // ─── Upload modal form state ──────────────────────────────────────────────────
 
 type UploadForm = {
-  file:          File | null
-  expiryDate:    string
-  licenceType:   string   // pilot_licence
-  licenceNumber: string   // pilot_licence
-  medicalClass:  string   // medical_certificate
-  idType:        string   // photo_id
+  file:           File | null
+  licenceType:    string   // pilot_licence
+  licenceNumber:  string   // pilot_licence — also updates profile ARN
+  medicalClass:   string   // medical_certificate
+  issueDate:      string   // medical_certificate — date of issue
+  expiryDate:     string   // medical_certificate — expiry date
+  idType:         string   // photo_id
+  documentNumber: string   // photo_id — document/ID number
 }
 
 const EMPTY_FORM: UploadForm = {
-  file:          null,
-  expiryDate:    '',
-  licenceType:   '',
-  licenceNumber: '',
-  medicalClass:  '',
-  idType:        '',
+  file:           null,
+  licenceType:    '',
+  licenceNumber:  '',
+  medicalClass:   '',
+  issueDate:      '',
+  expiryDate:     '',
+  idType:         '',
+  documentNumber: '',
 }
 
 // ─── Upload modal ─────────────────────────────────────────────────────────────
@@ -137,11 +139,13 @@ function UploadModal({
   // Pre-fill from existing doc if replacing
   const [form, setForm] = useState<UploadForm>({
     ...EMPTY_FORM,
-    expiryDate:    existingDoc?.expiry_date    ?? '',
-    licenceType:   existingDoc?.licence_type   ?? '',
-    licenceNumber: existingDoc?.licence_number ?? '',
-    medicalClass:  existingDoc?.medical_class  ?? '',
-    idType:        existingDoc?.id_type        ?? '',
+    licenceType:    existingDoc?.licence_type    ?? '',
+    licenceNumber:  existingDoc?.licence_number  ?? '',
+    medicalClass:   existingDoc?.medical_class   ?? '',
+    issueDate:      existingDoc?.issue_date       ?? '',
+    expiryDate:     existingDoc?.expiry_date      ?? '',
+    idType:         existingDoc?.id_type          ?? '',
+    documentNumber: existingDoc?.document_number  ?? '',
   })
   const [fileError,  setFileError]  = useState('')
   const [formError,  setFormError]  = useState('')
@@ -168,10 +172,19 @@ function UploadModal({
 
   function validate(): string {
     if (!form.file) return 'Please select a file to upload.'
-    if (docType === 'pilot_licence'       && !form.licenceType)  return 'Please select a licence type.'
-    if (docType === 'medical_certificate' && !form.medicalClass) return 'Please select a medical class.'
-    if (docType === 'medical_certificate' && !form.expiryDate)   return 'Expiry date is required for Medical Certificate.'
-    if (docType === 'photo_id'            && !form.idType)       return 'Please select an ID type.'
+    if (docType === 'pilot_licence') {
+      if (!form.licenceType)   return 'Please select a licence type.'
+      if (!form.licenceNumber) return 'Please enter your pilot licence number / ARN.'
+    }
+    if (docType === 'medical_certificate') {
+      if (!form.medicalClass) return 'Please select a medical class.'
+      if (!form.issueDate)    return 'Date of issue is required for Medical Certificate.'
+      if (!form.expiryDate)   return 'Expiry date is required for Medical Certificate.'
+    }
+    if (docType === 'photo_id') {
+      if (!form.idType)         return 'Please select an ID type.'
+      if (!form.documentNumber) return 'Please enter your document number.'
+    }
     return ''
   }
 
@@ -185,11 +198,13 @@ function UploadModal({
       const fd = new FormData()
       fd.append('file',    form.file!)
       fd.append('docType', docType)
-      if (form.expiryDate)    fd.append('expiryDate',    form.expiryDate)
-      if (form.licenceType)   fd.append('licenceType',   form.licenceType)
-      if (form.licenceNumber) fd.append('licenceNumber', form.licenceNumber)
-      if (form.medicalClass)  fd.append('medicalClass',  form.medicalClass)
-      if (form.idType)        fd.append('idType',        form.idType)
+      if (form.licenceType)    fd.append('licenceType',    form.licenceType)
+      if (form.licenceNumber)  fd.append('licenceNumber',  form.licenceNumber)
+      if (form.medicalClass)   fd.append('medicalClass',   form.medicalClass)
+      if (form.issueDate)      fd.append('issueDate',      form.issueDate)
+      if (form.expiryDate)     fd.append('expiryDate',     form.expiryDate)
+      if (form.idType)         fd.append('idType',         form.idType)
+      if (form.documentNumber) fd.append('documentNumber', form.documentNumber)
       await uploadVerificationDocument(fd)
       onSuccess()
     } catch (err: unknown) {
@@ -268,39 +283,37 @@ function UploadModal({
             <>
               <Selector
                 label="Licence Type"
-                options={['RPL — Recreational', 'PPL — Private', 'CPL — Commercial', 'Other']}
+                options={['Recreational (RPL)', 'Private (PPL)', 'Commercial (CPL)', 'Other']}
                 value={
-                  form.licenceType === 'RPL' ? 'RPL — Recreational'
-                  : form.licenceType === 'PPL' ? 'PPL — Private'
-                  : form.licenceType === 'CPL' ? 'CPL — Commercial'
+                  form.licenceType === 'RPL' ? 'Recreational (RPL)'
+                  : form.licenceType === 'PPL' ? 'Private (PPL)'
+                  : form.licenceType === 'CPL' ? 'Commercial (CPL)'
+                  : form.licenceType === 'Recreational (RPL)' ? 'Recreational (RPL)'
+                  : form.licenceType === 'Private (PPL)' ? 'Private (PPL)'
+                  : form.licenceType === 'Commercial (CPL)' ? 'Commercial (CPL)'
                   : form.licenceType
                 }
-                onChange={v => set('licenceType', v.split(' — ')[0] || v)}
+                onChange={v => {
+                  // Store the short code for backward compat with existing records
+                  if (v === 'Recreational (RPL)') set('licenceType', 'RPL')
+                  else if (v === 'Private (PPL)')   set('licenceType', 'PPL')
+                  else if (v === 'Commercial (CPL)') set('licenceType', 'CPL')
+                  else set('licenceType', v)
+                }}
                 cols={2}
               />
               <div className="space-y-2">
-                <label className="text-[10px] uppercase tracking-widest font-bold text-oz-subtle">
-                  Licence Number{' '}
-                  <span className="text-white/20 normal-case font-normal">(optional)</span>
+                <label className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-oz-subtle">
+                  Pilot Licence Number / ARN
+                  <span className="text-red-400/80 text-[8px] normal-case font-normal">Required</span>
                 </label>
+                <p className="text-[10px] text-white/25">Your ARN is your CASA-issued aviation reference number.</p>
                 <input
                   type="text"
                   value={form.licenceNumber}
                   onChange={e => set('licenceNumber', e.target.value)}
-                  placeholder="e.g. P12345678"
+                  placeholder="e.g. 123456"
                   className="w-full bg-white/[0.03] border border-white/8 focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5 placeholder:text-white/20"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] uppercase tracking-widest font-bold text-oz-subtle">
-                  Expiry Date{' '}
-                  <span className="text-white/20 normal-case font-normal">(optional)</span>
-                </label>
-                <input
-                  type="date"
-                  value={form.expiryDate}
-                  onChange={e => set('expiryDate', e.target.value)}
-                  className="w-full bg-white/[0.03] border border-white/8 focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5"
                 />
               </div>
             </>
@@ -316,17 +329,31 @@ function UploadModal({
                 onChange={v => set('medicalClass', v)}
                 cols={2}
               />
-              <div className="space-y-2">
-                <label className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-oz-subtle">
-                  Expiry Date
-                  <span className="text-red-400/80 text-[8px] normal-case font-normal">Required</span>
-                </label>
-                <input
-                  type="date"
-                  value={form.expiryDate}
-                  onChange={e => set('expiryDate', e.target.value)}
-                  className="w-full bg-white/[0.03] border border-white/8 focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-oz-subtle">
+                    Date of Issue
+                    <span className="text-red-400/80 text-[8px] normal-case font-normal">Required</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={form.issueDate}
+                    onChange={e => set('issueDate', e.target.value)}
+                    className="w-full bg-white/[0.03] border border-white/8 focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-oz-subtle">
+                    Expiry Date
+                    <span className="text-red-400/80 text-[8px] normal-case font-normal">Required</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={form.expiryDate}
+                    onChange={e => set('expiryDate', e.target.value)}
+                    className="w-full bg-white/[0.03] border border-white/8 focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5"
+                  />
+                </div>
               </div>
             </>
           )}
@@ -342,15 +369,16 @@ function UploadModal({
                 cols={3}
               />
               <div className="space-y-2">
-                <label className="text-[10px] uppercase tracking-widest font-bold text-oz-subtle">
-                  Expiry Date{' '}
-                  <span className="text-white/20 normal-case font-normal">(optional)</span>
+                <label className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-oz-subtle">
+                  Document Number
+                  <span className="text-red-400/80 text-[8px] normal-case font-normal">Required</span>
                 </label>
                 <input
-                  type="date"
-                  value={form.expiryDate}
-                  onChange={e => set('expiryDate', e.target.value)}
-                  className="w-full bg-white/[0.03] border border-white/8 focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5"
+                  type="text"
+                  value={form.documentNumber}
+                  onChange={e => set('documentNumber', e.target.value)}
+                  placeholder="Passport or licence number"
+                  className="w-full bg-white/[0.03] border border-white/8 focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5 placeholder:text-white/20"
                 />
               </div>
             </>
@@ -642,159 +670,21 @@ function DocumentCard({
   )
 }
 
-// ─── Verification thread ───────────────────────────────────────────────────────
-
-function VerificationThread({ events }: { events: VerificationEvent[] }) {
-  if (events.length === 0) return null
-
-  return (
-    <section className="space-y-3">
-      <h3 className="text-[10px] font-bold uppercase tracking-widest text-oz-blue">
-        Verification Thread
-      </h3>
-      <div className="space-y-2">
-        {events.map(ev => {
-          const isCustomer = ev.actor_role === 'customer'
-          const isSys      = ev.actor_role === 'system'
-          const when       = fmtTimestamp(ev.created_at)
-
-          const iconColor = isCustomer
-            ? 'text-blue-300/50'
-            : ev.event_type === 'on_hold'    ? 'text-amber-400'
-            : ev.event_type === 'approved'   ? 'text-green-400'
-            : ev.event_type === 'rejected'   ? 'text-red-400'
-            : 'text-slate-500'
-
-          const icon = isCustomer
-            ? 'person'
-            : ev.event_type === 'on_hold'     ? 'pause_circle'
-            : ev.event_type === 'approved'    ? 'verified_user'
-            : ev.event_type === 'rejected'    ? 'person_off'
-            : ev.event_type === 'submitted' || ev.event_type === 'resubmitted'
-              ? 'upload_file'
-            : 'chat'
-
-          return (
-            <div
-              key={ev.id}
-              className={`flex gap-3 px-4 py-3 rounded-xl border transition-colors ${
-                isCustomer
-                  ? 'bg-blue-500/5 border-blue-300/10 flex-row-reverse'
-                  : isSys
-                  ? 'bg-white/[0.02] border-white/5'
-                  : ev.event_type === 'on_hold'
-                  ? 'bg-amber-500/5 border-amber-500/15'
-                  : 'bg-[#0c121e]/60 border-white/5'
-              }`}
-            >
-              <span
-                className={`material-symbols-outlined text-base flex-shrink-0 mt-0.5 ${iconColor}`}
-                style={{ fontVariationSettings: "'wght' 300" }}
-              >
-                {icon}
-              </span>
-              <div className={`flex-1 min-w-0 ${isCustomer ? 'text-right' : ''}`}>
-                <div className={`flex items-center gap-2 flex-wrap ${isCustomer ? 'justify-end' : ''}`}>
-                  <p className="text-xs font-semibold text-white/80">{ev.title}</p>
-                  <span className="text-[9px] text-oz-subtle font-mono">{when}</span>
-                </div>
-                {ev.body && (
-                  <p className="text-xs text-oz-muted leading-relaxed mt-0.5">{ev.body}</p>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
-
-// ─── Customer reply panel ─────────────────────────────────────────────────────
-
-function CustomerReplyPanel() {
-  const router = useRouter()
-  const [reply,   setReply]   = useState('')
-  const [sending, setSending] = useState(false)
-  const [error,   setError]   = useState('')
-  const [sent,    setSent]    = useState(false)
-
-  async function handleSend() {
-    if (!reply.trim()) { setError('Please write a reply before sending.'); return }
-    setSending(true)
-    setError('')
-    try {
-      await sendCustomerReply(reply.trim())
-      setSent(true)
-      setReply('')
-      router.refresh()
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to send reply.'
-      setError(msg.startsWith('VALIDATION:') ? msg.replace('VALIDATION:', '').trim() : msg)
-    } finally {
-      setSending(false)
-    }
-  }
-
-  if (sent) {
-    return (
-      <div className="flex items-center gap-2 px-4 py-3 bg-blue-500/5 border border-blue-300/15 rounded-xl">
-        <span className="material-symbols-outlined text-blue-300 text-sm" style={{ fontVariationSettings: "'wght' 300" }}>check_circle</span>
-        <p className="text-xs text-blue-200/80">Reply sent. Our team will review and get back to you.</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-3">
-      <label className="text-[10px] text-oz-blue uppercase tracking-widest font-bold block">
-        Your Reply
-      </label>
-      <textarea
-        value={reply}
-        onChange={e => setReply(e.target.value)}
-        disabled={sending}
-        rows={4}
-        className="w-full bg-[#0c121e]/80 border border-white/8 focus:border-oz-blue/40 focus:ring-0 focus:outline-none text-sm text-[#e2e2e6] rounded-xl p-4 resize-none transition-all disabled:opacity-50 placeholder:text-oz-subtle"
-        placeholder="Write your reply or provide the requested information…"
-      />
-      {error && (
-        <p className="text-xs text-red-400 flex items-center gap-1.5">
-          <span className="material-symbols-outlined text-sm">error</span>
-          {error}
-        </p>
-      )}
-      <div className="flex justify-end">
-        <button
-          onClick={handleSend}
-          disabled={sending || !reply.trim()}
-          className="flex items-center gap-2 px-6 py-2.5 bg-oz-blue/20 border border-oz-blue/30 text-oz-blue hover:bg-oz-blue hover:text-oz-deep rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {sending && <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>}
-          Send Reply
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 type Props = {
   user:       User
   documents:  UserDocument[]
-  status:     VerificationStatus
-  events:     VerificationEvent[]
   currentArn: string | null
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function DocumentsPanel({ user: _user, documents, status, events, currentArn }: Props) {
+export default function DocumentsPanel({ user: _user, documents, currentArn }: Props) {
+  // status is derived locally — not needed from parent since we no longer gate on verification_status
+  const status: VerificationStatus = 'not_started'   // used only by getDocUiState for chip display
   const router = useRouter()
   const [modalDocType, setModalDocType] = useState<DocumentType | null>(null)
-  const [submitting,   setSubmitting]   = useState(false)
-  const [submitError,  setSubmitError]  = useState('')
 
   // ── ARN field state ──────────────────────────────────────────────────────────
   const [arnValue,   setArnValue]   = useState(currentArn ?? '')
@@ -834,50 +724,12 @@ export default function DocumentsPanel({ user: _user, documents, status, events,
     [docMap, status],
   )
 
-  const isPending  = status === 'pending_review'
-  const isVerified = status === 'verified'
-  const isOnHold   = status === 'on_hold'
+  // Documents can always be replaced
+  const canModify = true
 
-  // Uploads are locked only while under active review
-  const canModify = !isPending
-
-  // Find latest on_hold event
-  const latestHoldEvent = events.find(e => e.event_type === 'on_hold')
-  const requestKind: RequestKind = latestHoldEvent?.request_kind ?? 'document_request'
-  const isDocRequest = requestKind === 'document_request'
-
-  // Document counts
-  const uploadedCount  = DOC_TYPES.filter(def => docStates[def.type] !== 'missing').length
-  const missingCount   = DOC_TYPES.filter(def => docStates[def.type] === 'missing').length
-  const rejectedCount  = DOC_TYPES.filter(def => docStates[def.type] === 'rejected').length
   const expiredDocs    = DOC_TYPES.filter(def => docStates[def.type] === 'expired')
   const expiredMedical = docStates['medical_certificate'] === 'expired'
-
-  // Medical expiry check — required before submission
-  const medicalDoc         = docMap['medical_certificate']
-  const medicalNeedsExpiry = !!medicalDoc && !medicalDoc.expiry_date
-
-  // canSubmit logic — all 3 docs present, medical not expired, medical has expiry date
-  const allDocsPresent    = uploadedCount === 3
-  const medicalBlocked    = expiredMedical || medicalNeedsExpiry
-  const canSubmitWithDocs =
-    allDocsPresent &&
-    !medicalBlocked &&
-    ['not_started', 'rejected', 'on_hold'].includes(status)
-  const canSubmitClarify = isOnHold && !isDocRequest
-  const canSubmit        = canSubmitWithDocs || canSubmitClarify
-
-  // Top-banner helper text — covers every possible state
-  const submitHelperText = (() => {
-    if (isVerified)             return 'Documents verified'
-    if (isPending)              return 'Documents submitted for review'
-    if (expiredMedical)         return 'Medical certificate expired'
-    if (expiredDocs.length > 0) return `Document expired — upload required`
-    if (rejectedCount > 0)      return 'Action required'
-    if (medicalNeedsExpiry)     return 'Medical expiry date required'
-    if (missingCount > 0)       return `${missingCount} document${missingCount > 1 ? 's' : ''} still required`
-    return 'Ready to submit for review'
-  })()
+  const medicalDoc     = docMap['medical_certificate']
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -892,19 +744,6 @@ export default function DocumentsPanel({ user: _user, documents, status, events,
   function handleUploadSuccess() {
     closeModal()
     router.refresh()
-  }
-
-  async function handleSubmit() {
-    setSubmitting(true)
-    setSubmitError('')
-    try {
-      await submitForReview(canSubmitClarify && !canSubmitWithDocs)
-      router.refresh()
-    } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : 'Submission failed. Please try again.')
-    } finally {
-      setSubmitting(false)
-    }
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -930,14 +769,14 @@ export default function DocumentsPanel({ user: _user, documents, status, events,
               OZRentAPlane · Pilot Portal
             </span>
             <h2 className="text-3xl md:text-4xl font-serif italic tracking-tight text-white mt-1">
-              Verification Documents
+              My Documents
             </h2>
             <p className="text-oz-muted font-sans font-light mt-2">
-              Upload your required pilot credentials so the team can review and approve your aircraft access.
+              Manage the pilot documents used for your checkout request and aircraft access. If anything needs updating, replace the document below.
             </p>
           </div>
 
-          {/* Requirements info banner */}
+          {/* Format info */}
           <div className="flex items-start gap-4 bg-oz-blue/5 border border-oz-blue/15 rounded-xl px-5 py-4">
             <span
               className="material-symbols-outlined text-oz-blue/60 text-xl flex-shrink-0 mt-0.5"
@@ -1019,7 +858,7 @@ export default function DocumentsPanel({ user: _user, documents, status, events,
         </section>
 
         {/* ── Expired document alert (page-level) ── */}
-        {expiredDocs.length > 0 && !isPending && (
+        {expiredDocs.length > 0 && (
           <section className="bg-red-500/5 border border-red-500/20 rounded-[1.25rem] px-6 py-5 flex items-start gap-4">
             <span
               className="material-symbols-outlined text-red-400 text-xl flex-shrink-0 mt-0.5"
@@ -1044,148 +883,6 @@ export default function DocumentsPanel({ user: _user, documents, status, events,
           </section>
         )}
 
-        {/* ── On-hold admin request block ── */}
-        {isOnHold && latestHoldEvent && (
-          <section className={`border rounded-[1.25rem] p-6 space-y-5 ${
-            isDocRequest
-              ? 'bg-amber-500/5 border-amber-500/20'
-              : 'bg-blue-500/5 border-blue-300/15'
-          }`}>
-            <div className="flex items-center gap-3">
-              <span
-                className={`material-symbols-outlined text-xl ${isDocRequest ? 'text-amber-400' : 'text-blue-300'}`}
-                style={{ fontVariationSettings: "'wght' 300" }}
-              >
-                {isDocRequest ? 'upload_file' : 'chat'}
-              </span>
-              <div>
-                <p className={`text-[10px] font-bold uppercase tracking-widest ${isDocRequest ? 'text-amber-400' : 'text-blue-300'}`}>
-                  {isDocRequest ? 'Documents Required' : 'Response Requested'}
-                </p>
-                <p className="text-[9px] text-oz-subtle">{fmtTimestamp(latestHoldEvent.created_at)}</p>
-              </div>
-            </div>
-
-            {latestHoldEvent.body && (
-              <p className="text-sm text-[#e2e2e6] leading-relaxed">{latestHoldEvent.body}</p>
-            )}
-
-            {isDocRequest ? (
-              <p className="text-xs text-oz-muted leading-relaxed">
-                Please upload or replace the required documents below, then click{' '}
-                <span className="text-white/70 font-medium">Resubmit for Review</span> when ready.
-              </p>
-            ) : (
-              <div className="space-y-4 pt-1">
-                <p className="text-xs text-oz-muted leading-relaxed">
-                  Reply below with your response. Once you are ready for us to continue your review,
-                  click <span className="text-white/70 font-medium">Resubmit for Review</span>.
-                </p>
-                <CustomerReplyPanel />
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* ── Status / submit panel — always visible ── */}
-        <section className={`backdrop-blur-2xl border rounded-[1.25rem] p-6 shadow-[0_8px_24px_rgba(0,0,0,0.2)] ${
-          isVerified
-            ? 'bg-green-500/5 border-green-500/15'
-            : isPending
-            ? 'bg-[#0c121e]/60 border-oz-blue/10'
-            : expiredMedical || (expiredDocs.length > 0 && !isPending)
-            ? 'bg-red-500/5 border-red-500/15'
-            : rejectedCount > 0
-            ? 'bg-red-500/5 border-red-500/10'
-            : 'bg-[#0c121e]/60 border-white/5'
-        }`}>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-
-            {/* Left: progress dots + status text + body */}
-            <div className="space-y-2 flex-1">
-              <div className="flex items-center gap-3 mb-3">
-                {/* Per-document dots */}
-                <div className="flex items-center gap-1.5">
-                  {DOC_TYPES.map(def => (
-                    <div
-                      key={def.type}
-                      className={`w-2 h-2 rounded-full transition-all ${
-                        docStates[def.type] === 'missing'        ? 'bg-white/15'
-                        : docStates[def.type] === 'verified'     ? 'bg-green-400'
-                        : docStates[def.type] === 'pending_review' ? 'bg-oz-blue animate-pulse'
-                        : docStates[def.type] === 'rejected' || docStates[def.type] === 'expired'
-                          ? 'bg-red-400'
-                        : 'bg-oz-blue'
-                      }`}
-                    />
-                  ))}
-                </div>
-
-                {/* Helper text label */}
-                <span className={`text-xs font-semibold uppercase tracking-widest ${
-                  isVerified                            ? 'text-green-400'
-                  : isPending                           ? 'text-oz-blue'
-                  : expiredMedical || expiredDocs.length > 0 || rejectedCount > 0
-                                                        ? 'text-red-400'
-                  : medicalNeedsExpiry                  ? 'text-amber-400'
-                  : canSubmit                           ? 'text-oz-blue'
-                  :                                       'text-white/40'
-                }`}>
-                  {submitHelperText}
-                </span>
-              </div>
-
-              {/* Body text */}
-              <p className="text-sm text-oz-muted font-light leading-relaxed max-w-sm">
-                {isVerified
-                  ? 'Your credentials have been verified. You are cleared for fleet access. You may replace any document below to upload a renewed copy.'
-                  : isPending
-                  ? "Your documents have been sent to the OZRentAPlane team. We'll notify you when your access is approved or if anything needs to be updated."
-                  : isOnHold && !isDocRequest
-                  ? 'Reply to the request above, then resubmit when you are ready for re-review.'
-                  : isOnHold && canSubmit
-                  ? 'Documents updated. Resubmit below for re-review.'
-                  : expiredMedical
-                  ? 'Your medical certificate has expired. Please upload a current certificate to continue.'
-                  : expiredDocs.length > 0
-                  ? 'One or more documents have expired. Please upload updated copies.'
-                  : rejectedCount > 0
-                  ? 'One or more documents require attention. Check the cards below for details.'
-                  : canSubmit
-                  ? 'All documents are in place. Submit below to begin the official review.'
-                  : medicalNeedsExpiry
-                  ? 'Replace your Medical Certificate and include an expiry date to continue.'
-                  : 'Upload all three required documents to unlock submission.'}
-              </p>
-
-              {submitError && (
-                <p className="text-xs text-red-400 flex items-center gap-1.5 mt-2">
-                  <span className="material-symbols-outlined text-sm">error</span>
-                  {submitError}
-                </p>
-              )}
-            </div>
-
-            {/* Right: submit button (hidden when pending or verified) */}
-            {!isPending && !isVerified && (
-              <button
-                onClick={handleSubmit}
-                disabled={!canSubmit || submitting}
-                className={`flex-shrink-0 px-8 py-4 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all flex items-center gap-3 shadow-md ${
-                  canSubmit && !submitting
-                    ? 'bg-oz-blue text-oz-deep hover:bg-white hover:scale-[1.02] hover:shadow-xl'
-                    : 'bg-white/5 text-white/25 cursor-not-allowed border border-white/5'
-                }`}
-              >
-                {submitting && (
-                  <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
-                )}
-                {isOnHold ? 'Resubmit for Review' : 'Submit for Review'}
-              </button>
-            )}
-          </div>
-        </section>
-
         {/* ── Document cards ── */}
         <section className="grid gap-5">
           {DOC_TYPES.map((def, idx) => (
@@ -1200,11 +897,6 @@ export default function DocumentsPanel({ user: _user, documents, status, events,
             />
           ))}
         </section>
-
-        {/* ── Verification thread ── */}
-        {events.length > 0 && (
-          <VerificationThread events={events} />
-        )}
 
       </div>
     </>

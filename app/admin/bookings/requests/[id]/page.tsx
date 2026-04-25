@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { formatDateTime } from '@/lib/formatDateTime'
 import { formatSydTime } from '@/lib/utils/sydney-time'
 import AdminBookingActions from './AdminBookingActions'
+import AdminCheckoutActions from './AdminCheckoutActions'
+import AdminCheckoutReviewPanel from './AdminCheckoutReviewPanel'
 import AdminClarificationForm from './AdminClarificationForm'
 import AdminOperationalActions from './AdminOperationalActions'
 
@@ -18,25 +20,38 @@ const STATUS_CFG: Record<string, {
   border: string
   icon:   string
 }> = {
-  pending_confirmation:       { label: 'Pending Confirmation',   color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   icon: 'pending' },
-  confirmed:                  { label: 'Confirmed',              color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    icon: 'check_circle' },
-  cancelled:                  { label: 'Cancelled',              color: 'text-rose-400',    bg: 'bg-rose-500/10',    border: 'border-rose-500/20',    icon: 'cancel' },
-  ready_for_dispatch:         { label: 'Ready for Dispatch',     color: 'text-green-400',   bg: 'bg-green-500/10',   border: 'border-green-500/20',   icon: 'flight_takeoff' },
-  dispatched:                 { label: 'Dispatched',             color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', icon: 'flight' },
-  awaiting_flight_record:     { label: 'Awaiting Flight Record', color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   icon: 'assignment' },
-  flight_record_overdue:      { label: 'Record Overdue',         color: 'text-red-400',     bg: 'bg-red-500/10',     border: 'border-red-500/20',     icon: 'assignment_late' },
-  pending_post_flight_review: { label: 'Post-Flight Review',     color: 'text-purple-400',  bg: 'bg-purple-500/10',  border: 'border-purple-500/20',  icon: 'rate_review' },
-  needs_clarification:        { label: 'Needs Clarification',    color: 'text-orange-400',  bg: 'bg-orange-500/10',  border: 'border-orange-500/20',  icon: 'help' },
-  post_flight_approved:       { label: 'Flight Approved',        color: 'text-green-400',   bg: 'bg-green-500/10',   border: 'border-green-500/20',   icon: 'verified' },
-  completed:                  { label: 'Completed',              color: 'text-slate-400',   bg: 'bg-white/5',        border: 'border-white/10',       icon: 'done_all' },
+  // Standard booking lifecycle
+  pending_confirmation:            { label: 'Pending Confirmation',      color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   icon: 'pending'        },
+  confirmed:                       { label: 'Confirmed',                 color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    icon: 'check_circle'   },
+  cancelled:                       { label: 'Cancelled',                 color: 'text-rose-400',    bg: 'bg-rose-500/10',    border: 'border-rose-500/20',    icon: 'cancel'         },
+  ready_for_dispatch:              { label: 'Ready for Dispatch',        color: 'text-green-400',   bg: 'bg-green-500/10',   border: 'border-green-500/20',   icon: 'flight_takeoff' },
+  dispatched:                      { label: 'Dispatched',                color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', icon: 'flight'         },
+  awaiting_flight_record:          { label: 'Awaiting Flight Record',    color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   icon: 'assignment'     },
+  flight_record_overdue:           { label: 'Record Overdue',            color: 'text-red-400',     bg: 'bg-red-500/10',     border: 'border-red-500/20',     icon: 'assignment_late'},
+  pending_post_flight_review:      { label: 'Post-Flight Review',        color: 'text-purple-400',  bg: 'bg-purple-500/10',  border: 'border-purple-500/20',  icon: 'rate_review'    },
+  needs_clarification:             { label: 'Needs Clarification',       color: 'text-orange-400',  bg: 'bg-orange-500/10',  border: 'border-orange-500/20',  icon: 'help'           },
+  post_flight_approved:            { label: 'Flight Approved',           color: 'text-green-400',   bg: 'bg-green-500/10',   border: 'border-green-500/20',   icon: 'verified'       },
+  completed:                       { label: 'Completed',                 color: 'text-slate-400',   bg: 'bg-white/5',        border: 'border-white/10',       icon: 'done_all'       },
+  // Checkout lifecycle
+  checkout_requested:              { label: 'Checkout Requested',        color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    icon: 'pending_actions'},
+  checkout_confirmed:              { label: 'Checkout Confirmed',        color: 'text-green-400',   bg: 'bg-green-500/10',   border: 'border-green-500/20',   icon: 'event_available'},
+  checkout_completed_under_review: { label: 'Awaiting Outcome',          color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   icon: 'rate_review'    },
+  // First solo reservation
+  pending_checkout_clearance:      { label: 'Pending Checkout Clearance',color: 'text-blue-300',    bg: 'bg-blue-500/10',    border: 'border-blue-400/20',    icon: 'bookmark'       },
+  released_due_to_checkout:        { label: 'Released',                  color: 'text-slate-400',   bg: 'bg-white/5',        border: 'border-white/10',       icon: 'bookmark_remove'},
 }
 
-const VERIFICATION_CFG: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  verified:       { label: 'Verified',       color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-  pending_review: { label: 'Pending Review', color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20' },
-  rejected:       { label: 'Rejected',       color: 'text-rose-400',    bg: 'bg-rose-500/10',    border: 'border-rose-500/20' },
-  on_hold:        { label: 'On Hold',        color: 'text-orange-400',  bg: 'bg-orange-500/10',  border: 'border-orange-500/20' },
-  not_started:    { label: 'Unverified',     color: 'text-slate-400',   bg: 'bg-white/5',        border: 'border-white/10' },
+// Pilot clearance status display — replaces the old verification-only label
+// shown in the customer card on the booking detail page.
+const CLEARANCE_CFG: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  checkout_required:                   { label: 'Checkout Required',         color: 'text-slate-400',   bg: 'bg-white/5',        border: 'border-white/10'        },
+  checkout_requested:                  { label: 'Checkout Submitted',        color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20'     },
+  checkout_confirmed:                  { label: 'Checkout Confirmed',        color: 'text-green-400',   bg: 'bg-green-500/10',   border: 'border-green-500/20'    },
+  checkout_completed_under_review:     { label: 'Outcome Under Review',      color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20'    },
+  cleared_for_solo_hire:               { label: 'Cleared for Solo Hire',     color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20'  },
+  additional_supervised_time_required: { label: 'Additional Training Reqd',  color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20'    },
+  reschedule_required:                 { label: 'Reschedule Required',       color: 'text-orange-400',  bg: 'bg-orange-500/10',  border: 'border-orange-500/20'   },
+  not_currently_eligible:              { label: 'Not Currently Eligible',    color: 'text-rose-400',    bg: 'bg-rose-500/10',    border: 'border-rose-500/20'     },
 }
 
 // Human-readable labels for block_type values (admin context).
@@ -77,12 +92,13 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     .single()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
-  // Fetch booking — includes aircraft_id for slot queries
+  // Fetch booking — includes booking_type for checkout routing
   const { data: booking, error: bookingError } = await supabase
     .from('bookings')
     .select(`
       id,
       booking_reference,
+      booking_type,
       created_at,
       updated_at,
       scheduled_start,
@@ -94,6 +110,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       estimated_amount,
       customer_notes,
       admin_notes,
+      last_flight_date,
       booking_owner_user_id,
       pic_user_id,
       aircraft_id,
@@ -116,16 +133,20 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const expandedWindowStart = new Date(new Date(booking.scheduled_start).getTime() - preBufferMs).toISOString()
   const expandedWindowEnd   = new Date(new Date(booking.scheduled_end).getTime()   + postBufferMs).toISOString()
 
-  // All parallel fetches — customer profile, status history, slot data
+  // All parallel fetches — customer profile, status history, slot data, and
+  // checkout-specific data (documents, messages, linked solo reservation).
   const [
     { data: customer },
     { data: rawHistory },
     { data: ownBlocks },
     { data: overlappingRaw },
+    { data: rawDocuments },
+    { data: rawMessages },
+    { data: rawSoloReservation },
   ] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, email, verification_status, pilot_arn, created_at')
+      .select('id, full_name, email, verification_status, pilot_clearance_status, pilot_arn, created_at')
       .eq('id', booking.booking_owner_user_id)
       .single(),
     supabase
@@ -133,14 +154,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       .select('new_status, old_status, note, created_at, changed_by_user_id')
       .eq('booking_id', booking.id)
       .order('created_at', { ascending: true }),
-    // Blocks owned by this booking (all statuses — shows held vs released)
     supabase
       .from('schedule_blocks')
       .select('id, block_type, start_time, end_time, status, related_booking_id, public_label, internal_reason')
       .eq('related_booking_id', booking.id)
       .order('start_time'),
-    // All active blocks for this aircraft overlapping the full held window
-    // (flight time + buffer zones). Used to detect external conflicts.
     supabase
       .from('schedule_blocks')
       .select('id, block_type, start_time, end_time, status, expires_at, related_booking_id, public_label, internal_reason')
@@ -149,7 +167,32 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       .lt('start_time', expandedWindowEnd)
       .gt('end_time', expandedWindowStart)
       .order('start_time'),
+    // Customer documents — used in checkout review panel
+    supabase
+      .from('user_documents')
+      .select('document_type, status, expiry_date, issue_date, file_name, licence_type, licence_number, medical_class, id_type, document_number, uploaded_at')
+      .eq('user_id', booking.booking_owner_user_id),
+    // Customer messages (verification_events) — used in checkout review panel
+    supabase
+      .from('verification_events')
+      .select('id, user_id, actor_user_id, actor_role, event_type, from_status, to_status, title, body, request_kind, is_read, admin_read_at, email_status, email_sent_at, created_at')
+      .eq('user_id', booking.booking_owner_user_id)
+      .order('created_at', { ascending: false })
+      .limit(50),
+    // Linked first solo reservation — used in checkout review panel
+    supabase
+      .from('bookings')
+      .select('id, booking_reference, scheduled_start, scheduled_end, status')
+      .eq('booking_owner_user_id', booking.booking_owner_user_id)
+      .eq('status', 'pending_checkout_clearance')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single(),
   ])
+
+  const documents     = rawDocuments ?? []
+  const messages      = rawMessages  ?? []
+  const soloReservation = (rawSoloReservation && !('error' in rawSoloReservation)) ? rawSoloReservation as { id: string; booking_reference: string | null; scheduled_start: string; scheduled_end: string; status: string } : null
 
   // External conflicts: active blocks in the held window NOT belonging to this booking.
   // Expired temporary holds are excluded — same rule as the submission RPC and confirm action.
@@ -161,6 +204,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   })
 
   const status        = booking.status as string
+  const bookingType   = (booking as { booking_type?: string }).booking_type ?? 'standard'
   const statusCfg     = STATUS_CFG[status] ?? {
     label:  status.replace(/_/g, ' '),
     color:  'text-slate-400',
@@ -168,25 +212,29 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     border: 'border-white/10',
     icon:   'info',
   }
-  const verCfg        = VERIFICATION_CFG[customer?.verification_status ?? 'not_started'] ?? VERIFICATION_CFG.not_started
+  const clearanceStatus = (customer as { pilot_clearance_status?: string } | null)?.pilot_clearance_status ?? 'checkout_required'
+  const clearanceCfg    = CLEARANCE_CFG[clearanceStatus] ?? CLEARANCE_CFG.checkout_required
   const bookingRef    = (booking as { booking_reference?: string }).booking_reference
     ?? booking.id.split('-')[0].toUpperCase()
   const statusHistory = rawHistory ?? []
+
+  // ── Standard booking state flags ────────────────────────────────────────────
   const isPending            = status === 'pending_confirmation'
   const isClarificationState = status === 'needs_clarification'
-  // Statuses where the dispatch/operational action panel is shown
   const OPERATIONAL_STATUSES = ['confirmed', 'ready_for_dispatch', 'dispatched', 'post_flight_approved']
   const isOperational        = OPERATIONAL_STATUSES.includes(status)
-  // Clarification can be requested from pending or confirmed
   const canRequestClarification = status === 'pending_confirmation' || status === 'confirmed'
-  // Extract the most recent admin clarification question for display
-  const clarificationQuestion = [...statusHistory]
-    .reverse()
-    .find(r => r.new_status === 'needs_clarification')?.note ?? null
-  // Extract the most recent customer clarification response for display
-  const clarificationResponse = [...statusHistory]
-    .reverse()
-    .find(r => r.old_status === 'needs_clarification' && r.new_status === 'pending_confirmation')?.note ?? null
+  const clarificationQuestion = [...statusHistory].reverse().find(r => r.new_status === 'needs_clarification')?.note ?? null
+  const clarificationResponse = [...statusHistory].reverse().find(r => r.old_status === 'needs_clarification' && r.new_status === 'pending_confirmation')?.note ?? null
+
+  // ── Checkout-specific state flags ────────────────────────────────────────────
+  const isCheckout              = bookingType === 'checkout'
+  const isFirstSoloReservation  = bookingType === 'standard' && status === 'pending_checkout_clearance'
+  const isCheckoutRequested     = isCheckout && status === 'checkout_requested'
+  const isCheckoutConfirmed     = isCheckout && status === 'checkout_confirmed'
+  const isCheckoutOutcomePending = isCheckout && status === 'checkout_completed_under_review'
+  // Checkout bookings need their own action panel — not the standard one
+  const needsCheckoutActions    = isCheckoutRequested || isCheckoutConfirmed || isCheckoutOutcomePending
 
   const activeOwnBlocks = ((ownBlocks ?? []) as ScheduleBlockRow[]).filter(b => b.status === 'active')
   const slotHeld        = activeOwnBlocks.length > 0
@@ -210,13 +258,26 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           className="material-symbols-outlined text-[130px] absolute -right-4 -bottom-8 text-white/[0.03] pointer-events-none select-none"
           style={{ fontVariationSettings: "'FILL' 1" }}
         >
-          flight_takeoff
+          {isCheckout ? 'how_to_reg' : isFirstSoloReservation ? 'bookmark' : 'flight_takeoff'}
         </span>
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-start justify-between gap-6">
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#a7c8ff]/40 mb-1">
-              Booking Reference
-            </p>
+            <div className="flex items-center gap-2 mb-2">
+              <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#a7c8ff]/40">
+                Booking Reference
+              </p>
+              {/* Booking type tag */}
+              {isCheckout && (
+                <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border bg-blue-500/10 text-blue-400 border-blue-500/20">
+                  Checkout Flight
+                </span>
+              )}
+              {isFirstSoloReservation && (
+                <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border bg-blue-500/10 text-blue-300 border-blue-400/20">
+                  First Solo Reservation
+                </span>
+              )}
+            </div>
             <p className="text-xl font-mono font-bold text-white tracking-wider mb-3">{bookingRef}</p>
             <h1 className="font-serif text-3xl font-light text-[#e2e2e6]">
               {(aircraft as { registration?: string } | null)?.registration ?? '—'}
@@ -227,10 +288,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           </div>
           <div className="flex flex-col items-start sm:items-end gap-2">
             <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${statusCfg.color} ${statusCfg.bg} ${statusCfg.border}`}>
-              <span
-                className={`material-symbols-outlined text-[14px] ${statusCfg.color}`}
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
+              <span className={`material-symbols-outlined text-[14px] ${statusCfg.color}`} style={{ fontVariationSettings: "'FILL' 1" }}>
                 {statusCfg.icon}
               </span>
               {statusCfg.label}
@@ -246,6 +304,30 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
         {/* ── Left column: details ─────────────────────────────────────────────── */}
         <div className="lg:col-span-2 space-y-6">
+
+          {/* ── Checkout request review panel — shown for checkout_requested ─── */}
+          {isCheckoutRequested && (
+            <AdminCheckoutReviewPanel
+              bookingId={booking.id}
+              aircraftId={booking.aircraft_id}
+              bookingReference={bookingRef}
+              scheduledStart={booking.scheduled_start}
+              scheduledEnd={booking.scheduled_end}
+              customerNotes={(booking as { customer_notes?: string | null }).customer_notes ?? null}
+              lastFlightDate={(booking as { last_flight_date?: string | null }).last_flight_date ?? null}
+              customerId={booking.booking_owner_user_id}
+              customerName={(customer as { full_name?: string | null } | null)?.full_name ?? null}
+              customerEmail={(customer as { email?: string | null } | null)?.email ?? null}
+              pilotArn={(customer as { pilot_arn?: string | null } | null)?.pilot_arn ?? null}
+              clearanceLabel={clearanceCfg.label}
+              clearanceColor={clearanceCfg.color}
+              clearanceBg={clearanceCfg.bg}
+              clearanceBorder={clearanceCfg.border}
+              documents={documents as import('@/app/admin/bookings/requests/[id]/AdminCheckoutReviewPanel').DocSummary[]}
+              messages={messages as import('@/lib/supabase/types').VerificationEvent[]}
+              soloReservation={soloReservation}
+            />
+          )}
 
           {/* Flight details */}
           <div className="bg-white/5 border border-white/5 rounded-2xl p-6">
@@ -323,9 +405,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 )}
               </div>
               <div className="flex flex-col items-end gap-3 flex-shrink-0">
-                <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${verCfg.color} ${verCfg.bg} ${verCfg.border}`}>
-                  {verCfg.label}
-                </span>
+                <div className="text-right space-y-1.5">
+                  <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${clearanceCfg.color} ${clearanceCfg.bg} ${clearanceCfg.border}`}>
+                    {clearanceCfg.label}
+                  </span>
+                </div>
                 {customer?.id && (
                   <Link
                     href={`/admin/users/${customer.id}`}
@@ -398,8 +482,42 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         <div>
           <div className="sticky top-24 space-y-4">
 
-            {/* Admin actions — confirm/cancel while pending */}
-            {isPending && (
+            {/* ── Checkout action panel ─────────────────────────────────────── */}
+            {/* checkout_requested uses AdminCheckoutReviewPanel in the left column */}
+            {(isCheckoutConfirmed || isCheckoutOutcomePending) && (
+              <div className={`rounded-2xl p-6 border ${
+                isCheckoutConfirmed ? 'bg-[#111316] border-green-500/15' : 'bg-[#111316] border-amber-500/15'
+              }`}>
+                <h2 className="text-[9px] uppercase tracking-widest font-bold text-[#a7c8ff]/50 mb-4">
+                  {isCheckoutConfirmed ? 'Checkout Flight Actions' : 'Record Checkout Outcome'}
+                </h2>
+                <AdminCheckoutActions
+                  bookingId={booking.id}
+                  status={status as 'checkout_confirmed' | 'checkout_completed_under_review'}
+                />
+              </div>
+            )}
+
+            {/* First solo reservation info panel */}
+            {isFirstSoloReservation && (
+              <div className="bg-blue-500/[0.06] border border-blue-500/20 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="material-symbols-outlined text-[16px] text-blue-400" style={{ fontVariationSettings: "'FILL' 1" }}>bookmark</span>
+                  <h2 className="text-[9px] uppercase tracking-widest font-bold text-blue-400/70">
+                    First Solo Reservation
+                  </h2>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
+                  This reservation will be automatically confirmed if the pilot is cleared for solo hire after their checkout flight, or released otherwise.
+                </p>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  No manual confirmation is needed. The outcome is determined by the checkout flight result.
+                </p>
+              </div>
+            )}
+
+            {/* Admin actions — confirm/cancel while pending (standard bookings only) */}
+            {isPending && !isCheckout && (
               <div className="bg-[#111316] border border-[#a7c8ff]/10 rounded-2xl p-6">
                 <h2 className="text-[9px] uppercase tracking-widest font-bold text-[#a7c8ff]/50 mb-4">
                   Admin Actions
@@ -552,8 +670,12 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 </div>
               )}
 
-              {/* Source note */}
-              <p className="text-[9px] text-slate-700 mt-4 pt-3 border-t border-white/5 leading-relaxed">
+              {/* Buffer explanation */}
+              <p className="text-[9px] text-slate-600 mt-3 pt-3 border-t border-white/5 leading-relaxed">
+                Buffer time protects aircraft turnaround, pre-flight, and post-flight handling around the booking.
+                {isCheckout && ' Checkout flights use the same aircraft buffer configuration.'}
+              </p>
+              <p className="text-[9px] text-slate-700 mt-1 leading-relaxed">
                 Source: <span className="font-mono">schedule_blocks</span> — checked at submission via advisory-locked RPC.
               </p>
             </div>
@@ -613,24 +735,37 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             </div>
 
             {/* Quick nav */}
-            {!isPending && (
-              <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 text-center">
-                <Link
-                  href="/admin/bookings/requests?status=pending_confirmation"
-                  className="inline-flex items-center gap-1 text-[10px] text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[12px]">arrow_back</span>
-                  Pending queue
-                </Link>
-                <span className="mx-2 text-slate-700">·</span>
-                <Link
-                  href="/admin/bookings/requests?status=all"
-                  className="inline-flex items-center gap-1 text-[10px] text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors"
-                >
-                  All bookings
-                </Link>
-              </div>
-            )}
+            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+              {isCheckout ? (
+                <>
+                  <Link
+                    href="/admin/bookings/requests?status=checkout_requested"
+                    className="inline-flex items-center gap-1 text-[10px] text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[12px]">arrow_back</span>
+                    Checkout Requests
+                  </Link>
+                  <span className="text-slate-700">·</span>
+                </>
+              ) : isPending ? null : (
+                <>
+                  <Link
+                    href="/admin/bookings/requests?status=pending_confirmation"
+                    className="inline-flex items-center gap-1 text-[10px] text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[12px]">arrow_back</span>
+                    Pending
+                  </Link>
+                  <span className="text-slate-700">·</span>
+                </>
+              )}
+              <Link
+                href="/admin/bookings/requests?status=all"
+                className="inline-flex items-center gap-1 text-[10px] text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors"
+              >
+                All bookings
+              </Link>
+            </div>
 
           </div>
         </div>

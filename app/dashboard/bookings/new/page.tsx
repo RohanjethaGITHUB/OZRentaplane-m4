@@ -63,37 +63,105 @@ export default async function NewBookingPage() {
     .single()
   if (profile?.role === 'admin') redirect('/admin')
 
-  const verificationStatus = (profile as Profile | null)?.verification_status ?? 'not_started'
+  const typedProfileEarly = profile as Profile | null
+  const pilotClearanceStatus = typedProfileEarly?.pilot_clearance_status ?? 'checkout_required'
 
-  // ── Verification status gate ──────────────────────────────────────────────
-  if (verificationStatus !== 'verified') {
-    const isPending    = verificationStatus === 'pending_review'
-    const isNotStarted = verificationStatus === 'not_started'
-    const colorCls = isPending ? 'bg-blue-500/10 border-blue-500/20' : 'bg-amber-500/10 border-amber-500/20'
-    const iconColor = isPending ? 'text-blue-400' : 'text-amber-400'
+  // ── Clearance gate: only cleared_for_solo_hire pilots can create standard bookings ──
+  if (pilotClearanceStatus !== 'cleared_for_solo_hire') {
+    type GateConfig = { icon: string; title: string; body: string; ctaLabel: string; ctaHref: string; colorCls: string; iconColor: string }
+
+    const GATE: Record<string, GateConfig> = {
+      checkout_required: {
+        icon:      'how_to_reg',
+        title:     'Checkout Required',
+        body:      'You must complete a checkout flight before booking solo flights. Start by selecting your preferred checkout time.',
+        ctaLabel:  'Book Checkout Flight',
+        ctaHref:   '/dashboard/checkout',
+        colorCls:  'bg-blue-500/10 border-blue-500/20',
+        iconColor: 'text-blue-400',
+      },
+      checkout_requested: {
+        icon:      'pending_actions',
+        title:     'Checkout Request Under Review',
+        body:      'Your checkout request has been submitted and is awaiting confirmation. Solo bookings will unlock once your checkout is completed and you are cleared for solo hire.',
+        ctaLabel:  'View My Bookings',
+        ctaHref:   '/dashboard/bookings',
+        colorCls:  'bg-blue-500/10 border-blue-500/20',
+        iconColor: 'text-blue-400',
+      },
+      checkout_confirmed: {
+        icon:      'event_available',
+        title:     'Checkout Flight Confirmed',
+        body:      'Your checkout flight has been confirmed. Solo bookings will unlock once your checkout is completed and your clearance status is updated.',
+        ctaLabel:  'View My Bookings',
+        ctaHref:   '/dashboard/bookings',
+        colorCls:  'bg-blue-500/10 border-blue-500/20',
+        iconColor: 'text-blue-400',
+      },
+      checkout_completed_under_review: {
+        icon:      'rate_review',
+        title:     'Awaiting Checkout Outcome',
+        body:      'Your checkout flight has been completed and is awaiting review. Solo bookings will unlock once you are cleared for solo hire.',
+        ctaLabel:  'View My Bookings',
+        ctaHref:   '/dashboard/bookings',
+        colorCls:  'bg-amber-500/10 border-amber-500/20',
+        iconColor: 'text-amber-400',
+      },
+      additional_supervised_time_required: {
+        icon:      'schedule',
+        title:     'Additional Supervised Session Required',
+        body:      'Following your checkout, the flight operations team has determined that additional supervised sessions are required. Book another supervised session to continue.',
+        ctaLabel:  'Book Additional Supervised Session',
+        ctaHref:   '/dashboard/checkout',
+        colorCls:  'bg-amber-500/10 border-amber-500/20',
+        iconColor: 'text-amber-400',
+      },
+      reschedule_required: {
+        icon:      'event_repeat',
+        title:     'Checkout Reschedule Required',
+        body:      'Your checkout needs to be rescheduled. Please contact the operations team to arrange a new checkout session.',
+        ctaLabel:  'Return to Dashboard',
+        ctaHref:   '/dashboard',
+        colorCls:  'bg-amber-500/10 border-amber-500/20',
+        iconColor: 'text-amber-400',
+      },
+      not_currently_eligible: {
+        icon:      'block',
+        title:     'Not Currently Eligible',
+        body:      'Your account is not currently eligible for solo hire. Please contact the operations team for further information.',
+        ctaLabel:  'Return to Dashboard',
+        ctaHref:   '/dashboard',
+        colorCls:  'bg-red-500/10 border-red-500/20',
+        iconColor: 'text-red-400',
+      },
+    }
+
+    const g: GateConfig = GATE[pilotClearanceStatus] ?? {
+      icon:      'lock',
+      title:     'Solo Booking Unavailable',
+      body:      'Solo hire is not available at this time. Please contact the operations team for assistance.',
+      ctaLabel:  'Return to Dashboard',
+      ctaHref:   '/dashboard',
+      colorCls:  'bg-amber-500/10 border-amber-500/20',
+      iconColor: 'text-amber-400',
+    }
+
+    const { icon, title, body, ctaLabel, ctaHref, colorCls, iconColor } = g
 
     return (
-      <CustomerBookingShell user={user as User} profile={profile as Profile | null}>
+      <CustomerBookingShell user={user as User} profile={typedProfileEarly}>
         <div className="px-6 md:px-10 py-10 max-w-2xl mx-auto w-full">
           <Link href="/dashboard/bookings" className="inline-flex items-center gap-1 text-oz-blue hover:text-blue-300 text-sm mb-6 transition-colors">
             <span className="material-symbols-outlined text-base">arrow_back</span>My Bookings
           </Link>
           <div className={`border rounded-[1.25rem] p-10 text-center ${colorCls}`}>
             <span className={`material-symbols-outlined text-4xl mb-4 block ${iconColor}`} style={{ fontVariationSettings: "'wght' 200" }}>
-              {isPending ? 'verified_user' : isNotStarted ? 'assignment_ind' : 'lock'}
+              {icon}
             </span>
-            <h2 className="text-xl font-serif text-white mb-3">
-              {isPending ? 'Account Under Review' : isNotStarted ? 'Verification Required' : 'Booking Access Unavailable'}
-            </h2>
-            <p className="text-oz-muted text-sm leading-relaxed mb-6">
-              {isPending
-                ? 'Your account is under review. Booking access will be enabled once your documents are approved.'
-                : isNotStarted
-                ? 'Complete your pilot verification before requesting a booking. Upload your licence, medical certificate, and proof of identity.'
-                : 'Booking access is currently unavailable. Please contact the operations team for assistance.'}
-            </p>
-            <Link href="/dashboard" className="inline-flex items-center gap-2 px-5 py-2.5 bg-oz-blue hover:bg-blue-400 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors">
-              {isNotStarted ? 'Start Verification' : 'Return to Dashboard'}
+            <h2 className="text-xl font-serif text-white mb-3">{title}</h2>
+            <p className="text-oz-muted text-sm leading-relaxed mb-6">{body}</p>
+            <Link href={ctaHref} className="inline-flex items-center gap-2 px-5 py-2.5 bg-oz-blue hover:bg-blue-400 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors">
+              {ctaLabel}
             </Link>
           </div>
         </div>

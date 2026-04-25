@@ -35,7 +35,10 @@ export type Aircraft = {
 
 // ─── Bookings ─────────────────────────────────────────────────────────────────
 
+export type BookingType = 'checkout' | 'standard'
+
 export type BookingStatus =
+  // Standard booking lifecycle
   | 'draft'
   | 'pending_confirmation'
   | 'confirmed'
@@ -54,6 +57,13 @@ export type BookingStatus =
   | 'no_show'
   | 'overdue'
   | 'admin_hold'
+  // Checkout booking statuses
+  | 'checkout_requested'
+  | 'checkout_confirmed'
+  | 'checkout_completed_under_review'
+  // Provisional first solo booking (pending checkout clearance)
+  | 'pending_checkout_clearance'
+  | 'released_due_to_checkout'
 
 export type CancellationCategory =
   | 'customer'
@@ -81,6 +91,7 @@ export type Booking = {
   id: string
   aircraft_id: string
   booking_owner_user_id: string
+  booking_type: BookingType
   pic_user_id: string | null
   pic_name: string | null
   pic_arn: string | null
@@ -99,8 +110,9 @@ export type Booking = {
   terms_accepted_at: string | null
   risk_acknowledgement_accepted_at: string | null
   eligibility_snapshot: Record<string, unknown> | null
-  customer_notes: string | null
-  admin_notes: string | null
+  customer_notes:   string | null
+  admin_notes:      string | null
+  last_flight_date: string | null   // YYYY-MM-DD — customer-reported last flight date
   created_at: string
   updated_at: string
 }
@@ -491,3 +503,34 @@ export const CLARIFICATION_CATEGORY_LABELS: Record<ClarificationCategory, string
   landings_unclear:       'Landings unclear',
   other:                  'Other',
 }
+
+// ─── Checkout system types ────────────────────────────────────────────────────
+
+export type CreateCheckoutBookingInput = {
+  aircraft_id:       string
+  scheduled_start:   string          // ISO 8601 UTC — end is always computed as start + 1 hour
+  customer_notes?:   string | null
+  last_flight_date?: string | null   // YYYY-MM-DD — customer's most recent flight before checkout
+}
+
+export type CreateProvisionalSoloInput = {
+  aircraft_id:      string
+  scheduled_start:  string
+  scheduled_end:    string
+  customer_notes?:  string | null
+}
+
+export type CheckoutBookingResult = {
+  bookingId:        string
+  bookingReference: string
+  scheduledStart:   string
+  scheduledEnd:     string
+}
+
+export type CheckoutOutcome =
+  | 'cleared_for_solo_hire'
+  | 'additional_supervised_time_required'
+  | 'reschedule_required'
+  | 'not_currently_eligible'
+
+export type ProvisionalBookingAction = 'keep' | 'release'

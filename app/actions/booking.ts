@@ -26,7 +26,7 @@ async function requireVerifiedCustomer() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, verification_status')
+    .select('role, verification_status, pilot_clearance_status')
     .eq('id', user.id)
     .single()
 
@@ -34,6 +34,9 @@ async function requireVerifiedCustomer() {
   if (profile.role !== 'customer') throw new Error('Not a customer account')
   if (profile.verification_status !== 'verified') {
     throw new Error('VERIFICATION_REQUIRED: Your account must be verified before making bookings.')
+  }
+  if (profile.pilot_clearance_status !== 'cleared_for_solo_hire') {
+    throw new Error('CLEARANCE_REQUIRED: Solo hire is only available to pilots cleared for solo flight.')
   }
 
   return { supabase, userId: user.id }

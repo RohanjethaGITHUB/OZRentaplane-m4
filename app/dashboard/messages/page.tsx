@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import CustomerChatPanel from '@/app/dashboard/CustomerChatPanel'
 import PortalPageHero from '@/components/PortalPageHero'
-import type { VerificationStatus, VerificationEvent } from '@/lib/supabase/types'
+import type { VerificationEvent } from '@/lib/supabase/types'
 
 export const metadata = { title: 'Messages | OZRentAPlane' }
 
@@ -14,7 +14,7 @@ export default async function CustomerMessagesPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, verification_status, full_name')
+    .select('role, full_name')
     .eq('id', user.id)
     .single()
 
@@ -26,7 +26,6 @@ export default async function CustomerMessagesPage() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
 
-  const status      = (profile?.verification_status ?? 'not_started') as VerificationStatus
   const displayName = profile?.full_name ?? user.email?.split('@')[0] ?? 'Pilot'
 
   const chatEvents  = (events as VerificationEvent[]) || []
@@ -68,7 +67,6 @@ export default async function CustomerMessagesPage() {
         ) : (
           <CustomerChatPanel
             events={chatEvents}
-            status={status}
             displayName={displayName}
           />
         )}

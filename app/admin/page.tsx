@@ -14,7 +14,7 @@ export default async function AdminMasterOverview() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
-  // 1. EXACT COUNTS FETCHING
+  // Counts — standard operations
   const [
     { count: totalCustomers },
     { count: pendingVerifs },
@@ -23,6 +23,11 @@ export default async function AdminMasterOverview() {
     { count: activeFlights },
     { count: pendingPostReviews },
     { count: openSquawks },
+    // Checkout operations
+    { count: checkoutRequests },
+    { count: upcomingCheckouts },
+    { count: checkoutOutcomesNeeded },
+    { count: firstSoloReservations },
   ] = await Promise.all([
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer').eq('verification_status', 'pending_review'),
@@ -31,17 +36,24 @@ export default async function AdminMasterOverview() {
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'dispatched'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'awaiting_review'),
     supabase.from('squawks').select('*', { count: 'exact', head: true }).in('status', ['open', 'in_progress']),
+    // Checkout-specific counts
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_requested'),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_confirmed'),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_completed_under_review'),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'pending_checkout_clearance'),
   ])
 
   // Fetch KZG status
   const { data: fleet } = await supabase.from('aircraft').select('registration, status').eq('registration', 'VH-KZG').single()
 
-  // High Priority Attentions
+  // High Priority Attentions — includes checkout operations
   const attentions = [
-    { label: 'Pending Verifications', count: pendingVerifs || 0, href: '/admin/pending-verifications', color: 'text-amber-400', icon: 'pending_actions' },
-    { label: 'Booking Requests', count: pendingBookingReqs || 0, href: '/admin/bookings/requests', color: 'text-blue-400', icon: 'fact_check' },
-    { label: 'Post-Flight Reviews', count: pendingPostReviews || 0, href: '/admin/bookings/post-flight-reviews', color: 'text-purple-400', icon: 'assignment_turned_in' },
-    { label: 'Open Squawks', count: openSquawks || 0, href: '/admin', color: 'text-red-400', icon: 'build_circle' }
+    { label: 'Checkout Requests',     count: checkoutRequests     || 0, href: '/admin/bookings/requests?status=checkout_requested',            color: 'text-blue-400',   icon: 'how_to_reg'            },
+    { label: 'Checkout Outcomes Due', count: checkoutOutcomesNeeded || 0, href: '/admin/bookings/requests?status=checkout_completed_under_review', color: 'text-amber-400',  icon: 'rate_review'          },
+    { label: 'Booking Requests',      count: pendingBookingReqs   || 0, href: '/admin/bookings/requests?status=pending_confirmation',           color: 'text-blue-400',   icon: 'fact_check'            },
+    { label: 'Post-Flight Reviews',   count: pendingPostReviews   || 0, href: '/admin/bookings/post-flight-reviews',                            color: 'text-purple-400', icon: 'assignment_turned_in'  },
+    { label: 'Pending Verifications', count: pendingVerifs        || 0, href: '/admin/pending-verifications',                                   color: 'text-amber-400',  icon: 'pending_actions'       },
+    { label: 'Open Squawks',          count: openSquawks          || 0, href: '/admin',                                                         color: 'text-red-400',    icon: 'build_circle'          },
   ].filter(a => a.count > 0)
 
   return (
@@ -117,6 +129,79 @@ export default async function AdminMasterOverview() {
             {fleet?.status || 'Unknown'}
           </span>
         </Link>
+      </section>
+
+      {/* Checkout Operations */}
+      <section className="mb-12">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-5 flex items-center gap-2">
+          <span className="material-symbols-outlined text-[14px] text-blue-400/60" style={{ fontVariationSettings: "'wght' 300" }}>how_to_reg</span>
+          Checkout Operations
+        </h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            {
+              label: 'Checkout Requests',
+              count: checkoutRequests || 0,
+              sub:   'Awaiting confirmation',
+              href:  '/admin/bookings/requests?status=checkout_requested',
+              color: checkoutRequests ? 'text-blue-300' : 'text-slate-600',
+              icon:  'pending_actions',
+              urgent: (checkoutRequests || 0) > 0,
+            },
+            {
+              label: 'Upcoming Checkouts',
+              count: upcomingCheckouts || 0,
+              sub:   'Confirmed checkout flights',
+              href:  '/admin/bookings/requests?status=checkout_confirmed',
+              color: 'text-green-400',
+              icon:  'event_available',
+              urgent: false,
+            },
+            {
+              label: 'Awaiting Outcome',
+              count: checkoutOutcomesNeeded || 0,
+              sub:   'Outcome decision needed',
+              href:  '/admin/bookings/requests?status=checkout_completed_under_review',
+              color: checkoutOutcomesNeeded ? 'text-amber-300' : 'text-slate-600',
+              icon:  'rate_review',
+              urgent: (checkoutOutcomesNeeded || 0) > 0,
+            },
+            {
+              label: 'First Solo Reservations',
+              count: firstSoloReservations || 0,
+              sub:   'Pending checkout clearance',
+              href:  '/admin/bookings/requests?status=pending_checkout_clearance',
+              color: 'text-blue-400',
+              icon:  'bookmark',
+              urgent: false,
+            },
+          ].map(card => (
+            <Link
+              key={card.label}
+              href={card.href}
+              className={`bg-[#1e2023]/60 backdrop-blur-xl border rounded-2xl p-5 group hover:bg-[#282a2d] transition-colors relative overflow-hidden flex flex-col justify-between min-h-[110px] ${
+                card.urgent ? 'border-blue-500/20' : 'border-white/5'
+              }`}
+            >
+              <span
+                className="material-symbols-outlined text-3xl absolute -right-3 -bottom-3 text-white/[0.04] group-hover:text-white/[0.07] transition-colors"
+                style={{ fontVariationSettings: "'FILL' 1" }}
+              >
+                {card.icon}
+              </span>
+              <div className="flex justify-between items-start">
+                <span className="text-[9px] uppercase tracking-widest font-bold text-slate-500 leading-tight max-w-[120px]">
+                  {card.label}
+                </span>
+                <span className="material-symbols-outlined text-sm text-slate-700 group-hover:text-slate-500 transition-colors flex-shrink-0">arrow_forward</span>
+              </div>
+              <div>
+                <div className={`text-2xl font-light font-serif ${card.color}`}>{card.count}</div>
+                <div className="text-[9px] text-slate-600 mt-0.5">{card.sub}</div>
+              </div>
+            </Link>
+          ))}
+        </div>
       </section>
 
       {/* Timeline Placeholder */}
