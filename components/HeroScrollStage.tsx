@@ -217,20 +217,16 @@ function FloatingPaths({ position }: { position: number }) {
 }
 
 // ─── Ambient Overlays (Living Poster Elements) ────────────────────────────────
-// Tweak these values independently to align the clouds and propeller per-device
 const AMBIENT_TUNING = {
   mobile: {
     // Cloud A: much wider and shifted up to counteract narrow portrait framing
     cloudA: 'w-[300%] h-[75%] bottom-[2%]',
-    // Cloud B: 
+    // Cloud B:
     cloudB: 'w-[250%] h-[65%] bottom-[0%]',
-    // Propeller: shifted further down and to the right on mobile
-    propeller: 'left-[56%] top-[47%]'
   },
   desktop: {
     cloudA: 'md:w-[180%] md:h-[95%] md:bottom-[-2%]',
     cloudB: 'md:w-[150%] md:h-[80%] md:bottom-[-8%]',
-    propeller: 'md:left-[53%] md:top-[48%]'
   }
 }
 
@@ -277,17 +273,6 @@ function AmbientOverlays({ innerRef }: { innerRef: React.Ref<HTMLDivElement> }) 
         />
       </div>
 
-      {/* Soft CSS Propeller Blur */}
-      <div className={`absolute z-30 ${AMBIENT_TUNING.mobile.propeller} ${AMBIENT_TUNING.desktop.propeller} -translate-x-1/2 -translate-y-1/2 w-56 h-56 md:w-80 md:h-80 overflow-hidden rounded-full flex flex-col justify-center items-center pointer-events-none mix-blend-screen opacity-[0.60]`}>
-         <div className="w-[85%] h-[85%] rounded-full absolute shadow-[0_0_30px_rgba(255,255,255,0.1)]" style={{ background: 'radial-gradient(circle, rgba(240,245,255,0.4) 0%, rgba(200,210,230,0.1) 40%, transparent 70%)' }} />
-         <div className="w-full h-full rounded-full animate-spin-fast absolute" style={{ animationDuration: '0.1s' }}>
-           <div className="w-full h-full rounded-full" style={{ background: 'conic-gradient(from 0deg, transparent 0deg, rgba(220, 230, 255, 0.18) 25deg, transparent 60deg, transparent 180deg, rgba(220, 230, 255, 0.12) 205deg, transparent 240deg)' }} />
-         </div>
-         <div className="w-full h-full rounded-full animate-spin-fast absolute" style={{ animationDuration: '0.07s', animationDirection: 'reverse' }}>
-           <div className="w-full h-full rounded-full" style={{ background: 'conic-gradient(from 90deg, transparent 0deg, rgba(255, 255, 255, 0.14) 20deg, transparent 50deg, transparent 180deg, rgba(255, 255, 255, 0.08) 200deg, transparent 230deg)' }} />
-         </div>
-      </div>
-      
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes drift-cloud-a {
           0% { transform: translateX(-56%); }
@@ -296,13 +281,6 @@ function AmbientOverlays({ innerRef }: { innerRef: React.Ref<HTMLDivElement> }) 
         @keyframes drift-cloud-b {
           0% { transform: translateX(-45%); }
           100% { transform: translateX(-55%); }
-        }
-        @keyframes spin-fast {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        .animate-spin-fast {
-          animation: spin-fast 0.15s linear infinite;
         }
         @keyframes airy-float {
           0% { transform: translateY(0px) rotate(0deg); }
@@ -333,14 +311,6 @@ const TEXT_OVERLAYS = [
       <>
         {/* ── Zone 1: eyebrow + headline — centre-aligned, upper area ── */}
         <div className="absolute left-0 right-0 flex flex-col items-center text-center px-6 md:px-12" style={{ top: '16vh' }}>
-          <motion.p
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.20, duration: 0.8, ease: 'easeOut' }}
-            className="font-sans text-[10px] md:text-xs font-bold tracking-[0.3em] uppercase text-oz-blue/70 mb-3 md:mb-5"
-          >
-            Sydney Cessna 172 Rental
-          </motion.p>
           <h1 className="font-serif text-4xl md:text-7xl font-black leading-tight">
             <span className="block">
               {'FLY'.split('').map((char, i) => (
@@ -544,9 +514,6 @@ const SAFARI_TEXT_OVERLAYS = [
     content: (
       <>
         <div className="absolute left-0 right-0 flex flex-col items-center text-center px-6 md:px-12" style={{ top: '16vh' }}>
-          <p className="font-sans text-[10px] md:text-xs font-bold tracking-[0.3em] uppercase text-oz-blue/70 mb-3 md:mb-5">
-            Sydney Cessna 172 Rental
-          </p>
           <h1 className="font-serif text-4xl md:text-7xl font-black leading-tight">
             <span className="block text-oz-text">FLY</span>
             <span className="block italic text-oz-blue relative pb-3">

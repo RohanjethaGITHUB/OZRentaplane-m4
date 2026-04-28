@@ -1,19 +1,19 @@
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'How It Works',
-  description: 'The complete process for renting a Cessna 172 with OZRentAPlane. From initial vetting to dispatch and landing.',
+  title: 'Checkout Process | OZRentAPlane',
+  description: 'Learn the checkout process required before solo aircraft hire, including documents, checkout flight, clearance outcomes, and post-flight records.',
   alternates: {
     canonical: '/how-it-works'
   },
   openGraph: {
-    title: 'How It Works | OZRentAPlane',
-    description: 'The complete process for renting a Cessna 172 with OZRentAPlane. From initial vetting to dispatch and landing.',
+    title: 'Checkout Process | OZRentAPlane',
+    description: 'Learn the checkout process required before solo aircraft hire, including documents, checkout flight, clearance outcomes, and post-flight records.',
     url: '/how-it-works',
   },
   twitter: {
-    title: 'How It Works | OZRentAPlane',
-    description: 'The complete process for renting a Cessna 172 with OZRentAPlane. From initial vetting to dispatch and landing.',
+    title: 'Checkout Process | OZRentAPlane',
+    description: 'Learn the checkout process required before solo aircraft hire, including documents, checkout flight, clearance outcomes, and post-flight records.',
   }
 }
 
