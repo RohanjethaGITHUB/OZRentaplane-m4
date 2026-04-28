@@ -752,13 +752,6 @@ export default async function BookingDetailPage({ params }: PageProps) {
                     <p className="text-sm text-white">{booking.estimated_hours.toFixed(1)} h</p>
                   </div>
                 )}
-                {booking.estimated_amount != null && (
-                  <div>
-                    <p className="text-[9px] uppercase tracking-widest text-slate-600 font-bold mb-1">Estimated Cost</p>
-                    <p className="text-sm text-white font-mono">${booking.estimated_amount.toFixed(2)} AUD</p>
-                    <p className="text-[10px] text-slate-600 mt-0.5">Based on estimated flight time</p>
-                  </div>
-                )}
                 {booking.pic_name && (
                   <div>
                     <p className="text-[9px] uppercase tracking-widest text-slate-600 font-bold mb-1">Pilot in Command</p>

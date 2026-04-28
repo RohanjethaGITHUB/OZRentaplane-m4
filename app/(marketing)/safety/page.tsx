@@ -16,8 +16,8 @@ export default function SafetyPage() {
           className="absolute inset-0 z-0 bg-cover bg-center opacity-75"
           style={{ backgroundImage: 'url("/CessnaHangar.webp")' }}
         />
-        <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#040f1e]/95 via-[#040f1e]/55 to-[#040f1e]/10" />
-        <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#091421]/25 via-transparent to-[#091421]/35" />
+        <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#040f1e]/70 via-[#040f1e]/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-[30%] z-0 bg-gradient-to-t from-[#091421] via-[#08121f]/30 to-transparent" />
 
         <div className="relative z-10 max-w-7xl mx-auto w-full pt-16">
           <StaggerContainer className="max-w-xl" staggerDelay={0.25}>
@@ -56,7 +56,7 @@ export default function SafetyPage() {
       </section>
 
       {/* ═══ Section 2: Safety Philosophy ═════════════════════════════════════ */}
-      <section className="py-32 px-8 md:px-24 bg-[#091421]">
+      <section className="-mt-12 pt-12 pb-32 px-8 md:px-24 bg-[#091421] relative z-20">
         <StaggerContainer className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-20" viewportMargin="-20%">
           <div className="lg:col-span-5">
             <StaggerItem duration={1.4}>

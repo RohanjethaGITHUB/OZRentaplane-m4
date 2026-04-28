@@ -15,12 +15,7 @@ const T_PRIMARY = '#aec7f7'  // primary     — accent, labels
 function AircraftShowcase() {
   return (
     <section className="relative pt-28 pb-28 px-6 md:px-12 lg:px-20">
-      {/* Soft gradient wipe effect to smoothly blend the hero frame into the solid navy section */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: `linear-gradient(to bottom, transparent 0%, ${BASE} 180px, ${BASE} 100%)` }}
-        aria-hidden="true"
-      />
+
       <div className="relative z-10 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-12 lg:gap-20 items-center">
 
         {/* Left Side: Aircraft Visual */}

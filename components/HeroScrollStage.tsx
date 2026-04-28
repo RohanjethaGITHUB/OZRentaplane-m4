@@ -603,6 +603,7 @@ export default function HeroScrollStage() {
   const overlayRefs        = useRef<(HTMLDivElement | null)[]>([])
   const ambientRefs        = useRef<HTMLDivElement | null>(null)
   const scrollIndicatorRef = useRef<HTMLDivElement | null>(null)
+  const fadeOverlayRef     = useRef<HTMLDivElement | null>(null)
 
   const imagesRef              = useRef<(HTMLImageElement | null)[]>(new Array(TOTAL_FRAMES).fill(null))
   const loadingRef             = useRef<boolean[]>(new Array(TOTAL_FRAMES).fill(false))
@@ -906,6 +907,20 @@ export default function HeroScrollStage() {
       }
       el.style.opacity = String(opacity)
     })
+    
+    // Fade overlay opacity: starts showing at the very end of the hero phase
+    // Hero phase is overallProgress = 0 to heroFraction.
+    // We want to fade in the bottom vignette during the last 10% of the hero phase.
+    const vignetteStart = heroFraction * 0.9
+    const vignetteEnd = heroFraction
+    let vignetteOpacity = 0
+    if (overallProgress > vignetteStart) {
+      vignetteOpacity = Math.min(1, (overallProgress - vignetteStart) / (vignetteEnd - vignetteStart))
+    }
+    
+    if (fadeOverlayRef.current) {
+      fadeOverlayRef.current.style.opacity = vignetteOpacity.toString()
+    }
 
     if (ambientRefs.current) {
       const startFade = 0.05
@@ -1263,6 +1278,13 @@ export default function HeroScrollStage() {
                Not rendered at all on Safari desktop — animations still consume
                compositor resources even behind opacity:0. Hard removal only. */}
           {!isSafariDesktop && <AmbientOverlays innerRef={ambientRefs} />}
+        
+          {/* Bottom fade into next section (animates in at end of hero) */}
+          <div 
+            ref={fadeOverlayRef}
+            className="absolute inset-x-0 bottom-0 h-[30%] bg-gradient-to-t from-[#091421] via-[#0b111a]/30 to-transparent pointer-events-none" 
+            style={{ zIndex: 25, opacity: 0 }} 
+          />
 
           {/* Floating paths — also fully absent on Safari desktop.
                72 animated motion.path SVGs have measurable rAF cost even hidden. */}

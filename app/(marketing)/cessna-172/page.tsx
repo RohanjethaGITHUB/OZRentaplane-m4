@@ -17,8 +17,8 @@ export default function Cessna172nPage() {
           className="absolute inset-0 z-0 bg-cover bg-center"
           style={{ backgroundImage: 'url("/Cessna-fleet.webp")' }}
         />
-        <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#040f1e]/95 via-[#040f1e]/55 to-[#040f1e]/10" />
-        <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#091421]/25 via-transparent to-[#091421]/35" />
+        <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#040f1e]/70 via-[#040f1e]/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-[30%] z-0 bg-gradient-to-t from-[#091421] via-[#051122]/30 to-transparent" />
 
         <div className="relative z-10 max-w-7xl mx-auto w-full pt-16">
           <StaggerContainer className="max-w-xl">
@@ -275,7 +275,7 @@ export default function Cessna172nPage() {
             <div className="hidden md:block absolute top-[50%] right-[-100px] w-[200px] h-[1px] bg-white/5" />
           </FadeUp>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-start">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 items-start">
 
             <FadeUp delay={0.1} duration={2.6} viewportMargin="-20%">
               <div className="relative rounded-[1.5rem] overflow-hidden aspect-[3/4] md:aspect-[4/5] group shadow-2xl">
@@ -296,7 +296,7 @@ export default function Cessna172nPage() {
               </div>
             </FadeUp>
 
-            <FadeUp delay={0.4} duration={2.6} viewportMargin="-20%" className="md:mt-24">
+            <FadeUp delay={0.4} duration={2.6} viewportMargin="-20%" className="sm:mt-16 lg:mt-24">
               <div className="relative rounded-[1.5rem] overflow-hidden aspect-[3/4] md:aspect-[4/5] group shadow-2xl">
                 <img
                   src="/CockpitRunwayView.webp"
@@ -329,6 +329,23 @@ export default function Cessna172nPage() {
                   </h3>
                   <p className="font-sans text-[0.85rem] leading-relaxed text-[#cbd5e1] opacity-90">
                     Efficient fuel burns and high availability make this the economical choice for commercial path pilots.
+                  </p>
+                </div>
+              </div>
+            </FadeUp>
+
+            <FadeUp delay={1.0} duration={2.6} viewportMargin="-20%" className="sm:mt-16 lg:mt-24">
+              <div className="relative rounded-[1.5rem] overflow-hidden aspect-[3/4] md:aspect-[4/5] group shadow-2xl bg-[#0c1827]">
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <span className="material-symbols-outlined text-[#64748b] text-5xl opacity-50">fastfood</span>
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-[#040810] via-[#040810]/40 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-8">
+                  <h3 className="font-serif text-2xl md:text-3xl text-white mb-3 tracking-wide text-shadow-sm">
+                    $100 burger
+                  </h3>
+                  <p className="font-sans text-[0.85rem] leading-relaxed text-[#cbd5e1] opacity-90">
+                    The ideal platform for quick weekend getaways, short cross-country hops, and flying out for lunch.
                   </p>
                 </div>
               </div>

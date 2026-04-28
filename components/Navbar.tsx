@@ -6,7 +6,7 @@ import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 
 const NAV_LINKS = [
-  { label: 'Checkout Process', href: '/how-it-works' },
+  { label: 'Checkout Process', href: '/checkout-process' },
   { label: 'Safety', href: '/safety' },
   { label: 'Resources', href: '/pilotRequirements' },
   { label: 'Pricing', href: '/pricing' },

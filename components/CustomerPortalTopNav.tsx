@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 
 const PUBLIC_LINKS = [
   { label: 'Fleet',        href: '/fleet' },
-  { label: 'How It Works', href: '/how-it-works' },
+  { label: 'Checkout Process', href: '/checkout-process' },
   { label: 'Safety',       href: '/safety' },
   { label: 'Resources',    href: '/pilotRequirements' },
   { label: 'Pricing',      href: '/pricing' },

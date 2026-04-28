@@ -10,7 +10,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     '/pricing',
     '/pilotRequirements',
     '/safety',
-    '/how-it-works',
+    '/checkout-process',
     '/faq',
     '/privacy-policy',
     '/terms-and-conditions',

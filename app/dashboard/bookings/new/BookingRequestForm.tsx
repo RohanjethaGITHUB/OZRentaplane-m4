@@ -3,23 +3,20 @@
 import { useState, useEffect, useTransition, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { createBooking } from '@/app/actions/booking'
+import { createProvisionalSoloBooking } from '@/app/actions/checkout'
 import {
   checkCustomerAvailability,
   getDayAvailability,
   type SafeConflict,
   type AvailabilityCheckResult,
 } from '@/app/actions/customer-availability'
-import type { CreateBookingInput } from '@/lib/supabase/booking-types'
+import type { CreateBookingInput, CreateProvisionalSoloInput } from '@/lib/supabase/booking-types'
 import {
   sydneyInputToUTC,
   formatSydTime,
 } from '@/lib/utils/sydney-time'
 import { formatDate, formatDateTime, formatDateLong } from '@/lib/formatDateTime'
 
-// ── Pricing constants (replace with DB config when available) ─────────────────
-
-const PACK_10H_DISCOUNT = 0.15 // 15% off standard rate
-const PACK_20H_DISCOUNT = 0.25 // 25% off standard rate
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -49,6 +46,7 @@ type Props = {
   picArn:               string | null
   eligibilityBlocked:   boolean
   eligibilityWarnings:  string[]
+  bookingMode:          'provisional' | 'standard'
 }
 
 // ── Time options (full day 12:00 AM – 11:30 PM, 30-min increments) ───────────
@@ -91,10 +89,6 @@ function formatDuration(hours: number): string {
   return `${h}h ${m}m`
 }
 
-/** Format a number as "$X,XXX". */
-function formatCurrency(amount: number): string {
-  return `$${Math.round(amount).toLocaleString('en-AU')}`
-}
 
 // ── Availability Timeline ──────────────────────────────────────────────────────
 //
@@ -398,6 +392,7 @@ export default function BookingRequestForm({
   picArn,
   eligibilityBlocked,
   eligibilityWarnings,
+  bookingMode,
 }: Props) {
   const [isSubmitting, startSubmit] = useTransition()
 
@@ -418,7 +413,6 @@ export default function BookingRequestForm({
 
   // ── Availability state ────────────────────────────────────────────────────
   const [availability, setAvailability] = useState<AvailabilityState>({ status: 'idle' })
-  const [packOpen, setPackOpen] = useState(false)
 
   // ── Min date/time (1 hour from now in Sydney) ─────────────────────────────
   const { minDate, minTimeToday } = useMemo(() => {
@@ -558,11 +552,6 @@ export default function BookingRequestForm({
     return mins > 0 ? mins / 60 : null
   }, [startDT, endDT])
 
-  // ── Pricing ───────────────────────────────────────────────────────────────
-  const standardCost = estimatedHours != null ? estimatedHours * hourlyRate : null
-  const pack10Cost   = standardCost   != null ? standardCost * (1 - PACK_10H_DISCOUNT) : null
-  const pack20Cost   = standardCost   != null ? standardCost * (1 - PACK_20H_DISCOUNT) : null
-
   // ── Submit gate ───────────────────────────────────────────────────────────
   const endIsBeforeStart = !!(startDT && endDT && endDT <= startDT)
 
@@ -632,7 +621,25 @@ export default function BookingRequestForm({
 
     startSubmit(async () => {
       try {
-        const { bookingId, bookingReference } = await createBooking(input)
+        let bookingId: string
+        let bookingReference: string
+
+        if (bookingMode === 'provisional') {
+          const provisionalInput: CreateProvisionalSoloInput = {
+            aircraft_id:     input.aircraft_id,
+            scheduled_start: input.scheduled_start,
+            scheduled_end:   input.scheduled_end,
+            customer_notes:  input.customer_notes ?? null,
+          }
+          const result = await createProvisionalSoloBooking(provisionalInput)
+          bookingId        = result.bookingId
+          bookingReference = result.bookingReference
+        } else {
+          const result = await createBooking(input)
+          bookingId        = result.bookingId
+          bookingReference = result.bookingReference
+        }
+
         setSuccessState({
           bookingId,
           bookingReference,
@@ -676,13 +683,15 @@ export default function BookingRequestForm({
           </div>
 
           <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-green-400/70 mb-3">
-            Request Received
+            {bookingMode === 'provisional' ? 'Time Reserved' : 'Request Received'}
           </p>
           <h1 className="text-3xl md:text-4xl font-serif text-white mb-4 leading-tight">
-            Booking Request Submitted
+            {bookingMode === 'provisional' ? 'Flight Time Reserved' : 'Booking Request Submitted'}
           </h1>
           <p className="text-slate-400 text-sm leading-relaxed mb-8 max-w-sm mx-auto">
-            Your request has been submitted and is awaiting review by our operations team.
+            {bookingMode === 'provisional'
+              ? 'Your preferred time has been reserved. This reservation will only be confirmed after your checkout flight is completed and you are cleared for solo hire.'
+              : 'Your request has been submitted and is awaiting review by our operations team.'}
           </p>
 
           {/* Booking reference card */}
@@ -706,10 +715,21 @@ export default function BookingRequestForm({
           <div className="bg-amber-500/[0.07] border border-amber-500/20 rounded-xl px-5 py-4 mb-6 flex items-start gap-3 text-left">
             <span className="material-symbols-outlined text-amber-400 text-base flex-shrink-0 mt-0.5">info</span>
             <div>
-              <p className="text-sm font-semibold text-amber-300 mb-1">This is not a confirmed booking</p>
-              <p className="text-xs text-amber-300/70 leading-relaxed">
-                Your request is pending review. You will receive an email once a decision has been made. Typical response time is within 24 hours.
-              </p>
+              {bookingMode === 'provisional' ? (
+                <>
+                  <p className="text-sm font-semibold text-amber-300 mb-1">This is a provisional reservation only</p>
+                  <p className="text-xs text-amber-300/70 leading-relaxed">
+                    This reservation will only be confirmed after your checkout flight is completed and you are cleared for solo hire.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-amber-300 mb-1">This is not a confirmed booking</p>
+                  <p className="text-xs text-amber-300/70 leading-relaxed">
+                    Your request is pending review. You will receive an email once a decision has been made. Typical response time is within 24 hours.
+                  </p>
+                </>
+              )}
             </div>
           </div>
 
@@ -803,13 +823,15 @@ export default function BookingRequestForm({
         {/* Hero content */}
         <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-2xl mx-auto">
           <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-blue-400/70 mb-4">
-            Fleet Booking
+            {bookingMode === 'provisional' ? 'Provisional Reservation' : 'Fleet Booking'}
           </p>
           <h1 className="text-4xl md:text-5xl font-serif tracking-tight text-white mb-3 leading-tight">
-            Book a Flight
+            {bookingMode === 'provisional' ? 'Reserve Your First Solo Flight' : 'Book a Flight'}
           </h1>
           <p className="text-slate-400 text-base leading-relaxed mb-2">
-            Choose your preferred time and submit your request for review.
+            {bookingMode === 'provisional'
+              ? 'Reserve your preferred first solo flight time below.'
+              : 'Choose your preferred time and submit your request for review.'}
           </p>
           <p className="text-[11px] text-slate-600">
             All times are shown in Sydney time (AEST/AEDT).
@@ -825,6 +847,19 @@ export default function BookingRequestForm({
           <StepIndicator requirementsOk={!eligibilityBlocked} />
         </div>
       </div>
+
+      {/* Provisional reservation banner */}
+      {bookingMode === 'provisional' && (
+        <div className="bg-blue-500/[0.08] border-b border-blue-500/20">
+          <div className="max-w-[1280px] mx-auto px-6 md:px-10 xl:px-12 py-3.5 flex items-start gap-3">
+            <span className="material-symbols-outlined text-blue-400 text-base flex-shrink-0 mt-0.5">info</span>
+            <p className="text-xs text-blue-300/80 leading-relaxed">
+              <span className="font-semibold text-blue-300">This is a provisional reservation only.</span>{' '}
+              Your flight will not be confirmed until your checkout flight is completed and you are cleared for solo hire.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ══════════════════════════════════════════════════════════════════════
           PILOT + AIRCRAFT INFO STRIP
@@ -1245,27 +1280,15 @@ export default function BookingRequestForm({
                     />
                   </div>
 
-                  {/* Estimated cost highlight box */}
-                  {standardCost != null ? (
-                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl px-5 py-4 mb-2 flex justify-between items-center">
-                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-400">Estimated Cost</span>
-                      <span className="text-2xl font-bold text-white tabular-nums">{formatCurrency(standardCost)}</span>
-                    </div>
-                  ) : (
-                    <div className="bg-white/[0.025] border border-white/[0.06] rounded-xl px-5 py-4 mb-2 flex justify-between items-center">
-                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600">Estimated Cost</span>
-                      <span className="text-xl font-bold text-slate-600">—</span>
-                    </div>
-                  )}
-
-                  {standardCost != null && (
-                    <p className="text-[10px] text-slate-600 mb-6 leading-relaxed">
-                      Estimate only. Final charges are based on actual billed flight time.
+                  {/* Provisional reminder near button */}
+                  {bookingMode === 'provisional' && (
+                    <p className="text-[10px] text-slate-600 mt-5 mb-2 leading-relaxed text-center px-2">
+                      Reminder: this reserves your preferred time only. Your booking will be confirmed after your checkout is completed and you are cleared for solo hire.
                     </p>
                   )}
 
                   {/* Submit button */}
-                  <div className="mt-6">
+                  <div className="mt-3">
                     <button
                       type="submit"
                       disabled={!canSubmit}
@@ -1284,7 +1307,7 @@ export default function BookingRequestForm({
                       ) : (
                         <>
                           <span className="material-symbols-outlined text-sm">send</span>
-                          Submit Booking Request
+                          {bookingMode === 'provisional' ? 'Reserve This Flight Time' : 'Submit Booking Request'}
                         </>
                       )}
                     </button>
@@ -1304,77 +1327,6 @@ export default function BookingRequestForm({
                   </div>
                 </div>
 
-                {/* Flight Pack Savings */}
-                {estimatedHours != null && standardCost != null && (
-                  <div className="bg-[#080e1c] border border-white/[0.07] rounded-xl overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={() => setPackOpen(o => !o)}
-                      className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-white/[0.02] transition-colors"
-                    >
-                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-sm">local_offer</span>
-                        Flight Pack Savings
-                      </span>
-                      <span className={`material-symbols-outlined text-slate-600 text-base transition-transform duration-200 ${packOpen ? 'rotate-180' : ''}`}>
-                        expand_more
-                      </span>
-                    </button>
-
-                    {packOpen && (
-                      <div className="px-6 pb-5 border-t border-white/[0.05] pt-4 space-y-3">
-                        <p className="text-[11px] text-slate-600 mb-1">
-                          For {formatDuration(estimatedHours)} at ${hourlyRate}/hr:
-                        </p>
-
-                        {/* Standard */}
-                        <div className="flex items-center justify-between py-2.5 border-b border-white/[0.05]">
-                          <div>
-                            <p className="text-xs text-white/80 font-medium">Standard Hourly</p>
-                            <p className="text-[10px] text-slate-600">${hourlyRate}/hr</p>
-                          </div>
-                          <span className="text-sm font-semibold text-white font-mono">{formatCurrency(standardCost)}</span>
-                        </div>
-
-                        {/* 10-hour pack */}
-                        {pack10Cost != null && (
-                          <div className="flex items-center justify-between py-2.5 border-b border-white/[0.05]">
-                            <div>
-                              <p className="text-xs text-white/80 font-medium">10-Hour Pack</p>
-                              <p className="text-[10px] text-slate-600">
-                                ${Math.round(hourlyRate * (1 - PACK_10H_DISCOUNT))}/hr · {Math.round(PACK_10H_DISCOUNT * 100)}% off
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm font-semibold text-green-400 font-mono">{formatCurrency(pack10Cost)}</p>
-                              <p className="text-[10px] text-green-600">save {formatCurrency(standardCost - pack10Cost)}</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 20-hour pack */}
-                        {pack20Cost != null && (
-                          <div className="flex items-center justify-between py-2.5">
-                            <div>
-                              <p className="text-xs text-white/80 font-medium">20-Hour Pack</p>
-                              <p className="text-[10px] text-slate-600">
-                                ${Math.round(hourlyRate * (1 - PACK_20H_DISCOUNT))}/hr · {Math.round(PACK_20H_DISCOUNT * 100)}% off
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm font-semibold text-green-300 font-mono">{formatCurrency(pack20Cost)}</p>
-                              <p className="text-[10px] text-green-600">save {formatCurrency(standardCost - pack20Cost)}</p>
-                            </div>
-                          </div>
-                        )}
-
-                        <p className="text-[10px] text-slate-700 pt-1 leading-relaxed">
-                          Flight packs are optional and can reduce your effective hourly rate. Contact the team to purchase or apply a package.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {/* Ops note */}
                 <p className="text-[10px] font-serif italic text-center text-slate-600 px-3 leading-relaxed">

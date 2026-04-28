@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary": "#a9cbe4",
+                        "surface-container-high": "#212b38",
+                        "on-secondary-fixed-variant": "#184975",
+                        "on-tertiary-container": "#81a3bb",
+                        "primary-container": "#1b365d",
+                        "surface": "#091421",
+                        "on-error": "#690005",
+                        "tertiary-container": "#15394d",
+                        "primary-fixed-dim": "#aec7f7",
+                        "on-tertiary-fixed-variant": "#294a5f",
+                        "on-background": "#d9e3f6",
+                        "outline": "#8e9099",
+                        "on-primary": "#143057",
+                        "tertiary-fixed-dim": "#a9cbe4",
+                        "surface-variant": "#2b3544",
+                        "on-secondary-container": "#91bcef",
+                        "on-primary-container": "#87a0cd",
+                        "tertiary-fixed": "#c7e7ff",
+                        "on-primary-fixed-variant": "#2e476f",
+                        "inverse-surface": "#d9e3f6",
+                        "inverse-primary": "#465f88",
+                        "on-secondary-fixed": "#001d36",
+                        "secondary": "#a0cafe",
+                        "surface-container": "#16202e",
+                        "secondary-fixed": "#d1e4ff",
+                        "background": "#091421",
+                        "surface-bright": "#303a48",
+                        "outline-variant": "#44474e",
+                        "surface-container-highest": "#2b3544",
+                        "secondary-fixed-dim": "#a0cafe",
+                        "on-error-container": "#ffdad6",
+                        "on-surface": "#d9e3f6",
+                        "on-primary-fixed": "#001b3d",
+                        "surface-container-lowest": "#050f1b",
+                        "surface-tint": "#aec7f7",
+                        "primary-fixed": "#d6e3ff",
+                        "inverse-on-surface": "#27313f",
+                        "on-tertiary": "#0e3448",
+                        "on-surface-variant": "#c4c6cf",
+                        "on-secondary": "#003258",
+                        "secondary-container": "#1b4b78",
+                        "on-tertiary-fixed": "#001e2e",
+                        "error-container": "#93000a",
+                        "surface-dim": "#091421",
+                        "primary": "#aec7f7",
+                        "surface-container-low": "#121c29",
+                        "error": "#ffb4ab"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Newsreader", "serif"],
+                        "display": ["Newsreader", "serif"],
+                        "body": ["Manrope", "sans-serif"],
+                        "label": ["Manrope", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .atmospheric-gradient {
+            background: linear-gradient(135deg, #aec7f7 0%, #1b365d 100%);
+        }
+        .glass-panel {
+            background: rgba(22, 32, 46, 0.8);
+            backdrop-filter: blur(20px);
+        }
+        .flight-path-line {
+            background: linear-gradient(to bottom, #aec7f7 0%, #1b365d 50%, #091421 100%);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body selection:bg-primary-container selection:text-primary">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-[#091421]/80 backdrop-blur-xl shadow-2xl shadow-[#050f1b]/40">
+<div class="flex justify-between items-center px-12 py-6 max-w-screen-2xl mx-auto">
+<div class="text-2xl font-['Newsreader'] italic font-bold text-[#aec7f7]">OZRentAPlane</div>
+<div class="hidden md:flex items-center gap-8">
+<a class="text-[#c4c6cf] font-['Manrope'] hover:text-[#aec7f7] transition-colors duration-300" href="#">Fleet</a>
+<a class="text-[#c4c6cf] font-['Manrope'] hover:text-[#aec7f7] transition-colors duration-300" href="#">Safety</a>
+<a class="text-[#aec7f7] border-b-2 border-[#aec7f7] pb-1 font-['Newsreader'] italic tracking-tight" href="#">How It Works</a>
+<a class="text-[#c4c6cf] font-['Manrope'] hover:text-[#aec7f7] transition-colors duration-300" href="#">Pricing</a>
+</div>
+<div class="flex items-center gap-6">
+<button class="text-[#c4c6cf] font-['Manrope'] hover:text-[#aec7f7] transition-colors duration-300 scale-95 active:opacity-80">Login</button>
+<button class="atmospheric-gradient text-on-primary px-6 py-2.5 font-semibold scale-95 active:opacity-80 transition-transform rounded-md">Book Flight</button>
+</div>
+</div>
+</nav>
+<main>
+<!-- Section 1: Hero -->
+<section class="relative min-h-[921px] flex items-center justify-center pt-24 overflow-hidden">
+<div class="absolute inset-0 z-0">
+<img class="w-full h-full object-cover opacity-40" data-alt="cinematic interior of a high-end cessna cockpit at dusk with soft ambient instrument lighting and blue sky outside" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDj3-A5m9H9oph_RGrzrt9cFdVzoESGf79uyC7ByAXmt1U7ahmMUeMSt4q8sb0ZGoK-x_Ow7FBGTTKTO5VZJFdRlZnzlF1iVHX4pM5Z3-b6OPMKYMl-fXupnTORgqUKsEDMAtLOPpxNfEeRcjsiNelQMPBiCMo35IVd7FojT6Lmxcb6pIdnGKrAdYYbDPGnScUQmxGZw0QmxRN22uedlbc-wTAjuF4Fd72Nfjk8FmoGYAjy7Z0xgAaOl92YXWP8YzDg56mhF_1obwI"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent"></div>
+</div>
+<div class="relative z-10 max-w-4xl px-12 text-center">
+<span class="inline-block font-label text-primary tracking-[0.3em] uppercase text-xs mb-6 opacity-80">The Pilot Journey</span>
+<h1 class="font-display text-7xl md:text-8xl italic font-bold text-on-surface mb-8 tracking-tighter leading-none">How It Works</h1>
+<p class="font-body text-xl md:text-2xl text-on-surface-variant max-w-2xl mx-auto font-light leading-relaxed">
+                    From your first checkout request to solo aircraft hire, OZRentAPlane guides every pilot through a clear and safety-first process.
+                </p>
+<div class="mt-12 flex justify-center gap-6">
+<button class="bg-primary-container text-primary-fixed border border-primary/20 px-10 py-4 rounded-md font-semibold hover:bg-primary hover:text-on-primary transition-all duration-500">Begin Your Journey</button>
+</div>
+</div>
+</section>
+<!-- Section 2: Intro -->
+<section class="py-32 px-12 bg-surface">
+<div class="max-w-screen-2xl mx-auto grid md:grid-cols-2 gap-20 items-center">
+<div class="space-y-8">
+<div>
+<span class="font-label text-tertiary tracking-[0.2em] uppercase text-xs">The Updated Flow</span>
+<h2 class="font-display text-5xl italic font-bold mt-4 leading-tight">From checkout to confident solo hire</h2>
+</div>
+<p class="font-body text-lg text-on-surface-variant leading-relaxed max-w-xl">
+                        Before booking solo flights, every new pilot completes a one-time checkout flight with an approved instructor. Once cleared, future aircraft bookings can be made directly from the pilot portal.
+                    </p>
+</div>
+<div class="aspect-video bg-surface-container-low relative rounded-xl overflow-hidden group border border-outline-variant/10">
+<img class="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-1000" data-alt="A clean, top-down view of a white Cessna 172 light aircraft on a dark tarmac at dusk, premium aviation aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD4E7mt6qlpK6ptTzVg3rVNu5V7Sy6nIywAPCG87rUNPtNixE5xTS9Os7VaE3l6RIlOAmn15zHrq5FrmijZGaYLqEK1KBajkL8tKMdgRV3uhWrtAq-wj1AjAQOjPQkT3oqYo3dUQ_bKyZt4rKQIfEAK_b-yW7E9mso5B4CWjC5Pgxz3YVhCyqpJgeoOqKhuQo3WBjLUOqFAz6fingT0Pq4YV35taWCHQI2TGLExCUtHo8Nn8RbQpgYEM4kpH2m5BhXy-xMqWluaZt4"/>
+<div class="absolute inset-0 bg-primary/10 mix-blend-overlay"></div>
+</div>
+</div>
+</section>
+<!-- Section 3: Main Journey (Vertical Timeline) -->
+<section class="py-32 bg-surface-dim relative">
+<div class="max-w-6xl mx-auto px-12">
+<div class="relative">
+<!-- Vertical Flight Path Line -->
+<div class="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-16 bg-gradient-to-b from-[#0f172a] via-[#0b1221] to-[#0f172a] border-x border-[#1e293b] hidden md:flex flex-col items-center shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] overflow-hidden">
+<!-- Top Threshold Markings -->
+<div class="absolute top-0 w-full flex justify-center gap-[3px] pt-4 opacity-50">
+<div class="w-1.5 h-10 bg-white"></div>
+<div class="w-1.5 h-10 bg-white"></div>
+<div class="w-1.5 h-10 bg-white"></div>
+<div class="w-1.5 h-10 bg-white"></div>
+</div>
+<!-- Runway Centerline -->
+<div class="absolute inset-y-0 w-full flex justify-center items-center opacity-60 pointer-events-none mt-16 mb-16">
+<div class="w-[3px] h-full" style="background: repeating-linear-gradient(to bottom, #ffffff 0, #ffffff 20px, transparent 20px, transparent 40px);"></div>
+</div>
+<!-- Edge Lights (Left) -->
+<div class="absolute left-1 inset-y-0 w-[3px] h-full opacity-80" style="background: repeating-linear-gradient(to bottom, #818cf8 0, #818cf8 4px, transparent 4px, transparent 32px); filter: drop-shadow(0 0 5px #818cf8);"></div>
+<!-- Edge Lights (Right) -->
+<div class="absolute right-1 inset-y-0 w-[3px] h-full opacity-80" style="background: repeating-linear-gradient(to bottom, #818cf8 0, #818cf8 4px, transparent 4px, transparent 32px); filter: drop-shadow(0 0 5px #818cf8);"></div>
+<!-- Bottom Threshold Markings -->
+<div class="absolute bottom-0 w-full flex justify-center gap-[3px] pb-4 opacity-50">
+<div class="w-1.5 h-10 bg-white"></div>
+<div class="w-1.5 h-10 bg-white"></div>
+<div class="w-1.5 h-10 bg-white"></div>
+<div class="w-1.5 h-10 bg-white"></div>
+</div>
+<!-- Aircraft Marker -->
+<div class="sticky top-1/2 z-20 mt-[-24px] flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-3xl rotate-180 drop-shadow-[0_0_8px_rgba(174,199,247,0.8)]">flight</span>
+</div>
+</div>
+<!-- Steps -->
+<div class="space-y-32">
+<!-- Step 1 -->
+<div class="relative flex flex-col md:flex-row items-center gap-12 group">
+<div class="md:w-1/2 text-right order-2 md:order-1">
+<span class="text-tertiary-fixed-dim font-bold text-6xl opacity-10 absolute -top-8 right-0 md:relative md:top-0">01</span>
+<h3 class="font-display text-3xl italic mb-4">Create your pilot account</h3>
+<p class="text-on-surface-variant font-light">Start by creating your OZRentAPlane pilot account. Once inside the pilot portal, you can begin your checkout request and manage your aircraft access.</p>
+</div>
+<div class="z-10 w-12 h-12 rounded-full atmospheric-gradient flex items-center justify-center order-1 md:order-2 shadow-2xl shadow-primary/40 ring-8 ring-surface-dim">
+<span class="material-symbols-outlined text-on-primary text-xl">person_add</span>
+</div>
+<div class="md:w-1/2 order-3">
+<div class="glass-panel p-6 rounded-xl border border-outline-variant/20 shadow-xl">
+<img class="rounded-lg opacity-80" data-alt="clean digital dashboard interface showing pilot profile settings with blue aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVO5AeQqr1MXtR9jJODB-KY8PE1rgEI51ZJ2kfo2afewmy9T2_5iv1N6dey0UqC3fc_MldyrmVwtgEhgGFpdUHJ881fuABit1o0mrQeOaCbO_rhNojgQHtS38egaGoiQ0J4Y8Frd2OqIYI6BFpYCScV_5VsAluMfWRvFmHk3IpifRp3X42koDBzB09YykIyD9nNSr7OBx-TiU4ggFB6Iw1fqTWaTdpAB01cUjpFlIeOb92-4CuHwevQ4OIrzfCKs5rXDZUJ2zxHKs"/>
+</div>
+</div>
+</div>
+<!-- Step 2 -->
+<div class="relative flex flex-col md:flex-row items-center gap-12 group">
+<div class="md:w-1/2 order-3 md:order-1">
+<div class="glass-panel p-6 rounded-xl border border-outline-variant/20 shadow-xl">
+<div class="flex justify-between items-center mb-6">
+<div class="bg-surface-container-highest px-4 py-2 rounded">
+<p class="text-xs text-on-surface-variant uppercase tracking-widest">Rate</p>
+<p class="text-xl font-bold text-primary">$290/hour</p>
+</div>
+<div class="text-right">
+<p class="text-xs text-on-surface-variant uppercase tracking-widest">Duration</p>
+<p class="text-xl font-bold text-primary">1 Hour</p>
+</div>
+</div>
+<img class="rounded-lg opacity-70" data-alt="modern minimalist calendar scheduling interface with selected time slots in blue" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9Z1iWMyyb8tAFEdu8e1D3b719uzflUkUB0XocQnThCx_3C669lpXxP49MjyfZFowuQh6HwpEstmv2f0aMILKutuM4XoN05j1MQOd6lFrmLAIVcjYEPqEUpzBNqycGUoC70ZSFCJK34b9Mn2jsQe9N2Xbo38nBc-7EJuj6-J-IV9vTMvGjUWX9RbnnzPFZmK_f_WH6Ymto0ED-gwEjIBpkJesnBYoaht575iEs_p8nSdUjIQMOdXIsGOuaYfo7MOpBNxwO-FyKPFs"/>
+</div>
+</div>
+<div class="z-10 w-12 h-12 rounded-full atmospheric-gradient flex items-center justify-center order-1 shadow-2xl shadow-primary/40 ring-8 ring-surface-dim">
+<span class="material-symbols-outlined text-on-primary text-xl">event_available</span>
+</div>
+<div class="md:w-1/2 text-left order-2">
+<span class="text-tertiary-fixed-dim font-bold text-6xl opacity-10 absolute -top-8 left-0 md:relative md:top-0">02</span>
+<h3 class="font-display text-3xl italic mb-4">Request your checkout flight</h3>
+<p class="text-on-surface-variant font-light">Choose your preferred one-hour checkout flight time. This first flight is reviewed and confirmed by the operations team.</p>
+</div>
+</div>
+<!-- Step 3 -->
+<div class="relative flex flex-col md:flex-row items-center gap-12 group">
+<div class="md:w-1/2 text-right order-2 md:order-1">
+<span class="text-tertiary-fixed-dim font-bold text-6xl opacity-10 absolute -top-8 right-0 md:relative md:top-0">03</span>
+<h3 class="font-display text-3xl italic mb-4">Upload pilot documents</h3>
+<p class="text-on-surface-variant font-light">Upload your pilot licence, medical certificate, photo ID, and recent flying details for our operations team to verify.</p>
+</div>
+<div class="z-10 w-12 h-12 rounded-full atmospheric-gradient flex items-center justify-center order-1 md:order-2 shadow-2xl shadow-primary/40 ring-8 ring-surface-dim">
+<span class="material-symbols-outlined text-on-primary text-xl">cloud_upload</span>
+</div>
+<div class="md:w-1/2 order-3">
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container p-4 rounded border border-outline-variant/10 text-center">
+<span class="material-symbols-outlined text-primary mb-2">badge</span>
+<p class="text-xs text-on-surface">Pilot Licence</p>
+</div>
+<div class="bg-surface-container p-4 rounded border border-outline-variant/10 text-center">
+<span class="material-symbols-outlined text-primary mb-2">medical_services</span>
+<p class="text-xs text-on-surface">Medical Cert</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Step 4, 5, 6, 7, 8 (Consolidated for visual flow) -->
+<!-- Adding a few more visual waypoints -->
+<div class="flex flex-col items-center py-10 opacity-60">
+<span class="material-symbols-outlined text-primary animate-bounce">expand_more</span>
+<p class="font-label text-xs tracking-widest mt-4">CONTINUING TO CLEARANCE</p>
+</div>
+<!-- Step 5 & 6 (Combined High-Impact Section) -->
+<div class="relative glass-panel p-12 rounded-2xl border border-primary/20 overflow-hidden">
+<div class="absolute top-0 right-0 p-8 opacity-10">
+<span class="material-symbols-outlined text-9xl">flight_takeoff</span>
+</div>
+<div class="grid md:grid-cols-2 gap-12 items-center">
+<div>
+<span class="text-primary font-label text-xs tracking-[0.2em] uppercase">Step 05 &amp; 06</span>
+<h3 class="font-display text-4xl italic font-bold my-4">Checkout &amp; Clearance</h3>
+<p class="text-on-surface-variant mb-6">Complete your flight with an approved instructor. Post-flight, your status will be updated to 'Cleared for solo hire'.</p>
+<div class="space-y-3">
+<div class="flex items-center gap-3 text-tertiary">
+<span class="material-symbols-outlined text-sm">check_circle</span>
+<span class="text-sm font-semibold">Cleared for solo hire</span>
+</div>
+<div class="flex items-center gap-3 text-on-surface-variant opacity-50">
+<span class="material-symbols-outlined text-sm">info</span>
+<span class="text-sm">Additional time required</span>
+</div>
+</div>
+</div>
+<div class="rounded-xl overflow-hidden shadow-2xl">
+<img class="w-full h-full object-cover" data-alt="A cinematic shot of a pilot in a flight suit standing in front of a white Cessna 172 on a runway at sunset, holding a digital tablet." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDhh9fMeznG9YHFBzajaFVdl5WU3rvcyjLKbPuSS29Skjaulee3UGhh-ESPvsIram2cj3Fe4XU01g4SixaGGMS1CCVSuy5XKFX17FXxPvUbW-obsqCJFzzl4HxBjvyaqRZzRV7UbAHRfogmuCKGCk9wqJMPLpl5-jxul-VMS3_fhILhjogoFSwpnQKb0q7YnrC6VMwCf6mHmD9tVybQCwGtSodFbxDj-6hc9gmiQxl6z8X-ys9KzGkLAcxh3WRRXzU1UZCTpI7TzqM"/>
+</div>
+</div>
+</div>
+<!-- Final Step -->
+<div class="relative flex flex-col md:flex-row items-center gap-12 group">
+<div class="md:w-1/2 text-right order-2 md:order-1">
+<span class="text-tertiary-fixed-dim font-bold text-6xl opacity-10 absolute -top-8 right-0 md:relative md:top-0">08</span>
+<h3 class="font-display text-3xl italic mb-4">Fly, record, and finalize</h3>
+<p class="text-on-surface-variant font-light">After each flight, complete the required flight record so usage and billing can be finalized accurately.</p>
+</div>
+<div class="z-10 w-12 h-12 rounded-full atmospheric-gradient flex items-center justify-center order-1 md:order-2 shadow-2xl shadow-primary/40 ring-8 ring-surface-dim">
+<span class="material-symbols-outlined text-on-primary text-xl">assignment_turned_in</span>
+</div>
+<div class="md:w-1/2 order-3">
+<div class="rounded-xl overflow-hidden border border-primary/20 shadow-xl aspect-video">
+<img class="w-full h-full object-cover opacity-80" data-alt="A pilot in a professional uniform sitting at a refined wooden desk in a premium aviation lounge, writing in a flight logbook." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDA53ZonBTpaYNNoJ47Lnj3ogbc5abZY5mSD9KCF2vlzsjE_PCdV7DdrujlRbfDihZYMRr4mVEO4lSUS4XpDBsyfAgeuWv4eWchSS4p-Qr8uTH9hFgiTlRrqCkQxiRRlxaQpesN7F2olHedU6idGhN4aZz2Bf9-5vZZ1LczdKpdF_riyZ6ubvI-QEgbHGa-gugS3l6lCQMfsItK8oOP1CgIDZwqP_7JIlko4xlDGnLTJxqNv0WIuvOxmRBKObR_1zEI8ECloetd1yE"/>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 4: After Clearance -->
+<section class="py-32 px-12 bg-surface">
+<div class="max-w-screen-2xl mx-auto">
+<h2 class="font-display text-5xl italic font-bold text-center mb-20">After you’re cleared</h2>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+<div class="bg-surface-container-low p-10 rounded-xl hover:bg-surface-container-high transition-colors group">
+<span class="material-symbols-outlined text-primary text-4xl mb-6 block">calendar_month</span>
+<h4 class="font-display text-xl italic mb-4">Book slots directly</h4>
+<p class="text-sm text-on-surface-variant font-light leading-relaxed">Instant access to the fleet calendar for all approved aircraft types.</p>
+</div>
+<div class="bg-surface-container-low p-10 rounded-xl hover:bg-surface-container-high transition-colors group">
+<span class="material-symbols-outlined text-primary text-4xl mb-6 block">dashboard</span>
+<h4 class="font-display text-xl italic mb-4">Manage bookings</h4>
+<p class="text-sm text-on-surface-variant font-light leading-relaxed">Modify or cancel upcoming flights through your centralized pilot portal.</p>
+</div>
+<div class="bg-surface-container-low p-10 rounded-xl hover:bg-surface-container-high transition-colors group">
+<span class="material-symbols-outlined text-primary text-4xl mb-6 block">history_edu</span>
+<h4 class="font-display text-xl italic mb-4">Post-flight records</h4>
+<p class="text-sm text-on-surface-variant font-light leading-relaxed">Seamlessly submit flight times and maintenance notes via mobile.</p>
+</div>
+<div class="bg-surface-container-low p-10 rounded-xl hover:bg-surface-container-high transition-colors group">
+<span class="material-symbols-outlined text-primary text-4xl mb-6 block">verified</span>
+<h4 class="font-display text-xl italic mb-4">Stay current</h4>
+<p class="text-sm text-on-surface-variant font-light leading-relaxed">Receive automated alerts for upcoming medical and licence renewals.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 5: Built on Absolute Trust -->
+<section class="py-24 bg-surface-container-lowest">
+<div class="max-w-4xl mx-auto px-12 text-center border-y border-outline-variant/10 py-20">
+<h2 class="font-display text-4xl italic font-bold mb-16">Built on Absolute Trust</h2>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+<div class="space-y-2">
+<p class="text-primary font-bold text-lg">01</p>
+<p class="text-xs uppercase tracking-widest text-on-surface-variant">One-time checkout</p>
+</div>
+<div class="space-y-2">
+<p class="text-primary font-bold text-lg">02</p>
+<p class="text-xs uppercase tracking-widest text-on-surface-variant">Document-backed</p>
+</div>
+<div class="space-y-2">
+<p class="text-primary font-bold text-lg">03</p>
+<p class="text-xs uppercase tracking-widest text-on-surface-variant">Instructor-led</p>
+</div>
+<div class="space-y-2">
+<p class="text-primary font-bold text-lg">04</p>
+<p class="text-xs uppercase tracking-widest text-on-surface-variant">Clear records</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 6: Final CTA -->
+<section class="py-40 px-12 relative overflow-hidden">
+<div class="absolute inset-0 z-0">
+<img class="w-full h-full object-cover opacity-20" data-alt="wide shot of a private hangar floor with a sleek modern aircraft and morning light streaming through windows" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3ZPhR6glKfg90O9ubP5-Gwrm5cPEG2cg7NW2LrkaVSODbraHbvQHtch6nhpV-k7rchdUQ9l_M2ZykXnidzapxLTEgGV19A19WincfsabN576o0uDyQD5FDFV0uFx0PSg5g1udWIWqpqCOhxIti6WOF-MaE5pJLUXnmvtDHcu3rr1yGAa9haiSSoYA815MSJjc-cL1IqZyr5yd0mkkaQnXqQDX8Z2YyfYFKboGUFQkEM5sF-H7V9_Zpdmx2qdxpaVRiIL3_khKcSQ"/>
+<div class="absolute inset-0 bg-gradient-to-b from-surface via-transparent to-surface"></div>
+</div>
+<div class="relative z-10 max-w-4xl mx-auto text-center">
+<h2 class="font-display text-5xl md:text-6xl italic font-bold mb-8">Ready to request your checkout flight?</h2>
+<p class="font-body text-xl text-on-surface-variant mb-12 max-w-2xl mx-auto">
+                    Create your pilot account, choose a checkout time, and upload your required documents in one guided flow.
+                </p>
+<div class="flex flex-col md:flex-row justify-center gap-6">
+<button class="atmospheric-gradient text-on-primary px-10 py-5 rounded-md font-bold text-lg shadow-2xl shadow-primary/20 hover:scale-105 transition-transform">Request checkout flight</button>
+<button class="bg-surface-container-highest text-on-surface px-10 py-5 rounded-md font-bold text-lg border border-outline-variant/30 hover:bg-surface-bright transition-colors">View the fleet</button>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full py-16 px-12 border-t-[0.5rem] border-[#121c29] bg-[#091421]">
+<div class="max-w-screen-2xl mx-auto flex flex-col md:flex-row justify-between items-start gap-8">
+<div class="max-w-sm">
+<div class="font-['Newsreader'] text-xl text-[#aec7f7] mb-4">OZRentAPlane</div>
+<p class="font-['Manrope'] text-sm tracking-wide text-[#c4c6cf] leading-relaxed">
+                    © 2024 OZRentAPlane. Elevating the Art of Aviation.
+                </p>
+</div>
+<div class="flex flex-wrap gap-x-12 gap-y-6">
+<a class="text-[#c4c6cf] font-['Manrope'] text-sm tracking-wide hover:text-white transition-all opacity-100 hover:opacity-80" href="#">Privacy Policy</a>
+<a class="text-[#c4c6cf] font-['Manrope'] text-sm tracking-wide hover:text-white transition-all opacity-100 hover:opacity-80" href="#">Terms of Service</a>
+<a class="text-[#c4c6cf] font-['Manrope'] text-sm tracking-wide hover:text-white transition-all opacity-100 hover:opacity-80" href="#">Fleet Directory</a>
+<a class="text-[#c4c6cf] font-['Manrope'] text-sm tracking-wide hover:text-white transition-all opacity-100 hover:opacity-80" href="#">Contact Us</a>
+</div>
+</div>
+</footer>
+</body></html>

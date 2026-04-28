@@ -700,11 +700,6 @@ export default function CheckoutFlow({
   // Result state
   const [checkoutResult, setCheckoutResult] = useState<CheckoutBookingResult | null>(null)
 
-  // First solo reservation result state
-  const [soloRef, setSoloRef]         = useState<string | null>(null)
-  const [soloStart, setSoloStart]     = useState<string | null>(null)
-  const [soloEnd, setSoloEnd]         = useState<string | null>(null)
-  const [soloSkipped, setSoloSkipped] = useState(false)
 
   // Last flight date (captured in documents step)
   const [lastFlightDate, setLastFlightDate] = useState('')
@@ -1136,59 +1131,38 @@ export default function CheckoutFlow({
             </div>
           </div>
 
-          {/* First solo reservation offer */}
-          {!soloRef && !soloSkipped && (
-            <div className={`${CARD} p-7 space-y-5`}>
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="material-symbols-outlined text-lg text-blue-400" style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>flight_takeoff</span>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400/80 mb-1">Optional Next Step</p>
-                  <h3 className="text-lg font-serif text-white mb-1">Reserve Your First Solo Flight</h3>
-                  <p className="text-sm text-slate-500 leading-relaxed">
-                    This booking will only be confirmed after your checkout is completed and you are cleared for solo hire.
-                  </p>
-                </div>
+          {/* Reserve first solo flight CTA */}
+          <div className={`${CARD} p-7`}>
+            <div className="flex items-start gap-4 mb-5">
+              <div className="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="material-symbols-outlined text-lg text-blue-400" style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>flight_takeoff</span>
               </div>
-              <div className="h-px bg-white/[0.06]" />
-              <FirstSoloPicker
-                aircraftId={aircraftId}
-                checkoutEnd={checkoutResult.scheduledEnd}
-                onBooked={(ref, start, end) => {
-                  setSoloRef(ref)
-                  setSoloStart(start)
-                  setSoloEnd(end)
-                }}
-                onSkip={() => setSoloSkipped(true)}
-              />
-            </div>
-          )}
-
-          {/* First solo reserved */}
-          {soloRef && soloStart && soloEnd && (
-            <div className={`${CARD} p-6 flex items-start gap-4`}>
-              <div className="w-9 h-9 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="material-symbols-outlined text-base text-blue-400" style={{ fontVariationSettings: "'FILL' 1" }}>bookmark</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400/80 mb-1">First Solo Reserved</p>
-                <p className="text-sm text-white font-medium mb-0.5">{formatDateTime(soloStart)} → {formatDateTime(soloEnd)}</p>
-                <p className="text-[11px] text-slate-500 font-mono">{soloRef}</p>
-                <p className="text-xs text-amber-300/70 mt-2 leading-relaxed">
-                  This booking will only be confirmed after your checkout is completed and you are cleared for solo hire.
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400/80 mb-1">Optional Next Step</p>
+                <h3 className="text-lg font-serif text-white mb-1">Reserve Your First Solo Flight</h3>
+                <p className="text-sm text-slate-500 leading-relaxed">
+                  You can reserve a preferred first solo flight time now. This reservation will only be confirmed after your checkout flight is completed and you are cleared for solo hire.
                 </p>
               </div>
             </div>
-          )}
+            <div className="h-px bg-white/[0.06] mb-5" />
+            <div className="flex flex-col sm:flex-row gap-3">
+              <a
+                href="/dashboard/bookings/new"
+                className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-[0.15em] rounded-full text-center transition-all flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">flight_takeoff</span>
+                Reserve Your First Solo Flight
+              </a>
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="flex-1 py-3 border border-white/15 hover:border-white/25 hover:bg-white/[0.04] text-white/70 hover:text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
+              >
+                Go to Dashboard
+              </button>
+            </div>
+          </div>
 
-          {/* CTA to dashboard */}
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="w-full py-3.5 border border-white/15 hover:border-white/25 hover:bg-white/[0.04] text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
-          >
-            Go to Dashboard
-          </button>
         </div>
       )}
     </div>
