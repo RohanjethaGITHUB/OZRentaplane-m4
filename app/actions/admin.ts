@@ -8,7 +8,7 @@ import {
   buildRejectedEmail,
   buildOnHoldEmail,
 } from '@/lib/email'
-import type { ThreadSummary, VerificationEvent, ActorRole } from '@/lib/supabase/types'
+import type { ThreadSummary, VerificationEvent, ActorRole, RequestKind } from '@/lib/supabase/types'
 
 // ─── Admin guard ──────────────────────────────────────────────────────────────
 
@@ -204,7 +204,7 @@ export async function rejectCustomer(customerId: string, reviewNotes: string) {
 export async function placeCustomerOnHold(
   customerId: string,
   customerMessage: string,
-  requestKind: 'document_request' | 'clarification_request' | 'confirmation_request' | 'general_update' = 'document_request',
+  requestKind: RequestKind = 'document_request',
 ): Promise<{ warning?: string }> {
   if (!customerMessage.trim()) {
     throw new Error('VALIDATION: A customer-facing message is required when placing a user on hold.')

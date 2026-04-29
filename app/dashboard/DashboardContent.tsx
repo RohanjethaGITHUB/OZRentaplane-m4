@@ -12,6 +12,8 @@ type Props = {
   profile: Profile | null
   documents: UserDocument[]
   events: VerificationEvent[]
+  isFirstLogin: boolean
+  checkoutBookingId?: string | null
 }
 
 // ─── Clearance-status-driven display configs ──────────────────────────────────
@@ -74,6 +76,17 @@ const CLEARANCE_HERO: Record<PilotClearanceStatus, HeroContent> = {
     cta2href: '/dashboard/messages',
     icon:     'rate_review',
     glowFrom: 'from-amber-500/20',
+  },
+  checkout_payment_required: {
+    subtitle: 'Checkout Payment Required',
+    title:    'Pay Your Checkout Invoice',
+    body:     "Your checkout flight has been approved. Please pay your checkout invoice before aircraft bookings become available.",
+    cta1:     'Pay Checkout Invoice',
+    cta1href: '/dashboard/bookings',   // overridden at render time with bookingId
+    cta2:     'View My Bookings',
+    cta2href: '/dashboard/bookings',
+    icon:     'payments',
+    glowFrom: 'from-orange-500/20',
   },
   cleared_for_solo_hire: {
     subtitle: 'Access Granted',
@@ -150,6 +163,12 @@ const CLEARANCE_STEPS: Record<PilotClearanceStatus, Step[]> = {
     { label: 'Account created',       state: 'done'   },
     { label: 'Checkout completed',    state: 'done'   },
     { label: 'Outcome under review',  state: 'active' },
+    { label: 'Cleared for solo hire', state: 'pending'},
+  ],
+  checkout_payment_required: [
+    { label: 'Account created',       state: 'done'   },
+    { label: 'Checkout approved',     state: 'done'   },
+    { label: 'Pay checkout invoice',  state: 'active' },
     { label: 'Cleared for solo hire', state: 'pending'},
   ],
   cleared_for_solo_hire: [
@@ -233,17 +252,18 @@ type ClearanceConfig = {
 }
 
 const CLEARANCE_CONFIG: Record<PilotClearanceStatus, ClearanceConfig> = {
-  checkout_required:                   { badge: 'Checkout Required',        pillColor: 'slate',  pulse: false },
+  checkout_required:                   { badge: 'Checkout Required',        pillColor: 'amber',  pulse: false },
   checkout_requested:                  { badge: 'Checkout Requested',       pillColor: 'blue',   pulse: true  },
   checkout_confirmed:                  { badge: 'Checkout Confirmed',        pillColor: 'blue',   pulse: false },
   checkout_completed_under_review:     { badge: 'Outcome Under Review',     pillColor: 'amber',  pulse: true  },
+  checkout_payment_required:           { badge: 'Payment Required',         pillColor: 'amber',  pulse: false },
   cleared_for_solo_hire:               { badge: 'Cleared for Solo Hire',    pillColor: 'green',  pulse: false },
   additional_supervised_time_required: { badge: 'Additional Training Required', pillColor: 'amber', pulse: false },
   reschedule_required:                 { badge: 'Reschedule Required',      pillColor: 'amber',  pulse: false },
   not_currently_eligible:              { badge: 'Not Currently Eligible',   pillColor: 'red',    pulse: false },
 }
 
-export default function DashboardContent({ user, profile, documents, events }: Props) {
+export default function DashboardContent({ user, profile, documents, events, isFirstLogin, checkoutBookingId }: Props) {
   const router = useRouter()
 
   const displayName = profile?.full_name ?? user.email?.split('@')[0] ?? 'Pilot'
@@ -253,10 +273,12 @@ export default function DashboardContent({ user, profile, documents, events }: P
   // pilot_clearance_status is the primary driver for all onboarding UI
   const clearanceStatus = (profile?.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
   const clearanceCfg    = CLEARANCE_CONFIG[clearanceStatus]
-  const hero            = CLEARANCE_HERO[clearanceStatus]
   const steps           = CLEARANCE_STEPS[clearanceStatus]
+  const hero = clearanceStatus === 'checkout_payment_required' && checkoutBookingId
+    ? { ...CLEARANCE_HERO[clearanceStatus], cta1href: `/dashboard/bookings/${checkoutBookingId}` }
+    : CLEARANCE_HERO[clearanceStatus]
   const isCleared       = clearanceStatus === 'cleared_for_solo_hire'
-  const inCheckoutFlow  = ['checkout_required', 'checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review'].includes(clearanceStatus)
+  const inCheckoutFlow  = ['checkout_required', 'checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required'].includes(clearanceStatus)
 
   // verification_status still used for the on-hold alert and document review events
   const verificationStatus = (profile?.verification_status ?? 'not_started') as VerificationStatus
@@ -314,13 +336,20 @@ export default function DashboardContent({ user, profile, documents, events }: P
             Member Overview
           </p>
           <h1 className="text-4xl md:text-5xl font-serif tracking-tight text-white mb-4 leading-tight drop-shadow-lg">
-            Welcome back, {firstName}
+            {isFirstLogin ? `Welcome, ${firstName}` : `Welcome back, ${firstName}`}
           </h1>
           <p className="text-white/65 text-[15px] leading-relaxed mb-6 max-w-lg">
             Manage your aircraft access, documents, bookings, and messages from your private pilot portal.
           </p>
-          <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-[10px] font-bold uppercase tracking-widest ${PILL_BG[clearanceCfg.pillColor]}`}>
-            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${DOT_BG[clearanceCfg.pillColor]} ${clearanceCfg.pulse ? 'animate-pulse' : ''}`} />
+          {/* Prominent status pill — amber/red for warning states, others standard */}
+          <div className={`inline-flex items-center gap-2.5 px-5 py-2 rounded-full border text-[11px] font-bold uppercase tracking-widest ${
+            clearanceCfg.pillColor === 'amber'
+              ? 'bg-amber-500/20 border-amber-400/50 text-amber-200 shadow-[0_0_24px_rgba(245,158,11,0.18)]'
+              : clearanceCfg.pillColor === 'red'
+              ? 'bg-red-500/20 border-red-400/50 text-red-200 shadow-[0_0_24px_rgba(239,68,68,0.18)]'
+              : PILL_BG[clearanceCfg.pillColor]
+          }`}>
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${DOT_BG[clearanceCfg.pillColor]} ${clearanceCfg.pulse ? 'animate-pulse' : ''}`} />
             {clearanceCfg.badge}
           </div>
         </div>
@@ -452,32 +481,6 @@ export default function DashboardContent({ user, profile, documents, events }: P
                   {isDocRequest ? 'upload_file' : 'chat'}
                 </span>
                 {isDocRequest ? 'Upload & Resubmit' : 'Reply to Request'}
-              </button>
-            </div>
-          </section>
-        )}
-
-        {/* Checkout status banner */}
-        {clearanceStatus === 'checkout_required' && (
-          <section className="bg-blue-500/[0.06] border border-blue-500/20 rounded-xl p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-blue-400 text-xl" style={{ fontVariationSettings: "'wght' 300" }}>
-                flight_takeoff
-              </span>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-blue-400">
-                Checkout Required — Book Your Checkout Flight
-              </h4>
-            </div>
-            <p className="text-sm text-white/75 leading-relaxed pl-8">
-              To fly solo, you must first complete a checkout flight with an approved instructor. Start by selecting your preferred checkout time.
-            </p>
-            <div className="pl-8">
-              <button
-                onClick={() => router.push('/dashboard/checkout')}
-                className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all shadow-[0_0_20px_rgba(37,99,235,0.35)]"
-              >
-                <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>how_to_reg</span>
-                Book Checkout Flight
               </button>
             </div>
           </section>
@@ -710,7 +713,7 @@ export default function DashboardContent({ user, profile, documents, events }: P
             <div className="space-y-3 relative z-10">
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-blue-400/80">Need Help?</h3>
               <p className="text-sm text-slate-500 leading-relaxed font-light">
-                {status === 'rejected' || isOnHold
+                {verificationStatus === 'rejected' || isOnHold
                   ? "Our team can review your case and guide you through the re-submission process."
                   : 'Questions about onboarding, documents, or an upcoming trip? Our team is here.'}
               </p>

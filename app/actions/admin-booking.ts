@@ -971,6 +971,24 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
     console.error('[confirmCheckoutBooking] profile update failed:', profileErr)
   }
 
+  // Notify customer — non-fatal
+  const fmtStart = new Date(booking.scheduled_start).toLocaleString('en-AU', {
+    timeZone: 'Australia/Sydney', dateStyle: 'medium', timeStyle: 'short',
+  })
+  const { error: notifErr } = await supabase.from('verification_events').insert({
+    user_id:       booking.booking_owner_user_id,
+    actor_user_id: adminId,
+    actor_role:    'admin',
+    event_type:    'approved',
+    request_kind:  'booking_update',
+    request_id:    bookingId,
+    title:         'Checkout flight confirmed',
+    body:          `Your checkout flight has been confirmed for ${fmtStart} (Sydney time).`,
+    is_read:       false,
+    email_status:  'skipped',
+  })
+  if (notifErr) console.error('[confirmCheckoutBooking] notification failed:', notifErr.message)
+
   revalidatePath('/admin')
   revalidatePath('/dashboard')
 }
@@ -1036,12 +1054,6 @@ export async function markCheckoutFlightCompleted(bookingId: string): Promise<vo
 // Called after the checkout flight has been completed (status = checkout_completed_under_review).
 // Sets pilot_clearance_status to the chosen outcome and closes the booking.
 //
-// First solo reservation (pending_checkout_clearance) behaviour by outcome:
-//   cleared_for_solo_hire                  → confirmed (slot retained)
-//   additional_supervised_time_required    → released_due_to_checkout (pilot must rebook)
-//   reschedule_required                    → released_due_to_checkout (checkout date changing)
-//   not_currently_eligible                 → released_due_to_checkout (no solo access)
-
 export async function markCheckoutOutcome(input: {
   bookingId:   string
   outcome:     'cleared_for_solo_hire' | 'additional_supervised_time_required' | 'reschedule_required' | 'not_currently_eligible'
@@ -1064,27 +1076,89 @@ export async function markCheckoutOutcome(input: {
     throw new Error(`VALIDATION: Outcome can only be recorded from 'checkout_completed_under_review'. Current: '${booking.status}'.`)
   }
 
-  // Close the checkout booking
+  let finalBookingStatus = 'completed'
+  let finalClearanceStatus: any = input.outcome
+
+  if (input.outcome === 'cleared_for_solo_hire') {
+    const checkout_fee_cents = 29000
+
+    // 1. Calculate available advance
+    const { data: ledgerEntries } = await supabase
+      .from('customer_payment_ledger')
+      .select('amount_cents, entry_type')
+      .eq('customer_id', booking.booking_owner_user_id)
+
+    let balanceCents = 0
+    if (ledgerEntries) {
+      for (const entry of ledgerEntries) {
+        if (['advance_credit', 'refund', 'manual_adjustment', 'advance_applied'].includes(entry.entry_type)) {
+          balanceCents += entry.amount_cents // Credits are positive, applied/refunds are negative
+        }
+      }
+    }
+    balanceCents = Math.max(0, balanceCents)
+
+    const advance_applied_cents = Math.min(balanceCents, checkout_fee_cents)
+    const stripe_amount_due_cents = checkout_fee_cents - advance_applied_cents
+
+    const invoiceStatus = stripe_amount_due_cents === 0 ? 'paid' : 'payment_required'
+    finalBookingStatus = stripe_amount_due_cents === 0 ? 'completed' : 'checkout_payment_required'
+    finalClearanceStatus = stripe_amount_due_cents === 0 ? 'cleared_for_solo_hire' : 'checkout_payment_required'
+
+    // 2. Create checkout invoice
+    const { data: invoice, error: invoiceErr } = await supabase
+      .from('checkout_invoices')
+      .insert({
+        customer_id: booking.booking_owner_user_id,
+        booking_id: input.bookingId,
+        invoice_type: 'checkout',
+        status: invoiceStatus,
+        subtotal_cents: checkout_fee_cents,
+        advance_applied_cents: advance_applied_cents,
+        stripe_amount_due_cents: stripe_amount_due_cents,
+        total_paid_cents: advance_applied_cents,
+        paid_at: stripe_amount_due_cents === 0 ? now : null,
+      })
+      .select('id')
+      .single()
+
+    if (invoiceErr || !invoice) throw new Error('Failed to create checkout invoice.')
+
+    // 3. Apply advance payment if any
+    if (advance_applied_cents > 0) {
+      await supabase.from('customer_payment_ledger').insert({
+        customer_id: booking.booking_owner_user_id,
+        booking_id: input.bookingId,
+        invoice_id: invoice.id,
+        amount_cents: -advance_applied_cents, // Negative convention for applied funds
+        entry_type: 'advance_applied',
+        note: 'Applied to checkout invoice',
+        created_by: adminId,
+      })
+    }
+  }
+
+  // Close the checkout booking (or set to payment required)
   const { error: bookingErr } = await supabase
     .from('bookings')
     .update({
-      status:      'completed',
+      status:      finalBookingStatus,
       admin_notes: input.adminNote ?? null,
       updated_at:  now,
     })
     .eq('id', input.bookingId)
 
-  if (bookingErr) throw new Error('Failed to close checkout booking.')
+  if (bookingErr) throw new Error('Failed to update checkout booking status.')
 
-  // Set pilot clearance status to the outcome
+  // Set pilot clearance status
   await supabase.from('profiles')
-    .update({ pilot_clearance_status: input.outcome, updated_at: now })
+    .update({ pilot_clearance_status: finalClearanceStatus, updated_at: now })
     .eq('id', booking.booking_owner_user_id)
 
   await supabase.from('booking_status_history').insert({
     booking_id:         input.bookingId,
     old_status:         'checkout_completed_under_review',
-    new_status:         'completed',
+    new_status:         finalBookingStatus,
     changed_by_user_id: adminId,
     note:               `Checkout outcome: ${input.outcome}. ${input.adminNote ?? ''}`.trim(),
   })
@@ -1095,57 +1169,44 @@ export async function markCheckoutOutcome(input: {
     actor_user_id: adminId,
     actor_role:    'admin',
     event_type:    'checkout_outcome_recorded',
-    event_summary: `Checkout outcome recorded: ${input.outcome}.`,
-    new_value:     { outcome: input.outcome, pilot_clearance_status: input.outcome, booking_status: 'completed' },
+    event_summary: `Checkout outcome recorded: ${input.outcome}. Status: ${finalBookingStatus}.`,
+    new_value:     { outcome: input.outcome, pilot_clearance_status: finalClearanceStatus, booking_status: finalBookingStatus },
   })
 
-  // ── Handle first solo reservation ─────────────────────────────────────────
-  const { data: soloReservation } = await supabase
-    .from('bookings')
-    .select('id, aircraft_id')
-    .eq('booking_owner_user_id', booking.booking_owner_user_id)
-    .eq('status', 'pending_checkout_clearance')
-    .limit(1)
-    .single()
 
-  if (soloReservation) {
+
+  // Notify customer about checkout outcome
+  {
+    let notifTitle: string
+    let notifBody: string
+
     if (input.outcome === 'cleared_for_solo_hire') {
-      await supabase
-        .from('bookings')
-        .update({ status: 'confirmed', updated_at: now })
-        .eq('id', soloReservation.id)
-      await supabase.from('booking_status_history').insert({
-        booking_id: soloReservation.id, old_status: 'pending_checkout_clearance',
-        new_status: 'confirmed', changed_by_user_id: adminId,
-        note: 'Auto-confirmed: pilot cleared for solo hire.',
-      })
-      await supabase.from('booking_audit_events').insert({
-        booking_id: soloReservation.id, aircraft_id: soloReservation.aircraft_id,
-        actor_user_id: adminId, actor_role: 'admin', event_type: 'booking_updated',
-        event_summary: 'First solo reservation confirmed after checkout clearance.',
-        new_value: { status: 'confirmed' },
-      })
+      const isPaid = finalBookingStatus === 'completed'
+      notifTitle = isPaid ? 'Checkout approved' : 'Checkout approved — payment required'
+      notifBody  = isPaid
+        ? 'Your checkout flight has been approved and paid. Aircraft bookings are now available.'
+        : 'Your checkout flight has been approved. Please pay your checkout invoice before aircraft bookings become available.'
+    } else if (input.outcome === 'additional_supervised_time_required') {
+      notifTitle = 'Additional supervised time required'
+      notifBody  = 'Following your checkout, the flight operations team has determined that additional supervised sessions are required before solo hire. Please book another supervised session.'
+    } else if (input.outcome === 'reschedule_required') {
+      notifTitle = 'Checkout reschedule required'
+      notifBody  = 'Your checkout needs to be rescheduled. Please contact the operations team to arrange a new checkout session.'
     } else {
-      await supabase
-        .from('bookings')
-        .update({ status: 'released_due_to_checkout', updated_at: now })
-        .eq('id', soloReservation.id)
-      await supabase
-        .from('schedule_blocks')
-        .update({ status: 'cancelled' })
-        .eq('related_booking_id', soloReservation.id)
-      await supabase.from('booking_status_history').insert({
-        booking_id: soloReservation.id, old_status: 'pending_checkout_clearance',
-        new_status: 'released_due_to_checkout', changed_by_user_id: adminId,
-        note: `Released: checkout outcome was '${input.outcome}'.`,
-      })
-      await supabase.from('booking_audit_events').insert({
-        booking_id: soloReservation.id, aircraft_id: soloReservation.aircraft_id,
-        actor_user_id: adminId, actor_role: 'admin', event_type: 'booking_updated',
-        event_summary: `First solo reservation released. Outcome: ${input.outcome}.`,
-        new_value: { status: 'released_due_to_checkout', outcome: input.outcome },
-      })
+      notifTitle = 'Checkout outcome updated'
+      notifBody  = 'Your checkout outcome has been updated. Please contact the operations team for more information.'
     }
+
+    await supabase.from('verification_events').insert({
+      user_id:       booking.booking_owner_user_id,
+      actor_user_id: adminId,
+      actor_role:    'admin',
+      event_type:    'approved',
+      title:         notifTitle,
+      body:          notifBody,
+      is_read:       false,
+      email_status:  'skipped',
+    })
   }
 
   revalidatePath('/admin')
@@ -1214,37 +1275,7 @@ export async function cancelCheckoutBooking(bookingId: string, reason: string): 
     new_value:     { status: 'cancelled', reason, pilot_clearance_status: 'checkout_required' },
   })
 
-  // ── Release linked first solo reservation ─────────────────────────────────
-  // If the customer also reserved their first solo flight alongside this
-  // checkout request, that reservation is no longer valid and must be released
-  // so they can create a new one when they submit a fresh checkout request.
-  const { data: soloReservation } = await supabase
-    .from('bookings')
-    .select('id, aircraft_id')
-    .eq('booking_owner_user_id', booking.booking_owner_user_id)
-    .eq('status', 'pending_checkout_clearance')
-    .limit(1)
-    .single()
 
-  if (soloReservation) {
-    await supabase
-      .from('bookings')
-      .update({ status: 'released_due_to_checkout', updated_at: now })
-      .eq('id', soloReservation.id)
-
-    await supabase
-      .from('schedule_blocks')
-      .update({ status: 'cancelled' })
-      .eq('related_booking_id', soloReservation.id)
-
-    await supabase.from('booking_status_history').insert({
-      booking_id:         soloReservation.id,
-      old_status:         'pending_checkout_clearance',
-      new_status:         'released_due_to_checkout',
-      changed_by_user_id: adminId,
-      note:               'Released because the linked checkout booking was cancelled.',
-    })
-  }
 
   revalidatePath('/admin')
   revalidatePath('/dashboard')
@@ -1391,6 +1422,20 @@ export async function adminUpdateCheckoutTime(
     old_value:     { scheduled_start: booking.scheduled_start, scheduled_end: booking.scheduled_end },
     new_value:     { scheduled_start: newStartISO,              scheduled_end: newEndISO },
   })
+
+  // Notify customer of time change — non-fatal
+  const { error: notifErr2 } = await supabase.from('verification_events').insert({
+    user_id:       booking.booking_owner_user_id,
+    actor_user_id: adminId,
+    actor_role:    'admin',
+    event_type:    'message',
+    request_kind:  'general_update',
+    title:         'Checkout flight time updated',
+    body:          `Your checkout flight time has been updated to ${fmtNew} (Sydney time).`,
+    is_read:       false,
+    email_status:  'skipped',
+  })
+  if (notifErr2) console.error('[adminUpdateCheckoutTime] notification failed:', notifErr2.message)
 
   revalidatePath('/admin')
   revalidatePath(`/admin/bookings/requests/${bookingId}`)

@@ -15,21 +15,12 @@ export default async function CustomerSettingsPage() {
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
   if (!profile) redirect('/login')
 
-  const isVerified = profile.verification_status === 'verified'
-
-  const verificationPill = isVerified
-    ? { label: 'Ready to Fly', color: 'green' as const }
-    : profile.verification_status === 'pending_review'
-    ? { label: 'Pending Review', color: 'blue' as const, pulse: true }
-    : { label: 'Setup Required', color: 'slate' as const }
-
   return (
     <>
       <PortalPageHero
         eyebrow="Pilot Profile"
         title="Account"
         subtitle="Manage your personal details, ARN, preferences, and account settings."
-        statusPill={verificationPill}
       />
 
       <div className="max-w-[1280px] mx-auto px-6 md:px-10 xl:px-12 py-10">
@@ -59,7 +50,7 @@ export default async function CustomerSettingsPage() {
           <section className={`${CARD} p-8`}>
             <h2 className="text-[10px] font-bold uppercase tracking-widest text-blue-400/80 mb-6">Pilot Credentials</h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
                 <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-2">Pilot in Command</p>
                 <div className="px-4 py-3 bg-[#05080f] border border-white/[0.07] rounded-lg text-white/80 text-sm">
@@ -80,35 +71,6 @@ export default async function CustomerSettingsPage() {
                     {profile.pilot_arn ? 'Update' : 'Add ARN'}
                   </Link>
                 </div>
-              </div>
-            </div>
-
-            {/* Verification status row */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 bg-white/[0.025] border border-white/[0.06] rounded-xl">
-              <div>
-                <p className="text-sm text-white font-medium mb-1">Verification Status</p>
-                <p className="text-xs text-slate-500">
-                  {isVerified
-                    ? 'Your pilot credentials are verified and you have full fleet access.'
-                    : 'Complete document verification to unlock aircraft access.'}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${
-                  isVerified
-                    ? 'bg-green-500/10 text-green-400 border-green-500/20'
-                    : profile.verification_status === 'pending_review'
-                    ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                    : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                }`}>
-                  {profile.verification_status?.replace(/_/g, ' ')}
-                </span>
-                <Link
-                  href="/dashboard/documents"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold uppercase tracking-widest rounded-full transition-colors whitespace-nowrap"
-                >
-                  Manage Docs
-                </Link>
               </div>
             </div>
           </section>

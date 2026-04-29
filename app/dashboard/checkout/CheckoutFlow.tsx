@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useCallback, useEffect, useTransition } from 'react'
+import { useState, useEffect, useTransition, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { submitCheckoutRequest, createProvisionalSoloBooking } from '@/app/actions/checkout'
+import { submitCheckoutRequest } from '@/app/actions/checkout'
 import {
   checkCustomerAvailability,
   getDayAvailability,
@@ -32,6 +32,7 @@ type Props = {
   aircraftStatus:          string
   documents:               UserDocument[]
   pilotClearanceStatus:    string
+  initialLastFlightDate:   string
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -62,16 +63,29 @@ function addOneHour(timeStr: string): string {
   return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`
 }
 
-function minDateString(): string {
-  const d = new Date()
-  d.setDate(d.getDate() + 1)
-  return d.toISOString().split('T')[0]!
+// Returns today's date in Sydney time as YYYY-MM-DD (used for min date and default date).
+function getSydneyToday(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
 }
 
-// Returns the Sydney-local YYYY-MM-DD for the checkout end time.
-// First solo can start at or after checkout end — no 24-hour buffer.
-function minFirstSoloDate(checkoutEndUTC: string): string {
-  return new Date(checkoutEndUTC).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
+// Returns the next 30-min slot at least 30 minutes from now in Sydney time.
+// Falls back to 09:00 if it's late in the day and nothing fits.
+function getDefaultStartTime(): string {
+  const t    = new Date().toLocaleTimeString('en-GB', { timeZone: 'Australia/Sydney', hour12: false })
+  const [hStr, mStr] = t.split(':')
+  const h    = Math.min(parseInt(hStr ?? '0', 10), 23)
+  const m    = parseInt(mStr ?? '0', 10)
+  const totalMins  = h * 60 + m + 30          // +30 min buffer from now
+  const snapped    = Math.ceil(totalMins / 30) * 30
+  const clamped    = Math.min(snapped, 23 * 60) // latest 23:00 so end = 24:00
+  const nh = Math.floor(clamped / 60)
+  const nm = clamped % 60
+  return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`
+}
+
+// Min selectable date is today in Sydney time (past times are blocked by validation).
+function minDateString(): string {
+  return getSydneyToday()
 }
 
 function addOneDay(dateStr: string): string {
@@ -127,11 +141,13 @@ function AvailabilityTimeline({
   daySlots,
   startDT,
   endDT,
+  onTimeChange,
 }: {
-  selectedDate: string
-  daySlots:     SafeConflict[]
-  startDT:      string
-  endDT:        string
+  selectedDate:   string
+  daySlots:       SafeConflict[]
+  startDT:        string
+  endDT:          string
+  onTimeChange?:  (newTime: string) => void
 }) {
   if (!selectedDate) return null
 
@@ -166,9 +182,65 @@ function AvailabilityTimeline({
   const selLeft  = hasSelection ? toPercent(selStartUTC!) : 0
   const selRight = hasSelection ? 100 - toPercent(selEndUTC!) : 0
 
+  // ── Drag (Pointer Events — works on mouse + touch + stylus) ─────────────────
+  // touch-action:none on the draggable element tells the browser to hand
+  // pointer control to JS, preventing accidental page scroll during drag.
+  // pointerId filtering handles multi-touch correctly.
+  const barContainerRef = useRef<HTMLDivElement>(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  function handlePointerDown(e: React.PointerEvent) {
+    if (!hasSelection || !onTimeChange) return
+    e.preventDefault()
+    const rect = barContainerRef.current?.getBoundingClientRect()
+    if (!rect) return
+
+    // Capture in a local const so nested closures can call it without undefined checks
+    const notifyTimeChange = onTimeChange
+    const capturedId = e.pointerId
+
+    const timePart = startDT.split('T')[1] ?? '00:00'
+    const parts = timePart.split(':').map(Number)
+    const startMinutes = (parts[0] ?? 0) * 60 + (parts[1] ?? 0)
+    const containerWidth = rect.width
+    const dragStartX = e.clientX
+    let lastSnapped = ''
+
+    setIsDragging(true)
+
+    function onMove(ev: PointerEvent) {
+      if (ev.pointerId !== capturedId) return
+      const deltaPixels = ev.clientX - dragStartX
+      const deltaMins   = (deltaPixels / containerWidth) * 24 * 60
+      const rawMinutes  = startMinutes + deltaMins
+      // Snap to 30-minute increments, clamp so 1-hr block stays within the day
+      const snappedMinutes = Math.round(rawMinutes / 30) * 30
+      const clamped        = Math.max(0, Math.min(23 * 60, snappedMinutes))
+      const h   = Math.floor(clamped / 60)
+      const m   = clamped % 60
+      const newTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+      if (newTime !== lastSnapped) {
+        lastSnapped = newTime
+        notifyTimeChange(newTime)
+      }
+    }
+
+    function onEnd(ev: PointerEvent) {
+      if (ev.pointerId !== capturedId) return
+      setIsDragging(false)
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup',   onEnd)
+      document.removeEventListener('pointercancel', onEnd)
+    }
+
+    document.addEventListener('pointermove',   onMove)
+    document.addEventListener('pointerup',     onEnd)
+    document.addEventListener('pointercancel', onEnd)
+  }
+
   return (
     <div className="space-y-3">
-      <div className="relative">
+      <div className="relative" ref={barContainerRef}>
         <div className="relative h-10 bg-green-500/15 rounded-lg overflow-hidden border border-green-500/10">
           {visibleSlots.map((slot, i) => (
             <div
@@ -181,9 +253,28 @@ function AvailabilityTimeline({
         </div>
         {hasSelection && (
           <div
-            className="absolute inset-y-[-2px] rounded-lg border-2 border-blue-400/80 bg-blue-500/10 pointer-events-none"
-            style={{ left: `${selLeft}%`, right: `${selRight}%` }}
-          />
+            onPointerDown={handlePointerDown}
+            className={`absolute inset-y-[-2px] rounded-lg border-2 border-blue-400/80 bg-blue-500/15 flex items-center justify-center transition-colors ${
+              onTimeChange
+                ? isDragging
+                  ? 'cursor-grabbing bg-blue-500/20 border-blue-400'
+                  : 'cursor-grab hover:bg-blue-500/20 hover:border-blue-400'
+                : 'pointer-events-none'
+            }`}
+            style={{
+              left:        `${selLeft}%`,
+              right:       `${selRight}%`,
+              touchAction: onTimeChange ? 'none' : undefined, // prevents scroll hijack while dragging
+            }}
+            title={onTimeChange ? 'Drag to move selected time' : undefined}
+          >
+            {onTimeChange && (
+              <div className="flex items-center gap-[3px] pointer-events-none select-none opacity-60">
+                <div className="w-px h-3.5 bg-blue-300 rounded-full" />
+                <div className="w-px h-3.5 bg-blue-300 rounded-full" />
+              </div>
+            )}
+          </div>
         )}
       </div>
       <div className="relative h-4">
@@ -206,10 +297,95 @@ function AvailabilityTimeline({
         </span>
         {hasSelection && (
           <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600">
-            <span className="w-2.5 h-2.5 rounded-sm border-2 border-blue-400/80 inline-block" />Selected
+            <span className="w-2.5 h-2.5 rounded-sm border-2 border-blue-400/80 inline-block" />
+            {onTimeChange ? 'Selected time — drag to move' : 'Selected time'}
           </span>
         )}
+        {hasSelection && onTimeChange && (
+          <span className="text-[10px] text-slate-600 pl-1">· Fixed at 1 hour</span>
+        )}
       </div>
+    </div>
+  )
+}
+
+// ── Custom time dropdown ───────────────────────────────────────────────────────
+// Replaces native <select> to ensure dark-theme consistency across browsers.
+
+function TimeDropdown({
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  value:    string
+  options:  { value: string; label: string }[]
+  onChange: (v: string) => void
+  disabled?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const containerRef    = useRef<HTMLDivElement>(null)
+  const listRef         = useRef<HTMLDivElement>(null)
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return
+    function onOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onOutside)
+    return () => document.removeEventListener('mousedown', onOutside)
+  }, [open])
+
+  // Scroll selected option into view when opened
+  useEffect(() => {
+    if (!open || !listRef.current) return
+    const selected = listRef.current.querySelector('[data-selected="true"]') as HTMLElement | null
+    selected?.scrollIntoView({ block: 'nearest' })
+  }, [open])
+
+  const selectedLabel = options.find(o => o.value === value)?.label ?? value
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen(o => !o)}
+        className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 flex items-center justify-between transition-colors hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <span>{selectedLabel}</span>
+        <span
+          className={`material-symbols-outlined text-[18px] text-slate-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+          style={{ fontVariationSettings: "'wght' 300" }}
+        >
+          expand_more
+        </span>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-[#0c1220] border border-white/[0.12] rounded-lg shadow-2xl overflow-hidden">
+          <div ref={listRef} className="max-h-52 overflow-y-auto overscroll-contain">
+            {options.map(o => (
+              <button
+                key={o.value}
+                type="button"
+                data-selected={o.value === value ? 'true' : undefined}
+                onClick={() => { onChange(o.value); setOpen(false) }}
+                className={`w-full px-3 py-2 text-sm text-left transition-colors ${
+                  o.value === value
+                    ? 'bg-blue-500/20 text-blue-300 font-medium'
+                    : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -521,159 +697,6 @@ function DocCard({
   )
 }
 
-// ── First solo reservation picker ─────────────────────────────────────────────
-
-function FirstSoloPicker({
-  aircraftId,
-  checkoutEnd,
-  onBooked,
-  onSkip,
-}: {
-  aircraftId:   string
-  checkoutEnd:  string   // UTC ISO
-  onBooked:     (ref: string, start: string, end: string) => void
-  onSkip:       () => void
-}) {
-  const minDate   = minFirstSoloDate(checkoutEnd)
-  const [date, setDate]           = useState(minDate)
-  const [startTime, setStartTime] = useState('09:00')
-  const [endTime, setEndTime]     = useState('11:00')
-  const [avail, setAvail]         = useState<AvailabilityState>({ status: 'idle' })
-  const [error, setError]         = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
-
-  const startDT = date && startTime ? `${date}T${startTime}` : ''
-  const endDT   = date && endTime   ? `${date}T${endTime}` : ''
-
-  // Check availability when selection changes
-  useEffect(() => {
-    if (!startDT || !endDT) { setAvail({ status: 'idle' }); return }
-    const startUTC = sydneyInputToUTC(startDT)
-    const endUTC   = sydneyInputToUTC(endDT)
-    if (!startUTC || !endUTC || new Date(endUTC) <= new Date(startUTC)) {
-      setAvail({ status: 'idle' }); return
-    }
-    setAvail({ status: 'checking' })
-    const t = setTimeout(() => {
-      checkCustomerAvailability(aircraftId, startUTC, endUTC)
-        .then(r => {
-          if (r.available) setAvail({ status: 'available' })
-          else setAvail({ status: 'unavailable', message: 'This time slot is not available.' })
-        })
-        .catch(() => setAvail({ status: 'idle' }))
-    }, 600)
-    return () => clearTimeout(t)
-  }, [startDT, endDT, aircraftId])
-
-  function handleBook() {
-    if (!startDT || !endDT) { setError('Please select a date and time.'); return }
-    const startUTC = sydneyInputToUTC(startDT)
-    const endUTC   = sydneyInputToUTC(endDT)
-    if (!startUTC || !endUTC) { setError('Invalid time selection.'); return }
-
-    setError(null)
-    startTransition(async () => {
-      try {
-        const res = await createProvisionalSoloBooking({
-          aircraft_id:     aircraftId,
-          scheduled_start: startUTC,
-          scheduled_end:   endUTC,
-        })
-        onBooked(res.bookingReference, startUTC, endUTC)
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Failed to reserve. Please try again.'
-        setError(msg.replace(/^VALIDATION: |^AVAILABILITY: /, ''))
-      }
-    })
-  }
-
-  const endOptions = ALL_TIME_OPTIONS.filter(o => o.value > startTime)
-
-  return (
-    <div className="space-y-5">
-      <p className="text-sm text-slate-400 leading-relaxed">
-        You can reserve your first solo flight for any available time after your checkout flight ends. This reservation will only be confirmed once you are cleared for solo hire.
-      </p>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">Date</label>
-          <input
-            type="date"
-            value={date}
-            min={minDate}
-            onChange={e => { setDate(e.target.value); setAvail({ status: 'idle' }) }}
-            className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">Departure</label>
-          <select
-            value={startTime}
-            onChange={e => { setStartTime(e.target.value); setAvail({ status: 'idle' }) }}
-            className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60"
-          >
-            {ALL_TIME_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">Return</label>
-          <select
-            value={endTime}
-            onChange={e => { setEndTime(e.target.value); setAvail({ status: 'idle' }) }}
-            className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60"
-          >
-            {endOptions.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Availability indicator */}
-      {avail.status === 'checking' && (
-        <p className="text-xs text-slate-500 animate-pulse">Checking availability…</p>
-      )}
-      {avail.status === 'available' && (
-        <p className="text-xs text-green-400 flex items-center gap-1.5">
-          <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-          This time slot is available
-        </p>
-      )}
-      {avail.status === 'unavailable' && (
-        <p className="text-xs text-red-400 flex items-center gap-1.5">
-          <span className="material-symbols-outlined text-sm">block</span>
-          {(avail as { status: 'unavailable'; message: string }).message}
-        </p>
-      )}
-
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-          <p className="text-sm text-red-300">{error}</p>
-        </div>
-      )}
-
-      <div className="flex gap-3 pt-2">
-        <button
-          onClick={handleBook}
-          disabled={isPending || avail.status === 'unavailable' || avail.status === 'checking'}
-          className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
-        >
-          {isPending ? 'Reserving…' : 'Reserve My First Solo Flight'}
-        </button>
-        <button
-          onClick={onSkip}
-          className="px-5 py-3 border border-white/15 hover:border-white/25 text-slate-400 hover:text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
-        >
-          Skip
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // ── Main flow component ────────────────────────────────────────────────────────
 
 export default function CheckoutFlow({
@@ -683,13 +706,15 @@ export default function CheckoutFlow({
   aircraftStatus,
   documents,
   pilotClearanceStatus,
+  initialLastFlightDate,
 }: Props) {
   const router = useRouter()
   const [step, setStep] = useState<Step>('time')
 
   // Time selection state — end time is always start + 1 hour (fixed checkout duration)
-  const [date, setDate]           = useState('')
-  const [startTime, setStartTime] = useState('09:00')
+  // Lazy initialisers run once: pre-fill with today + next available 30-min slot in Sydney time.
+  const [date, setDate]           = useState(getSydneyToday)
+  const [startTime, setStartTime] = useState(getDefaultStartTime)
   const [daySlots, setDaySlots]   = useState<SafeConflict[]>([])
   const [avail, setAvail]         = useState<AvailabilityState>({ status: 'idle' })
 
@@ -700,9 +725,11 @@ export default function CheckoutFlow({
   // Result state
   const [checkoutResult, setCheckoutResult] = useState<CheckoutBookingResult | null>(null)
 
+  // Optional message to admin
+  const [adminMessage, setAdminMessage] = useState('')
 
-  // Last flight date (captured in documents step)
-  const [lastFlightDate, setLastFlightDate] = useState('')
+  // Last flight date — pre-filled from profile so it stays in sync with Documents page
+  const [lastFlightDate, setLastFlightDate] = useState(initialLastFlightDate)
 
   // ── Document gate ──────────────────────────────────────────────────────────
 
@@ -740,12 +767,22 @@ export default function CheckoutFlow({
       .catch(() => setDaySlots([]))
   }, [date, aircraftId])
 
-  // ── Live availability check ────────────────────────────────────────────────
+  // ── Unified availability + future-time check ──────────────────────────────
+  // Single source of truth for the avail state — past-time is treated as
+  // unavailable here so the UI never shows a conflicting "available" message
+  // alongside a separate future-time error.
 
   useEffect(() => {
     if (!startUTC || !endUTC || new Date(endUTC) <= new Date(startUTC)) {
       setAvail({ status: 'idle' }); return
     }
+
+    // Synchronous past-time guard — no server call needed.
+    if (new Date(startUTC) <= new Date()) {
+      setAvail({ status: 'unavailable', message: 'Please select a future checkout time.' })
+      return
+    }
+
     setAvail({ status: 'checking' })
     const t = setTimeout(() => {
       checkCustomerAvailability(aircraftId, startUTC, endUTC)
@@ -761,15 +798,9 @@ export default function CheckoutFlow({
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   function handleTimeNext() {
-    if (!date) { setSubmitError('Please select a date.'); return }
-    if (!startUTC) { setSubmitError('Please select a departure time.'); return }
-    if (new Date(startUTC) <= new Date()) {
-      setSubmitError('Please select a future time.'); return
-    }
-    if (avail.status === 'unavailable') {
-      setSubmitError('Please choose an available time slot.'); return
-    }
-    setSubmitError(null)
+    // avail is the single source of truth — past times and booked times both
+    // resolve to avail.status === 'unavailable', so no separate checks needed.
+    if (avail.status !== 'available') return
     setStep('documents')
   }
 
@@ -782,6 +813,7 @@ export default function CheckoutFlow({
           aircraft_id:      aircraftId,
           scheduled_start:  startUTC,
           last_flight_date: lastFlightDate || null,
+          customer_notes:   adminMessage.trim() || null,
           // scheduled_end is computed server-side as start + 1 hour
         })
         setCheckoutResult(result)
@@ -867,23 +899,34 @@ export default function CheckoutFlow({
       {/* ── STEP 1: Time selection ─────────────────────────────────────────── */}
       {step === 'time' && (
         <div className={`${CARD} p-7 space-y-6`}>
+
+          {/* Header */}
           <div>
             <h2 className="text-lg font-serif text-white mb-1">Select Your Checkout Flight Time</h2>
             <p className="text-sm text-slate-500">
-              Choose when you would like to complete your checkout flight with {aircraftRegistration}.
+              Choose when you would like to complete your checkout flight in the{' '}
+              {aircraftDisplayName}, registration {aircraftRegistration}.
             </p>
           </div>
 
-          {/* Fixed checkout session info */}
-          <div className="grid grid-cols-3 divide-x divide-white/[0.06] bg-white/[0.02] border border-white/[0.06] rounded-lg overflow-hidden">
-            {[
-              { label: 'Session type', value: 'Checkout Flight' },
-              { label: 'Duration',     value: '1 hour'          },
-              { label: 'Rate',         value: '$290 / hour'     },
-            ].map(({ label, value }) => (
-              <div key={label} className="px-4 py-3 text-center">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600 mb-1">{label}</p>
-                <p className="text-sm font-medium text-white">{value}</p>
+          {/* A: Session summary tiles — read-only info, not form fields */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-px rounded-xl overflow-hidden bg-white/[0.05]">
+            {([
+              { icon: 'flight_takeoff', label: 'Session type', value: 'Checkout Flight',          sub: null                              },
+              { icon: 'flight',         label: 'Aircraft',     value: aircraftDisplayName,         sub: `Registration ${aircraftRegistration}` },
+              { icon: 'schedule',       label: 'Duration',     value: '1 hour',                   sub: 'Fixed session'                   },
+              { icon: 'payments',       label: 'Rate',         value: '$290 / hour',              sub: 'Billed after checkout approval'  },
+            ] as { icon: string; label: string; value: string; sub: string | null }[]).map(({ icon, label, value, sub }) => (
+              <div key={label} className="bg-[#060b17] px-4 py-4 flex flex-col gap-1">
+                <span
+                  className="material-symbols-outlined text-[15px] text-blue-500/50 mb-0.5"
+                  style={{ fontVariationSettings: "'wght' 300" }}
+                >
+                  {icon}
+                </span>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600">{label}</p>
+                <p className="text-sm font-semibold text-white/95 leading-tight">{value}</p>
+                {sub && <p className="text-[10px] text-slate-500 leading-snug">{sub}</p>}
               </div>
             ))}
           </div>
@@ -894,7 +937,7 @@ export default function CheckoutFlow({
             </div>
           ) : (
             <>
-              {/* Date + departure time only — return is auto-calculated */}
+              {/* B: Date + departure time */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">Date</label>
@@ -908,35 +951,53 @@ export default function CheckoutFlow({
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">Departure time</label>
-                  <select
+                  <TimeDropdown
                     value={startTime}
-                    onChange={e => { setStartTime(e.target.value); setAvail({ status: 'idle' }); setSubmitError(null) }}
-                    className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60"
-                  >
-                    {ALL_TIME_OPTIONS.map(o => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
+                    options={ALL_TIME_OPTIONS}
+                    onChange={v => { setStartTime(v); setAvail({ status: 'idle' }); setSubmitError(null) }}
+                  />
                 </div>
               </div>
 
-              {/* Computed return time display */}
-              {date && (
-                <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-4 py-3 flex items-center justify-between">
-                  <span className="text-sm text-slate-400">Return time</span>
-                  <span className="text-sm font-medium text-white/70">
-                    {(() => {
-                      const opt = ALL_TIME_OPTIONS.find(o => o.value === endTime)
-                      return opt ? opt.label : endTime
-                    })()}
-                    <span className="text-slate-600 font-normal ml-1.5 text-xs">(fixed)</span>
-                  </span>
-                </div>
-              )}
+              {/* C: Selected checkout window summary — replaces the old "Return time" field */}
+              <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-4 py-3">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600 mb-1.5">
+                  Selected checkout window
+                </p>
+                <p className="text-sm font-medium text-white/90">
+                  {ALL_TIME_OPTIONS.find(o => o.value === startTime)?.label ?? startTime}
+                  <span className="mx-2 text-slate-600">→</span>
+                  {ALL_TIME_OPTIONS.find(o => o.value === endTime)?.label ?? endTime}
+                </p>
+                <p className="text-[10px] text-slate-600 mt-1">Checkout flights are fixed 1-hour sessions.</p>
+              </div>
 
-              {/* Availability state */}
+              {/* D: Daily schedule timeline */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    {formatDate(date)} — Daily Schedule
+                  </p>
+                </div>
+                <p className="text-[10px] text-blue-400/60 mb-3 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 300" }}>drag_pan</span>
+                  Drag the blue slot to adjust your checkout flight time.
+                </p>
+                <AvailabilityTimeline
+                  selectedDate={date}
+                  daySlots={daySlots}
+                  startDT={startDT}
+                  endDT={endDT}
+                  onTimeChange={v => { setStartTime(v); setAvail({ status: 'idle' }); setSubmitError(null) }}
+                />
+              </div>
+
+              {/* F: Availability state — intentionally below the timeline + legend */}
               {avail.status === 'checking' && (
-                <p className="text-xs text-slate-500 animate-pulse">Checking availability…</p>
+                <p className="text-xs text-slate-500 animate-pulse flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                  Checking availability…
+                </p>
               )}
               {avail.status === 'available' && (
                 <p className="text-xs text-green-400 flex items-center gap-1.5">
@@ -951,30 +1012,25 @@ export default function CheckoutFlow({
                 </p>
               )}
 
-              {/* Timeline */}
-              {date && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">
-                    {formatDate(date)} — Daily Schedule
-                  </p>
-                  <AvailabilityTimeline
-                    selectedDate={date}
-                    daySlots={daySlots}
-                    startDT={startDT}
-                    endDT={endDT}
-                  />
+              {/* G: Payment timing notice — blue/slate info style (not green, to avoid clashing with availability success) */}
+              <div className="bg-[#0a1628] border border-blue-500/[0.18] rounded-lg px-4 py-3">
+                <div className="flex items-start gap-2">
+                  <span className="material-symbols-outlined text-blue-400/60 text-[16px] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>info</span>
+                  <div>
+                    <p className="text-sm text-blue-200/80 font-medium leading-snug">
+                      No payment is required now.
+                    </p>
+                    <p className="text-[11px] text-slate-400/80 mt-0.5 leading-relaxed">
+                      The checkout flight fee is paid after your checkout flight is completed and approved. You will receive the checkout invoice after the flight is completed.
+                    </p>
+                  </div>
                 </div>
-              )}
+              </div>
 
-              {submitError && (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-                  <p className="text-sm text-red-300">{submitError}</p>
-                </div>
-              )}
-
+              {/* H: Continue button — only enabled when avail confirms the slot is future + available */}
               <button
                 onClick={handleTimeNext}
-                disabled={!date || avail.status === 'checking' || avail.status === 'unavailable'}
+                disabled={avail.status !== 'available'}
                 className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
               >
                 Continue to Documents
@@ -1027,6 +1083,24 @@ export default function CheckoutFlow({
             />
           </div>
 
+          {/* Optional admin message */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
+              Additional message to admin <span className="text-slate-600 font-normal normal-case">(optional)</span>
+            </label>
+            <textarea
+              value={adminMessage}
+              onChange={e => setAdminMessage(e.target.value)}
+              maxLength={1000}
+              rows={3}
+              placeholder="Add any notes, timing preferences, questions, or context for the admin team..."
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors placeholder:text-white/20 resize-none"
+            />
+            {adminMessage.length > 800 && (
+              <p className="text-[10px] text-slate-500 text-right">{adminMessage.length} / 1000</p>
+            )}
+          </div>
+
           <div className="flex gap-3 pt-2">
             <button
               onClick={() => setStep('time')}
@@ -1073,11 +1147,27 @@ export default function CheckoutFlow({
             ))}
           </div>
 
+          {/* Admin message summary */}
+          {adminMessage.trim() && (
+            <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg px-4 py-3 space-y-1">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Your message to admin</p>
+              <p className="text-sm text-slate-300 leading-relaxed italic">&quot;{adminMessage.trim()}&quot;</p>
+            </div>
+          )}
+
+          {/* Payment notice */}
+          <div className="bg-emerald-500/[0.06] border border-emerald-500/20 rounded-lg px-4 py-3 flex items-start gap-2">
+            <span className="material-symbols-outlined text-emerald-400 text-[15px] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>info</span>
+            <p className="text-[11px] text-emerald-300/80 leading-relaxed">
+              No payment is required now. The checkout flight fee is paid after your checkout flight is completed and approved.
+            </p>
+          </div>
+
           {/* Clarifying note */}
           <div className="bg-blue-500/[0.06] border border-blue-500/20 rounded-lg px-4 py-3 space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400">What happens next</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400">What happens after you submit</p>
             <p className="text-sm text-blue-200/70 leading-relaxed">
-              Your selected checkout time has been submitted for review. An approved instructor may confirm this time or suggest an alternative. You will be notified once the request has been reviewed.
+              Once you submit this checkout request, your selected checkout time and documents will be sent to the admin team for review. An approved instructor may confirm this time or suggest an alternative. You&apos;ll be notified once the request has been reviewed.
             </p>
           </div>
 
@@ -1108,61 +1198,39 @@ export default function CheckoutFlow({
 
       {/* ── STEP 4: Success ───────────────────────────────────────────────── */}
       {step === 'success' && checkoutResult && (
-        <div className="space-y-5">
-          {/* Confirmation card */}
-          <div className={`${CARD} p-8 text-center space-y-5`}>
-            <div className="w-16 h-16 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center mx-auto">
-              <span className="material-symbols-outlined text-3xl text-green-400" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-            </div>
-            <div>
-              <h2 className="text-2xl font-serif text-white mb-3">Checkout request submitted</h2>
-              <p className="text-sm text-slate-400 leading-relaxed max-w-md mx-auto">
-                Your checkout request has been submitted for review. An admin or approved instructor will review your selected time and documents. You will be notified once the request has been reviewed.
-              </p>
-            </div>
-            <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-5 py-4 inline-block text-left">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Booking Reference</p>
-              <p className="text-lg font-mono font-bold text-white mb-2">{checkoutResult.bookingReference}</p>
-              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500 tabular-nums">
-                <span>{formatDateTime(checkoutResult.scheduledStart)}</span>
-                <span>→</span>
-                <span>{formatDateTime(checkoutResult.scheduledEnd)}</span>
-              </div>
+        <div className={`${CARD} p-8 text-center space-y-5`}>
+          <div className="w-16 h-16 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center mx-auto">
+            <span className="material-symbols-outlined text-3xl text-green-400" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+          </div>
+          <div>
+            <h2 className="text-2xl font-serif text-white mb-3">Checkout request submitted</h2>
+            <p className="text-sm text-slate-400 leading-relaxed max-w-md mx-auto">
+              Your checkout request has been submitted for review. An admin or approved instructor will review your selected time and documents. Aircraft bookings will become available after your checkout flight is completed, approved, and paid.
+            </p>
+          </div>
+          <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-5 py-4 inline-block text-left">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Booking Reference</p>
+            <p className="text-lg font-mono font-bold text-white mb-2">{checkoutResult.bookingReference}</p>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500 tabular-nums">
+              <span>{formatDateTime(checkoutResult.scheduledStart)}</span>
+              <span>→</span>
+              <span>{formatDateTime(checkoutResult.scheduledEnd)}</span>
             </div>
           </div>
-
-          {/* Reserve first solo flight CTA */}
-          <div className={`${CARD} p-7`}>
-            <div className="flex items-start gap-4 mb-5">
-              <div className="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="material-symbols-outlined text-lg text-blue-400" style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>flight_takeoff</span>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400/80 mb-1">Optional Next Step</p>
-                <h3 className="text-lg font-serif text-white mb-1">Reserve Your First Solo Flight</h3>
-                <p className="text-sm text-slate-500 leading-relaxed">
-                  You can reserve a preferred first solo flight time now. This reservation will only be confirmed after your checkout flight is completed and you are cleared for solo hire.
-                </p>
-              </div>
-            </div>
-            <div className="h-px bg-white/[0.06] mb-5" />
-            <div className="flex flex-col sm:flex-row gap-3">
-              <a
-                href="/dashboard/bookings/new"
-                className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-[0.15em] rounded-full text-center transition-all flex items-center justify-center gap-2"
-              >
-                <span className="material-symbols-outlined text-sm">flight_takeoff</span>
-                Reserve Your First Solo Flight
-              </a>
-              <button
-                onClick={() => router.push('/dashboard')}
-                className="flex-1 py-3 border border-white/15 hover:border-white/25 hover:bg-white/[0.04] text-white/70 hover:text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
-              >
-                Go to Dashboard
-              </button>
-            </div>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+            <button
+              onClick={() => router.push('/dashboard/bookings')}
+              className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-[0.15em] rounded-full transition-all"
+            >
+              View My Bookings
+            </button>
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="flex-1 py-3 border border-white/15 hover:border-white/25 hover:bg-white/[0.04] text-white/70 hover:text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
+            >
+              Go to Dashboard
+            </button>
           </div>
-
         </div>
       )}
     </div>

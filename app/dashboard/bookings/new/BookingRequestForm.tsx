@@ -1,16 +1,15 @@
 'use client'
 
-import { useState, useEffect, useTransition, useCallback, useMemo } from 'react'
+import { useState, useEffect, useTransition, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { createBooking } from '@/app/actions/booking'
-import { createProvisionalSoloBooking } from '@/app/actions/checkout'
 import {
   checkCustomerAvailability,
   getDayAvailability,
   type SafeConflict,
   type AvailabilityCheckResult,
 } from '@/app/actions/customer-availability'
-import type { CreateBookingInput, CreateProvisionalSoloInput } from '@/lib/supabase/booking-types'
+import type { CreateBookingInput } from '@/lib/supabase/booking-types'
 import {
   sydneyInputToUTC,
   formatSydTime,
@@ -46,7 +45,6 @@ type Props = {
   picArn:               string | null
   eligibilityBlocked:   boolean
   eligibilityWarnings:  string[]
-  bookingMode:          'provisional' | 'standard'
 }
 
 // ── Time options (full day 12:00 AM – 11:30 PM, 30-min increments) ───────────
@@ -92,9 +90,9 @@ function formatDuration(hours: number): string {
 
 // ── Availability Timeline ──────────────────────────────────────────────────────
 //
-// Covers the full Sydney day (midnight → midnight) in two layers:
-//   Layer 1 — the bar (overflow-hidden): green base + red unavailable blocks clipped inside.
-//   Layer 2 — absolute overlay outside the clip: blue selected-window bracket on top.
+// Interactive 24-hour timeline for the selected date.
+// The selected slot is draggable (move) and resizable (left/right handles).
+// Snaps to 30-minute intervals. Syncs with parent via onRangeChange callback.
 
 // Add one day to a YYYY-MM-DD string without relying on Date parsing assumptions.
 function addOneDay(dateStr: string): string {
@@ -108,15 +106,29 @@ function AvailabilityTimeline({
   daySlots,
   startDT,
   endDT,
+  onRangeChange,
 }: {
   selectedDate: string
   daySlots: SafeConflict[]
   startDT: string
   endDT: string
+  onRangeChange?: (startTime: string, endTime: string) => void
 }) {
+  const barRef    = useRef<HTMLDivElement>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const dragRef   = useRef<{
+    type:          'move' | 'left' | 'right'
+    pointerStartX: number
+    initStart:     number   // minutes from midnight
+    initEnd:       number
+    barWidth:      number
+  } | null>(null)
+
+  const SNAP  = 30          // snap interval in minutes
+  const TOTAL = 24 * 60     // total minutes in a day
+
   if (!selectedDate) return null
 
-  // Full day: midnight Sydney → midnight Sydney (next day)
   const opStartUTC = sydneyInputToUTC(`${selectedDate}T00:00`)
   const opEndUTC   = sydneyInputToUTC(`${addOneDay(selectedDate)}T00:00`)
   if (!opStartUTC || !opEndUTC) return null
@@ -132,39 +144,127 @@ function AvailabilityTimeline({
 
   const selStartUTC = sydneyInputToUTC(startDT)
   const selEndUTC   = sydneyInputToUTC(endDT)
-  const hasSelection =
-    !!(selStartUTC && selEndUTC && new Date(selEndUTC) > new Date(selStartUTC))
+  const hasSelection = !!(selStartUTC && selEndUTC && new Date(selEndUTC) > new Date(selStartUTC))
 
-  // Only render unavailable slots that overlap the visible window
   const visibleSlots = daySlots.filter(s => {
     const slotEnd   = new Date(s.end_time).getTime()
     const slotStart = new Date(s.start_time).getTime()
     return slotEnd > opStartMs && slotStart < opEndMs
   })
 
-  // Show every 3 hours for a cleaner look (0, 3, 6, 9, 12, 15, 18, 21)
-  const majorTicks = [0, 3, 6, 9, 12, 15, 18, 21, 24]
-
-  function hourLabel(h: number): string {
-    if (h === 0 || h === 24) return '12 AM'
-    if (h === 12) return '12 PM'
-    return h < 12 ? `${h} AM` : `${h - 12} PM`
+  // Extract minutes from midnight from a "YYYY-MM-DDTHH:MM" local string
+  function dtToMinutes(dt: string): number {
+    const t = (dt || '').split('T')[1] || '00:00'
+    const [hStr, mStr] = t.split(':')
+    return parseInt(hStr || '0', 10) * 60 + parseInt(mStr || '0', 10)
   }
+
+  function minutesToHHMM(min: number): string {
+    const c = Math.max(0, Math.min(TOTAL - SNAP, min))
+    return `${String(Math.floor(c / 60)).padStart(2, '0')}:${String(c % 60).padStart(2, '0')}`
+  }
+
+  const selStartMin = startDT ? dtToMinutes(startDT) : 0
+  const selEndMin   = endDT   ? dtToMinutes(endDT)   : 0
 
   const selLeft  = hasSelection ? toPercent(selStartUTC!) : 0
   const selRight = hasSelection ? 100 - toPercent(selEndUTC!) : 0
 
-  return (
-    <div className="space-y-3">
+  // ── Drag handlers ──────────────────────────────────────────────────────────
 
-      {/* ── Two-layer timeline ── */}
+  function startDrag(e: React.PointerEvent<HTMLDivElement>, type: 'move' | 'left' | 'right') {
+    if (!hasSelection || !onRangeChange) return
+    e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const bar = barRef.current
+    if (!bar) return
+    dragRef.current = {
+      type,
+      pointerStartX: e.clientX,
+      initStart:     selStartMin,
+      initEnd:       selEndMin,
+      barWidth:      bar.getBoundingClientRect().width,
+    }
+    setIsDragging(true)
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragRef.current || !onRangeChange) return
+    const { type, pointerStartX, initStart, initEnd, barWidth } = dragRef.current
+    const deltaMin = ((e.clientX - pointerStartX) / barWidth) * TOTAL
+    const dur      = initEnd - initStart
+    let newStart   = initStart
+    let newEnd     = initEnd
+
+    if (type === 'move') {
+      newStart = Math.round((initStart + deltaMin) / SNAP) * SNAP
+      newStart = Math.max(0, Math.min(TOTAL - dur, newStart))
+      newEnd   = newStart + dur
+    } else if (type === 'left') {
+      newStart = Math.round((initStart + deltaMin) / SNAP) * SNAP
+      newStart = Math.max(0, Math.min(initEnd - SNAP, newStart))
+    } else {
+      newEnd = Math.round((initEnd + deltaMin) / SNAP) * SNAP
+      newEnd = Math.max(initStart + SNAP, Math.min(TOTAL, newEnd))
+    }
+
+    onRangeChange(minutesToHHMM(newStart), minutesToHHMM(newEnd > TOTAL - SNAP ? TOTAL - SNAP : newEnd))
+  }
+
+  function handlePointerUp() {
+    dragRef.current = null
+    setIsDragging(false)
+  }
+
+  // ── Tick marks every 2 hours for full-day readability ─────────────────────
+  const majorTicks = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24]
+
+  function hourLabel(h: number): string {
+    if (h === 0 || h === 24) return '12am'
+    if (h === 12) return '12pm'
+    return h < 12 ? `${h}am` : `${h - 12}pm`
+  }
+
+  const canDrag = hasSelection && !!onRangeChange
+
+  return (
+    <div className="space-y-2 select-none">
+
+      {/* Tick labels above bar */}
+      <div className="relative h-4">
+        {majorTicks.map(h => (
+          <span
+            key={h}
+            className="absolute text-[9px] font-medium text-slate-600 -translate-x-1/2 leading-none"
+            style={{ left: `${(h / 24) * 100}%` }}
+          >
+            {hourLabel(h)}
+          </span>
+        ))}
+      </div>
+
+      {/* Timeline bar + interactive slot overlay */}
       <div className="relative">
-        {/* Layer 1: green base + red unavailable blocks (clipped to bar) */}
-        <div className="relative h-10 bg-green-500/15 rounded-lg overflow-hidden border border-green-500/10">
+
+        {/* Base bar — clipped for conflict/grid rendering */}
+        <div
+          ref={barRef}
+          className="relative h-14 bg-green-500/15 rounded-lg overflow-hidden border border-green-500/10"
+        >
+          {/* Subtle hour grid lines every 2 h */}
+          {[2,4,6,8,10,12,14,16,18,20,22].map(h => (
+            <div
+              key={h}
+              className="absolute top-0 bottom-0 w-px bg-white/[0.04]"
+              style={{ left: `${(h / 24) * 100}%` }}
+            />
+          ))}
+
+          {/* Booked / conflict slots */}
           {visibleSlots.map((slot, i) => (
             <div
               key={i}
-              className="absolute top-0 bottom-0 bg-red-500/60"
+              className="absolute top-0 bottom-0 bg-red-500/55"
               style={{
                 left:  `${toPercent(slot.start_time)}%`,
                 right: `${100 - toPercent(slot.end_time)}%`,
@@ -174,30 +274,59 @@ function AvailabilityTimeline({
           ))}
         </div>
 
-        {/* Layer 2: blue selected-window bracket (outside clip, on top) */}
+        {/* Interactive selected slot — sits on top of the bar */}
         {hasSelection && (
           <div
-            className="absolute inset-y-[-2px] rounded-lg border-2 border-blue-400/80 bg-blue-500/10 pointer-events-none"
+            className={`absolute top-[2px] bottom-[2px] ${canDrag ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
             style={{ left: `${selLeft}%`, right: `${selRight}%` }}
-          />
+            onPointerDown={canDrag ? e => startDrag(e, 'move') : undefined}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+          >
+            <div className="h-full bg-blue-500/25 border-2 border-blue-400/75 rounded-lg flex items-center relative overflow-hidden">
+
+              {/* Left resize handle */}
+              <div
+                className={`absolute left-0 top-0 bottom-0 w-4 flex items-center justify-center gap-px flex-shrink-0 z-10 ${canDrag ? 'cursor-ew-resize' : ''}`}
+                onPointerDown={canDrag ? e => { e.stopPropagation(); startDrag(e, 'left') } : undefined}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+              >
+                <div className="w-px h-5 bg-blue-300/60 rounded-full" />
+                <div className="w-px h-5 bg-blue-300/60 rounded-full" />
+              </div>
+
+              {/* Time label — centered, hidden when slot is too narrow */}
+              <div className="flex-1 text-center px-5 min-w-0 overflow-hidden">
+                <span className="text-[9px] text-blue-200/90 font-mono whitespace-nowrap">
+                  {startDT.split('T')[1]}–{endDT.split('T')[1]}
+                </span>
+              </div>
+
+              {/* Right resize handle */}
+              <div
+                className={`absolute right-0 top-0 bottom-0 w-4 flex items-center justify-center gap-px flex-shrink-0 z-10 ${canDrag ? 'cursor-ew-resize' : ''}`}
+                onPointerDown={canDrag ? e => { e.stopPropagation(); startDrag(e, 'right') } : undefined}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+              >
+                <div className="w-px h-5 bg-blue-300/60 rounded-full" />
+                <div className="w-px h-5 bg-blue-300/60 rounded-full" />
+              </div>
+
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Major tick labels */}
-      <div className="relative h-4">
-        {majorTicks.map(h => {
-          const pct = (h / 24) * 100
-          return (
-            <span
-              key={h}
-              className="absolute text-[9px] font-medium text-slate-600 -translate-x-1/2 select-none leading-none uppercase tracking-wide"
-              style={{ left: `${pct}%` }}
-            >
-              {hourLabel(h)}
-            </span>
-          )
-        })}
-      </div>
+      {/* Drag hint / empty state */}
+      {canDrag ? (
+        <p className="text-[10px] text-slate-700 leading-relaxed">
+          Drag the block to move your slot · drag the edges to resize · snaps to 30 min
+        </p>
+      ) : !hasSelection ? (
+        <p className="text-[10px] text-slate-700">Select departure and return times above to see your slot.</p>
+      ) : null}
 
       {/* Legend */}
       <div className="flex flex-wrap gap-5 pt-1">
@@ -206,12 +335,12 @@ function AvailabilityTimeline({
           Available
         </span>
         <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-widest text-slate-600">
-          <span className="w-2.5 h-2.5 rounded-sm bg-red-500/60 inline-block flex-shrink-0" />
+          <span className="w-2.5 h-2.5 rounded-sm bg-red-500/55 inline-block flex-shrink-0" />
           Booked
         </span>
         {hasSelection && (
           <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-widest text-slate-600">
-            <span className="w-2.5 h-2.5 rounded-sm border-2 border-blue-400/80 inline-block flex-shrink-0" />
+            <span className="w-2.5 h-2.5 rounded-sm border-2 border-blue-400/75 bg-blue-500/25 inline-block flex-shrink-0" />
             Selected
           </span>
         )}
@@ -220,31 +349,6 @@ function AvailabilityTimeline({
   )
 }
 
-// ── Summary row ────────────────────────────────────────────────────────────────
-
-function SummaryRow({
-  label,
-  value,
-  mono = false,
-  dim = false,
-}: {
-  label: string
-  value: string
-  mono?: boolean
-  dim?: boolean
-}) {
-  return (
-    <div className="flex items-center justify-between py-3.5 border-b border-white/[0.06] last:border-0 last:pb-0">
-      <span className="text-slate-500 text-sm">{label}</span>
-      <span className={`text-sm text-right leading-snug font-medium
-        ${mono ? 'font-mono tabular-nums' : ''}
-        ${dim ? 'text-slate-500' : 'text-white/90'}
-      `}>
-        {value}
-      </span>
-    </div>
-  )
-}
 
 // ── Step indicator ─────────────────────────────────────────────────────────────
 
@@ -392,7 +496,6 @@ export default function BookingRequestForm({
   picArn,
   eligibilityBlocked,
   eligibilityWarnings,
-  bookingMode,
 }: Props) {
   const [isSubmitting, startSubmit] = useTransition()
 
@@ -552,6 +655,16 @@ export default function BookingRequestForm({
     return mins > 0 ? mins / 60 : null
   }, [startDT, endDT])
 
+  // ── Timeline → input sync ────────────────────────────────────────────────
+  function handleTimelineChange(newStartTime: string, newEndTime: string) {
+    setStartTime(newStartTime)
+    setEndTime(newEndTime)
+    // If end date was on a different day, bring it back to the selected date
+    if (startDate && endDate && endDate !== startDate) {
+      setEndDate(startDate)
+    }
+  }
+
   // ── Submit gate ───────────────────────────────────────────────────────────
   const endIsBeforeStart = !!(startDT && endDT && endDT <= startDT)
 
@@ -621,28 +734,11 @@ export default function BookingRequestForm({
 
     startSubmit(async () => {
       try {
-        let bookingId: string
-        let bookingReference: string
-
-        if (bookingMode === 'provisional') {
-          const provisionalInput: CreateProvisionalSoloInput = {
-            aircraft_id:     input.aircraft_id,
-            scheduled_start: input.scheduled_start,
-            scheduled_end:   input.scheduled_end,
-            customer_notes:  input.customer_notes ?? null,
-          }
-          const result = await createProvisionalSoloBooking(provisionalInput)
-          bookingId        = result.bookingId
-          bookingReference = result.bookingReference
-        } else {
-          const result = await createBooking(input)
-          bookingId        = result.bookingId
-          bookingReference = result.bookingReference
-        }
+        const result = await createBooking(input)
 
         setSuccessState({
-          bookingId,
-          bookingReference,
+          bookingId:        result.bookingId,
+          bookingReference: result.bookingReference,
           startDT,
           endDT,
           estimatedHours,
@@ -683,15 +779,13 @@ export default function BookingRequestForm({
           </div>
 
           <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-green-400/70 mb-3">
-            {bookingMode === 'provisional' ? 'Time Reserved' : 'Request Received'}
+            Request Received
           </p>
           <h1 className="text-3xl md:text-4xl font-serif text-white mb-4 leading-tight">
-            {bookingMode === 'provisional' ? 'Flight Time Reserved' : 'Booking Request Submitted'}
+            Booking Request Submitted
           </h1>
           <p className="text-slate-400 text-sm leading-relaxed mb-8 max-w-sm mx-auto">
-            {bookingMode === 'provisional'
-              ? 'Your preferred time has been reserved. This reservation will only be confirmed after your checkout flight is completed and you are cleared for solo hire.'
-              : 'Your request has been submitted and is awaiting review by our operations team.'}
+            Your request has been submitted and is awaiting review by our operations team.
           </p>
 
           {/* Booking reference card */}
@@ -715,21 +809,10 @@ export default function BookingRequestForm({
           <div className="bg-amber-500/[0.07] border border-amber-500/20 rounded-xl px-5 py-4 mb-6 flex items-start gap-3 text-left">
             <span className="material-symbols-outlined text-amber-400 text-base flex-shrink-0 mt-0.5">info</span>
             <div>
-              {bookingMode === 'provisional' ? (
-                <>
-                  <p className="text-sm font-semibold text-amber-300 mb-1">This is a provisional reservation only</p>
-                  <p className="text-xs text-amber-300/70 leading-relaxed">
-                    This reservation will only be confirmed after your checkout flight is completed and you are cleared for solo hire.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm font-semibold text-amber-300 mb-1">This is not a confirmed booking</p>
-                  <p className="text-xs text-amber-300/70 leading-relaxed">
-                    Your request is pending review. You will receive an email once a decision has been made. Typical response time is within 24 hours.
-                  </p>
-                </>
-              )}
+              <p className="text-sm font-semibold text-amber-300 mb-1">This is not a confirmed booking</p>
+              <p className="text-xs text-amber-300/70 leading-relaxed">
+                Your request is pending review. You will receive an email once a decision has been made. Typical response time is within 24 hours.
+              </p>
             </div>
           </div>
 
@@ -823,15 +906,13 @@ export default function BookingRequestForm({
         {/* Hero content */}
         <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-2xl mx-auto">
           <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-blue-400/70 mb-4">
-            {bookingMode === 'provisional' ? 'Provisional Reservation' : 'Fleet Booking'}
+            Fleet Booking
           </p>
           <h1 className="text-4xl md:text-5xl font-serif tracking-tight text-white mb-3 leading-tight">
-            {bookingMode === 'provisional' ? 'Reserve Your First Solo Flight' : 'Book a Flight'}
+            Book a Flight
           </h1>
           <p className="text-slate-400 text-base leading-relaxed mb-2">
-            {bookingMode === 'provisional'
-              ? 'Reserve your preferred first solo flight time below.'
-              : 'Choose your preferred time and submit your request for review.'}
+            Choose your preferred time and submit your request for review.
           </p>
           <p className="text-[11px] text-slate-600">
             All times are shown in Sydney time (AEST/AEDT).
@@ -847,19 +928,6 @@ export default function BookingRequestForm({
           <StepIndicator requirementsOk={!eligibilityBlocked} />
         </div>
       </div>
-
-      {/* Provisional reservation banner */}
-      {bookingMode === 'provisional' && (
-        <div className="bg-blue-500/[0.08] border-b border-blue-500/20">
-          <div className="max-w-[1280px] mx-auto px-6 md:px-10 xl:px-12 py-3.5 flex items-start gap-3">
-            <span className="material-symbols-outlined text-blue-400 text-base flex-shrink-0 mt-0.5">info</span>
-            <p className="text-xs text-blue-300/80 leading-relaxed">
-              <span className="font-semibold text-blue-300">This is a provisional reservation only.</span>{' '}
-              Your flight will not be confirmed until your checkout flight is completed and you are cleared for solo hire.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* ══════════════════════════════════════════════════════════════════════
           PILOT + AIRCRAFT INFO STRIP
@@ -930,43 +998,41 @@ export default function BookingRequestForm({
       <div className="max-w-[1280px] mx-auto px-6 md:px-10 xl:px-12 py-10 pb-24">
 
         {/* Back link */}
-        <Link
-          href="/dashboard/bookings"
-          className="inline-flex items-center gap-1.5 text-blue-500/70 hover:text-blue-400 text-sm mb-8 transition-colors"
-        >
-          <span className="material-symbols-outlined text-base">arrow_back</span>
-          My Bookings
-        </Link>
+        <div className="max-w-3xl mx-auto">
+          <Link
+            href="/dashboard/bookings"
+            className="inline-flex items-center gap-1.5 text-blue-500/70 hover:text-blue-400 text-sm mb-8 transition-colors"
+          >
+            <span className="material-symbols-outlined text-base">arrow_back</span>
+            My Bookings
+          </Link>
+        </div>
 
-        {/* Aircraft status warning */}
-        {aircraftStatus !== 'available' && (
-          <div className="mb-6 flex items-center gap-3 bg-amber-500/8 border border-amber-500/20 rounded-xl px-5 py-3.5">
-            <span className="material-symbols-outlined text-amber-400 text-lg flex-shrink-0">warning</span>
-            <p className="text-sm text-amber-300">
-              {aircraftRegistration} is currently <strong>{aircraftStatus}</strong>. Requests may be delayed.
-            </p>
-          </div>
-        )}
-
-        {/* Eligibility warnings */}
-        {eligibilityBlocked && eligibilityWarnings.length > 0 && (
-          <div className="mb-6 bg-amber-500/8 border border-amber-500/20 rounded-xl px-5 py-4 flex items-start gap-3">
-            <span className="material-symbols-outlined text-amber-400 mt-0.5 flex-shrink-0">notification_important</span>
-            <div>
-              <p className="text-sm font-bold text-amber-400 mb-1.5">Booking Access Suspended</p>
-              <ul className="text-xs text-amber-300/80 space-y-1 list-disc list-inside">
-                {eligibilityWarnings.map((w, i) => <li key={i}>{w}</li>)}
-              </ul>
-            </div>
-          </div>
-        )}
-
-        {/* Two-column layout */}
         <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+          <div className="max-w-3xl mx-auto space-y-6">
 
-            {/* ══ LEFT COLUMN ══════════════════════════════════════════════ */}
-            <div className="xl:col-span-8 space-y-6">
+            {/* Aircraft status warning */}
+            {aircraftStatus !== 'available' && (
+              <div className="flex items-center gap-3 bg-amber-500/8 border border-amber-500/20 rounded-xl px-5 py-3.5">
+                <span className="material-symbols-outlined text-amber-400 text-lg flex-shrink-0">warning</span>
+                <p className="text-sm text-amber-300">
+                  {aircraftRegistration} is currently <strong>{aircraftStatus}</strong>. Requests may be delayed.
+                </p>
+              </div>
+            )}
+
+            {/* Eligibility warnings */}
+            {eligibilityBlocked && eligibilityWarnings.length > 0 && (
+              <div className="bg-amber-500/8 border border-amber-500/20 rounded-xl px-5 py-4 flex items-start gap-3">
+                <span className="material-symbols-outlined text-amber-400 mt-0.5 flex-shrink-0">notification_important</span>
+                <div>
+                  <p className="text-sm font-bold text-amber-400 mb-1.5">Booking Access Suspended</p>
+                  <ul className="text-xs text-amber-300/80 space-y-1 list-disc list-inside">
+                    {eligibilityWarnings.map((w, i) => <li key={i}>{w}</li>)}
+                  </ul>
+                </div>
+              </div>
+            )}
 
               {/* ── Choose your flight time (primary card) ─────────────── */}
               <section className="relative bg-gradient-to-br from-[#0f1d38] to-[#080e1c] border-t border-white/[0.13] border-x border-b border-x-white/[0.06] border-b-white/[0.06] rounded-xl p-8 md:p-10 shadow-[0_8px_60px_rgba(0,0,0,0.45)] overflow-hidden">
@@ -1188,6 +1254,7 @@ export default function BookingRequestForm({
                     daySlots={daySlots}
                     startDT={startDT}
                     endDT={endDT}
+                    onRangeChange={handleTimelineChange}
                   />
                 )}
               </section>
@@ -1205,9 +1272,10 @@ export default function BookingRequestForm({
                 />
               </section>
 
-              {/* ── Before You Submit ──────────────────────────────────── */}
-              <section className="bg-[#080e1c] border border-white/[0.07] rounded-xl p-7 md:p-8">
-                <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-300 mb-5">Before You Submit</h3>
+              {/* ── Submit area: checkboxes directly above CTA ─────────── */}
+              <section className="bg-[#080e1c] border border-white/[0.07] rounded-xl p-7 md:p-8 space-y-5">
+
+                {/* Required confirmations */}
                 <div className="space-y-4">
                   <label className="flex items-start gap-3.5 cursor-pointer group">
                     <input
@@ -1234,107 +1302,50 @@ export default function BookingRequestForm({
                     </span>
                   </label>
                 </div>
+
+                {/* Submit button */}
+                <button
+                  type="submit"
+                  disabled={!canSubmit}
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/15 disabled:cursor-not-allowed text-white font-bold text-xs uppercase tracking-[0.2em] rounded-lg transition-all shadow-[0_0_24px_rgba(37,99,235,0.25)] disabled:shadow-none flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                      Submitting…
+                    </>
+                  ) : availability.status === 'checking' ? (
+                    <>
+                      <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                      Checking…
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-sm">send</span>
+                      Submit Booking Request
+                    </>
+                  )}
+                </button>
+
+                {disabledReason && !canSubmit && (
+                  <p className="text-[11px] text-slate-600 text-center leading-snug">
+                    {disabledReason}
+                  </p>
+                )}
+
+                {submitError && (
+                  <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+                    <span className="material-symbols-outlined text-red-400 text-base flex-shrink-0 mt-0.5">error</span>
+                    <p className="text-xs text-red-300">{submitError}</p>
+                  </div>
+                )}
+
               </section>
 
-            </div>
-
-            {/* ══ RIGHT COLUMN — STICKY SUMMARY ════════════════════════ */}
-            <div className="xl:col-span-4">
-              <div className="sticky top-28 space-y-5">
-
-                {/* Booking Summary card */}
-                <div className="bg-gradient-to-br from-[#0f1d38] to-[#080e1c] border-t border-white/[0.13] border-x border-b border-x-white/[0.06] border-b-white/[0.06] rounded-xl p-8 shadow-[0_8px_60px_rgba(0,0,0,0.45)] relative overflow-hidden">
-
-                  {/* Decorative receipt ornament */}
-                  <div className="absolute top-0 right-0 p-4 opacity-[0.05] pointer-events-none">
-                    <span className="material-symbols-outlined text-5xl">receipt_long</span>
-                  </div>
-
-                  <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-blue-400 mb-7">
-                    Booking Summary
-                  </h3>
-
-                  {/* Summary rows */}
-                  <div className="mb-7">
-                    <SummaryRow label="Aircraft"      value={aircraftRegistration} />
-                    <SummaryRow label="Model"         value={aircraftType} dim />
-                    <SummaryRow
-                      label="Departure"
-                      value={startDT ? formatInputAsAU(startDT) : '—'}
-                      dim={!startDT}
-                    />
-                    <SummaryRow
-                      label="Est. Return"
-                      value={endDT && !endIsBeforeStart ? formatInputAsAU(endDT) : endIsBeforeStart ? 'Invalid' : '—'}
-                      dim={!endDT || endIsBeforeStart}
-                    />
-                    <SummaryRow
-                      label="Est. Duration"
-                      value={estimatedHours != null ? formatDuration(estimatedHours) : '—'}
-                      dim={estimatedHours == null}
-                    />
-                    <SummaryRow
-                      label="Rate"
-                      value={`$${hourlyRate} / hr`}
-                      mono
-                    />
-                  </div>
-
-                  {/* Provisional reminder near button */}
-                  {bookingMode === 'provisional' && (
-                    <p className="text-[10px] text-slate-600 mt-5 mb-2 leading-relaxed text-center px-2">
-                      Reminder: this reserves your preferred time only. Your booking will be confirmed after your checkout is completed and you are cleared for solo hire.
-                    </p>
-                  )}
-
-                  {/* Submit button */}
-                  <div className="mt-3">
-                    <button
-                      type="submit"
-                      disabled={!canSubmit}
-                      className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/15 disabled:cursor-not-allowed text-white font-bold text-xs uppercase tracking-[0.2em] rounded-lg transition-all shadow-[0_0_24px_rgba(37,99,235,0.25)] disabled:shadow-none flex items-center justify-center gap-2"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-                          Submitting…
-                        </>
-                      ) : availability.status === 'checking' ? (
-                        <>
-                          <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-                          Checking…
-                        </>
-                      ) : (
-                        <>
-                          <span className="material-symbols-outlined text-sm">send</span>
-                          {bookingMode === 'provisional' ? 'Reserve This Flight Time' : 'Submit Booking Request'}
-                        </>
-                      )}
-                    </button>
-
-                    {disabledReason && !canSubmit && (
-                      <p className="text-[11px] text-slate-600 text-center mt-3 leading-snug px-2">
-                        {disabledReason}
-                      </p>
-                    )}
-
-                    {submitError && (
-                      <div className="mt-3 flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
-                        <span className="material-symbols-outlined text-red-400 text-base flex-shrink-0 mt-0.5">error</span>
-                        <p className="text-xs text-red-300">{submitError}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-
-                {/* Ops note */}
-                <p className="text-[10px] font-serif italic text-center text-slate-600 px-3 leading-relaxed">
-                  Booking requests are reviewed and confirmed by the operations team. You will be notified of the outcome.
-                </p>
-
-              </div>
-            </div>
+              {/* Ops note */}
+              <p className="text-[10px] font-serif italic text-center text-slate-600 px-3 leading-relaxed pb-6">
+                Booking requests are reviewed and confirmed by the operations team. You will be notified of the outcome.
+              </p>
 
           </div>
         </form>

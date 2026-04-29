@@ -28,14 +28,6 @@ export type DocSummary = {
   uploaded_at?:    string | null
 }
 
-type SoloReservation = {
-  id:                string
-  booking_reference: string | null
-  scheduled_start:   string
-  scheduled_end:     string
-  status:            string
-}
-
 type Props = {
   bookingId:          string
   aircraftId:         string
@@ -54,7 +46,6 @@ type Props = {
   clearanceBorder:    string
   documents:          DocSummary[]
   messages:           VerificationEvent[]
-  soloReservation:    SoloReservation | null
 }
 
 // ── Time option helpers ────────────────────────────────────────────────────────
@@ -199,7 +190,7 @@ export default function AdminCheckoutReviewPanel({
   scheduledStart, scheduledEnd,
   customerNotes, lastFlightDate, customerId, customerName, customerEmail, pilotArn,
   clearanceLabel, clearanceColor, clearanceBg, clearanceBorder,
-  documents, messages, soloReservation,
+  documents, messages,
 }: Props) {
   const router = useRouter()
 
@@ -391,23 +382,7 @@ export default function AdminCheckoutReviewPanel({
           </div>
         )}
 
-        {/* First solo reservation */}
-        {soloReservation && (
-          <div>
-            <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-2">Linked First Solo Reservation</p>
-            <div className="bg-blue-500/[0.06] border border-blue-500/15 rounded-lg px-3 py-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-[10px] font-mono text-slate-400">{soloReservation.booking_reference}</p>
-                  <p className="text-[11px] text-slate-300 mt-0.5">{formatDateTime(soloReservation.scheduled_start)}</p>
-                </div>
-                <span className="text-[9px] font-bold uppercase tracking-widest text-blue-400 border border-blue-400/20 bg-blue-500/10 px-1.5 py-0.5 rounded flex-shrink-0">
-                  Pending Clearance
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
+
       </div>
 
       {/* ── 2. Edit checkout time ─────────────────────────────────────────────── */}

@@ -10,8 +10,8 @@ import type {
 } from '@/lib/supabase/types'
 import { uploadVerificationDocument } from '@/app/actions/upload'
 import { getDocumentSignedUrl } from '@/app/actions/documents'
-import { saveCustomerArn } from '@/app/actions/verification'
-import { fmtTimestamp, fmtDate } from '@/lib/utils/format'
+import { saveLastFlightDate } from '@/app/actions/verification'
+import { fmtDate } from '@/lib/utils/format'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -673,40 +673,42 @@ function DocumentCard({
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 type Props = {
-  user:       User
-  documents:  UserDocument[]
-  currentArn: string | null
+  user:            User
+  documents:       UserDocument[]
+  lastFlightDate:  string | null
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function DocumentsPanel({ user: _user, documents, currentArn }: Props) {
+export default function DocumentsPanel({ user: _user, documents, lastFlightDate }: Props) {
   // status is derived locally — not needed from parent since we no longer gate on verification_status
   const status: VerificationStatus = 'not_started'   // used only by getDocUiState for chip display
   const router = useRouter()
   const [modalDocType, setModalDocType] = useState<DocumentType | null>(null)
 
-  // ── ARN field state ──────────────────────────────────────────────────────────
-  const [arnValue,   setArnValue]   = useState(currentArn ?? '')
-  const [arnSaving,  setArnSaving]  = useState(false)
-  const [arnError,   setArnError]   = useState('')
-  const [arnSaved,   setArnSaved]   = useState(false)
-  const arnChanged = arnValue.trim() !== (currentArn ?? '')
+  // ── Last flight date field state ─────────────────────────────────────────────
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
+  const [flightDate,      setFlightDate]      = useState(lastFlightDate ?? '')
+  const [flightDateSaving, setFlightDateSaving] = useState(false)
+  const [flightDateError,  setFlightDateError]  = useState('')
+  const [flightDateSaved,  setFlightDateSaved]  = useState(false)
+  const flightDateChanged = flightDate.trim() !== (lastFlightDate ?? '')
 
-  async function handleSaveArn() {
-    if (!arnValue.trim()) { setArnError('ARN cannot be empty.'); return }
-    setArnSaving(true)
-    setArnError('')
-    setArnSaved(false)
+  async function handleSaveFlightDate() {
+    if (!flightDate.trim()) { setFlightDateError('Please select a date.'); return }
+    if (flightDate > today) { setFlightDateError('Last flight date cannot be in the future.'); return }
+    setFlightDateSaving(true)
+    setFlightDateError('')
+    setFlightDateSaved(false)
     try {
-      await saveCustomerArn(arnValue.trim())
-      setArnSaved(true)
+      await saveLastFlightDate(flightDate.trim())
+      setFlightDateSaved(true)
       router.refresh()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to save.'
-      setArnError(msg.replace('VALIDATION:', '').trim())
+      setFlightDateError(msg.replace('VALIDATION:', '').trim())
     } finally {
-      setArnSaving(false)
+      setFlightDateSaving(false)
     }
   }
 
@@ -772,7 +774,7 @@ export default function DocumentsPanel({ user: _user, documents, currentArn }: P
               My Documents
             </h2>
             <p className="text-oz-muted font-sans font-light mt-2">
-              Manage the pilot documents used for your checkout request and aircraft access. If anything needs updating, replace the document below.
+              Manage the documents and flight recency details used for your checkout request. If anything needs updating, replace the document below.
             </p>
           </div>
 
@@ -797,62 +799,67 @@ export default function DocumentsPanel({ user: _user, documents, currentArn }: P
           </div>
         </section>
 
-        {/* ── ARN field ── */}
+        {/* ── Pilot Flight Recency ── */}
         <section className="bg-[#0c121e]/60 border border-white/[0.07] rounded-[1.25rem] p-6">
-          <div className="flex items-start gap-4 mb-4">
+          <div className="flex items-start gap-4 mb-5">
             <div className="w-9 h-9 rounded-xl bg-oz-blue/10 border border-oz-blue/20 flex items-center justify-center flex-shrink-0">
               <span
                 className="material-symbols-outlined text-oz-blue text-base"
                 style={{ fontVariationSettings: "'wght' 300" }}
               >
-                badge
+                flight_land
               </span>
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-white">Aviation Reference Number (ARN)</h3>
+              <h3 className="text-sm font-semibold text-white">Pilot Flight Recency</h3>
               <p className="text-xs text-oz-muted mt-0.5">
-                Your CASA-issued ARN is required before you can request a booking.
+                This helps the operations team assess your checkout readiness.
               </p>
             </div>
-            {currentArn && (
+            {lastFlightDate && !flightDateChanged && (
               <span className="ml-auto flex-shrink-0 text-[9px] font-bold uppercase px-2 py-0.5 rounded-full tracking-widest text-green-400 bg-green-500/10">
                 Saved
               </span>
             )}
           </div>
 
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={arnValue}
-              onChange={e => { setArnValue(e.target.value); setArnSaved(false); setArnError('') }}
-              placeholder="e.g. 123456"
-              maxLength={20}
-              className="flex-1 bg-white/[0.03] border border-white/[0.08] focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5 placeholder:text-white/20"
-            />
-            <button
-              type="button"
-              onClick={handleSaveArn}
-              disabled={arnSaving || !arnValue.trim() || !arnChanged}
-              className="flex items-center gap-2 px-5 py-2.5 bg-oz-blue/15 border border-oz-blue/30 text-oz-blue hover:bg-oz-blue hover:text-oz-deep rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              {arnSaving && (
-                <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-              )}
-              {arnSaving ? 'Saving…' : 'Save'}
-            </button>
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
+              When was your last flight?
+              <span className="ml-1.5 text-red-400/80 font-normal normal-case">Required for checkout</span>
+            </label>
+            <div className="flex gap-3">
+              <input
+                type="date"
+                value={flightDate}
+                max={today}
+                onChange={e => { setFlightDate(e.target.value); setFlightDateSaved(false); setFlightDateError('') }}
+                className="flex-1 bg-white/[0.03] border border-white/[0.08] focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5"
+              />
+              <button
+                type="button"
+                onClick={handleSaveFlightDate}
+                disabled={flightDateSaving || !flightDate.trim() || !flightDateChanged}
+                className="flex items-center gap-2 px-5 py-2.5 bg-oz-blue/15 border border-oz-blue/30 text-oz-blue hover:bg-oz-blue hover:text-oz-deep rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {flightDateSaving && (
+                  <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                )}
+                {flightDateSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
           </div>
 
-          {arnSaved && !arnError && (
+          {flightDateSaved && !flightDateError && (
             <p className="mt-2 text-xs text-green-400 flex items-center gap-1.5">
               <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-              ARN saved successfully.
+              Last flight date saved.
             </p>
           )}
-          {arnError && (
+          {flightDateError && (
             <p className="mt-2 text-xs text-red-400 flex items-center gap-1.5">
               <span className="material-symbols-outlined text-sm">error</span>
-              {arnError}
+              {flightDateError}
             </p>
           )}
         </section>

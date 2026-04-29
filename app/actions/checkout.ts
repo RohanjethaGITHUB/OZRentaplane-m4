@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type {
   CreateCheckoutBookingInput,
-  CreateProvisionalSoloInput,
   CheckoutBookingResult,
 } from '@/lib/supabase/booking-types'
 
@@ -127,13 +126,32 @@ export async function submitCheckoutRequest(
     estimated_amount:  number
   }
 
-  // Save last_flight_date to the booking (not part of the atomic RPC)
+  // Save last_flight_date to both the booking and the profile so the Documents
+  // page stays in sync with the most recently submitted checkout date.
   if (input.last_flight_date) {
-    await supabase
-      .from('bookings')
-      .update({ last_flight_date: input.last_flight_date })
-      .eq('id', result.booking_id)
+    await Promise.all([
+      supabase
+        .from('bookings')
+        .update({ last_flight_date: input.last_flight_date })
+        .eq('id', result.booking_id),
+      supabase
+        .from('profiles')
+        .update({ last_flight_date: input.last_flight_date })
+        .eq('id', userId),
+    ])
   }
+
+  // Notify customer — non-fatal
+  const { error: notifErr } = await supabase.from('verification_events').insert({
+    user_id:      userId,
+    actor_role:   'customer',
+    event_type:   'submitted',
+    title:        'Checkout request submitted',
+    body:         'Your checkout request has been submitted for review. You will be notified once a decision has been made.',
+    is_read:      false,
+    email_status: 'skipped',
+  })
+  if (notifErr) console.error('[submitCheckoutRequest] notification failed:', notifErr.message)
 
   revalidatePath('/dashboard')
   revalidatePath('/admin')
@@ -143,57 +161,6 @@ export async function submitCheckoutRequest(
     bookingReference: result.booking_reference,
     scheduledStart:   result.scheduled_start,
     scheduledEnd:     result.scheduled_end,
-  }
-}
-
-// ─── Create provisional first solo booking ────────────────────────────────────
-// The customer may reserve one provisional first solo booking after submitting
-// their checkout request. It will only be confirmed after checkout clearance.
-//
-// Enforced by create_provisional_solo_booking RPC:
-//   • pilot_clearance_status must be in (checkout_requested, checkout_confirmed,
-//     checkout_completed_under_review)
-//   • Only one pending_checkout_clearance booking per user
-//   • Must be >= 24h after the checkout flight end time
-
-export async function createProvisionalSoloBooking(
-  input: CreateProvisionalSoloInput,
-): Promise<{ bookingId: string; bookingReference: string }> {
-  const { supabase } = await requireCustomer()
-
-  const start = new Date(input.scheduled_start)
-  const end   = new Date(input.scheduled_end)
-
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-    throw new Error('VALIDATION: Invalid start or end time.')
-  }
-  if (end <= start) {
-    throw new Error('VALIDATION: End time must be after start time.')
-  }
-  if (start <= new Date()) {
-    throw new Error('VALIDATION: Flight time must be in the future.')
-  }
-
-  const { data, error } = await supabase.rpc('create_provisional_solo_booking', {
-    p_aircraft_id:     input.aircraft_id,
-    p_scheduled_start: input.scheduled_start,
-    p_scheduled_end:   input.scheduled_end,
-    p_customer_notes:  input.customer_notes ?? null,
-  })
-
-  if (error) {
-    console.error('[createProvisionalSoloBooking] RPC failed:', error)
-    throw new Error(error.message)
-  }
-
-  const result = data as { booking_id: string; booking_reference: string }
-
-  revalidatePath('/dashboard')
-  revalidatePath('/admin')
-
-  return {
-    bookingId:        result.booking_id,
-    bookingReference: result.booking_reference,
   }
 }
 
@@ -216,19 +183,3 @@ export async function getMyCheckoutBooking() {
   return data ?? null
 }
 
-// ─── Get provisional solo booking for current user ────────────────────────────
-
-export async function getMyProvisionalSoloBooking() {
-  const { supabase, userId } = await requireCustomer()
-
-  const { data } = await supabase
-    .from('bookings')
-    .select('id, booking_reference, scheduled_start, scheduled_end, status, booking_type, created_at')
-    .eq('booking_owner_user_id', userId)
-    .eq('status', 'pending_checkout_clearance')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
-
-  return data ?? null
-}

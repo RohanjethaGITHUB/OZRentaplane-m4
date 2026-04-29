@@ -68,6 +68,7 @@ export default async function CheckoutPage() {
         aircraftStatus={aircraft.status}
         documents={(documents ?? []) as UserDocument[]}
         pilotClearanceStatus={clearanceStatus}
+        initialLastFlightDate={typedProfile?.last_flight_date ?? ''}
       />
     </CustomerBookingShell>
   )

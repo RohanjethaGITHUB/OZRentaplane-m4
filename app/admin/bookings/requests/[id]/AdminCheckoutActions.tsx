@@ -24,7 +24,7 @@ const OUTCOMES: { key: OutcomeKey; label: string; body: string; color: string; b
   {
     key:       'cleared_for_solo_hire',
     label:     'Cleared for Solo Hire',
-    body:      'Pilot is cleared. First solo reservation (if any) will be auto-confirmed.',
+    body:      'Pilot is cleared for standard aircraft bookings.',
     color:     'bg-emerald-600 hover:bg-emerald-500',
     border:    'border-emerald-500/30',
     textColor: 'text-emerald-400',
@@ -33,7 +33,7 @@ const OUTCOMES: { key: OutcomeKey; label: string; body: string; color: string; b
   {
     key:       'additional_supervised_time_required',
     label:     'Additional Supervised Time Required',
-    body:      'Pilot requires more supervised sessions. First solo reservation will be released.',
+    body:      'Pilot requires more supervised sessions.',
     color:     'bg-amber-600 hover:bg-amber-500',
     border:    'border-amber-500/30',
     textColor: 'text-amber-400',
@@ -42,7 +42,7 @@ const OUTCOMES: { key: OutcomeKey; label: string; body: string; color: string; b
   {
     key:       'reschedule_required',
     label:     'Reschedule Required',
-    body:      'Checkout needs to be rescheduled. First solo reservation will be released.',
+    body:      'Checkout needs to be rescheduled.',
     color:     'bg-orange-600 hover:bg-orange-500',
     border:    'border-orange-500/30',
     textColor: 'text-orange-400',
@@ -51,7 +51,7 @@ const OUTCOMES: { key: OutcomeKey; label: string; body: string; color: string; b
   {
     key:       'not_currently_eligible',
     label:     'Not Currently Eligible',
-    body:      'Pilot is not eligible for solo hire. First solo reservation will be released.',
+    body:      'Pilot is not eligible for solo hire.',
     color:     'bg-rose-700 hover:bg-rose-600',
     border:    'border-rose-500/30',
     textColor: 'text-rose-400',

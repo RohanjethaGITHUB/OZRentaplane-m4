@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import PortalPageHero from '@/components/PortalPageHero'
+import BookingsViewedTracker from './BookingsViewedTracker'
 import type { Profile, PilotClearanceStatus } from '@/lib/supabase/types'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import { formatSydTime } from '@/lib/utils/sydney-time'
@@ -33,12 +34,10 @@ const STATUS_CFG: Record<string, {
   cancelled:                  { label: 'Cancelled',               sublabel: 'Will not proceed',          color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'cancel'             },
   no_show:                    { label: 'No Show',                 sublabel: 'Marked absent',             color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'person_off'         },
   // Checkout booking statuses
-  checkout_requested:         { label: 'Checkout Under Review',   sublabel: 'Awaiting instructor confirmation', color: 'text-blue-400',  bg: 'bg-blue-500/10',   border: 'border-blue-500/20',   icon: 'pending_actions'    },
+  checkout_requested:         { label: 'Awaiting Review',         sublabel: 'Awaiting instructor confirmation', color: 'text-blue-400',  bg: 'bg-blue-500/10',   border: 'border-blue-500/20',   icon: 'pending_actions'    },
   checkout_confirmed:         { label: 'Checkout Confirmed',      sublabel: 'Instructor confirmed',      color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20',  icon: 'event_available'    },
-  checkout_completed_under_review: { label: 'Outcome Under Review', sublabel: 'Checkout complete',       color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  icon: 'rate_review'        },
-  // First solo reservation
-  pending_checkout_clearance: { label: 'Pending Checkout Clearance', sublabel: 'Awaiting checkout outcome', color: 'text-blue-400',  bg: 'bg-blue-500/10',  border: 'border-blue-400/20',  icon: 'bookmark'           },
-  released_due_to_checkout:   { label: 'Released',                sublabel: 'Checkout outcome changed',  color: 'text-slate-400',  bg: 'bg-white/5',       border: 'border-white/10',      icon: 'bookmark_remove'    },
+  checkout_completed_under_review: { label: 'Checkout Completed - Under Review', sublabel: 'Checkout complete',       color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  icon: 'rate_review'        },
+  checkout_payment_required:       { label: 'Payment Required',                sublabel: 'Pay to unlock bookings',  color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', icon: 'payments'           },
 }
 
 const ACTIVE_STATUSES = [
@@ -47,9 +46,7 @@ const ACTIVE_STATUSES = [
   'dispatched', 'awaiting_flight_record', 'flight_record_overdue',
   'pending_post_flight_review', 'needs_clarification', 'post_flight_approved',
   // Checkout
-  'checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review',
-  // First solo reservation
-  'pending_checkout_clearance',
+  'checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required',
 ]
 
 function StatusBadge({ status, bookingType }: { status: string; bookingType?: string }) {
@@ -131,7 +128,7 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking }: GateBannerPro
           <div>
             <h2 className="text-lg font-serif text-white mb-2">Checkout Request Under Review</h2>
             <p className="text-slate-500 text-sm leading-relaxed">
-              Your checkout flight request has been submitted and is awaiting confirmation from an admin or approved instructor. Solo flight bookings will unlock once your checkout is completed and you are cleared for solo hire.
+              Your checkout flight request has been submitted and is awaiting review by the admin team or an approved instructor. Aircraft bookings will become available after your checkout flight is completed, approved, and the checkout invoice is paid.
             </p>
             {checkoutBooking && (
               <div className="mt-4 bg-white/[0.03] border border-white/[0.06] rounded-lg px-4 py-3 inline-flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
@@ -168,6 +165,33 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking }: GateBannerPro
                 <span className="tabular-nums">{formatSydTime(checkoutBooking.scheduled_start)} – {formatSydTime(checkoutBooking.scheduled_end)}</span>
               </div>
             )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (checkoutBooking?.status === 'checkout_payment_required') {
+    return (
+      <div className={`border rounded-xl p-8 bg-orange-500/[0.05] border-orange-500/20 mb-8`}>
+        <div className="flex items-start gap-4">
+          <span
+            className="material-symbols-outlined text-2xl text-orange-400 flex-shrink-0 mt-0.5"
+            style={{ fontVariationSettings: "'wght' 200" }}
+          >
+            payments
+          </span>
+          <div>
+            <h2 className="text-lg font-serif text-white mb-2">Checkout Payment Required</h2>
+            <p className="text-slate-500 text-sm leading-relaxed mb-4">
+              Your checkout flight has been approved. Please pay your checkout invoice before aircraft bookings become available.
+            </p>
+            <Link
+              href={`/dashboard/bookings/${checkoutBooking.id}`}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-500/15 border border-orange-400/30 text-orange-300 hover:bg-orange-500/25 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
+            >
+              Pay Checkout Invoice
+            </Link>
           </div>
         </div>
       </div>
@@ -281,6 +305,10 @@ export default async function CustomerBookingsPage() {
 
   // pilot_clearance_status drives the entire bookings page — not verification_status
   const clearanceStatus = ((profile as Profile | null)?.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
+  
+  // TODO: Future invoice-paid eligibility
+  // Once payment fields exist, this stage switch should require both checkout clearance
+  // and the checkout invoice to be paid before allowing full standard booking access.
   const isCleared = clearanceStatus === 'cleared_for_solo_hire'
 
   // Fetch all bookings regardless of clearance — checkout bookings must always be visible
@@ -295,22 +323,25 @@ export default async function CustomerBookingsPage() {
     .eq('booking_owner_user_id', user.id)
     .order('scheduled_start', { ascending: false })
 
-  const rows     = (bookings ?? []) as unknown as BookingRow[]
-  const active   = rows.filter(b => ACTIVE_STATUSES.includes(b.status))
-  const archived = rows.filter(b => !ACTIVE_STATUSES.includes(b.status))
+  const rows             = (bookings ?? []) as unknown as BookingRow[]
+  const checkoutRequests = rows.filter(b => b.booking_type === 'checkout')
+  const upcomingAircraft = rows.filter(b => b.booking_type !== 'checkout' && ACTIVE_STATUSES.includes(b.status))
+  const completedFlights = rows.filter(b => b.booking_type !== 'checkout' && !ACTIVE_STATUSES.includes(b.status))
 
   // For the gate banner detail block — most recent active checkout booking
   const checkoutBooking = rows.find(b =>
     b.booking_type === 'checkout' &&
-    ['checkout_requested', 'checkout_confirmed'].includes(b.status)
+    ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required'].includes(b.status)
   ) ?? null
 
   return (
     <>
+      {/* Advances last_bookings_viewed_at so the nav badge clears */}
+      <BookingsViewedTracker />
       <PortalPageHero
         eyebrow="Flight Records"
         title="My Bookings"
-        subtitle="Review your checkout flight, upcoming solo bookings, and flight history."
+        subtitle="Review your checkout requests, aircraft bookings, and flight history."
       />
 
       <div className="max-w-[1280px] mx-auto px-6 md:px-10 xl:px-12 py-10">
@@ -323,14 +354,19 @@ export default async function CustomerBookingsPage() {
           />
         )}
 
-        {/* Summary stats — always shown */}
+        {/* Summary stats — dynamic based on clearance stage */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
-          {[
-            { label: 'Total Flights',    value: rows.length },
-            { label: 'Active',           value: active.length },
-            { label: 'Requests Pending', value: rows.filter(b => ['pending_confirmation', 'checkout_requested'].includes(b.status)).length },
-            { label: 'Completed',        value: rows.filter(b => b.status === 'completed').length },
-          ].map(s => (
+          {(!isCleared ? [
+            { label: 'Checkout Request',           value: checkoutRequests.length },
+            { label: 'Awaiting Review',            value: rows.filter(b => ['checkout_requested', 'pending_confirmation', 'checkout_completed_under_review'].includes(b.status)).length },
+            { label: 'Upcoming Aircraft Bookings', value: upcomingAircraft.length },
+            { label: 'Completed Flights',          value: rows.filter(b => b.booking_type !== 'checkout' && b.status === 'completed').length },
+          ] : [
+            { label: 'Upcoming Bookings',          value: upcomingAircraft.length },
+            { label: 'Awaiting Confirmation',      value: rows.filter(b => b.booking_type !== 'checkout' && ['pending_confirmation', 'needs_clarification'].includes(b.status)).length },
+            { label: 'Completed Flights',          value: rows.filter(b => b.booking_type !== 'checkout' && b.status === 'completed').length },
+            { label: 'Total Flight Hours',         value: rows.filter(b => b.booking_type !== 'checkout' && b.status === 'completed').reduce((sum, b) => sum + (b.estimated_hours ?? 0), 0).toFixed(1) },
+          ]).map(s => (
             <div key={s.label} className={`${CARD} p-5 text-center`}>
               <div className="text-2xl font-serif font-light text-white mb-1">{s.value}</div>
               <div className="text-[10px] font-bold uppercase tracking-widest text-slate-600">{s.label}</div>
@@ -338,12 +374,94 @@ export default async function CustomerBookingsPage() {
           ))}
         </div>
 
-        {/* Active / Upcoming ─────────────────────────────────────────────── */}
+        {/* Checkout Requests ─────────────────────────────────────────────── */}
+        {!isCleared && checkoutRequests.length > 0 && (
+          <section className="mb-10">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                Checkout Requests
+              </h3>
+            </div>
+            <div className="space-y-3">
+              {checkoutRequests.map(b => {
+                const aircraft = Array.isArray(b.aircraft) ? b.aircraft[0] : b.aircraft
+                const cfg      = STATUS_CFG[b.status]
+                return (
+                  <Link
+                    key={b.id}
+                    href={`/dashboard/bookings/${b.id}`}
+                    className={`block ${CARD} p-5 hover:border-blue-500/30 transition-all group`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+
+                      {/* Left: icon + aircraft + reference + date/time */}
+                      <div className="flex items-start gap-4 min-w-0">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${cfg?.bg ?? 'bg-blue-500/10'} border ${cfg?.border ?? 'border-blue-500/20'}`}>
+                          <span
+                            className={`material-symbols-outlined text-[18px] ${cfg?.color ?? 'text-blue-400'}`}
+                            style={{ fontVariationSettings: "'wght' 300" }}
+                          >
+                            {cfg?.icon ?? 'how_to_reg'}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-semibold text-white group-hover:text-blue-400 transition-colors">
+                              Checkout Flight
+                            </p>
+                            {b.booking_reference && (
+                              <span className="text-[10px] font-mono text-slate-600 bg-white/[0.04] px-1.5 py-0.5 rounded">
+                                {b.booking_reference}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[12px] font-medium text-slate-300 mt-1.5">
+                            Cessna 172N · Registration {aircraft?.registration ?? 'VH-KZG'}
+                          </p>
+                          <p className="text-[12px] font-medium text-slate-300 mt-1">
+                            {formatDateFromISO(b.scheduled_start)}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
+                            {formatSydTime(b.scheduled_start)} – {formatSydTime(b.scheduled_end)} Sydney time (AEST)
+                          </p>
+                          <p className="text-[10px] text-slate-700 mt-2">
+                            Submitted {formatDateFromISO(b.created_at)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Right: amount + hours + badge + arrow */}
+                      <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                        <StatusBadge status={b.status} bookingType={b.booking_type} />
+                        {b.estimated_amount != null && (
+                          <div className="flex flex-col items-end gap-1 mt-1">
+                            <span className="text-sm font-semibold text-white/80 tabular-nums">
+                              Checkout fee: ${b.estimated_amount.toFixed(0)}
+                            </span>
+                            <span className="text-[10px] text-slate-500 max-w-[150px] text-right leading-tight">
+                              Invoiced after checkout completion and approval
+                            </span>
+                          </div>
+                        )}
+                        <span className="material-symbols-outlined text-slate-600 group-hover:text-blue-400 text-base transition-colors mt-1">
+                          arrow_forward
+                        </span>
+                      </div>
+
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Upcoming Aircraft Bookings ────────────────────────────────────── */}
         <section className="mb-10">
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-              Active &amp; Upcoming
+              {isCleared ? 'Upcoming Bookings' : 'Upcoming Aircraft Bookings'}
             </h3>
             {/* Only show New Booking CTA when cleared for solo hire */}
             {isCleared && (
@@ -357,18 +475,18 @@ export default async function CustomerBookingsPage() {
             )}
           </div>
 
-          {active.length === 0 ? (
+          {upcomingAircraft.length === 0 ? (
             <div className={`${CARD} p-12 text-center`}>
               <span className="material-symbols-outlined text-3xl text-slate-700 mb-3 block" style={{ fontVariationSettings: "'wght' 200" }}>
                 flight_land
               </span>
               <h3 className="text-lg font-serif text-white/60 mb-2">
-                {isCleared ? 'No active bookings' : 'No active bookings yet'}
+                {isCleared ? 'No upcoming aircraft bookings' : 'No upcoming bookings yet'}
               </h3>
               <p className="text-slate-600 text-sm mb-6 max-w-sm mx-auto leading-relaxed">
                 {isCleared
                   ? 'Request your first aircraft booking and the operations team will confirm it.'
-                  : 'Your checkout booking and first solo reservation will appear here once submitted.'}
+                  : 'Your bookings will appear here once you have been cleared for aircraft booking.'}
               </p>
               {isCleared && (
                 <Link
@@ -382,10 +500,9 @@ export default async function CustomerBookingsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {active.map(b => {
+              {upcomingAircraft.map(b => {
                 const aircraft = Array.isArray(b.aircraft) ? b.aircraft[0] : b.aircraft
                 const cfg      = STATUS_CFG[b.status]
-                const isCheckout = b.booking_type === 'checkout'
                 return (
                   <Link
                     key={b.id}
@@ -407,13 +524,8 @@ export default async function CustomerBookingsPage() {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-sm font-semibold text-white group-hover:text-blue-400 transition-colors">
-                              {aircraft?.registration ?? 'VH-KZG'}
+                              Cessna 172N
                             </p>
-                            {isCheckout && (
-                              <span className="text-[9px] font-bold uppercase tracking-widest text-blue-400/80 border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 rounded">
-                                Checkout Flight
-                              </span>
-                            )}
                             {b.booking_reference && (
                               <span className="text-[10px] font-mono text-slate-600 bg-white/[0.04] px-1.5 py-0.5 rounded">
                                 {b.booking_reference}
@@ -421,10 +533,13 @@ export default async function CustomerBookingsPage() {
                             )}
                           </div>
                           <p className="text-[12px] font-medium text-slate-300 mt-1.5">
+                            Registration {aircraft?.registration ?? 'VH-KZG'}
+                          </p>
+                          <p className="text-[12px] font-medium text-slate-300 mt-1">
                             {formatDateFromISO(b.scheduled_start)}
                           </p>
                           <p className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
-                            {formatSydTime(b.scheduled_start)} – {formatSydTime(b.scheduled_end)}
+                            {formatSydTime(b.scheduled_start)} – {formatSydTime(b.scheduled_end)} Sydney time (AEST)
                           </p>
                           <p className="text-[10px] text-slate-700 mt-2">
                             Submitted {formatDateFromISO(b.created_at)}
@@ -436,7 +551,7 @@ export default async function CustomerBookingsPage() {
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
                         <StatusBadge status={b.status} bookingType={b.booking_type} />
                         {b.estimated_amount != null && (
-                          <span className="text-sm font-semibold text-white/80 tabular-nums font-mono">
+                          <span className="text-sm font-semibold text-white/80 tabular-nums font-mono mt-1">
                             ${b.estimated_amount.toFixed(0)}
                           </span>
                         )}
@@ -458,16 +573,15 @@ export default async function CustomerBookingsPage() {
           )}
         </section>
 
-        {/* History ─────────────────────────────────────────────────────────── */}
-        {archived.length > 0 && (
+        {/* Completed Flights ─────────────────────────────────────────────────────────── */}
+        {completedFlights.length > 0 && (
           <section>
             <h3 className="text-xs font-bold uppercase tracking-widest text-slate-600 mb-4">
-              Past &amp; Cancelled
+              Completed Flights
             </h3>
             <div className={`${CARD} overflow-hidden divide-y divide-white/[0.05]`}>
-              {archived.map(b => {
+              {completedFlights.map(b => {
                 const aircraft    = Array.isArray(b.aircraft) ? b.aircraft[0] : b.aircraft
-                const isCheckout  = b.booking_type === 'checkout'
                 return (
                   <Link
                     key={b.id}
@@ -477,13 +591,11 @@ export default async function CustomerBookingsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium text-white/60 group-hover:text-white/80 transition-colors">
-                          {aircraft?.registration ?? 'VH-KZG'}
+                          Cessna 172N
                         </p>
-                        {isCheckout && (
-                          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600 border border-white/10 px-1.5 py-0.5 rounded">
-                            Checkout
-                          </span>
-                        )}
+                        <span className="text-[10px] font-mono text-slate-600 bg-white/[0.04] px-1.5 py-0.5 rounded">
+                          {aircraft?.registration ?? 'VH-KZG'}
+                        </span>
                         {b.booking_reference && (
                           <span className="text-[10px] font-mono text-slate-700">
                             {b.booking_reference}
@@ -492,13 +604,58 @@ export default async function CustomerBookingsPage() {
                       </div>
                       <p className="text-[11px] text-slate-600 mt-0.5 tabular-nums">
                         {formatDateFromISO(b.scheduled_start)}{' · '}
-                        {formatSydTime(b.scheduled_start)} – {formatSydTime(b.scheduled_end)}
+                        {formatSydTime(b.scheduled_start)} – {formatSydTime(b.scheduled_end)} Sydney time (AEST)
                       </p>
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <StatusBadge status={b.status} bookingType={b.booking_type} />
                       <span className="material-symbols-outlined text-slate-600 group-hover:text-slate-400 text-sm transition-colors">
                         arrow_forward
+                      </span>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Checkout History ──────────────────────────────────────────────────────────── */}
+        {isCleared && checkoutRequests.length > 0 && (
+          <section className="mt-10">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-600 mb-4">
+              Checkout History
+            </h3>
+            <div className={`${CARD} overflow-hidden divide-y divide-white/[0.05]`}>
+              {checkoutRequests.map(b => {
+                const aircraft = Array.isArray(b.aircraft) ? b.aircraft[0] : b.aircraft
+                return (
+                  <Link
+                    key={b.id}
+                    href={`/dashboard/bookings/${b.id}`}
+                    className="flex items-center gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors group"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-white/60 group-hover:text-white/80 transition-colors">
+                          Checkout Flight
+                        </p>
+                        {b.booking_reference && (
+                          <span className="text-[10px] font-mono text-slate-700">
+                            {b.booking_reference}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-0.5">
+                        Cessna 172N · Registration {aircraft?.registration ?? 'VH-KZG'}
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Status: Completed and Approved
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className="material-symbols-outlined text-[18px] text-slate-600" style={{ fontVariationSettings: "'wght' 300" }}>
+                        history
                       </span>
                     </div>
                   </Link>

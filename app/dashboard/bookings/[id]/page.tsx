@@ -11,6 +11,7 @@ import type { Profile } from '@/lib/supabase/types'
 import type { BookingStatus, FlightRecord, FlightRecordAttachment, FlightRecordClarification } from '@/lib/supabase/booking-types'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import { formatSydTime } from '@/lib/utils/sydney-time'
+import { createCheckoutPaymentSession } from '@/app/actions/payment'
 
 export const metadata = { title: 'Booking Details | Pilot Dashboard' }
 
@@ -25,18 +26,24 @@ const STATUS_CFG: Record<string, {
   border:    string
   icon:      string
 }> = {
-  pending_confirmation:       { label: 'Under Review',          sublabel: 'Slot held',                color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  icon: 'pending'         },
-  confirmed:                  { label: 'Confirmed',             sublabel: 'Approved — ready to fly',  color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20',   icon: 'check_circle'    },
-  ready_for_dispatch:         { label: 'Ready to Fly',          sublabel: 'Pre-flight checks done',   color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20',  icon: 'flight_takeoff'  },
-  dispatched:                 { label: 'Airborne',              sublabel: 'Flight in progress',       color: 'text-green-300',  bg: 'bg-green-500/10',  border: 'border-green-400/20',  icon: 'flight'          },
-  awaiting_flight_record:     { label: 'Awaiting Record',       sublabel: 'Submit your flight log',   color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  icon: 'assignment'      },
-  flight_record_overdue:      { label: 'Record Overdue',        sublabel: 'Flight log required now',  color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'assignment_late' },
-  pending_post_flight_review: { label: 'Under Review',          sublabel: 'Post-flight review',       color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: 'rate_review'     },
-  needs_clarification:        { label: 'Clarification Needed',  sublabel: 'Please respond to query',  color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', icon: 'help'            },
-  post_flight_approved:       { label: 'Flight Approved',       sublabel: 'Records accepted',         color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20',  icon: 'verified'        },
-  completed:                  { label: 'Completed',             sublabel: 'Booking closed',           color: 'text-slate-400',  bg: 'bg-white/5',       border: 'border-white/10',      icon: 'done_all'        },
-  cancelled:                  { label: 'Cancelled',             sublabel: 'Will not proceed',         color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'cancel'          },
-  no_show:                    { label: 'No Show',               sublabel: 'Marked absent',            color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'person_off'      },
+  // Standard booking statuses
+  pending_confirmation:            { label: 'Under Review',           sublabel: 'Slot held',                   color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  icon: 'pending'         },
+  confirmed:                       { label: 'Confirmed',              sublabel: 'Approved — ready to fly',     color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20',   icon: 'check_circle'    },
+  ready_for_dispatch:              { label: 'Ready to Fly',           sublabel: 'Pre-flight checks done',      color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20',  icon: 'flight_takeoff'  },
+  dispatched:                      { label: 'Airborne',               sublabel: 'Flight in progress',          color: 'text-green-300',  bg: 'bg-green-500/10',  border: 'border-green-400/20',  icon: 'flight'          },
+  awaiting_flight_record:          { label: 'Awaiting Record',        sublabel: 'Submit your flight log',      color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  icon: 'assignment'      },
+  flight_record_overdue:           { label: 'Record Overdue',         sublabel: 'Flight log required now',     color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'assignment_late' },
+  pending_post_flight_review:      { label: 'Under Review',           sublabel: 'Post-flight review',          color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: 'rate_review'     },
+  needs_clarification:             { label: 'Clarification Needed',   sublabel: 'Please respond to query',     color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', icon: 'help'            },
+  post_flight_approved:            { label: 'Flight Approved',        sublabel: 'Records accepted',            color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20',  icon: 'verified'        },
+  completed:                       { label: 'Completed',              sublabel: 'Booking closed',              color: 'text-slate-400',  bg: 'bg-white/5',       border: 'border-white/10',      icon: 'done_all'        },
+  cancelled:                       { label: 'Cancelled',              sublabel: 'Will not proceed',            color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'cancel'          },
+  no_show:                         { label: 'No Show',                sublabel: 'Marked absent',               color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'person_off'      },
+  // Checkout booking statuses
+  checkout_requested:              { label: 'Under Review',           sublabel: 'Awaiting confirmation',       color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  icon: 'pending'         },
+  checkout_confirmed:              { label: 'Confirmed',              sublabel: 'Checkout flight confirmed',   color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20',   icon: 'event_available' },
+  checkout_completed_under_review: { label: 'Awaiting Outcome',       sublabel: 'Checkout under review',       color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: 'rate_review'     },
+  checkout_payment_required:       { label: 'Payment Required',       sublabel: 'Pay to unlock bookings',      color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', icon: 'payments'      },
 }
 
 // Forward-looking pipeline — the journey from request to completion.
@@ -51,7 +58,16 @@ const PIPELINE: { key: BookingStatus; label: string }[] = [
   { key: 'completed',                  label: 'Completed'            },
 ]
 
+const CHECKOUT_PIPELINE: { key: BookingStatus; label: string }[] = [
+  { key: 'checkout_requested',              label: 'Request Submitted' },
+  { key: 'checkout_confirmed',              label: 'Checkout Confirmed' },
+  { key: 'checkout_completed_under_review', label: 'Checkout Completed' },
+  { key: 'checkout_payment_required',       label: 'Payment Required' },
+  { key: 'completed',                       label: 'Completed' },
+]
+
 const PIPELINE_ORDER = PIPELINE.map(p => p.key)
+const CHECKOUT_PIPELINE_ORDER = CHECKOUT_PIPELINE.map(p => p.key)
 
 type StatusHistoryRow = {
   new_status: string
@@ -64,6 +80,7 @@ type StatusHistoryRow = {
 
 function NextActionCard({
   status,
+  bookingType,
   adminNotes,
   clarificationQuestion,
   bookingId,
@@ -73,8 +90,10 @@ function NextActionCard({
   postFlightClarification,
   flightRecord,
   postFlightAttachments,
+  checkoutInvoice,
 }: {
   status:                   string
+  bookingType:              string
   adminNotes?:              string | null
   clarificationQuestion?:   string | null
   bookingId:                string
@@ -84,8 +103,92 @@ function NextActionCard({
   postFlightClarification?: FlightRecordClarification | null
   flightRecord?:            FlightRecord | null
   postFlightAttachments?:   (FlightRecordAttachment & { signedUrl: string | null })[]
+  checkoutInvoice?:         { subtotal_cents: number; advance_applied_cents: number; stripe_amount_due_cents: number } | null
 }) {
   const isCancelled = status === 'cancelled' || status === 'no_show'
+
+  // ── Checkout booking statuses ─────────────────────────────────────────────
+  const CHECKOUT_STATUSES = [
+    'checkout_requested',
+    'checkout_confirmed',
+    'checkout_completed_under_review',
+  ]
+
+  if (CHECKOUT_STATUSES.includes(status)) {
+    const isConfirmed = status === 'checkout_confirmed'
+    const isUnderReview = status === 'checkout_completed_under_review'
+    return (
+      <div className={`rounded-[1.25rem] p-6 ${
+        isConfirmed  ? 'bg-blue-500/10 border border-blue-500/20' :
+        isUnderReview ? 'bg-purple-500/10 border border-purple-500/20' :
+                        'bg-amber-500/10 border border-amber-500/20'
+      }`}>
+        <div className="flex items-center gap-3 mb-3">
+          <span className={`material-symbols-outlined text-lg ${
+            isConfirmed  ? 'text-blue-400' :
+            isUnderReview ? 'text-purple-400' :
+                            'text-amber-400'
+          }`}>
+            {isConfirmed ? 'event_available' : isUnderReview ? 'rate_review' : 'pending_actions'}
+          </span>
+          <h3 className={`text-xs font-bold uppercase tracking-widest ${
+            isConfirmed  ? 'text-blue-400' :
+            isUnderReview ? 'text-purple-400' :
+                            'text-amber-400'
+          }`}>
+            {isConfirmed ? 'Checkout Confirmed' : isUnderReview ? 'Awaiting Outcome' : 'Under Review'}
+          </h3>
+        </div>
+        <p className="text-sm text-oz-muted leading-relaxed">
+          Your checkout booking is currently in progress. Aircraft bookings will become available after your checkout is completed, approved, and paid.
+        </p>
+      </div>
+    )
+  }
+
+  if (status === 'checkout_payment_required') {
+    const amountDue = checkoutInvoice ? (checkoutInvoice.stripe_amount_due_cents / 100).toFixed(2) : '290.00'
+    const advanceApplied = checkoutInvoice ? (checkoutInvoice.advance_applied_cents / 100).toFixed(2) : '0.00'
+    const subtotal = checkoutInvoice ? (checkoutInvoice.subtotal_cents / 100).toFixed(2) : '290.00'
+
+    return (
+      <div className="bg-orange-500/10 border border-orange-500/20 rounded-[1.25rem] p-6">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="material-symbols-outlined text-orange-400 text-lg">payments</span>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-orange-400">Payment Required</h3>
+        </div>
+        <p className="text-sm text-oz-muted leading-relaxed mb-6">
+          Your checkout flight has been approved! To finalize your clearance and unlock aircraft bookings, please pay the checkout fee.
+        </p>
+
+        {checkoutInvoice && (
+          <div className="mb-6 space-y-2 p-4 rounded-xl bg-orange-500/[0.05] border border-orange-500/15 text-sm">
+            <div className="flex justify-between text-slate-300">
+              <span>Checkout Fee</span>
+              <span>${subtotal}</span>
+            </div>
+            {checkoutInvoice.advance_applied_cents > 0 && (
+              <div className="flex justify-between text-green-400">
+                <span>Advance Credit Applied</span>
+                <span>-${advanceApplied}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-orange-400 pt-2 border-t border-orange-500/20">
+              <span>Total Due</span>
+              <span>${amountDue}</span>
+            </div>
+          </div>
+        )}
+
+        <form action={createCheckoutPaymentSession.bind(null, bookingId)}>
+          <button type="submit" className="w-full bg-orange-500 hover:bg-orange-400 text-white rounded-lg px-4 py-2.5 text-sm font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2">
+            <span className="material-symbols-outlined text-[18px]">credit_card</span>
+            Pay ${amountDue}
+          </button>
+        </form>
+      </div>
+    )
+  }
 
   if (isCancelled) {
     return (
@@ -107,13 +210,6 @@ function NextActionCard({
             <p className="text-xs text-red-300/80 leading-relaxed">{adminNotes}</p>
           </div>
         )}
-        <Link
-          href="/dashboard/bookings/new"
-          className="inline-flex items-center gap-2 mt-4 text-oz-blue hover:text-blue-300 text-sm font-medium transition-colors"
-        >
-          Request a new booking
-          <span className="material-symbols-outlined text-sm">arrow_forward</span>
-        </Link>
       </div>
     )
   }
@@ -275,6 +371,22 @@ function NextActionCard({
   }
 
   if (status === 'post_flight_approved' || status === 'completed') {
+    if (bookingType === 'checkout') {
+      return (
+        <div className="bg-green-500/10 border border-green-500/20 rounded-[1.25rem] p-6">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="material-symbols-outlined text-green-400 text-lg">verified</span>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-green-400">
+              Checkout Complete
+            </h3>
+          </div>
+          <p className="text-sm text-oz-muted">
+            Your checkout flight has been completed and you have been cleared for aircraft booking.
+          </p>
+        </div>
+      )
+    }
+
     return (
       <div className="bg-green-500/10 border border-green-500/20 rounded-[1.25rem] p-6">
         <div className="flex items-center gap-3 mb-3">
@@ -308,17 +420,42 @@ function HistoryEvent({
   row,
   isFirst,
   isLast,
+  bookingType,
 }: {
   row:     StatusHistoryRow
   isFirst: boolean
   isLast:  boolean
+  bookingType: string
 }) {
-  const cfg = STATUS_CFG[row.new_status] ?? {
+  const cfg = { ... (STATUS_CFG[row.new_status] ?? {
     label:  row.new_status.replace(/_/g, ' '),
     color:  'text-slate-400',
     bg:     'bg-white/5',
     border: 'border-white/10',
     icon:   'info',
+  }) }
+
+  if (bookingType === 'checkout') {
+    if (row.new_status === 'checkout_requested') cfg.label = 'Request Submitted'
+    if (row.new_status === 'checkout_confirmed') cfg.label = 'Checkout Confirmed'
+    if (row.new_status === 'checkout_completed_under_review') cfg.label = 'Awaiting Outcome'
+    if (row.new_status === 'checkout_payment_required') cfg.label = 'Payment Required'
+    
+    if (row.new_status === 'completed' || row.new_status === 'cleared_for_solo_hire') {
+      cfg.label = 'Completed'
+      cfg.color = 'text-green-400'
+      cfg.bg = 'bg-green-500/10'
+      cfg.border = 'border-green-500/20'
+      cfg.icon = 'check_circle'
+    }
+  }
+
+  let noteText = row.note
+  if (noteText) {
+    if (noteText.startsWith('Admin ')) noteText = noteText.slice(6)
+    if (bookingType === 'checkout') {
+      noteText = noteText.replace(/cleared_for_solo_hire/g, 'Cleared for aircraft booking')
+    }
   }
 
   return (
@@ -351,10 +488,9 @@ function HistoryEvent({
             })}
           </p>
         </div>
-        {row.note && (
+        {noteText && (
           <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-            {/* Strip "Admin " prefix for customer readability */}
-            {row.note.startsWith('Admin ') ? row.note.slice(6) : row.note}
+            {noteText}
           </p>
         )}
       </div>
@@ -378,26 +514,6 @@ export default async function BookingDetailPage({ params }: PageProps) {
     .single()
   if (profile?.role === 'admin') redirect('/admin')
 
-  // ── Server-side verification gate ─────────────────────────────────────────
-  if (profile?.verification_status !== 'verified') {
-    return (
-      <CustomerBookingShell user={user as User} profile={profile as Profile | null}>
-        <div className="px-6 md:px-10 py-10 max-w-2xl mx-auto w-full">
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-[1.25rem] p-10 text-center">
-            <span className="material-symbols-outlined text-4xl text-amber-400 mb-4 block" style={{ fontVariationSettings: "'wght' 200" }}>lock</span>
-            <h2 className="text-xl font-serif text-white mb-3">Booking Access Unavailable</h2>
-            <p className="text-oz-muted text-sm leading-relaxed mb-6">
-              Your account must be verified to access booking details. Please contact the operations team if you believe this is an error.
-            </p>
-            <Link href="/dashboard" className="inline-flex items-center gap-2 px-5 py-2.5 bg-oz-blue hover:bg-blue-400 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors">
-              Return to Dashboard
-            </Link>
-          </div>
-        </div>
-      </CustomerBookingShell>
-    )
-  }
-
   // ── SECURITY: ownership filter ─────────────────────────────────────────────
   // .eq('booking_owner_user_id', user.id) ensures customers can only read
   // their own bookings. The query returns null for any other user's ID,
@@ -405,7 +521,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
   const { data: booking } = await supabase
     .from('bookings')
     .select(`
-      id, aircraft_id, status, scheduled_start, scheduled_end,
+      id, aircraft_id, status, booking_type, scheduled_start, scheduled_end,
       estimated_hours, estimated_amount,
       pic_name, pic_arn, customer_notes, admin_notes,
       booking_reference,
@@ -428,11 +544,26 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
   const statusHistory = (rawHistory ?? []) as StatusHistoryRow[]
 
-  const aircraft   = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
-  const status     = booking.status as string
-  const cfg        = STATUS_CFG[status] ?? { label: status.replace(/_/g, ' '), sublabel: '', color: 'text-slate-400', bg: 'bg-white/5', border: 'border-white/10', icon: 'info' }
+  const aircraft    = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
+  const status      = booking.status as string
+  const bookingType = (booking as { booking_type?: string }).booking_type ?? 'standard'
+  
+  const cfg = { ... (STATUS_CFG[status] ?? { label: status.replace(/_/g, ' '), sublabel: '', color: 'text-slate-400', bg: 'bg-white/5', border: 'border-white/10', icon: 'info' }) }
+  if (bookingType === 'checkout' && status === 'completed') {
+    cfg.label = 'Completed'
+    cfg.color = 'text-green-400'
+    cfg.bg = 'bg-green-500/10'
+    cfg.border = 'border-green-500/20'
+    cfg.sublabel = ''
+    cfg.icon = 'check_circle'
+  }
+
   const isCancelled = status === 'cancelled' || status === 'no_show'
-  const currentIdx  = PIPELINE_ORDER.indexOf(status as BookingStatus)
+  const isStandardPipeline = bookingType === 'standard'
+  const isCheckoutPipeline = bookingType === 'checkout'
+  const activePipeline = isStandardPipeline ? PIPELINE : CHECKOUT_PIPELINE
+  const activePipelineOrder = isStandardPipeline ? PIPELINE_ORDER : CHECKOUT_PIPELINE_ORDER
+  const currentIdx  = activePipelineOrder.indexOf(status as BookingStatus)
   const bookingRef  = (booking as { booking_reference?: string }).booking_reference
 
   // Surface admin_notes as the cancellation reason when booking is cancelled.
@@ -492,6 +623,16 @@ export default async function BookingDetailPage({ params }: PageProps) {
         postFlightClarification = (clarData ?? null) as FlightRecordClarification | null
       }
     }
+  }
+
+  let checkoutInvoice = null
+  if (status === 'checkout_payment_required') {
+    const { data: inv } = await supabase
+      .from('checkout_invoices')
+      .select('subtotal_cents, advance_applied_cents, stripe_amount_due_cents')
+      .eq('booking_id', booking.id)
+      .single()
+    checkoutInvoice = inv
   }
 
   // ── Awaiting flight record — dedicated full-width layout ─────────────────────
@@ -716,13 +857,30 @@ export default async function BookingDetailPage({ params }: PageProps) {
               </div>
             </div>
 
-            {/* Aircraft */}
-            <h2 className="text-3xl font-serif italic text-white mb-1">
-              {aircraft?.registration ?? 'VH-KZG'}
-            </h2>
-            <p className="text-oz-muted text-sm capitalize">
-              {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/_/g, ' ') ?? '—'}
-            </p>
+            {/* Aircraft or Checkout Title */}
+            {bookingType === 'checkout' ? (
+              <>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest bg-blue-500/15 border border-blue-500/25 text-blue-400 mb-3">
+                  <span className="material-symbols-outlined text-[11px]" style={{ fontVariationSettings: "'wght' 400" }}>school</span>
+                  Checkout Flight
+                </span>
+                <h2 className="text-3xl font-serif text-white mb-1">
+                  Checkout Flight
+                </h2>
+                <p className="text-oz-muted text-sm capitalize">
+                  {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/_/g, ' ') ?? 'Cessna 172N'} · Registration {aircraft?.registration ?? 'VH-KZG'}
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-3xl font-serif italic text-white mb-1">
+                  {aircraft?.registration ?? 'VH-KZG'}
+                </h2>
+                <p className="text-oz-muted text-sm capitalize">
+                  {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/_/g, ' ') ?? '—'}
+                </p>
+              </>
+            )}
           </div>
         </header>
 
@@ -743,13 +901,20 @@ export default async function BookingDetailPage({ params }: PageProps) {
                 <div>
                   <p className="text-[9px] uppercase tracking-widest text-slate-600 font-bold mb-1">Times (Sydney)</p>
                   <p className="text-sm text-white tabular-nums">
-                    {formatSydTime(booking.scheduled_start)} – {formatSydTime(booking.scheduled_end)}
+                    {new Date(booking.scheduled_start).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })} – {new Date(booking.scheduled_end).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })} Sydney time (AEST)
                   </p>
                 </div>
                 {booking.estimated_hours != null && (
                   <div>
                     <p className="text-[9px] uppercase tracking-widest text-slate-600 font-bold mb-1">Estimated Duration</p>
                     <p className="text-sm text-white">{booking.estimated_hours.toFixed(1)} h</p>
+                  </div>
+                )}
+                {bookingType === 'checkout' && booking.estimated_amount != null && (
+                  <div>
+                    <p className="text-[9px] uppercase tracking-widest text-slate-600 font-bold mb-1">Checkout Fee</p>
+                    <p className="text-sm text-white">${booking.estimated_amount.toFixed(0)}</p>
+                    <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Invoiced after checkout completion and approval</p>
                   </div>
                 )}
                 {booking.pic_name && (
@@ -774,12 +939,12 @@ export default async function BookingDetailPage({ params }: PageProps) {
               )}
             </div>
 
-            {/* Forward-looking pipeline — only show when booking is on the main track */}
-            {!isCancelled && (
+            {/* Forward-looking pipeline — show for standard bookings and checkout bookings */}
+            {!isCancelled && (isStandardPipeline || isCheckoutPipeline) && (
               <div className="bg-[#0c121e]/60 border border-white/5 rounded-[1.25rem] p-6">
                 <h3 className="text-[10px] uppercase tracking-widest font-bold text-oz-muted mb-6">Booking Journey</h3>
                 <ol className="relative space-y-0">
-                  {PIPELINE.map((step, idx) => {
+                  {activePipeline.map((step, idx) => {
                     let stepState: 'done' | 'active' | 'pending'
                     if (currentIdx === -1) {
                       stepState = 'pending'
@@ -793,7 +958,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
                     return (
                       <li key={step.key} className="flex gap-4 pb-6 last:pb-0 relative">
-                        {idx < PIPELINE.length - 1 && (
+                        {idx < activePipeline.length - 1 && (
                           <div className={`absolute left-[11px] top-6 bottom-0 w-[2px] ${stepState === 'done' ? 'bg-oz-blue/60' : 'bg-white/10'}`} />
                         )}
                         <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center border-2 mt-0.5 z-10 ${
@@ -816,6 +981,11 @@ export default async function BookingDetailPage({ params }: PageProps) {
                           }`}>
                             {step.label}
                           </p>
+                          {stepState === 'pending' && step.key === 'completed' && isCheckoutPipeline && currentIdx === 3 && (
+                            <p className="text-[10px] text-oz-muted/40 mt-0.5 font-medium tracking-wide">
+                              Pending payment completion
+                            </p>
+                          )}
                         </div>
                       </li>
                     )
@@ -835,6 +1005,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
                       row={row}
                       isFirst={idx === 0}
                       isLast={idx === statusHistory.length - 1}
+                      bookingType={bookingType}
                     />
                   ))}
                 </ol>
@@ -848,6 +1019,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
             <NextActionCard
               status={status}
+              bookingType={bookingType}
               adminNotes={adminNotes}
               clarificationQuestion={clarificationQuestion}
               bookingId={booking.id}
@@ -857,17 +1029,20 @@ export default async function BookingDetailPage({ params }: PageProps) {
               postFlightClarification={postFlightClarification}
               flightRecord={postFlightRecord}
               postFlightAttachments={postFlightAttachments}
+              checkoutInvoice={checkoutInvoice}
             />
 
             {/* Request a change */}
-            <div className="bg-white/5 border border-white/5 rounded-[1.25rem] p-5 opacity-60">
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Request a Change</h3>
-              <p className="text-xs text-oz-muted leading-relaxed">
-                Need to cancel or modify this booking?{' '}
-                <span className="text-oz-blue">Contact the operations team.</span>
-              </p>
-              <p className="text-[9px] text-slate-600 mt-3 uppercase tracking-widest">Self-service cancellation — coming soon</p>
-            </div>
+            {!(bookingType === 'checkout' && ['completed', 'cancelled', 'no_show', 'post_flight_approved'].includes(status)) && (
+              <div className="bg-white/5 border border-white/5 rounded-[1.25rem] p-5 opacity-60">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Request a Change</h3>
+                <p className="text-xs text-oz-muted leading-relaxed">
+                  Need to cancel or modify this booking?{' '}
+                  <span className="text-oz-blue">Contact the operations team.</span>
+                </p>
+                <p className="text-[9px] text-slate-600 mt-3 uppercase tracking-widest">Self-service cancellation — coming soon</p>
+              </div>
+            )}
 
             {/* Quick booking info */}
             <div className="bg-white/5 border border-white/5 rounded-[1.25rem] p-5">

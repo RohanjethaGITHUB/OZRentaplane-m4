@@ -12,6 +12,7 @@ export type PilotClearanceStatus =
   | 'checkout_requested'
   | 'checkout_confirmed'
   | 'checkout_completed_under_review'
+  | 'checkout_payment_required'
   | 'cleared_for_solo_hire'
   | 'additional_supervised_time_required'
   | 'reschedule_required'
@@ -28,8 +29,24 @@ export type Profile = {
   verification_status: VerificationStatus
   pilot_clearance_status: PilotClearanceStatus
   pilot_arn: string | null   // Aviation Reference Number — set after verification
+  last_flight_date: string | null  // YYYY-MM-DD — shared between Documents page and checkout flow
+  last_login_at: string | null
+  login_count: number
+  last_bookings_viewed_at: string | null
+  last_notification_seen_at: string | null
   created_at: string
   updated_at: string
+}
+
+// Notification item derived from verification_events for the bell popover
+export type PopoverNotification = {
+  id: string
+  title: string
+  body: string | null
+  event_type: string
+  created_at: string
+  is_new: boolean
+  href?: string | null
 }
 
 export type UserDocument = {
@@ -73,6 +90,8 @@ export type RequestKind =
   | 'clarification_request'
   | 'confirmation_request'
   | 'general_update'
+  | 'booking_update'
+  | 'message'
 
 // ─── Admin inbox thread summary ───────────────────────────────────────────────
 // Aggregated view of one customer's chat thread for the admin inbox list.

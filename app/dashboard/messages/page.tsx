@@ -30,7 +30,7 @@ export default async function CustomerMessagesPage() {
 
   const chatEvents  = (events as VerificationEvent[]) || []
   const unreadCount = chatEvents.filter(
-    ev => (ev.event_type === 'message' || (ev.event_type === 'on_hold' && ev.body))
+    ev => ((ev.event_type === 'message' && (ev.title === 'Message from Admin' || ev.request_kind === 'message')) || (ev.event_type === 'on_hold' && ev.body))
       && ev.actor_role === 'admin'
       && !ev.is_read,
   ).length

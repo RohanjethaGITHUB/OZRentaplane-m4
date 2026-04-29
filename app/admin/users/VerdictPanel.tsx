@@ -9,7 +9,7 @@ import type { RequestKind } from '@/lib/supabase/types'
 type DecisionAction = 'approve' | 'hold' | 'reject'
 
 type RequestKindConfig = { label: string; sublabel: string; icon: string }
-const REQUEST_KIND_CONFIG: Record<RequestKind, RequestKindConfig> = {
+const REQUEST_KIND_CONFIG: Partial<Record<RequestKind, RequestKindConfig>> = {
   document_request:      { label: 'Docs Required',  sublabel: 'Customer must upload/replace documents', icon: 'upload_file' },
   clarification_request: { label: 'Clarification',  sublabel: 'Customer should reply with information', icon: 'chat' },
   confirmation_request:  { label: 'Confirmation',   sublabel: 'Customer should confirm something',      icon: 'task_alt' },

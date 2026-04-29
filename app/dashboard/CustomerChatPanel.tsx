@@ -8,7 +8,9 @@ import { formatDateTime } from '@/lib/formatDateTime'
 
 // Show message events + on_hold events that carry a customer-facing body
 function isChatEvent(ev: VerificationEvent): boolean {
-  if (ev.event_type === 'message') return true
+  if (ev.event_type === 'message' && ev.title === 'Message from Admin') return true
+  if (ev.event_type === 'message' && ev.actor_role === 'customer') return true
+  if (ev.event_type === 'message' && ev.request_kind === 'message') return true
   if (ev.event_type === 'on_hold' && ev.body) return true
   return false
 }

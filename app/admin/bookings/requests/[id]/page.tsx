@@ -36,9 +36,6 @@ const STATUS_CFG: Record<string, {
   checkout_requested:              { label: 'Checkout Requested',        color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    icon: 'pending_actions'},
   checkout_confirmed:              { label: 'Checkout Confirmed',        color: 'text-green-400',   bg: 'bg-green-500/10',   border: 'border-green-500/20',   icon: 'event_available'},
   checkout_completed_under_review: { label: 'Awaiting Outcome',          color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   icon: 'rate_review'    },
-  // First solo reservation
-  pending_checkout_clearance:      { label: 'Pending Checkout Clearance',color: 'text-blue-300',    bg: 'bg-blue-500/10',    border: 'border-blue-400/20',    icon: 'bookmark'       },
-  released_due_to_checkout:        { label: 'Released',                  color: 'text-slate-400',   bg: 'bg-white/5',        border: 'border-white/10',       icon: 'bookmark_remove'},
 }
 
 // Pilot clearance status display — replaces the old verification-only label
@@ -142,7 +139,6 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     { data: overlappingRaw },
     { data: rawDocuments },
     { data: rawMessages },
-    { data: rawSoloReservation },
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -179,20 +175,10 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       .eq('user_id', booking.booking_owner_user_id)
       .order('created_at', { ascending: false })
       .limit(50),
-    // Linked first solo reservation — used in checkout review panel
-    supabase
-      .from('bookings')
-      .select('id, booking_reference, scheduled_start, scheduled_end, status')
-      .eq('booking_owner_user_id', booking.booking_owner_user_id)
-      .eq('status', 'pending_checkout_clearance')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single(),
   ])
 
   const documents     = rawDocuments ?? []
   const messages      = rawMessages  ?? []
-  const soloReservation = (rawSoloReservation && !('error' in rawSoloReservation)) ? rawSoloReservation as { id: string; booking_reference: string | null; scheduled_start: string; scheduled_end: string; status: string } : null
 
   // External conflicts: active blocks in the held window NOT belonging to this booking.
   // Expired temporary holds are excluded — same rule as the submission RPC and confirm action.
@@ -229,7 +215,6 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
   // ── Checkout-specific state flags ────────────────────────────────────────────
   const isCheckout              = bookingType === 'checkout'
-  const isFirstSoloReservation  = bookingType === 'standard' && status === 'pending_checkout_clearance'
   const isCheckoutRequested     = isCheckout && status === 'checkout_requested'
   const isCheckoutConfirmed     = isCheckout && status === 'checkout_confirmed'
   const isCheckoutOutcomePending = isCheckout && status === 'checkout_completed_under_review'
@@ -258,7 +243,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           className="material-symbols-outlined text-[130px] absolute -right-4 -bottom-8 text-white/[0.03] pointer-events-none select-none"
           style={{ fontVariationSettings: "'FILL' 1" }}
         >
-          {isCheckout ? 'how_to_reg' : isFirstSoloReservation ? 'bookmark' : 'flight_takeoff'}
+          {isCheckout ? 'how_to_reg' : 'flight_takeoff'}
         </span>
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-start justify-between gap-6">
           <div>
@@ -270,11 +255,6 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               {isCheckout && (
                 <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border bg-blue-500/10 text-blue-400 border-blue-500/20">
                   Checkout Flight
-                </span>
-              )}
-              {isFirstSoloReservation && (
-                <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border bg-blue-500/10 text-blue-300 border-blue-400/20">
-                  First Solo Reservation
                 </span>
               )}
             </div>
@@ -325,7 +305,6 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               clearanceBorder={clearanceCfg.border}
               documents={documents as import('@/app/admin/bookings/requests/[id]/AdminCheckoutReviewPanel').DocSummary[]}
               messages={messages as import('@/lib/supabase/types').VerificationEvent[]}
-              soloReservation={soloReservation}
             />
           )}
 
@@ -498,23 +477,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               </div>
             )}
 
-            {/* First solo reservation info panel */}
-            {isFirstSoloReservation && (
-              <div className="bg-blue-500/[0.06] border border-blue-500/20 rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="material-symbols-outlined text-[16px] text-blue-400" style={{ fontVariationSettings: "'FILL' 1" }}>bookmark</span>
-                  <h2 className="text-[9px] uppercase tracking-widest font-bold text-blue-400/70">
-                    First Solo Reservation
-                  </h2>
-                </div>
-                <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
-                  This reservation will be automatically confirmed if the pilot is cleared for solo hire after their checkout flight, or released otherwise.
-                </p>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  No manual confirmation is needed. The outcome is determined by the checkout flight result.
-                </p>
-              </div>
-            )}
+
 
             {/* Admin actions — confirm/cancel while pending (standard bookings only) */}
             {isPending && !isCheckout && (

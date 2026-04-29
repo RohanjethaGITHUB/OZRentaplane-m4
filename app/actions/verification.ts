@@ -129,11 +129,6 @@ export async function sendCustomerReply(message: string): Promise<void> {
     .eq('id', user.id)
     .single()
 
-  // Block if customer hasn't even started — prevents orphaned messages
-  if (profile?.verification_status === 'not_started') {
-    throw new Error('VALIDATION: Please submit your documents before sending messages.')
-  }
-
   const currentStatus = profile?.verification_status ?? 'not_started'
 
   const { error: insertError } = await supabase
@@ -176,6 +171,36 @@ export async function markCustomerMessagesRead(): Promise<void> {
     .eq('user_id', user.id)
     .eq('is_read', false)
   // No revalidatePath needed — this is a background read-state update
+}
+
+// ─── Save last flight date ────────────────────────────────────────────────────
+// Customer records when they last flew. Stored on profiles.last_flight_date so
+// it is shared between the Documents page and the checkout flow.
+
+export async function saveLastFlightDate(dateStr: string): Promise<void> {
+  const trimmed = dateStr.trim()
+  if (!trimmed) throw new Error('VALIDATION: Date cannot be empty.')
+
+  // Must be a valid YYYY-MM-DD date
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) throw new Error('VALIDATION: Invalid date format.')
+
+  // Must not be a future date
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
+  if (trimmed > today) throw new Error('VALIDATION: Last flight date cannot be in the future.')
+
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) throw new Error('Unauthorized')
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ last_flight_date: trimmed })
+    .eq('id', user.id)
+
+  if (error) throw new Error('Failed to save last flight date. Please try again.')
+
+  revalidatePath('/dashboard/documents')
+  revalidatePath('/dashboard/checkout')
 }
 
 // ─── Save customer ARN ────────────────────────────────────────────────────────
