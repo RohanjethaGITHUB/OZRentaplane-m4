@@ -8,6 +8,7 @@ import AdminCheckoutActions from './AdminCheckoutActions'
 import AdminCheckoutReviewPanel from './AdminCheckoutReviewPanel'
 import AdminClarificationForm from './AdminClarificationForm'
 import AdminOperationalActions from './AdminOperationalActions'
+import AdminBankTransferPanel from './AdminBankTransferPanel'
 
 export const metadata = { title: 'Booking Detail | Admin' }
 
@@ -138,6 +139,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   // state), also fetch airports list and customer credit balance for the
   // outcome form landing charges and credit display.
   const isOutcomePending = booking.status === 'checkout_completed_under_review'
+  const isPaymentRequired = booking.status === 'checkout_payment_required'
 
   const [
     { data: customer },
@@ -198,6 +200,42 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const messages         = rawMessages  ?? []
   const airports         = (airportRows ?? []) as { id: string; icao_code: string; name: string; default_landing_fee_cents: number }[]
   const customerCreditCents = (creditRow as { balance_cents?: number } | null)?.balance_cents ?? 0
+
+  // ── Bank transfer submissions ─────────────────────────────────────────────
+  type BankTransferSub = {
+    id: string
+    status: string
+    reference: string | null
+    receipt_storage_path: string
+    admin_note: string | null
+    submitted_at: string
+    reviewed_at: string | null
+    signedReceiptUrl: string | null
+  }
+  let bankTransferSubmissions: BankTransferSub[] = []
+  if (isPaymentRequired) {
+    const { data: invoiceRow } = await supabase
+      .from('checkout_invoices')
+      .select('id')
+      .eq('booking_id', booking.id)
+      .single()
+    if (invoiceRow) {
+      const { data: subs } = await supabase
+        .from('checkout_bank_transfer_submissions')
+        .select('id, status, reference, receipt_storage_path, admin_note, submitted_at, reviewed_at')
+        .eq('invoice_id', invoiceRow.id)
+        .order('submitted_at', { ascending: false })
+
+      bankTransferSubmissions = await Promise.all(
+        (subs ?? []).map(async (sub) => {
+          const { data: signedData } = await supabase.storage
+            .from('bank_transfer_receipts')
+            .createSignedUrl(sub.receipt_storage_path, 3600)
+          return { ...sub, signedReceiptUrl: signedData?.signedUrl ?? null }
+        })
+      )
+    }
+  }
 
   // External conflicts: active blocks in the held window NOT belonging to this booking.
   // Expired temporary holds are excluded — same rule as the submission RPC and confirm action.
@@ -303,6 +341,14 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
         {/* ── Left column: details ─────────────────────────────────────────────── */}
         <div className="lg:col-span-2 space-y-6">
+
+          {/* ── Bank transfer review panel — shown when payment required ──────── */}
+          {isPaymentRequired && bankTransferSubmissions.length > 0 && (
+            <AdminBankTransferPanel
+              bookingId={booking.id}
+              submissions={bankTransferSubmissions}
+            />
+          )}
 
           {/* ── Checkout request review panel — shown for checkout_requested ─── */}
           {isCheckoutRequested && (

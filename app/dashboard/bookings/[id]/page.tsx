@@ -6,12 +6,12 @@ import ClarificationResponseForm from './ClarificationResponseForm'
 import FlightRecordForm from './FlightRecordForm'
 import PostFlightHero from './PostFlightHero'
 import PostFlightClarificationPanel from './PostFlightClarificationPanel'
+import CheckoutPaymentCard from './CheckoutPaymentCard'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
 import type { BookingStatus, FlightRecord, FlightRecordAttachment, FlightRecordClarification } from '@/lib/supabase/booking-types'
 import { formatDateFromISO } from '@/lib/formatDateTime'
-import { formatSydTime } from '@/lib/utils/sydney-time'
-import { createCheckoutPaymentSession } from '@/app/actions/payment'
+import { PAYMENT_CONFIG } from '@/lib/payments/config'
 
 export const metadata = { title: 'Booking Details | Pilot Dashboard' }
 
@@ -93,6 +93,8 @@ function NextActionCard({
   flightRecord,
   postFlightAttachments,
   checkoutInvoice,
+  bankTransferSubmission,
+  bankDetails,
   standardBilling,
 }: {
   status:                   string
@@ -106,7 +108,9 @@ function NextActionCard({
   postFlightClarification?: FlightRecordClarification | null
   flightRecord?:            FlightRecord | null
   postFlightAttachments?:   (FlightRecordAttachment & { signedUrl: string | null })[]
-  checkoutInvoice?:         { subtotal_cents: number; advance_applied_cents: number; stripe_amount_due_cents: number } | null
+  checkoutInvoice?:         { id: string; invoice_number: string; subtotal_cents: number; advance_applied_cents: number; stripe_amount_due_cents: number } | null
+  bankTransferSubmission?:  { id: string; status: string } | null
+  bankDetails?:             { accountName: string; bsb: string; accountNumber: string } | null
   standardBilling?:         { subtotal_cents: number; advance_applied_cents: number; amount_due_cents: number } | null
 }) {
   const isCancelled = status === 'cancelled' || status === 'no_show'
@@ -151,52 +155,13 @@ function NextActionCard({
   }
 
   if (status === 'checkout_payment_required') {
-    const amountDue = checkoutInvoice ? (checkoutInvoice.stripe_amount_due_cents / 100).toFixed(2) : null
-    const advanceApplied = checkoutInvoice ? (checkoutInvoice.advance_applied_cents / 100).toFixed(2) : '0.00'
-    const subtotal = checkoutInvoice ? (checkoutInvoice.subtotal_cents / 100).toFixed(2) : null
-
     return (
-      <div className="bg-orange-500/10 border border-orange-500/20 rounded-[1.25rem] p-6">
-        <div className="flex items-center gap-3 mb-3">
-          <span className="material-symbols-outlined text-orange-400 text-lg">payments</span>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-orange-400">Payment Required</h3>
-        </div>
-        <p className="text-sm text-oz-muted leading-relaxed mb-2">
-          Your checkout flight has been completed and approved.
-          {amountDue !== null ? ` The final checkout amount is $${amountDue} AUD.` : ''} Please complete payment to finalise your clearance and unlock aircraft bookings.
-        </p>
-        <p className="text-xs text-slate-600 leading-relaxed mb-6">
-          Checkout flights are charged based on actual time flown at $290/hour.
-        </p>
-
-        {checkoutInvoice && subtotal !== null && (
-          <div className="mb-6 space-y-2 p-4 rounded-xl bg-orange-500/[0.05] border border-orange-500/15 text-sm">
-            <div className="flex justify-between text-slate-300">
-              <span>Checkout Fee</span>
-              <span>${subtotal}</span>
-            </div>
-            {checkoutInvoice.advance_applied_cents > 0 && (
-              <div className="flex justify-between text-green-400">
-                <span>Advance Credit Applied</span>
-                <span>-${advanceApplied}</span>
-              </div>
-            )}
-            <div className="flex justify-between font-bold text-orange-400 pt-2 border-t border-orange-500/20">
-              <span>Total Due</span>
-              <span>${amountDue}</span>
-            </div>
-          </div>
-        )}
-
-        {amountDue !== null && (
-          <form action={createCheckoutPaymentSession.bind(null, bookingId)}>
-            <button type="submit" className="w-full bg-orange-500 hover:bg-orange-400 text-white rounded-lg px-4 py-2.5 text-sm font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2">
-              <span className="material-symbols-outlined text-[18px]">credit_card</span>
-              Pay ${amountDue}
-            </button>
-          </form>
-        )}
-      </div>
+      <CheckoutPaymentCard
+        bookingId={bookingId}
+        checkoutInvoice={checkoutInvoice}
+        bankTransferSubmission={bankTransferSubmission}
+        bankDetails={bankDetails ?? undefined}
+      />
     )
   }
 
@@ -493,12 +458,10 @@ function NextActionCard({
 
 function HistoryEvent({
   row,
-  isFirst,
   isLast,
   bookingType,
 }: {
   row:     StatusHistoryRow
-  isFirst: boolean
   isLast:  boolean
   bookingType: string
 }) {
@@ -702,13 +665,35 @@ export default async function BookingDetailPage({ params }: PageProps) {
   }
 
   let checkoutInvoice = null
+  let bankTransferSubmission = null
+  let bankDetails = null
   if (status === 'checkout_payment_required') {
     const { data: inv } = await supabase
       .from('checkout_invoices')
-      .select('subtotal_cents, advance_applied_cents, stripe_amount_due_cents')
+      .select('id, invoice_number, subtotal_cents, advance_applied_cents, stripe_amount_due_cents')
       .eq('booking_id', booking.id)
       .single()
     checkoutInvoice = inv
+
+    if (inv) {
+      const { data: sub } = await supabase
+        .from('checkout_bank_transfer_submissions')
+        .select('id, status')
+        .eq('invoice_id', inv.id)
+        .order('submitted_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      bankTransferSubmission = sub
+    }
+
+    const name = PAYMENT_CONFIG.BANK_ACCOUNT_NAME
+    const bsb  = PAYMENT_CONFIG.BANK_BSB
+    const acct = PAYMENT_CONFIG.BANK_ACCOUNT_NUMBER
+    if (name && bsb && acct) {
+      bankDetails = { accountName: name, bsb, accountNumber: acct }
+    } else {
+      console.warn('[checkout] Bank transfer env vars not configured — bank transfer option hidden')
+    }
   }
 
   let standardBilling = null
@@ -1088,7 +1073,6 @@ export default async function BookingDetailPage({ params }: PageProps) {
                     <HistoryEvent
                       key={idx}
                       row={row}
-                      isFirst={idx === 0}
                       isLast={idx === statusHistory.length - 1}
                       bookingType={bookingType}
                     />
@@ -1115,6 +1099,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
               flightRecord={postFlightRecord}
               postFlightAttachments={postFlightAttachments}
               checkoutInvoice={checkoutInvoice}
+              bankTransferSubmission={bankTransferSubmission}
+              bankDetails={bankDetails}
               standardBilling={standardBilling}
             />
 

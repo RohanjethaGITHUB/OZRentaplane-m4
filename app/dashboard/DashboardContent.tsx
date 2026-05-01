@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
-import type { Profile, PilotClearanceStatus, UserDocument, VerificationEvent, RequestKind } from '@/lib/supabase/types'
+import type { Profile, PilotClearanceStatus, UserDocument, VerificationEvent } from '@/lib/supabase/types'
 import { fmtTimestamp } from '@/lib/utils/format'
 import { CLEARANCE_LABEL_CUSTOMER } from '@/lib/pilot-status'
 
@@ -330,12 +330,6 @@ export default function DashboardContent({ user, profile, documents, events, isF
   const isCleared       = clearanceStatus === 'cleared_to_fly'
   const inCheckoutFlow  = ['checkout_required', 'checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required'].includes(clearanceStatus)
 
-  // isOnHold derived from clearance status (no longer depends on legacy verification_status)
-  const isOnHold = clearanceStatus === 'checkout_reschedule_required' || clearanceStatus === 'additional_checkout_required'
-
-  const latestHoldEvent   = events.find(e => e.event_type === 'on_hold')
-  const holdRequestKind: RequestKind = latestHoldEvent?.request_kind ?? 'document_request'
-  const isDocRequest      = holdRequestKind === 'document_request'
   const unreadCount       = events.filter(e => !e.is_read).length
 
   // Pill color mapping — shared by hero badge and profile card
@@ -610,38 +604,6 @@ export default function DashboardContent({ user, profile, documents, events, isF
 
       {/* ══ MAIN CONTENT ════════════════════════════════════════════════════ */}
       <div className="max-w-[1280px] mx-auto px-6 md:px-10 xl:px-12 py-10 space-y-8">
-
-        {/* On-Hold Alert Banner */}
-        {isOnHold && (
-          <section className="bg-amber-500/[0.06] border border-amber-500/20 rounded-xl p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-amber-400 text-xl" style={{ fontVariationSettings: "'wght' 300" }}>
-                pending_actions
-              </span>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-amber-400">
-                {isDocRequest ? 'Action Required — Upload Documents' : 'Action Required — Response Needed'}
-              </h4>
-            </div>
-            {latestHoldEvent?.body ? (
-              <p className="text-sm text-white/80 leading-relaxed pl-8">{latestHoldEvent.body}</p>
-            ) : (
-              <p className="text-sm text-amber-200/60 leading-relaxed pl-8">
-                Our team requires additional information before your verification can proceed.
-              </p>
-            )}
-            <div className="pl-8">
-              <button
-                onClick={() => router.push('/dashboard/documents')}
-                className="flex items-center gap-2 px-6 py-3 bg-amber-500/15 border border-amber-400/30 text-amber-300 hover:bg-amber-500/25 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
-              >
-                <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>
-                  {isDocRequest ? 'upload_file' : 'chat'}
-                </span>
-                {isDocRequest ? 'Upload & Resubmit' : 'Reply to Request'}
-              </button>
-            </div>
-          </section>
-        )}
 
         {clearanceStatus === 'checkout_requested' && (
           <section className="bg-blue-500/[0.06] border border-blue-500/20 rounded-xl p-6 space-y-3">

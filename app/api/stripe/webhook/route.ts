@@ -2,12 +2,6 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2023-10-16" as any,
-});
-
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function logErr(step: string, err: any) {
@@ -22,6 +16,14 @@ function logErr(step: string, err: any) {
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!stripeKey || !webhookSecret) {
+    console.error("[webhook] Missing STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET")
+    return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 })
+  }
+  const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" as any });
+
   let body: string
   try {
     body = await req.text()

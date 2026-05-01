@@ -123,6 +123,31 @@ export default async function AdminBookingList({
 
   // Fetch customer profiles for all booking owners
   const authorIds = Array.from(new Set((bookings ?? []).map(b => b.booking_owner_user_id)))
+
+  // Fetch invoice IDs for bookings that are checkout_payment_required (for bank transfer badge)
+  const paymentRequiredBookingIds = (bookings ?? [])
+    .filter(b => b.status === 'checkout_payment_required')
+    .map(b => b.id)
+  let bankTransferPendingBookingIds = new Set<string>()
+  if (paymentRequiredBookingIds.length > 0) {
+    const { data: invoiceRows } = await supabase
+      .from('checkout_invoices')
+      .select('id, booking_id')
+      .in('booking_id', paymentRequiredBookingIds)
+    if (invoiceRows && invoiceRows.length > 0) {
+      const invoiceIds = invoiceRows.map(r => r.id)
+      const invoiceBookingMap = Object.fromEntries(invoiceRows.map(r => [r.id, r.booking_id]))
+      const { data: pendingSubs } = await supabase
+        .from('checkout_bank_transfer_submissions')
+        .select('invoice_id')
+        .in('invoice_id', invoiceIds)
+        .eq('status', 'pending_review')
+      for (const sub of pendingSubs ?? []) {
+        const bookingId = invoiceBookingMap[sub.invoice_id]
+        if (bookingId) bankTransferPendingBookingIds.add(bookingId)
+      }
+    }
+  }
   let profilesData: {
     id: string
     full_name: string | null
@@ -230,6 +255,7 @@ export default async function AdminBookingList({
               const typeMeta    = BOOKING_TYPE_META[bookingType] ?? BOOKING_TYPE_META.standard
               const bookingRef  = (booking as { booking_reference?: string }).booking_reference ?? booking.id.split('-')[0].toUpperCase()
               const isPending   = status === 'pending_confirmation'
+              const hasBankTransferPending = bankTransferPendingBookingIds.has(booking.id)
 
               return (
                 <div
@@ -257,6 +283,11 @@ export default async function AdminBookingList({
                             <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${badge.className}`}>
                               {badge.label}
                             </span>
+                            {hasBankTransferPending && (
+                              <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border bg-amber-500/15 text-amber-400 border-amber-500/25 animate-pulse">
+                                Bank Transfer · Pending Review
+                              </span>
+                            )}
                           </div>
                           {/* Aircraft */}
                           <h3 className="text-sm font-medium text-white mb-0.5">
