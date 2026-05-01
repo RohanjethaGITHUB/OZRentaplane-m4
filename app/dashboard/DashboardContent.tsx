@@ -2,10 +2,30 @@
 
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
-import type { Profile, VerificationStatus, PilotClearanceStatus, UserDocument, VerificationEvent, RequestKind } from '@/lib/supabase/types'
+import type { Profile, PilotClearanceStatus, UserDocument, VerificationEvent, RequestKind } from '@/lib/supabase/types'
 import { fmtTimestamp } from '@/lib/utils/format'
+import { CLEARANCE_LABEL_CUSTOMER } from '@/lib/pilot-status'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export type CheckoutInvoiceData = {
+  invoiceId:             string
+  subtotalCents:         number
+  advanceAppliedCents:   number
+  totalPaidCents:        number
+  currentCreditCents:    number
+  displayAmountDueCents: number
+  checkoutOutcome:       string | null
+  checkoutDurationHours: number | null
+  landingSubtotalCents:  number
+  landingCharges: {
+    airportIcao:      string
+    airportName:      string
+    landingCount:     number
+    unitAmountCents:  number
+    totalAmountCents: number
+  }[]
+}
 
 type Props = {
   user: User
@@ -14,6 +34,7 @@ type Props = {
   events: VerificationEvent[]
   isFirstLogin: boolean
   checkoutBookingId?: string | null
+  checkoutInvoice?:  CheckoutInvoiceData | null
 }
 
 // ─── Clearance-status-driven display configs ──────────────────────────────────
@@ -78,9 +99,9 @@ const CLEARANCE_HERO: Record<PilotClearanceStatus, HeroContent> = {
     glowFrom: 'from-amber-500/20',
   },
   checkout_payment_required: {
-    subtitle: 'Checkout Payment Required',
-    title:    'Pay Your Checkout Invoice',
-    body:     "Your checkout flight has been approved. Please pay your checkout invoice before aircraft bookings become available.",
+    subtitle: 'Invoice Due',
+    title:    'Checkout Invoice Required',
+    body:     'Your checkout flight has been completed and an invoice has been issued. Please pay the invoice to proceed — your pilot status will be updated automatically after payment clears.',
     cta1:     'Pay Checkout Invoice',
     cta1href: '/dashboard/bookings',   // overridden at render time with bookingId
     cta2:     'View My Bookings',
@@ -88,7 +109,7 @@ const CLEARANCE_HERO: Record<PilotClearanceStatus, HeroContent> = {
     icon:     'payments',
     glowFrom: 'from-orange-500/20',
   },
-  cleared_for_solo_hire: {
+  cleared_to_fly: {
     subtitle: 'Access Granted',
     title:    "You're Cleared to Fly",
     body:     'Your checkout is complete and you are cleared for solo hire. Browse available windows and submit booking requests for the Sydney Cessna 172 fleet.',
@@ -99,33 +120,33 @@ const CLEARANCE_HERO: Record<PilotClearanceStatus, HeroContent> = {
     icon:     'flight_takeoff',
     glowFrom: 'from-green-500/20',
   },
-  additional_supervised_time_required: {
+  additional_checkout_required: {
     subtitle: 'Checkout Outcome',
-    title:    'Additional Supervised Time Required',
-    body:     "Following your checkout, the flight operations team has determined that additional supervised sessions are required before solo hire. Book another supervised session to continue your progress.",
-    cta1:     'Book Supervised Session',
+    title:    'Additional Checkout Required',
+    body:     'Following your checkout, the admin team has determined that an additional checkout session is required before you can be cleared to fly. Book another checkout flight to continue your progress.',
+    cta1:     'Book Another Checkout',
     cta1href: '/dashboard/checkout',
     cta2:     'Contact Support',
     cta2href: '/dashboard/messages',
     icon:     'schedule',
     glowFrom: 'from-amber-500/20',
   },
-  reschedule_required: {
+  checkout_reschedule_required: {
     subtitle: 'Checkout Outcome',
     title:    'Checkout Reschedule Required',
-    body:     'Your checkout needs to be rescheduled. Please contact the operations team to arrange a new checkout session.',
-    cta1:     'Contact Support',
-    cta1href: '/dashboard/messages',
-    cta2:     'View My Bookings',
-    cta2href: '/dashboard/bookings',
+    body:     'Your checkout could not be fully assessed this time — for example due to weather, time, or scheduling. Book another checkout session when you are ready to try again.',
+    cta1:     'Book Another Checkout',
+    cta1href: '/dashboard/checkout',
+    cta2:     'Contact Support',
+    cta2href: '/dashboard/messages',
     icon:     'event_repeat',
     glowFrom: 'from-amber-500/20',
   },
   not_currently_eligible: {
     subtitle: 'Account Status',
     title:    'Not Currently Eligible',
-    body:     'Your account is not currently eligible for solo hire. Please contact the operations team for further information.',
-    cta1:     'Contact Support',
+    body:     'Based on your checkout assessment, further training is required before you can continue with aircraft hire. Please arrange further training with a qualified instructor and contact us when you are ready to try again.',
+    cta1:     'Contact Us',
     cta1href: '/dashboard/messages',
     cta2:     'View My Bookings',
     cta2href: '/dashboard/bookings',
@@ -167,31 +188,31 @@ const CLEARANCE_STEPS: Record<PilotClearanceStatus, Step[]> = {
   ],
   checkout_payment_required: [
     { label: 'Account created',       state: 'done'   },
-    { label: 'Checkout approved',     state: 'done'   },
+    { label: 'Checkout completed',    state: 'done'   },
     { label: 'Pay checkout invoice',  state: 'active' },
-    { label: 'Cleared for solo hire', state: 'pending'},
+    { label: 'Status updated',        state: 'pending'},
   ],
-  cleared_for_solo_hire: [
-    { label: 'Account created',       state: 'done' },
-    { label: 'Checkout completed',    state: 'done' },
-    { label: 'Cleared for solo hire', state: 'done' },
+  cleared_to_fly: [
+    { label: 'Account created',    state: 'done' },
+    { label: 'Checkout completed', state: 'done' },
+    { label: 'Cleared to fly',     state: 'done' },
   ],
-  additional_supervised_time_required: [
-    { label: 'Account created',              state: 'done'   },
-    { label: 'Checkout completed',           state: 'done'   },
-    { label: 'Additional supervised time',   state: 'active' },
-    { label: 'Cleared for solo hire',        state: 'pending'},
+  additional_checkout_required: [
+    { label: 'Account created',           state: 'done'    },
+    { label: 'Checkout completed',        state: 'done'    },
+    { label: 'Additional checkout required', state: 'active' },
+    { label: 'Cleared to fly',            state: 'pending' },
   ],
-  reschedule_required: [
-    { label: 'Account created',       state: 'done'   },
-    { label: 'Checkout attempted',    state: 'done'   },
-    { label: 'Reschedule required',   state: 'failed' },
-    { label: 'Contact operations',    state: 'active' },
+  checkout_reschedule_required: [
+    { label: 'Account created',          state: 'done'   },
+    { label: 'Checkout attempted',       state: 'done'   },
+    { label: 'Reschedule required',      state: 'failed' },
+    { label: 'Book another checkout',    state: 'active' },
   ],
   not_currently_eligible: [
-    { label: 'Account created',       state: 'done'   },
-    { label: 'Not currently eligible',state: 'failed' },
-    { label: 'Contact operations',    state: 'active' },
+    { label: 'Account created',          state: 'done'   },
+    { label: 'Not currently eligible',   state: 'failed' },
+    { label: 'Arrange further training', state: 'active' },
   ],
 }
 
@@ -252,18 +273,18 @@ type ClearanceConfig = {
 }
 
 const CLEARANCE_CONFIG: Record<PilotClearanceStatus, ClearanceConfig> = {
-  checkout_required:                   { badge: 'Checkout Required',        pillColor: 'amber',  pulse: false },
-  checkout_requested:                  { badge: 'Checkout Requested',       pillColor: 'blue',   pulse: true  },
-  checkout_confirmed:                  { badge: 'Checkout Confirmed',        pillColor: 'blue',   pulse: false },
-  checkout_completed_under_review:     { badge: 'Outcome Under Review',     pillColor: 'amber',  pulse: true  },
-  checkout_payment_required:           { badge: 'Payment Required',         pillColor: 'amber',  pulse: false },
-  cleared_for_solo_hire:               { badge: 'Cleared for Solo Hire',    pillColor: 'green',  pulse: false },
-  additional_supervised_time_required: { badge: 'Additional Training Required', pillColor: 'amber', pulse: false },
-  reschedule_required:                 { badge: 'Reschedule Required',      pillColor: 'amber',  pulse: false },
-  not_currently_eligible:              { badge: 'Not Currently Eligible',   pillColor: 'red',    pulse: false },
+  checkout_required:             { badge: 'Checkout Required',          pillColor: 'amber', pulse: false },
+  checkout_requested:            { badge: 'Checkout Requested',         pillColor: 'blue',  pulse: true  },
+  checkout_confirmed:            { badge: 'Checkout Confirmed',         pillColor: 'blue',  pulse: false },
+  checkout_completed_under_review: { badge: 'Outcome Under Review',    pillColor: 'amber', pulse: true  },
+  checkout_payment_required:     { badge: 'Payment Required',          pillColor: 'amber', pulse: false },
+  cleared_to_fly:                { badge: 'Cleared to Fly',            pillColor: 'green', pulse: false },
+  additional_checkout_required:  { badge: 'Additional Checkout Required', pillColor: 'amber', pulse: false },
+  checkout_reschedule_required:  { badge: 'Reschedule Required',       pillColor: 'amber', pulse: false },
+  not_currently_eligible:        { badge: 'Not Currently Eligible',    pillColor: 'red',   pulse: false },
 }
 
-export default function DashboardContent({ user, profile, documents, events, isFirstLogin, checkoutBookingId }: Props) {
+export default function DashboardContent({ user, profile, documents, events, isFirstLogin, checkoutBookingId, checkoutInvoice }: Props) {
   const router = useRouter()
 
   const displayName = profile?.full_name ?? user.email?.split('@')[0] ?? 'Pilot'
@@ -274,15 +295,43 @@ export default function DashboardContent({ user, profile, documents, events, isF
   const clearanceStatus = (profile?.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
   const clearanceCfg    = CLEARANCE_CONFIG[clearanceStatus]
   const steps           = CLEARANCE_STEPS[clearanceStatus]
-  const hero = clearanceStatus === 'checkout_payment_required' && checkoutBookingId
-    ? { ...CLEARANCE_HERO[clearanceStatus], cta1href: `/dashboard/bookings/${checkoutBookingId}` }
-    : CLEARANCE_HERO[clearanceStatus]
-  const isCleared       = clearanceStatus === 'cleared_for_solo_hire'
+
+  // For checkout_payment_required, the hero subtitle and body are outcome-aware.
+  // We override the static CLEARANCE_HERO config dynamically.
+  const checkoutOutcome = checkoutInvoice?.checkoutOutcome
+  const paymentHeroOverride: Partial<typeof CLEARANCE_HERO[typeof clearanceStatus]> =
+    clearanceStatus === 'checkout_payment_required' && checkoutOutcome
+      ? {
+          subtitle:
+            checkoutOutcome === 'cleared_to_fly'               ? 'Checkout Approved — Invoice Due'
+            : checkoutOutcome === 'additional_checkout_required' ? 'Additional Checkout Required — Invoice Due'
+            : checkoutOutcome === 'checkout_reschedule_required' ? 'Reschedule Required — Invoice Due'
+            : 'Checkout Invoice Due',
+          title:
+            checkoutOutcome === 'cleared_to_fly'               ? 'Pay Your Checkout Invoice'
+            : checkoutOutcome === 'additional_checkout_required' ? 'Invoice Due — Additional Checkout Required'
+            : checkoutOutcome === 'checkout_reschedule_required' ? 'Invoice Due — Reschedule Required'
+            : 'Checkout Invoice',
+          body:
+            checkoutOutcome === 'cleared_to_fly'
+              ? 'Your checkout has been approved. Please pay your checkout invoice before aircraft bookings become available.'
+              : checkoutOutcome === 'additional_checkout_required'
+              ? 'An invoice has been issued for your checkout flight. An additional checkout session is required — please pay the invoice, then book another checkout flight to continue your progress.'
+              : checkoutOutcome === 'checkout_reschedule_required'
+              ? 'An invoice has been issued for your checkout flight. Please pay the invoice — you will then be able to book another checkout session.'
+              : 'An invoice has been issued for your checkout flight. Please pay the invoice. Further training with a qualified instructor is required before you can continue with aircraft hire.',
+          cta1href: checkoutBookingId ? `/dashboard/bookings/${checkoutBookingId}` : '/dashboard/bookings',
+        }
+      : checkoutBookingId && clearanceStatus === 'checkout_payment_required'
+      ? { cta1href: `/dashboard/bookings/${checkoutBookingId}` }
+      : {}
+
+  const hero = { ...CLEARANCE_HERO[clearanceStatus], ...paymentHeroOverride }
+  const isCleared       = clearanceStatus === 'cleared_to_fly'
   const inCheckoutFlow  = ['checkout_required', 'checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required'].includes(clearanceStatus)
 
-  // verification_status still used for the on-hold alert and document review events
-  const verificationStatus = (profile?.verification_status ?? 'not_started') as VerificationStatus
-  const isOnHold           = verificationStatus === 'on_hold'
+  // isOnHold derived from clearance status (no longer depends on legacy verification_status)
+  const isOnHold = clearanceStatus === 'checkout_reschedule_required' || clearanceStatus === 'additional_checkout_required'
 
   const latestHoldEvent   = events.find(e => e.event_type === 'on_hold')
   const holdRequestKind: RequestKind = latestHoldEvent?.request_kind ?? 'document_request'
@@ -398,6 +447,114 @@ export default function DashboardContent({ user, profile, documents, events, isF
               </div>
             </div>
           </div>
+
+          {/* ─ Invoice breakdown panel (checkout_payment_required only) ────── */}
+          {clearanceStatus === 'checkout_payment_required' && checkoutInvoice && (
+            <div className="lg:col-span-2 bg-gradient-to-br from-[#0c1525]/80 to-[#080e1c]/80 border border-orange-500/20 rounded-2xl p-6 shadow-[0_4px_30px_rgba(0,0,0,0.35)]">
+              <div className="flex items-center gap-2 mb-5">
+                <span className="material-symbols-outlined text-[16px] text-orange-400" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  receipt_long
+                </span>
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-orange-400/80">
+                  Checkout Invoice Breakdown
+                </h3>
+              </div>
+
+              <div className="space-y-2 mb-4">
+                {/* Flight time */}
+                {checkoutInvoice.checkoutDurationHours && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] text-slate-400">
+                      Flight time ({checkoutInvoice.checkoutDurationHours.toFixed(1)}h × $290/hr)
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-300">
+                      ${((checkoutInvoice.subtotalCents - checkoutInvoice.landingSubtotalCents) / 100).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Landing charges */}
+                {checkoutInvoice.landingCharges.length > 0 && (
+                  <>
+                    {checkoutInvoice.landingCharges.map((lc, i) => (
+                      <div key={i} className="flex justify-between items-center pl-3 border-l border-white/[0.06]">
+                        <span className="text-[10px] text-slate-500">
+                          {lc.airportIcao} — {lc.airportName} × {lc.landingCount} landing{lc.landingCount !== 1 ? 's' : ''}
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-400">
+                          ${(lc.totalAmountCents / 100).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between items-center pl-3 border-l border-white/[0.06]">
+                      <span className="text-[10px] text-slate-500">Landing subtotal</span>
+                      <span className="text-[10px] font-mono text-slate-400">
+                        ${(checkoutInvoice.landingSubtotalCents / 100).toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                )}
+
+                {/* Divider + gross total */}
+                <div className="h-px bg-white/[0.06]" />
+                <div className="flex justify-between items-center">
+                  <span className="text-[11px] text-slate-400">Gross checkout total</span>
+                  <span className="text-[11px] font-mono font-semibold text-white">
+                    ${(checkoutInvoice.subtotalCents / 100).toFixed(2)}
+                  </span>
+                </div>
+
+                {/* Credit applied (initial advance) */}
+                {checkoutInvoice.advanceAppliedCents > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] text-slate-400">Credit applied</span>
+                    <span className="text-[11px] font-mono text-emerald-400">
+                      −${(checkoutInvoice.advanceAppliedCents / 100).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Available additional credit */}
+                {checkoutInvoice.currentCreditCents > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] text-slate-400">Additional credit available</span>
+                    <span className="text-[11px] font-mono text-emerald-400/70">
+                      ${(checkoutInvoice.currentCreditCents / 100).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Divider + amount due */}
+                <div className="h-px bg-white/[0.06]" />
+                <div className="flex justify-between items-center">
+                  <span className="text-[12px] font-semibold text-white">Amount Due Now</span>
+                  <span className={`text-[14px] font-bold font-mono ${checkoutInvoice.displayAmountDueCents > 0 ? 'text-orange-300' : 'text-emerald-400'}`}>
+                    {checkoutInvoice.displayAmountDueCents > 0
+                      ? `$${(checkoutInvoice.displayAmountDueCents / 100).toFixed(2)}`
+                      : 'Settled by credit'}
+                  </span>
+                </div>
+              </div>
+
+              {checkoutInvoice.currentCreditCents > 0 && checkoutInvoice.displayAmountDueCents > 0 && (
+                <p className="text-[9px] text-emerald-400/60 mb-3 leading-relaxed">
+                  Available credit will be applied automatically when you proceed to payment.
+                </p>
+              )}
+
+              <button
+                onClick={() => router.push(hero.cta1href)}
+                className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-[11px] font-bold uppercase tracking-[0.15em] transition-all shadow-[0_0_20px_rgba(234,88,12,0.3)]"
+              >
+                <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  payments
+                </span>
+                {checkoutInvoice.displayAmountDueCents > 0
+                  ? `Pay Now — $${(checkoutInvoice.displayAmountDueCents / 100).toFixed(2)}`
+                  : 'View Invoice'}
+              </button>
+            </div>
+          )}
 
           {/* ─ Right: Pilot Profile card ─────────────────────────────────── */}
           <div className={`${CARD} p-6 flex flex-col`}>
@@ -534,23 +691,23 @@ export default function DashboardContent({ user, profile, documents, events, isF
           </section>
         )}
 
-        {clearanceStatus === 'additional_supervised_time_required' && (
+        {clearanceStatus === 'additional_checkout_required' && (
           <section className="bg-amber-500/[0.06] border border-amber-500/20 rounded-xl p-6 space-y-3">
             <div className="flex items-center gap-3">
               <span className="material-symbols-outlined text-amber-400 text-xl" style={{ fontVariationSettings: "'wght' 300" }}>
                 schedule
               </span>
               <h4 className="text-xs font-bold uppercase tracking-widest text-amber-400">
-                Additional Supervised Time Required
+                Additional Checkout Required
               </h4>
             </div>
             <p className="text-sm text-white/75 leading-relaxed pl-8">
-              Following your checkout flight, the flight operations team has determined that additional supervised time is required before you can fly solo. Please contact the operations team to arrange your next supervised flight.
+              Following your checkout, the admin team has determined that an additional checkout session is required before you can be cleared to fly. Book another checkout flight when you are ready to continue.
             </p>
           </section>
         )}
 
-        {clearanceStatus === 'reschedule_required' && (
+        {clearanceStatus === 'checkout_reschedule_required' && (
           <section className="bg-amber-500/[0.06] border border-amber-500/20 rounded-xl p-6 space-y-3">
             <div className="flex items-center gap-3">
               <span className="material-symbols-outlined text-amber-400 text-xl" style={{ fontVariationSettings: "'wght' 300" }}>
@@ -561,7 +718,7 @@ export default function DashboardContent({ user, profile, documents, events, isF
               </h4>
             </div>
             <p className="text-sm text-white/75 leading-relaxed pl-8">
-              Your checkout needs to be rescheduled. Please contact the operations team to arrange a new checkout flight.
+              Your checkout could not be fully assessed this time. Book another checkout session when you are ready to try again.
             </p>
           </section>
         )}
@@ -713,8 +870,8 @@ export default function DashboardContent({ user, profile, documents, events, isF
             <div className="space-y-3 relative z-10">
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-blue-400/80">Need Help?</h3>
               <p className="text-sm text-slate-500 leading-relaxed font-light">
-                {verificationStatus === 'rejected' || isOnHold
-                  ? "Our team can review your case and guide you through the re-submission process."
+                {clearanceStatus === 'not_currently_eligible' || clearanceStatus === 'checkout_reschedule_required'
+                  ? "Our team can review your case and guide you through next steps."
                   : 'Questions about onboarding, documents, or an upcoming trip? Our team is here.'}
               </p>
             </div>
@@ -732,7 +889,7 @@ export default function DashboardContent({ user, profile, documents, events, isF
         {events.length > 0 && (
           <section className="space-y-5">
             <div className="flex items-center gap-3">
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Verification Updates</h3>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Status Updates</h3>
               {unreadCount > 0 && (
                 <span className="flex items-center justify-center w-4 h-4 rounded-full bg-blue-600 text-[9px] font-bold text-white">
                   {unreadCount}

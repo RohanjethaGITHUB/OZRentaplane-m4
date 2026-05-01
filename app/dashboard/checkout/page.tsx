@@ -24,18 +24,18 @@ export default async function CheckoutPage() {
   const clearanceStatus = typedProfile?.pilot_clearance_status ?? 'checkout_required'
 
   // Only redirect for terminal states where the checkout form is irrelevant:
-  //   cleared_for_solo_hire         → checkout complete, go to dashboard
+  //   cleared_to_fly                → checkout complete, go to dashboard
   //   checkout_confirmed            → waiting for the flight, no new booking needed
   //   checkout_completed_under_review → outcome pending, no new booking needed
   //   not_currently_eligible        → blocked, contact operations
   //
   // Keep alive for:
-  //   checkout_required                   → initial checkout flow
-  //   checkout_requested                  → just submitted, success screen must show
-  //   additional_supervised_time_required → may book another checkout session
-  //   reschedule_required                 → may book another checkout session
+  //   checkout_required             → initial checkout flow
+  //   checkout_requested            → just submitted, success screen must show
+  //   additional_checkout_required  → may book another checkout session
+  //   checkout_reschedule_required  → may book another checkout session
   const TERMINAL_STATES = [
-    'cleared_for_solo_hire',
+    'cleared_to_fly',
     'checkout_confirmed',
     'checkout_completed_under_review',
     'not_currently_eligible',

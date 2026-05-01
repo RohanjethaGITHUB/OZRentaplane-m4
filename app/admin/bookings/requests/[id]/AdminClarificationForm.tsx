@@ -19,7 +19,7 @@ export default function AdminClarificationForm({ bookingId }: { bookingId: strin
       setLoading(true)
       setError(null)
       await requestClarification(bookingId, message)
-      router.push('/admin/bookings/requests')
+      router.push('/admin/bookings/checkout')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to send clarification request.')
       setLoading(false)
@@ -70,3 +70,4 @@ export default function AdminClarificationForm({ bookingId }: { bookingId: strin
     </form>
   )
 }
+

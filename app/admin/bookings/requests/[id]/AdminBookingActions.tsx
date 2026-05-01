@@ -15,7 +15,7 @@ export default function AdminBookingActions({ bookingId }: { bookingId: string }
       setLoading(true)
       setError(null)
       await confirmBookingRequest(bookingId)
-      router.push('/admin/bookings/requests')
+      router.push('/admin/bookings/checkout')
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to confirm booking.'
       setError(msg)
@@ -31,7 +31,7 @@ export default function AdminBookingActions({ bookingId }: { bookingId: string }
       const form = new FormData(e.currentTarget)
       const reason = form.get('reason') as string
       await cancelBookingRequest(bookingId, reason)
-      router.push('/admin/bookings/requests')
+      router.push('/admin/bookings/checkout')
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to cancel booking.'
       setError(msg)
@@ -98,3 +98,4 @@ export default function AdminBookingActions({ bookingId }: { bookingId: string }
     </div>
   )
 }
+

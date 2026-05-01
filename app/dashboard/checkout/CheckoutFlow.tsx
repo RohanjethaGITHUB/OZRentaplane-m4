@@ -37,9 +37,8 @@ type Props = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-// Checkout is a fixed 1-hour session at $290/hr
-const CHECKOUT_DURATION_HOURS = 1
-const CHECKOUT_RATE            = 290
+// Reference rate for display only — actual amount is set by admin after the flight
+const CHECKOUT_RATE = 290
 
 const ALL_TIME_OPTIONS = (() => {
   const opts: { value: string; label: string }[] = []
@@ -914,7 +913,7 @@ export default function CheckoutFlow({
             {([
               { icon: 'flight_takeoff', label: 'Session type', value: 'Checkout Flight',          sub: null                              },
               { icon: 'flight',         label: 'Aircraft',     value: aircraftDisplayName,         sub: `Registration ${aircraftRegistration}` },
-              { icon: 'schedule',       label: 'Duration',     value: '1 hour',                   sub: 'Fixed session'                   },
+              { icon: 'schedule',       label: 'Duration',     value: 'Typically 1–2 hours',        sub: 'Based on actual time flown'      },
               { icon: 'payments',       label: 'Rate',         value: '$290 / hour',              sub: 'Billed after checkout approval'  },
             ] as { icon: string; label: string; value: string; sub: string | null }[]).map(({ icon, label, value, sub }) => (
               <div key={label} className="bg-[#060b17] px-4 py-4 flex flex-col gap-1">
@@ -1136,9 +1135,9 @@ export default function CheckoutFlow({
               { label: 'Date',          value: formatDate(date) },
               { label: 'Departure',     value: formatDateTime(startUTC) },
               { label: 'Return',        value: formatDateTime(endUTC) },
-              { label: 'Duration',      value: '1 hour (fixed)' },
+              { label: 'Duration',      value: 'Typically 1–2 hours' },
               { label: 'Checkout rate', value: `$${CHECKOUT_RATE} / hour` },
-              { label: 'Session cost',  value: `$${CHECKOUT_RATE}` },
+              { label: 'Session cost',  value: `From $${CHECKOUT_RATE} (billed on actual time)` },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-center justify-between py-3 border-b border-white/[0.06] last:border-0">
                 <span className="text-sm text-slate-500">{label}</span>

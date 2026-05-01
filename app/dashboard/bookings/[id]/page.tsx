@@ -36,6 +36,7 @@ const STATUS_CFG: Record<string, {
   pending_post_flight_review:      { label: 'Under Review',           sublabel: 'Post-flight review',          color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: 'rate_review'     },
   needs_clarification:             { label: 'Clarification Needed',   sublabel: 'Please respond to query',     color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', icon: 'help'            },
   post_flight_approved:            { label: 'Flight Approved',        sublabel: 'Records accepted',            color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20',  icon: 'verified'        },
+  payment_pending:                 { label: 'Payment Required',       sublabel: 'Pay to close booking',        color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', icon: 'payments'      },
   completed:                       { label: 'Completed',              sublabel: 'Booking closed',              color: 'text-slate-400',  bg: 'bg-white/5',       border: 'border-white/10',      icon: 'done_all'        },
   cancelled:                       { label: 'Cancelled',              sublabel: 'Will not proceed',            color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'cancel'          },
   no_show:                         { label: 'No Show',                sublabel: 'Marked absent',               color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'person_off'      },
@@ -55,6 +56,7 @@ const PIPELINE: { key: BookingStatus; label: string }[] = [
   { key: 'awaiting_flight_record',     label: 'Awaiting Record'      },
   { key: 'pending_post_flight_review', label: 'Post-Flight Review'   },
   { key: 'post_flight_approved',       label: 'Review Approved'      },
+  { key: 'payment_pending',            label: 'Payment Required'     },
   { key: 'completed',                  label: 'Completed'            },
 ]
 
@@ -91,6 +93,7 @@ function NextActionCard({
   flightRecord,
   postFlightAttachments,
   checkoutInvoice,
+  standardBilling,
 }: {
   status:                   string
   bookingType:              string
@@ -104,6 +107,7 @@ function NextActionCard({
   flightRecord?:            FlightRecord | null
   postFlightAttachments?:   (FlightRecordAttachment & { signedUrl: string | null })[]
   checkoutInvoice?:         { subtotal_cents: number; advance_applied_cents: number; stripe_amount_due_cents: number } | null
+  standardBilling?:         { subtotal_cents: number; advance_applied_cents: number; amount_due_cents: number } | null
 }) {
   const isCancelled = status === 'cancelled' || status === 'no_show'
 
@@ -147,9 +151,9 @@ function NextActionCard({
   }
 
   if (status === 'checkout_payment_required') {
-    const amountDue = checkoutInvoice ? (checkoutInvoice.stripe_amount_due_cents / 100).toFixed(2) : '290.00'
+    const amountDue = checkoutInvoice ? (checkoutInvoice.stripe_amount_due_cents / 100).toFixed(2) : null
     const advanceApplied = checkoutInvoice ? (checkoutInvoice.advance_applied_cents / 100).toFixed(2) : '0.00'
-    const subtotal = checkoutInvoice ? (checkoutInvoice.subtotal_cents / 100).toFixed(2) : '290.00'
+    const subtotal = checkoutInvoice ? (checkoutInvoice.subtotal_cents / 100).toFixed(2) : null
 
     return (
       <div className="bg-orange-500/10 border border-orange-500/20 rounded-[1.25rem] p-6">
@@ -157,11 +161,15 @@ function NextActionCard({
           <span className="material-symbols-outlined text-orange-400 text-lg">payments</span>
           <h3 className="text-xs font-bold uppercase tracking-widest text-orange-400">Payment Required</h3>
         </div>
-        <p className="text-sm text-oz-muted leading-relaxed mb-6">
-          Your checkout flight has been approved! To finalize your clearance and unlock aircraft bookings, please pay the checkout fee.
+        <p className="text-sm text-oz-muted leading-relaxed mb-2">
+          Your checkout flight has been completed and approved.
+          {amountDue !== null ? ` The final checkout amount is $${amountDue} AUD.` : ''} Please complete payment to finalise your clearance and unlock aircraft bookings.
+        </p>
+        <p className="text-xs text-slate-600 leading-relaxed mb-6">
+          Checkout flights are charged based on actual time flown at $290/hour.
         </p>
 
-        {checkoutInvoice && (
+        {checkoutInvoice && subtotal !== null && (
           <div className="mb-6 space-y-2 p-4 rounded-xl bg-orange-500/[0.05] border border-orange-500/15 text-sm">
             <div className="flex justify-between text-slate-300">
               <span>Checkout Fee</span>
@@ -180,12 +188,55 @@ function NextActionCard({
           </div>
         )}
 
-        <form action={createCheckoutPaymentSession.bind(null, bookingId)}>
-          <button type="submit" className="w-full bg-orange-500 hover:bg-orange-400 text-white rounded-lg px-4 py-2.5 text-sm font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2">
-            <span className="material-symbols-outlined text-[18px]">credit_card</span>
-            Pay ${amountDue}
-          </button>
-        </form>
+        {amountDue !== null && (
+          <form action={createCheckoutPaymentSession.bind(null, bookingId)}>
+            <button type="submit" className="w-full bg-orange-500 hover:bg-orange-400 text-white rounded-lg px-4 py-2.5 text-sm font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2">
+              <span className="material-symbols-outlined text-[18px]">credit_card</span>
+              Pay ${amountDue}
+            </button>
+          </form>
+        )}
+      </div>
+    )
+  }
+
+  if (status === 'payment_pending') {
+    const amountDue = standardBilling ? (standardBilling.amount_due_cents / 100).toFixed(2) : '0.00'
+    const advanceApplied = standardBilling ? (standardBilling.advance_applied_cents / 100).toFixed(2) : '0.00'
+    const subtotal = standardBilling ? (standardBilling.subtotal_cents / 100).toFixed(2) : '0.00'
+
+    return (
+      <div className="bg-orange-500/10 border border-orange-500/20 rounded-[1.25rem] p-6">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="material-symbols-outlined text-orange-400 text-lg">payments</span>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-orange-400">Payment Required</h3>
+        </div>
+        <p className="text-sm text-oz-muted leading-relaxed mb-6">
+          Your flight record has been approved. Please pay the remaining balance to close this booking.
+        </p>
+
+        {standardBilling && (
+          <div className="mb-6 space-y-2 p-4 rounded-xl bg-orange-500/[0.05] border border-orange-500/15 text-sm">
+            <div className="flex justify-between text-slate-300">
+              <span>Flight Total</span>
+              <span>${subtotal}</span>
+            </div>
+            {standardBilling.advance_applied_cents > 0 && (
+              <div className="flex justify-between text-green-400">
+                <span>Advance Credit Applied</span>
+                <span>-${advanceApplied}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-orange-400 pt-2 border-t border-orange-500/20">
+              <span>Total Due</span>
+              <span>${amountDue}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-orange-500/10 p-3 rounded-lg border border-orange-500/20 text-xs text-orange-400/80">
+          Online payment integration is coming soon. Please contact operations to pay the remaining balance.
+        </div>
       </div>
     )
   }
@@ -400,6 +451,30 @@ function NextActionCard({
             ? 'This booking is fully closed. Thank you for flying with OZRentAPlane.'
             : 'Your post-flight records have been reviewed and approved.'}
         </p>
+
+        {status === 'completed' && bookingType === 'standard' && standardBilling != null && (
+          <div className="mt-6 space-y-2 p-4 rounded-xl bg-green-500/[0.05] border border-green-500/15 text-sm">
+            <div className="flex justify-between text-slate-300">
+              <span>Flight Total</span>
+              <span>${(standardBilling.subtotal_cents / 100).toFixed(2)}</span>
+            </div>
+            {standardBilling.advance_applied_cents > 0 && (
+              <div className="flex justify-between text-green-400">
+                <span>Advance Credit Applied</span>
+                <span>-${(standardBilling.advance_applied_cents / 100).toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-green-400 pt-2 border-t border-green-500/20">
+              <span>Total Due</span>
+              <span>${(standardBilling.amount_due_cents / 100).toFixed(2)}</span>
+            </div>
+            {standardBilling.amount_due_cents === 0 && (
+              <div className="text-[10px] text-green-400/60 uppercase tracking-widest mt-2 flex items-center justify-end gap-1">
+                <span className="material-symbols-outlined text-[12px]">check</span> Settled by customer credit
+              </div>
+            )}
+          </div>
+        )}
       </div>
     )
   }
@@ -441,7 +516,7 @@ function HistoryEvent({
     if (row.new_status === 'checkout_completed_under_review') cfg.label = 'Awaiting Outcome'
     if (row.new_status === 'checkout_payment_required') cfg.label = 'Payment Required'
     
-    if (row.new_status === 'completed' || row.new_status === 'cleared_for_solo_hire') {
+    if (row.new_status === 'completed' || row.new_status === 'cleared_to_fly') {
       cfg.label = 'Completed'
       cfg.color = 'text-green-400'
       cfg.bg = 'bg-green-500/10'
@@ -454,7 +529,7 @@ function HistoryEvent({
   if (noteText) {
     if (noteText.startsWith('Admin ')) noteText = noteText.slice(6)
     if (bookingType === 'checkout') {
-      noteText = noteText.replace(/cleared_for_solo_hire/g, 'Cleared for aircraft booking')
+      noteText = noteText.replace(/cleared_to_fly/g, 'Cleared for aircraft booking')
     }
   }
 
@@ -525,6 +600,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
       estimated_hours, estimated_amount,
       pic_name, pic_arn, customer_notes, admin_notes,
       booking_reference,
+      subtotal_cents, advance_applied_cents, amount_due_cents, payment_status,
       created_at, updated_at,
       aircraft ( registration, aircraft_type )
     `)
@@ -633,6 +709,15 @@ export default async function BookingDetailPage({ params }: PageProps) {
       .eq('booking_id', booking.id)
       .single()
     checkoutInvoice = inv
+  }
+
+  let standardBilling = null
+  if (isStandardPipeline && booking.subtotal_cents != null) {
+    standardBilling = {
+      subtotal_cents: booking.subtotal_cents,
+      advance_applied_cents: booking.advance_applied_cents ?? 0,
+      amount_due_cents: booking.amount_due_cents ?? 0,
+    }
   }
 
   // ── Awaiting flight record — dedicated full-width layout ─────────────────────
@@ -1030,6 +1115,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
               flightRecord={postFlightRecord}
               postFlightAttachments={postFlightAttachments}
               checkoutInvoice={checkoutInvoice}
+              standardBilling={standardBilling}
             />
 
             {/* Request a change */}

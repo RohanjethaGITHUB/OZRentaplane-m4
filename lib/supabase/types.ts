@@ -1,5 +1,7 @@
 export type Role = 'customer' | 'admin'
 
+export type AccountStatus = 'active' | 'blocked' | 'archived'
+
 export type VerificationStatus =
   | 'not_started'
   | 'pending_review'
@@ -13,9 +15,9 @@ export type PilotClearanceStatus =
   | 'checkout_confirmed'
   | 'checkout_completed_under_review'
   | 'checkout_payment_required'
-  | 'cleared_for_solo_hire'
-  | 'additional_supervised_time_required'
-  | 'reschedule_required'
+  | 'cleared_to_fly'
+  | 'additional_checkout_required'
+  | 'checkout_reschedule_required'
   | 'not_currently_eligible'
 
 export type DocumentType = 'pilot_licence' | 'medical_certificate' | 'photo_id'
@@ -26,7 +28,8 @@ export type Profile = {
   full_name: string | null
   email: string | null
   role: Role
-  verification_status: VerificationStatus
+  account_status: AccountStatus           // active | blocked | archived
+  verification_status: VerificationStatus  // legacy; kept for verification_events history
   pilot_clearance_status: PilotClearanceStatus
   pilot_arn: string | null   // Aviation Reference Number — set after verification
   last_flight_date: string | null  // YYYY-MM-DD — shared between Documents page and checkout flow

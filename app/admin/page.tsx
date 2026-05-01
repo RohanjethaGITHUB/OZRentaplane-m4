@@ -27,7 +27,7 @@ export default async function AdminMasterOverview() {
     { count: checkoutAwaitingOutcome },
     { count: checkoutPaymentRequired },
   ] = await Promise.all([
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer').eq('pilot_clearance_status', 'cleared_for_solo_hire'),
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer').eq('pilot_clearance_status', 'cleared_to_fly'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'pending_confirmation'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'confirmed'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'awaiting_flight_record'),
@@ -44,22 +44,22 @@ export default async function AdminMasterOverview() {
 
   // A. Action Required
   const actionRequired = [
-    { label: 'New Checkout Requests', count: checkoutRequests || 0,        href: '/admin/bookings/requests?status=checkout_requested',            color: 'text-blue-400',   icon: 'how_to_reg' },
-    { label: 'Checkout Outcomes Needed', count: checkoutAwaitingOutcome || 0, href: '/admin/bookings/requests?status=checkout_completed_under_review', color: 'text-amber-400',  icon: 'rate_review' },
-    { label: 'New Booking Requests',  count: standardBookingReqs || 0,     href: '/admin/bookings/requests?status=pending_confirmation',           color: 'text-blue-400',   icon: 'fact_check' },
-    { label: 'Post-Flight Reviews',   count: pendingPostReviews || 0,      href: '/admin/bookings/post-flight-reviews',                            color: 'text-purple-400', icon: 'assignment_turned_in' },
+    { label: 'New Checkout Requests', count: checkoutRequests || 0,        href: '/admin/bookings/checkout?status=checkout_requested',            color: 'text-blue-400',   icon: 'how_to_reg' },
+    { label: 'Checkout Outcomes Needed', count: checkoutAwaitingOutcome || 0, href: '/admin/bookings/checkout?status=checkout_completed_under_review', color: 'text-amber-400',  icon: 'rate_review' },
+    { label: 'New Booking Requests',  count: standardBookingReqs || 0,     href: '/admin/bookings/flights?status=pending_confirmation',           color: 'text-blue-400',   icon: 'fact_check' },
+    { label: 'Post-Flight Reviews',   count: pendingPostReviews || 0,      href: '/admin/bookings/post-flight',                                   color: 'text-purple-400', icon: 'assignment_turned_in' },
   ].filter(a => a.count > 0)
 
   // B. Today / Upcoming
   const todayUpcoming = [
-    { label: 'Confirmed Checkout Flights', count: checkoutConfirmed || 0, href: '/admin/bookings/requests?status=checkout_confirmed', color: 'text-green-400', icon: 'event_available' },
-    { label: 'Confirmed Upcoming Aircraft Bookings', count: confirmedUpcoming || 0, href: '/admin/bookings', color: 'text-green-400', icon: 'event_available' },
+    { label: 'Confirmed Checkout Flights', count: checkoutConfirmed || 0, href: '/admin/bookings/checkout?status=checkout_confirmed', color: 'text-green-400', icon: 'event_available' },
+    { label: 'Confirmed Upcoming Aircraft Bookings', count: confirmedUpcoming || 0, href: '/admin/bookings/flights', color: 'text-green-400', icon: 'event_available' },
   ]
 
   // C. Waiting on Customer
   const waitingOnCustomer = [
-    { label: 'Checkout Payment Required', count: checkoutPaymentRequired || 0, href: '/admin/bookings/requests?status=checkout_payment_required', color: 'text-orange-400', icon: 'receipt_long' },
-    { label: 'Flight Records Pending', count: awaitingFlightRecords || 0, href: '/admin/bookings', color: 'text-slate-400', icon: 'assignment' },
+    { label: 'Checkout Payment Required', count: checkoutPaymentRequired || 0, href: '/admin/bookings/payment-required', color: 'text-orange-400', icon: 'receipt_long' },
+    { label: 'Flight Records Pending', count: awaitingFlightRecords || 0, href: '/admin/bookings/flights', color: 'text-slate-400', icon: 'assignment' },
   ]
 
   return (

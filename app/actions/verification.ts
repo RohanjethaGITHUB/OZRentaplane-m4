@@ -104,7 +104,7 @@ export async function submitForReview(skipDocCheck = false) {
   revalidatePath('/admin')
   revalidatePath('/admin/pending-verifications')
   revalidatePath('/admin/on-hold')
-  revalidatePath('/admin/all-customers')
+  revalidatePath('/admin/customers/all')
 }
 
 // ─── Customer chat message ────────────────────────────────────────────────────

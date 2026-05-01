@@ -529,9 +529,9 @@ export type CheckoutBookingResult = {
 }
 
 export type CheckoutOutcome =
-  | 'cleared_for_solo_hire'
-  | 'additional_supervised_time_required'
-  | 'reschedule_required'
+  | 'cleared_to_fly'
+  | 'additional_checkout_required'
+  | 'checkout_reschedule_required'
   | 'not_currently_eligible'
 
 export type ProvisionalBookingAction = 'keep' | 'release'

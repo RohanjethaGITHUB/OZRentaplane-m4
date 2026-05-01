@@ -1,15 +1,21 @@
 import Link from 'next/link'
 import { formatDateTime } from '@/lib/formatDateTime'
+import { CLEARANCE_BADGE, CLEARANCE_LABEL, ACCOUNT_STATUS_BADGE, ACCOUNT_STATUS_LABEL } from '@/lib/pilot-status'
+import type { PilotClearanceStatus, AccountStatus } from '@/lib/supabase/types'
 
 type DocSummary = { document_type: string; uploaded_at: string }
 
 export type QueueProfile = {
   id: string
   full_name: string | null
-  verification_status: string
+  /** Primary status for display — now pilot_clearance_status */
+  pilot_clearance_status?: string | null
+  account_status?: string | null
   updated_at: string
   reviewed_at?: string | null
   admin_review_note?: string | null
+  /** Legacy — kept for compatibility with old queue pages */
+  verification_status?: string | null
 }
 
 type Props = {
@@ -26,22 +32,6 @@ type Props = {
 function getInitials(name: string | null, fallback: string): string {
   if (name) return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
   return fallback.slice(0, 2).toUpperCase()
-}
-
-const STATUS_BADGE: Record<string, string> = {
-  not_started:    'bg-[#1a2b3c] text-blue-300/60',
-  pending_review: 'bg-[#354958]/50 text-[#a3b8c9]',
-  verified:       'bg-green-900/30 text-green-400',
-  rejected:       'bg-red-900/30 text-red-400',
-  on_hold:        'bg-amber-900/30 text-amber-400',
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  not_started:    'Not Started',
-  pending_review: 'Pending Review',
-  verified:       'Verified',
-  rejected:       'Rejected',
-  on_hold:        'On Hold',
 }
 
 export default function AdminQueueTable({
@@ -69,7 +59,7 @@ export default function AdminQueueTable({
               <th className="px-8 py-5">Customer Name</th>
               {showDocs && <th className="px-8 py-5 text-center">Documents</th>}
               <th className="px-8 py-5">{dateLabel}</th>
-              <th className="px-8 py-5">Status</th>
+              <th className="px-8 py-5">Pilot Clearance</th>
               <th className="px-8 py-5 text-right">Action</th>
             </tr>
           </thead>
@@ -92,8 +82,19 @@ export default function AdminQueueTable({
                 dateMode === 'submitted' ? profile.updated_at  :
                 profile.updated_at
               const displayDate = rawDate ? formatDateTime(rawDate) : '—'
-              const statusClass = STATUS_BADGE[profile.verification_status] ?? 'bg-white/5 text-slate-400'
-              const statusLabel = STATUS_LABEL[profile.verification_status] ?? profile.verification_status
+
+              // Primary: pilot_clearance_status. Fallback: legacy verification_status mapping.
+              const clearanceStatus = profile.pilot_clearance_status as PilotClearanceStatus | null
+              const accountStatus   = (profile.account_status ?? 'active') as AccountStatus
+
+              const isBlocked = accountStatus === 'blocked'
+
+              const clearanceBadge = clearanceStatus
+                ? CLEARANCE_BADGE[clearanceStatus] ?? 'bg-white/5 text-slate-400 border-white/10'
+                : 'bg-white/5 text-slate-400 border-white/10'
+              const clearanceLabel = clearanceStatus
+                ? CLEARANCE_LABEL[clearanceStatus] ?? clearanceStatus.replace(/_/g, ' ')
+                : '—'
 
               const unreadCount = unreadByUser[profile.id] ?? 0
 
@@ -103,8 +104,8 @@ export default function AdminQueueTable({
                     <div className="flex items-center gap-3">
                       <div className="relative flex-shrink-0">
                         <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold ${
-                          profile.verification_status === 'on_hold'
-                            ? 'bg-amber-900/30 border-amber-300/20 text-amber-200'
+                          isBlocked
+                            ? 'bg-red-900/30 border-red-300/20 text-red-200'
                             : 'bg-blue-900/50 border-blue-300/20 text-blue-200'
                         }`}>
                           {initials}
@@ -117,7 +118,10 @@ export default function AdminQueueTable({
                       </div>
                       <div>
                         <span className="text-sm font-semibold text-blue-100 block">{name}</span>
-                        {profile.admin_review_note && (
+                        {isBlocked && (
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-red-400">Blocked</span>
+                        )}
+                        {profile.admin_review_note && !isBlocked && (
                           <span className="text-[10px] text-slate-500 italic truncate max-w-[18rem] block" title={profile.admin_review_note}>
                             Note: {profile.admin_review_note}
                           </span>
@@ -136,8 +140,8 @@ export default function AdminQueueTable({
                   )}
                   <td className="px-8 py-6 text-xs text-slate-400">{displayDate}</td>
                   <td className="px-8 py-6">
-                    <span className={`px-3 py-1 text-[10px] uppercase tracking-widest font-bold rounded-full ${statusClass}`}>
-                      {statusLabel}
+                    <span className={`px-3 py-1 text-[10px] uppercase tracking-widest font-bold rounded-full border ${clearanceBadge}`}>
+                      {clearanceLabel}
                     </span>
                   </td>
                   <td className="px-8 py-6 text-right">

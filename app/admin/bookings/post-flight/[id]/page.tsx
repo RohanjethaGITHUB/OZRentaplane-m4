@@ -88,7 +88,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
 
   return (
     <div className="p-10 max-w-7xl mx-auto">
-      <Link href="/admin/bookings/post-flight-reviews" className="text-blue-400 hover:text-blue-300 text-sm mb-6 inline-flex items-center gap-1">
+      <Link href="/admin/bookings/post-flight" className="text-blue-400 hover:text-blue-300 text-sm mb-6 inline-flex items-center gap-1">
         <span className="material-symbols-outlined text-[16px]">arrow_back</span>
         Back to Queue
       </Link>
@@ -391,3 +391,4 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
     </div>
   )
 }
+

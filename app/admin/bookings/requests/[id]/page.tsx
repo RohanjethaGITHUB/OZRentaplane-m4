@@ -36,6 +36,7 @@ const STATUS_CFG: Record<string, {
   checkout_requested:              { label: 'Checkout Requested',        color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    icon: 'pending_actions'},
   checkout_confirmed:              { label: 'Checkout Confirmed',        color: 'text-green-400',   bg: 'bg-green-500/10',   border: 'border-green-500/20',   icon: 'event_available'},
   checkout_completed_under_review: { label: 'Awaiting Outcome',          color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   icon: 'rate_review'    },
+  checkout_payment_required:       { label: 'Payment Required',          color: 'text-orange-400',  bg: 'bg-orange-500/10',  border: 'border-orange-500/20',  icon: 'payments'       },
 }
 
 // Pilot clearance status display — replaces the old verification-only label
@@ -45,9 +46,10 @@ const CLEARANCE_CFG: Record<string, { label: string; color: string; bg: string; 
   checkout_requested:                  { label: 'Checkout Submitted',        color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20'     },
   checkout_confirmed:                  { label: 'Checkout Confirmed',        color: 'text-green-400',   bg: 'bg-green-500/10',   border: 'border-green-500/20'    },
   checkout_completed_under_review:     { label: 'Outcome Under Review',      color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20'    },
-  cleared_for_solo_hire:               { label: 'Cleared for Solo Hire',     color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20'  },
-  additional_supervised_time_required: { label: 'Additional Training Reqd',  color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20'    },
-  reschedule_required:                 { label: 'Reschedule Required',       color: 'text-orange-400',  bg: 'bg-orange-500/10',  border: 'border-orange-500/20'   },
+  checkout_payment_required:           { label: 'Payment Required',          color: 'text-orange-400',  bg: 'bg-orange-500/10',  border: 'border-orange-500/20'   },
+  cleared_to_fly:                { label: 'Cleared to Fly',            color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20'  },
+  additional_checkout_required:  { label: 'Additional Checkout Reqd',  color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20'    },
+  checkout_reschedule_required:  { label: 'Reschedule Required',       color: 'text-orange-400',  bg: 'bg-orange-500/10',  border: 'border-orange-500/20'   },
   not_currently_eligible:              { label: 'Not Currently Eligible',    color: 'text-rose-400',    bg: 'bg-rose-500/10',    border: 'border-rose-500/20'     },
 }
 
@@ -132,6 +134,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
   // All parallel fetches — customer profile, status history, slot data, and
   // checkout-specific data (documents, messages, linked solo reservation).
+  // When the booking is in checkout_completed_under_review (outcome-recording
+  // state), also fetch airports list and customer credit balance for the
+  // outcome form landing charges and credit display.
+  const isOutcomePending = booking.status === 'checkout_completed_under_review'
+
   const [
     { data: customer },
     { data: rawHistory },
@@ -139,6 +146,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     { data: overlappingRaw },
     { data: rawDocuments },
     { data: rawMessages },
+    { data: airportRows },
+    { data: creditRow },
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -175,10 +184,20 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       .eq('user_id', booking.booking_owner_user_id)
       .order('created_at', { ascending: false })
       .limit(50),
+    // Active airports for landing charge dropdown — only fetched when recording an outcome
+    isOutcomePending
+      ? supabase.from('airports').select('id, icao_code, name, default_landing_fee_cents').eq('is_active', true).order('name')
+      : Promise.resolve({ data: null, error: null }),
+    // Customer credit balance — only fetched when recording an outcome
+    isOutcomePending
+      ? supabase.from('customer_credit_balances').select('balance_cents').eq('customer_id', booking.booking_owner_user_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ])
 
-  const documents     = rawDocuments ?? []
-  const messages      = rawMessages  ?? []
+  const documents        = rawDocuments ?? []
+  const messages         = rawMessages  ?? []
+  const airports         = (airportRows ?? []) as { id: string; icao_code: string; name: string; default_landing_fee_cents: number }[]
+  const customerCreditCents = (creditRow as { balance_cents?: number } | null)?.balance_cents ?? 0
 
   // External conflicts: active blocks in the held window NOT belonging to this booking.
   // Expired temporary holds are excluded — same rule as the submission RPC and confirm action.
@@ -230,7 +249,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
       {/* Back link */}
       <Link
-        href="/admin/bookings/requests"
+        href="/admin/bookings/checkout"
         className="inline-flex items-center gap-1 text-slate-400 hover:text-[#a7c8ff] text-sm mb-8 transition-colors"
       >
         <span className="material-symbols-outlined text-[16px]">arrow_back</span>
@@ -473,6 +492,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 <AdminCheckoutActions
                   bookingId={booking.id}
                   status={status as 'checkout_confirmed' | 'checkout_completed_under_review'}
+                  airports={airports}
+                  customerCreditCents={customerCreditCents}
                 />
               </div>
             )}
@@ -702,7 +723,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               {isCheckout ? (
                 <>
                   <Link
-                    href="/admin/bookings/requests?status=checkout_requested"
+                    href="/admin/bookings/checkout?status=checkout_requested"
                     className="inline-flex items-center gap-1 text-[10px] text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors"
                   >
                     <span className="material-symbols-outlined text-[12px]">arrow_back</span>
@@ -713,7 +734,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               ) : isPending ? null : (
                 <>
                   <Link
-                    href="/admin/bookings/requests?status=pending_confirmation"
+                    href="/admin/bookings/checkout?status=pending_confirmation"
                     className="inline-flex items-center gap-1 text-[10px] text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors"
                   >
                     <span className="material-symbols-outlined text-[12px]">arrow_back</span>
@@ -723,7 +744,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 </>
               )}
               <Link
-                href="/admin/bookings/requests?status=all"
+                href="/admin/bookings/checkout?status=all"
                 className="inline-flex items-center gap-1 text-[10px] text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors"
               >
                 All bookings
@@ -737,3 +758,4 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     </div>
   )
 }
+

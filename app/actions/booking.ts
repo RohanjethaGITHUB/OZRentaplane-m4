@@ -16,31 +16,32 @@ import type {
 } from '@/lib/supabase/booking-types'
 
 // ─── Auth guard ───────────────────────────────────────────────────────────────
-// Customers must be verified before creating bookings.
+// Customers must be cleared for solo hire before creating standard bookings.
 // Returns supabase client and the authenticated user id.
 
-async function requireVerifiedCustomer() {
+async function requireClearedCustomer() {
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) throw new Error('Unauthorized')
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, verification_status, pilot_clearance_status')
+    .select('role, account_status, pilot_clearance_status')
     .eq('id', user.id)
     .single()
 
   if (!profile) throw new Error('Profile not found')
   if (profile.role !== 'customer') throw new Error('Not a customer account')
-  if (profile.verification_status !== 'verified') {
-    throw new Error('VERIFICATION_REQUIRED: Your account must be verified before making bookings.')
+  if (profile.account_status === 'blocked') {
+    throw new Error('ACCOUNT_BLOCKED: Your account has been blocked. Please contact support.')
   }
-  if (profile.pilot_clearance_status !== 'cleared_for_solo_hire') {
-    throw new Error('CLEARANCE_REQUIRED: Solo hire is only available to pilots cleared for solo flight.')
+  if (profile.pilot_clearance_status !== 'cleared_to_fly') {
+    throw new Error('CLEARANCE_REQUIRED: Solo hire bookings are only available to pilots cleared for solo flight.')
   }
 
   return { supabase, userId: user.id }
 }
+
 
 // ─── Create booking ───────────────────────────────────────────────────────────
 // Delegates to create_aircraft_booking_atomic() Postgres RPC, which performs
@@ -53,7 +54,7 @@ async function requireVerifiedCustomer() {
 export async function createBooking(
   input: CreateBookingInput,
 ): Promise<{ bookingId: string; bookingReference: string }> {
-  const { supabase } = await requireVerifiedCustomer()
+  const { supabase } = await requireClearedCustomer()
 
   const start = new Date(input.scheduled_start)
   const end   = new Date(input.scheduled_end)
@@ -134,7 +135,7 @@ export async function createBooking(
 export async function submitFlightRecord(
   input: SubmitFlightRecordInput,
 ): Promise<{ flightRecordId: string }> {
-  const { supabase, userId } = await requireVerifiedCustomer()
+  const { supabase, userId } = await requireClearedCustomer()
 
   // Verify booking ownership and status
   const { data: booking, error: bookingError } = await supabase
@@ -307,7 +308,7 @@ export async function submitClarificationResponse(
   bookingId: string,
   response:  string,
 ): Promise<void> {
-  const { supabase, userId } = await requireVerifiedCustomer()
+  const { supabase, userId } = await requireClearedCustomer()
 
   if (!response.trim()) throw new Error('VALIDATION: A response is required.')
 
@@ -383,7 +384,7 @@ export async function submitClarificationResponse(
 export async function resubmitFlightRecord(
   input: ResubmitFlightRecordInput,
 ): Promise<void> {
-  const { supabase, userId } = await requireVerifiedCustomer()
+  const { supabase, userId } = await requireClearedCustomer()
 
   // Ownership + status gate
   const { data: booking, error: bookingErr } = await supabase
@@ -498,7 +499,7 @@ export async function resubmitFlightRecord(
 
   revalidatePath('/dashboard')
   revalidatePath(`/dashboard/bookings/${input.booking_id}`)
-  revalidatePath('/admin/bookings/post-flight-reviews')
+  revalidatePath('/admin/bookings/post-flight')
 }
 
 // ─── Upload flight record evidence ────────────────────────────────────────────
@@ -522,7 +523,7 @@ export async function resubmitFlightRecord(
 export async function uploadFlightRecordEvidence(
   formData: FormData,
 ): Promise<{ storagePath: string; attachmentId: string }> {
-  const { supabase, userId } = await requireVerifiedCustomer()
+  const { supabase, userId } = await requireClearedCustomer()
 
   const file           = formData.get('file')           as File   | null
   const flightRecordId = formData.get('flightRecordId') as string | null
@@ -609,7 +610,7 @@ export async function uploadFlightRecordEvidence(
   }
 
   revalidatePath(`/dashboard/bookings/${bookingId}`)
-  revalidatePath(`/admin/bookings/post-flight-reviews/${flightRecordId}`)
+  revalidatePath(`/admin/bookings/post-flight/${flightRecordId}`)
 
   return { storagePath, attachmentId: attachment.id }
 }

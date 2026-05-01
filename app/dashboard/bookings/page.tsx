@@ -219,7 +219,7 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking }: GateBannerPro
     )
   }
 
-  if (clearanceStatus === 'additional_supervised_time_required') {
+  if (clearanceStatus === 'additional_checkout_required') {
     return (
       <div className={`border rounded-xl p-8 bg-amber-500/[0.05] border-amber-500/20 mb-8`}>
         <div className="flex items-start gap-4">
@@ -230,15 +230,15 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking }: GateBannerPro
             schedule
           </span>
           <div>
-            <h2 className="text-lg font-serif text-white mb-2">Additional Supervised Time Required</h2>
+            <h2 className="text-lg font-serif text-white mb-2">Additional Checkout Required</h2>
             <p className="text-slate-500 text-sm leading-relaxed mb-4">
-              Following your checkout, the flight operations team has determined that additional supervised sessions are required before solo hire. Book another supervised session to continue.
+              Following your checkout, the admin team has determined that an additional checkout session is required before you can be cleared to fly. Book another checkout flight to continue.
             </p>
             <Link
               href="/dashboard/checkout"
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500/15 border border-amber-400/30 text-amber-300 hover:bg-amber-500/25 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
             >
-              Book Additional Supervised Session
+              Book Another Checkout
             </Link>
           </div>
         </div>
@@ -246,7 +246,7 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking }: GateBannerPro
     )
   }
 
-  if (clearanceStatus === 'reschedule_required') {
+  if (clearanceStatus === 'checkout_reschedule_required') {
     return (
       <div className={`border rounded-xl p-8 bg-amber-500/[0.05] border-amber-500/20 mb-8`}>
         <div className="flex items-start gap-4">
@@ -258,9 +258,15 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking }: GateBannerPro
           </span>
           <div>
             <h2 className="text-lg font-serif text-white mb-2">Checkout Reschedule Required</h2>
-            <p className="text-slate-500 text-sm leading-relaxed">
-              Your checkout needs to be rescheduled. Please contact the operations team to arrange a new session, or book below.
+            <p className="text-slate-500 text-sm leading-relaxed mb-4">
+              Your checkout could not be fully assessed this time. Book another checkout session when you are ready to try again.
             </p>
+            <Link
+              href="/dashboard/checkout"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500/15 border border-amber-400/30 text-amber-300 hover:bg-amber-500/25 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
+            >
+              Book Another Checkout
+            </Link>
           </div>
         </div>
       </div>
@@ -280,7 +286,7 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking }: GateBannerPro
           <div>
             <h2 className="text-lg font-serif text-white mb-2">Not Currently Eligible</h2>
             <p className="text-slate-500 text-sm leading-relaxed">
-              Your account is not currently eligible for solo hire. Please contact the operations team for further information.
+              Based on your checkout assessment, further training with a qualified instructor is required before you can continue with aircraft hire. Please contact us when you are ready to try again.
             </p>
           </div>
         </div>
@@ -309,7 +315,7 @@ export default async function CustomerBookingsPage() {
   // TODO: Future invoice-paid eligibility
   // Once payment fields exist, this stage switch should require both checkout clearance
   // and the checkout invoice to be paid before allowing full standard booking access.
-  const isCleared = clearanceStatus === 'cleared_for_solo_hire'
+  const isCleared = clearanceStatus === 'cleared_to_fly'
 
   // Fetch all bookings regardless of clearance — checkout bookings must always be visible
   const { data: bookings } = await supabase

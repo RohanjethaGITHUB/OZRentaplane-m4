@@ -58,7 +58,7 @@ export default function FlightRecordApprovalForm({ flightRecordId, currentStatus
         admin_booking_notes: admin_booking_notes || null,
         correction_reason:   mode === 'correction' ? correction_reason : null,
       })
-      router.push('/admin/bookings/post-flight-reviews')
+      router.push('/admin/bookings/post-flight')
       router.refresh()
     } catch (err: unknown) {
       console.error(err)
@@ -157,3 +157,4 @@ export default function FlightRecordApprovalForm({ flightRecordId, currentStatus
     </form>
   )
 }
+

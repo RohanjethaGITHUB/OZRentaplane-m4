@@ -79,7 +79,7 @@ export default function CreateBlockForm({ aircraftId }: { aircraftId: string }) 
         setRequireOverride(true)
         setLoading(false)
       } else {
-        router.push('/admin/bookings/calendar')
+        router.push('/admin/calendar')
       }
     } catch (err: any) {
       console.error(err)

@@ -199,21 +199,15 @@ export async function approvePostFlightReview(
     throw new Error('Failed to approve flight record.')
   }
 
-  // 2. Update booking
-  // Only overwrite admin_notes if the caller explicitly provided one.
-  // Omitting admin_booking_notes preserves any existing note on the booking.
-  const bookingUpdate: Record<string, unknown> = {
-    status:       'post_flight_approved',
-    final_amount: finalAmount,
-  }
-  if (input.admin_booking_notes != null) {
-    bookingUpdate.admin_notes = input.admin_booking_notes
-  }
-
-  const { error: bookingUpdateError } = await supabase
-    .from('bookings')
-    .update(bookingUpdate)
-    .eq('id', flightRecord.booking_id)
+  // 2. Update booking & apply credit atomically
+  const subtotalCents = finalAmount != null ? Math.round(finalAmount * 100) : 0
+  const { error: bookingUpdateError } = await supabase.rpc('apply_credit_to_standard_booking_atomic', {
+    p_booking_id: flightRecord.booking_id,
+    p_subtotal_cents: subtotalCents,
+    p_final_amount: finalAmount,
+    p_new_status: 'post_flight_approved',
+    p_admin_notes: input.admin_booking_notes ?? null
+  })
 
   if (bookingUpdateError) {
     // Flight record approval already committed — log but don't throw
@@ -510,8 +504,8 @@ export async function confirmBookingRequest(bookingId: string) {
   }
 
   revalidatePath('/admin')
-  revalidatePath('/admin/bookings/requests')
-  revalidatePath(`/admin/bookings/requests/${bookingId}`)
+  revalidatePath('/admin/bookings/checkout')
+  revalidatePath(`/admin/bookings/checkout/${bookingId}`)
   revalidatePath('/dashboard')
 }
 
@@ -590,8 +584,8 @@ export async function cancelBookingRequest(bookingId: string, reason: string) {
   }
 
   revalidatePath('/admin')
-  revalidatePath('/admin/bookings/requests')
-  revalidatePath(`/admin/bookings/requests/${bookingId}`)
+  revalidatePath('/admin/bookings/checkout')
+  revalidatePath(`/admin/bookings/checkout/${bookingId}`)
   revalidatePath('/dashboard')
 }
 
@@ -663,8 +657,8 @@ export async function requestClarification(bookingId: string, message: string) {
   }
 
   revalidatePath('/admin')
-  revalidatePath('/admin/bookings/requests')
-  revalidatePath(`/admin/bookings/requests/${bookingId}`)
+  revalidatePath('/admin/bookings/checkout')
+  revalidatePath(`/admin/bookings/checkout/${bookingId}`)
   revalidatePath('/dashboard')
 }
 
@@ -724,8 +718,8 @@ async function adminTransition(
   })
 
   revalidatePath('/admin')
-  revalidatePath('/admin/bookings/requests')
-  revalidatePath(`/admin/bookings/requests/${bookingId}`)
+  revalidatePath('/admin/bookings/checkout')
+  revalidatePath(`/admin/bookings/checkout/${bookingId}`)
   revalidatePath('/dashboard')
 }
 
@@ -907,8 +901,8 @@ export async function requestPostFlightClarification(input: {
     }).catch(e => console.error('[requestPostFlightClarification] email error:', e))
   }
 
-  revalidatePath('/admin/bookings/post-flight-reviews')
-  revalidatePath(`/admin/bookings/post-flight-reviews/${input.flightRecordId}`)
+  revalidatePath('/admin/bookings/post-flight')
+  revalidatePath(`/admin/bookings/post-flight/${input.flightRecordId}`)
   revalidatePath('/dashboard')
   revalidatePath(`/dashboard/bookings/${input.bookingId}`)
 }
@@ -1052,15 +1046,45 @@ export async function markCheckoutFlightCompleted(bookingId: string): Promise<vo
 
 // ─── Mark checkout outcome ─────────────────────────────────────────────────────
 // Called after the checkout flight has been completed (status = checkout_completed_under_review).
-// Sets pilot_clearance_status to the chosen outcome and closes the booking.
+// Routes ALL 4 outcomes through complete_checkout_outcome_atomic, which:
+//   - creates a checkout invoice for every outcome
+//   - applies existing customer credit
+//   - moves booking → checkout_payment_required (or completed if credit covers all)
+//   - stores checkout_outcome on the invoice for post-payment clearance promotion
 //
 export async function markCheckoutOutcome(input: {
-  bookingId:   string
-  outcome:     'cleared_for_solo_hire' | 'additional_supervised_time_required' | 'reschedule_required' | 'not_currently_eligible'
-  adminNote?:  string
+  bookingId:                string
+  outcome:                  'cleared_to_fly' | 'additional_checkout_required' | 'checkout_reschedule_required' | 'not_currently_eligible'
+  adminNote?:               string
+  // Payment path (required unless paymentWaived = true)
+  checkoutDurationHours:    number
+  checkoutFinalAmountCents: number
+  landingCharges?:          { airportId: string; landingCount: number }[]
+  // Waiver path (non-cleared outcomes only)
+  paymentWaived?:           boolean
+  waiverReason?:            string
 }): Promise<void> {
   const { supabase, adminId } = await requireAdmin()
-  const now = new Date().toISOString()
+
+  // ── Waiver validation (duplicated in RPC for defence-in-depth) ───────────
+  if (input.paymentWaived) {
+    if (input.outcome === 'cleared_to_fly') {
+      throw new Error('VALIDATION: Payment cannot be waived for the cleared_to_fly outcome.')
+    }
+    if (!input.waiverReason?.trim()) {
+      throw new Error('VALIDATION: A waiver reason is required when payment is waived.')
+    }
+  }
+
+  // ── Front-end validation — payment path only ──────────────────────────────
+  if (!input.paymentWaived) {
+    if (!input.checkoutDurationHours || input.checkoutDurationHours <= 0) {
+      throw new Error('VALIDATION: Checkout duration must be greater than 0.')
+    }
+    if (!input.checkoutFinalAmountCents || input.checkoutFinalAmountCents <= 0) {
+      throw new Error('VALIDATION: Final checkout amount must be greater than 0.')
+    }
+  }
 
   const { data: booking, error: fetchErr } = await supabase
     .from('bookings')
@@ -1076,140 +1100,163 @@ export async function markCheckoutOutcome(input: {
     throw new Error(`VALIDATION: Outcome can only be recorded from 'checkout_completed_under_review'. Current: '${booking.status}'.`)
   }
 
-  let finalBookingStatus = 'completed'
-  let finalClearanceStatus: any = input.outcome
+  // ── Build landing charges JSON ────────────────────────────────────────────
+  // Only relevant for the payment path — empty for waived outcomes.
+  const landingChargesJson = input.paymentWaived
+    ? []
+    : (input.landingCharges ?? [])
+        .filter(lc => lc.airportId && lc.landingCount > 0)
+        .map(lc => ({ airport_id: lc.airportId, landing_count: lc.landingCount }))
 
-  if (input.outcome === 'cleared_for_solo_hire') {
-    const checkout_fee_cents = 29000
-
-    // 1. Calculate available advance
-    const { data: ledgerEntries } = await supabase
-      .from('customer_payment_ledger')
-      .select('amount_cents, entry_type')
-      .eq('customer_id', booking.booking_owner_user_id)
-
-    let balanceCents = 0
-    if (ledgerEntries) {
-      for (const entry of ledgerEntries) {
-        if (['advance_credit', 'refund', 'manual_adjustment', 'advance_applied'].includes(entry.entry_type)) {
-          balanceCents += entry.amount_cents // Credits are positive, applied/refunds are negative
-        }
-      }
-    }
-    balanceCents = Math.max(0, balanceCents)
-
-    const advance_applied_cents = Math.min(balanceCents, checkout_fee_cents)
-    const stripe_amount_due_cents = checkout_fee_cents - advance_applied_cents
-
-    const invoiceStatus = stripe_amount_due_cents === 0 ? 'paid' : 'payment_required'
-    finalBookingStatus = stripe_amount_due_cents === 0 ? 'completed' : 'checkout_payment_required'
-    finalClearanceStatus = stripe_amount_due_cents === 0 ? 'cleared_for_solo_hire' : 'checkout_payment_required'
-
-    // 2. Create checkout invoice
-    const { data: invoice, error: invoiceErr } = await supabase
-      .from('checkout_invoices')
-      .insert({
-        customer_id: booking.booking_owner_user_id,
-        booking_id: input.bookingId,
-        invoice_type: 'checkout',
-        status: invoiceStatus,
-        subtotal_cents: checkout_fee_cents,
-        advance_applied_cents: advance_applied_cents,
-        stripe_amount_due_cents: stripe_amount_due_cents,
-        total_paid_cents: advance_applied_cents,
-        paid_at: stripe_amount_due_cents === 0 ? now : null,
-      })
-      .select('id')
-      .single()
-
-    if (invoiceErr || !invoice) throw new Error('Failed to create checkout invoice.')
-
-    // 3. Apply advance payment if any
-    if (advance_applied_cents > 0) {
-      await supabase.from('customer_payment_ledger').insert({
-        customer_id: booking.booking_owner_user_id,
-        booking_id: input.bookingId,
-        invoice_id: invoice.id,
-        amount_cents: -advance_applied_cents, // Negative convention for applied funds
-        entry_type: 'advance_applied',
-        note: 'Applied to checkout invoice',
-        created_by: adminId,
-      })
-    }
+  // ── Single atomic RPC ─────────────────────────────────────────────────────
+  const rpcPayload = {
+    p_booking_id:              input.bookingId,
+    p_customer_id:             booking.booking_owner_user_id,
+    p_checkout_fee_cents:      input.paymentWaived ? 0 : input.checkoutFinalAmountCents,
+    p_checkout_duration_hours: input.paymentWaived ? 0 : input.checkoutDurationHours,
+    p_checkout_outcome:        input.outcome,
+    p_landing_charges:         landingChargesJson.length > 0 ? landingChargesJson : null,
+    p_admin_notes:             input.adminNote ?? null,
+    p_payment_waived:          input.paymentWaived ?? false,
+    p_waiver_reason:           input.waiverReason ?? null,
   }
 
-  // Close the checkout booking (or set to payment required)
-  const { error: bookingErr } = await supabase
-    .from('bookings')
-    .update({
-      status:      finalBookingStatus,
-      admin_notes: input.adminNote ?? null,
-      updated_at:  now,
+  console.log('[markCheckoutOutcome] calling RPC complete_checkout_outcome_atomic', rpcPayload)
+
+  const { data: rpcRows, error: rpcErr } = await supabase.rpc(
+    'complete_checkout_outcome_atomic',
+    rpcPayload,
+  )
+
+  if (rpcErr || !rpcRows?.[0]) {
+    console.error('[markCheckoutOutcome] RPC failed', {
+      message: rpcErr?.message,
+      code:    rpcErr?.code,
+      details: rpcErr?.details,
+      hint:    rpcErr?.hint,
+      rpcRows,
     })
-    .eq('id', input.bookingId)
+    const diagParts: string[] = []
+    if (rpcErr?.code)    diagParts.push(`code=${rpcErr.code}`)
+    if (rpcErr?.message) diagParts.push(rpcErr.message)
+    if (rpcErr?.details) diagParts.push(rpcErr.details)
+    if (rpcErr?.hint)    diagParts.push(`hint: ${rpcErr.hint}`)
+    if (!rpcErr && !rpcRows?.[0]) diagParts.push('RPC returned no rows — run migration 040 first')
+    throw new Error(
+      diagParts.length ? diagParts.join(' | ') : 'complete_checkout_outcome_atomic: unknown failure'
+    )
+  }
 
-  if (bookingErr) throw new Error('Failed to update checkout booking status.')
+  const finalBookingStatus   = rpcRows[0].out_final_booking_status   as string
+  const finalClearanceStatus = rpcRows[0].out_pilot_clearance_status as string
+  // True for credit-settled payment path AND for waiver path (both return 'completed')
+  const isSettledByCredit    = finalBookingStatus === 'completed' && !input.paymentWaived
 
-  // Set pilot clearance status
-  await supabase.from('profiles')
-    .update({ pilot_clearance_status: finalClearanceStatus, updated_at: now })
-    .eq('id', booking.booking_owner_user_id)
+  // ── Status history ─────────────────────────────────────────────────────────
+  const historyNote = input.paymentWaived
+    ? `Checkout outcome: ${input.outcome}. Payment waived. Reason: ${input.waiverReason ?? ''}`.trim()
+    : `Checkout outcome: ${input.outcome}. ${input.adminNote ?? ''}`.trim()
 
   await supabase.from('booking_status_history').insert({
     booking_id:         input.bookingId,
     old_status:         'checkout_completed_under_review',
     new_status:         finalBookingStatus,
     changed_by_user_id: adminId,
-    note:               `Checkout outcome: ${input.outcome}. ${input.adminNote ?? ''}`.trim(),
+    note:               historyNote,
   })
 
+  // ── Audit event ───────────────────────────────────────────────────────────
   await supabase.from('booking_audit_events').insert({
     booking_id:    input.bookingId,
     aircraft_id:   booking.aircraft_id,
     actor_user_id: adminId,
     actor_role:    'admin',
     event_type:    'checkout_outcome_recorded',
-    event_summary: `Checkout outcome recorded: ${input.outcome}. Status: ${finalBookingStatus}.`,
-    new_value:     { outcome: input.outcome, pilot_clearance_status: finalClearanceStatus, booking_status: finalBookingStatus },
+    event_summary: input.paymentWaived
+      ? `Checkout outcome recorded: ${input.outcome}. Payment waived. Final status: ${finalBookingStatus}.`
+      : `Checkout outcome recorded: ${input.outcome}. Final status: ${finalBookingStatus}.`,
+    new_value: input.paymentWaived
+      ? {
+          outcome:                input.outcome,
+          pilot_clearance_status: finalClearanceStatus,
+          booking_status:         finalBookingStatus,
+          payment_waived:         true,
+          waiver_reason:          input.waiverReason,
+        }
+      : {
+          outcome:                input.outcome,
+          pilot_clearance_status: finalClearanceStatus,
+          booking_status:         finalBookingStatus,
+          checkout_fee_cents:     input.checkoutFinalAmountCents,
+          duration_hours:         input.checkoutDurationHours,
+          landing_charges:        landingChargesJson,
+          payment_waived:         false,
+        },
   })
 
+  // ── Customer notification ──────────────────────────────────────────────────
+  let notifTitle: string
+  let notifBody: string
 
-
-  // Notify customer about checkout outcome
-  {
-    let notifTitle: string
-    let notifBody: string
-
-    if (input.outcome === 'cleared_for_solo_hire') {
-      const isPaid = finalBookingStatus === 'completed'
-      notifTitle = isPaid ? 'Checkout approved' : 'Checkout approved — payment required'
-      notifBody  = isPaid
-        ? 'Your checkout flight has been approved and paid. Aircraft bookings are now available.'
-        : 'Your checkout flight has been approved. Please pay your checkout invoice before aircraft bookings become available.'
-    } else if (input.outcome === 'additional_supervised_time_required') {
-      notifTitle = 'Additional supervised time required'
-      notifBody  = 'Following your checkout, the flight operations team has determined that additional supervised sessions are required before solo hire. Please book another supervised session.'
-    } else if (input.outcome === 'reschedule_required') {
-      notifTitle = 'Checkout reschedule required'
-      notifBody  = 'Your checkout needs to be rescheduled. Please contact the operations team to arrange a new checkout session.'
+  if (input.outcome === 'cleared_to_fly') {
+    // cleared_to_fly is always payment path — no waiver branch needed here
+    notifTitle = isSettledByCredit
+      ? 'Checkout approved — invoice settled'
+      : 'Checkout approved — payment required'
+    notifBody = isSettledByCredit
+      ? 'Your checkout flight has been approved and your invoice settled using account credit. Aircraft bookings are now available.'
+      : 'Your checkout flight has been approved. Please pay your checkout invoice before aircraft bookings become available.'
+  } else if (input.outcome === 'additional_checkout_required') {
+    if (input.paymentWaived) {
+      notifTitle = 'Checkout complete — additional checkout required'
+      notifBody  = 'Your checkout has been recorded. An additional checkout session is required before you can be cleared to fly. You can book another checkout flight when you are ready.'
     } else {
-      notifTitle = 'Checkout outcome updated'
-      notifBody  = 'Your checkout outcome has been updated. Please contact the operations team for more information.'
+      notifTitle = isSettledByCredit
+        ? 'Checkout invoice settled — additional checkout required'
+        : 'Checkout invoice issued — additional checkout required'
+      notifBody = isSettledByCredit
+        ? 'Your checkout invoice has been settled using account credit. An additional checkout session is required before you can be cleared to fly. You can book another checkout flight when you are ready.'
+        : 'A checkout invoice has been issued. Please pay the invoice — you will then be able to book another checkout session to continue your progress.'
     }
-
-    await supabase.from('verification_events').insert({
-      user_id:       booking.booking_owner_user_id,
-      actor_user_id: adminId,
-      actor_role:    'admin',
-      event_type:    'approved',
-      title:         notifTitle,
-      body:          notifBody,
-      is_read:       false,
-      email_status:  'skipped',
-    })
+  } else if (input.outcome === 'checkout_reschedule_required') {
+    if (input.paymentWaived) {
+      notifTitle = 'Checkout complete — reschedule required'
+      notifBody  = 'Your checkout has been recorded. Your checkout could not be fully assessed this time. You can book another checkout session when you are ready.'
+    } else {
+      notifTitle = isSettledByCredit
+        ? 'Checkout invoice settled — reschedule required'
+        : 'Checkout invoice issued — reschedule required'
+      notifBody = isSettledByCredit
+        ? 'Your checkout invoice has been settled using account credit. Your checkout could not be fully assessed this time. You can book another checkout session when you are ready.'
+        : 'A checkout invoice has been issued. Please pay the invoice — you will then be able to book another checkout session.'
+    }
+  } else {
+    // not_currently_eligible
+    if (input.paymentWaived) {
+      notifTitle = 'Checkout complete — further training required'
+      notifBody  = 'Your checkout has been recorded. Based on your assessment, further training with a qualified instructor is required before you can continue with aircraft hire. Please contact us when you are ready to try again.'
+    } else {
+      notifTitle = isSettledByCredit ? 'Checkout invoice settled' : 'Checkout invoice issued'
+      notifBody = isSettledByCredit
+        ? 'Your checkout invoice has been settled using account credit. Based on your assessment, further training is required before you can continue with aircraft hire. Please arrange further training with a qualified instructor and contact us when you are ready to try again.'
+        : 'A checkout invoice has been issued for your checkout flight. Please pay the invoice. Based on your assessment, further training with a qualified instructor is required before you can continue with aircraft hire.'
+    }
   }
 
+  await supabase.from('verification_events').insert({
+    user_id:       booking.booking_owner_user_id,
+    actor_user_id: adminId,
+    actor_role:    'admin',
+    event_type:    'approved',
+    title:         notifTitle,
+    body:          notifBody,
+    is_read:       false,
+    email_status:  'skipped',
+  })
+
   revalidatePath('/admin')
+  revalidatePath('/admin/bookings/checkout')
+  revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
   revalidatePath('/dashboard')
 }
 
@@ -1438,7 +1485,7 @@ export async function adminUpdateCheckoutTime(
   if (notifErr2) console.error('[adminUpdateCheckoutTime] notification failed:', notifErr2.message)
 
   revalidatePath('/admin')
-  revalidatePath(`/admin/bookings/requests/${bookingId}`)
+  revalidatePath(`/admin/bookings/checkout/${bookingId}`)
   revalidatePath('/dashboard')
 
   return { newStart: newStartISO, newEnd: newEndISO }

@@ -5,6 +5,8 @@ import { useState } from 'react'
 interface Props {
   title: string
   defaultOpen?: boolean
+  /** Short text shown on the right when the section is collapsed */
+  summary?: string
   /** Unread badge count — shown as a blue pill when > 0 */
   badge?: number
   children: React.ReactNode
@@ -12,26 +14,29 @@ interface Props {
 
 /**
  * A smooth accordion section used on the admin customer detail page.
+ * Includes a collapsed-state summary on the right for at-a-glance context.
  * Server-rendered children are passed in; only the open/close state is client.
  */
 export default function CollapsibleSection({
   title,
   defaultOpen = false,
+  summary,
   badge,
   children,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen)
 
   return (
-    <section>
-      {/* ── Header / toggle ─────────────────────────────────────── */}
+    <section className="group/section">
+      {/* ── Header / toggle ───────────────────────────────────────────── */}
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between py-4 group text-left"
+        className="w-full flex items-center justify-between py-4 text-left hover:bg-white/[0.015] active:bg-white/[0.025] rounded-lg px-2 -mx-2 transition-colors duration-150"
+        aria-expanded={open}
       >
         <div className="flex items-center gap-3">
-          <h3 className="font-serif text-2xl tracking-tight text-[#e2e2e6] group-hover:text-blue-200 transition-colors duration-200">
+          <h3 className="font-serif text-2xl tracking-tight text-[#e2e2e6] group-hover/section:text-blue-200 transition-colors duration-200">
             {title}
           </h3>
 
@@ -42,12 +47,20 @@ export default function CollapsibleSection({
           )}
         </div>
 
-        <span
-          className={`material-symbols-outlined text-xl text-slate-500 group-hover:text-slate-300 transition-all duration-200 ${open ? 'rotate-180' : 'rotate-0'}`}
-          style={{ fontVariationSettings: "'wght' 300" }}
-        >
-          expand_more
-        </span>
+        <div className="flex items-center gap-3">
+          {/* Collapsed summary — only visible when closed */}
+          {!open && summary && (
+            <span className="text-[10px] uppercase tracking-widest font-medium text-slate-500 hidden sm:block">
+              {summary}
+            </span>
+          )}
+          <span
+            className={`material-symbols-outlined text-xl text-slate-500 group-hover/section:text-slate-300 transition-all duration-200 ${open ? 'rotate-180' : 'rotate-0'}`}
+            style={{ fontVariationSettings: "'wght' 300" }}
+          >
+            expand_more
+          </span>
+        </div>
       </button>
 
       {/* Hairline divider */}

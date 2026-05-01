@@ -268,7 +268,7 @@ export default function AdminCheckoutReviewPanel({
     startCancelTransition(async () => {
       try {
         await cancelCheckoutBooking(bookingId, cancelReason)
-        router.push('/admin/bookings/requests?status=checkout_requested')
+        router.push('/admin/bookings/checkout?status=checkout_requested')
       } catch (e) {
         setActionError(e instanceof Error ? e.message.replace(/^VALIDATION: /, '') : 'Failed to cancel.')
       }
@@ -358,7 +358,7 @@ export default function AdminCheckoutReviewPanel({
             <p className="text-sm text-white font-medium">{formatDateTime(scheduledStart)}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">{formatDateTime(scheduledEnd)}</p>
             <div className="flex gap-4 mt-2">
-              <span className="text-[10px] text-slate-600">Duration: 1 hour (fixed)</span>
+              <span className="text-[10px] text-slate-600">Duration: varies (typically 1–2 hours)</span>
               <span className="text-[10px] text-slate-600">Rate: $290 / hour</span>
             </div>
           </div>
@@ -618,3 +618,4 @@ export default function AdminCheckoutReviewPanel({
     </div>
   )
 }
+

@@ -35,7 +35,7 @@ export default async function AdminCreateBlockPage() {
 
   return (
     <div className="p-10 max-w-4xl mx-auto">
-      <Link href="/admin/bookings/calendar" className="text-blue-400 hover:text-blue-300 text-sm mb-6 inline-flex items-center gap-1">
+      <Link href="/admin/calendar" className="text-blue-400 hover:text-blue-300 text-sm mb-6 inline-flex items-center gap-1">
         <span className="material-symbols-outlined text-[16px]">arrow_back</span>
         Return to Calendar
       </Link>

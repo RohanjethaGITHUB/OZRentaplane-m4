@@ -204,8 +204,8 @@ export default async function NewBookingPage() {
     )
   }
 
-  // ── State D: Cleared for solo hire — show the booking form ────────────────
-  if (pilotClearanceStatus === 'cleared_for_solo_hire') {
+  // ── State D: Cleared to fly — show the booking form ──────────────────────
+  if (pilotClearanceStatus === 'cleared_to_fly') {
     // Enforce paid checkout invoice
     const { data: paidInvoice } = await supabase
       .from('checkout_invoices')
@@ -282,32 +282,32 @@ export default async function NewBookingPage() {
     )
   }
 
-  // ── Other statuses (additional supervised time, reschedule, not eligible) ──
+  // ── Other statuses (additional checkout, reschedule, not eligible) ────────
   type GateConfig = { icon: string; title: string; body: string; ctaLabel: string; ctaHref: string; colorCls: string; iconColor: string }
 
   const GATE: Record<string, GateConfig> = {
-    additional_supervised_time_required: {
+    additional_checkout_required: {
       icon:      'schedule',
-      title:     'Additional Supervised Session Required',
-      body:      'Following your checkout, the flight operations team has determined that additional supervised sessions are required. Book another supervised session to continue.',
-      ctaLabel:  'Book Additional Supervised Session',
+      title:     'Additional Checkout Required',
+      body:      'Following your checkout, the admin team has determined that an additional checkout session is required before you can be cleared to fly. Book another checkout flight to continue.',
+      ctaLabel:  'Book Another Checkout',
       ctaHref:   '/dashboard/checkout',
       colorCls:  'bg-amber-500/10 border-amber-500/20',
       iconColor: 'text-amber-400',
     },
-    reschedule_required: {
+    checkout_reschedule_required: {
       icon:      'event_repeat',
       title:     'Checkout Reschedule Required',
-      body:      'Your checkout needs to be rescheduled. Please contact the operations team to arrange a new checkout session.',
-      ctaLabel:  'Return to Dashboard',
-      ctaHref:   '/dashboard',
+      body:      'Your checkout could not be fully assessed this time. Book another checkout session when you are ready to try again.',
+      ctaLabel:  'Book Another Checkout',
+      ctaHref:   '/dashboard/checkout',
       colorCls:  'bg-amber-500/10 border-amber-500/20',
       iconColor: 'text-amber-400',
     },
     not_currently_eligible: {
       icon:      'block',
       title:     'Not Currently Eligible',
-      body:      'Your account is not currently eligible for solo hire. Please contact the operations team for further information.',
+      body:      'Based on your checkout assessment, further training with a qualified instructor is required before you can continue with aircraft hire. Please contact us when you are ready to try again.',
       ctaLabel:  'Return to Dashboard',
       ctaHref:   '/dashboard',
       colorCls:  'bg-red-500/10 border-red-500/20',

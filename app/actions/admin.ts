@@ -107,7 +107,7 @@ export async function approveCustomer(customerId: string, reviewNotes: string) {
   revalidatePath('/admin/pending-verifications')
   revalidatePath('/admin/on-hold')
   revalidatePath('/admin/verified-users')
-  revalidatePath('/admin/all-customers')
+  revalidatePath('/admin/customers/all')
   revalidatePath(`/admin/users/${customerId}`)
   revalidatePath('/dashboard')
 }
@@ -182,7 +182,7 @@ export async function rejectCustomer(customerId: string, reviewNotes: string) {
   revalidatePath('/admin/pending-verifications')
   revalidatePath('/admin/on-hold')
   revalidatePath('/admin/rejected-users')
-  revalidatePath('/admin/all-customers')
+  revalidatePath('/admin/customers/all')
   revalidatePath(`/admin/users/${customerId}`)
   revalidatePath('/dashboard')
 }
@@ -272,7 +272,7 @@ export async function placeCustomerOnHold(
     revalidatePath('/admin')
     revalidatePath('/admin/pending-verifications')
     revalidatePath('/admin/on-hold')
-    revalidatePath('/admin/all-customers')
+    revalidatePath('/admin/customers/all')
     revalidatePath(`/admin/users/${customerId}`)
     revalidatePath('/dashboard')
     return {
@@ -312,7 +312,7 @@ export async function placeCustomerOnHold(
   revalidatePath('/admin/on-hold')
   revalidatePath('/admin/verified-users')
   revalidatePath('/admin/rejected-users')
-  revalidatePath('/admin/all-customers')
+  revalidatePath('/admin/customers/all')
   revalidatePath(`/admin/users/${customerId}`)
   revalidatePath('/dashboard')
 
@@ -545,7 +545,7 @@ export async function updateCustomerPilotArn(customerId: string, pilotArn: strin
   })
 
   revalidatePath(`/admin/users/${customerId}`)
-  revalidatePath('/admin/all-customers')
+  revalidatePath('/admin/customers/all')
   revalidatePath('/admin')
 }
 
@@ -575,4 +575,215 @@ export async function updateDocumentExpiryDate(documentId: string, customerId: s
   })
 
   revalidatePath(`/admin/users/${customerId}`)
+}
+
+// ─── Customer Credits ──────────────────────────────────────────────────────────
+
+export async function getCustomerCreditBalance(customerId: string): Promise<number> {
+  const { supabase } = await requireAdmin()
+
+  const { data, error } = await supabase
+    .from('customer_credit_balances')
+    .select('balance_cents')
+    .eq('customer_id', customerId)
+    .single()
+
+  if (error && error.code !== 'PGRST116') {
+    console.error('[getCustomerCreditBalance] Failed to fetch balance:', error)
+    throw new Error('Failed to fetch customer credit balance.')
+  }
+
+  return data?.balance_cents ?? 0
+}
+
+export async function getCustomerCreditTransactions(customerId: string) {
+  const { supabase } = await requireAdmin()
+
+  const { data, error } = await supabase
+    .from('customer_payment_ledger')
+    .select('*')
+    .eq('customer_id', customerId)
+    .in('entry_type', ['advance_credit', 'advance_applied', 'refund', 'manual_adjustment', 'credit_reversed', 'credit_refunded'])
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('[getCustomerCreditTransactions] Failed to fetch transactions:', error)
+    throw new Error('Failed to fetch customer credit transactions.')
+  }
+
+  return data ?? []
+}
+
+export async function recordAdvancePayment(
+  customerId: string,
+  amountDollars: number,
+  paymentMethod: string,
+  receivedAt: string,
+  reference?: string,
+  note?: string
+): Promise<void> {
+  if (amountDollars <= 0) {
+    throw new Error('VALIDATION: Amount must be greater than 0.')
+  }
+
+  const { supabase, adminId } = await requireAdmin()
+  const amountCents = Math.round(amountDollars * 100)
+
+  const { error } = await supabase
+    .from('customer_payment_ledger')
+    .insert({
+      customer_id: customerId,
+      amount_cents: amountCents,
+      entry_type: 'advance_credit',
+      payment_method: paymentMethod,
+      note: note || `Advance payment received. Ref: ${reference || 'N/A'}`,
+      created_by: adminId,
+      created_at: receivedAt || new Date().toISOString(),
+    })
+
+  if (error) {
+    console.error('[recordAdvancePayment] Failed to record advance payment:', error)
+    throw new Error('Failed to record advance payment.')
+  }
+
+  revalidatePath(`/admin/customers/ledger`)
+  revalidatePath(`/admin/users/${customerId}`)
+}
+
+export async function reverseCreditEntry(ledgerId: string, reason: string): Promise<void> {
+  const { supabase, adminId } = await requireAdmin()
+
+  if (!reason || reason.trim() === '') {
+    throw new Error('VALIDATION: Reason is required for reversal.')
+  }
+
+  const { error } = await supabase.rpc('reverse_customer_credit_atomic', {
+    p_ledger_id: ledgerId,
+    p_reason: reason.trim()
+  })
+
+  if (error) {
+    console.error('[reverseCreditEntry] Failed:', error)
+    throw new Error(error.message || 'Failed to reverse credit entry.')
+  }
+
+  revalidatePath(`/admin/customers/ledger`)
+}
+
+export async function recordRefund(
+  customerId: string,
+  amountDollars: number,
+  paymentMethod: string,
+  reference: string,
+  note: string
+): Promise<void> {
+  if (amountDollars <= 0) {
+    throw new Error('VALIDATION: Refund amount must be greater than 0.')
+  }
+
+  const { supabase, adminId } = await requireAdmin()
+  const amountCents = Math.round(amountDollars * 100)
+
+  const { error } = await supabase.rpc('record_customer_refund_atomic', {
+    p_customer_id: customerId,
+    p_amount_cents: amountCents,
+    p_payment_method: paymentMethod,
+    p_reference: reference.trim(),
+    p_note: note.trim()
+  })
+
+  if (error) {
+    console.error('[recordRefund] Failed:', error)
+    throw new Error(error.message || 'Failed to record refund.')
+  }
+
+  revalidatePath(`/admin/customers/ledger`)
+  revalidatePath(`/admin/users/${customerId}`)
+}
+
+// ─── Update account status ────────────────────────────────────────────────────
+// Admin blocks, unblocks, or archives a customer account.
+// 'blocked'  → customer cannot create any new bookings.
+// 'archived' → hidden from active queues; soft-deleted state.
+// 'active'   → normal account.
+
+export async function updateAccountStatus(
+  customerId: string,
+  status: 'active' | 'blocked' | 'archived',
+  reason?: string,
+) {
+  const { supabase, adminId } = await requireAdmin()
+  const now = new Date().toISOString()
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      account_status:    status,
+      admin_review_note: reason?.trim() || null,
+      reviewed_at:       now,
+      reviewed_by:       adminId,
+      updated_at:        now,
+    })
+    .eq('id', customerId)
+
+  if (error) {
+    console.error('[updateAccountStatus] Failed:', error)
+    throw new Error('Failed to update account status.')
+  }
+
+  revalidatePath('/admin/customers')
+  revalidatePath('/admin/customers/all')
+  revalidatePath(`/admin/users/${customerId}`)
+  revalidatePath('/dashboard')
+}
+
+// ─── Update pilot clearance status ───────────────────────────────────────────
+// Admin manually overrides a customer's pilot clearance status.
+// Used for edge cases such as manually clearing a pilot or marking them
+// not eligible without going through the full checkout flow.
+
+export async function updatePilotClearanceStatus(
+  customerId: string,
+  status: string,
+  note?: string,
+) {
+  const { supabase, adminId } = await requireAdmin()
+  const now = new Date().toISOString()
+
+  const ALLOWED = [
+    'checkout_required',
+    'checkout_requested',
+    'checkout_confirmed',
+    'checkout_completed_under_review',
+    'checkout_payment_required',
+    'cleared_to_fly',
+    'additional_checkout_required',
+    'checkout_reschedule_required',
+    'not_currently_eligible',
+  ]
+
+  if (!ALLOWED.includes(status)) {
+    throw new Error(`VALIDATION: Invalid clearance status: ${status}`)
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      pilot_clearance_status: status,
+      admin_review_note:      note?.trim() || null,
+      reviewed_at:            now,
+      reviewed_by:            adminId,
+      updated_at:             now,
+    })
+    .eq('id', customerId)
+
+  if (error) {
+    console.error('[updatePilotClearanceStatus] Failed:', error)
+    throw new Error('Failed to update pilot clearance status.')
+  }
+
+  revalidatePath('/admin/customers')
+  revalidatePath('/admin/customers/all')
+  revalidatePath(`/admin/users/${customerId}`)
+  revalidatePath('/dashboard')
 }
