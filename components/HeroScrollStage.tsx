@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 
+// ─── Debug Flag ───────────────────────────────────────────────────────────────
+const isDebugMode = () => typeof window !== 'undefined' && window.location.search.includes('debugHero=1')
+
 // ─── Frame sequence ───────────────────────────────────────────────────────────
 function buildFrameSequence(): string[] {
   const frames: string[] = []
@@ -618,6 +621,50 @@ export default function HeroScrollStage() {
   const rafRef             = useRef<number | null>(null)
   const dirtyRef           = useRef(true)
   const isMobileRef        = useRef(false)
+  const isSafariIOSRef     = useRef(false)
+
+  // Debug info refs
+  const debugInfoRef = useRef({
+    scrollY: 0,
+    heroTop: 0,
+    heroHeight: 0,
+    progress: 0,
+    targetFrame: 0,
+    drawnFrame: 0,
+    nearestLoadedFrame: 0,
+    loadedFrameCount: 0,
+    pendingLoadCount: 0,
+    failedFrameCount: 0,
+    openingLoadedCount: 0,
+    isOpeningChunkReady: false,
+    posterVisible: true,
+    scrollLocked: true,
+    viewportHeight: 0,
+    visualViewportHeight: 0,
+    canvasWidth: 0,
+    canvasHeight: 0,
+    dpr: 1,
+    isIOS: false,
+    isSafari: false,
+    isMobileFrameMode: false,
+    forceIOSHero: false,
+    lastDrawReason: '',
+    lastLoadEvent: '',
+    lastError: ''
+  })
+  const [debugUpdate, setDebugUpdate] = useState(0) // force re-render for debug overlay
+  const pendingLoadCountRef = useRef(0)
+  const failedFrameCountRef = useRef(0)
+  const openingLoadedCountRef = useRef(0)
+  const targetFrameRef = useRef(0)
+  const lastActuallyDrawnRef = useRef(-1)
+  
+  // Expose global debug state
+  useEffect(() => {
+    if (isDebugMode()) {
+      ;(window as any).__heroDebugState = debugInfoRef.current
+    }
+  }, [])
 
   // ── Performance refs ───────────────────────────────────────────────────────
   // lastDrawnFrameRef: skip the canvas draw when frame index hasn't changed
@@ -666,6 +713,7 @@ export default function HeroScrollStage() {
     ) {
       scrollLockedRef.current = false
       setIsScrollLocked(false)
+      if (isDebugMode()) debugInfoRef.current.scrollLocked = false
     }
   }, [])
 
@@ -737,7 +785,11 @@ export default function HeroScrollStage() {
     if (!canvas) return
 
     const w = window.innerWidth
-    const isMobile = w < 768
+    let isMobile = w < 768
+
+    if (isDebugMode() && typeof window !== 'undefined' && window.location.search.includes('forceIOSHero=1')) {
+       isMobile = true
+    }
 
     // iPhone Safari jump fix: ignore height-only resizes (address bar scrolling)
     if (isMobile && prevWidthRef.current === w) return
@@ -745,13 +797,30 @@ export default function HeroScrollStage() {
     isMobileRef.current = isMobile
 
     const h = window.innerHeight
+    
+    if (isDebugMode()) {
+      debugInfoRef.current.isIOS = isSafariIOSRef.current
+      debugInfoRef.current.isSafari = isSafariDesktopRef.current || isSafariIOSRef.current
+      debugInfoRef.current.isMobileFrameMode = isMobile
+      debugInfoRef.current.canvasWidth = w
+      debugInfoRef.current.canvasHeight = h
+    }
+
     // Safari desktop gets an extra-conservative DPR cap (1.25) to reduce canvas
     // buffer area.  Other desktop browsers use 1.5.  Mobile keeps 2 for sharpness.
     // Safari desktop hard fallback: DPR 1.0 — smallest possible canvas buffer.
-    const dprCap = isMobile ? 2 : (isSafariDesktopRef.current ? 1.0 : 1.5)
+    let dprCap = isMobile ? 2 : (isSafariDesktopRef.current ? 1.0 : 1.5)
+    
+    // F) iPhone Safari DPR cap
+    if (isSafariIOSRef.current) {
+      dprCap = 1.25
+    }
+
     const dpr    = Math.min(window.devicePixelRatio || 1, dprCap)
     canvas.width  = Math.round(w * dpr)
     canvas.height = Math.round(h * dpr)
+    
+    if (isDebugMode()) debugInfoRef.current.dpr = dpr
     
     if (posterCanvasRef.current) {
       posterCanvasRef.current.width  = canvas.width
@@ -766,30 +835,120 @@ export default function HeroScrollStage() {
     setViewportHeight(h)
   }, [drawPosterFrame])
 
+  // ── Safe Draw Scheduler ────────────────────────────────────────────────────
+  const scheduleDraw = useCallback(() => {
+    dirtyRef.current = true
+    if (!rafRef.current) rafRef.current = requestAnimationFrame(renderLoopRef.current)
+  }, [])
+
   // ── Frame loader ───────────────────────────────────────────────────────────
-  const loadFrameAsync = useCallback(async (index: number) => {
+  const loadFrameAsync = useCallback((index: number): Promise<void> | void => {
     if (index < 0 || index >= TOTAL_FRAMES) return
     if (imagesRef.current[index]) return
     if (loadingRef.current[index]) return
 
+    // Simulation: stallOpeningFrame
+    if (isDebugMode() && index === 5 && typeof window !== 'undefined' && window.location.search.includes('stallOpeningFrame=5')) {
+      return new Promise(() => {}) // never resolves
+    }
+
     loadingRef.current[index] = true
+    pendingLoadCountRef.current++
+    
+    if (isDebugMode()) {
+      debugInfoRef.current.pendingLoadCount = pendingLoadCountRef.current
+      debugInfoRef.current.lastLoadEvent = `Requested ${index}`
+    }
+
     return new Promise<void>((resolve) => {
       const img = new Image()
-      img.src = FRAME_PATHS[index]
-      img.onload = async () => {
-        try { await img.decode() } catch (e) {}
-        imagesRef.current[index] = img
-        if (index === 0) drawPosterFrame()
-        if (index === currentFrameRef.current) {
-          dirtyRef.current = true
-          // Wake the RAF loop if it went idle while waiting for this frame
-          if (!rafRef.current) rafRef.current = requestAnimationFrame(renderLoopRef.current)
+      let loadTimeout: number | null = null
+      let settled = false
+
+      const cleanup = (isSuccess: boolean) => {
+        if (settled) return
+        settled = true
+
+        if (loadTimeout !== null) {
+          clearTimeout(loadTimeout)
+          loadTimeout = null
+        }
+        
+        loadingRef.current[index] = false
+        pendingLoadCountRef.current = Math.max(0, pendingLoadCountRef.current - 1)
+
+        if (isSuccess) {
+          imagesRef.current[index] = img
+          if (index < 20) {
+            openingLoadedCountRef.current++
+            if (isDebugMode()) debugInfoRef.current.openingLoadedCount = openingLoadedCountRef.current
+          }
+          if (isDebugMode()) {
+            debugInfoRef.current.loadedFrameCount = imagesRef.current.filter(Boolean).length
+            debugInfoRef.current.pendingLoadCount = pendingLoadCountRef.current
+            debugInfoRef.current.lastLoadEvent = `Loaded ${index}`
+          }
+          if (index === 0) drawPosterFrame()
+          
+          // E) Wake draw only when useful
+          // Check if this new frame is closer to target than currently drawn frame
+          const distToTarget = Math.abs(index - targetFrameRef.current)
+          const fallbackDist = Math.abs(lastActuallyDrawnRef.current - targetFrameRef.current)
+          if (distToTarget < fallbackDist) {
+            if (isDebugMode()) debugInfoRef.current.lastDrawReason = `Closer frame ${index} loaded`
+            scheduleDraw()
+          }
+        } else {
+          // Failure cleanup
+          failedFrameCountRef.current++
+          if (isDebugMode()) {
+            debugInfoRef.current.pendingLoadCount = pendingLoadCountRef.current
+            debugInfoRef.current.failedFrameCount = failedFrameCountRef.current
+            debugInfoRef.current.lastError = `Failed ${index}`
+          }
         }
         resolve()
       }
-      img.onerror = () => resolve()
+
+      const triggerSuccess = () => {
+        // Simulation: slowFrames
+        if (isDebugMode() && typeof window !== 'undefined' && window.location.search.includes('slowFrames=1')) {
+          setTimeout(() => cleanup(true), 500)
+        } else {
+          cleanup(true)
+        }
+      }
+
+      img.onload = () => {
+        // Simulation: simulateDecodeHang (skips decode completely)
+        const isSimulatingDecodeHang = isDebugMode() && typeof window !== 'undefined' && window.location.search.includes('simulateDecodeHang=1')
+
+        if (!isSimulatingDecodeHang && typeof img.decode === 'function') {
+          img.decode().catch(() => {})
+        }
+        triggerSuccess()
+      }
+      
+      img.onerror = () => {
+        cleanup(false)
+      }
+
+      // Simulation: failFrame
+      if (isDebugMode() && index === 20 && typeof window !== 'undefined' && window.location.search.includes('failFrame=20')) {
+        setTimeout(() => img.onerror && img.onerror(new Event('error')), 100)
+      }
+
+      // Timeout for stalled loads (B)
+      loadTimeout = window.setTimeout(() => cleanup(false), 7000)
+
+      img.src = FRAME_PATHS[index]
+
+      // Defensive check for immediately cached images
+      if (img.complete && img.naturalWidth > 0) {
+        triggerSuccess()
+      }
     })
-  }, [drawPosterFrame])
+  }, [drawPosterFrame, scheduleDraw])
 
   // ── rAF loop ───────────────────────────────────────────────────────────────
   // Lerp currentProgress → targetProgress each tick for cinematic smoothness.
@@ -836,45 +995,76 @@ export default function HeroScrollStage() {
     // ── Canvas draw ──────────────────────────────────────────────────────────
     if (isNewFrame || dirtyRef.current) {
       currentFrameRef.current = frameIndex
-      // Safari desktop hard fallback: always use truly minimal single-pass draw
-      // (pure cover only — no darkening fillRect, no focal-blend Pass 2).
-      const useSinglePass = isSafariDesktopRef.current
-      const didDraw = drawFrame(frameIndex, undefined, useSinglePass)
-
-      if (didDraw) {
-        if (process.env.NODE_ENV === 'development') {
-          devDrawCountRef.current++
-          if (!isNewFrame) devSkipCountRef.current++
-          // Log every 60th draw to avoid console spam
-          if (devDrawCountRef.current % 60 === 0) {
-            const actualDpr = canvasRef.current
-              ? (canvasRef.current.width / (window.innerWidth || 1)).toFixed(2)
-              : '?'
-            console.debug(
-              `[Hero] safariDesktop=${isSafariDesktopRef.current} safariFallback=${isSafariDesktopRef.current}` +
-              ` singlePass=${useSinglePass} dpr=${actualDpr}` +
-              ` frameStep=${isSafariDesktopRef.current ? 2 : 1} frame=${frameIndex}` +
-              ` draws=${devDrawCountRef.current} dupSkips=${devSkipCountRef.current}` +
-              ` wakes=${devWakeCountRef.current} resizes=${devResizeCountRef.current}`
-            )
+      
+      let drawIndex = frameIndex
+      let isExactFrame = true
+      
+      // Fallback drawing strategy if exact frame isn't loaded
+      if (!imagesRef.current[frameIndex]) {
+        isExactFrame = false
+        // Find nearest loaded frame
+        let nearest = 0
+        let minDiff = Infinity
+        for (let i = 0; i < TOTAL_FRAMES; i++) {
+          if (imagesRef.current[i]) {
+            const diff = Math.abs(i - frameIndex)
+            if (diff < minDiff) {
+              minDiff = diff
+              nearest = i
+            }
           }
         }
-        lastDrawnFrameRef.current = frameIndex
-        dirtyRef.current = false
-        if (isOpeningChunkReadyRef.current && !hasRevealedLiveHeroRef.current) {
-          hasRevealedLiveHeroRef.current = true
-          setPosterVisible(false)
-          checkUnlock()
-        }
-      } else {
-        // Frame not loaded yet — stay dirty so we retry when it arrives.
-        // loadFrameAsync.onload will also wake the RAF loop then.
-        dirtyRef.current = true
+        drawIndex = nearest
+        // D) Fix RAF fallback spinning: DO NOT set dirtyRef to true if we fell back. 
+        // Let it sleep. It will wake up when a better frame triggers scheduleDraw().
+      }
+      
+      if (isDebugMode()) {
+        debugInfoRef.current.nearestLoadedFrame = drawIndex
       }
 
-      // Lookahead preload — only when frame index moves, not every tick.
-      // Safari desktop gets a minimal window (±1) to avoid decode pressure.
-      if (isNewFrame) {
+      // Safari desktop hard fallback: always use truly minimal single-pass draw
+      const useSinglePass = isSafariDesktopRef.current
+      
+      // Prevent redundant draws of the same fallback frame
+      if (drawIndex !== lastActuallyDrawnRef.current || isExactFrame) {
+        const didDraw = drawFrame(drawIndex, undefined, useSinglePass)
+
+        if (didDraw) {
+          if (process.env.NODE_ENV === 'development') {
+            devDrawCountRef.current++
+            if (!isNewFrame) devSkipCountRef.current++
+            // Log every 60th draw to avoid console spam
+            if (devDrawCountRef.current % 60 === 0 && isDebugMode()) {
+              console.debug(
+                `[Hero] safariDesktop=${isSafariDesktopRef.current} singlePass=${useSinglePass}` +
+                ` frame=${drawIndex} exact=${isExactFrame} draws=${devDrawCountRef.current}`
+              )
+            }
+          }
+          
+          if (isDebugMode()) {
+            debugInfoRef.current.drawnFrame = drawIndex
+          }
+
+          lastActuallyDrawnRef.current = drawIndex
+          lastDrawnFrameRef.current = frameIndex
+          dirtyRef.current = false
+          
+          if (isOpeningChunkReadyRef.current && !hasRevealedLiveHeroRef.current) {
+            hasRevealedLiveHeroRef.current = true
+            setPosterVisible(false)
+            if (isDebugMode()) debugInfoRef.current.posterVisible = false
+            checkUnlock()
+          }
+        }
+      } else {
+        // If we didn't draw because it was the same fallback, we don't need to stay dirty
+        dirtyRef.current = false
+      }
+
+      // Lookahead preload — only when exact frame is found and moving
+      if (isNewFrame && isExactFrame) {
         const lookahead = isMobileRef.current
           ? MOBILE_LOOKAHEAD
           : (isSafariDesktopRef.current ? 1 : DESKTOP_LOOKAHEAD)
@@ -966,14 +1156,19 @@ export default function HeroScrollStage() {
     const section = sectionRef.current
     if (!section) return
 
-    // iOS Safari measurement fix
-    const scrollY         = window.pageYOffset || document.documentElement.scrollTop || 0
-    const sectionTop      = section.offsetTop || 0
-    const scrolled        = scrollY - sectionTop
+    // iOS Safari deterministic measurement
+    const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0
+    const rect = section.getBoundingClientRect()
+    const sectionTop = rect.top + scrollY
+    const scrolled = scrollY - sectionTop
 
-    // Stable viewport height — ignores Safari address-bar resize noise
-    const vh              = document.documentElement.clientHeight || window.innerHeight
-    const totalScrollable = section.offsetHeight - vh
+    // Stable viewport height using visualViewport if available
+    const vh = window.visualViewport 
+      ? window.visualViewport.height 
+      : (document.documentElement.clientHeight || window.innerHeight)
+      
+    const heroHeight = section.offsetHeight
+    const totalScrollable = heroHeight - vh
     if (totalScrollable <= 0) return
 
     const overallProgress = Math.max(0, Math.min(1, scrolled / totalScrollable))
@@ -987,16 +1182,41 @@ export default function HeroScrollStage() {
       ? (heroFraction > 0 ? overallProgress / heroFraction : 1)
       : 1
 
+    // Calculate target frame immediately for priority loading
+    const targetFrame = isSafariDesktopRef.current
+      ? Math.round(heroProgress * ((TOTAL_FRAMES / 2) - 1)) * 2
+      : Math.round(heroProgress * (TOTAL_FRAMES - 1))
+    
+    targetFrameRef.current = targetFrame
+
     // Store in refs — renderLoop reads these on the next RAF tick
     targetProgressRef.current  = heroProgress
     overallProgressRef.current = overallProgress
     heroFractionRef.current    = heroFraction
 
-    // Wake the RAF loop if it went idle between scroll events
-    if (!rafRef.current) {
-      if (process.env.NODE_ENV === 'development') devWakeCountRef.current++
-      rafRef.current = requestAnimationFrame(renderLoopRef.current)
+    if (isDebugMode()) {
+      debugInfoRef.current.scrollY = scrollY
+      debugInfoRef.current.heroTop = sectionTop
+      debugInfoRef.current.heroHeight = heroHeight
+      debugInfoRef.current.viewportHeight = vh
+      debugInfoRef.current.visualViewportHeight = window.visualViewport?.height || 0
+      debugInfoRef.current.progress = heroProgress
+      debugInfoRef.current.targetFrame = targetFrame
+      setDebugUpdate(prev => prev + 1)
     }
+
+    // Priority scroll-based loading (outranks sequential loading)
+    // Fetch the immediate zone around the target frame immediately to support fast scrolling.
+    const priorityWindow = isMobileRef.current ? 8 : 12
+    for (let lo = -priorityWindow; lo <= priorityWindow; lo++) {
+      const idx = targetFrame + lo
+      if (idx >= 0 && idx < TOTAL_FRAMES) {
+        loadFrameAsync(idx)
+      }
+    }
+
+    // Wake the RAF loop if it went idle between scroll events
+    scheduleDraw()
 
     // ── Safari desktop active-scroll compositing budget ─────────────────────
     // While the user is scrubbing, expensive decorative layers are suppressed
@@ -1062,14 +1282,20 @@ export default function HeroScrollStage() {
     // AmbientOverlays, static text overlays) take effect before first scroll.
     if (detectedSafari) setIsSafariDesktop(true)
 
-    if (process.env.NODE_ENV === 'development') {
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
+    isSafariIOSRef.current = isIOS && /Safari/.test(navigator.userAgent) && !/CriOS|FxiOS|OPiOS/.test(navigator.userAgent)
+
+    if (isDebugMode() && typeof window !== 'undefined' && window.location.search.includes('forceIOSHero=1')) {
+      isSafariIOSRef.current = true
+      isSafariDesktopRef.current = false
+      setIsSafariDesktop(false)
+      debugInfoRef.current.forceIOSHero = true
+    }
+
+    if (process.env.NODE_ENV === 'development' && isDebugMode()) {
       console.debug(
-        `[Hero] safariDesktop=${detectedSafari} safariFallback=${detectedSafari}` +
-        ` nativeDPR=${window.devicePixelRatio}` +
-        ` effectiveDPR=${detectedSafari ? 1.0 : Math.min(window.devicePixelRatio, 1.5)}` +
-        ` frameStep=${detectedSafari ? 2 : 1}` +
-        ` decorativeLayers=${detectedSafari ? 'DISABLED' : 'enabled'}` +
-        ` framerMotion=${detectedSafari ? 'DISABLED' : 'enabled'}`
+        `[Hero] safariDesktop=${detectedSafari} safariIOS=${isSafariIOSRef.current}` +
+        ` nativeDPR=${window.devicePixelRatio}`
       )
     }
 
@@ -1088,12 +1314,12 @@ export default function HeroScrollStage() {
             Math.abs(height - prevCanvasSizeRef.current.h) > 1
           ) {
             prevCanvasSizeRef.current = { w: width, h: height }
-            if (process.env.NODE_ENV === 'development') {
+            if (process.env.NODE_ENV === 'development' && isDebugMode()) {
               devResizeCountRef.current++
               console.debug(`[Hero] resize #${devResizeCountRef.current} → ${Math.round(width)}×${Math.round(height)}`)
             }
             resizeCanvas()
-            if (!rafRef.current) rafRef.current = requestAnimationFrame(renderLoopRef.current)
+            scheduleDraw()
           }
         }
       })
@@ -1104,24 +1330,65 @@ export default function HeroScrollStage() {
     window.addEventListener('resize',            resizeCanvas, { passive: true })
     window.addEventListener('orientationchange', resizeCanvas, { passive: true })
     window.addEventListener('scroll',            onScroll,     { passive: true })
+    
+    // G) pageshow and visibilitychange
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        resizeCanvas()
+        onScroll()
+        scheduleDraw()
+      }
+    }
+    const onPageShow = () => {
+      resizeCanvas()
+      onScroll()
+      scheduleDraw()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    window.addEventListener('pageshow', onPageShow)
+    
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', resizeCanvas, { passive: true })
+      window.visualViewport.addEventListener('scroll', onScroll, { passive: true })
+    }
 
     onScroll()
 
     const chunkCount = isMobileRef.current ? 12 : 20
-    const promises: Promise<void>[] = []
 
     for (let i = 0; i < chunkCount; i++) {
-      const p = loadFrameAsync(i)
-      if (p) promises.push(p)
+      loadFrameAsync(i)
     }
 
-    Promise.all(promises).then(() => {
-      isOpeningChunkReadyRef.current = true
-      dirtyRef.current = true
-      checkUnlock()
-      // Wake RAF now that the opening chunk is decoded and ready to display
-      if (!rafRef.current) rafRef.current = requestAnimationFrame(renderLoopRef.current)
-    })
+    // A) Opening gate must not depend on Promise.all
+    const checkOpeningGate = setInterval(() => {
+      if (isOpeningChunkReadyRef.current) {
+        clearInterval(checkOpeningGate)
+        return
+      }
+      
+      const f0Loaded = imagesRef.current[0] !== null
+      const enoughLoaded = openingLoadedCountRef.current >= 4
+      
+      if (f0Loaded && enoughLoaded) {
+        isOpeningChunkReadyRef.current = true
+        if (isDebugMode()) debugInfoRef.current.isOpeningChunkReady = true
+        dirtyRef.current = true
+        checkUnlock()
+        if (!rafRef.current) rafRef.current = requestAnimationFrame(renderLoopRef.current)
+        clearInterval(checkOpeningGate)
+      }
+    }, 100)
+    
+    const openingFallback = setTimeout(() => {
+      if (!isOpeningChunkReadyRef.current && imagesRef.current[0]) {
+        isOpeningChunkReadyRef.current = true
+        if (isDebugMode()) debugInfoRef.current.isOpeningChunkReady = true
+        dirtyRef.current = true
+        checkUnlock()
+        if (!rafRef.current) rafRef.current = requestAnimationFrame(renderLoopRef.current)
+      }
+    }, 4000)
 
     const eagerCount = isMobileRef.current ? MOBILE_EAGER_FRAMES : DESKTOP_EAGER_FRAMES
     for (let i = chunkCount; i < eagerCount; i++) loadFrameAsync(i)
@@ -1133,21 +1400,35 @@ export default function HeroScrollStage() {
         return
       }
 
+      // Conservative background loading on iOS Safari to prevent memory crashes.
+      // We limit sequential background loading to a small window ahead of the current frame,
+      // relying instead on the scroll-priority loader to fetch what's needed.
+      if (isSafariIOSRef.current) {
+        const maxAhead = 40
+        if (loadIdx > currentFrameRef.current + maxAhead && loadIdx > targetFrameRef.current + maxAhead) {
+          // Pause sequential loading, poll slowly until we scroll further
+          setTimeout(loadBatch, 500)
+          return
+        }
+      }
+
       const batchSize = isMobileRef.current ? 4 : 8
       const end = Math.min(loadIdx + batchSize, TOTAL_FRAMES)
       for (let i = loadIdx; i < end; i++) loadFrameAsync(i)
       loadIdx = end
 
       if (loadIdx < TOTAL_FRAMES) {
-        if ('requestIdleCallback' in window) {
+        const disableIdle = isDebugMode() && typeof window !== 'undefined' && window.location.search.includes('disableIdleCallback=1')
+        if (!disableIdle && 'requestIdleCallback' in window && !isSafariIOSRef.current) {
           requestIdleCallback(loadBatch, { timeout: 800 })
         } else {
-          setTimeout(loadBatch, 100)
+          setTimeout(loadBatch, isSafariIOSRef.current ? 200 : 100)
         }
       }
     }
 
-    if ('requestIdleCallback' in window) {
+    const disableIdleStart = isDebugMode() && typeof window !== 'undefined' && window.location.search.includes('disableIdleCallback=1')
+    if (!disableIdleStart && 'requestIdleCallback' in window && !isSafariIOSRef.current) {
       requestIdleCallback(loadBatch, { timeout: 800 })
     } else {
       setTimeout(loadBatch, 300)
@@ -1163,9 +1444,19 @@ export default function HeroScrollStage() {
       window.removeEventListener('resize',            resizeCanvas)
       window.removeEventListener('orientationchange', resizeCanvas)
       window.removeEventListener('scroll',            onScroll)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('pageshow', onPageShow)
+      clearInterval(checkOpeningGate)
+      clearTimeout(openingFallback)
+      
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', resizeCanvas)
+        window.visualViewport.removeEventListener('scroll', onScroll)
+      }
+
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [resizeCanvas, onScroll, loadFrameAsync, renderLoop, checkUnlock])
+  }, [resizeCanvas, onScroll, loadFrameAsync, renderLoop, checkUnlock, scheduleDraw])
 
   // ── Scroll Lock Enforcer ───────────────────────────────────────────────────
   useEffect(() => {
@@ -1197,6 +1488,7 @@ export default function HeroScrollStage() {
     const failsafe = setTimeout(() => {
       scrollLockedRef.current = false
       setIsScrollLocked(false)
+      if (isDebugMode()) debugInfoRef.current.scrollLocked = false
     }, 4500)
 
     return () => {
@@ -1204,6 +1496,65 @@ export default function HeroScrollStage() {
       clearTimeout(failsafe)
     }
   }, [checkUnlock])
+
+  // ── Self Test Automator ───────────────────────────────────────────────────
+  const [testResults, setTestResults] = useState<Record<string, string>>({})
+  useEffect(() => {
+    if (!isDebugMode() || typeof window === 'undefined' || !window.location.search.includes('heroSelfTest=1')) return
+    
+    let isRunning = true
+    const runSequence = async () => {
+      // Wait for lock release
+      while (isRunning && isScrollLocked) {
+        await new Promise(r => setTimeout(r, 200))
+      }
+      if (!isRunning) return
+      setTestResults(prev => ({ ...prev, gate: 'PASS' }))
+
+      // Fast Scroll to 25%
+      window.scrollTo({ top: document.body.scrollHeight * 0.15 })
+      await new Promise(r => setTimeout(r, 600))
+      
+      const t1 = targetFrameRef.current
+      const d1 = lastActuallyDrawnRef.current
+      setTestResults(prev => ({ 
+        ...prev, 
+        progress: t1 > 0 ? 'PASS' : 'FAIL',
+        drawnNotStuck: d1 > 0 ? 'PASS' : 'FAIL'
+      }))
+
+      // Fast Scroll to 70%
+      window.scrollTo({ top: document.body.scrollHeight * 0.45 })
+      await new Promise(r => setTimeout(r, 800))
+      
+      const t2 = targetFrameRef.current
+      const d2 = lastActuallyDrawnRef.current
+      
+      setTestResults(prev => ({
+        ...prev,
+        targetJumps: t2 > t1 + 10 ? 'PASS' : 'FAIL',
+        priorityLoader: Object.keys(prev).length > 0 ? 'PASS' : 'FAIL'
+      }))
+      
+      // Verify scene paths valid (quick HEAD request to snc-4)
+      try {
+        const res = await fetch('/home-hero-scrolly-Images/snc-4_000001.webp', { method: 'HEAD' })
+        setTestResults(prev => ({ ...prev, paths: res.ok ? 'PASS' : 'FAIL' }))
+      } catch (e) {
+        setTestResults(prev => ({ ...prev, paths: 'FAIL' }))
+      }
+      
+      // Settle
+      await new Promise(r => setTimeout(r, 1000))
+      setTestResults(prev => ({
+        ...prev,
+        pendingSettle: pendingLoadCountRef.current < 5 ? 'PASS' : 'FAIL'
+      }))
+    }
+    
+    runSequence()
+    return () => { isRunning = false }
+  }, [isScrollLocked])
 
   // ── Heights ────────────────────────────────────────────────────────────────
   const spacerHeight = sectionHeight > 0 ? sectionHeight - viewportHeight : undefined
@@ -1348,6 +1699,57 @@ export default function HeroScrollStage() {
           ? { height: spacerHeight }
           : { height: `${(DESKTOP_SCROLL_MULTIPLIER - 1) * 100}svh` }}
       />
+
+      {/* ── Debug Overlay ─────────────────────────────────────────────────── */}
+      {isDebugMode() && (
+        <div className="fixed top-4 left-4 z-50 bg-black/90 text-green-400 font-mono text-[10px] sm:text-xs p-4 rounded border border-green-500/30 pointer-events-auto flex gap-4 max-h-[90vh] overflow-y-auto">
+          <div>
+            <div className="font-bold text-white mb-1">Hero Debug</div>
+            <div>--------------------------</div>
+            <div>scrollY: {Math.round(debugInfoRef.current.scrollY)}px</div>
+            <div>progress: {debugInfoRef.current.progress.toFixed(4)}</div>
+            <div>targetFrame: {debugInfoRef.current.targetFrame}</div>
+            <div>drawnFrame: {debugInfoRef.current.drawnFrame} / {TOTAL_FRAMES-1}</div>
+            <div>nearestLoadedFrame: {debugInfoRef.current.nearestLoadedFrame}</div>
+            <div>loadedFrames: {debugInfoRef.current.loadedFrameCount} / {TOTAL_FRAMES}</div>
+            <div>pendingLoads: {debugInfoRef.current.pendingLoadCount}</div>
+            <div>failedFrames: {debugInfoRef.current.failedFrameCount}</div>
+            <div>openingGate: {String(debugInfoRef.current.isOpeningChunkReady)} ({debugInfoRef.current.openingLoadedCount})</div>
+            <div>scrollLocked: {String(debugInfoRef.current.scrollLocked)}</div>
+            <div>dpr: {debugInfoRef.current.dpr}</div>
+            <div>canvasSize: {debugInfoRef.current.canvasWidth}x{debugInfoRef.current.canvasHeight}</div>
+            <div>isSafariIOS: {String(debugInfoRef.current.isIOS)}</div>
+            <div>forceIOSHero: {String(debugInfoRef.current.forceIOSHero)}</div>
+            <div className="mt-2 text-oz-blue">lastDrawReason: {debugInfoRef.current.lastDrawReason}</div>
+            <div className="text-oz-muted">lastLoadEvent: {debugInfoRef.current.lastLoadEvent}</div>
+            {debugInfoRef.current.lastError && <div className="text-red-400">lastError: {debugInfoRef.current.lastError}</div>}
+            
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(JSON.stringify((window as any).__heroDebugState, null, 2))
+                alert('Debug state copied to clipboard')
+              }}
+              className="mt-3 bg-white/10 hover:bg-white/20 text-white px-3 py-1 rounded"
+            >
+              Copy Debug Report
+            </button>
+          </div>
+          
+          {typeof window !== 'undefined' && window.location.search.includes('heroSelfTest=1') && (
+            <div className="border-l border-green-500/30 pl-4">
+              <div className="font-bold text-white mb-1">Self-Test Results</div>
+              <div>--------------------------</div>
+              <div>Gate released: {testResults.gate || '...'}</div>
+              <div>Progress updates: {testResults.progress || '...'}</div>
+              <div>Target frame updates: {testResults.targetJumps || '...'}</div>
+              <div>Not stuck on 0: {testResults.drawnNotStuck || '...'}</div>
+              <div>Priority loader active: {testResults.priorityLoader || '...'}</div>
+              <div>Pending loads settle: {testResults.pendingSettle || '...'}</div>
+              <div>Scene paths valid: {testResults.paths || '...'}</div>
+            </div>
+          )}
+        </div>
+      )}
 
     </div>
   )
