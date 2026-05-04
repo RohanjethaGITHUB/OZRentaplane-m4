@@ -709,7 +709,7 @@ export default function BookingRequestForm({
       return
     }
     if (eligibilityBlocked) {
-      setSubmitError('Booking access is currently suspended. Please review your pilot verification status.')
+      setSubmitError('Booking access is currently unavailable. Please review the eligibility notice above.')
       return
     }
     if (availability.status !== 'available') {
@@ -750,8 +750,8 @@ export default function BookingRequestForm({
           setSubmitError('This time was just taken or blocked. Please choose another window.')
         } else if (msg.includes('VALIDATION')) {
           setSubmitError(msg.replace('VALIDATION:', '').trim())
-        } else if (msg.includes('VERIFICATION_REQUIRED')) {
-          setSubmitError('Your account must be verified before making bookings.')
+        } else if (msg.includes('CLEARANCE_REQUIRED') || msg.includes('VERIFICATION_REQUIRED')) {
+          setSubmitError('You must complete your checkout flight and be cleared before booking aircraft.')
         } else {
           setSubmitError(msg)
         }
@@ -805,13 +805,13 @@ export default function BookingRequestForm({
             </div>
           </div>
 
-          {/* Pending notice */}
-          <div className="bg-amber-500/[0.07] border border-amber-500/20 rounded-xl px-5 py-4 mb-6 flex items-start gap-3 text-left">
-            <span className="material-symbols-outlined text-amber-400 text-base flex-shrink-0 mt-0.5">info</span>
+          {/* Confirmed notice */}
+          <div className="bg-blue-500/[0.07] border border-blue-500/20 rounded-xl px-5 py-4 mb-6 flex items-start gap-3 text-left">
+            <span className="material-symbols-outlined text-blue-400 text-base flex-shrink-0 mt-0.5">check_circle</span>
             <div>
-              <p className="text-sm font-semibold text-amber-300 mb-1">This is not a confirmed booking</p>
-              <p className="text-xs text-amber-300/70 leading-relaxed">
-                Your request is pending review. You will receive an email once a decision has been made. Typical response time is within 24 hours.
+              <p className="text-sm font-semibold text-blue-300 mb-1">Booking confirmed</p>
+              <p className="text-xs text-blue-300/70 leading-relaxed">
+                Your booking is confirmed. Please arrive at the aircraft at least 30 minutes before your scheduled departure for pre-flight checks.
               </p>
             </div>
           </div>
@@ -982,11 +982,7 @@ export default function BookingRequestForm({
 
             <div className="w-px h-8 bg-white/[0.07] hidden xl:block flex-shrink-0" />
 
-            {/* Rate */}
-            <div className="flex flex-col min-w-[80px] flex-1 xl:flex-none">
-              <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-1">Rate</span>
-              <span className="text-sm font-semibold text-blue-400 leading-snug">${hourlyRate}/hr</span>
-            </div>
+            {/* Rate intentionally omitted from customer view */}
 
           </div>
         </div>

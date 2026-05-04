@@ -1052,17 +1052,21 @@ export async function markCheckoutFlightCompleted(bookingId: string): Promise<vo
 //   - moves booking → checkout_payment_required (or completed if credit covers all)
 //   - stores checkout_outcome on the invoice for post-payment clearance promotion
 //
+// Billing source of truth: VDO meter readings (not scheduled duration).
+//   Final amount = (vdoEndReading - vdoStartReading) × $290 + landing fees.
+//   The RPC calculates everything server-side; the client only previews.
+//
 export async function markCheckoutOutcome(input: {
-  bookingId:                string
-  outcome:                  'cleared_to_fly' | 'additional_checkout_required' | 'checkout_reschedule_required' | 'not_currently_eligible'
-  adminNote?:               string
+  bookingId:        string
+  outcome:          'cleared_to_fly' | 'additional_checkout_required' | 'checkout_reschedule_required' | 'not_currently_eligible'
+  adminNote?:       string
   // Payment path (required unless paymentWaived = true)
-  checkoutDurationHours:    number
-  checkoutFinalAmountCents: number
-  landingCharges?:          { airportId: string; landingCount: number }[]
+  vdoStartReading?: number   // VDO meter reading before flight (e.g. 124.2)
+  vdoEndReading?:   number   // VDO meter reading after flight  (e.g. 125.0)
+  landingCharges?:  { airportId: string; landingCount: number }[]
   // Waiver path (non-cleared outcomes only)
-  paymentWaived?:           boolean
-  waiverReason?:            string
+  paymentWaived?:   boolean
+  waiverReason?:    string
 }): Promise<void> {
   const { supabase, adminId } = await requireAdmin()
 
@@ -1078,11 +1082,24 @@ export async function markCheckoutOutcome(input: {
 
   // ── Front-end validation — payment path only ──────────────────────────────
   if (!input.paymentWaived) {
-    if (!input.checkoutDurationHours || input.checkoutDurationHours <= 0) {
-      throw new Error('VALIDATION: Checkout duration must be greater than 0.')
+    if (input.vdoStartReading == null || isNaN(input.vdoStartReading)) {
+      throw new Error('VALIDATION: VDO start reading is required.')
     }
-    if (!input.checkoutFinalAmountCents || input.checkoutFinalAmountCents <= 0) {
-      throw new Error('VALIDATION: Final checkout amount must be greater than 0.')
+    if (input.vdoEndReading == null || isNaN(input.vdoEndReading)) {
+      throw new Error('VALIDATION: VDO end reading is required.')
+    }
+    if (input.vdoStartReading < 0) {
+      throw new Error('VALIDATION: VDO start reading must be 0 or greater.')
+    }
+    if (input.vdoEndReading <= input.vdoStartReading) {
+      throw new Error('VALIDATION: VDO end reading must be greater than start reading.')
+    }
+    const vdoHours = Math.round((input.vdoEndReading - input.vdoStartReading) * 10) / 10
+    if (vdoHours < 0.1) {
+      throw new Error(`VALIDATION: VDO hours flown (${vdoHours}h) is below minimum of 0.1h. Check your readings.`)
+    }
+    if (vdoHours > 5.0) {
+      throw new Error(`VALIDATION: VDO hours flown (${vdoHours}h) exceeds maximum of 5.0h. Check your readings.`)
     }
   }
 
@@ -1100,25 +1117,62 @@ export async function markCheckoutOutcome(input: {
     throw new Error(`VALIDATION: Outcome can only be recorded from 'checkout_completed_under_review'. Current: '${booking.status}'.`)
   }
 
+  // ── Landing charge validation (Required for ALL outcomes) ─────────────────
+  // Enforce: airport required when count > 0; count must be positive integer.
+  // Silently ignore rows that are entirely empty (no airport, no count).
+  // Reject rows that are half-filled to avoid silent data loss.
+  // Enforce minimum 1 landing row.
+  let validCount = 0
+  for (const row of input.landingCharges ?? []) {
+    const count = row.landingCount
+    const hasAirport = !!row.airportId?.trim()
+    const hasCount   = Number.isFinite(count) && count > 0
+    
+    if (hasAirport && hasCount) {
+      validCount++
+    }
+    
+    if (hasCount && !hasAirport) {
+      throw new Error('VALIDATION: Airport is required for each landing row with a count greater than 0.')
+    }
+    if (hasAirport && !hasCount) {
+      throw new Error('VALIDATION: Landing count must be at least 1 when an airport is selected.')
+    }
+    if (hasCount && !Number.isInteger(count)) {
+      throw new Error('VALIDATION: Landing count must be a whole number.')
+    }
+    if (hasCount && count < 0) {
+      throw new Error('VALIDATION: Landing count cannot be negative.')
+    }
+  }
+  
+  if (validCount === 0) {
+    throw new Error('VALIDATION: At least one landing airport is required for all checkouts.')
+  }
+
   // ── Build landing charges JSON ────────────────────────────────────────────
-  // Only relevant for the payment path — empty for waived outcomes.
-  const landingChargesJson = input.paymentWaived
-    ? []
-    : (input.landingCharges ?? [])
-        .filter(lc => lc.airportId && lc.landingCount > 0)
-        .map(lc => ({ airport_id: lc.airportId, landing_count: lc.landingCount }))
+  // After the above validation, the only rows reaching this filter are
+  // fully valid (both airport and count present) or fully empty (both absent).
+  const landingChargesJson = input.landingCharges
+        ? input.landingCharges
+            .filter(lc => lc.airportId && lc.landingCount > 0)
+            .map(lc => ({ airport_id: lc.airportId, landing_count: lc.landingCount }))
+        : []
 
   // ── Single atomic RPC ─────────────────────────────────────────────────────
+  // VDO readings are passed to the RPC; all billing is calculated server-side.
+  // Waiver path passes null for VDO readings — the RPC stores NULL, NULL and
+  // skips VDO validation entirely when p_payment_waived = true.
   const rpcPayload = {
-    p_booking_id:              input.bookingId,
-    p_customer_id:             booking.booking_owner_user_id,
-    p_checkout_fee_cents:      input.paymentWaived ? 0 : input.checkoutFinalAmountCents,
-    p_checkout_duration_hours: input.paymentWaived ? 0 : input.checkoutDurationHours,
-    p_checkout_outcome:        input.outcome,
-    p_landing_charges:         landingChargesJson.length > 0 ? landingChargesJson : null,
-    p_admin_notes:             input.adminNote ?? null,
-    p_payment_waived:          input.paymentWaived ?? false,
-    p_waiver_reason:           input.waiverReason ?? null,
+    p_booking_id:        input.bookingId,
+    p_customer_id:       booking.booking_owner_user_id,
+    p_vdo_start_reading: input.paymentWaived ? null : (input.vdoStartReading ?? 0),
+    p_vdo_end_reading:   input.paymentWaived ? null : (input.vdoEndReading ?? 0),
+    p_checkout_outcome:  input.outcome,
+    p_landing_charges:   landingChargesJson.length > 0 ? landingChargesJson : null,
+    p_admin_notes:       input.adminNote ?? null,
+    p_payment_waived:    input.paymentWaived ?? false,
+    p_waiver_reason:     input.waiverReason ?? null,
   }
 
   console.log('[markCheckoutOutcome] calling RPC complete_checkout_outcome_atomic', rpcPayload)
@@ -1187,8 +1241,11 @@ export async function markCheckoutOutcome(input: {
           outcome:                input.outcome,
           pilot_clearance_status: finalClearanceStatus,
           booking_status:         finalBookingStatus,
-          checkout_fee_cents:     input.checkoutFinalAmountCents,
-          duration_hours:         input.checkoutDurationHours,
+          vdo_start_reading:      input.vdoStartReading,
+          vdo_end_reading:        input.vdoEndReading,
+          vdo_hours:              input.vdoEndReading != null && input.vdoStartReading != null
+            ? Math.round((input.vdoEndReading - input.vdoStartReading) * 10) / 10
+            : null,
           landing_charges:        landingChargesJson,
           payment_waived:         false,
         },

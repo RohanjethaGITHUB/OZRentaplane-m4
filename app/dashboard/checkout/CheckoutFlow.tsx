@@ -911,10 +911,10 @@ export default function CheckoutFlow({
           {/* A: Session summary tiles — read-only info, not form fields */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-px rounded-xl overflow-hidden bg-white/[0.05]">
             {([
-              { icon: 'flight_takeoff', label: 'Session type', value: 'Checkout Flight',          sub: null                              },
-              { icon: 'flight',         label: 'Aircraft',     value: aircraftDisplayName,         sub: `Registration ${aircraftRegistration}` },
-              { icon: 'schedule',       label: 'Duration',     value: 'Typically 1–2 hours',        sub: 'Based on actual time flown'      },
-              { icon: 'payments',       label: 'Rate',         value: '$290 / hour',              sub: 'Billed after checkout approval'  },
+              { icon: 'flight_takeoff', label: 'Session type', value: 'Checkout Flight',          sub: null                                    },
+              { icon: 'flight',         label: 'Aircraft',     value: aircraftDisplayName,         sub: `Registration ${aircraftRegistration}`   },
+              { icon: 'schedule',       label: 'Duration',     value: '1-hr slot reserved',        sub: 'Billed by VDO meter time after flight'  },
+              { icon: 'payments',       label: 'Rate',         value: '$290 / hour',              sub: 'VDO meter + $25/landing, billed after'  },
             ] as { icon: string; label: string; value: string; sub: string | null }[]).map(({ icon, label, value, sub }) => (
               <div key={label} className="bg-[#060b17] px-4 py-4 flex flex-col gap-1">
                 <span
@@ -968,7 +968,7 @@ export default function CheckoutFlow({
                   <span className="mx-2 text-slate-600">→</span>
                   {ALL_TIME_OPTIONS.find(o => o.value === endTime)?.label ?? endTime}
                 </p>
-                <p className="text-[10px] text-slate-600 mt-1">Checkout flights are fixed 1-hour sessions.</p>
+                <p className="text-[10px] text-slate-600 mt-1">A 1-hour slot is reserved for scheduling. The final amount is calculated from the VDO meter after the flight.</p>
               </div>
 
               {/* D: Daily schedule timeline */}
@@ -1020,7 +1020,7 @@ export default function CheckoutFlow({
                       No payment is required now.
                     </p>
                     <p className="text-[11px] text-slate-400/80 mt-0.5 leading-relaxed">
-                      The checkout flight fee is paid after your checkout flight is completed and approved. You will receive the checkout invoice after the flight is completed.
+                      Checkout flights are billed after the flight using the aircraft VDO meter reading, plus any applicable landing fees. Estimated rate: $290/hour. Landing fees: $25 per landing, where applicable. The exact amount is calculated by the instructor after the flight.
                     </p>
                   </div>
                 </div>
@@ -1135,9 +1135,10 @@ export default function CheckoutFlow({
               { label: 'Date',          value: formatDate(date) },
               { label: 'Departure',     value: formatDateTime(startUTC) },
               { label: 'Return',        value: formatDateTime(endUTC) },
-              { label: 'Duration',      value: 'Typically 1–2 hours' },
-              { label: 'Checkout rate', value: `$${CHECKOUT_RATE} / hour` },
-              { label: 'Session cost',  value: `From $${CHECKOUT_RATE} (billed on actual time)` },
+              { label: 'Slot reserved',  value: '1 hour (for scheduling)' },
+              { label: 'Checkout rate', value: `$${CHECKOUT_RATE} / hour (VDO meter)` },
+              { label: 'Landing fees',  value: '$25 per landing, if applicable' },
+              { label: 'Final amount',  value: 'Calculated after flight from VDO meter' },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-center justify-between py-3 border-b border-white/[0.06] last:border-0">
                 <span className="text-sm text-slate-500">{label}</span>
@@ -1157,9 +1158,11 @@ export default function CheckoutFlow({
           {/* Payment notice */}
           <div className="bg-emerald-500/[0.06] border border-emerald-500/20 rounded-lg px-4 py-3 flex items-start gap-2">
             <span className="material-symbols-outlined text-emerald-400 text-[15px] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>info</span>
-            <p className="text-[11px] text-emerald-300/80 leading-relaxed">
-              No payment is required now. The checkout flight fee is paid after your checkout flight is completed and approved.
-            </p>
+            <div>
+              <p className="text-[11px] text-emerald-300/80 leading-relaxed">
+                No payment is required now. The final checkout amount is calculated after the flight using the aircraft VDO meter reading, plus any applicable landing fees ($25 per landing). You will receive a checkout invoice after the outcome is recorded.
+              </p>
+            </div>
           </div>
 
           {/* Clarifying note */}

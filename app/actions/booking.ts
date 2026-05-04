@@ -13,6 +13,7 @@ import type {
   SubmitFlightRecordInput,
   ResubmitFlightRecordInput,
   ReviewFlag,
+  FlightRecordLandingRow,
 } from '@/lib/supabase/booking-types'
 
 // ─── Auth guard ───────────────────────────────────────────────────────────────
@@ -121,6 +122,61 @@ export async function createBooking(
   }
 
   return { bookingId: result.booking_id, bookingReference: result.booking_reference }
+}
+
+// ─── Mark flight returned ─────────────────────────────────────────────────────
+// Customer signals that they have landed and are back.
+// Transitions the booking from confirmed / ready_for_dispatch / dispatched
+// → awaiting_flight_record so the flight record form becomes available.
+// Standard bookings only; checkout bookings use a separate flow.
+
+export async function markFlightReturned(bookingId: string): Promise<void> {
+  const { supabase, userId } = await requireClearedCustomer()
+
+  const { data: booking } = await supabase
+    .from('bookings')
+    .select('id, status, booking_type, aircraft_id, booking_reference, booking_owner_user_id')
+    .eq('id', bookingId)
+    .eq('booking_owner_user_id', userId)
+    .single()
+
+  if (!booking) throw new Error('Booking not found or access denied.')
+  if (booking.booking_type !== 'standard') {
+    throw new Error('VALIDATION: Flight Returned is only available for standard aircraft bookings.')
+  }
+
+  const allowed = ['confirmed', 'ready_for_dispatch', 'dispatched']
+  if (!allowed.includes(booking.status)) {
+    throw new Error(`VALIDATION: Cannot mark flight returned for a booking with status "${booking.status}".`)
+  }
+
+  const now = new Date().toISOString()
+
+  await supabase
+    .from('bookings')
+    .update({ status: 'awaiting_flight_record', updated_at: now })
+    .eq('id', bookingId)
+
+  await supabase.from('booking_status_history').insert({
+    booking_id:         bookingId,
+    old_status:         booking.status,
+    new_status:         'awaiting_flight_record',
+    changed_by_user_id: userId,
+    note:               'Customer confirmed flight has returned.',
+  })
+
+  await supabase.from('booking_audit_events').insert({
+    booking_id:    bookingId,
+    aircraft_id:   booking.aircraft_id,
+    actor_user_id: userId,
+    actor_role:    'customer',
+    event_type:    'booking_updated',
+    event_summary: 'Customer marked flight as returned.',
+    new_value:     { status: 'awaiting_flight_record' },
+  })
+
+  revalidatePath(`/dashboard/bookings/${bookingId}`)
+  revalidatePath('/dashboard/bookings')
 }
 
 // ─── Submit flight record ─────────────────────────────────────────────────────
@@ -261,6 +317,22 @@ export async function submitFlightRecord(
   if (frError || !flightRecord) {
     console.error('[submitFlightRecord] Insert failed:', frError)
     throw new Error('Failed to submit flight record. Please try again.')
+  }
+
+  // Insert per-airport landing rows (mandatory for standard bookings)
+  if (input.landing_rows && input.landing_rows.length > 0) {
+    const landingInserts = input.landing_rows.map((row: FlightRecordLandingRow) => ({
+      flight_record_id: flightRecord.id,
+      airport_id:       row.airport_id,
+      landing_count:    row.landing_count,
+    }))
+    const { error: landingErr } = await supabase
+      .from('flight_record_landings')
+      .insert(landingInserts)
+    if (landingErr) {
+      console.error('[submitFlightRecord] Landing rows insert failed:', landingErr)
+      // Non-fatal — flight record created, admin can add landing details manually.
+    }
   }
 
   // Advance booking status

@@ -296,7 +296,6 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
                         target="_blank"
                         rel="noopener noreferrer"
                         className="absolute top-1.5 right-1.5 w-6 h-6 rounded-lg bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={e => e.stopPropagation()}
                       >
                         <span className="material-symbols-outlined text-white text-[13px]">open_in_new</span>
                       </a>

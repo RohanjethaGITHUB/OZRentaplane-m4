@@ -10,12 +10,24 @@ type MeterStarts = {
   air_switch?: number | null
 }
 
+type Airport = {
+  id:        string
+  icao_code: string
+  name:      string
+}
+
+type LandingRow = {
+  airport_id:    string
+  landing_count: string   // kept as string for controlled input; validated on submit
+}
+
 type Props = {
   bookingId:    string
   picName?:     string | null
   picArn?:      string | null
   flightDate:   string
   meterStarts?: MeterStarts
+  airports?:    Airport[]
 }
 
 type UploadedFile = { file: File; preview: string }
@@ -53,7 +65,7 @@ const OP_INPUT_ERR =
   'focus:ring-amber-400/15 transition-colors'
 
 export default function FlightRecordForm({
-  bookingId, picName, picArn, flightDate, meterStarts = {},
+  bookingId, picName, picArn, flightDate, meterStarts = {}, airports = [],
 }: Props) {
   const router = useRouter()
 
@@ -65,7 +77,7 @@ export default function FlightRecordForm({
   const [files,         setFiles]         = useState<UploadedFile[]>([])
   const [uploadErrors,  setUploadErrors]  = useState<RejectedFile[]>([])
   const [uploadResults, setUploadResults] = useState<Array<{ name: string; success: boolean; error?: string }>>([])
-  const [landingsVal,   setLandingsVal]   = useState('')
+  const [landingRows,   setLandingRows]   = useState<LandingRow[]>([{ airport_id: '', landing_count: '' }])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Meter start / stop — controlled, pre-filled from last approved readings
@@ -101,19 +113,28 @@ export default function FlightRecordForm({
     return null
   }
 
-  // Landings inline — only validates once the user has typed something.
-  function validateLandings(v: string): string | null {
-    if (!v) return null
-    const n = Number(v)
-    if (isNaN(n) || n < 0)        return 'Must be 0 or more.'
-    if (!Number.isInteger(n))     return 'Must be a whole number (no decimals).'
+  // Landing rows helpers
+  function updateLandingRow(idx: number, field: keyof LandingRow, value: string) {
+    setLandingRows(rows => rows.map((r, i) => i === idx ? { ...r, [field]: value } : r))
+  }
+  function addLandingRow() {
+    setLandingRows(rows => [...rows, { airport_id: '', landing_count: '' }])
+  }
+  function removeLandingRow(idx: number) {
+    setLandingRows(rows => rows.filter((_, i) => i !== idx))
+  }
+  function getLandingRowError(row: LandingRow): string | null {
+    if (!row.airport_id) return 'Select an airport.'
+    const n = Number(row.landing_count)
+    if (!row.landing_count || isNaN(n) || !Number.isInteger(n) || n < 1) return 'Landings must be a whole number ≥ 1.'
     return null
   }
-  const landingsErr = validateLandings(landingsVal)
+  const hasLandingErrors = landingRows.some(r => getLandingRowError(r) !== null)
+  const allLandingsFilled = landingRows.length > 0 && landingRows.every(r => r.airport_id && r.landing_count)
 
   // Gate the submit button.
   const hasMeterErrors  = METERS.some(({ key }) => getMeterError(key) !== null)
-  const isSubmitBlocked = loading || !declaration || hasMeterErrors || landingsErr !== null
+  const isSubmitBlocked = loading || !declaration || hasMeterErrors || hasLandingErrors || !allLandingsFilled
 
   // ── File upload ───────────────────────────────────────────────────────────
 
@@ -172,21 +193,20 @@ export default function FlightRecordForm({
     const get    = (k: string) => fd.get(k) as string | null
     const getNum = (k: string) => { const v = get(k); return v && v !== '' ? Number(v) : null }
 
-    // Landings — required
-    const landingsRaw = landingsVal.trim()
-    if (!landingsRaw) {
-      setError('Landings is required.')
+    // Landing rows — at least one, each must have airport + count ≥ 1
+    if (landingRows.length === 0) {
+      setError('At least one landing entry is required.')
       return
     }
-    const landingsNum = Number(landingsRaw)
-    if (isNaN(landingsNum) || landingsNum < 0) {
-      setError('Landings must be 0 or more.')
-      return
+    for (let i = 0; i < landingRows.length; i++) {
+      const err = getLandingRowError(landingRows[i])
+      if (err) { setError(`Landing row ${i + 1}: ${err}`); return }
     }
-    if (!Number.isInteger(landingsNum)) {
-      setError('Landings must be a whole number.')
-      return
-    }
+    const landingRowsParsed = landingRows.map(r => ({
+      airport_id:    r.airport_id,
+      landing_count: Math.round(Number(r.landing_count)),
+    }))
+    const totalLandings = landingRowsParsed.reduce((s, r) => s + r.landing_count, 0)
 
     // Optional numeric fields — must be non-negative if provided
     const optionals: [string, string][] = [
@@ -220,7 +240,8 @@ export default function FlightRecordForm({
         oil_total:        null,
         fuel_added:       getNum('fuel_added'),
         fuel_actual:      null,
-        landings:         Math.round(landingsNum),
+        landings:         totalLandings,
+        landing_rows:     landingRowsParsed,
         customer_notes:   get('customer_notes') || null,
         declaration_accepted: true,
         signature_type:   'typed',
@@ -473,29 +494,89 @@ export default function FlightRecordForm({
                 className={OP_INPUT}
               />
             </div>
-            <div>
-              <label className="block text-xs uppercase tracking-widest text-slate-500 font-bold mb-2">
-                Landings <span className="text-amber-400/70 normal-case tracking-normal font-medium ml-1">required</span>
-              </label>
-              <input
-                type="number"
-                name="landings"
-                min="0"
-                step="1"
-                placeholder="e.g. 1"
-                value={landingsVal}
-                onChange={e => setLandingsVal(e.target.value)}
-                className={landingsErr ? OP_INPUT_ERR : OP_INPUT}
-              />
-              {landingsErr && (
-                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-400/90">
-                  <span className="material-symbols-outlined text-[13px]">warning</span>
-                  {landingsErr}
-                </p>
-              )}
-            </div>
           </div>
-          <div className="mt-4">
+        </section>
+
+        {/* ── Landing Details ─────────────────────────────────────────────── */}
+        <section>
+          <div className="flex items-center justify-between mb-5">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-oz-blue">
+              Landing Details <span className="text-amber-400/70 normal-case tracking-normal font-medium ml-1">required</span>
+            </p>
+            <button
+              type="button"
+              onClick={addLandingRow}
+              className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[14px]">add</span>
+              Add Airport
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {landingRows.map((row, idx) => {
+              const touched = row.airport_id !== '' || row.landing_count !== ''
+              return (
+                <div key={idx} className="flex items-start gap-3">
+                  <div className="flex-1 grid grid-cols-[1fr_120px] gap-3">
+                    <div>
+                      <select
+                        value={row.airport_id}
+                        onChange={e => updateLandingRow(idx, 'airport_id', e.target.value)}
+                        className={`w-full bg-[#050c17] border rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 transition-colors ${
+                          touched && !row.airport_id
+                            ? 'border-amber-400/40 focus:border-amber-400/60 focus:ring-amber-400/15'
+                            : 'border-white/[0.08] focus:border-oz-blue/50 focus:ring-oz-blue/20 hover:border-white/15'
+                        }`}
+                      >
+                        <option value="">Select airport…</option>
+                        {airports.map(a => (
+                          <option key={a.id} value={a.id}>
+                            {a.icao_code} — {a.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder="Landings"
+                        value={row.landing_count}
+                        onChange={e => updateLandingRow(idx, 'landing_count', e.target.value)}
+                        className={`w-full bg-[#050c17] border rounded-lg px-3 py-2.5 text-sm text-white text-right placeholder:text-slate-700 focus:outline-none focus:ring-1 transition-colors ${
+                          touched && (!row.landing_count || Number(row.landing_count) < 1)
+                            ? 'border-amber-400/40 focus:border-amber-400/60 focus:ring-amber-400/15'
+                            : 'border-white/[0.08] focus:border-oz-blue/50 focus:ring-oz-blue/20 hover:border-white/15'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                  {landingRows.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeLandingRow(idx)}
+                      className="mt-2 text-slate-600 hover:text-red-400 transition-colors flex-shrink-0"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">remove_circle</span>
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <p className="mt-3 text-[10px] text-slate-600 leading-relaxed">
+            Add one row per airport. Include touch-and-go landings at each location.
+          </p>
+        </section>
+
+        {/* ── Flight Notes ────────────────────────────────────────────────── */}
+        <section>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-oz-blue mb-5">
+            Flight Notes
+          </p>
+          <div>
             <label className="block text-xs uppercase tracking-widest text-slate-500 font-bold mb-2">
               Flight Notes (Optional)
             </label>

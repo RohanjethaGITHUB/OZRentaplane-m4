@@ -26,6 +26,7 @@ export default async function AdminMasterOverview() {
     { count: checkoutConfirmed },
     { count: checkoutAwaitingOutcome },
     { count: checkoutPaymentRequired },
+    { count: manualPaymentPending },
   ] = await Promise.all([
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer').eq('pilot_clearance_status', 'cleared_to_fly'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'pending_confirmation'),
@@ -37,6 +38,8 @@ export default async function AdminMasterOverview() {
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_confirmed'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_completed_under_review'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_payment_required'),
+    // Count bank transfer submissions awaiting admin review
+    supabase.from('checkout_bank_transfer_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending_review'),
   ])
 
   // Fetch KZG status
@@ -45,6 +48,7 @@ export default async function AdminMasterOverview() {
   // A. Action Required
   const actionRequired = [
     { label: 'New Checkout Requests', count: checkoutRequests || 0,        href: '/admin/bookings/checkout?status=checkout_requested',            color: 'text-blue-400',   icon: 'how_to_reg' },
+    { label: 'Manual Payment Verification', count: manualPaymentPending || 0, href: '/admin/bookings/checkout?status=checkout_payment_required',  color: 'text-amber-400',  icon: 'account_balance' },
     { label: 'Checkout Outcomes Needed', count: checkoutAwaitingOutcome || 0, href: '/admin/bookings/checkout?status=checkout_completed_under_review', color: 'text-amber-400',  icon: 'rate_review' },
     { label: 'New Booking Requests',  count: standardBookingReqs || 0,     href: '/admin/bookings/flights?status=pending_confirmation',           color: 'text-blue-400',   icon: 'fact_check' },
     { label: 'Post-Flight Reviews',   count: pendingPostReviews || 0,      href: '/admin/bookings/post-flight',                                   color: 'text-purple-400', icon: 'assignment_turned_in' },
@@ -58,7 +62,7 @@ export default async function AdminMasterOverview() {
 
   // C. Waiting on Customer
   const waitingOnCustomer = [
-    { label: 'Checkout Payment Required', count: checkoutPaymentRequired || 0, href: '/admin/bookings/payment-required', color: 'text-orange-400', icon: 'receipt_long' },
+    { label: 'Checkout Payment Required', count: Math.max(0, (checkoutPaymentRequired || 0) - (manualPaymentPending || 0)), href: '/admin/bookings/payment-required', color: 'text-orange-400', icon: 'receipt_long' },
     { label: 'Flight Records Pending', count: awaitingFlightRecords || 0, href: '/admin/bookings/flights', color: 'text-slate-400', icon: 'assignment' },
   ]
 

@@ -406,6 +406,11 @@ export type CreateBookingInput = {
   risk_acknowledgement_accepted?: boolean
 }
 
+export type FlightRecordLandingRow = {
+  airport_id:    string
+  landing_count: number
+}
+
 export type SubmitFlightRecordInput = {
   booking_id: string
   date: string              // YYYY-MM-DD
@@ -423,6 +428,7 @@ export type SubmitFlightRecordInput = {
   fuel_added?: number | null
   fuel_actual?: number | null
   landings?: number | null
+  landing_rows?: FlightRecordLandingRow[]
   customer_notes?: string | null
   declaration_accepted?: boolean
   signature_type?: SignatureType
@@ -533,5 +539,43 @@ export type CheckoutOutcome =
   | 'additional_checkout_required'
   | 'checkout_reschedule_required'
   | 'not_currently_eligible'
+
+// Checkout invoice VDO billing breakdown.
+// vdo_start_reading and vdo_end_reading are null for legacy invoices
+// that predate VDO-based billing (migration 045).
+export type CheckoutInvoiceVdoBilling = {
+  vdo_start_reading:               number | null
+  vdo_end_reading:                 number | null
+  vdo_hours_flown:                 number | null   // end - start, 1 decimal place
+  checkout_rate_cents_per_hour:    number          // 29000 = $290
+  checkout_calculated_amount_cents: number | null  // vdo_hours × rate
+  checkout_landing_subtotal_cents: number          // sum of landing fees
+  checkout_final_amount_cents:     number | null   // base + landings
+}
+
+// Landing row as returned by checkout_landing_charges table.
+export type CheckoutLandingChargeRow = {
+  id:                string
+  booking_id:        string
+  airport_id:        string
+  landing_count:     number
+  unit_amount_cents: number
+  total_amount_cents: number
+  created_at:        string
+}
+
+// Input type for markCheckoutOutcome server action.
+export type MarkCheckoutOutcomeInput = {
+  bookingId:        string
+  outcome:          CheckoutOutcome
+  adminNote?:       string
+  // Payment path (required unless paymentWaived = true)
+  vdoStartReading?: number   // e.g. 124.2
+  vdoEndReading?:   number   // e.g. 125.0
+  landingCharges?:  { airportId: string; landingCount: number }[]
+  // Waiver path (non-cleared outcomes only)
+  paymentWaived?:   boolean
+  waiverReason?:    string
+}
 
 export type ProvisionalBookingAction = 'keep' | 'release'

@@ -75,7 +75,7 @@ export default async function DashboardPage() {
   let checkoutInvoice: import('./DashboardContent').CheckoutInvoiceData | null = null
 
   if (paymentPending && checkoutBookingId) {
-    const [{ data: invoiceRow }, { data: landingRows }] = await Promise.all([
+    const [{ data: invoiceRow }, { data: landingRows }, { data: invoiceStatusRow }] = await Promise.all([
       supabase
         .from('checkout_invoice_live_amount')
         .select('invoice_id, subtotal_cents, advance_applied_cents, total_paid_cents, current_credit_balance_cents, display_amount_due_cents, checkout_outcome, checkout_duration_hours, checkout_landing_subtotal_cents')
@@ -85,11 +85,30 @@ export default async function DashboardPage() {
         .from('checkout_landing_charges')
         .select('airport_id, landing_count, unit_amount_cents, total_amount_cents, airports(icao_code, name)')
         .eq('booking_id', checkoutBookingId),
+      supabase
+        .from('checkout_invoices')
+        .select('id, status')
+        .eq('booking_id', checkoutBookingId)
+        .single(),
     ])
+
+    // Fetch latest bank transfer submission for the invoice
+    let bankTransferStatus: string | null = null
+    if (invoiceStatusRow?.id) {
+      const { data: btSub } = await supabase
+        .from('checkout_bank_transfer_submissions')
+        .select('status')
+        .eq('invoice_id', invoiceStatusRow.id)
+        .order('submitted_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      bankTransferStatus = (btSub as { status: string } | null)?.status ?? null
+    }
 
     if (invoiceRow) {
       checkoutInvoice = {
         invoiceId:               invoiceRow.invoice_id as string,
+        invoiceStatus:           (invoiceStatusRow as { status?: string } | null)?.status ?? null,
         subtotalCents:           invoiceRow.subtotal_cents as number,
         advanceAppliedCents:     invoiceRow.advance_applied_cents as number,
         totalPaidCents:          invoiceRow.total_paid_cents as number,
@@ -98,6 +117,7 @@ export default async function DashboardPage() {
         checkoutOutcome:         invoiceRow.checkout_outcome as string | null,
         checkoutDurationHours:   invoiceRow.checkout_duration_hours as number | null,
         landingSubtotalCents:    invoiceRow.checkout_landing_subtotal_cents as number,
+        bankTransferStatus,
         landingCharges:          ((landingRows ?? []) as any[]).map(lc => ({
           airportIcao:    (lc.airports as any)?.icao_code ?? '',
           airportName:    (lc.airports as any)?.name ?? '',

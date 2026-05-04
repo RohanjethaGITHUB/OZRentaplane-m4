@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { createCheckoutPaymentSession, submitBankTransferProof } from "@/app/actions/payment"
+import { getCheckoutPaymentDisplayState } from "@/lib/checkout-payment-state"
 
 const STRIPE_DOMESTIC_FEE_BPS = 170
 const STRIPE_FIXED_FEE_CENTS = 30
@@ -15,6 +16,7 @@ type Props = {
     subtotal_cents: number
     advance_applied_cents: number
     stripe_amount_due_cents: number
+    status?: string
   } | null
   bankTransferSubmission?: {
     id: string
@@ -34,6 +36,12 @@ export default function CheckoutPaymentCard({ bookingId, checkoutInvoice, bankTr
 
   if (!checkoutInvoice) return null
 
+  // Derive the display state — this is the single source of truth for what to show
+  const displayState = getCheckoutPaymentDisplayState(
+    { status: checkoutInvoice.status ?? 'payment_required' },
+    bankTransferSubmission ?? null,
+  )
+
   const baseAmountCents = checkoutInvoice.stripe_amount_due_cents
   const baseAmount = (baseAmountCents / 100).toFixed(2)
   const subtotal = (checkoutInvoice.subtotal_cents / 100).toFixed(2)
@@ -49,24 +57,62 @@ export default function CheckoutPaymentCard({ bookingId, checkoutInvoice, bankTr
   const surchargeAmount = (surchargeCents / 100).toFixed(2)
   const grossAmount = (grossAmountCents / 100).toFixed(2)
 
-  // If already submitted and pending/approved, show status
-  if (bankTransferSubmission && (bankTransferSubmission.status === "pending_review" || bankTransferSubmission.status === "approved")) {
+  // ── awaiting_manual_payment_confirmation ───────────────────────────────────
+  // Bank transfer details have been submitted. Customer is now waiting for admin
+  // to review and confirm — do NOT show "Pay invoice" or "Payment Required".
+  if (displayState === 'awaiting_manual_payment_confirmation') {
     return (
-      <div className="bg-orange-500/10 border border-orange-500/20 rounded-[1.25rem] p-6">
+      <div className="bg-blue-500/10 border border-blue-500/20 rounded-[1.25rem] p-6">
         <div className="flex items-center gap-3 mb-3">
-          <span className="material-symbols-outlined text-orange-400 text-lg">payments</span>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-orange-400">Payment Required</h3>
+          <span className="material-symbols-outlined text-blue-400 text-lg">account_balance</span>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-blue-400">Awaiting Payment Confirmation</h3>
         </div>
-        <p className="text-sm text-oz-muted leading-relaxed mb-6">
-          Your bank transfer payment proof was submitted. Admin review may take up to 24 hours.
+        <p className="text-sm text-oz-muted leading-relaxed mb-4">
+          Your bank transfer details have been submitted. An admin will verify the payment before your checkout result is finalised.
         </p>
         <div className="flex items-center gap-2 p-3 bg-white/5 rounded-lg border border-white/10 text-sm text-slate-300">
-          <span className="material-symbols-outlined text-amber-400 text-[18px]">pending_actions</span>
-          Pending Admin Review
+          <span className="material-symbols-outlined text-blue-400 text-[18px]">pending_actions</span>
+          Awaiting admin review — no further action needed
         </div>
+        <p className="text-[10px] text-slate-600 mt-3 leading-relaxed">
+          Invoice reference: <span className="font-mono text-slate-500">{checkoutInvoice.invoice_number}</span>
+        </p>
       </div>
     )
   }
+
+  // ── paid ───────────────────────────────────────────────────────────────────
+  if (displayState === 'paid') {
+    return (
+      <div className="bg-green-500/10 border border-green-500/20 rounded-[1.25rem] p-6">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="material-symbols-outlined text-green-400 text-lg">check_circle</span>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-green-400">Payment Confirmed</h3>
+        </div>
+        <p className="text-sm text-oz-muted leading-relaxed">
+          Your checkout payment has been confirmed. Your pilot status has been updated accordingly.
+        </p>
+      </div>
+    )
+  }
+
+  // ── waived ─────────────────────────────────────────────────────────────────
+  if (displayState === 'waived') {
+    return (
+      <div className="bg-green-500/10 border border-green-500/20 rounded-[1.25rem] p-6">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="material-symbols-outlined text-green-400 text-lg">verified</span>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-green-400">Payment Waived</h3>
+        </div>
+        <p className="text-sm text-oz-muted leading-relaxed">
+          The checkout payment for this booking has been waived by the operations team.
+        </p>
+      </div>
+    )
+  }
+
+  // ── awaiting_payment ───────────────────────────────────────────────────────
+  // Standard payment flow: show Stripe / bank transfer options.
 
   const handleBankTransferSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -89,7 +135,7 @@ export default function CheckoutPaymentCard({ bookingId, checkoutInvoice, bankTr
         <h3 className="text-xs font-bold uppercase tracking-widest text-orange-400">Payment Required</h3>
       </div>
       <p className="text-sm text-oz-muted leading-relaxed mb-2">
-        Your checkout flight has been completed and approved. Please complete payment to finalise your clearance and unlock aircraft bookings.
+        Your checkout flight has been completed and approved. The amount below is calculated from the aircraft VDO meter reading plus applicable landing fees. Please complete payment to finalise your clearance and unlock aircraft bookings.
       </p>
 
       {bankTransferSubmission?.status === "rejected" && (
@@ -131,7 +177,7 @@ export default function CheckoutPaymentCard({ bookingId, checkoutInvoice, bankTr
         <>
           <div className="mb-6 space-y-2 p-4 rounded-xl bg-orange-500/[0.05] border border-orange-500/15 text-sm">
             <div className="flex justify-between text-slate-300">
-              <span>Checkout Fee</span>
+              <span>Checkout Fee (VDO meter + landings)</span>
               <span>${subtotal}</span>
             </div>
             {checkoutInvoice.advance_applied_cents > 0 && (

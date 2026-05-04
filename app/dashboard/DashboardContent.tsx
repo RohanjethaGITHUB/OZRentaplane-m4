@@ -5,11 +5,13 @@ import type { User } from '@supabase/supabase-js'
 import type { Profile, PilotClearanceStatus, UserDocument, VerificationEvent } from '@/lib/supabase/types'
 import { fmtTimestamp } from '@/lib/utils/format'
 import { CLEARANCE_LABEL_CUSTOMER } from '@/lib/pilot-status'
+import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type CheckoutInvoiceData = {
   invoiceId:             string
+  invoiceStatus?:        string | null
   subtotalCents:         number
   advanceAppliedCents:   number
   totalPaidCents:        number
@@ -18,6 +20,7 @@ export type CheckoutInvoiceData = {
   checkoutOutcome:       string | null
   checkoutDurationHours: number | null
   landingSubtotalCents:  number
+  bankTransferStatus?:   string | null  // status of latest bank transfer submission
   landingCharges: {
     airportIcao:      string
     airportName:      string
@@ -53,7 +56,7 @@ type HeroContent = {
   glowFrom: string
 }
 
-const CLEARANCE_HERO: Record<PilotClearanceStatus, HeroContent> = {
+const CLEARANCE_HERO: Record<PilotClearanceStatus | string, HeroContent> = {
   checkout_required: {
     subtitle: 'Pilot Onboarding',
     title:    'Book Your Checkout Flight',
@@ -108,6 +111,19 @@ const CLEARANCE_HERO: Record<PilotClearanceStatus, HeroContent> = {
     cta2href: '/dashboard/bookings',
     icon:     'payments',
     glowFrom: 'from-orange-500/20',
+  },
+  // Virtual state: checkout_payment_required + bank transfer submitted
+  // Not a real DB status — derived at render time via getCheckoutPaymentDisplayState
+  checkout_awaiting_manual_payment: {
+    subtitle: 'Payment Submitted',
+    title:    'Awaiting Payment Confirmation',
+    body:     'Your bank transfer details have been submitted. An admin will verify the payment before your checkout result is finalised. No further action is required from you right now.',
+    cta1:     'View Payment Details',
+    cta1href: '/dashboard/bookings',   // overridden at render time with bookingId
+    cta2:     'Contact Support',
+    cta2href: '/dashboard/messages',
+    icon:     'account_balance',
+    glowFrom: 'from-blue-500/20',
   },
   cleared_to_fly: {
     subtitle: 'Access Granted',
@@ -296,11 +312,33 @@ export default function DashboardContent({ user, profile, documents, events, isF
   const clearanceCfg    = CLEARANCE_CONFIG[clearanceStatus]
   const steps           = CLEARANCE_STEPS[clearanceStatus]
 
+  // Derive checkout payment display state to determine if bank transfer has been submitted
+  const checkoutPaymentDisplayState = clearanceStatus === 'checkout_payment_required'
+    ? getCheckoutPaymentDisplayState(
+        checkoutInvoice ? { status: checkoutInvoice.invoiceStatus ?? 'payment_required' } : null,
+        checkoutInvoice?.bankTransferStatus ? { status: checkoutInvoice.bankTransferStatus } : null,
+      )
+    : null
+
+  const isAwaitingManualPayment = checkoutPaymentDisplayState === 'awaiting_manual_payment_confirmation'
+
   // For checkout_payment_required, the hero subtitle and body are outcome-aware.
   // We override the static CLEARANCE_HERO config dynamically.
+  // When bank transfer has been submitted, we switch to the manual-payment-pending hero.
   const checkoutOutcome = checkoutInvoice?.checkoutOutcome
   const paymentHeroOverride: Partial<typeof CLEARANCE_HERO[typeof clearanceStatus]> =
-    clearanceStatus === 'checkout_payment_required' && checkoutOutcome
+    isAwaitingManualPayment
+      ? {
+          subtitle: 'Payment Submitted',
+          title:    'Awaiting Payment Confirmation',
+          body:     'Your bank transfer details have been submitted. An admin will verify the payment before your checkout result is finalised. No further action is required from you right now.',
+          cta1:     'View Payment Details',
+          cta1href: checkoutBookingId ? `/dashboard/bookings/${checkoutBookingId}` : '/dashboard/bookings',
+          cta2:     'Contact Support',
+          cta2href: '/dashboard/messages',
+          icon:     'account_balance',
+        }
+      : clearanceStatus === 'checkout_payment_required' && checkoutOutcome
       ? {
           subtitle:
             checkoutOutcome === 'cleared_to_fly'               ? 'Checkout Approved — Invoice Due'
@@ -530,23 +568,33 @@ export default function DashboardContent({ user, profile, documents, events, isF
                 </div>
               </div>
 
-              {checkoutInvoice.currentCreditCents > 0 && checkoutInvoice.displayAmountDueCents > 0 && (
+              {checkoutInvoice.currentCreditCents > 0 && checkoutInvoice.displayAmountDueCents > 0 && !isAwaitingManualPayment && (
                 <p className="text-[9px] text-emerald-400/60 mb-3 leading-relaxed">
                   Available credit will be applied automatically when you proceed to payment.
                 </p>
               )}
 
-              <button
-                onClick={() => router.push(hero.cta1href)}
-                className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-[11px] font-bold uppercase tracking-[0.15em] transition-all shadow-[0_0_20px_rgba(234,88,12,0.3)]"
-              >
-                <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                  payments
-                </span>
-                {checkoutInvoice.displayAmountDueCents > 0
-                  ? `Pay Now — $${(checkoutInvoice.displayAmountDueCents / 100).toFixed(2)}`
-                  : 'View Invoice'}
-              </button>
+              {isAwaitingManualPayment ? (
+                <div className="flex items-center gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                  <span className="material-symbols-outlined text-blue-400 text-[20px] flex-shrink-0">pending_actions</span>
+                  <div>
+                    <p className="text-[11px] font-bold text-blue-400 mb-0.5">Bank transfer submitted</p>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">Awaiting admin verification. No further action needed.</p>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => router.push(hero.cta1href)}
+                  className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-[11px] font-bold uppercase tracking-[0.15em] transition-all shadow-[0_0_20px_rgba(234,88,12,0.3)]"
+                >
+                  <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    payments
+                  </span>
+                  {checkoutInvoice.displayAmountDueCents > 0
+                    ? `Pay Now — $${(checkoutInvoice.displayAmountDueCents / 100).toFixed(2)}`
+                    : 'View Invoice'}
+                </button>
+              )}
             </div>
           )}
 

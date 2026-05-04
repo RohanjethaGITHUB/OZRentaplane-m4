@@ -49,12 +49,23 @@ const ACTIVE_STATUSES = [
   'checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required',
 ]
 
-function StatusBadge({ status, bookingType }: { status: string; bookingType?: string }) {
-  const cfg = STATUS_CFG[status] ?? {
+const CHECKOUT_OUTCOME_BADGE: Record<string, { label: string; color: string; bg: string; border: string; icon: string }> = {
+  cleared_to_fly:               { label: 'Cleared to Fly',                  color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20',  icon: 'verified'    },
+  additional_checkout_required: { label: 'Additional Checkout Required',    color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  icon: 'schedule'    },
+  checkout_reschedule_required: { label: 'Reschedule Required',             color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20',   icon: 'event_repeat'},
+  not_currently_eligible:       { label: 'Not Currently Eligible',          color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'block'       },
+}
+
+function StatusBadge({ status, bookingType, checkoutOutcome }: { status: string; bookingType?: string; checkoutOutcome?: string | null }) {
+  let cfg: { label: string; color: string; bg: string; border: string; icon?: string } = STATUS_CFG[status] ?? {
     label:  status.replace(/_/g, ' '),
     color:  'text-slate-400',
     bg:     'bg-white/5',
     border: 'border-white/10',
+  }
+  // For completed checkout bookings, show the actual outcome rather than generic "Completed".
+  if (bookingType === 'checkout' && status === 'completed' && checkoutOutcome) {
+    cfg = CHECKOUT_OUTCOME_BADGE[checkoutOutcome] ?? { label: 'Checkout Complete', color: 'text-slate-400', bg: 'bg-white/5', border: 'border-white/10' }
   }
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${cfg.color} ${cfg.bg} ${cfg.border}`}>
@@ -334,6 +345,22 @@ export default async function CustomerBookingsPage() {
   const upcomingAircraft = rows.filter(b => b.booking_type !== 'checkout' && ACTIVE_STATUSES.includes(b.status))
   const completedFlights = rows.filter(b => b.booking_type !== 'checkout' && !ACTIVE_STATUSES.includes(b.status))
 
+  // Fetch checkout outcomes for completed checkout bookings so the badge shows the
+  // actual outcome instead of a generic "Completed" label.
+  const completedCheckoutIds = checkoutRequests.filter(b => b.status === 'completed').map(b => b.id)
+  const checkoutOutcomeMap: Record<string, string> = {}
+  if (completedCheckoutIds.length > 0) {
+    const { data: outcomeRows } = await supabase
+      .from('checkout_invoices')
+      .select('booking_id, checkout_outcome')
+      .in('booking_id', completedCheckoutIds)
+    for (const row of (outcomeRows ?? []) as { booking_id: string; checkout_outcome: string | null }[]) {
+      if (row.booking_id && row.checkout_outcome) {
+        checkoutOutcomeMap[row.booking_id] = row.checkout_outcome
+      }
+    }
+  }
+
   // For the gate banner detail block — most recent active checkout booking
   const checkoutBooking = rows.find(b =>
     b.booking_type === 'checkout' &&
@@ -438,7 +465,7 @@ export default async function CustomerBookingsPage() {
 
                       {/* Right: amount + hours + badge + arrow */}
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                        <StatusBadge status={b.status} bookingType={b.booking_type} />
+                        <StatusBadge status={b.status} bookingType={b.booking_type} checkoutOutcome={checkoutOutcomeMap[b.id]} />
                         {b.estimated_amount != null && (
                           <div className="flex flex-col items-end gap-1 mt-1">
                             <span className="text-sm font-semibold text-white/80 tabular-nums">
@@ -553,19 +580,9 @@ export default async function CustomerBookingsPage() {
                         </div>
                       </div>
 
-                      {/* Right: amount + hours + badge + arrow */}
+                      {/* Right: badge + arrow (estimated price/hours hidden from customer) */}
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                        <StatusBadge status={b.status} bookingType={b.booking_type} />
-                        {b.estimated_amount != null && (
-                          <span className="text-sm font-semibold text-white/80 tabular-nums font-mono mt-1">
-                            ${b.estimated_amount.toFixed(0)}
-                          </span>
-                        )}
-                        {b.estimated_hours != null && (
-                          <span className="text-[11px] text-slate-600 tabular-nums">
-                            {b.estimated_hours.toFixed(1)} h
-                          </span>
-                        )}
+                        <StatusBadge status={b.status} bookingType={b.booking_type} checkoutOutcome={checkoutOutcomeMap[b.id]} />
                         <span className="material-symbols-outlined text-slate-600 group-hover:text-blue-400 text-base transition-colors mt-1">
                           arrow_forward
                         </span>
