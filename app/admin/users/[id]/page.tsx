@@ -51,7 +51,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
   // Fetch customer profile
   const { data: customerProfile } = await supabase
     .from('profiles')
-    .select('id, full_name, email, account_status, verification_status, pilot_clearance_status, created_at, updated_at, reviewed_at, admin_review_note, pilot_arn')
+    .select('id, full_name, email, account_status, verification_status, pilot_clearance_status, created_at, updated_at, reviewed_at, admin_review_note, pilot_arn, has_night_vfr_rating, has_instrument_rating')
     .eq('id', params.id)
     .eq('role', 'customer')
     .single()
@@ -183,6 +183,18 @@ export default async function AdminUserPage({ params }: { params: { id: string }
                 <PilotMetadataEditor customerId={params.id} initialArn={customerProfile.pilot_arn} />
               </div>
               <div>
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Night VFR</p>
+                <p className={`text-sm ${customerProfile.has_night_vfr_rating === true ? 'text-green-400' : customerProfile.has_night_vfr_rating === false ? 'text-blue-200' : 'text-slate-500 italic'}`}>
+                  {customerProfile.has_night_vfr_rating === true ? 'Yes' : customerProfile.has_night_vfr_rating === false ? 'No' : 'Not provided'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Instrument Rating</p>
+                <p className={`text-sm ${customerProfile.has_instrument_rating === true ? 'text-green-400' : customerProfile.has_instrument_rating === false ? 'text-blue-200' : 'text-slate-500 italic'}`}>
+                  {customerProfile.has_instrument_rating === true ? 'Yes' : customerProfile.has_instrument_rating === false ? 'No' : 'Not provided'}
+                </p>
+              </div>
+              <div>
                 <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Member Since</p>
                 <p className="text-blue-200 text-sm">{submittedAt}</p>
               </div>
@@ -263,6 +275,29 @@ export default async function AdminUserPage({ params }: { params: { id: string }
                       {meta.label}
                     </p>
                     <p className="text-xs text-slate-500 mt-1 truncate">{doc.file_name}</p>
+
+                    {doc.document_type === 'pilot_licence' && (
+                      <div className="mt-3 space-y-1">
+                        {doc.licence_type && (
+                          <p className="text-[10px] text-slate-400">Licence: {doc.licence_type}</p>
+                        )}
+                        {doc.licence_number && (
+                          <p className="text-[10px] text-slate-400">ARN: {doc.licence_number}</p>
+                        )}
+                        <p className="text-[10px] text-slate-400">
+                          Night VFR:{' '}
+                          <span className={customerProfile.has_night_vfr_rating === true ? 'text-green-400' : customerProfile.has_night_vfr_rating === false ? 'text-slate-300' : 'text-slate-600 italic'}>
+                            {customerProfile.has_night_vfr_rating === true ? 'Yes' : customerProfile.has_night_vfr_rating === false ? 'No' : 'Not provided'}
+                          </span>
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          Instrument Rating:{' '}
+                          <span className={customerProfile.has_instrument_rating === true ? 'text-green-400' : customerProfile.has_instrument_rating === false ? 'text-slate-300' : 'text-slate-600 italic'}>
+                            {customerProfile.has_instrument_rating === true ? 'Yes' : customerProfile.has_instrument_rating === false ? 'No' : 'Not provided'}
+                          </span>
+                        </p>
+                      </div>
+                    )}
 
                     <div className="mt-6 flex justify-between items-end">
                       <div className="text-[10px] text-slate-500">

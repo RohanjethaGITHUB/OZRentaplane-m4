@@ -256,6 +256,9 @@ export default async function AdminBookingList({
               const bookingRef  = (booking as { booking_reference?: string }).booking_reference ?? booking.id.split('-')[0].toUpperCase()
               const isPending   = status === 'pending_confirmation'
               const hasBankTransferPending = bankTransferPendingBookingIds.has(booking.id)
+              const displayBadge = (hasBankTransferPending && status === 'checkout_payment_required')
+                ? { label: 'Awaiting Payment Confirmation', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' }
+                : badge
 
               return (
                 <div
@@ -280,8 +283,8 @@ export default async function AdminBookingList({
                             <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${typeMeta.className}`}>
                               {typeMeta.label}
                             </span>
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${badge.className}`}>
-                              {badge.label}
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${displayBadge.className}`}>
+                              {displayBadge.label}
                             </span>
                             {hasBankTransferPending && (
                               <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border bg-amber-500/15 text-amber-400 border-amber-500/25 animate-pulse">

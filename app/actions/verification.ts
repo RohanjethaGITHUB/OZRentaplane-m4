@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 import {
   sendVerificationEmail,
   buildSubmittedEmail,
@@ -173,20 +174,16 @@ export async function markCustomerMessagesRead(): Promise<void> {
   // No revalidatePath needed — this is a background read-state update
 }
 
-// ─── Save last flight date ────────────────────────────────────────────────────
-// Customer records when they last flew. Stored on profiles.last_flight_date so
-// it is shared between the Documents page and the checkout flow.
+// ─── Save last flight review date ─────────────────────────────────────────────
+// Customer records their most recent flight review date.
+// Stored on profiles.last_flight_date — shared between the Documents page,
+// checkout flow, and standard booking form.
 
 export async function saveLastFlightDate(dateStr: string): Promise<void> {
   const trimmed = dateStr.trim()
-  if (!trimmed) throw new Error('VALIDATION: Date cannot be empty.')
 
-  // Must be a valid YYYY-MM-DD date
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) throw new Error('VALIDATION: Invalid date format.')
-
-  // Must not be a future date
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
-  if (trimmed > today) throw new Error('VALIDATION: Last flight date cannot be in the future.')
+  const validationError = validateFlightReviewDate(trimmed)
+  if (validationError) throw new Error(`VALIDATION: ${validationError}`)
 
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -197,7 +194,7 @@ export async function saveLastFlightDate(dateStr: string): Promise<void> {
     .update({ last_flight_date: trimmed })
     .eq('id', user.id)
 
-  if (error) throw new Error('Failed to save last flight date. Please try again.')
+  if (error) throw new Error('Failed to save flight review date. Please try again.')
 
   revalidatePath('/dashboard/documents')
   revalidatePath('/dashboard/checkout')

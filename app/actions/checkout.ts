@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { isBookingTimeAllowed } from '@/lib/utils/day-vfr'
+import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 import type {
   CreateCheckoutBookingInput,
   CheckoutBookingResult,
@@ -18,7 +20,7 @@ async function requireCustomer() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, pilot_clearance_status')
+    .select('role, pilot_clearance_status, has_night_vfr_rating, has_instrument_rating')
     .eq('id', user.id)
     .single()
 
@@ -45,7 +47,7 @@ async function requireCustomer() {
 export async function submitCheckoutRequest(
   input: CreateCheckoutBookingInput,
 ): Promise<CheckoutBookingResult> {
-  const { supabase, userId } = await requireCustomer()
+  const { supabase, userId, profile } = await requireCustomer()
 
   // ── Document gate ──────────────────────────────────────────────────────────
   // Validates all required document fields per document type.
@@ -86,8 +88,27 @@ export async function submitCheckoutRequest(
   else if (!photoId.id_type)             missing.push('photo ID type')
   else if (!photoId.document_number)     missing.push('photo ID number')
 
-  // Last flight date
-  if (!input.last_flight_date) missing.push('last flight date')
+  // Flight review date — required and must be within the last 2 years
+  if (!input.last_flight_date) {
+    missing.push('last flight review date')
+  } else {
+    const flightReviewErr = validateFlightReviewDate(input.last_flight_date)
+    if (flightReviewErr) throw new Error(`VALIDATION: ${flightReviewErr}`)
+  }
+
+  // Pilot ratings — must be answered (true or false), null means not yet provided
+  if (profile.has_night_vfr_rating === null || profile.has_instrument_rating === null) {
+    throw new Error(
+      'VALIDATION: Please confirm your Night VFR and Instrument Rating status before submitting a checkout request.'
+    )
+  }
+
+  // Day VFR window check — pilots without Night VFR must depart within the seasonal window
+  if (!isBookingTimeAllowed(input.scheduled_start, profile.has_night_vfr_rating)) {
+    throw new Error(
+      'VALIDATION: This checkout time falls outside the standard Day VFR booking window. A Night VFR Rating is required for this time.'
+    )
+  }
 
   if (missing.length > 0) {
     throw new Error(

@@ -14,7 +14,7 @@ export default async function CustomerDocumentsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, last_flight_date')
+    .select('role, last_flight_date, has_night_vfr_rating, has_instrument_rating')
     .eq('id', user.id)
     .single()
 
@@ -30,7 +30,7 @@ export default async function CustomerDocumentsPage() {
       <PortalPageHero
         eyebrow="Pilot Documents"
         title="My Documents"
-        subtitle="Upload your required pilot documents and keep your last flight date up to date for checkout review."
+        subtitle="Upload your required pilot documents and keep your flight review date up to date for checkout review."
       />
 
       <div className="max-w-[1280px] mx-auto px-6 md:px-10 xl:px-12 py-10">
@@ -38,6 +38,8 @@ export default async function CustomerDocumentsPage() {
           user={user}
           documents={(documents as UserDocument[]) || []}
           lastFlightDate={profile?.last_flight_date ?? null}
+          hasNightVfrRating={profile?.has_night_vfr_rating ?? null}
+          hasInstrumentRating={profile?.has_instrument_rating ?? null}
         />
       </div>
     </>

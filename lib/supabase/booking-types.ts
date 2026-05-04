@@ -399,8 +399,9 @@ export type CreateBookingInput = {
   pic_user_id?: string | null
   pic_name?: string | null
   pic_arn?: string | null
-  scheduled_start: string   // ISO 8601
-  scheduled_end: string     // ISO 8601
+  scheduled_start: string        // ISO 8601
+  scheduled_end: string          // ISO 8601
+  last_flight_date: string       // YYYY-MM-DD — customer's most recent flight review date
   customer_notes?: string | null
   terms_accepted?: boolean
   risk_acknowledgement_accepted?: boolean

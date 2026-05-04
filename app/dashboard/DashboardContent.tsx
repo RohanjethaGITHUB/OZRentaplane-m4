@@ -60,7 +60,7 @@ const CLEARANCE_HERO: Record<PilotClearanceStatus | string, HeroContent> = {
   checkout_required: {
     subtitle: 'Pilot Onboarding',
     title:    'Book Your Checkout Flight',
-    body:     "Every new pilot completes a one-time checkout flight with an approved instructor before solo hire. Choose your preferred time to get started — documents are uploaded as part of the checkout process.",
+    body:     "Every new pilot completes a one-time checkout flight with our team before solo hire. Choose your preferred time to get started, documents are uploaded as part of the checkout process.",
     cta1:     'Book Checkout Flight',
     cta1href: '/dashboard/checkout',
     cta2:     'Learn More',
@@ -71,7 +71,7 @@ const CLEARANCE_HERO: Record<PilotClearanceStatus | string, HeroContent> = {
   checkout_requested: {
     subtitle: 'Checkout Submitted',
     title:    'Request Under Review',
-    body:     "Your selected checkout time has been submitted for review. An approved instructor may confirm this time or suggest an alternative. You will be notified once the request has been reviewed.",
+    body:     "Your selected checkout time has been submitted for review. Our Team may confirm this time or suggest an alternative. You will be notified once the request has been reviewed.",
     cta1:     'View My Bookings',
     cta1href: '/dashboard/bookings',
     cta2:     'Contact Support',
@@ -82,7 +82,7 @@ const CLEARANCE_HERO: Record<PilotClearanceStatus | string, HeroContent> = {
   checkout_confirmed: {
     subtitle: 'Checkout Confirmed',
     title:    'Checkout Flight Confirmed',
-    body:     'Your checkout flight has been confirmed by an approved instructor. Check your bookings for the full details. Complete the flight to unlock solo hire.',
+    body:     'Your checkout flight has been confirmed by our team. Check your bookings for the full details. Complete the flight to unlock bookings.',
     cta1:     'View My Bookings',
     cta1href: '/dashboard/bookings',
     cta2:     'Contact Support',
@@ -128,7 +128,7 @@ const CLEARANCE_HERO: Record<PilotClearanceStatus | string, HeroContent> = {
   cleared_to_fly: {
     subtitle: 'Access Granted',
     title:    "You're Cleared to Fly",
-    body:     'Your checkout is complete and you are cleared for solo hire. Browse available windows and submit booking requests for the Sydney Cessna 172 fleet.',
+    body:     'Your checkout is complete and you are cleared to fly. Browse available windows and submit booking requests for the Sydney Cessna 172 fleet.',
     cta1:     'Book a Flight',
     cta1href: '/dashboard/bookings/new',
     cta2:     'View My Bookings',
@@ -161,7 +161,7 @@ const CLEARANCE_HERO: Record<PilotClearanceStatus | string, HeroContent> = {
   not_currently_eligible: {
     subtitle: 'Account Status',
     title:    'Not Currently Eligible',
-    body:     'Based on your checkout assessment, further training is required before you can continue with aircraft hire. Please arrange further training with a qualified instructor and contact us when you are ready to try again.',
+    body:     'Based on your checkout assessment, further training is required before you can continue with aircraft hire. Please arrange further training and contact us when you are ready to try again.',
     cta1:     'Contact Us',
     cta1href: '/dashboard/messages',
     cta2:     'View My Bookings',
@@ -181,14 +181,14 @@ const CLEARANCE_STEPS: Record<PilotClearanceStatus, Step[]> = {
     { label: 'Account created',      state: 'done'    },
     { label: 'Book checkout flight',  state: 'active'  },
     { label: 'Complete checkout',     state: 'pending' },
-    { label: 'Cleared for solo hire', state: 'pending' },
+    { label: 'Cleared to fly', state: 'pending' },
   ],
   checkout_requested: [
     { label: 'Account created',             state: 'done'   },
     { label: 'Checkout request submitted',  state: 'done'   },
     { label: 'Request confirmed',           state: 'active' },
     { label: 'Complete checkout',           state: 'pending'},
-    { label: 'Cleared for solo hire',       state: 'pending'},
+    { label: 'Cleared to fly',       state: 'pending'},
   ],
   checkout_confirmed: [
     { label: 'Account created',       state: 'done'   },
@@ -322,6 +322,17 @@ export default function DashboardContent({ user, profile, documents, events, isF
 
   const isAwaitingManualPayment = checkoutPaymentDisplayState === 'awaiting_manual_payment_confirmation'
 
+  // Override badge/pill when bank transfer is submitted — all customer-facing status
+  // indicators must show "Awaiting Payment Confirmation" rather than "Payment Required".
+  const displayCfg = isAwaitingManualPayment
+    ? { ...clearanceCfg, badge: 'Awaiting Payment Confirmation', pillColor: 'blue' as const, pulse: true }
+    : clearanceCfg
+
+  // Override active onboarding step label to match the payment-pending state.
+  const displaySteps = isAwaitingManualPayment
+    ? steps.map(s => s.state === 'active' ? { ...s, label: 'Awaiting payment confirmation' } : s)
+    : steps
+
   // For checkout_payment_required, the hero subtitle and body are outcome-aware.
   // We override the static CLEARANCE_HERO config dynamically.
   // When bank transfer has been submitted, we switch to the manual-payment-pending hero.
@@ -357,7 +368,7 @@ export default function DashboardContent({ user, profile, documents, events, isF
               ? 'An invoice has been issued for your checkout flight. An additional checkout session is required — please pay the invoice, then book another checkout flight to continue your progress.'
               : checkoutOutcome === 'checkout_reschedule_required'
               ? 'An invoice has been issued for your checkout flight. Please pay the invoice — you will then be able to book another checkout session.'
-              : 'An invoice has been issued for your checkout flight. Please pay the invoice. Further training with a qualified instructor is required before you can continue with aircraft hire.',
+              : 'An invoice has been issued for your checkout flight. Please pay the invoice. Further training is required before you can continue with aircraft hire.',
           cta1href: checkoutBookingId ? `/dashboard/bookings/${checkoutBookingId}` : '/dashboard/bookings',
         }
       : checkoutBookingId && clearanceStatus === 'checkout_payment_required'
@@ -424,14 +435,14 @@ export default function DashboardContent({ user, profile, documents, events, isF
           </p>
           {/* Prominent status pill — amber/red for warning states, others standard */}
           <div className={`inline-flex items-center gap-2.5 px-5 py-2 rounded-full border text-[11px] font-bold uppercase tracking-widest ${
-            clearanceCfg.pillColor === 'amber'
+            displayCfg.pillColor === 'amber'
               ? 'bg-amber-500/20 border-amber-400/50 text-amber-200 shadow-[0_0_24px_rgba(245,158,11,0.18)]'
-              : clearanceCfg.pillColor === 'red'
+              : displayCfg.pillColor === 'red'
               ? 'bg-red-500/20 border-red-400/50 text-red-200 shadow-[0_0_24px_rgba(239,68,68,0.18)]'
-              : PILL_BG[clearanceCfg.pillColor]
+              : PILL_BG[displayCfg.pillColor]
           }`}>
-            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${DOT_BG[clearanceCfg.pillColor]} ${clearanceCfg.pulse ? 'animate-pulse' : ''}`} />
-            {clearanceCfg.badge}
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${DOT_BG[displayCfg.pillColor]} ${displayCfg.pulse ? 'animate-pulse' : ''}`} />
+            {displayCfg.badge}
           </div>
         </div>
       </section>
@@ -623,16 +634,16 @@ export default function DashboardContent({ user, profile, documents, events, isF
 
             <div className="space-y-2 flex-1">
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Clearance Status</p>
-              <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-bold uppercase tracking-widest ${PILL_BG[clearanceCfg.pillColor]}`}>
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${DOT_BG[clearanceCfg.pillColor]} ${clearanceCfg.pulse ? 'animate-pulse' : ''}`} />
-                {clearanceCfg.badge}
+              <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-bold uppercase tracking-widest ${PILL_BG[displayCfg.pillColor]}`}>
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${DOT_BG[displayCfg.pillColor]} ${displayCfg.pulse ? 'animate-pulse' : ''}`} />
+                {displayCfg.badge}
               </div>
               <p className="text-[11px] text-slate-600 leading-relaxed">
                 {isCleared
-                  ? 'Cleared for solo hire'
+                  ? 'Cleared to fly'
                   : inCheckoutFlow
                   ? 'Checkout in progress'
-                  : 'Solo hire unavailable'}
+                  : 'Bookings unavailable'}
               </p>
             </div>
 
@@ -664,7 +675,7 @@ export default function DashboardContent({ user, profile, documents, events, isF
               </h4>
             </div>
             <p className="text-sm text-white/75 leading-relaxed pl-8">
-              Your selected checkout time has been submitted for review. An approved instructor may confirm this time or suggest an alternative. You will be notified once the request has been reviewed.
+              Your selected checkout time has been submitted for review. Our Team may confirm this time or suggest an alternative. You will be notified once the request has been reviewed.
             </p>
           </section>
         )}
@@ -680,7 +691,7 @@ export default function DashboardContent({ user, profile, documents, events, isF
               </h4>
             </div>
             <p className="text-sm text-white/75 leading-relaxed pl-8">
-              Your checkout flight has been confirmed by an approved instructor. Check your bookings for the full details.
+              Your checkout flight has been confirmed by our team. Check your bookings for the full details.
             </p>
           </section>
         )}
@@ -740,11 +751,11 @@ export default function DashboardContent({ user, profile, documents, events, isF
                 block
               </span>
               <h4 className="text-xs font-bold uppercase tracking-widest text-red-400">
-                Not Currently Eligible for Solo Hire
+                Not Currently Eligible to Fly
               </h4>
             </div>
             <p className="text-sm text-white/75 leading-relaxed pl-8">
-              Your account is not currently eligible for solo hire. Please contact the operations team for further information.
+              Your account is not currently eligible to fly. Please contact the operations team for further information.
             </p>
           </section>
         )}
@@ -756,12 +767,12 @@ export default function DashboardContent({ user, profile, documents, events, isF
           <div className={`${CARD} p-7 space-y-5`}>
             <div className="flex items-center justify-between border-b border-white/[0.06] pb-4">
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-blue-400/80">Onboarding Progress</h3>
-              <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border ${PILL_BG[clearanceCfg.pillColor]}`}>
-                {clearanceCfg.badge}
+              <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border ${PILL_BG[displayCfg.pillColor]}`}>
+                {displayCfg.badge}
               </span>
             </div>
             <ul className="space-y-4">
-              {steps.map(step => (
+              {displaySteps.map(step => (
                 <li key={step.label} className={`flex items-center gap-4 ${
                   step.state === 'active'  ? 'text-white' :
                   step.state === 'failed'  ? 'text-red-400/80' :
@@ -775,6 +786,11 @@ export default function DashboardContent({ user, profile, documents, events, isF
                 </li>
               ))}
             </ul>
+            {isAwaitingManualPayment && (
+              <p className="text-[11px] text-blue-400/70 leading-relaxed border-t border-white/[0.06] pt-4 mt-1">
+                Your bank transfer details have been submitted. Our team will verify the payment before your checkout result is finalised.
+              </p>
+            )}
           </div>
 
           {/* Documents summary */}
@@ -845,7 +861,7 @@ export default function DashboardContent({ user, profile, documents, events, isF
               <>
                 <h3 className="text-lg font-serif text-white">Checkout Required</h3>
                 <p className="text-sm text-slate-500 max-w-xs leading-relaxed font-light">
-                  Complete your checkout flight to unlock solo hire.
+                  Once your checkout flight is approved, you will unlock bookings.
                 </p>
                 <button
                   onClick={() => router.push('/dashboard/checkout')}
@@ -853,6 +869,13 @@ export default function DashboardContent({ user, profile, documents, events, isF
                 >
                   Book Checkout Flight
                 </button>
+              </>
+            ) : isAwaitingManualPayment ? (
+              <>
+                <h3 className="text-lg font-serif text-white">Awaiting Payment Confirmation</h3>
+                <p className="text-sm text-slate-500 max-w-xs leading-relaxed font-light">
+                  Your bank transfer has been submitted and is awaiting confirmation from our team.
+                </p>
               </>
             ) : (
               <>

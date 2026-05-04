@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 import { generateReviewFlags } from '@/lib/booking/review-flags'
 import {
   notifyBookingSubmitted,
@@ -55,7 +56,11 @@ async function requireClearedCustomer() {
 export async function createBooking(
   input: CreateBookingInput,
 ): Promise<{ bookingId: string; bookingReference: string }> {
-  const { supabase } = await requireClearedCustomer()
+  const { supabase, userId } = await requireClearedCustomer()
+
+  // Flight review date — required and must be within the last 2 years
+  const flightReviewErr = validateFlightReviewDate(input.last_flight_date ?? '')
+  if (flightReviewErr) throw new Error(`VALIDATION: ${flightReviewErr}`)
 
   const start = new Date(input.scheduled_start)
   const end   = new Date(input.scheduled_end)
@@ -96,6 +101,13 @@ export async function createBooking(
     estimated_hours:   number
     estimated_amount:  number
   }
+
+  // Save flight review date to the customer's profile so it pre-fills on future bookings.
+  // Non-throwing — booking is already created; a sync failure here is not critical.
+  await supabase
+    .from('profiles')
+    .update({ last_flight_date: input.last_flight_date })
+    .eq('id', userId)
 
   revalidatePath('/dashboard')
   revalidatePath('/admin')

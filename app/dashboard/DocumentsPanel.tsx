@@ -12,6 +12,7 @@ import { uploadVerificationDocument } from '@/app/actions/upload'
 import { getDocumentSignedUrl } from '@/app/actions/documents'
 import { saveLastFlightDate } from '@/app/actions/verification'
 import { fmtDate } from '@/lib/utils/format'
+import { validateFlightReviewDate, getFlightReviewCutoff } from '@/lib/utils/flight-review'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -100,25 +101,29 @@ function StatusChip({ state }: { state: DocUiState }) {
 // ─── Upload modal form state ──────────────────────────────────────────────────
 
 type UploadForm = {
-  file:           File | null
-  licenceType:    string   // pilot_licence
-  licenceNumber:  string   // pilot_licence — also updates profile ARN
-  medicalClass:   string   // medical_certificate
-  issueDate:      string   // medical_certificate — date of issue
-  expiryDate:     string   // medical_certificate — expiry date
-  idType:         string   // photo_id
-  documentNumber: string   // photo_id — document/ID number
+  file:              File | null
+  licenceType:       string    // pilot_licence
+  nightVfrRating:    boolean | null  // pilot_licence — null = unanswered
+  instrumentRating:  boolean | null  // pilot_licence — null = unanswered
+  licenceNumber:     string    // pilot_licence — also updates profile ARN
+  medicalClass:      string    // medical_certificate
+  issueDate:         string    // medical_certificate — date of issue
+  expiryDate:        string    // medical_certificate — expiry date
+  idType:            string    // photo_id
+  documentNumber:    string    // photo_id — document/ID number
 }
 
 const EMPTY_FORM: UploadForm = {
-  file:           null,
-  licenceType:    '',
-  licenceNumber:  '',
-  medicalClass:   '',
-  issueDate:      '',
-  expiryDate:     '',
-  idType:         '',
-  documentNumber: '',
+  file:              null,
+  licenceType:       '',
+  nightVfrRating:    null,
+  instrumentRating:  null,
+  licenceNumber:     '',
+  medicalClass:      '',
+  issueDate:         '',
+  expiryDate:        '',
+  idType:            '',
+  documentNumber:    '',
 }
 
 // ─── Upload modal ─────────────────────────────────────────────────────────────
@@ -139,13 +144,13 @@ function UploadModal({
   // Pre-fill from existing doc if replacing
   const [form, setForm] = useState<UploadForm>({
     ...EMPTY_FORM,
-    licenceType:    existingDoc?.licence_type    ?? '',
-    licenceNumber:  existingDoc?.licence_number  ?? '',
-    medicalClass:   existingDoc?.medical_class   ?? '',
-    issueDate:      existingDoc?.issue_date       ?? '',
-    expiryDate:     existingDoc?.expiry_date      ?? '',
-    idType:         existingDoc?.id_type          ?? '',
-    documentNumber: existingDoc?.document_number  ?? '',
+    licenceType:      existingDoc?.licence_type    ?? '',
+    licenceNumber:    existingDoc?.licence_number  ?? '',
+    medicalClass:     existingDoc?.medical_class   ?? '',
+    issueDate:        existingDoc?.issue_date       ?? '',
+    expiryDate:       existingDoc?.expiry_date      ?? '',
+    idType:           existingDoc?.id_type          ?? '',
+    documentNumber:   existingDoc?.document_number  ?? '',
   })
   const [fileError,  setFileError]  = useState('')
   const [formError,  setFormError]  = useState('')
@@ -173,8 +178,10 @@ function UploadModal({
   function validate(): string {
     if (!form.file) return 'Please select a file to upload.'
     if (docType === 'pilot_licence') {
-      if (!form.licenceType)   return 'Please select a licence type.'
-      if (!form.licenceNumber) return 'Please enter your pilot licence number / ARN.'
+      if (!form.licenceType)                return 'Please select a licence type.'
+      if (form.nightVfrRating === null)     return 'Please confirm your Night VFR rating status.'
+      if (form.instrumentRating === null)   return 'Please confirm your Instrument Rating status.'
+      if (!form.licenceNumber)              return 'Please enter your pilot licence number / ARN.'
     }
     if (docType === 'medical_certificate') {
       if (!form.medicalClass) return 'Please select a medical class.'
@@ -198,8 +205,10 @@ function UploadModal({
       const fd = new FormData()
       fd.append('file',    form.file!)
       fd.append('docType', docType)
-      if (form.licenceType)    fd.append('licenceType',    form.licenceType)
-      if (form.licenceNumber)  fd.append('licenceNumber',  form.licenceNumber)
+      if (form.licenceType)                     fd.append('licenceType',       form.licenceType)
+      if (form.nightVfrRating !== null)         fd.append('nightVfrRating',    String(form.nightVfrRating))
+      if (form.instrumentRating !== null)       fd.append('instrumentRating',  String(form.instrumentRating))
+      if (form.licenceNumber)                   fd.append('licenceNumber',     form.licenceNumber)
       if (form.medicalClass)   fd.append('medicalClass',   form.medicalClass)
       if (form.issueDate)      fd.append('issueDate',      form.issueDate)
       if (form.expiryDate)     fd.append('expiryDate',     form.expiryDate)
@@ -302,6 +311,60 @@ function UploadModal({
                 }}
                 cols={2}
               />
+
+              {/* Additional Ratings */}
+              <div className="pt-1 border-t border-white/5">
+                <p className="text-[10px] uppercase tracking-widest font-bold text-oz-subtle mb-4">Additional Ratings</p>
+                <div className="space-y-4">
+                  {/* Night VFR */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-oz-subtle">
+                      Night VFR Rating
+                      <span className="text-red-400/80 text-[8px] normal-case font-normal">Required</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([true, false] as const).map(val => (
+                        <button
+                          key={String(val)}
+                          type="button"
+                          onClick={() => set('nightVfrRating', val)}
+                          className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all text-left ${
+                            form.nightVfrRating === val
+                              ? 'bg-oz-blue/20 border-oz-blue/50 text-oz-blue'
+                              : 'bg-white/[0.03] border-white/10 text-white/50 hover:border-white/20 hover:text-white/70'
+                          }`}
+                        >
+                          {val ? 'Yes' : 'No'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* IFR / Instrument Rating */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-oz-subtle">
+                      IFR / Instrument Rating
+                      <span className="text-red-400/80 text-[8px] normal-case font-normal">Required</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([true, false] as const).map(val => (
+                        <button
+                          key={String(val)}
+                          type="button"
+                          onClick={() => set('instrumentRating', val)}
+                          className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all text-left ${
+                            form.instrumentRating === val
+                              ? 'bg-oz-blue/20 border-oz-blue/50 text-oz-blue'
+                              : 'bg-white/[0.03] border-white/10 text-white/50 hover:border-white/20 hover:text-white/70'
+                          }`}
+                        >
+                          {val ? 'Yes' : 'No'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <label className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-oz-subtle">
                   Pilot Licence Number / ARN
@@ -476,13 +539,17 @@ function DocumentCard({
   idx,
   canModify,
   onOpen,
+  hasNightVfrRating,
+  hasInstrumentRating,
 }: {
-  def:       DocDef
-  doc:       UserDocument | undefined
-  docState:  DocUiState
-  idx:       number
-  canModify: boolean
-  onOpen:    () => void
+  def:                  DocDef
+  doc:                  UserDocument | undefined
+  docState:             DocUiState
+  idx:                  number
+  canModify:            boolean
+  onOpen:               () => void
+  hasNightVfrRating?:   boolean | null
+  hasInstrumentRating?: boolean | null
 }) {
   const [viewLoading, setViewLoading] = useState(false)
   const [viewError,   setViewError]   = useState('')
@@ -601,6 +668,24 @@ function DocumentCard({
                 {doc.id_type && (
                   <span className="text-xs text-oz-blue/60 bg-oz-blue/8 px-2 py-0.5 rounded-full">{doc.id_type}</span>
                 )}
+
+                {/* Pilot ratings (pilot_licence only) */}
+                {def.type === 'pilot_licence' && (
+                  <>
+                    <span className="text-xs text-white/40 flex items-center gap-1">
+                      Night VFR:
+                      <span className={hasNightVfrRating === true ? 'text-green-400' : hasNightVfrRating === false ? 'text-white/60' : 'text-white/25 italic'}>
+                        {hasNightVfrRating === true ? 'Yes' : hasNightVfrRating === false ? 'No' : 'Not provided'}
+                      </span>
+                    </span>
+                    <span className="text-xs text-white/40 flex items-center gap-1">
+                      Instrument Rating:
+                      <span className={hasInstrumentRating === true ? 'text-green-400' : hasInstrumentRating === false ? 'text-white/60' : 'text-white/25 italic'}>
+                        {hasInstrumentRating === true ? 'Yes' : hasInstrumentRating === false ? 'No' : 'Not provided'}
+                      </span>
+                    </span>
+                  </>
+                )}
               </div>
             )}
 
@@ -673,14 +758,16 @@ function DocumentCard({
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 type Props = {
-  user:            User
-  documents:       UserDocument[]
-  lastFlightDate:  string | null
+  user:                 User
+  documents:            UserDocument[]
+  lastFlightDate:       string | null
+  hasNightVfrRating:    boolean | null
+  hasInstrumentRating:  boolean | null
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function DocumentsPanel({ user: _user, documents, lastFlightDate }: Props) {
+export default function DocumentsPanel({ user: _user, documents, lastFlightDate, hasNightVfrRating, hasInstrumentRating }: Props) {
   // status is derived locally — not needed from parent since we no longer gate on verification_status
   const status: VerificationStatus = 'not_started'   // used only by getDocUiState for chip display
   const router = useRouter()
@@ -695,8 +782,8 @@ export default function DocumentsPanel({ user: _user, documents, lastFlightDate 
   const flightDateChanged = flightDate.trim() !== (lastFlightDate ?? '')
 
   async function handleSaveFlightDate() {
-    if (!flightDate.trim()) { setFlightDateError('Please select a date.'); return }
-    if (flightDate > today) { setFlightDateError('Last flight date cannot be in the future.'); return }
+    const err = validateFlightReviewDate(flightDate.trim())
+    if (err) { setFlightDateError(err); return }
     setFlightDateSaving(true)
     setFlightDateError('')
     setFlightDateSaved(false)
@@ -825,13 +912,14 @@ export default function DocumentsPanel({ user: _user, documents, lastFlightDate 
 
           <div className="space-y-2">
             <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
-              When was your last flight?
+              When was your last flight review?
               <span className="ml-1.5 text-red-400/80 font-normal normal-case">Required for checkout</span>
             </label>
             <div className="flex gap-3">
               <input
                 type="date"
                 value={flightDate}
+                min={getFlightReviewCutoff()}
                 max={today}
                 onChange={e => { setFlightDate(e.target.value); setFlightDateSaved(false); setFlightDateError('') }}
                 className="flex-1 bg-white/[0.03] border border-white/[0.08] focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5"
@@ -853,7 +941,7 @@ export default function DocumentsPanel({ user: _user, documents, lastFlightDate 
           {flightDateSaved && !flightDateError && (
             <p className="mt-2 text-xs text-green-400 flex items-center gap-1.5">
               <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-              Last flight date saved.
+              Flight review date saved.
             </p>
           )}
           {flightDateError && (
@@ -901,6 +989,8 @@ export default function DocumentsPanel({ user: _user, documents, lastFlightDate 
               idx={idx}
               canModify={canModify}
               onOpen={() => openModal(def.type)}
+              hasNightVfrRating={def.type === 'pilot_licence' ? hasNightVfrRating : undefined}
+              hasInstrumentRating={def.type === 'pilot_licence' ? hasInstrumentRating : undefined}
             />
           ))}
         </section>

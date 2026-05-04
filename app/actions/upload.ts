@@ -24,6 +24,12 @@ export async function uploadVerificationDocument(formData: FormData) {
   const idType          = (formData.get('idType')          as string | null) || null
   const documentNumber  = (formData.get('documentNumber')  as string | null) || null
 
+  // Pilot ratings (pilot_licence only) — sent as 'true' or 'false' strings
+  const nightVfrRatingRaw    = formData.get('nightVfrRating')   as string | null
+  const instrumentRatingRaw  = formData.get('instrumentRating') as string | null
+  const hasNightVfrRating:   boolean | null = nightVfrRatingRaw   === 'true' ? true : nightVfrRatingRaw   === 'false' ? false : null
+  const hasInstrumentRating: boolean | null = instrumentRatingRaw === 'true' ? true : instrumentRatingRaw === 'false' ? false : null
+
   // Medical certificate requires medical class, date of issue, and expiry date
   if (docType === 'medical_certificate') {
     if (!medicalClass) throw new Error('Medical class is required for the Medical Certificate.')
@@ -31,9 +37,11 @@ export async function uploadVerificationDocument(formData: FormData) {
     if (!expiryDate)   throw new Error('Expiry date is required for the Medical Certificate.')
   }
 
-  // Pilot licence requires licence type
-  if (docType === 'pilot_licence' && !licenceType) {
-    throw new Error('Licence type is required for the Pilot Licence.')
+  // Pilot licence requires licence type and both rating answers
+  if (docType === 'pilot_licence') {
+    if (!licenceType)                throw new Error('Licence type is required for the Pilot Licence.')
+    if (hasNightVfrRating === null)  throw new Error('Night VFR rating status is required for the Pilot Licence.')
+    if (hasInstrumentRating === null) throw new Error('Instrument rating status is required for the Pilot Licence.')
   }
 
   // Photo ID requires ID type
@@ -79,14 +87,19 @@ export async function uploadVerificationDocument(formData: FormData) {
     throw new Error('Failed to save document metadata. Please try again.')
   }
 
-  // When a pilot licence is uploaded with a licence number (ARN),
-  // sync it to the customer's profile so it is available for bookings.
-  if (docType === 'pilot_licence' && licenceNumber?.trim()) {
+  // When a pilot licence is uploaded, sync ARN and ratings to the customer's profile.
+  if (docType === 'pilot_licence') {
+    const profileUpdate: Record<string, unknown> = {
+      has_night_vfr_rating:  hasNightVfrRating,
+      has_instrument_rating: hasInstrumentRating,
+    }
+    if (licenceNumber?.trim()) profileUpdate.pilot_arn = licenceNumber.trim()
+
     await supabase
       .from('profiles')
-      .update({ pilot_arn: licenceNumber.trim() })
+      .update(profileUpdate)
       .eq('id', user.id)
-    // Non-throwing — ARN sync failure is not critical; document is already saved.
+    // Non-throwing — profile sync failure is not critical; document is already saved.
   }
 
   return { success: true }

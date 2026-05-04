@@ -95,7 +95,7 @@ const CHECKOUT_OUTCOME_NOTE_LABELS: Record<string, string> = {
   cleared_to_fly:                'Cleared for aircraft booking',
   additional_checkout_required:  'Additional checkout session required',
   checkout_reschedule_required:  'Checkout reschedule required',
-  not_currently_eligible:        'Not currently eligible for solo hire',
+  not_currently_eligible:        'Not currently eligible to fly',
 }
 
 type StatusHistoryRow = {
@@ -179,7 +179,7 @@ function NextActionCard({
           </h3>
         </div>
         <p className="text-sm text-oz-muted leading-relaxed">
-          Your checkout booking is currently in progress. Aircraft bookings will become available after your checkout is completed, approved, and paid.
+          Your checkout booking is currently in progress. Aircraft bookings will become available after your checkout is completed and paid.
         </p>
       </div>
     )
@@ -548,10 +548,12 @@ function HistoryEvent({
   row,
   isLast,
   bookingType,
+  isAwaitingManualPayment,
 }: {
-  row:     StatusHistoryRow
-  isLast:  boolean
-  bookingType: string
+  row:                    StatusHistoryRow
+  isLast:                 boolean
+  bookingType:            string
+  isAwaitingManualPayment?: boolean
 }) {
   const cfg = { ... (STATUS_CFG[row.new_status] ?? {
     label:  row.new_status.replace(/_/g, ' '),
@@ -572,6 +574,33 @@ function HistoryEvent({
     if (row.new_status === 'checkout_payment_required' || row.new_status === 'completed') {
       const outcomeMatch = row.note?.match(/Checkout outcome:\s*([^\s.]+)/)
       const eventOutcome = outcomeMatch?.[1] ?? null
+
+      // When bank transfer is submitted but not yet confirmed, suppress the cleared_to_fly
+      // outcome — the customer hasn't actually been unlocked yet. Show a neutral
+      // "Payment submitted" event instead to reflect the current state.
+      if (row.new_status === 'checkout_payment_required' && isAwaitingManualPayment) {
+        cfg.label  = 'Payment Submitted'
+        cfg.color  = 'text-blue-400'; cfg.bg = 'bg-blue-500/10'; cfg.border = 'border-blue-500/20'; cfg.icon = 'account_balance'
+        return (
+          <li className="flex gap-4 relative pb-5 last:pb-0">
+            {!isLast && <div className="absolute left-[11px] top-6 bottom-0 w-[2px] bg-white/[0.07]" />}
+            <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center z-10 mt-0.5 ${cfg.bg} border ${cfg.border}`}>
+              <span className={`material-symbols-outlined text-[13px] ${cfg.color}`} style={{ fontVariationSettings: "'FILL' 1, 'wght' 400" }}>{cfg.icon}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-3">
+                <p className={`text-sm font-medium leading-snug ${cfg.color}`}>{cfg.label}</p>
+                <p className="text-[10px] text-slate-600 font-mono flex-shrink-0 mt-0.5 tabular-nums">
+                  {new Date(row.created_at).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' })}
+                </p>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                Your bank transfer details have been submitted. Our team will verify the payment before your checkout result is finalised.
+              </p>
+            </div>
+          </li>
+        )
+      }
 
       if (eventOutcome === 'cleared_to_fly') {
         cfg.label = 'Checkout Outcome: Cleared to Fly'
@@ -725,6 +754,63 @@ export default async function BookingDetailPage({ params }: PageProps) {
     cfg.sublabel = ''
   }
 
+  // ── Checkout invoice + bank transfer fetch ────────────────────────────────────
+  // Must run before activePipeline so isAwaitingManualPayment is available.
+  let checkoutInvoice = null
+  let bankTransferSubmission = null
+  let bankDetails = null
+  if (status === 'checkout_payment_required') {
+    const { data: inv } = await supabase
+      .from('checkout_invoices')
+      .select('id, invoice_number, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, status')
+      .eq('booking_id', booking.id)
+      .single()
+    checkoutInvoice = inv
+
+    if (inv) {
+      const { data: sub } = await supabase
+        .from('checkout_bank_transfer_submissions')
+        .select('id, status')
+        .eq('invoice_id', inv.id)
+        .order('submitted_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      bankTransferSubmission = sub
+    }
+
+    const name = PAYMENT_CONFIG.BANK_ACCOUNT_NAME
+    const bsb  = PAYMENT_CONFIG.BANK_BSB
+    const acct = PAYMENT_CONFIG.BANK_ACCOUNT_NUMBER
+    if (name && bsb && acct) {
+      bankDetails = { accountName: name, bsb, accountNumber: acct }
+    } else {
+      console.warn('[checkout] Bank transfer env vars not configured — bank transfer option hidden')
+    }
+  }
+
+  // ── Derive checkout payment display state ─────────────────────────────────────
+  const checkoutPaymentDisplayState = status === 'checkout_payment_required'
+    ? getCheckoutPaymentDisplayState(
+        checkoutInvoice ? { status: (checkoutInvoice as any).status ?? 'payment_required' } : null,
+        bankTransferSubmission,
+      )
+    : null
+
+  const isAwaitingManualPayment = checkoutPaymentDisplayState === 'awaiting_manual_payment_confirmation'
+
+  // Override cfg for awaiting manual payment confirmation
+  if (isAwaitingManualPayment) {
+    const manualCfg = STATUS_CFG['checkout_awaiting_manual_payment']
+    if (manualCfg) {
+      cfg.label    = manualCfg.label
+      cfg.sublabel = manualCfg.sublabel
+      cfg.color    = manualCfg.color
+      cfg.bg       = manualCfg.bg
+      cfg.border   = manualCfg.border
+      cfg.icon     = manualCfg.icon
+    }
+  }
+
   const isCancelled = status === 'cancelled' || status === 'no_show'
   const isStandardPipeline = bookingType === 'standard'
   const isCheckoutPipeline = bookingType === 'checkout'
@@ -733,11 +819,15 @@ export default async function BookingDetailPage({ params }: PageProps) {
   // the actual outcome so the journey reflects what happened rather than just "Completed".
   const activePipeline = isStandardPipeline
     ? PIPELINE
-    : CHECKOUT_PIPELINE.map(step =>
-        step.key === 'completed' && checkoutOutcome
-          ? { ...step, label: CHECKOUT_OUTCOME_STEP_LABELS[checkoutOutcome] ?? 'Completed' }
-          : step
-      )
+    : CHECKOUT_PIPELINE.map(step => {
+        if (step.key === 'completed' && checkoutOutcome) {
+          return { ...step, label: CHECKOUT_OUTCOME_STEP_LABELS[checkoutOutcome] ?? 'Completed' }
+        }
+        if (step.key === 'checkout_payment_required' && isAwaitingManualPayment) {
+          return { ...step, label: 'Awaiting Payment Confirmation' }
+        }
+        return step
+      })
   const currentIdx = isStandardPipeline
     ? getStandardPipelineIdx(status)
     : CHECKOUT_PIPELINE_ORDER.indexOf(status as BookingStatus)
@@ -799,61 +889,6 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
         postFlightClarification = (clarData ?? null) as FlightRecordClarification | null
       }
-    }
-  }
-
-  let checkoutInvoice = null
-  let bankTransferSubmission = null
-  let bankDetails = null
-  if (status === 'checkout_payment_required') {
-    const { data: inv } = await supabase
-      .from('checkout_invoices')
-      .select('id, invoice_number, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, status')
-      .eq('booking_id', booking.id)
-      .single()
-    checkoutInvoice = inv
-
-    if (inv) {
-      const { data: sub } = await supabase
-        .from('checkout_bank_transfer_submissions')
-        .select('id, status')
-        .eq('invoice_id', inv.id)
-        .order('submitted_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      bankTransferSubmission = sub
-    }
-
-    const name = PAYMENT_CONFIG.BANK_ACCOUNT_NAME
-    const bsb  = PAYMENT_CONFIG.BANK_BSB
-    const acct = PAYMENT_CONFIG.BANK_ACCOUNT_NUMBER
-    if (name && bsb && acct) {
-      bankDetails = { accountName: name, bsb, accountNumber: acct }
-    } else {
-      console.warn('[checkout] Bank transfer env vars not configured — bank transfer option hidden')
-    }
-  }
-
-  // ── Derive checkout payment display state for status badge override ───────────
-  // When bank transfer has been submitted, the status badge should reflect the
-  // pending-confirmation state rather than a generic "Payment Required" label.
-  const checkoutPaymentDisplayState = status === 'checkout_payment_required'
-    ? getCheckoutPaymentDisplayState(
-        checkoutInvoice ? { status: (checkoutInvoice as any).status ?? 'payment_required' } : null,
-        bankTransferSubmission,
-      )
-    : null
-
-  // Override cfg for awaiting manual payment confirmation
-  if (checkoutPaymentDisplayState === 'awaiting_manual_payment_confirmation') {
-    const manualCfg = STATUS_CFG['checkout_awaiting_manual_payment']
-    if (manualCfg) {
-      cfg.label   = manualCfg.label
-      cfg.sublabel = manualCfg.sublabel
-      cfg.color   = manualCfg.color
-      cfg.bg      = manualCfg.bg
-      cfg.border  = manualCfg.border
-      cfg.icon    = manualCfg.icon
     }
   }
 
@@ -1153,7 +1188,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
                   <div>
                     <p className="text-[9px] uppercase tracking-widest text-slate-600 font-bold mb-1">Checkout Fee</p>
                     <p className="text-sm text-white">${booking.estimated_amount.toFixed(0)}</p>
-                    <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Invoiced after checkout completion and approval</p>
+                    <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">Invoiced after checkout flight is completed</p>
                   </div>
                 )}
                 {booking.pic_name && (
@@ -1220,6 +1255,11 @@ export default async function BookingDetailPage({ params }: PageProps) {
                           }`}>
                             {step.label}
                           </p>
+                          {stepState === 'active' && step.key === 'checkout_payment_required' && isAwaitingManualPayment && (
+                            <p className="text-[10px] text-blue-400/60 mt-0.5 font-medium tracking-wide">
+                              Bank transfer submitted. Awaiting admin verification.
+                            </p>
+                          )}
                           {stepState === 'pending' && step.key === 'completed' && isCheckoutPipeline && currentIdx === 3 && (
                             <p className="text-[10px] text-oz-muted/40 mt-0.5 font-medium tracking-wide">
                               Pending payment completion
@@ -1244,6 +1284,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
                       row={row}
                       isLast={idx === statusHistory.length - 1}
                       bookingType={bookingType}
+                      isAwaitingManualPayment={isAwaitingManualPayment}
                     />
                   ))}
                 </ol>

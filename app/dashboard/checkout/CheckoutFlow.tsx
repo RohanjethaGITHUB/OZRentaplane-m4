@@ -11,6 +11,8 @@ import {
 } from '@/app/actions/customer-availability'
 import { uploadVerificationDocument } from '@/app/actions/upload'
 import { sydneyInputToUTC, formatSydTime } from '@/lib/utils/sydney-time'
+import { getDayVfrWindow, isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
+import { validateFlightReviewDate, getFlightReviewCutoff } from '@/lib/utils/flight-review'
 import { formatDate, formatDateTime } from '@/lib/formatDateTime'
 import type { UserDocument, DocumentType } from '@/lib/supabase/types'
 import type { CheckoutBookingResult } from '@/lib/supabase/booking-types'
@@ -26,13 +28,15 @@ type AvailabilityState =
 type Step = 'time' | 'documents' | 'review' | 'success'
 
 type Props = {
-  aircraftId:              string
-  aircraftRegistration:    string
-  aircraftDisplayName:     string
-  aircraftStatus:          string
-  documents:               UserDocument[]
-  pilotClearanceStatus:    string
-  initialLastFlightDate:   string
+  aircraftId:               string
+  aircraftRegistration:     string
+  aircraftDisplayName:      string
+  aircraftStatus:           string
+  documents:                UserDocument[]
+  pilotClearanceStatus:     string
+  initialLastFlightDate:    string
+  initialNightVfrRating:    boolean | null
+  initialInstrumentRating:  boolean | null
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -93,6 +97,12 @@ function addOneDay(dateStr: string): string {
   return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
 }
 
+// Converts "HH:MM" to total minutes from midnight.
+function timeStrToMin(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return (h ?? 0) * 60 + (m ?? 0)
+}
+
 // ── Step indicator ─────────────────────────────────────────────────────────────
 
 function StepIndicator({ current }: { current: Step }) {
@@ -141,12 +151,14 @@ function AvailabilityTimeline({
   startDT,
   endDT,
   onTimeChange,
+  dayVfrWindow,
 }: {
   selectedDate:   string
   daySlots:       SafeConflict[]
   startDT:        string
   endDT:          string
   onTimeChange?:  (newTime: string) => void
+  dayVfrWindow?:  { start: string; end: string } | null
 }) {
   if (!selectedDate) return null
 
@@ -214,7 +226,9 @@ function AvailabilityTimeline({
       const rawMinutes  = startMinutes + deltaMins
       // Snap to 30-minute increments, clamp so 1-hr block stays within the day
       const snappedMinutes = Math.round(rawMinutes / 30) * 30
-      const clamped        = Math.max(0, Math.min(23 * 60, snappedMinutes))
+      const minClamp = dayVfrWindow ? timeStrToMin(dayVfrWindow.start) : 0
+      const maxClamp = dayVfrWindow ? timeStrToMin(dayVfrWindow.end) - 30 : 23 * 60
+      const clamped  = Math.max(minClamp, Math.min(maxClamp, snappedMinutes))
       const h   = Math.floor(clamped / 60)
       const m   = clamped % 60
       const newTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
@@ -240,7 +254,35 @@ function AvailabilityTimeline({
   return (
     <div className="space-y-3">
       <div className="relative" ref={barContainerRef}>
-        <div className="relative h-10 bg-green-500/15 rounded-lg overflow-hidden border border-green-500/10">
+        <div className={`relative h-10 rounded-lg overflow-hidden border ${dayVfrWindow ? 'bg-[#0a0e1a] border-white/[0.06]' : 'bg-green-500/15 border-green-500/10'}`}>
+          {/* Day VFR window zones — only rendered when Night VFR = No */}
+          {dayVfrWindow && (
+            <>
+              {/* Pre-dawn restricted */}
+              <div
+                className="absolute top-0 bottom-0 bg-slate-800/60 flex items-center justify-center overflow-hidden"
+                style={{ left: '0%', right: `${100 - (timeStrToMin(dayVfrWindow.start) / (24 * 60)) * 100}%` }}
+              >
+                <span className="text-[8px] text-slate-600 select-none leading-none">🌙</span>
+              </div>
+              {/* Allowed Day VFR window — green */}
+              <div
+                className="absolute top-0 bottom-0 bg-green-500/15"
+                style={{
+                  left:  `${(timeStrToMin(dayVfrWindow.start) / (24 * 60)) * 100}%`,
+                  right: `${100 - (timeStrToMin(dayVfrWindow.end) / (24 * 60)) * 100}%`,
+                }}
+              />
+              {/* Post-dusk restricted */}
+              <div
+                className="absolute top-0 bottom-0 bg-slate-800/60 flex items-center justify-center overflow-hidden"
+                style={{ left: `${(timeStrToMin(dayVfrWindow.end) / (24 * 60)) * 100}%`, right: '0%' }}
+              >
+                <span className="text-[8px] text-slate-600 select-none leading-none">🌙</span>
+              </div>
+            </>
+          )}
+          {/* Booked conflict overlays */}
           {visibleSlots.map((slot, i) => (
             <div
               key={i}
@@ -289,8 +331,13 @@ function AvailabilityTimeline({
       </div>
       <div className="flex flex-wrap gap-5 pt-1">
         <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600">
-          <span className="w-2.5 h-2.5 rounded-sm bg-green-500/40 inline-block" />Available
+          <span className="w-2.5 h-2.5 rounded-sm bg-green-500/40 inline-block" />{dayVfrWindow ? `Day VFR (${dayVfrWindow.start}–${dayVfrWindow.end})` : 'Available'}
         </span>
+        {dayVfrWindow && (
+          <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600">
+            <span className="w-2.5 h-2.5 rounded-sm bg-slate-700 border border-white/10 inline-block" />Night restricted
+          </span>
+        )}
         <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600">
           <span className="w-2.5 h-2.5 rounded-sm bg-red-500/60 inline-block" />Booked
         </span>
@@ -353,9 +400,9 @@ function TimeDropdown({
         type="button"
         disabled={disabled}
         onClick={() => setOpen(o => !o)}
-        className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 flex items-center justify-between transition-colors hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
+        className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500/60 flex items-center justify-between transition-colors hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed text-white"
       >
-        <span>{selectedLabel}</span>
+        <span className={value === '' ? 'text-white/25' : ''}>{value === '' ? 'Select a departure time' : selectedLabel}</span>
         <span
           className={`material-symbols-outlined text-[18px] text-slate-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
           style={{ fontVariationSettings: "'wght' 300" }}
@@ -416,25 +463,31 @@ function DocModal({
   doc,
   onClose,
   onSuccess,
+  initialNightVfrRating,
+  initialInstrumentRating,
 }: {
-  def:       DocCardDef
-  doc:       UserDocument | undefined
-  onClose:   () => void
-  onSuccess: () => void
+  def:                     DocCardDef
+  doc:                     UserDocument | undefined
+  onClose:                 () => void
+  onSuccess:               () => void
+  initialNightVfrRating?:  boolean | null
+  initialInstrumentRating?: boolean | null
 }) {
   const isReplace = !!doc
 
-  // Field state pre-filled from existing doc
-  const [licenceType,    setLicenceType]    = useState(doc?.licence_type    ?? '')
-  const [licenceNumber,  setLicenceNumber]  = useState(doc?.licence_number  ?? '')
-  const [medicalClass,   setMedicalClass]   = useState(doc?.medical_class   ?? '')
-  const [issueDate,      setIssueDate]      = useState(doc?.issue_date      ?? '')
-  const [expiryDate,     setExpiryDate]     = useState(doc?.expiry_date     ?? '')
-  const [idType,         setIdType]         = useState(doc?.id_type         ?? '')
-  const [documentNumber, setDocumentNumber] = useState(doc?.document_number ?? '')
-  const [uploading,      setUploading]      = useState(false)
-  const [fileError,      setFileError]      = useState<string | null>(null)
-  const [formError,      setFormError]      = useState<string | null>(null)
+  // Field state pre-filled from existing doc / profile
+  const [licenceType,        setLicenceType]        = useState(doc?.licence_type    ?? '')
+  const [licenceNumber,      setLicenceNumber]       = useState(doc?.licence_number  ?? '')
+  const [nightVfrRating,     setNightVfrRating]      = useState<boolean | null>(initialNightVfrRating ?? null)
+  const [instrumentRating,   setInstrumentRating]    = useState<boolean | null>(initialInstrumentRating ?? null)
+  const [medicalClass,       setMedicalClass]        = useState(doc?.medical_class   ?? '')
+  const [issueDate,          setIssueDate]           = useState(doc?.issue_date      ?? '')
+  const [expiryDate,         setExpiryDate]          = useState(doc?.expiry_date     ?? '')
+  const [idType,             setIdType]              = useState(doc?.id_type         ?? '')
+  const [documentNumber,     setDocumentNumber]      = useState(doc?.document_number ?? '')
+  const [uploading,          setUploading]           = useState(false)
+  const [fileError,          setFileError]           = useState<string | null>(null)
+  const [formError,          setFormError]           = useState<string | null>(null)
 
   function Pill({ value, active, onClick }: { value: string; active: boolean; onClick: () => void }) {
     return (
@@ -456,8 +509,10 @@ function DocModal({
 
     // Validate required fields before upload
     if (def.type === 'pilot_licence') {
-      if (!licenceType)   { setFormError('Please select a licence type.'); return }
-      if (!licenceNumber) { setFormError('Please enter your pilot licence number / ARN.'); return }
+      if (!licenceType)              { setFormError('Please select a licence type.'); return }
+      if (nightVfrRating === null)   { setFormError('Please confirm your Night VFR rating status.'); return }
+      if (instrumentRating === null) { setFormError('Please confirm your Instrument Rating status.'); return }
+      if (!licenceNumber)            { setFormError('Please enter your pilot licence number / ARN.'); return }
     }
     if (def.type === 'medical_certificate') {
       if (!medicalClass) { setFormError('Please select a medical class.'); return }
@@ -474,8 +529,10 @@ function DocModal({
       const fd = new FormData()
       fd.append('file',    file)
       fd.append('docType', def.type)
-      if (licenceType)    fd.append('licenceType',    licenceType)
-      if (licenceNumber)  fd.append('licenceNumber',  licenceNumber)
+      if (licenceType)                   fd.append('licenceType',      licenceType)
+      if (nightVfrRating !== null)       fd.append('nightVfrRating',   String(nightVfrRating))
+      if (instrumentRating !== null)     fd.append('instrumentRating', String(instrumentRating))
+      if (licenceNumber)                 fd.append('licenceNumber',    licenceNumber)
       if (medicalClass)   fd.append('medicalClass',   medicalClass)
       if (issueDate)      fd.append('issueDate',      issueDate)
       if (expiryDate)     fd.append('expiryDate',     expiryDate)
@@ -523,6 +580,44 @@ function DocModal({
                   ))}
                 </div>
               </div>
+
+              {/* Additional Ratings */}
+              <div className="pt-1 border-t border-white/[0.06]">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-3">Additional Ratings</p>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                      Night VFR Rating <span className="text-red-400 font-normal normal-case">Required</span>
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {([true, false] as const).map(val => (
+                        <Pill
+                          key={String(val)}
+                          value={val ? 'Yes' : 'No'}
+                          active={nightVfrRating === val}
+                          onClick={() => setNightVfrRating(val)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                      IFR / Instrument Rating <span className="text-red-400 font-normal normal-case">Required</span>
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {([true, false] as const).map(val => (
+                        <Pill
+                          key={String(val)}
+                          value={val ? 'Yes' : 'No'}
+                          active={instrumentRating === val}
+                          onClick={() => setInstrumentRating(val)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-1.5">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Pilot Licence Number / ARN <span className="text-red-400 font-normal normal-case">Required</span></p>
                 <p className="text-[9px] text-slate-600">Your ARN is your CASA-issued aviation reference number.</p>
@@ -623,10 +718,14 @@ function DocCard({
   def,
   doc,
   onUploaded,
+  initialNightVfrRating,
+  initialInstrumentRating,
 }: {
-  def:       DocCardDef
-  doc:       UserDocument | undefined
-  onUploaded: () => void
+  def:                     DocCardDef
+  doc:                     UserDocument | undefined
+  onUploaded:              () => void
+  initialNightVfrRating?:  boolean | null
+  initialInstrumentRating?: boolean | null
 }) {
   const today   = new Date().toISOString().split('T')[0]!
   const expired = doc?.expiry_date ? doc.expiry_date < today : false
@@ -641,6 +740,8 @@ function DocCard({
           doc={doc}
           onClose={() => setModalOpen(false)}
           onSuccess={() => { setModalOpen(false); onUploaded() }}
+          initialNightVfrRating={initialNightVfrRating}
+          initialInstrumentRating={initialInstrumentRating}
         />
       )}
       <div className={`flex items-center justify-between rounded-xl border px-4 py-3 transition-all ${
@@ -706,16 +807,24 @@ export default function CheckoutFlow({
   documents,
   pilotClearanceStatus,
   initialLastFlightDate,
+  initialNightVfrRating,
+  initialInstrumentRating,
 }: Props) {
   const router = useRouter()
   const [step, setStep] = useState<Step>('time')
 
-  // Time selection state — end time is always start + 1 hour (fixed checkout duration)
-  // Lazy initialisers run once: pre-fill with today + next available 30-min slot in Sydney time.
-  const [date, setDate]           = useState(getSydneyToday)
-  const [startTime, setStartTime] = useState(getDefaultStartTime)
+  // Time selection — nothing preselected; user must actively choose date and time.
+  const [date, setDate]           = useState('')
+  const [startTime, setStartTime] = useState('')
   const [daySlots, setDaySlots]   = useState<SafeConflict[]>([])
   const [avail, setAvail]         = useState<AvailabilityState>({ status: 'idle' })
+
+  // Night VFR status for this booking — always starts null (unanswered).
+  // Must be explicitly selected by the user; profile value is intentionally NOT pre-filled here.
+  const [nightVfrRating, setNightVfrRating] = useState<boolean | null>(null)
+
+  // Step 1 navigation error (shown when user clicks Continue without completing required fields)
+  const [stepError, setStepError] = useState<string | null>(null)
 
   // Submission state
   const [submitError, setSubmitError]   = useState<string | null>(null)
@@ -750,7 +859,7 @@ export default function CheckoutFlow({
   // ── Derived time values ────────────────────────────────────────────────────
   // end is always exactly 1 hour after start — never submitted from the client.
 
-  const endTime  = date ? addOneHour(startTime) : ''
+  const endTime  = (date && startTime) ? addOneHour(startTime) : ''
   const startDT  = date && startTime ? `${date}T${startTime}` : ''
   const endDT    = date && endTime   ? `${date}T${endTime}`   : ''
 
@@ -794,11 +903,40 @@ export default function CheckoutFlow({
     return () => clearTimeout(t)
   }, [startDT, endDT, aircraftId])
 
+  // ── Derived Day VFR values ─────────────────────────────────────────────────
+
+  // Window to enforce when Night VFR = No; null when Night VFR = Yes or unanswered.
+  const dayVfrWindow = (date && nightVfrRating === false) ? getDayVfrWindow(date) : null
+
+  // Dropdown options — filtered to the Day VFR window when Night VFR = No so
+  // the user cannot manually pick a restricted time from the list.
+  const timeOptions = (date && nightVfrRating === false)
+    ? (() => {
+        const w = getDayVfrWindow(date)
+        return ALL_TIME_OPTIONS.filter(o => o.value >= w.start && o.value < w.end)
+      })()
+    : ALL_TIME_OPTIONS
+
+  // Inline error shown when a selected time is outside the allowed window.
+  // This can still occur if the user drags the timeline slot (drag is clamped but guards
+  // against edge cases), or if Night VFR was Yes when the time was picked and then
+  // switched to No.
+  const nightVfrTimeError =
+    nightVfrRating === false && startTime && date && !isWithinDayVfrWindow(startTime, date)
+      ? 'This time falls outside the standard Day VFR booking window. Please choose a daylight time or confirm that you hold a Night VFR Rating.'
+      : null
+
+  // Boolean shorthand used to gate the availability message and Continue button.
+  const isTimeNightRestricted = !!nightVfrTimeError
+
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   function handleTimeNext() {
-    // avail is the single source of truth — past times and booked times both
-    // resolve to avail.status === 'unavailable', so no separate checks needed.
+    setStepError(null)
+    if (!date)                   { setStepError('Please select a checkout date.'); return }
+    if (nightVfrRating === null) { setStepError('Please confirm whether you hold a Night VFR Rating.'); return }
+    if (!startTime)              { setStepError('Please select a departure time.'); return }
+    if (nightVfrTimeError)       { setStepError(nightVfrTimeError); return }
     if (avail.status !== 'available') return
     setStep('documents')
   }
@@ -849,7 +987,7 @@ export default function CheckoutFlow({
           <div>
             <h2 className="text-2xl font-serif text-white mb-3">Checkout Request Submitted</h2>
             <p className="text-sm text-slate-400 leading-relaxed max-w-md mx-auto">
-              Your checkout request has been submitted for review. An admin or approved instructor will review your selected time and documents. You will be notified once the request has been reviewed.
+              Your checkout request has been submitted for review. Our team will review your selected time and documents. You will be notified once the request has been reviewed.
             </p>
           </div>
           <button
@@ -884,7 +1022,7 @@ export default function CheckoutFlow({
           Book Your Checkout Flight
         </h1>
         <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-          To fly solo with us, you must first complete a checkout flight with an approved instructor.
+          To fly solo with us, you must first complete a checkout flight with our team.
         </p>
       </div>
 
@@ -908,26 +1046,15 @@ export default function CheckoutFlow({
             </p>
           </div>
 
-          {/* A: Session summary tiles — read-only info, not form fields */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-px rounded-xl overflow-hidden bg-white/[0.05]">
-            {([
-              { icon: 'flight_takeoff', label: 'Session type', value: 'Checkout Flight',          sub: null                                    },
-              { icon: 'flight',         label: 'Aircraft',     value: aircraftDisplayName,         sub: `Registration ${aircraftRegistration}`   },
-              { icon: 'schedule',       label: 'Duration',     value: '1-hr slot reserved',        sub: 'Billed by VDO meter time after flight'  },
-              { icon: 'payments',       label: 'Rate',         value: '$290 / hour',              sub: 'VDO meter + $25/landing, billed after'  },
-            ] as { icon: string; label: string; value: string; sub: string | null }[]).map(({ icon, label, value, sub }) => (
-              <div key={label} className="bg-[#060b17] px-4 py-4 flex flex-col gap-1">
-                <span
-                  className="material-symbols-outlined text-[15px] text-blue-500/50 mb-0.5"
-                  style={{ fontVariationSettings: "'wght' 300" }}
-                >
-                  {icon}
-                </span>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600">{label}</p>
-                <p className="text-sm font-semibold text-white/95 leading-tight">{value}</p>
-                {sub && <p className="text-[10px] text-slate-500 leading-snug">{sub}</p>}
-              </div>
-            ))}
+          {/* A: Compact read-only flight summary */}
+          <div className="bg-white/[0.025] border border-white/[0.06] rounded-xl px-4 py-3">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600 mb-2">Checkout flight summary</p>
+            <div className="flex flex-wrap gap-x-5 gap-y-1">
+              <span className="text-[11px] text-slate-400"><span className="text-slate-500">Aircraft:</span> {aircraftDisplayName} ({aircraftRegistration})</span>
+              <span className="text-[11px] text-slate-400"><span className="text-slate-500">Session:</span> Checkout flight</span>
+              <span className="text-[11px] text-slate-400"><span className="text-slate-500">Slot:</span> 1 hr reserved</span>
+              <span className="text-[11px] text-slate-400"><span className="text-slate-500">Rate:</span> ${CHECKOUT_RATE}/hr (VDO meter) · $25/landing</span>
+            </div>
           </div>
 
           {aircraftStatus === 'inactive' || aircraftStatus === 'grounded' ? (
@@ -936,72 +1063,128 @@ export default function CheckoutFlow({
             </div>
           ) : (
             <>
-              {/* B: Date + departure time */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">Date</label>
-                  <input
-                    type="date"
-                    value={date}
-                    min={minDateString()}
-                    onChange={e => { setDate(e.target.value); setAvail({ status: 'idle' }); setSubmitError(null) }}
-                    className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">Departure time</label>
-                  <TimeDropdown
-                    value={startTime}
-                    options={ALL_TIME_OPTIONS}
-                    onChange={v => { setStartTime(v); setAvail({ status: 'idle' }); setSubmitError(null) }}
-                  />
-                </div>
-              </div>
-
-              {/* C: Selected checkout window summary — replaces the old "Return time" field */}
-              <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-4 py-3">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600 mb-1.5">
-                  Selected checkout window
-                </p>
-                <p className="text-sm font-medium text-white/90">
-                  {ALL_TIME_OPTIONS.find(o => o.value === startTime)?.label ?? startTime}
-                  <span className="mx-2 text-slate-600">→</span>
-                  {ALL_TIME_OPTIONS.find(o => o.value === endTime)?.label ?? endTime}
-                </p>
-                <p className="text-[10px] text-slate-600 mt-1">A 1-hour slot is reserved for scheduling. The final amount is calculated from the VDO meter after the flight.</p>
-              </div>
-
-              {/* D: Daily schedule timeline */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                    {formatDate(date)} — Daily Schedule
-                  </p>
-                </div>
-                <p className="text-[10px] text-blue-400/60 mb-3 flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 300" }}>drag_pan</span>
-                  Drag the blue slot to adjust your checkout flight time.
-                </p>
-                <AvailabilityTimeline
-                  selectedDate={date}
-                  daySlots={daySlots}
-                  startDT={startDT}
-                  endDT={endDT}
-                  onTimeChange={v => { setStartTime(v); setAvail({ status: 'idle' }); setSubmitError(null) }}
+              {/* B: Date selection */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
+                  Date <span className="text-red-400 font-normal normal-case">Required</span>
+                </label>
+                <input
+                  type="date"
+                  value={date}
+                  min={minDateString()}
+                  onChange={e => { setDate(e.target.value); setStartTime(''); setAvail({ status: 'idle' }); setStepError(null); setSubmitError(null) }}
+                  className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors"
                 />
               </div>
 
-              {/* F: Availability state — intentionally below the timeline + legend */}
+              {/* Night VFR question — shown once date is selected */}
+              {date && (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
+                    Do you hold a Night VFR Rating? <span className="text-red-400 font-normal normal-case">Required</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([true, false] as const).map(val => (
+                      <button
+                        key={String(val)}
+                        type="button"
+                        onClick={() => { setNightVfrRating(val); setStepError(null); if (!val && startTime && !isWithinDayVfrWindow(startTime, date)) setStartTime('') }}
+                        className={`px-3 py-2 rounded-lg text-[11px] font-medium border transition-all text-left ${
+                          nightVfrRating === val
+                            ? 'bg-blue-500/15 border-blue-500/30 text-blue-300'
+                            : 'bg-white/[0.03] border-white/10 text-white/40 hover:text-white/70 hover:border-white/20'
+                        }`}
+                      >
+                        {val ? 'Yes — I hold a Night VFR Rating' : 'No — Day VFR only'}
+                      </button>
+                    ))}
+                  </div>
+                  {nightVfrRating === false && (
+                    <p className="text-[10px] text-slate-500 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'wght' 300" }}>wb_sunny</span>
+                      {getDayVfrWindow(date).start}–{getDayVfrWindow(date).end} Sydney time allowed. Bookings outside this window require Night VFR.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Departure time — shown once Night VFR is answered */}
+              {date && nightVfrRating !== null && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
+                    Departure time <span className="text-red-400 font-normal normal-case">Required</span>
+                  </label>
+                  <TimeDropdown
+                    value={startTime}
+                    options={timeOptions}
+                    onChange={v => { setStartTime(v); setAvail({ status: 'idle' }); setStepError(null); setSubmitError(null) }}
+                  />
+                  {nightVfrTimeError && (
+                    <p className="text-[10px] text-amber-400 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[12px]">warning</span>
+                      {nightVfrTimeError}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* C: Selected checkout window — shown once time is selected */}
+              {date && nightVfrRating !== null && startTime && (
+                <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-4 py-3">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600 mb-1.5">
+                    Selected checkout window
+                  </p>
+                  <p className="text-sm font-medium text-white/90">
+                    {ALL_TIME_OPTIONS.find(o => o.value === startTime)?.label ?? startTime}
+                    <span className="mx-2 text-slate-600">→</span>
+                    {ALL_TIME_OPTIONS.find(o => o.value === endTime)?.label ?? endTime}
+                  </p>
+                  <p className="text-[10px] text-slate-600 mt-1">A 1-hour slot is reserved for scheduling. The final amount is calculated from the VDO meter after the flight.</p>
+                </div>
+              )}
+
+              {/* D: Daily schedule timeline — shown once date + Night VFR are answered */}
+              {date && nightVfrRating !== null && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                      {formatDate(date)} — Daily Schedule
+                    </p>
+                  </div>
+                  {startTime && (
+                    <p className="text-[10px] text-blue-400/60 mb-3 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 300" }}>drag_pan</span>
+                      Drag the blue slot to adjust your checkout flight time.
+                    </p>
+                  )}
+                  <AvailabilityTimeline
+                    selectedDate={date}
+                    daySlots={daySlots}
+                    startDT={startDT}
+                    endDT={endDT}
+                    onTimeChange={v => { setStartTime(v); setAvail({ status: 'idle' }); setStepError(null); setSubmitError(null) }}
+                    dayVfrWindow={dayVfrWindow}
+                  />
+                </div>
+              )}
+
+              {/* F: Availability state */}
               {avail.status === 'checking' && (
                 <p className="text-xs text-slate-500 animate-pulse flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
                   Checking availability…
                 </p>
               )}
-              {avail.status === 'available' && (
+              {avail.status === 'available' && !isTimeNightRestricted && (
                 <p className="text-xs text-green-400 flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                   This time slot is available
+                </p>
+              )}
+              {avail.status === 'available' && isTimeNightRestricted && (
+                <p className="text-xs text-amber-400 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>nightlight</span>
+                  This time requires a Night VFR Rating.
                 </p>
               )}
               {avail.status === 'unavailable' && (
@@ -1011,7 +1194,7 @@ export default function CheckoutFlow({
                 </p>
               )}
 
-              {/* G: Payment timing notice — blue/slate info style (not green, to avoid clashing with availability success) */}
+              {/* G: Payment timing notice */}
               <div className="bg-[#0a1628] border border-blue-500/[0.18] rounded-lg px-4 py-3">
                 <div className="flex items-start gap-2">
                   <span className="material-symbols-outlined text-blue-400/60 text-[16px] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>info</span>
@@ -1020,16 +1203,23 @@ export default function CheckoutFlow({
                       No payment is required now.
                     </p>
                     <p className="text-[11px] text-slate-400/80 mt-0.5 leading-relaxed">
-                      Checkout flights are billed after the flight using the aircraft VDO meter reading, plus any applicable landing fees. Estimated rate: $290/hour. Landing fees: $25 per landing, where applicable. The exact amount is calculated by the instructor after the flight.
+                      Checkout flights are billed after the flight using the aircraft VDO meter reading, plus any applicable landing fees. Estimated rate: $290/hour. Landing fees: $25 per landing, where applicable. The exact amount is calculated by our team after the flight.
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* H: Continue button — only enabled when avail confirms the slot is future + available */}
+              {/* Step error */}
+              {stepError && (
+                <p className="text-xs text-red-400 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm">error</span>
+                  {stepError}
+                </p>
+              )}
+
+              {/* H: Continue button */}
               <button
                 onClick={handleTimeNext}
-                disabled={avail.status !== 'available'}
                 className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
               >
                 Continue to Documents
@@ -1057,6 +1247,8 @@ export default function CheckoutFlow({
                 def={def}
                 doc={documents.find(d => d.document_type === def.type)}
                 onUploaded={() => router.refresh()}
+                initialNightVfrRating={def.type === 'pilot_licence' ? nightVfrRating : undefined}
+                initialInstrumentRating={def.type === 'pilot_licence' ? initialInstrumentRating : undefined}
               />
             ))}
           </div>
@@ -1068,18 +1260,25 @@ export default function CheckoutFlow({
             </div>
           )}
 
-          {/* Last flight date */}
+          {/* Flight review date */}
           <div className="pt-2 border-t border-white/[0.06] space-y-2">
             <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
-              When was your last flight? <span className="text-red-400 font-normal normal-case">Required</span>
+              When was your last flight review? <span className="text-red-400 font-normal normal-case">Required</span>
             </label>
             <input
               type="date"
               value={lastFlightDate}
-              max={new Date().toISOString().split('T')[0]}
+              min={getFlightReviewCutoff()}
+              max={new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })}
               onChange={e => setLastFlightDate(e.target.value)}
               className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors"
             />
+            {lastFlightDate && validateFlightReviewDate(lastFlightDate) && (
+              <p className="text-[10px] text-red-400 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[12px]">error</span>
+                {validateFlightReviewDate(lastFlightDate)}
+              </p>
+            )}
           </div>
 
           {/* Optional admin message */}
@@ -1109,7 +1308,7 @@ export default function CheckoutFlow({
             </button>
             <button
               onClick={() => { setSubmitError(null); setStep('review') }}
-              disabled={!allDocsUploaded || !lastFlightDate}
+              disabled={!allDocsUploaded || !lastFlightDate || !!validateFlightReviewDate(lastFlightDate)}
               className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
             >
               Continue to Review
@@ -1131,14 +1330,18 @@ export default function CheckoutFlow({
           {/* Summary */}
           <div className="space-y-0">
             {[
-              { label: 'Aircraft',      value: `${aircraftDisplayName} (${aircraftRegistration})` },
-              { label: 'Date',          value: formatDate(date) },
-              { label: 'Departure',     value: formatDateTime(startUTC) },
-              { label: 'Return',        value: formatDateTime(endUTC) },
-              { label: 'Slot reserved',  value: '1 hour (for scheduling)' },
-              { label: 'Checkout rate', value: `$${CHECKOUT_RATE} / hour (VDO meter)` },
-              { label: 'Landing fees',  value: '$25 per landing, if applicable' },
-              { label: 'Final amount',  value: 'Calculated after flight from VDO meter' },
+              { label: 'Aircraft',         value: `${aircraftDisplayName} (${aircraftRegistration})` },
+              { label: 'Date',             value: formatDate(date) },
+              { label: 'Departure',        value: formatDateTime(startUTC) },
+              { label: 'Return',           value: formatDateTime(endUTC) },
+              { label: 'Slot reserved',    value: '1 hour (for scheduling)' },
+              { label: 'Night VFR Rating', value: nightVfrRating === true ? 'Yes' : 'No' },
+              { label: 'Flight window',    value: nightVfrRating === false
+                  ? `Day VFR (${getDayVfrWindow(date).start}–${getDayVfrWindow(date).end} Sydney time)`
+                  : 'Night VFR authorised' },
+              { label: 'Checkout rate',    value: `$${CHECKOUT_RATE} / hour (VDO meter)` },
+              { label: 'Landing fees',     value: '$25 per landing, if applicable' },
+              { label: 'Final amount',     value: 'Calculated after flight from VDO meter' },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-center justify-between py-3 border-b border-white/[0.06] last:border-0">
                 <span className="text-sm text-slate-500">{label}</span>
@@ -1146,6 +1349,15 @@ export default function CheckoutFlow({
               </div>
             ))}
           </div>
+
+          {/* Night VFR window blocker — shown if time became invalid before reaching review */}
+          {nightVfrRating === false && startTime && date && !isWithinDayVfrWindow(startTime, date) && (
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
+              <p className="text-sm text-amber-300">
+                The selected departure time is outside the allowed Day VFR window ({getDayVfrWindow(date).start}–{getDayVfrWindow(date).end} Sydney time). Please go back and choose a daylight time, or confirm that you hold a Night VFR Rating.
+              </p>
+            </div>
+          )}
 
           {/* Admin message summary */}
           {adminMessage.trim() && (
@@ -1169,7 +1381,7 @@ export default function CheckoutFlow({
           <div className="bg-blue-500/[0.06] border border-blue-500/20 rounded-lg px-4 py-3 space-y-1">
             <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400">What happens after you submit</p>
             <p className="text-sm text-blue-200/70 leading-relaxed">
-              Once you submit this checkout request, your selected checkout time and documents will be sent to the admin team for review. An approved instructor may confirm this time or suggest an alternative. You&apos;ll be notified once the request has been reviewed.
+              Once you submit this checkout request, your selected checkout time and documents will be sent to the admin team for review. Our Team may confirm this time or suggest an alternative. You&apos;ll be notified once the request has been reviewed.
             </p>
           </div>
 
@@ -1189,7 +1401,7 @@ export default function CheckoutFlow({
             </button>
             <button
               onClick={handleSubmit}
-              disabled={isPending}
+              disabled={isPending || (nightVfrRating === false && !!startTime && !!date && !isWithinDayVfrWindow(startTime, date))}
               className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all shadow-[0_0_20px_rgba(37,99,235,0.35)]"
             >
               {isPending ? 'Submitting…' : 'Submit Checkout Request'}
@@ -1207,7 +1419,7 @@ export default function CheckoutFlow({
           <div>
             <h2 className="text-2xl font-serif text-white mb-3">Checkout request submitted</h2>
             <p className="text-sm text-slate-400 leading-relaxed max-w-md mx-auto">
-              Your checkout request has been submitted for review. An admin or approved instructor will review your selected time and documents. Aircraft bookings will become available after your checkout flight is completed, approved, and paid.
+              Your checkout request has been submitted for review. Our team will review your selected time and documents. Aircraft bookings will become available after your checkout flight is completed and paid.
             </p>
           </div>
           <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-5 py-4 inline-block text-left">

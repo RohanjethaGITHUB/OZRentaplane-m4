@@ -32,6 +32,8 @@ export type Profile = {
   verification_status: VerificationStatus  // legacy; kept for verification_events history
   pilot_clearance_status: PilotClearanceStatus
   pilot_arn: string | null   // Aviation Reference Number — set after verification
+  has_night_vfr_rating: boolean | null   // null = not answered, true = yes, false = no
+  has_instrument_rating: boolean | null  // null = not answered, true = yes, false = no
   last_flight_date: string | null  // YYYY-MM-DD — shared between Documents page and checkout flow
   last_login_at: string | null
   login_count: number

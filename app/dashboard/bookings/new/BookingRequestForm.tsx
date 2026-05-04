@@ -14,6 +14,7 @@ import {
   sydneyInputToUTC,
   formatSydTime,
 } from '@/lib/utils/sydney-time'
+import { validateFlightReviewDate, getFlightReviewCutoff } from '@/lib/utils/flight-review'
 import { formatDate, formatDateTime, formatDateLong } from '@/lib/formatDateTime'
 
 
@@ -36,15 +37,16 @@ type SuccessState = {
 type TimeOption = { value: string; label: string }
 
 type Props = {
-  aircraftId:           string
-  aircraftRegistration: string
-  aircraftType:         string
-  aircraftStatus:       string
-  hourlyRate:           number
-  picName:              string | null
-  picArn:               string | null
-  eligibilityBlocked:   boolean
-  eligibilityWarnings:  string[]
+  aircraftId:              string
+  aircraftRegistration:    string
+  aircraftType:            string
+  aircraftStatus:          string
+  hourlyRate:              number
+  picName:                 string | null
+  picArn:                  string | null
+  eligibilityBlocked:      boolean
+  eligibilityWarnings:     string[]
+  initialLastFlightDate:   string
 }
 
 // ── Time options (full day 12:00 AM – 11:30 PM, 30-min increments) ───────────
@@ -496,19 +498,25 @@ export default function BookingRequestForm({
   picArn,
   eligibilityBlocked,
   eligibilityWarnings,
+  initialLastFlightDate,
 }: Props) {
   const [isSubmitting, startSubmit] = useTransition()
 
   // ── Split date/time state ─────────────────────────────────────────────────
-  const [startDate, setStartDate] = useState('')  // YYYY-MM-DD
-  const [startTime, setStartTime] = useState('')  // HH:MM
-  const [endDate,   setEndDate]   = useState('')
-  const [endTime,   setEndTime]   = useState('')
-  const [notes,     setNotes]     = useState('')
-  const [medical,   setMedical]   = useState(false)
-  const [terms,     setTerms]     = useState(false)
-  const [submitError,  setSubmitError]  = useState<string | null>(null)
-  const [successState, setSuccessState] = useState<SuccessState | null>(null)
+  const [startDate,       setStartDate]       = useState('')  // YYYY-MM-DD
+  const [startTime,       setStartTime]       = useState('')  // HH:MM
+  const [endDate,         setEndDate]         = useState('')
+  const [endTime,         setEndTime]         = useState('')
+  const [lastFlightDate,  setLastFlightDate]  = useState(initialLastFlightDate)
+  const [notes,           setNotes]           = useState('')
+  const [medical,         setMedical]         = useState(false)
+  const [terms,           setTerms]           = useState(false)
+  const [submitError,     setSubmitError]     = useState<string | null>(null)
+  const [successState,    setSuccessState]    = useState<SuccessState | null>(null)
+
+  // Derived flight review date error (null = valid or empty)
+  const flightReviewError = lastFlightDate ? validateFlightReviewDate(lastFlightDate) : null
+  const flightReviewValid = !!lastFlightDate && !flightReviewError
 
   // ── Derived combined datetime strings (used by all existing logic) ────────
   const startDT = startDate && startTime ? `${startDate}T${startTime}` : ''
@@ -675,6 +683,7 @@ export default function BookingRequestForm({
     !!endDT &&
     !endIsBeforeStart &&
     availability.status === 'available' &&
+    flightReviewValid &&
     medical &&
     terms
 
@@ -685,6 +694,8 @@ export default function BookingRequestForm({
     if (endIsBeforeStart) return 'Estimated return must be after departure.'
     if (availability.status === 'checking') return 'Checking availability…'
     if (availability.status === 'unavailable') return 'Selected time is unavailable.'
+    if (!lastFlightDate) return 'Please enter your last flight review date.'
+    if (flightReviewError) return flightReviewError
     if (!medical || !terms) return 'Please complete the required confirmations.'
     return null
   }
@@ -721,10 +732,17 @@ export default function BookingRequestForm({
       return
     }
 
+    const flightReviewErr = validateFlightReviewDate(lastFlightDate)
+    if (flightReviewErr) {
+      setSubmitError(flightReviewErr)
+      return
+    }
+
     const input: CreateBookingInput = {
       aircraft_id:                    aircraftId,
       scheduled_start:                startUTC,
       scheduled_end:                  endUTC,
+      last_flight_date:               lastFlightDate,
       pic_name:                       picName  ?? undefined,
       pic_arn:                        picArn   ?? undefined,
       customer_notes:                 notes || null,
@@ -1253,6 +1271,39 @@ export default function BookingRequestForm({
                     onRangeChange={handleTimelineChange}
                   />
                 )}
+              </section>
+
+              {/* ── Flight Review Date ─────────────────────────────────── */}
+              <section className="bg-[#080e1c] border border-white/[0.07] rounded-xl p-7 md:p-8 space-y-4">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-300 mb-1">Flight Recency</h3>
+                  <p className="text-[11px] text-slate-600">Required. Must be within the last 2 years.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600">
+                    When was your last flight review? <span className="text-red-400 font-normal normal-case ml-1">Required</span>
+                  </label>
+                  <DateInput
+                    value={lastFlightDate}
+                    min={getFlightReviewCutoff()}
+                    onChange={setLastFlightDate}
+                  />
+                  {lastFlightDate && (
+                    <p className="text-[11px] text-blue-400/50">{formatDateDisplay(lastFlightDate)}</p>
+                  )}
+                  {flightReviewError && (
+                    <p className="text-[11px] text-red-400 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[13px]">error</span>
+                      {flightReviewError}
+                    </p>
+                  )}
+                  {flightReviewValid && (
+                    <p className="text-[11px] text-green-400/70 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                      Flight review date confirmed.
+                    </p>
+                  )}
+                </div>
               </section>
 
               {/* ── Flight Notes ───────────────────────────────────────── */}

@@ -9,6 +9,7 @@ import AdminCheckoutReviewPanel from './AdminCheckoutReviewPanel'
 import AdminClarificationForm from './AdminClarificationForm'
 import AdminOperationalActions from './AdminOperationalActions'
 import AdminBankTransferPanel from './AdminBankTransferPanel'
+import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 
 export const metadata = { title: 'Booking Detail | Admin' }
 
@@ -237,6 +238,16 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     }
   }
 
+  // ── Derive manual payment pending state ───────────────────────────────────────
+  // When bank transfer proof has been submitted but admin has not yet confirmed,
+  // all status displays should say "Awaiting Payment Confirmation", not "Payment Required".
+  const latestBankTransferSub = bankTransferSubmissions[0] ?? null
+  const checkoutPaymentDisplayState = getCheckoutPaymentDisplayState(
+    isPaymentRequired ? { status: 'payment_required' } : null,
+    latestBankTransferSub,
+  )
+  const isAwaitingManualPayment = checkoutPaymentDisplayState === 'awaiting_manual_payment_confirmation'
+
   // External conflicts: active blocks in the held window NOT belonging to this booking.
   // Expired temporary holds are excluded — same rule as the submission RPC and confirm action.
   const nowDate = new Date()
@@ -248,15 +259,21 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
   const status        = booking.status as string
   const bookingType   = (booking as { booking_type?: string }).booking_type ?? 'standard'
-  const statusCfg     = STATUS_CFG[status] ?? {
+  const statusCfgBase = STATUS_CFG[status] ?? {
     label:  status.replace(/_/g, ' '),
     color:  'text-slate-400',
     bg:     'bg-white/5',
     border: 'border-white/10',
     icon:   'info',
   }
-  const clearanceStatus = (customer as { pilot_clearance_status?: string } | null)?.pilot_clearance_status ?? 'checkout_required'
-  const clearanceCfg    = CLEARANCE_CFG[clearanceStatus] ?? CLEARANCE_CFG.checkout_required
+  const statusCfg = isAwaitingManualPayment
+    ? { label: 'Manual Payment Submitted', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: 'account_balance' }
+    : statusCfgBase
+  const clearanceStatus  = (customer as { pilot_clearance_status?: string } | null)?.pilot_clearance_status ?? 'checkout_required'
+  const clearanceCfgBase = CLEARANCE_CFG[clearanceStatus] ?? CLEARANCE_CFG.checkout_required
+  const clearanceCfg = isAwaitingManualPayment
+    ? { label: 'Awaiting Payment Confirmation', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' }
+    : clearanceCfgBase
   const bookingRef    = (booking as { booking_reference?: string }).booking_reference
     ?? booking.id.split('-')[0].toUpperCase()
   const statusHistory = rawHistory ?? []
@@ -474,12 +491,33 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               </h2>
               <ol className="space-y-0">
                 {statusHistory.map((row, idx) => {
-                  const cfg = STATUS_CFG[row.new_status] ?? {
+                  let cfg = { ...(STATUS_CFG[row.new_status] ?? {
                     label:  row.new_status.replace(/_/g, ' '),
                     color:  'text-slate-400',
                     bg:     'bg-white/5',
                     border: 'border-white/10',
                     icon:   'info',
+                  }) }
+                  // Determine the note text to display — replace raw DB enum tokens with readable labels.
+                  let noteText = row.note ?? null
+                  if (noteText) {
+                    noteText = noteText
+                      .replace(/\bcleared_to_fly\b/g, 'Cleared to Fly')
+                      .replace(/\badditional_checkout_required\b/g, 'Additional Checkout Required')
+                      .replace(/\bcheckout_reschedule_required\b/g, 'Checkout Reschedule Required')
+                      .replace(/\bnot_currently_eligible\b/g, 'Not Currently Eligible')
+                  }
+                  // When manual payment is pending, override the checkout_payment_required event
+                  // to show the actual state rather than the confusing "Payment Required" label.
+                  let overrideTimestamp: string | null = null
+                  if (row.new_status === 'checkout_payment_required' && isAwaitingManualPayment) {
+                    cfg.label  = 'Manual Payment Submitted'
+                    cfg.color  = 'text-blue-400'
+                    cfg.bg     = 'bg-blue-500/10'
+                    cfg.border = 'border-blue-500/20'
+                    cfg.icon   = 'account_balance'
+                    noteText   = 'Bank transfer details have been submitted. Payment is awaiting confirmation.'
+                    overrideTimestamp = latestBankTransferSub?.submitted_at ?? null
                   }
                   const isLast = idx === statusHistory.length - 1
                   return (
@@ -501,7 +539,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                         <div className="flex items-start justify-between gap-3">
                           <p className={`text-sm font-medium ${cfg.color}`}>{cfg.label}</p>
                           <p className="text-[10px] text-slate-600 font-mono flex-shrink-0 tabular-nums">
-                            {new Date(row.created_at).toLocaleDateString('en-AU', {
+                            {new Date(overrideTimestamp ?? row.created_at).toLocaleDateString('en-AU', {
                               timeZone: 'Australia/Sydney',
                               day:      'numeric',
                               month:    'short',
@@ -509,8 +547,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                             })}
                           </p>
                         </div>
-                        {row.note && (
-                          <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{row.note}</p>
+                        {noteText && (
+                          <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{noteText}</p>
                         )}
                       </div>
                     </li>

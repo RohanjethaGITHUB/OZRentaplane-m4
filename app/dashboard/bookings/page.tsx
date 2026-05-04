@@ -6,6 +6,7 @@ import BookingsViewedTracker from './BookingsViewedTracker'
 import type { Profile, PilotClearanceStatus } from '@/lib/supabase/types'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import { formatSydTime } from '@/lib/utils/sydney-time'
+import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 
 export const metadata = { title: 'My Bookings | OZRentAPlane' }
 
@@ -34,8 +35,8 @@ const STATUS_CFG: Record<string, {
   cancelled:                  { label: 'Cancelled',               sublabel: 'Will not proceed',          color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'cancel'             },
   no_show:                    { label: 'No Show',                 sublabel: 'Marked absent',             color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'person_off'         },
   // Checkout booking statuses
-  checkout_requested:         { label: 'Awaiting Review',         sublabel: 'Awaiting instructor confirmation', color: 'text-blue-400',  bg: 'bg-blue-500/10',   border: 'border-blue-500/20',   icon: 'pending_actions'    },
-  checkout_confirmed:         { label: 'Checkout Confirmed',      sublabel: 'Instructor confirmed',      color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20',  icon: 'event_available'    },
+  checkout_requested:         { label: 'Awaiting Review',         sublabel: 'Awaiting team review',      color: 'text-blue-400',  bg: 'bg-blue-500/10',   border: 'border-blue-500/20',   icon: 'pending_actions'    },
+  checkout_confirmed:         { label: 'Checkout Confirmed',      sublabel: 'Confirmed by our team',     color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20',  icon: 'event_available'    },
   checkout_completed_under_review: { label: 'Checkout Completed - Under Review', sublabel: 'Checkout complete',       color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  icon: 'rate_review'        },
   checkout_payment_required:       { label: 'Payment Required',                sublabel: 'Pay to unlock bookings',  color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', icon: 'payments'           },
 }
@@ -56,7 +57,7 @@ const CHECKOUT_OUTCOME_BADGE: Record<string, { label: string; color: string; bg:
   not_currently_eligible:       { label: 'Not Currently Eligible',          color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'block'       },
 }
 
-function StatusBadge({ status, bookingType, checkoutOutcome }: { status: string; bookingType?: string; checkoutOutcome?: string | null }) {
+function StatusBadge({ status, bookingType, checkoutOutcome, isAwaitingManualPayment }: { status: string; bookingType?: string; checkoutOutcome?: string | null; isAwaitingManualPayment?: boolean }) {
   let cfg: { label: string; color: string; bg: string; border: string; icon?: string } = STATUS_CFG[status] ?? {
     label:  status.replace(/_/g, ' '),
     color:  'text-slate-400',
@@ -66,6 +67,10 @@ function StatusBadge({ status, bookingType, checkoutOutcome }: { status: string;
   // For completed checkout bookings, show the actual outcome rather than generic "Completed".
   if (bookingType === 'checkout' && status === 'completed' && checkoutOutcome) {
     cfg = CHECKOUT_OUTCOME_BADGE[checkoutOutcome] ?? { label: 'Checkout Complete', color: 'text-slate-400', bg: 'bg-white/5', border: 'border-white/10' }
+  }
+  // When bank transfer is submitted but not yet confirmed, override "Payment Required".
+  if (status === 'checkout_payment_required' && isAwaitingManualPayment) {
+    cfg = { label: 'Awaiting Payment Confirmation', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: 'account_balance' }
   }
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${cfg.color} ${cfg.bg} ${cfg.border}`}>
@@ -97,11 +102,12 @@ const CARD = 'bg-gradient-to-br from-[#0c1525] to-[#080e1c] border border-white/
 // Shown at the top of the bookings page when the user is not yet cleared.
 
 type GateBannerProps = {
-  clearanceStatus: PilotClearanceStatus
-  checkoutBooking: BookingRow | null
+  clearanceStatus:      PilotClearanceStatus
+  checkoutBooking:      BookingRow | null
+  isAwaitingManualPayment?: boolean
 }
 
-function ClearanceGateBanner({ clearanceStatus, checkoutBooking }: GateBannerProps) {
+function ClearanceGateBanner({ clearanceStatus, checkoutBooking, isAwaitingManualPayment }: GateBannerProps) {
   if (clearanceStatus === 'checkout_required') {
     return (
       <div className={`border rounded-xl p-8 text-center bg-blue-500/[0.06] border-blue-500/20 mb-8`}>
@@ -113,7 +119,7 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking }: GateBannerPro
         </span>
         <h2 className="text-xl font-serif text-white mb-3">Checkout Required</h2>
         <p className="text-slate-500 text-sm leading-relaxed mb-6 max-w-md mx-auto">
-          Before booking solo flights, you must complete a one-time checkout flight with an approved instructor. Documents are uploaded as part of the checkout process.
+          Before booking solo flights, you must complete a one-time checkout flight with our team. Documents are uploaded as part of the checkout process.
         </p>
         <Link
           href="/dashboard/checkout"
@@ -139,7 +145,7 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking }: GateBannerPro
           <div>
             <h2 className="text-lg font-serif text-white mb-2">Checkout Request Under Review</h2>
             <p className="text-slate-500 text-sm leading-relaxed">
-              Your checkout flight request has been submitted and is awaiting review by the admin team or an approved instructor. Aircraft bookings will become available after your checkout flight is completed, approved, and the checkout invoice is paid.
+              Your checkout flight request has been submitted and is awaiting review by our team. Aircraft bookings will become available after your checkout flight is completed and the checkout invoice is paid.
             </p>
             {checkoutBooking && (
               <div className="mt-4 bg-white/[0.03] border border-white/[0.06] rounded-lg px-4 py-3 inline-flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
@@ -167,7 +173,7 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking }: GateBannerPro
           <div>
             <h2 className="text-lg font-serif text-white mb-2">Checkout Flight Confirmed</h2>
             <p className="text-slate-500 text-sm leading-relaxed">
-              Your checkout flight has been confirmed by an approved instructor. Standard solo bookings are locked until your checkout is completed and reviewed.
+              Your checkout flight has been confirmed by our team. Once your checkout flight is approved, you will unlock bookings.
             </p>
             {checkoutBooking && (
               <div className="mt-4 bg-white/[0.03] border border-white/[0.06] rounded-lg px-4 py-3 inline-flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
@@ -183,6 +189,26 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking }: GateBannerPro
   }
 
   if (checkoutBooking?.status === 'checkout_payment_required') {
+    if (isAwaitingManualPayment) {
+      return (
+        <div className="border rounded-xl p-8 bg-blue-500/[0.05] border-blue-500/20 mb-8">
+          <div className="flex items-start gap-4">
+            <span
+              className="material-symbols-outlined text-2xl text-blue-400 flex-shrink-0 mt-0.5 animate-pulse"
+              style={{ fontVariationSettings: "'wght' 200" }}
+            >
+              account_balance
+            </span>
+            <div>
+              <h2 className="text-lg font-serif text-white mb-2">Awaiting Payment Confirmation</h2>
+              <p className="text-slate-500 text-sm leading-relaxed">
+                Your bank transfer details have been submitted. Our team will verify the payment before your checkout result is finalised. No further action is required from you right now.
+              </p>
+            </div>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className={`border rounded-xl p-8 bg-orange-500/[0.05] border-orange-500/20 mb-8`}>
         <div className="flex items-start gap-4">
@@ -195,7 +221,7 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking }: GateBannerPro
           <div>
             <h2 className="text-lg font-serif text-white mb-2">Checkout Payment Required</h2>
             <p className="text-slate-500 text-sm leading-relaxed mb-4">
-              Your checkout flight has been approved. Please pay your checkout invoice before aircraft bookings become available.
+              Your checkout flight has been completed. Please pay your checkout invoice before aircraft bookings become available.
             </p>
             <Link
               href={`/dashboard/bookings/${checkoutBooking.id}`}
@@ -222,7 +248,7 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking }: GateBannerPro
           <div>
             <h2 className="text-lg font-serif text-white mb-2">Awaiting Checkout Outcome</h2>
             <p className="text-slate-500 text-sm leading-relaxed">
-              Your checkout flight has been completed and is awaiting review by the flight operations team. Standard solo bookings are locked until your clearance status is updated.
+              Your checkout flight has been completed and is awaiting review by the flight operations team. Once your checkout flight is approved, you will unlock bookings.
             </p>
           </div>
         </div>
@@ -297,7 +323,7 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking }: GateBannerPro
           <div>
             <h2 className="text-lg font-serif text-white mb-2">Not Currently Eligible</h2>
             <p className="text-slate-500 text-sm leading-relaxed">
-              Based on your checkout assessment, further training with a qualified instructor is required before you can continue with aircraft hire. Please contact us when you are ready to try again.
+              Based on your checkout assessment, further training is required before you can continue with aircraft hire. Please contact us when you are ready to try again.
             </p>
           </div>
         </div>
@@ -367,6 +393,31 @@ export default async function CustomerBookingsPage() {
     ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required'].includes(b.status)
   ) ?? null
 
+  // Derive manual payment state so the gate banner and booking card can override
+  // "Payment Required" with "Awaiting Payment Confirmation" when bank transfer is submitted.
+  let isAwaitingManualPayment = false
+  if (clearanceStatus === 'checkout_payment_required' && checkoutBooking) {
+    const { data: inv } = await supabase
+      .from('checkout_invoices')
+      .select('id, status')
+      .eq('booking_id', checkoutBooking.id)
+      .maybeSingle()
+    if (inv) {
+      const { data: sub } = await supabase
+        .from('checkout_bank_transfer_submissions')
+        .select('id, status')
+        .eq('invoice_id', (inv as { id: string; status: string }).id)
+        .order('submitted_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const displayState = getCheckoutPaymentDisplayState(
+        { status: (inv as { id: string; status: string }).status ?? 'payment_required' },
+        sub ?? null,
+      )
+      isAwaitingManualPayment = displayState === 'awaiting_manual_payment_confirmation'
+    }
+  }
+
   return (
     <>
       {/* Advances last_bookings_viewed_at so the nav badge clears */}
@@ -384,6 +435,7 @@ export default async function CustomerBookingsPage() {
           <ClearanceGateBanner
             clearanceStatus={clearanceStatus}
             checkoutBooking={checkoutBooking}
+            isAwaitingManualPayment={isAwaitingManualPayment}
           />
         )}
 
@@ -465,14 +517,14 @@ export default async function CustomerBookingsPage() {
 
                       {/* Right: amount + hours + badge + arrow */}
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                        <StatusBadge status={b.status} bookingType={b.booking_type} checkoutOutcome={checkoutOutcomeMap[b.id]} />
+                        <StatusBadge status={b.status} bookingType={b.booking_type} checkoutOutcome={checkoutOutcomeMap[b.id]} isAwaitingManualPayment={b.status === 'checkout_payment_required' ? isAwaitingManualPayment : undefined} />
                         {b.estimated_amount != null && (
                           <div className="flex flex-col items-end gap-1 mt-1">
                             <span className="text-sm font-semibold text-white/80 tabular-nums">
                               Checkout fee: ${b.estimated_amount.toFixed(0)}
                             </span>
                             <span className="text-[10px] text-slate-500 max-w-[150px] text-right leading-tight">
-                              Invoiced after checkout completion and approval
+                              Invoiced after checkout flight is completed
                             </span>
                           </div>
                         )}
@@ -582,7 +634,7 @@ export default async function CustomerBookingsPage() {
 
                       {/* Right: badge + arrow (estimated price/hours hidden from customer) */}
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                        <StatusBadge status={b.status} bookingType={b.booking_type} checkoutOutcome={checkoutOutcomeMap[b.id]} />
+                        <StatusBadge status={b.status} bookingType={b.booking_type} checkoutOutcome={checkoutOutcomeMap[b.id]} isAwaitingManualPayment={b.status === 'checkout_payment_required' ? isAwaitingManualPayment : undefined} />
                         <span className="material-symbols-outlined text-slate-600 group-hover:text-blue-400 text-base transition-colors mt-1">
                           arrow_forward
                         </span>

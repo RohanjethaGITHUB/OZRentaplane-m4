@@ -224,7 +224,7 @@ export default async function NewBookingPage() {
           iconColor="text-red-400"
           colorCls="bg-red-500/10 border-red-500/20"
           heading="System Error: Missing Checkout Invoice"
-          body="Your profile is cleared for solo hire, but we could not find a paid checkout invoice on file. Standard booking access requires a fully paid checkout. Please contact the operations team to resolve this issue."
+          body="Your profile is cleared to fly, but we could not find a paid checkout invoice on file. Standard booking access requires a fully paid checkout. Please contact the operations team to resolve this issue."
           primaryLabel="Return to Dashboard"
           primaryHref="/dashboard"
         />
@@ -277,6 +277,7 @@ export default async function NewBookingPage() {
           picArn={typedProfile?.pilot_arn ?? null}
           eligibilityBlocked={eligibilityBlocked}
           eligibilityWarnings={eligibilityWarnings}
+          initialLastFlightDate={typedProfile?.last_flight_date ?? ''}
         />
       </CustomerBookingShell>
     )
@@ -307,7 +308,7 @@ export default async function NewBookingPage() {
     not_currently_eligible: {
       icon:      'block',
       title:     'Not Currently Eligible',
-      body:      'Based on your checkout assessment, further training with a qualified instructor is required before you can continue with aircraft hire. Please contact us when you are ready to try again.',
+      body:      'Based on your checkout assessment, further training is required before you can continue with aircraft hire. Please contact us when you are ready to try again.',
       ctaLabel:  'Return to Dashboard',
       ctaHref:   '/dashboard',
       colorCls:  'bg-red-500/10 border-red-500/20',
