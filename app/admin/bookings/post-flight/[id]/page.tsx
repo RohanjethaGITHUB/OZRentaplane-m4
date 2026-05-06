@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import FlightRecordApprovalForm from './FlightRecordApprovalForm'
 import RequestClarificationFormWrapper from './RequestClarificationFormWrapper'
+import AdminStandardBillingPanel from '@/app/admin/bookings/requests/[id]/AdminStandardBillingPanel'
 import { formatDateTime } from '@/lib/formatDateTime'
 import type { FlightRecordClarification, FlightRecordAttachment } from '@/lib/supabase/booking-types'
 
@@ -27,7 +27,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
     .select(`
       *,
       aircraft ( id, registration, aircraft_type, default_hourly_rate ),
-      bookings ( id, scheduled_start, scheduled_end, customer_notes, booking_owner_user_id, booking_reference )
+      bookings ( id, status, booking_type, scheduled_start, scheduled_end, customer_notes, booking_owner_user_id, booking_reference )
     `)
     .eq('id', params.id)
     .single()
@@ -36,11 +36,21 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
     return <div className="p-10 text-white">Record not found.</div>
   }
 
-  const aircraft = Array.isArray(record.aircraft) ? record.aircraft[0] : record.aircraft
-  const booking  = Array.isArray(record.bookings)  ? record.bookings[0]  : record.bookings
-  const customerId    = booking?.booking_owner_user_id ?? null
-  const bookingId     = booking?.id ?? null
-  const bookingRef    = booking?.booking_reference ?? null
+  const aircraft   = Array.isArray(record.aircraft) ? record.aircraft[0] : record.aircraft
+  const booking    = Array.isArray(record.bookings)  ? record.bookings[0]  : record.bookings
+  const customerId = booking?.booking_owner_user_id ?? null
+  const bookingId  = booking?.id ?? null
+  const bookingRef = booking?.booking_reference ?? null
+
+  // ── Determine whether this is the standard billing flow ────────────────────
+  // A booking in pending_post_flight_review (standard) goes straight to billing.
+  // Other states (needs_clarification, etc.) fall through to the clarification UI.
+  const bookingStatus  = (booking?.status as string | null | undefined) ?? null
+  const bookingType    = (booking?.booking_type as string | null | undefined) ?? 'standard'
+  const isStandardBillingReady =
+    bookingType === 'standard' &&
+    bookingStatus === 'pending_post_flight_review' &&
+    record.status !== 'needs_clarification'
 
   // Fetch latest open clarification (if any)
   const { data: clarifications } = await supabase
@@ -54,12 +64,9 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
     (c: FlightRecordClarification) => !c.is_resolved,
   ) ?? null
 
-  const flags     = Array.isArray(record.review_flags) ? record.review_flags : []
-  const startStr  = booking?.scheduled_start ? formatDateTime(booking.scheduled_start) : 'Unknown'
-  const endStr    = booking?.scheduled_end   ? formatDateTime(booking.scheduled_end)   : 'Unknown'
-  const estBill   = record.tacho_total && aircraft?.default_hourly_rate
-    ? (record.tacho_total * aircraft.default_hourly_rate).toFixed(2)
-    : 'Unknown'
+  const flags    = Array.isArray(record.review_flags) ? record.review_flags : []
+  const startStr = booking?.scheduled_start ? formatDateTime(booking.scheduled_start) : 'Unknown'
+  const endStr   = booking?.scheduled_end   ? formatDateTime(booking.scheduled_end)   : 'Unknown'
 
   const statusBadge = STATUS_BADGE[record.status] ?? {
     label: record.status,
@@ -83,7 +90,43 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
     }),
   )
 
-  const canRequestClarification = ['pending_review', 'resubmitted'].includes(record.status)
+  // ── Billing panel data — only fetched when needed ──────────────────────────
+  let airports: { id: string; icao_code: string; name: string; default_landing_fee_cents: number }[] = []
+  let customerCreditCents = 0
+
+  if (isStandardBillingReady && customerId) {
+    const [{ data: airportRows }, { data: creditRow }] = await Promise.all([
+      supabase
+        .from('airports')
+        .select('id, icao_code, name, default_landing_fee_cents')
+        .eq('is_active', true)
+        .order('name'),
+      supabase
+        .from('customer_credit_balances')
+        .select('balance_cents')
+        .eq('customer_id', customerId)
+        .maybeSingle(),
+    ])
+
+    const rawAirports = (airportRows ?? []) as typeof airports
+    // Sort: Bankstown first, then alphabetical
+    airports = [...rawAirports].sort((a, b) => {
+      const isBankstownA = a.icao_code === 'YSBK' || a.name.toLowerCase().includes('bankstown')
+      const isBankstownB = b.icao_code === 'YSBK' || b.name.toLowerCase().includes('bankstown')
+      if (isBankstownA && !isBankstownB) return -1
+      if (!isBankstownA && isBankstownB) return 1
+      return a.name.localeCompare(b.name)
+    })
+    customerCreditCents = (creditRow as { balance_cents?: number } | null)?.balance_cents ?? 0
+  }
+
+  // ── Prefill values from flight record ─────────────────────────────────────
+  // VDO total is the primary billing meter; landings prefills the landing row.
+  const initialVdo      = record.vdo_total     != null ? Number(record.vdo_total)  : undefined
+  const initialLandings = record.landings       != null ? Number(record.landings)   : undefined
+  const initialNotes    = (record.customer_notes as string | null | undefined) ?? undefined
+
+  const canRequestClarification = ['pending_review', 'resubmitted', 'pending_post_flight_review'].includes(record.status)
   const awaitingCustomer         = record.status === 'needs_clarification'
 
   return (
@@ -98,7 +141,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
           <div>
             <h2 className="font-serif text-4xl font-light text-[#e2e2e6] tracking-tight">Post-Flight Verification</h2>
             <p className="text-slate-400 mt-2 font-light tracking-wide flex items-center gap-2">
-              Approving flight metrics for{' '}
+              {isStandardBillingReady ? 'Billing review for' : 'Approving flight metrics for'}{' '}
               <span className="px-2 py-0.5 rounded bg-blue-900/30 text-blue-200 border border-blue-500/20 font-medium text-xs">
                 {aircraft?.registration || 'Unknown'}
               </span>
@@ -191,7 +234,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
 
-        {/* Left: Flight metrics */}
+        {/* ── Left: Flight metrics ────────────────────────────────────────────── */}
         <div className="lg:col-span-2 space-y-6">
 
           <div className="bg-white/5 border border-white/5 rounded-2xl p-6">
@@ -344,44 +387,46 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
           </div>
         </div>
 
-        {/* Right: Admin actions */}
+        {/* ── Right: Admin actions ────────────────────────────────────────────── */}
         <div>
           <div className="sticky top-10 space-y-4">
 
-            {/* Approval panel — shown unless record is awaiting customer */}
-            <div className="bg-[#1a1c21] rounded-3xl border border-blue-500/20 p-8 shadow-2xl">
-              <div className="mb-8">
-                <span className="px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] font-bold uppercase tracking-wider">
-                  Admin Verification
-                </span>
-                <h3 className="font-serif text-2xl mt-4 text-white">Review & Commit</h3>
-                <p className="text-sm text-slate-400 mt-2">
-                  {awaitingCustomer
-                    ? 'Approval is locked pending customer resubmission. Use the clarification history above to track the open request.'
-                    : 'Finalizing this review permanently logs official meter offsets and generates booking billing details.'}
+            {/* ── Standard billing panel — replaces old Review & Commit ─────── */}
+            {isStandardBillingReady && bookingId && (
+              <AdminStandardBillingPanel
+                bookingId={bookingId}
+                airports={airports}
+                customerCreditCents={customerCreditCents}
+                initialVdo={initialVdo}
+                initialLandings={initialLandings}
+                initialNotes={initialNotes}
+                redirectAfterSuccess="/admin/bookings/post-flight"
+              />
+            )}
+
+            {/* ── Awaiting clarification — locked state ─────────────────────── */}
+            {awaitingCustomer && !isStandardBillingReady && (
+              <div className="bg-amber-500/[0.06] border border-amber-500/20 rounded-2xl p-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="material-symbols-outlined text-amber-400 text-[18px]">lock</span>
+                  <h3 className="text-[9px] uppercase tracking-widest font-bold text-amber-400/70">
+                    Billing Locked
+                  </h3>
+                </div>
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  A clarification request is open. Billing is locked until the customer resubmits the flight record.
                 </p>
               </div>
+            )}
 
-              <div className="bg-[#0a0b0d] rounded-2xl p-6 border border-white/5 mb-8 text-center">
-                <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-2">Estimated Tacho Billing</p>
-                <div className="text-4xl font-serif text-blue-200 mb-1">${estBill}</div>
-                <p className="text-xs text-slate-500">Subject to actual aircraft setup parameters.</p>
-              </div>
-
-              <FlightRecordApprovalForm
+            {/* ── Request Clarification (only when not already awaiting) ─────── */}
+            {!awaitingCustomer && canRequestClarification && customerId && bookingId && (
+              <RequestClarificationFormWrapper
                 flightRecordId={record.id}
-                currentStatus={record.status}
+                bookingId={bookingId}
+                customerId={customerId}
               />
-
-              {/* Request Clarification (only when not already awaiting) */}
-              {!awaitingCustomer && canRequestClarification && customerId && bookingId && (
-                <RequestClarificationFormWrapper
-                  flightRecordId={record.id}
-                  bookingId={bookingId}
-                  customerId={customerId}
-                />
-              )}
-            </div>
+            )}
 
           </div>
         </div>
@@ -390,4 +435,3 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
     </div>
   )
 }
-

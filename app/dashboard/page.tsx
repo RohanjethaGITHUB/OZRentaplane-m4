@@ -92,13 +92,17 @@ export default async function DashboardPage() {
         .single(),
     ])
 
-    // Fetch latest bank transfer submission for the invoice
+    // Fetch latest bank transfer submission for the invoice.
+    // Use invoiceRow.invoice_id as the authoritative ID (comes from checkout_invoice_live_amount view);
+    // fall back to invoiceStatusRow.id in case the view row is absent.
     let bankTransferStatus: string | null = null
-    if (invoiceStatusRow?.id) {
+    const invoiceIdForBtLookup =
+      (invoiceRow?.invoice_id as string | null) ?? invoiceStatusRow?.id ?? null
+    if (invoiceIdForBtLookup) {
       const { data: btSub } = await supabase
         .from('checkout_bank_transfer_submissions')
         .select('status')
-        .eq('invoice_id', invoiceStatusRow.id)
+        .eq('invoice_id', invoiceIdForBtLookup)
         .order('submitted_at', { ascending: false })
         .limit(1)
         .maybeSingle()

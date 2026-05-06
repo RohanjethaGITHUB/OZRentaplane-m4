@@ -65,6 +65,8 @@ export type BookingStatus =
   // Provisional first solo booking (pending checkout clearance)
   | 'pending_checkout_clearance'
   | 'released_due_to_checkout'
+  // Customer-initiated late cancellation awaiting admin review
+  | 'cancellation_requested'
 
 export type CancellationCategory =
   | 'customer'
@@ -515,10 +517,13 @@ export const CLARIFICATION_CATEGORY_LABELS: Record<ClarificationCategory, string
 // ─── Checkout system types ────────────────────────────────────────────────────
 
 export type CreateCheckoutBookingInput = {
-  aircraft_id:       string
-  scheduled_start:   string          // ISO 8601 UTC — end is always computed as start + 1 hour
-  customer_notes?:   string | null
-  last_flight_date?: string | null   // YYYY-MM-DD — customer's most recent flight before checkout
+  aircraft_id:           string
+  scheduled_start:       string          // ISO 8601 UTC
+  scheduled_date_sydney: string          // YYYY-MM-DD
+  scheduled_time_sydney: string          // HH:MM
+  has_night_vfr:         boolean | null  // form selection — validated against profile on server
+  customer_notes?:       string | null
+  last_flight_date?:     string | null   // YYYY-MM-DD — customer's most recent flight before checkout
 }
 
 export type CreateProvisionalSoloInput = {
@@ -542,13 +547,14 @@ export type CheckoutOutcome =
   | 'not_currently_eligible'
 
 // Checkout invoice VDO billing breakdown.
-// vdo_start_reading and vdo_end_reading are null for legacy invoices
-// that predate VDO-based billing (migration 045).
+// vdo_reading is the single billable duration from the paper sheet (migration 049+).
+// vdo_start_reading and vdo_end_reading are retained for legacy invoices only.
 export type CheckoutInvoiceVdoBilling = {
-  vdo_start_reading:               number | null
-  vdo_end_reading:                 number | null
-  vdo_hours_flown:                 number | null   // end - start, 1 decimal place
-  checkout_rate_cents_per_hour:    number          // 29000 = $290
+  vdo_reading:                     number | null   // single VDO reading (migration 049+)
+  vdo_start_reading:               number | null   // legacy: reading before flight
+  vdo_end_reading:                 number | null   // legacy: reading after flight
+  vdo_hours_flown:                 number | null   // billable hours (= vdo_reading for new invoices)
+  checkout_rate_cents_per_hour:    number          // admin-set rate in cents, default 29000 ($290/hr)
   checkout_calculated_amount_cents: number | null  // vdo_hours × rate
   checkout_landing_subtotal_cents: number          // sum of landing fees
   checkout_final_amount_cents:     number | null   // base + landings
@@ -567,16 +573,56 @@ export type CheckoutLandingChargeRow = {
 
 // Input type for markCheckoutOutcome server action.
 export type MarkCheckoutOutcomeInput = {
-  bookingId:        string
-  outcome:          CheckoutOutcome
-  adminNote?:       string
+  bookingId:            string
+  outcome:              CheckoutOutcome
+  adminNote?:           string
   // Payment path (required unless paymentWaived = true)
-  vdoStartReading?: number   // e.g. 124.2
-  vdoEndReading?:   number   // e.g. 125.0
-  landingCharges?:  { airportId: string; landingCount: number }[]
+  vdoReading?:          number   // single VDO reading from paper sheet, e.g. 1.4
+  checkoutRatePerHour?: number   // admin-entered rate in dollars, default 290
+  landingCharges?:      { airportId: string; landingCount: number }[]
   // Waiver path (non-cleared outcomes only)
-  paymentWaived?:   boolean
-  waiverReason?:    string
+  paymentWaived?:       boolean
+  waiverReason?:        string
+}
+
+// Standard booking invoice (created after post-flight review approved).
+export type BookingInvoice = {
+  id:                           string
+  booking_id:                   string
+  customer_id:                  string
+  invoice_number:               string
+  status:                       'payment_required' | 'paid' | 'void' | 'failed'
+  currency:                     string
+  vdo_reading:                  number | null
+  rate_cents_per_hour:          number
+  base_amount_cents:            number
+  landing_subtotal_cents:       number
+  subtotal_cents:               number
+  advance_applied_cents:        number
+  stripe_amount_due_cents:      number
+  total_paid_cents:             number
+  stripe_checkout_session_id:   string | null
+  stripe_payment_intent_id:     string | null
+  stripe_fee_rate_bps:          number | null
+  stripe_fee_fixed_cents:       number | null
+  stripe_gross_amount_cents:    number | null
+  online_payment_surcharge_cents: number | null
+  payment_method:               'card' | 'bank_transfer' | null
+  paid_at:                      string | null
+  finalised_by:                 string | null
+  finalised_at:                 string | null
+  admin_notes:                  string | null
+  created_at:                   string
+  updated_at:                   string
+}
+
+// Input type for finaliseStandardBookingInvoice server action.
+export type FinaliseStandardBookingInvoiceInput = {
+  bookingId:          string
+  vdoReading:         number
+  ratePerHour:        number   // admin-entered dollars, e.g. 290
+  landingCharges?:    { airportId: string; landingCount: number }[]
+  adminNotes?:        string
 }
 
 export type ProvisionalBookingAction = 'keep' | 'release'

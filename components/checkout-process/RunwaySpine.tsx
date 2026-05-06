@@ -152,7 +152,7 @@ export default function RunwaySpine({ containerRef }: RunwaySpineProps) {
 
       {/* ── PLANE (Above content) ─────────────────────────────────────── */}
       <div
-        className="absolute inset-0 pointer-events-none hidden md:block"
+        className="absolute inset-0 pointer-events-none"
         aria-hidden="true"
         style={{ zIndex: 30 }}
       >

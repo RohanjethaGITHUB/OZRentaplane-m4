@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
-import Image from 'next/image'
 import {
   motion, AnimatePresence,
   useMotionValue, useDragControls,
@@ -75,6 +74,46 @@ interface FleetGalleryProps {
 }
 
 const PLACEHOLDER_COUNT = 10
+
+function isWebpSrc(src: string) {
+  return /\.webp$/i.test(src)
+}
+
+function toJpgFallback(src: string) {
+  return src.replace(/\.webp$/i, '.jpg')
+}
+
+function GalleryPicture({
+  src,
+  alt,
+  className,
+  loading,
+  decoding = 'async',
+  draggable = false,
+}: {
+  src: string
+  alt: string
+  className: string
+  loading?: 'eager' | 'lazy'
+  decoding?: 'async' | 'auto' | 'sync'
+  draggable?: boolean
+}) {
+  const webp = isWebpSrc(src)
+  const fallback = webp ? toJpgFallback(src) : src
+  return (
+    <picture>
+      {webp && <source srcSet={src} type="image/webp" />}
+      <img
+        src={fallback}
+        alt={alt}
+        className={className}
+        loading={loading}
+        decoding={decoding}
+        draggable={draggable}
+      />
+    </picture>
+  )
+}
 
 // ─── Main component ────────────────────────────────────────────────────────────
 export default function FleetGallery({ images }: FleetGalleryProps) {
@@ -289,13 +328,12 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
                           onClick={openExpanded}
                         >
                           {img ? (
-                            <Image
+                            <GalleryPicture
                               src={img.src}
                               alt={img.alt}
-                              fill
-                              className="object-cover select-none"
-                              sizes="340px"
+                              className="absolute inset-0 w-full h-full object-cover select-none"
                               draggable={false}
+                              loading="lazy"
                             />
                           ) : (
                             <div
@@ -573,12 +611,10 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
                             style={{ background: 'linear-gradient(135deg, #0f2040 0%, #060d1b 100%)' }}
                           />
                         ) : (
-                          <Image
+                          <GalleryPicture
                             src={img.src}
                             alt={img.alt}
-                            fill
-                            className="object-cover pointer-events-none"
-                            sizes={`${pos.w}px`}
+                            className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                             draggable={false}
                             loading="lazy"
                           />
@@ -632,15 +668,12 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
                   const img = images[idx]
                   const isActive = idx === lightbox
                   return (
-                    <Image
+                    <GalleryPicture
                       key={img.src}
                       src={img.src}
                       alt={img.alt}
-                      fill
-                      className={`object-contain transition-opacity duration-200 ${isActive ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
-                      sizes="88vw"
+                      className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-200 ${isActive ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
                       loading={isActive ? "eager" : "lazy"}
-                      priority={isActive}
                     />
                   )
                 })}

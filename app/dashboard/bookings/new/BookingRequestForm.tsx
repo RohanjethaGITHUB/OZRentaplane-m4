@@ -29,6 +29,7 @@ type AvailabilityState =
 type SuccessState = {
   bookingId:        string
   bookingReference: string
+  bookingStatus:    string   // actual status returned by the RPC (e.g. 'confirmed', 'pending_confirmation')
   startDT:          string   // Sydney-local "YYYY-MM-DDTHH:MM" for display
   endDT:            string
   estimatedHours:   number | null
@@ -49,14 +50,14 @@ type Props = {
   initialLastFlightDate:   string
 }
 
-// ── Time options (full day 12:00 AM – 11:30 PM, 30-min increments) ───────────
+// ── Time options (full day 12:00 AM – 11:45 PM, 15-min increments) ───────────
 // Covers the entire 24-hour window in Sydney local time.
 // Departure/return dropdowns are filtered dynamically based on context.
 
 const ALL_TIME_OPTIONS: TimeOption[] = (() => {
   const opts: TimeOption[] = []
   for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m += 30) {
+    for (let m = 0; m < 60; m += 15) {
       const value  = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
       const period = h < 12 ? 'AM' : 'PM'
       const h12    = h === 0 ? 12 : h > 12 ? h - 12 : h
@@ -126,7 +127,7 @@ function AvailabilityTimeline({
     barWidth:      number
   } | null>(null)
 
-  const SNAP  = 30          // snap interval in minutes
+  const SNAP  = 15          // snap interval in minutes
   const TOTAL = 24 * 60     // total minutes in a day
 
   if (!selectedDate) return null
@@ -324,7 +325,7 @@ function AvailabilityTimeline({
       {/* Drag hint / empty state */}
       {canDrag ? (
         <p className="text-[10px] text-slate-700 leading-relaxed">
-          Drag the block to move your slot · drag the edges to resize · snaps to 30 min
+          Drag the block to move your slot · drag the edges to resize · snaps to 15 min
         </p>
       ) : !hasSelection ? (
         <p className="text-[10px] text-slate-700">Select departure and return times above to see your slot.</p>
@@ -757,6 +758,7 @@ export default function BookingRequestForm({
         setSuccessState({
           bookingId:        result.bookingId,
           bookingReference: result.bookingReference,
+          bookingStatus:    result.bookingStatus,
           startDT,
           endDT,
           estimatedHours,
@@ -782,28 +784,36 @@ export default function BookingRequestForm({
   // ── Success state ─────────────────────────────────────────────────────────
 
   if (successState) {
+    const isConfirmed = successState.bookingStatus === 'confirmed'
+
     return (
       <div className="min-h-[70vh] flex items-center justify-center px-6 py-20">
         <div className="max-w-lg w-full text-center">
 
-          {/* Check icon */}
-          <div className="w-20 h-20 rounded-full bg-green-500/15 border border-green-500/20 flex items-center justify-center mx-auto mb-8">
+          {/* Status icon */}
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-8 ${
+            isConfirmed
+              ? 'bg-green-500/15 border border-green-500/20'
+              : 'bg-blue-500/15 border border-blue-500/20'
+          }`}>
             <span
-              className="material-symbols-outlined text-green-400 text-4xl"
+              className={`material-symbols-outlined text-4xl ${isConfirmed ? 'text-green-400' : 'text-blue-400'}`}
               style={{ fontVariationSettings: "'FILL' 1, 'wght' 400" }}
             >
-              check_circle
+              {isConfirmed ? 'check_circle' : 'pending_actions'}
             </span>
           </div>
 
-          <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-green-400/70 mb-3">
-            Request Received
+          <p className={`text-[10px] font-bold uppercase tracking-[0.35em] mb-3 ${isConfirmed ? 'text-green-400/70' : 'text-blue-400/70'}`}>
+            {isConfirmed ? 'Booking Confirmed' : 'Request Received'}
           </p>
           <h1 className="text-3xl md:text-4xl font-serif text-white mb-4 leading-tight">
-            Booking Request Submitted
+            {isConfirmed ? 'Your Booking Is Confirmed' : 'Booking Request Submitted'}
           </h1>
           <p className="text-slate-400 text-sm leading-relaxed mb-8 max-w-sm mx-auto">
-            Your request has been submitted and is awaiting review by our operations team.
+            {isConfirmed
+              ? 'Your aircraft booking has been confirmed. Please arrive at the aircraft at least 30 minutes before departure for pre-flight checks.'
+              : 'Your request has been submitted and is awaiting review by our operations team.'}
           </p>
 
           {/* Booking reference card */}
@@ -823,16 +833,28 @@ export default function BookingRequestForm({
             </div>
           </div>
 
-          {/* Confirmed notice */}
-          <div className="bg-blue-500/[0.07] border border-blue-500/20 rounded-xl px-5 py-4 mb-6 flex items-start gap-3 text-left">
-            <span className="material-symbols-outlined text-blue-400 text-base flex-shrink-0 mt-0.5">check_circle</span>
-            <div>
-              <p className="text-sm font-semibold text-blue-300 mb-1">Booking confirmed</p>
-              <p className="text-xs text-blue-300/70 leading-relaxed">
-                Your booking is confirmed. Please arrive at the aircraft at least 30 minutes before your scheduled departure for pre-flight checks.
-              </p>
+          {/* Status notice card — content differs by booking status */}
+          {isConfirmed ? (
+            <div className="bg-green-500/[0.07] border border-green-500/20 rounded-xl px-5 py-4 mb-6 flex items-start gap-3 text-left">
+              <span className="material-symbols-outlined text-green-400 text-base flex-shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+              <div>
+                <p className="text-sm font-semibold text-green-300 mb-1">Booking confirmed</p>
+                <p className="text-xs text-green-300/70 leading-relaxed">
+                  Your booking is confirmed. Please arrive at the aircraft at least 30 minutes before your scheduled departure.
+                </p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-blue-500/[0.07] border border-blue-500/20 rounded-xl px-5 py-4 mb-6 flex items-start gap-3 text-left">
+              <span className="material-symbols-outlined text-blue-400 text-base flex-shrink-0 mt-0.5">pending_actions</span>
+              <div>
+                <p className="text-sm font-semibold text-blue-300 mb-1">Awaiting review</p>
+                <p className="text-xs text-blue-300/70 leading-relaxed">
+                  Our operations team will review your request and confirm the booking shortly.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Flight summary */}
           {(successState.startDT || successState.estimatedHours != null) && (

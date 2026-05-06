@@ -17,7 +17,7 @@ export default function SafetyPage() {
           style={{ backgroundImage: 'url("/CessnaHangar.webp")' }}
         />
         <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#040f1e]/70 via-[#040f1e]/30 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 h-[30%] z-0 bg-gradient-to-t from-[#091421] via-[#08121f]/30 to-transparent" />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 -bottom-px z-[20] h-[45%] bg-gradient-to-b from-transparent via-[#091421]/75 to-[#091421]" />
 
         <div className="relative z-10 max-w-7xl mx-auto w-full pt-16">
           <StaggerContainer className="max-w-xl" staggerDelay={0.25}>

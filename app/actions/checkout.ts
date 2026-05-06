@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { isBookingTimeAllowed } from '@/lib/utils/day-vfr'
+import { isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
 import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 import type {
   CreateCheckoutBookingInput,
@@ -55,13 +55,31 @@ export async function submitCheckoutRequest(
     .from('user_documents')
     .select('document_type, status, expiry_date, issue_date, licence_type, licence_number, medical_class, id_type, document_number')
     .eq('user_id', userId)
+    .order('created_at', { ascending: false })
 
   if (docsErr) {
     throw new Error('VALIDATION: Unable to verify your documents. Please try again.')
   }
 
   const today = new Date().toISOString().split('T')[0]!
-  const docMap = Object.fromEntries((docs ?? []).map(d => [d.document_type, d]))
+  const docMap: Record<string, typeof docs[0]> = {}
+
+  // Build a map of the best (latest non-rejected, non-expired) row per type.
+  // Multiple rows per type are now allowed; we validate against the most recent valid one.
+  for (const d of (docs ?? [])) {
+    const isRejected = d.status === 'rejected'
+    const isExpired  = d.expiry_date ? d.expiry_date < today : false
+    const existing   = docMap[d.document_type]
+    // Prefer: non-rejected and non-expired; then latest by insertion order (docs are ordered by created_at desc)
+    if (!existing) {
+      docMap[d.document_type] = d
+    } else if (!isRejected && !isExpired) {
+      // Replace if current best is rejected or expired
+      const existingRejected = existing.status === 'rejected'
+      const existingExpired  = existing.expiry_date ? existing.expiry_date < today : false
+      if (existingRejected || existingExpired) docMap[d.document_type] = d
+    }
+  }
 
   const missing: string[] = []
 
@@ -96,18 +114,42 @@ export async function submitCheckoutRequest(
     if (flightReviewErr) throw new Error(`VALIDATION: ${flightReviewErr}`)
   }
 
-  // Pilot ratings — must be answered (true or false), null means not yet provided
-  if (profile.has_night_vfr_rating === null || profile.has_instrument_rating === null) {
+  // Night VFR: use the form selection (not just the stored profile value),
+  // then verify against the profile to ensure evidence has been uploaded.
+  if (input.has_night_vfr === null) {
     throw new Error(
-      'VALIDATION: Please confirm your Night VFR and Instrument Rating status before submitting a checkout request.'
+      'VALIDATION: Please confirm your Night VFR rating status before submitting a checkout request.'
     )
   }
 
-  // Day VFR window check — pilots without Night VFR must depart within the seasonal window
-  if (!isBookingTimeAllowed(input.scheduled_start, profile.has_night_vfr_rating)) {
+  // Instrument rating must be answered on the stored profile.
+  if (profile.has_instrument_rating === null) {
     throw new Error(
-      'VALIDATION: This checkout time falls outside the standard Day VFR booking window. A Night VFR Rating is required for this time.'
+      'VALIDATION: Please confirm your Instrument Rating status before submitting a checkout request.'
     )
+  }
+
+  // Night VFR evidence gate: require at least one valid night_vfr_evidence document.
+  if (input.has_night_vfr === true) {
+    const nightVfrEvidence = docMap['night_vfr_evidence']
+    const hasValidEvidence =
+      !!nightVfrEvidence &&
+      nightVfrEvidence.status !== 'rejected' &&
+      !(nightVfrEvidence.expiry_date && nightVfrEvidence.expiry_date < today)
+    if (!hasValidEvidence) {
+      throw new Error(
+        'VALIDATION: Please upload Night VFR evidence before requesting a night checkout.'
+      )
+    }
+  }
+
+  // Day VFR window check — only applied when Night VFR is not confirmed.
+  if (input.has_night_vfr !== true) {
+    if (!isWithinDayVfrWindow(input.scheduled_time_sydney, input.scheduled_date_sydney, 120)) {
+      throw new Error(
+        'VALIDATION: Checkout bookings reserve a 2-hour window and must fit within the allowed flight window.'
+      )
+    }
   }
 
   if (missing.length > 0) {

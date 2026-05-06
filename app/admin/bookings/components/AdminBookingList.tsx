@@ -27,6 +27,7 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   post_flight_approved:            { label: 'Approved',                 className: 'bg-green-500/10 text-green-400 border-green-500/20'   },
   cancelled:                       { label: 'Cancelled',                className: 'bg-rose-500/10 text-rose-400 border-rose-500/20'      },
   no_show:                         { label: 'No Show',                  className: 'bg-rose-500/10 text-rose-400 border-rose-500/20'      },
+  cancellation_requested:          { label: 'Cancellation Requested',   className: 'bg-amber-500/10 text-amber-400 border-amber-500/20'   },
   completed:                       { label: 'Completed',                className: 'bg-white/5 text-slate-400 border-white/10'            },
 }
 

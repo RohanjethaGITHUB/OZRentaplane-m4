@@ -47,7 +47,7 @@ const CHECKOUT_RATE = 290
 const ALL_TIME_OPTIONS = (() => {
   const opts: { value: string; label: string }[] = []
   for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m += 30) {
+    for (let m = 0; m < 60; m += 15) {
       const value  = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
       const period = h < 12 ? 'AM' : 'PM'
       const h12    = h === 0 ? 12 : h > 12 ? h - 12 : h
@@ -57,10 +57,10 @@ const ALL_TIME_OPTIONS = (() => {
   return opts
 })()
 
-// Returns an HH:MM string that is 1 hour after the given HH:MM, clamped to 23:30.
-function addOneHour(timeStr: string): string {
+// Returns an HH:MM string that is 2 hours after the given HH:MM, clamped to 22:00.
+function addTwoHours(timeStr: string): string {
   const [h, m] = timeStr.split(':').map(Number)
-  const totalMin = (h! * 60 + m!) + 60
+  const totalMin = (h! * 60 + m!) + 120
   const newH = Math.min(23, Math.floor(totalMin / 60))
   const newM = totalMin % 60
   return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`
@@ -71,16 +71,16 @@ function getSydneyToday(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
 }
 
-// Returns the next 30-min slot at least 30 minutes from now in Sydney time.
+// Returns the next 15-min slot at least 15 minutes from now in Sydney time.
 // Falls back to 09:00 if it's late in the day and nothing fits.
 function getDefaultStartTime(): string {
   const t    = new Date().toLocaleTimeString('en-GB', { timeZone: 'Australia/Sydney', hour12: false })
   const [hStr, mStr] = t.split(':')
   const h    = Math.min(parseInt(hStr ?? '0', 10), 23)
   const m    = parseInt(mStr ?? '0', 10)
-  const totalMins  = h * 60 + m + 30          // +30 min buffer from now
-  const snapped    = Math.ceil(totalMins / 30) * 30
-  const clamped    = Math.min(snapped, 23 * 60) // latest 23:00 so end = 24:00
+  const totalMins  = h * 60 + m + 15          // +15 min buffer from now
+  const snapped    = Math.ceil(totalMins / 15) * 15
+  const clamped    = Math.min(snapped, 22 * 60) // latest 22:00 so end (2h) = 24:00
   const nh = Math.floor(clamped / 60)
   const nm = clamped % 60
   return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`
@@ -224,10 +224,10 @@ function AvailabilityTimeline({
       const deltaPixels = ev.clientX - dragStartX
       const deltaMins   = (deltaPixels / containerWidth) * 24 * 60
       const rawMinutes  = startMinutes + deltaMins
-      // Snap to 30-minute increments, clamp so 1-hr block stays within the day
-      const snappedMinutes = Math.round(rawMinutes / 30) * 30
+      // Snap to 15-minute increments, clamp so 2-hr block stays within the day
+      const snappedMinutes = Math.round(rawMinutes / 15) * 15
       const minClamp = dayVfrWindow ? timeStrToMin(dayVfrWindow.start) : 0
-      const maxClamp = dayVfrWindow ? timeStrToMin(dayVfrWindow.end) - 30 : 23 * 60
+      const maxClamp = dayVfrWindow ? timeStrToMin(dayVfrWindow.end) - 120 : 22 * 60
       const clamped  = Math.max(minClamp, Math.min(maxClamp, snappedMinutes))
       const h   = Math.floor(clamped / 60)
       const m   = clamped % 60
@@ -348,7 +348,7 @@ function AvailabilityTimeline({
           </span>
         )}
         {hasSelection && onTimeChange && (
-          <span className="text-[10px] text-slate-600 pl-1">· Fixed at 1 hour</span>
+          <span className="text-[10px] text-slate-600 pl-1">· Fixed at 2 hours</span>
         )}
       </div>
     </div>
@@ -485,9 +485,39 @@ function DocModal({
   const [expiryDate,         setExpiryDate]          = useState(doc?.expiry_date     ?? '')
   const [idType,             setIdType]              = useState(doc?.id_type         ?? '')
   const [documentNumber,     setDocumentNumber]      = useState(doc?.document_number ?? '')
-  const [uploading,          setUploading]           = useState(false)
-  const [fileError,          setFileError]           = useState<string | null>(null)
-  const [formError,          setFormError]           = useState<string | null>(null)
+  const [uploading,    setUploading]    = useState(false)
+  const [fileResults,  setFileResults]  = useState<{ name: string; ok: boolean; msg?: string }[]>([])
+  const [formError,    setFormError]    = useState<string | null>(null)
+  const [dragOver,     setDragOver]     = useState(false)
+
+  // DD/MM/YYYY → YYYY-MM-DD (returns '' if invalid)
+  function parseDMY(raw: string): string {
+    const m = raw.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})$/)
+    if (!m) return ''
+    const [, d, mo, y] = m
+    const dd = String(d).padStart(2,'0'), mm = String(mo).padStart(2,'0')
+    return `${y}-${mm}-${dd}`
+  }
+  // YYYY-MM-DD → DD/MM/YYYY for display
+  function formatDMY(iso: string): string {
+    if (!iso) return ''
+    const [y, m, d] = iso.split('-')
+    return `${d}/${m}/${y}`
+  }
+
+  const [issueDateDisplay,  setIssueDateDisplay]  = useState(formatDMY(issueDate))
+  const [expiryDateDisplay, setExpiryDateDisplay] = useState(formatDMY(expiryDate))
+
+  function handleIssueDateInput(v: string) {
+    setIssueDateDisplay(v)
+    const iso = parseDMY(v)
+    setIssueDate(iso)
+  }
+  function handleExpiryDateInput(v: string) {
+    setExpiryDateDisplay(v)
+    const iso = parseDMY(v)
+    setExpiryDate(iso)
+  }
 
   function Pill({ value, active, onClick }: { value: string; active: boolean; onClick: () => void }) {
     return (
@@ -499,53 +529,75 @@ function DocModal({
     )
   }
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    setFileError(null)
-    setFormError(null)
-    if (!file) return
-    if (!ALLOWED_TYPES.includes(file.type)) { setFileError('Only PDF, JPG, JPEG, and PNG files are allowed.'); return }
-    if (file.size > MAX_DOC_SIZE)           { setFileError('File must be 10 MB or smaller.'); return }
-
-    // Validate required fields before upload
+  function validateMeta(): string | null {
     if (def.type === 'pilot_licence') {
-      if (!licenceType)              { setFormError('Please select a licence type.'); return }
-      if (nightVfrRating === null)   { setFormError('Please confirm your Night VFR rating status.'); return }
-      if (instrumentRating === null) { setFormError('Please confirm your Instrument Rating status.'); return }
-      if (!licenceNumber)            { setFormError('Please enter your pilot licence number / ARN.'); return }
+      if (!licenceType)              return 'Please select a licence type.'
+      if (nightVfrRating === null)   return 'Please confirm your Night VFR rating status.'
+      if (instrumentRating === null) return 'Please confirm your Instrument Rating status.'
+      if (!licenceNumber)            return 'Please enter your pilot licence number / ARN.'
     }
     if (def.type === 'medical_certificate') {
-      if (!medicalClass) { setFormError('Please select a medical class.'); return }
-      if (!issueDate)    { setFormError('Please enter the date of issue.'); return }
-      if (!expiryDate)   { setFormError('Please enter the expiry date.'); return }
+      if (!medicalClass) return 'Please select a medical class.'
+      if (!issueDate)    return 'Please enter the date of issue (DD/MM/YYYY).'
+      if (!expiryDate)   return 'Please enter the expiry date (DD/MM/YYYY).'
     }
     if (def.type === 'photo_id') {
-      if (!idType)         { setFormError('Please select an ID type.'); return }
-      if (!documentNumber) { setFormError('Please enter your document number.'); return }
+      if (!idType)         return 'Please select an ID type.'
+      if (!documentNumber) return 'Please enter your document number.'
     }
+    return null
+  }
 
+  async function uploadFiles(files: File[]) {
+    setFormError(null)
+    const metaErr = validateMeta()
+    if (metaErr) { setFormError(metaErr); return }
+
+    const results: { name: string; ok: boolean; msg?: string }[] = []
     setUploading(true)
-    try {
-      const fd = new FormData()
-      fd.append('file',    file)
-      fd.append('docType', def.type)
-      if (licenceType)                   fd.append('licenceType',      licenceType)
-      if (nightVfrRating !== null)       fd.append('nightVfrRating',   String(nightVfrRating))
-      if (instrumentRating !== null)     fd.append('instrumentRating', String(instrumentRating))
-      if (licenceNumber)                 fd.append('licenceNumber',    licenceNumber)
-      if (medicalClass)   fd.append('medicalClass',   medicalClass)
-      if (issueDate)      fd.append('issueDate',      issueDate)
-      if (expiryDate)     fd.append('expiryDate',     expiryDate)
-      if (idType)         fd.append('idType',         idType)
-      if (documentNumber) fd.append('documentNumber', documentNumber)
-      await uploadVerificationDocument(fd)
-      onSuccess()
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Upload failed. Please try again.')
-    } finally {
-      setUploading(false)
-      e.target.value = ''
+    for (const file of files) {
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        results.push({ name: file.name, ok: false, msg: 'Not PDF/JPG/PNG' })
+        continue
+      }
+      if (file.size > MAX_DOC_SIZE) {
+        results.push({ name: file.name, ok: false, msg: 'Over 10 MB' })
+        continue
+      }
+      try {
+        const fd = new FormData()
+        fd.append('file',    file)
+        fd.append('docType', def.type)
+        if (licenceType)               fd.append('licenceType',      licenceType)
+        if (nightVfrRating !== null)   fd.append('nightVfrRating',   String(nightVfrRating))
+        if (instrumentRating !== null) fd.append('instrumentRating', String(instrumentRating))
+        if (licenceNumber)             fd.append('licenceNumber',    licenceNumber)
+        if (medicalClass)              fd.append('medicalClass',     medicalClass)
+        if (issueDate)                 fd.append('issueDate',        issueDate)
+        if (expiryDate)                fd.append('expiryDate',       expiryDate)
+        if (idType)                    fd.append('idType',           idType)
+        if (documentNumber)            fd.append('documentNumber',   documentNumber)
+        await uploadVerificationDocument(fd)
+        results.push({ name: file.name, ok: true })
+      } catch (err) {
+        results.push({ name: file.name, ok: false, msg: err instanceof Error ? err.message : 'Upload failed' })
+      }
     }
+    setUploading(false)
+    setFileResults(results)
+    if (results.every(r => r.ok)) onSuccess()
+  }
+
+  function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    if (files.length) uploadFiles(files)
+    e.target.value = ''
+  }
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setDragOver(false)
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length) uploadFiles(files)
   }
 
   return (
@@ -643,15 +695,21 @@ function DocModal({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Date of Issue <span className="text-red-400 font-normal normal-case">Required</span></p>
-                  <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)}
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40"
+                  <input type="text" inputMode="numeric" placeholder="DD/MM/YYYY"
+                    value={issueDateDisplay}
+                    onChange={e => handleIssueDateInput(e.target.value)}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40 placeholder:text-white/20"
                   />
+                  {issueDateDisplay && !issueDate && <p className="text-[9px] text-amber-400">Use DD/MM/YYYY format</p>}
                 </div>
                 <div className="space-y-1.5">
                   <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Expiry Date <span className="text-red-400 font-normal normal-case">Required</span></p>
-                  <input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)}
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40"
+                  <input type="text" inputMode="numeric" placeholder="DD/MM/YYYY"
+                    value={expiryDateDisplay}
+                    onChange={e => handleExpiryDateInput(e.target.value)}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40 placeholder:text-white/20"
                   />
+                  {expiryDateDisplay && !expiryDate && <p className="text-[9px] text-amber-400">Use DD/MM/YYYY format</p>}
                 </div>
               </div>
             </>
@@ -678,33 +736,64 @@ function DocModal({
             </>
           )}
 
-          {/* File upload */}
+          {/* Multi-file drag-and-drop upload */}
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Document File <span className="text-red-400 font-normal normal-case">Required</span></p>
-            <label className="flex items-center gap-3 p-3 rounded-xl border-2 border-dashed cursor-pointer transition-all border-white/10 hover:border-blue-500/40 hover:bg-white/[0.02]">
-              <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleFile} disabled={uploading} />
-              <span className={`material-symbols-outlined text-xl flex-shrink-0 ${uploading ? 'text-blue-400 animate-spin' : 'text-slate-500'}`} style={{ fontVariationSettings: "'wght' 300" }}>
+            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">
+              Document File(s) <span className="text-red-400 font-normal normal-case">Required</span>
+            </p>
+            <label
+              className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-dashed cursor-pointer transition-all ${
+                dragOver
+                  ? 'border-blue-400/70 bg-blue-500/10'
+                  : uploading
+                  ? 'border-blue-500/30 bg-blue-500/5'
+                  : 'border-white/10 hover:border-blue-500/40 hover:bg-white/[0.02]'
+              }`}
+              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+            >
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple className="hidden" onChange={handleFileInput} disabled={uploading} />
+              <span className={`material-symbols-outlined text-2xl ${
+                uploading ? 'text-blue-400 animate-spin' : dragOver ? 'text-blue-400' : 'text-slate-500'
+              }`} style={{ fontVariationSettings: "'wght' 300" }}>
                 {uploading ? 'progress_activity' : 'cloud_upload'}
               </span>
-              <div>
-                <p className="text-sm text-white/50">{uploading ? 'Uploading…' : 'Choose file'}</p>
-                <p className="text-[10px] text-slate-600">PDF, JPG, PNG — max 10 MB</p>
+              <div className="text-center">
+                <p className="text-sm text-white/60">{uploading ? 'Uploading…' : 'Drop files here or click to browse'}</p>
+                <p className="text-[10px] text-slate-600 mt-0.5">PDF, JPG, PNG · up to 10 MB each · multiple files supported</p>
               </div>
             </label>
+
+            {/* Per-file results */}
+            {fileResults.length > 0 && (
+              <div className="mt-3 space-y-1.5">
+                {fileResults.map((r, i) => (
+                  <div key={i} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] ${
+                    r.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+                  }`}>
+                    <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      {r.ok ? 'check_circle' : 'error'}
+                    </span>
+                    <span className="truncate flex-1">{r.name}</span>
+                    {r.msg && <span className="text-[9px] opacity-70">{r.msg}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {fileError  && <p className="text-[10px] text-red-400">{fileError}</p>}
-          {formError  && <p className="text-[10px] text-red-400">{formError}</p>}
+          {formError && <p className="text-[10px] text-red-400">{formError}</p>}
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-white/[0.06] flex items-center justify-end gap-3">
+        <div className="px-5 py-4 border-t border-white/[0.06] flex items-center gap-3">
+          <p className="text-[9px] text-slate-600 flex-1">You can upload multiple files at once — e.g. front and back of a document.</p>
           <button onClick={onClose}
             className="px-5 py-2 text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
           >
-            Cancel
+            Close
           </button>
-          <p className="text-[9px] text-slate-600 flex-1">Select a file above to upload.</p>
         </div>
 
       </div>
@@ -854,12 +943,15 @@ export default function CheckoutFlow({
     return true
   }
 
+  const nightVfrEvidenceDoc = documents.find(d => d.document_type === 'night_vfr_evidence')
+
   const allDocsUploaded = isDocOk(licenceDoc) && isDocOk(medicalDoc) && isDocOk(photoIdDoc)
+  const nightVfrEvidenceOk = nightVfrRating !== true || isDocOk(nightVfrEvidenceDoc)
 
   // ── Derived time values ────────────────────────────────────────────────────
-  // end is always exactly 1 hour after start — never submitted from the client.
+  // end is always exactly 2 hours after start — never submitted from the client.
 
-  const endTime  = (date && startTime) ? addOneHour(startTime) : ''
+  const endTime  = (date && startTime) ? addTwoHours(startTime) : ''
   const startDT  = date && startTime ? `${date}T${startTime}` : ''
   const endDT    = date && endTime   ? `${date}T${endTime}`   : ''
 
@@ -913,7 +1005,7 @@ export default function CheckoutFlow({
   const timeOptions = (date && nightVfrRating === false)
     ? (() => {
         const w = getDayVfrWindow(date)
-        return ALL_TIME_OPTIONS.filter(o => o.value >= w.start && o.value < w.end)
+        return ALL_TIME_OPTIONS.filter(o => isWithinDayVfrWindow(o.value, date, 120))
       })()
     : ALL_TIME_OPTIONS
 
@@ -922,8 +1014,8 @@ export default function CheckoutFlow({
   // against edge cases), or if Night VFR was Yes when the time was picked and then
   // switched to No.
   const nightVfrTimeError =
-    nightVfrRating === false && startTime && date && !isWithinDayVfrWindow(startTime, date)
-      ? 'This time falls outside the standard Day VFR booking window. Please choose a daylight time or confirm that you hold a Night VFR Rating.'
+    nightVfrRating === false && startTime && date && !isWithinDayVfrWindow(startTime, date, 120)
+      ? 'This checkout time cannot fit its 2-hour duration within the Day VFR window. Please select an earlier time or confirm your Night VFR Rating.'
       : null
 
   // Boolean shorthand used to gate the availability message and Continue button.
@@ -947,11 +1039,14 @@ export default function CheckoutFlow({
     startTransition(async () => {
       try {
         const result = await submitCheckoutRequest({
-          aircraft_id:      aircraftId,
-          scheduled_start:  startUTC,
-          last_flight_date: lastFlightDate || null,
-          customer_notes:   adminMessage.trim() || null,
-          // scheduled_end is computed server-side as start + 1 hour
+          aircraft_id:           aircraftId,
+          scheduled_start:       startUTC,
+          scheduled_date_sydney: date,
+          scheduled_time_sydney: startTime,
+          has_night_vfr:         nightVfrRating,
+          last_flight_date:      lastFlightDate || null,
+          customer_notes:        adminMessage.trim() || null,
+          // scheduled_end is computed server-side as start + 2 hours
         })
         setCheckoutResult(result)
         setStep('success')
@@ -1088,7 +1183,7 @@ export default function CheckoutFlow({
                       <button
                         key={String(val)}
                         type="button"
-                        onClick={() => { setNightVfrRating(val); setStepError(null); if (!val && startTime && !isWithinDayVfrWindow(startTime, date)) setStartTime('') }}
+                        onClick={() => { setNightVfrRating(val); setStepError(null); if (!val && startTime && !isWithinDayVfrWindow(startTime, date, 120)) setStartTime('') }}
                         className={`px-3 py-2 rounded-lg text-[11px] font-medium border transition-all text-left ${
                           nightVfrRating === val
                             ? 'bg-blue-500/15 border-blue-500/30 text-blue-300'
@@ -1139,7 +1234,7 @@ export default function CheckoutFlow({
                     <span className="mx-2 text-slate-600">→</span>
                     {ALL_TIME_OPTIONS.find(o => o.value === endTime)?.label ?? endTime}
                   </p>
-                  <p className="text-[10px] text-slate-600 mt-1">A 1-hour slot is reserved for scheduling. The final amount is calculated from the VDO meter after the flight.</p>
+                  <p className="text-[10px] text-slate-600 mt-1">A 2-hour slot is reserved for scheduling. The final amount is calculated from the VDO meter after the flight.</p>
                 </div>
               )}
 
@@ -1253,7 +1348,32 @@ export default function CheckoutFlow({
             ))}
           </div>
 
-          {allDocsUploaded && (
+          {/* Night VFR evidence — shown when user claims Night VFR Rating */}
+          {nightVfrRating === true && (
+            <div className="pt-4 border-t border-white/[0.06] space-y-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">
+                  Night VFR Evidence <span className="text-red-400 font-normal normal-case tracking-normal">Required</span>
+                </p>
+                <p className="text-[10px] text-slate-600 leading-relaxed">
+                  Upload evidence that you hold a Night VFR rating. This can be a CASA licence record, eLicence screenshot, Night VFR flight review record, logbook endorsement, or other supporting document.
+                </p>
+              </div>
+              <DocCard
+                def={{ type: 'night_vfr_evidence', label: 'Night VFR Evidence', icon: 'nightlight' }}
+                doc={nightVfrEvidenceDoc}
+                onUploaded={() => router.refresh()}
+              />
+              {!isDocOk(nightVfrEvidenceDoc) && (
+                <p className="text-[10px] text-amber-400 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[12px]">warning</span>
+                  Night VFR evidence is required to book a checkout outside the Day VFR window.
+                </p>
+              )}
+            </div>
+          )}
+
+          {allDocsUploaded && nightVfrEvidenceOk && (
             <div className="bg-green-500/[0.06] border border-green-500/20 rounded-lg px-4 py-3 flex items-center gap-3">
               <span className="material-symbols-outlined text-green-400 text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
               <p className="text-sm text-green-300">All required documents have been uploaded.</p>
@@ -1308,7 +1428,7 @@ export default function CheckoutFlow({
             </button>
             <button
               onClick={() => { setSubmitError(null); setStep('review') }}
-              disabled={!allDocsUploaded || !lastFlightDate || !!validateFlightReviewDate(lastFlightDate)}
+              disabled={!allDocsUploaded || !nightVfrEvidenceOk || !lastFlightDate || !!validateFlightReviewDate(lastFlightDate)}
               className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
             >
               Continue to Review
@@ -1334,11 +1454,11 @@ export default function CheckoutFlow({
               { label: 'Date',             value: formatDate(date) },
               { label: 'Departure',        value: formatDateTime(startUTC) },
               { label: 'Return',           value: formatDateTime(endUTC) },
-              { label: 'Slot reserved',    value: '1 hour (for scheduling)' },
+              { label: 'Slot reserved',    value: '2 hours (for scheduling)' },
               { label: 'Night VFR Rating', value: nightVfrRating === true ? 'Yes' : 'No' },
               { label: 'Flight window',    value: nightVfrRating === false
                   ? `Day VFR (${getDayVfrWindow(date).start}–${getDayVfrWindow(date).end} Sydney time)`
-                  : 'Night VFR authorised' },
+                  : 'Night VFR requested' },
               { label: 'Checkout rate',    value: `$${CHECKOUT_RATE} / hour (VDO meter)` },
               { label: 'Landing fees',     value: '$25 per landing, if applicable' },
               { label: 'Final amount',     value: 'Calculated after flight from VDO meter' },
@@ -1351,7 +1471,7 @@ export default function CheckoutFlow({
           </div>
 
           {/* Night VFR window blocker — shown if time became invalid before reaching review */}
-          {nightVfrRating === false && startTime && date && !isWithinDayVfrWindow(startTime, date) && (
+          {nightVfrRating === false && startTime && date && !isWithinDayVfrWindow(startTime, date, 120) && (
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
               <p className="text-sm text-amber-300">
                 The selected departure time is outside the allowed Day VFR window ({getDayVfrWindow(date).start}–{getDayVfrWindow(date).end} Sydney time). Please go back and choose a daylight time, or confirm that you hold a Night VFR Rating.
@@ -1401,7 +1521,7 @@ export default function CheckoutFlow({
             </button>
             <button
               onClick={handleSubmit}
-              disabled={isPending || (nightVfrRating === false && !!startTime && !!date && !isWithinDayVfrWindow(startTime, date))}
+              disabled={isPending || (nightVfrRating === false && !!startTime && !!date && !isWithinDayVfrWindow(startTime, date, 120))}
               className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all shadow-[0_0_20px_rgba(37,99,235,0.35)]"
             >
               {isPending ? 'Submitting…' : 'Submit Checkout Request'}
@@ -1421,15 +1541,6 @@ export default function CheckoutFlow({
             <p className="text-sm text-slate-400 leading-relaxed max-w-md mx-auto">
               Your checkout request has been submitted for review. Our team will review your selected time and documents. Aircraft bookings will become available after your checkout flight is completed and paid.
             </p>
-          </div>
-          <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-5 py-4 inline-block text-left">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Booking Reference</p>
-            <p className="text-lg font-mono font-bold text-white mb-2">{checkoutResult.bookingReference}</p>
-            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500 tabular-nums">
-              <span>{formatDateTime(checkoutResult.scheduledStart)}</span>
-              <span>→</span>
-              <span>{formatDateTime(checkoutResult.scheduledEnd)}</span>
-            </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
             <button

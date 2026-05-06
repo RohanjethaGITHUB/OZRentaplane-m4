@@ -298,9 +298,10 @@ export default function AdminCheckoutReviewPanel({
   }
 
   // ── Derived doc lookups ───────────────────────────────────────────────────────
-  const licenceDoc = documents.find(d => d.document_type === 'pilot_licence')
-  const medicalDoc = documents.find(d => d.document_type === 'medical_certificate')
-  const photoIdDoc = documents.find(d => d.document_type === 'photo_id')
+  const licenceDoc        = documents.find(d => d.document_type === 'pilot_licence')
+  const medicalDoc        = documents.find(d => d.document_type === 'medical_certificate')
+  const photoIdDoc        = documents.find(d => d.document_type === 'photo_id')
+  const nightVfrEvidenceDoc = documents.find(d => d.document_type === 'night_vfr_evidence')
   const allDocsOk  = [licenceDoc, medicalDoc, photoIdDoc].every(d => {
     if (!d) return false
     if (d.status === 'rejected') return false
@@ -349,6 +350,19 @@ export default function AdminCheckoutReviewPanel({
           <DocRow label="Pilot Licence"       doc={licenceDoc} docType="pilot_licence"       customerId={customerId} />
           <DocRow label="Medical Certificate" doc={medicalDoc} docType="medical_certificate" customerId={customerId} />
           <DocRow label="Photo ID"            doc={photoIdDoc} docType="photo_id"            customerId={customerId} />
+          {/* Night VFR */}
+          <div className="pt-3 mt-1 border-t border-white/[0.05]">
+            <div className="flex items-center gap-2 mb-2">
+              <p className="text-[9px] uppercase tracking-widest text-slate-600">Night VFR</p>
+              {nightVfrEvidenceDoc
+                ? <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400 border border-amber-400/30 bg-amber-500/10 px-1.5 py-0.5 rounded">Claimed</span>
+                : <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600 border border-white/10 px-1.5 py-0.5 rounded">Not provided</span>
+              }
+            </div>
+            {nightVfrEvidenceDoc && (
+              <DocRow label="Night VFR Evidence" doc={nightVfrEvidenceDoc} docType="night_vfr_evidence" customerId={customerId} />
+            )}
+          </div>
         </div>
 
         {/* Requested time */}

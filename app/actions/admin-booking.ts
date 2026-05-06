@@ -1052,21 +1052,21 @@ export async function markCheckoutFlightCompleted(bookingId: string): Promise<vo
 //   - moves booking → checkout_payment_required (or completed if credit covers all)
 //   - stores checkout_outcome on the invoice for post-payment clearance promotion
 //
-// Billing source of truth: VDO meter readings (not scheduled duration).
-//   Final amount = (vdoEndReading - vdoStartReading) × $290 + landing fees.
+// Billing source of truth: VDO reading from the aircraft paper sheet.
+//   Final amount = vdoReading × rate + landing fees.
 //   The RPC calculates everything server-side; the client only previews.
 //
 export async function markCheckoutOutcome(input: {
-  bookingId:        string
-  outcome:          'cleared_to_fly' | 'additional_checkout_required' | 'checkout_reschedule_required' | 'not_currently_eligible'
-  adminNote?:       string
+  bookingId:            string
+  outcome:              'cleared_to_fly' | 'additional_checkout_required' | 'checkout_reschedule_required' | 'not_currently_eligible'
+  adminNote?:           string
   // Payment path (required unless paymentWaived = true)
-  vdoStartReading?: number   // VDO meter reading before flight (e.g. 124.2)
-  vdoEndReading?:   number   // VDO meter reading after flight  (e.g. 125.0)
-  landingCharges?:  { airportId: string; landingCount: number }[]
+  vdoReading?:          number   // VDO reading from paper sheet (billable hours, e.g. 1.4)
+  checkoutRatePerHour?: number   // admin-entered hourly rate in dollars (default 290)
+  landingCharges?:      { airportId: string; landingCount: number }[]
   // Waiver path (non-cleared outcomes only)
-  paymentWaived?:   boolean
-  waiverReason?:    string
+  paymentWaived?:       boolean
+  waiverReason?:        string
 }): Promise<void> {
   const { supabase, adminId } = await requireAdmin()
 
@@ -1080,26 +1080,25 @@ export async function markCheckoutOutcome(input: {
     }
   }
 
+  // ── Hourly rate validation — always required (waiver path also stores the rate for audit) ──
+  const ratePerHour = input.checkoutRatePerHour ?? 290
+  if (!isFinite(ratePerHour) || ratePerHour <= 0) {
+    throw new Error('VALIDATION: Hourly rate must be a positive number.')
+  }
+
   // ── Front-end validation — payment path only ──────────────────────────────
   if (!input.paymentWaived) {
-    if (input.vdoStartReading == null || isNaN(input.vdoStartReading)) {
-      throw new Error('VALIDATION: VDO start reading is required.')
+    if (input.vdoReading == null || isNaN(input.vdoReading)) {
+      throw new Error('VALIDATION: VDO reading is required.')
     }
-    if (input.vdoEndReading == null || isNaN(input.vdoEndReading)) {
-      throw new Error('VALIDATION: VDO end reading is required.')
+    if (input.vdoReading <= 0) {
+      throw new Error('VALIDATION: VDO reading must be greater than 0.')
     }
-    if (input.vdoStartReading < 0) {
-      throw new Error('VALIDATION: VDO start reading must be 0 or greater.')
+    if (input.vdoReading < 0.1) {
+      throw new Error(`VALIDATION: VDO reading (${input.vdoReading}h) is below minimum of 0.1h. Check the paper sheet.`)
     }
-    if (input.vdoEndReading <= input.vdoStartReading) {
-      throw new Error('VALIDATION: VDO end reading must be greater than start reading.')
-    }
-    const vdoHours = Math.round((input.vdoEndReading - input.vdoStartReading) * 10) / 10
-    if (vdoHours < 0.1) {
-      throw new Error(`VALIDATION: VDO hours flown (${vdoHours}h) is below minimum of 0.1h. Check your readings.`)
-    }
-    if (vdoHours > 5.0) {
-      throw new Error(`VALIDATION: VDO hours flown (${vdoHours}h) exceeds maximum of 5.0h. Check your readings.`)
+    if (input.vdoReading > 5.0) {
+      throw new Error(`VALIDATION: VDO reading (${input.vdoReading}h) exceeds maximum of 5.0h. Check the paper sheet.`)
     }
   }
 
@@ -1160,19 +1159,21 @@ export async function markCheckoutOutcome(input: {
         : []
 
   // ── Single atomic RPC ─────────────────────────────────────────────────────
-  // VDO readings are passed to the RPC; all billing is calculated server-side.
-  // Waiver path passes null for VDO readings — the RPC stores NULL, NULL and
-  // skips VDO validation entirely when p_payment_waived = true.
+  // VDO reading is passed to the RPC; all billing is calculated server-side.
+  // Waiver path passes null for vdo_reading — the RPC skips VDO validation.
+  // Convert admin-entered dollars to integer cents for the RPC.
+  const checkoutRateCents = Math.round(ratePerHour * 100)
+
   const rpcPayload = {
-    p_booking_id:        input.bookingId,
-    p_customer_id:       booking.booking_owner_user_id,
-    p_vdo_start_reading: input.paymentWaived ? null : (input.vdoStartReading ?? 0),
-    p_vdo_end_reading:   input.paymentWaived ? null : (input.vdoEndReading ?? 0),
-    p_checkout_outcome:  input.outcome,
-    p_landing_charges:   landingChargesJson.length > 0 ? landingChargesJson : null,
-    p_admin_notes:       input.adminNote ?? null,
-    p_payment_waived:    input.paymentWaived ?? false,
-    p_waiver_reason:     input.waiverReason ?? null,
+    p_booking_id:                   input.bookingId,
+    p_customer_id:                  booking.booking_owner_user_id,
+    p_vdo_reading:                  input.paymentWaived ? null : (input.vdoReading ?? null),
+    p_checkout_outcome:             input.outcome,
+    p_landing_charges:              landingChargesJson.length > 0 ? landingChargesJson : null,
+    p_admin_notes:                  input.adminNote ?? null,
+    p_payment_waived:               input.paymentWaived ?? false,
+    p_waiver_reason:                input.waiverReason ?? null,
+    p_checkout_rate_cents_per_hour: checkoutRateCents,
   }
 
   console.log('[markCheckoutOutcome] calling RPC complete_checkout_outcome_atomic', rpcPayload)
@@ -1241,11 +1242,7 @@ export async function markCheckoutOutcome(input: {
           outcome:                input.outcome,
           pilot_clearance_status: finalClearanceStatus,
           booking_status:         finalBookingStatus,
-          vdo_start_reading:      input.vdoStartReading,
-          vdo_end_reading:        input.vdoEndReading,
-          vdo_hours:              input.vdoEndReading != null && input.vdoStartReading != null
-            ? Math.round((input.vdoEndReading - input.vdoStartReading) * 10) / 10
-            : null,
+          vdo_reading:            input.vdoReading ?? null,
           landing_charges:        landingChargesJson,
           payment_waived:         false,
         },
@@ -1546,4 +1543,453 @@ export async function adminUpdateCheckoutTime(
   revalidatePath('/dashboard')
 
   return { newStart: newStartISO, newEnd: newEndISO }
+}
+
+// ─── Cancellation request review ──────────────────────────────────────────────
+
+type CancellationRequestRow = {
+  id:                 string
+  booking_id:         string
+  user_id:            string
+  booking_start_time: string
+  is_within_24_hours: boolean
+  customer_message:   string | null
+  status:             string
+  bookings: {
+    status:             string
+    aircraft_id:        string
+    booking_reference:  string | null
+    estimated_amount:   number | null
+    estimated_hours:    number | null
+    booking_owner_user_id: string
+  } | null
+}
+
+/**
+ * Admin approves a late cancellation and waives the cancellation charge.
+ * Booking → cancelled, schedule blocks released, request → approved_waived.
+ */
+export async function adminApproveCancellationWaived(
+  cancellationRequestId: string,
+  adminNote: string | null,
+): Promise<void> {
+  const { supabase, adminId } = await requireAdmin()
+  const now = new Date().toISOString()
+
+  // Fetch request + joined booking
+  const { data: req, error: fetchErr } = await supabase
+    .from('booking_cancellation_requests')
+    .select(`
+      id, booking_id, user_id, booking_start_time, is_within_24_hours, customer_message, status,
+      bookings ( status, aircraft_id, booking_reference, estimated_amount, estimated_hours, booking_owner_user_id )
+    `)
+    .eq('id', cancellationRequestId)
+    .single()
+
+  if (fetchErr || !req) throw new Error('Cancellation request not found.')
+  const r = req as unknown as CancellationRequestRow
+  if (r.status !== 'pending') {
+    throw new Error(`VALIDATION: Request is already resolved (status: ${r.status}).`)
+  }
+  const booking = r.bookings
+  if (!booking) throw new Error('Booking data missing from cancellation request.')
+
+  const oldBookingStatus = booking.status
+
+  // Cancel the booking
+  const { error: bookingErr } = await supabase
+    .from('bookings')
+    .update({
+      status:                'cancelled',
+      cancellation_category: 'customer',
+      updated_at:            now,
+    })
+    .eq('id', r.booking_id)
+
+  if (bookingErr) throw new Error('Failed to cancel booking.')
+
+  // Release schedule blocks
+  await supabase
+    .from('schedule_blocks')
+    .update({ status: 'cancelled' })
+    .eq('related_booking_id', r.booking_id)
+
+  // Update the cancellation request
+  await supabase
+    .from('booking_cancellation_requests')
+    .update({
+      status:      'approved_waived',
+      admin_note:  adminNote?.trim() || null,
+      decided_by:  adminId,
+      decided_at:  now,
+      updated_at:  now,
+    })
+    .eq('id', cancellationRequestId)
+
+  const historyNote = adminNote?.trim()
+    ? `Booking cancelled. Cancellation charge waived. Admin note: ${adminNote.trim()}`
+    : 'Booking cancelled. Cancellation charge waived by admin.'
+
+  await supabase.from('booking_status_history').insert({
+    booking_id:         r.booking_id,
+    old_status:         oldBookingStatus,
+    new_status:         'cancelled',
+    changed_by_user_id: adminId,
+    note:               historyNote,
+  })
+
+  await supabase.from('booking_audit_events').insert({
+    booking_id:    r.booking_id,
+    aircraft_id:   booking.aircraft_id,
+    actor_user_id: adminId,
+    actor_role:    'admin',
+    event_type:    'cancellation_approved_waived',
+    event_summary: 'Admin approved cancellation and waived charge.',
+    new_value:     { status: 'cancelled', charge: 'waived', admin_note: adminNote },
+  })
+
+  // Notify customer
+  const { data: notifyData } = await supabase
+    .from('bookings')
+    .select('booking_reference, profiles:booking_owner_user_id ( full_name, email )')
+    .eq('id', r.booking_id)
+    .single()
+
+  if (notifyData) {
+    const prof  = Array.isArray(notifyData.profiles) ? notifyData.profiles[0] : notifyData.profiles
+    const email = (prof as { email?: string | null } | null)?.email
+    if (email) {
+      notifyBookingCancelled({
+        customerEmail: email,
+        customerName:  (prof as { full_name?: string | null } | null)?.full_name ?? 'Pilot',
+        ref:           notifyData.booking_reference ?? r.booking_id.slice(0, 8).toUpperCase(),
+        reason:        'Your cancellation request has been approved. No cancellation charge applies.',
+      }).catch(e => console.error('[adminApproveCancellationWaived] notification error:', e))
+    }
+  }
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings/cancellations')
+  revalidatePath(`/admin/bookings/requests/${r.booking_id}`)
+  revalidatePath(`/dashboard/bookings/${r.booking_id}`)
+  revalidatePath('/dashboard/bookings')
+}
+
+// ─── Confirm standard bank transfer ───────────────────────────────────────────
+export async function adminConfirmStandardBankTransfer(submissionId: string, bookingId: string): Promise<void> {
+  const { supabase, adminId } = await requireAdmin()
+
+  const { error } = await supabase.rpc('approve_standard_bank_transfer_atomic', {
+    p_submission_id: submissionId,
+  })
+  if (error) {
+    console.error('[adminConfirmStandardBankTransfer] RPC failed:', error)
+    throw new Error(error.message || 'Failed to confirm payment.')
+  }
+
+  const { data: sub } = await supabase
+    .from('booking_bank_transfer_submissions')
+    .select('customer_id')
+    .eq('id', submissionId)
+    .single()
+
+  if (sub) {
+    await supabase.from('verification_events').insert({
+      user_id:      sub.customer_id,
+      actor_role:   'admin',
+      event_type:   'approved',
+      title:        'Bank transfer confirmed — booking complete',
+      body:         'Your bank transfer payment has been confirmed. Your booking is now complete.',
+      is_read:      false,
+      email_status: 'pending',
+    })
+  }
+
+  await supabase.from('booking_status_history').insert({
+    booking_id:         bookingId,
+    old_status:         'payment_pending',
+    new_status:         'completed',
+    changed_by_user_id: adminId,
+    note:               'Admin confirmed bank transfer payment. Booking completed.',
+  })
+
+  revalidatePath('/admin')
+  revalidatePath(`/admin/bookings/requests/${bookingId}`)
+  revalidatePath(`/dashboard/bookings/${bookingId}`)
+}
+
+// ─── Reject standard bank transfer ────────────────────────────────────────────
+export async function adminRejectStandardBankTransfer(
+  submissionId: string,
+  bookingId: string,
+  adminNote: string,
+): Promise<void> {
+  const { supabase } = await requireAdmin()
+
+  if (!adminNote?.trim()) throw new Error('A rejection note is required.')
+
+  const { error } = await supabase.rpc('reject_standard_bank_transfer_atomic', {
+    p_submission_id: submissionId,
+    p_admin_note:    adminNote,
+  })
+  if (error) {
+    console.error('[adminRejectStandardBankTransfer] RPC failed:', error)
+    throw new Error(error.message || 'Failed to reject payment.')
+  }
+
+  const { data: sub } = await supabase
+    .from('booking_bank_transfer_submissions')
+    .select('customer_id')
+    .eq('id', submissionId)
+    .single()
+
+  if (sub) {
+    await supabase.from('verification_events').insert({
+      user_id:      sub.customer_id,
+      actor_role:   'admin',
+      event_type:   'document_rejected',
+      title:        'Bank transfer proof rejected',
+      body:         `Your bank transfer proof was rejected. Note: ${adminNote}. Please upload a new receipt or contact support.`,
+      is_read:      false,
+      email_status: 'pending',
+    })
+  }
+
+  revalidatePath('/admin')
+  revalidatePath(`/admin/bookings/requests/${bookingId}`)
+  revalidatePath(`/dashboard/bookings/${bookingId}`)
+}
+
+// ─── Finalise standard booking invoice ────────────────────────────────────────
+export async function finaliseStandardBookingInvoice(input: {
+  bookingId:       string
+  vdoReading:      number
+  ratePerHour:     number
+  landingCharges?: { airportId: string; landingCount: number }[]
+  adminNotes?:     string
+}): Promise<void> {
+  const { supabase, adminId } = await requireAdmin()
+
+  if (input.vdoReading == null || isNaN(input.vdoReading) || input.vdoReading <= 0) {
+    throw new Error('VALIDATION: VDO reading must be greater than 0.')
+  }
+  if (input.vdoReading < 0.1) {
+    throw new Error(`VALIDATION: VDO reading (${input.vdoReading}h) is below minimum of 0.1h.`)
+  }
+  if (input.vdoReading > 24.0) {
+    throw new Error(`VALIDATION: VDO reading (${input.vdoReading}h) exceeds maximum of 24.0h.`)
+  }
+  if (!isFinite(input.ratePerHour) || input.ratePerHour <= 0) {
+    throw new Error('VALIDATION: Hourly rate must be a positive number.')
+  }
+
+  for (const row of input.landingCharges ?? []) {
+    const hasAirport = !!row.airportId?.trim()
+    const hasCount   = Number.isFinite(row.landingCount) && row.landingCount > 0
+    if (hasCount && !hasAirport) throw new Error('VALIDATION: Airport is required for each landing row with a count.')
+    if (hasAirport && !hasCount) throw new Error('VALIDATION: Landing count must be at least 1 when an airport is selected.')
+  }
+
+  const { data: booking, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('status, booking_type, aircraft_id, booking_owner_user_id, booking_reference')
+    .eq('id', input.bookingId)
+    .single()
+
+  if (fetchErr || !booking) throw new Error('Booking not found.')
+  if (booking.booking_type !== 'standard') {
+    throw new Error('VALIDATION: This booking is not a standard booking.')
+  }
+  if (booking.status !== 'pending_post_flight_review') {
+    throw new Error(`VALIDATION: Can only finalise billing from pending_post_flight_review. Current: '${booking.status}'.`)
+  }
+
+  const rateCents = Math.round(input.ratePerHour * 100)
+  const landingChargesJson = (input.landingCharges ?? [])
+    .filter(lc => lc.airportId && lc.landingCount > 0)
+    .map(lc => ({ airport_id: lc.airportId, landing_count: lc.landingCount }))
+
+  const { data: rpcRows, error: rpcErr } = await supabase.rpc(
+    'finalise_standard_booking_invoice_atomic',
+    {
+      p_booking_id:          input.bookingId,
+      p_customer_id:         booking.booking_owner_user_id,
+      p_vdo_reading:         input.vdoReading,
+      p_rate_cents_per_hour: rateCents,
+      p_landing_charges:     landingChargesJson.length > 0 ? landingChargesJson : null,
+      p_admin_notes:         input.adminNotes ?? null,
+    },
+  )
+
+  if (rpcErr || !rpcRows?.[0]) {
+    console.error('[finaliseStandardBookingInvoice] RPC failed', rpcErr)
+    throw new Error(rpcErr?.message ?? 'Failed to finalise invoice. Please try again.')
+  }
+
+  const finalBookingStatus = rpcRows[0].out_final_booking_status as string
+
+  await supabase.from('booking_status_history').insert({
+    booking_id:         input.bookingId,
+    old_status:         'pending_post_flight_review',
+    new_status:         finalBookingStatus,
+    changed_by_user_id: adminId,
+    note: finalBookingStatus === 'completed'
+      ? 'Invoice settled by customer credit. Booking completed.'
+      : 'Admin finalised flight billing. Payment request sent to customer.',
+  })
+
+  await supabase.from('booking_audit_events').insert({
+    booking_id:    input.bookingId,
+    aircraft_id:   booking.aircraft_id,
+    actor_user_id: adminId,
+    actor_role:    'admin',
+    event_type:    'booking_invoice_finalised',
+    event_summary: `Admin finalised standard booking invoice. VDO: ${input.vdoReading}h @ $${input.ratePerHour}/hr. Final status: ${finalBookingStatus}.`,
+    new_value: {
+      vdo_reading:     input.vdoReading,
+      rate_per_hour:   input.ratePerHour,
+      landing_charges: landingChargesJson,
+      booking_status:  finalBookingStatus,
+    },
+  })
+
+  const isSettledByCredit = finalBookingStatus === 'completed'
+  await supabase.from('verification_events').insert({
+    user_id:       booking.booking_owner_user_id,
+    actor_user_id: adminId,
+    actor_role:    'admin',
+    event_type:    'approved',
+    title: isSettledByCredit
+      ? 'Flight invoice settled by credit'
+      : 'Flight invoice ready — payment required',
+    body: isSettledByCredit
+      ? 'Your flight invoice has been settled using your account credit. Your booking is now complete.'
+      : 'Your flight invoice has been issued. Please pay the invoice to close your booking.',
+    is_read:      false,
+    email_status: 'skipped',
+  })
+
+  revalidatePath('/admin')
+  revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
+  revalidatePath('/dashboard')
+  revalidatePath(`/dashboard/bookings/${input.bookingId}`)
+}
+
+/**
+ * Admin approves a late cancellation and applies a cancellation charge.
+ * Booking → cancelled, schedule blocks released, request → approved_charged.
+ * The charge amount is set to booking.estimated_amount (already computed at booking time).
+ */
+export async function adminApproveCancellationCharged(
+  cancellationRequestId: string,
+  adminNote: string | null,
+): Promise<void> {
+  const { supabase, adminId } = await requireAdmin()
+  const now = new Date().toISOString()
+
+  const { data: req, error: fetchErr } = await supabase
+    .from('booking_cancellation_requests')
+    .select(`
+      id, booking_id, user_id, booking_start_time, is_within_24_hours, customer_message, status,
+      bookings ( status, aircraft_id, booking_reference, estimated_amount, estimated_hours, booking_owner_user_id )
+    `)
+    .eq('id', cancellationRequestId)
+    .single()
+
+  if (fetchErr || !req) throw new Error('Cancellation request not found.')
+  const r = req as unknown as CancellationRequestRow
+  if (r.status !== 'pending') {
+    throw new Error(`VALIDATION: Request is already resolved (status: ${r.status}).`)
+  }
+  const booking = r.bookings
+  if (!booking) throw new Error('Booking data missing from cancellation request.')
+
+  const chargeCents = booking.estimated_amount
+    ? Math.round(booking.estimated_amount * 100)
+    : 0
+
+  const oldBookingStatus = booking.status
+
+  // Cancel the booking and set payment_status to indicate a charge is due
+  const { error: bookingErr } = await supabase
+    .from('bookings')
+    .update({
+      status:                'cancelled',
+      cancellation_category: 'customer',
+      payment_status:        chargeCents > 0 ? 'invoice_generated' : 'not_required',
+      updated_at:            now,
+    })
+    .eq('id', r.booking_id)
+
+  if (bookingErr) throw new Error('Failed to cancel booking.')
+
+  // Release schedule blocks
+  await supabase
+    .from('schedule_blocks')
+    .update({ status: 'cancelled' })
+    .eq('related_booking_id', r.booking_id)
+
+  // Update cancellation request
+  await supabase
+    .from('booking_cancellation_requests')
+    .update({
+      status:             'approved_charged',
+      admin_note:         adminNote?.trim() || null,
+      decided_by:         adminId,
+      decided_at:         now,
+      charge_amount_cents: chargeCents,
+      updated_at:         now,
+    })
+    .eq('id', cancellationRequestId)
+
+  const chargeDisplay = chargeCents > 0 ? `$${(chargeCents / 100).toFixed(2)}` : 'to be determined'
+  const historyNote = adminNote?.trim()
+    ? `Booking cancelled inside 24-hour window. Cancellation charge of ${chargeDisplay} applies. Admin note: ${adminNote.trim()}`
+    : `Booking cancelled inside 24-hour window. Cancellation charge of ${chargeDisplay} applies. Please contact operations to arrange payment.`
+
+  await supabase.from('booking_status_history').insert({
+    booking_id:         r.booking_id,
+    old_status:         oldBookingStatus,
+    new_status:         'cancelled',
+    changed_by_user_id: adminId,
+    note:               historyNote,
+  })
+
+  await supabase.from('booking_audit_events').insert({
+    booking_id:    r.booking_id,
+    aircraft_id:   booking.aircraft_id,
+    actor_user_id: adminId,
+    actor_role:    'admin',
+    event_type:    'cancellation_approved_charged',
+    event_summary: `Admin approved cancellation with charge (${chargeDisplay}).`,
+    new_value:     { status: 'cancelled', charge: 'applied', charge_cents: chargeCents, admin_note: adminNote },
+  })
+
+  // Notify customer
+  const { data: notifyData } = await supabase
+    .from('bookings')
+    .select('booking_reference, profiles:booking_owner_user_id ( full_name, email )')
+    .eq('id', r.booking_id)
+    .single()
+
+  if (notifyData) {
+    const prof  = Array.isArray(notifyData.profiles) ? notifyData.profiles[0] : notifyData.profiles
+    const email = (prof as { email?: string | null } | null)?.email
+    if (email) {
+      notifyBookingCancelled({
+        customerEmail: email,
+        customerName:  (prof as { full_name?: string | null } | null)?.full_name ?? 'Pilot',
+        ref:           notifyData.booking_reference ?? r.booking_id.slice(0, 8).toUpperCase(),
+        reason: chargeCents > 0
+          ? `Your cancellation request has been approved. As the booking was cancelled inside the 24-hour window, a cancellation charge of ${chargeDisplay} applies. Please contact operations to arrange payment.`
+          : 'Your cancellation request has been approved. A cancellation charge may apply — please contact operations.',
+      }).catch(e => console.error('[adminApproveCancellationCharged] notification error:', e))
+    }
+  }
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings/cancellations')
+  revalidatePath(`/admin/bookings/requests/${r.booking_id}`)
+  revalidatePath(`/dashboard/bookings/${r.booking_id}`)
+  revalidatePath('/dashboard/bookings')
 }

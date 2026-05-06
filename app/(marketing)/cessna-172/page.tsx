@@ -15,7 +15,7 @@ export default function Cessna172nPage() {
       <section className="relative px-6 md:px-12 lg:px-20 overflow-hidden min-h-[500px] md:min-h-[750px] flex items-center">
         <div
           className="absolute inset-0 z-0 bg-cover bg-center"
-          style={{ backgroundImage: 'url("/Cessna-fleet.webp")' }}
+          style={{ backgroundImage: 'url("/Cessna-fleet.jpg")' }}
         />
         <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#040f1e]/70 via-[#040f1e]/30 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 h-[30%] z-0 bg-gradient-to-t from-[#091421] via-[#051122]/30 to-transparent" />
@@ -84,11 +84,16 @@ export default function Cessna172nPage() {
 
           <FadeUp className="relative mb-6 md:mb-8" delay={0.4} duration={2.2} viewportMargin="-25%">
             <div className="w-full rounded-2xl overflow-hidden shadow-2xl relative border border-white/5 aspect-[4/3] md:aspect-[2.35/1]">
-              <img
-                src="/Cockpit-twilight.webp"
-                alt="Cessna 172N Cockpit at Twilight"
-                className="absolute inset-0 w-full h-full object-cover object-center"
-              />
+              <picture>
+                <source srcSet="/Cockpit-twilight.webp" type="image/webp" />
+                <img
+                  src="/Cockpit-twilight.jpg"
+                  alt="Cessna 172N Cockpit at Twilight"
+                  className="absolute inset-0 w-full h-full object-cover object-center"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </picture>
               <div className="hidden md:block absolute top-[40%] left-[20%] bg-[#2a3647]/80 backdrop-blur-md px-4 py-2 rounded-lg border border-white/10 text-xs font-sans tracking-wide text-[#d9e3f6]">
                 Dual G5 Flight Instruments
               </div>
@@ -279,11 +284,16 @@ export default function Cessna172nPage() {
 
             <FadeUp delay={0.1} duration={2.6} viewportMargin="-20%">
               <div className="relative rounded-[1.5rem] overflow-hidden aspect-[3/4] md:aspect-[4/5] group shadow-2xl">
-                <img
-                  src="/StunningCoastalView.webp"
-                  alt="Scenic Coastal Tours"
-                  className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
-                />
+                <picture>
+                  <source srcSet="/StunningCoastalView.webp" type="image/webp" />
+                  <img
+                    src="/StunningCoastalView.jpg"
+                    alt="Scenic Coastal Tours"
+                    className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </picture>
                 <div className="absolute inset-0 bg-gradient-to-t from-[#040810] via-[#040810]/40 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-8">
                   <h3 className="font-serif text-2xl md:text-3xl text-white mb-3 tracking-wide text-shadow-sm">
@@ -298,11 +308,16 @@ export default function Cessna172nPage() {
 
             <FadeUp delay={0.4} duration={2.6} viewportMargin="-20%" className="sm:mt-16 lg:mt-24">
               <div className="relative rounded-[1.5rem] overflow-hidden aspect-[3/4] md:aspect-[4/5] group shadow-2xl">
-                <img
-                  src="/CockpitRunwayView.webp"
-                  alt="Proficiency Flying"
-                  className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
-                />
+                <picture>
+                  <source srcSet="/CockpitRunwayView.webp" type="image/webp" />
+                  <img
+                    src="/CockpitRunwayView.jpg"
+                    alt="Proficiency Flying"
+                    className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </picture>
                 <div className="absolute inset-0 bg-gradient-to-t from-[#040810] via-[#040810]/40 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-8">
                   <h3 className="font-serif text-2xl md:text-3xl text-white mb-3 tracking-wide text-shadow-sm">
@@ -317,11 +332,16 @@ export default function Cessna172nPage() {
 
             <FadeUp delay={0.7} duration={2.6} viewportMargin="-20%">
               <div className="relative rounded-[1.5rem] overflow-hidden aspect-[3/4] md:aspect-[4/5] group shadow-2xl">
-                <img
-                  src="/CessnaGoldenSunset.webp"
-                  alt="Hour Building"
-                  className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
-                />
+                <picture>
+                  <source srcSet="/CessnaGoldenSunset.webp" type="image/webp" />
+                  <img
+                    src="/CessnaGoldenSunset.jpg"
+                    alt="Hour Building"
+                    className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </picture>
                 <div className="absolute inset-0 bg-gradient-to-t from-[#040810] via-[#040810]/40 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-8">
                   <h3 className="font-serif text-2xl md:text-3xl text-white mb-3 tracking-wide text-shadow-sm">
@@ -361,7 +381,7 @@ export default function Cessna172nPage() {
       <section className="relative pt-24 pb-32 border-t border-white/5 text-center flex items-center justify-center min-h-[500px]">
         <div
           className="absolute inset-0 z-0 bg-cover bg-center"
-          style={{ backgroundImage: 'url("/TwilightFlight.webp")' }}
+          style={{ backgroundImage: 'url("/TwilightFlight.jpg")' }}
         />
         <div className="absolute inset-0 z-0 bg-[#0c1827]/80 backdrop-blur-[2px]" />
 

@@ -284,7 +284,7 @@ const CARD = 'bg-gradient-to-br from-[#0c1525] to-[#080e1c] border border-white/
 
 type ClearanceConfig = {
   badge:     string
-  pillColor: 'green' | 'blue' | 'amber' | 'red' | 'slate'
+  pillColor: 'green' | 'blue' | 'violet' | 'amber' | 'red' | 'slate'
   pulse:     boolean
 }
 
@@ -325,7 +325,7 @@ export default function DashboardContent({ user, profile, documents, events, isF
   // Override badge/pill when bank transfer is submitted — all customer-facing status
   // indicators must show "Awaiting Payment Confirmation" rather than "Payment Required".
   const displayCfg = isAwaitingManualPayment
-    ? { ...clearanceCfg, badge: 'Awaiting Payment Confirmation', pillColor: 'blue' as const, pulse: true }
+    ? { ...clearanceCfg, badge: 'Awaiting Payment Confirmation', pillColor: 'violet' as const, pulse: true }
     : clearanceCfg
 
   // Override active onboarding step label to match the payment-pending state.
@@ -348,6 +348,7 @@ export default function DashboardContent({ user, profile, documents, events, isF
           cta2:     'Contact Support',
           cta2href: '/dashboard/messages',
           icon:     'account_balance',
+          glowFrom: 'from-violet-500/20',
         }
       : clearanceStatus === 'checkout_payment_required' && checkoutOutcome
       ? {
@@ -382,20 +383,22 @@ export default function DashboardContent({ user, profile, documents, events, isF
   const unreadCount       = events.filter(e => !e.is_read).length
 
   // Pill color mapping — shared by hero badge and profile card
-  type PillColor = 'green' | 'blue' | 'amber' | 'red' | 'slate'
+  type PillColor = 'green' | 'blue' | 'violet' | 'amber' | 'red' | 'slate'
   const PILL_BG: Record<PillColor, string> = {
-    green: 'bg-green-500/15 border-green-500/30 text-green-400',
-    blue:  'bg-blue-500/15 border-blue-500/30 text-blue-400',
-    amber: 'bg-amber-500/15 border-amber-500/30 text-amber-400',
-    red:   'bg-red-500/15 border-red-500/30 text-red-400',
-    slate: 'bg-white/[0.06] border-white/10 text-slate-400',
+    green:  'bg-green-500/15 border-green-500/30 text-green-400',
+    blue:   'bg-blue-500/15 border-blue-500/30 text-blue-400',
+    violet: 'bg-violet-500/15 border-violet-500/30 text-violet-400',
+    amber:  'bg-amber-500/15 border-amber-500/30 text-amber-400',
+    red:    'bg-red-500/15 border-red-500/30 text-red-400',
+    slate:  'bg-white/[0.06] border-white/10 text-slate-400',
   }
   const DOT_BG: Record<PillColor, string> = {
-    green: 'bg-green-400',
-    blue:  'bg-blue-400',
-    amber: 'bg-amber-400',
-    red:   'bg-red-400',
-    slate: 'bg-slate-500',
+    green:  'bg-green-400',
+    blue:   'bg-blue-400',
+    violet: 'bg-violet-400',
+    amber:  'bg-amber-400',
+    red:    'bg-red-400',
+    slate:  'bg-slate-500',
   }
 
   // Derive licence type label from documents for profile card
@@ -439,6 +442,8 @@ export default function DashboardContent({ user, profile, documents, events, isF
               ? 'bg-amber-500/20 border-amber-400/50 text-amber-200 shadow-[0_0_24px_rgba(245,158,11,0.18)]'
               : displayCfg.pillColor === 'red'
               ? 'bg-red-500/20 border-red-400/50 text-red-200 shadow-[0_0_24px_rgba(239,68,68,0.18)]'
+              : displayCfg.pillColor === 'violet'
+              ? 'bg-violet-500/20 border-violet-400/50 text-violet-200 shadow-[0_0_24px_rgba(139,92,246,0.18)]'
               : PILL_BG[displayCfg.pillColor]
           }`}>
             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${DOT_BG[displayCfg.pillColor]} ${displayCfg.pulse ? 'animate-pulse' : ''}`} />
@@ -493,12 +498,12 @@ export default function DashboardContent({ user, profile, documents, events, isF
 
           {/* ─ Invoice breakdown panel (checkout_payment_required only) ────── */}
           {clearanceStatus === 'checkout_payment_required' && checkoutInvoice && (
-            <div className="lg:col-span-2 bg-gradient-to-br from-[#0c1525]/80 to-[#080e1c]/80 border border-orange-500/20 rounded-2xl p-6 shadow-[0_4px_30px_rgba(0,0,0,0.35)]">
+            <div className={`lg:col-span-2 bg-gradient-to-br from-[#0c1525]/80 to-[#080e1c]/80 border rounded-2xl p-6 shadow-[0_4px_30px_rgba(0,0,0,0.35)] ${isAwaitingManualPayment ? 'border-violet-500/20' : 'border-orange-500/20'}`}>
               <div className="flex items-center gap-2 mb-5">
-                <span className="material-symbols-outlined text-[16px] text-orange-400" style={{ fontVariationSettings: "'FILL' 1" }}>
+                <span className={`material-symbols-outlined text-[16px] ${isAwaitingManualPayment ? 'text-violet-400' : 'text-orange-400'}`} style={{ fontVariationSettings: "'FILL' 1" }}>
                   receipt_long
                 </span>
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-orange-400/80">
+                <h3 className={`text-[10px] font-bold uppercase tracking-widest ${isAwaitingManualPayment ? 'text-violet-400/80' : 'text-orange-400/80'}`}>
                   Checkout Invoice Breakdown
                 </h3>
               </div>
@@ -571,7 +576,11 @@ export default function DashboardContent({ user, profile, documents, events, isF
                 <div className="h-px bg-white/[0.06]" />
                 <div className="flex justify-between items-center">
                   <span className="text-[12px] font-semibold text-white">Amount Due Now</span>
-                  <span className={`text-[14px] font-bold font-mono ${checkoutInvoice.displayAmountDueCents > 0 ? 'text-orange-300' : 'text-emerald-400'}`}>
+                  <span className={`text-[14px] font-bold font-mono ${
+                    checkoutInvoice.displayAmountDueCents <= 0 ? 'text-emerald-400'
+                    : isAwaitingManualPayment ? 'text-violet-300'
+                    : 'text-orange-300'
+                  }`}>
                     {checkoutInvoice.displayAmountDueCents > 0
                       ? `$${(checkoutInvoice.displayAmountDueCents / 100).toFixed(2)}`
                       : 'Settled by credit'}
@@ -586,10 +595,10 @@ export default function DashboardContent({ user, profile, documents, events, isF
               )}
 
               {isAwaitingManualPayment ? (
-                <div className="flex items-center gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                  <span className="material-symbols-outlined text-blue-400 text-[20px] flex-shrink-0">pending_actions</span>
+                <div className="flex items-center gap-3 p-4 bg-violet-500/10 border border-violet-500/20 rounded-xl">
+                  <span className="material-symbols-outlined text-violet-400 text-[20px] flex-shrink-0">pending_actions</span>
                   <div>
-                    <p className="text-[11px] font-bold text-blue-400 mb-0.5">Bank transfer submitted</p>
+                    <p className="text-[11px] font-bold text-violet-400 mb-0.5">Bank transfer submitted</p>
                     <p className="text-[10px] text-slate-500 leading-relaxed">Awaiting admin verification. No further action needed.</p>
                   </div>
                 </div>
@@ -787,7 +796,7 @@ export default function DashboardContent({ user, profile, documents, events, isF
               ))}
             </ul>
             {isAwaitingManualPayment && (
-              <p className="text-[11px] text-blue-400/70 leading-relaxed border-t border-white/[0.06] pt-4 mt-1">
+              <p className="text-[11px] text-violet-400/70 leading-relaxed border-t border-white/[0.06] pt-4 mt-1">
                 Your bank transfer details have been submitted. Our team will verify the payment before your checkout result is finalised.
               </p>
             )}

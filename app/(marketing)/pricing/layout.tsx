@@ -2,18 +2,18 @@ import { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'Aircraft Rental Pricing',
-  description: 'Transparent aircraft rental pricing based on Hobbs time. See our hourly rates and membership tiers for the Cessna 172 fleet.',
+  description: 'Transparent aircraft hire pricing based on VDO meter hours. View hourly tiers, inclusions, and multi-day minimum booking rules.',
   alternates: {
     canonical: '/pricing'
   },
   openGraph: {
     title: 'Aircraft Rental Pricing | OZRentAPlane',
-    description: 'Transparent aircraft rental pricing based on Hobbs time. See our hourly rates and membership tiers for the Cessna 172 fleet.',
+    description: 'Transparent aircraft hire pricing based on VDO meter hours. View hourly tiers, inclusions, and multi-day minimum booking rules.',
     url: '/pricing',
   },
   twitter: {
     title: 'Aircraft Rental Pricing | OZRentAPlane',
-    description: 'Transparent aircraft rental pricing based on Hobbs time. See our hourly rates and membership tiers for the Cessna 172 fleet.',
+    description: 'Transparent aircraft hire pricing based on VDO meter hours. View hourly tiers, inclusions, and multi-day minimum booking rules.',
   }
 }
 
@@ -32,13 +32,13 @@ export default function PricingLayout({ children }: { children: React.ReactNode 
               "@type": "Organization",
               "name": "OZRentAPlane"
             },
-            "description": "Transparent aircraft rental pricing based on Hobbs time, with competitive hourly rates for licensed pilots.",
+            "description": "Transparent aircraft hire pricing based on VDO meter hours, with tiered hourly rates and clear booking rules.",
             "serviceType": "Aircraft Rental",
             "offers": {
               "@type": "AggregateOffer",
               "priceCurrency": "AUD",
-              "lowPrice": "260.00",
-              "highPrice": "395.00"
+              "lowPrice": "300.00",
+              "highPrice": "330.00"
             }
           })
         }}

@@ -65,8 +65,9 @@ export async function POST(req: Request) {
   })
 
   try {
-    if (session.metadata?.invoice_type !== "checkout") {
-      console.log(`[webhook] Skipping — invoice_type is not 'checkout', got: ${session.metadata?.invoice_type}`)
+    const invoiceType = session.metadata?.invoice_type
+    if (invoiceType !== "checkout" && invoiceType !== "standard") {
+      console.log(`[webhook] Skipping — unknown invoice_type: ${invoiceType}`)
       return NextResponse.json({ received: true })
     }
 
@@ -81,29 +82,70 @@ export async function POST(req: Request) {
 
     const amountPaid = session.amount_total ?? 0
 
-    console.log("[webhook] Extracted metadata", { invoiceId, bookingId, customerId, sessionId: session.id, paymentIntentId, amountPaid })
+    console.log("[webhook] Extracted metadata", { invoiceId, bookingId, customerId, invoiceType, sessionId: session.id, paymentIntentId, amountPaid })
 
     if (!invoiceId || !bookingId || !customerId) {
-      console.error("[webhook] Missing required metadata — aborting (returning 200, no retry useful)", { invoiceId, bookingId, customerId })
+      console.error("[webhook] Missing required metadata — aborting", { invoiceId, bookingId, customerId })
       return NextResponse.json({ received: true })
     }
 
-    // ── Supabase service-role client ──────────────────────────────────────────
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!supabaseUrl || !serviceKey) {
-      console.error("[webhook] Missing Supabase env vars — cannot proceed")
+      console.error("[webhook] Missing Supabase env vars")
       return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 })
     }
 
     const supabase = createClient(supabaseUrl, serviceKey)
 
-    // ── Call the atomic payment RPC ───────────────────────────────────────────
-    // mark_checkout_invoice_paid_atomic is fully idempotent:
-    //   - If invoice already paid: repairs booking/clearance if needed, no-ops cleanly
-    //   - If called twice: ledger entry is only created once (session_id uniqueness guard)
-    //   - Promotes pilot_clearance_status to the stored checkout_outcome (not hardcoded)
+    // ── Standard booking payment ───────────────────────────────────────────────
+    if (invoiceType === "standard") {
+      console.log("[webhook] Calling mark_booking_invoice_paid_atomic", { invoiceId })
+
+      const { error: rpcErr } = await supabase.rpc("mark_booking_invoice_paid_atomic", {
+        p_invoice_id:                 invoiceId,
+        p_stripe_payment_intent_id:   paymentIntentId,
+        p_stripe_checkout_session_id: session.id,
+        p_amount_paid_cents:          amountPaid,
+      })
+
+      if (rpcErr) {
+        logErr("mark_booking_invoice_paid_atomic FAILED", rpcErr)
+        return NextResponse.json({ error: "Payment processing failed" }, { status: 500 })
+      }
+
+      console.log("[webhook] mark_booking_invoice_paid_atomic succeeded ✓")
+
+      await supabase.from("booking_status_history").insert({
+        booking_id:         bookingId,
+        old_status:         "payment_pending",
+        new_status:         "completed",
+        note:               "Flight invoice paid via Stripe. Booking completed.",
+        changed_by_user_id: null,
+      }).then(({ error: e }) => {
+        if (e) console.warn("[webhook] standard status_history insert FAILED (non-critical)", e.message)
+      })
+
+      try {
+        await supabase.from("verification_events").insert({
+          user_id:      customerId,
+          actor_role:   "system",
+          event_type:   "approved",
+          title:        "Flight payment received — booking complete",
+          body:         "Your flight payment has been received. Your booking is now complete.",
+          is_read:      false,
+          email_status: "skipped",
+        })
+      } catch (notifEx: any) {
+        console.warn("[webhook] Standard notification failed (non-fatal)", notifEx?.message)
+      }
+
+      console.log("[webhook] standard payment processed ✓", { invoiceId, bookingId })
+      return NextResponse.json({ received: true })
+    }
+
+    // ── Checkout payment ──────────────────────────────────────────────────────
     console.log("[webhook] Calling mark_checkout_invoice_paid_atomic", { invoiceId, sessionId: session.id })
 
     const { error: rpcErr } = await supabase.rpc("mark_checkout_invoice_paid_atomic", {
@@ -120,7 +162,6 @@ export async function POST(req: Request) {
 
     console.log("[webhook] mark_checkout_invoice_paid_atomic succeeded ✓")
 
-    // ── Status history (non-critical) ──────────────────────────────────────────
     const { error: historyErr } = await supabase
       .from("booking_status_history")
       .insert({
@@ -133,13 +174,8 @@ export async function POST(req: Request) {
 
     if (historyErr) {
       console.warn("[webhook] booking_status_history insert FAILED (non-critical)", { message: historyErr.message })
-    } else {
-      console.log("[webhook] booking_status_history recorded ✓")
     }
 
-    // ── Fetch the stored checkout_outcome for the notification copy ────────────
-    // The outcome was stored in checkout_invoices.checkout_outcome by the
-    // complete_checkout_outcome_atomic RPC. We use it here to send the right copy.
     const { data: invoiceRow } = await supabase
       .from("checkout_invoices")
       .select("checkout_outcome")
@@ -148,8 +184,6 @@ export async function POST(req: Request) {
 
     const checkoutOutcome = invoiceRow?.checkout_outcome as string | null
 
-    // ── Customer notification ──────────────────────────────────────────────────
-    // Outcome-aware copy: only say "Aircraft bookings now available" for cleared.
     let notifTitle = "Checkout payment received"
     let notifBody  = "Your checkout invoice has been paid."
 
@@ -182,8 +216,6 @@ export async function POST(req: Request) {
 
       if (notifErr) {
         console.warn("[webhook] Notification insert FAILED (non-fatal)", { message: notifErr.message })
-      } else {
-        console.log("[webhook] Customer notification created ✓")
       }
     } catch (notifEx: any) {
       console.warn("[webhook] Notification threw unexpectedly (non-fatal)", { message: notifEx?.message })

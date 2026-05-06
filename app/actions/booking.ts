@@ -6,6 +6,7 @@ import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 import { generateReviewFlags } from '@/lib/booking/review-flags'
 import {
   notifyBookingSubmitted,
+  notifyBookingCancelled,
   notifyClarificationResponseReceived,
   notifyFlightRecordResubmitted,
 } from '@/lib/booking/notifications'
@@ -55,7 +56,7 @@ async function requireClearedCustomer() {
 
 export async function createBooking(
   input: CreateBookingInput,
-): Promise<{ bookingId: string; bookingReference: string }> {
+): Promise<{ bookingId: string; bookingReference: string; bookingStatus: string }> {
   const { supabase, userId } = await requireClearedCustomer()
 
   // Flight review date — required and must be within the last 2 years
@@ -133,7 +134,7 @@ export async function createBooking(
     }
   }
 
-  return { bookingId: result.booking_id, bookingReference: result.booking_reference }
+  return { bookingId: result.booking_id, bookingReference: result.booking_reference, bookingStatus: result.status }
 }
 
 // ─── Mark flight returned ─────────────────────────────────────────────────────
@@ -697,4 +698,219 @@ export async function uploadFlightRecordEvidence(
   revalidatePath(`/admin/bookings/post-flight/${flightRecordId}`)
 
   return { storagePath, attachmentId: attachment.id }
+}
+
+// ─── Customer cancellation ────────────────────────────────────────────────────
+
+const CUSTOMER_CANCELLABLE_STATUSES = [
+  'confirmed',
+  'pending_confirmation',
+  'ready_for_dispatch',
+  'dispatched',
+] as const
+
+// Helper: load & verify booking ownership + cancellable status
+async function loadCancellableBooking(bookingId: string) {
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) throw new Error('Unauthorized')
+
+  const { data: booking, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('id, status, booking_type, scheduled_start, aircraft_id, booking_reference, estimated_amount')
+    .eq('id', bookingId)
+    .eq('booking_owner_user_id', user.id)
+    .single()
+
+  if (fetchErr || !booking) throw new Error('Booking not found.')
+  if (booking.booking_type !== 'standard') {
+    throw new Error('VALIDATION: Only standard bookings can be cancelled by the customer.')
+  }
+  if (!CUSTOMER_CANCELLABLE_STATUSES.includes(booking.status as typeof CUSTOMER_CANCELLABLE_STATUSES[number])) {
+    throw new Error(`VALIDATION: Booking cannot be cancelled from status "${booking.status}".`)
+  }
+
+  return { supabase, userId: user.id, booking }
+}
+
+/**
+ * Immediately cancel a booking when departure is more than 24 hours away.
+ * Releases all related schedule blocks and records status history.
+ */
+export async function cancelBookingNow(bookingId: string): Promise<void> {
+  const { supabase, userId, booking } = await loadCancellableBooking(bookingId)
+  const now = new Date()
+
+  // Server-side 24h guard — must be more than 24h before departure
+  const hoursUntilDeparture =
+    (new Date(booking.scheduled_start).getTime() - now.getTime()) / (1000 * 60 * 60)
+
+  if (hoursUntilDeparture <= 24) {
+    throw new Error(
+      'VALIDATION: Departure is within 24 hours. Use requestLateCancellation for late cancellations.',
+    )
+  }
+
+  const oldStatus = booking.status
+
+  // Cancel the booking
+  const { error: updateErr } = await supabase
+    .from('bookings')
+    .update({
+      status:                  'cancelled',
+      cancellation_category:   'customer',
+      updated_at:              now.toISOString(),
+    })
+    .eq('id', bookingId)
+
+  if (updateErr) throw new Error('Failed to cancel booking.')
+
+  // Release all linked schedule blocks
+  await supabase
+    .from('schedule_blocks')
+    .update({ status: 'cancelled' })
+    .eq('related_booking_id', bookingId)
+
+  // Status history — customer-facing
+  await supabase.from('booking_status_history').insert({
+    booking_id:         bookingId,
+    old_status:         oldStatus,
+    new_status:         'cancelled',
+    changed_by_user_id: userId,
+    note:               'Booking cancelled by customer more than 24 hours before departure.',
+  })
+
+  // Audit event
+  await supabase.from('booking_audit_events').insert({
+    booking_id:    bookingId,
+    aircraft_id:   booking.aircraft_id,
+    actor_user_id: userId,
+    actor_role:    'customer',
+    event_type:    'booking_cancelled',
+    event_summary: 'Customer cancelled booking (>24 h before departure).',
+    new_value:     { status: 'cancelled', trigger: 'customer_immediate' },
+  })
+
+  // Record in cancellation_requests table for audit trail (immediate path)
+  await supabase.from('booking_cancellation_requests').insert({
+    booking_id:         bookingId,
+    user_id:            userId,
+    booking_start_time: booking.scheduled_start,
+    is_within_24_hours: false,
+    status:             'cancelled_without_charge',
+  })
+
+  // Notify customer (fire-and-forget)
+  const { data: notifyData } = await supabase
+    .from('bookings')
+    .select('booking_reference, profiles:booking_owner_user_id ( full_name, email )')
+    .eq('id', bookingId)
+    .single()
+
+  if (notifyData) {
+    const prof  = Array.isArray(notifyData.profiles) ? notifyData.profiles[0] : notifyData.profiles
+    const email = (prof as { email?: string | null } | null)?.email
+    if (email) {
+      notifyBookingCancelled({
+        customerEmail: email,
+        customerName:  (prof as { full_name?: string | null } | null)?.full_name ?? 'Pilot',
+        ref:           notifyData.booking_reference ?? bookingId.slice(0, 8).toUpperCase(),
+        reason:        'You cancelled this booking.',
+      }).catch(e => console.error('[cancelBookingNow] notification error:', e))
+    }
+  }
+
+  revalidatePath(`/dashboard/bookings/${bookingId}`)
+  revalidatePath('/dashboard/bookings')
+  revalidatePath('/dashboard')
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings/cancellations')
+}
+
+/**
+ * Submit a cancellation request when departure is 24 hours or less away.
+ * Moves the booking to 'cancellation_requested' and records a review entry
+ * for the admin. Schedule blocks are NOT released until admin decides.
+ */
+export async function requestLateCancellation(
+  bookingId: string,
+  customerMessage: string | null,
+): Promise<void> {
+  const { supabase, userId, booking } = await loadCancellableBooking(bookingId)
+  const now = new Date()
+
+  // Server-side 24h guard — must be within 24h of departure
+  const hoursUntilDeparture =
+    (new Date(booking.scheduled_start).getTime() - now.getTime()) / (1000 * 60 * 60)
+
+  if (hoursUntilDeparture > 24) {
+    throw new Error(
+      'VALIDATION: Departure is more than 24 hours away. Use cancelBookingNow instead.',
+    )
+  }
+
+  // Prevent duplicate requests
+  const { data: existingRequest } = await supabase
+    .from('booking_cancellation_requests')
+    .select('id')
+    .eq('booking_id', bookingId)
+    .eq('status', 'pending')
+    .maybeSingle()
+
+  if (existingRequest) {
+    throw new Error('VALIDATION: A cancellation request is already pending for this booking.')
+  }
+
+  const oldStatus = booking.status
+
+  // Move booking to cancellation_requested (blocks are held, not released)
+  const { error: updateErr } = await supabase
+    .from('bookings')
+    .update({
+      status:     'cancellation_requested',
+      updated_at: now.toISOString(),
+    })
+    .eq('id', bookingId)
+
+  if (updateErr) throw new Error('Failed to submit cancellation request.')
+
+  // Create the pending review record
+  await supabase.from('booking_cancellation_requests').insert({
+    booking_id:         bookingId,
+    user_id:            userId,
+    booking_start_time: booking.scheduled_start,
+    is_within_24_hours: true,
+    customer_message:   customerMessage?.trim() || null,
+    status:             'pending',
+  })
+
+  // Status history — visible to customer and admin
+  const note = customerMessage?.trim()
+    ? `Customer requested cancellation less than 24 hours before departure. Message: "${customerMessage.trim()}"`
+    : 'Customer requested cancellation less than 24 hours before departure. Admin review required.'
+
+  await supabase.from('booking_status_history').insert({
+    booking_id:         bookingId,
+    old_status:         oldStatus,
+    new_status:         'cancellation_requested',
+    changed_by_user_id: userId,
+    note,
+  })
+
+  // Audit event
+  await supabase.from('booking_audit_events').insert({
+    booking_id:    bookingId,
+    aircraft_id:   booking.aircraft_id,
+    actor_user_id: userId,
+    actor_role:    'customer',
+    event_type:    'cancellation_requested',
+    event_summary: 'Customer requested late cancellation (<24 h). Pending admin review.',
+    new_value:     { status: 'cancellation_requested', customer_message: customerMessage },
+  })
+
+  revalidatePath(`/dashboard/bookings/${bookingId}`)
+  revalidatePath('/dashboard/bookings')
+  revalidatePath('/dashboard')
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings/cancellations')
 }

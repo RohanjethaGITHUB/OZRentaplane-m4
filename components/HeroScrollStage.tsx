@@ -1648,6 +1648,13 @@ export default function HeroScrollStage() {
 
         </div>
 
+        {/* Static bottom blend — always visible, consistent with all other public hero pages */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-0 h-[30%] pointer-events-none bg-gradient-to-t from-[#091421] via-[#0b111a]/30 to-transparent"
+          style={{ zIndex: 24 }}
+        />
+
         {/* ── Hero text overlays ──────────────────────────────────────────── */}
         {/* Safari desktop uses SAFARI_TEXT_OVERLAYS (plain HTML, no Framer Motion). */}
         {(isSafariDesktop ? SAFARI_TEXT_OVERLAYS : TEXT_OVERLAYS).map((overlay, idx) => (

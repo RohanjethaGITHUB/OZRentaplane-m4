@@ -47,11 +47,23 @@ export function getDayVfrWindow(dateStr: string): { start: string; end: string }
 /**
  * Returns true if the HH:MM departure time is within the allowed Day VFR window
  * for the given Sydney date. Inclusive of start, exclusive of end.
+ * If durationMinutes is provided, ensures the entire flight (start + duration) fits inside the window.
  */
-export function isWithinDayVfrWindow(timeStr: string, dateStr: string): boolean {
+export function isWithinDayVfrWindow(timeStr: string, dateStr: string, durationMinutes: number = 0): boolean {
   if (!timeStr || !dateStr) return false
   const w = getDayVfrWindow(dateStr)
-  return timeStr >= w.start && timeStr < w.end
+  if (timeStr < w.start) return false
+
+  if (durationMinutes > 0) {
+    const [h, m] = timeStr.split(':').map(Number)
+    const endMins = (h! * 60) + m! + durationMinutes
+    const endH = Math.floor(endMins / 60)
+    const endM = endMins % 60
+    const endTimeStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
+    return endTimeStr <= w.end
+  }
+
+  return timeStr < w.end
 }
 
 /**
@@ -62,6 +74,7 @@ export function isWithinDayVfrWindow(timeStr: string, dateStr: string): boolean 
 export function isBookingTimeAllowed(
   scheduledStartUTC: string,
   hasNightVfrRating: boolean | null,
+  durationMinutes: number = 0,
 ): boolean {
   if (hasNightVfrRating === true) return true
 
@@ -79,5 +92,5 @@ export function isBookingTimeAllowed(
     hour12:   false,
   }).format(d)
 
-  return isWithinDayVfrWindow(sydTime, sydDate)
+  return isWithinDayVfrWindow(sydTime, sydDate, durationMinutes)
 }

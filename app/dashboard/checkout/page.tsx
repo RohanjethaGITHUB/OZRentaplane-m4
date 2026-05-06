@@ -46,7 +46,7 @@ export default async function CheckoutPage() {
 
   const { data: documents } = await supabase
     .from('user_documents')
-    .select('id, document_type, status, expiry_date, uploaded_at')
+    .select('id, document_type, status, expiry_date, uploaded_at, file_name')
     .eq('user_id', user.id)
 
   const { data: aircraft } = await supabase

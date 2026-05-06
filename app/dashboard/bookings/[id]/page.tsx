@@ -7,6 +7,7 @@ import FlightRecordForm from './FlightRecordForm'
 import PostFlightHero from './PostFlightHero'
 import PostFlightClarificationPanel from './PostFlightClarificationPanel'
 import CheckoutPaymentCard from './CheckoutPaymentCard'
+import BookingPaymentCard from './BookingPaymentCard'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
 import type { BookingStatus, FlightRecord, FlightRecordAttachment, FlightRecordClarification } from '@/lib/supabase/booking-types'
@@ -14,6 +15,7 @@ import { formatDateFromISO } from '@/lib/formatDateTime'
 import { PAYMENT_CONFIG } from '@/lib/payments/config'
 import { markFlightReturned } from '@/app/actions/booking'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
+import CustomerBookingActions from './CustomerBookingActions'
 
 export const metadata = { title: 'Booking Details | Pilot Dashboard' }
 
@@ -42,6 +44,7 @@ const STATUS_CFG: Record<string, {
   completed:                       { label: 'Completed',              sublabel: 'Booking closed',              color: 'text-slate-400',  bg: 'bg-white/5',       border: 'border-white/10',      icon: 'done_all'        },
   cancelled:                       { label: 'Cancelled',              sublabel: 'Will not proceed',            color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'cancel'          },
   no_show:                         { label: 'No Show',                sublabel: 'Marked absent',               color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'person_off'      },
+  cancellation_requested:          { label: 'Cancellation Requested', sublabel: 'Awaiting admin review',       color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  icon: 'pending_actions' },
   // Checkout booking statuses
   checkout_requested:              { label: 'Under Review',           sublabel: 'Awaiting confirmation',       color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  icon: 'pending'         },
   checkout_confirmed:              { label: 'Confirmed',              sublabel: 'Checkout flight confirmed',   color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20',   icon: 'event_available' },
@@ -113,6 +116,9 @@ function NextActionCard({
   adminNotes,
   clarificationQuestion,
   bookingId,
+  bookingInvoice,
+  standardBankTransferSub,
+  standardBankDetails,
   picName,
   picArn,
   flightDate,
@@ -125,6 +131,7 @@ function NextActionCard({
   bankDetails,
   checkoutOutcome,
   standardBilling,
+  cancellationRequest,
 }: {
   status:                   string
   bookingType:              string
@@ -143,8 +150,73 @@ function NextActionCard({
   bankDetails?:             { accountName: string; bsb: string; accountNumber: string } | null
   checkoutOutcome?:         string | null
   standardBilling?:         { subtotal_cents: number; advance_applied_cents: number; amount_due_cents: number } | null
+  bookingInvoice?:          { id: string; invoice_number: string; subtotal_cents: number; advance_applied_cents: number; stripe_amount_due_cents: number; status: string; payment_method: string | null } | null
+  standardBankTransferSub?: { id: string; status: string } | null
+  standardBankDetails?:     { accountName: string; bsb: string; accountNumber: string } | null
+  cancellationRequest?:     { status: string; charge_amount_cents: number | null; customer_message: string | null } | null
 }) {
-  const isCancelled = status === 'cancelled' || status === 'no_show'
+  const isCancelled             = status === 'cancelled' || status === 'no_show'
+  const isCancellationRequested = status === 'cancellation_requested'
+
+  // ── Cancellation requested ────────────────────────────────────────────────
+  if (isCancellationRequested) {
+    return (
+      <div className="bg-amber-500/10 border border-amber-500/20 rounded-[1.25rem] p-6">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="material-symbols-outlined text-amber-400 text-lg animate-pulse">pending_actions</span>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-amber-400">Cancellation Under Review</h3>
+        </div>
+        <p className="text-sm text-oz-muted leading-relaxed">
+          Your cancellation request has been submitted and is awaiting review by the operations team. The booking slot is held until a decision is made.
+        </p>
+        {cancellationRequest?.customer_message && (
+          <div className="mt-3 pt-3 border-t border-amber-500/15">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-amber-400/60 mb-1">Your Message</p>
+            <p className="text-xs text-amber-300/70 leading-relaxed">{cancellationRequest.customer_message}</p>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── Cancelled with charge ─────────────────────────────────────────────────
+  if (
+    isCancelled &&
+    cancellationRequest?.status === 'approved_charged' &&
+    (cancellationRequest.charge_amount_cents ?? 0) > 0
+  ) {
+    const chargeDisplay = `$${((cancellationRequest.charge_amount_cents ?? 0) / 100).toFixed(2)}`
+    return (
+      <div className="bg-orange-500/10 border border-orange-500/20 rounded-[1.25rem] p-6 space-y-3">
+        <div className="flex items-center gap-3">
+          <span className="material-symbols-outlined text-orange-400 text-lg">payments</span>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-orange-400">Cancellation Charge Applies</h3>
+        </div>
+        <p className="text-sm text-oz-muted leading-relaxed">
+          This booking was cancelled inside the 24-hour window. A cancellation charge of{' '}
+          <span className="text-orange-300 font-medium">{chargeDisplay}</span> applies.
+        </p>
+        <div className="bg-orange-500/10 p-3 rounded-lg border border-orange-500/20 text-xs text-orange-400/80">
+          Please contact the operations team to arrange payment.
+        </div>
+      </div>
+    )
+  }
+
+  // ── Cancelled with waiver ─────────────────────────────────────────────────
+  if (isCancelled && cancellationRequest?.status === 'approved_waived') {
+    return (
+      <div className="bg-green-500/10 border border-green-500/20 rounded-[1.25rem] p-6">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="material-symbols-outlined text-green-400 text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-green-400">Cancellation Approved — No Charge</h3>
+        </div>
+        <p className="text-sm text-oz-muted leading-relaxed">
+          Your cancellation has been approved and the cancellation charge has been waived. No further action is required.
+        </p>
+      </div>
+    )
+  }
 
   // ── Checkout booking statuses ─────────────────────────────────────────────
   const CHECKOUT_STATUSES = [
@@ -197,41 +269,27 @@ function NextActionCard({
   }
 
   if (status === 'payment_pending') {
-    const amountDue = standardBilling ? (standardBilling.amount_due_cents / 100).toFixed(2) : '0.00'
-    const advanceApplied = standardBilling ? (standardBilling.advance_applied_cents / 100).toFixed(2) : '0.00'
-    const subtotal = standardBilling ? (standardBilling.subtotal_cents / 100).toFixed(2) : '0.00'
-
+    if (bookingInvoice) {
+      return (
+        <BookingPaymentCard
+          bookingId={bookingId}
+          invoice={bookingInvoice}
+          bankTransferSubmission={standardBankTransferSub}
+          bankDetails={standardBankDetails}
+        />
+      )
+    }
+    // Fallback if invoice not yet fetched (race condition guard)
     return (
       <div className="bg-orange-500/10 border border-orange-500/20 rounded-[1.25rem] p-6">
         <div className="flex items-center gap-3 mb-3">
           <span className="material-symbols-outlined text-orange-400 text-lg">payments</span>
           <h3 className="text-xs font-bold uppercase tracking-widest text-orange-400">Payment Required</h3>
         </div>
-        <p className="text-sm text-oz-muted leading-relaxed mb-6">
-          Your flight record has been approved. Please pay the remaining balance to close this booking.
-        </p>
-
-        {standardBilling && (
-          <div className="mb-6 space-y-2 p-4 rounded-xl bg-orange-500/[0.05] border border-orange-500/15 text-sm">
-            <div className="flex justify-between text-slate-300">
-              <span>Flight Total</span>
-              <span>${subtotal}</span>
-            </div>
-            {standardBilling.advance_applied_cents > 0 && (
-              <div className="flex justify-between text-green-400">
-                <span>Advance Credit Applied</span>
-                <span>-${advanceApplied}</span>
-              </div>
-            )}
-            <div className="flex justify-between font-bold text-orange-400 pt-2 border-t border-orange-500/20">
-              <span>Total Due</span>
-              <span>${amountDue}</span>
-            </div>
-          </div>
-        )}
-
-        <div className="bg-orange-500/10 p-3 rounded-lg border border-orange-500/20 text-xs text-orange-400/80">
-          Online payment integration is coming soon. Please contact operations to pay the remaining balance.
+        <p className="text-sm text-oz-muted leading-relaxed">
+          Your flight invoice is being prepared. Please refresh the page or contact the operations team.</p>
+        <div className="bg-orange-500/10 p-3 rounded-lg border border-orange-500/20 text-xs text-orange-400/80 mt-4">
+          Contact operations to arrange payment.
         </div>
       </div>
     )
@@ -788,6 +846,48 @@ export default async function BookingDetailPage({ params }: PageProps) {
     }
   }
 
+  // ── Standard booking invoice + bank transfer fetch ────────────────────────────
+  let bookingInvoice: {
+    id: string; invoice_number: string; subtotal_cents: number
+    advance_applied_cents: number; stripe_amount_due_cents: number
+    status: string; payment_method: string | null
+  } | null = null
+  let standardBankTransferSub: { id: string; status: string } | null = null
+  let standardBankDetails: { accountName: string; bsb: string; accountNumber: string } | null = null
+
+  if (status === 'payment_pending') {
+    const { data: bInv } = await supabase
+      .from('booking_invoices')
+      .select('id, invoice_number, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, status, payment_method')
+      .eq('booking_id', booking.id)
+      .maybeSingle()
+    bookingInvoice = bInv as typeof bookingInvoice
+
+    if (bInv) {
+      const { data: bSub } = await supabase
+        .from('booking_bank_transfer_submissions')
+        .select('id, status')
+        .eq('invoice_id', bInv.id)
+        .order('submitted_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      standardBankTransferSub = bSub
+    }
+
+    const name = PAYMENT_CONFIG.BANK_ACCOUNT_NAME
+    const bsb  = PAYMENT_CONFIG.BANK_BSB
+    const acct = PAYMENT_CONFIG.BANK_ACCOUNT_NUMBER
+    if (name && bsb && acct) {
+      standardBankDetails = { accountName: name, bsb, accountNumber: acct }
+    }
+  }
+
+  // Derive standard booking awaiting manual payment state
+  const isStandardAwaitingManualPayment =
+    status === 'payment_pending' &&
+    standardBankTransferSub != null &&
+    (standardBankTransferSub.status === 'pending_review' || standardBankTransferSub.status === 'approved')
+
   // ── Derive checkout payment display state ─────────────────────────────────────
   const checkoutPaymentDisplayState = status === 'checkout_payment_required'
     ? getCheckoutPaymentDisplayState(
@@ -798,7 +898,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
   const isAwaitingManualPayment = checkoutPaymentDisplayState === 'awaiting_manual_payment_confirmation'
 
-  // Override cfg for awaiting manual payment confirmation
+  // Override cfg for checkout awaiting manual payment confirmation
   if (isAwaitingManualPayment) {
     const manualCfg = STATUS_CFG['checkout_awaiting_manual_payment']
     if (manualCfg) {
@@ -811,9 +911,65 @@ export default async function BookingDetailPage({ params }: PageProps) {
     }
   }
 
+  // Override cfg for standard booking awaiting bank transfer confirmation
+  if (isStandardAwaitingManualPayment) {
+    cfg.label    = 'Awaiting Payment Confirmation'
+    cfg.sublabel = 'Bank transfer under review'
+    cfg.color    = 'text-blue-400'
+    cfg.bg       = 'bg-blue-500/10'
+    cfg.border   = 'border-blue-500/20'
+    cfg.icon     = 'account_balance'
+  }
+
   const isCancelled = status === 'cancelled' || status === 'no_show'
   const isStandardPipeline = bookingType === 'standard'
   const isCheckoutPipeline = bookingType === 'checkout'
+
+  // ── Cancellation request (if any) ─────────────────────────────────────────
+  // Fetch for display whenever booking is cancelled or cancellation_requested.
+  type CancellationRequestDisplay = {
+    status:             string
+    charge_amount_cents: number | null
+    customer_message:   string | null
+  }
+  let cancellationRequest: CancellationRequestDisplay | null = null
+
+  if (status === 'cancellation_requested' || isCancelled) {
+    const { data: crData } = await supabase
+      .from('booking_cancellation_requests')
+      .select('status, charge_amount_cents, customer_message')
+      .eq('booking_id', booking.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    cancellationRequest = (crData as CancellationRequestDisplay | null) ?? null
+  }
+
+  // ── Customer action button eligibility (standard bookings only) ───────────
+  const CANCELLABLE_STATUSES = ['confirmed', 'pending_confirmation', 'ready_for_dispatch', 'dispatched']
+  const FLIGHT_RECORD_STATUSES = ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record']
+
+  const showCancelButton =
+    bookingType === 'standard' &&
+    CANCELLABLE_STATUSES.includes(status)
+
+  const showFlightRecordButton =
+    bookingType === 'standard' &&
+    FLIGHT_RECORD_STATUSES.includes(status) &&
+    status !== 'awaiting_flight_record' // full-width layout handles that case
+
+  // 24h check for late-cancel modal — server-side computation passed to client
+  const msUntilDeparture = new Date(booking.scheduled_start).getTime() - Date.now()
+  const isWithin24Hours  = msUntilDeparture <= 24 * 60 * 60 * 1000
+
+  const departureSydney = new Date(booking.scheduled_start).toLocaleString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    weekday:  'short',
+    month:    'short',
+    day:      'numeric',
+    hour:     'numeric',
+    minute:   '2-digit',
+  })
 
   // For checkout bookings, replace the final "Completed" journey step label with
   // the actual outcome so the journey reflects what happened rather than just "Completed".
@@ -1128,6 +1284,16 @@ export default async function BookingDetailPage({ params }: PageProps) {
                     Response required · Slot held
                   </p>
                 )}
+                {/* Customer action buttons — cancel + submit flight record */}
+                {(showCancelButton || showFlightRecordButton) && (
+                  <CustomerBookingActions
+                    bookingId={booking.id}
+                    showCancelButton={showCancelButton}
+                    showFlightRecordButton={showFlightRecordButton}
+                    isWithin24Hours={isWithin24Hours}
+                    departureSydney={departureSydney}
+                  />
+                )}
               </div>
             </div>
 
@@ -1314,19 +1480,11 @@ export default async function BookingDetailPage({ params }: PageProps) {
               bankDetails={bankDetails}
               checkoutOutcome={checkoutOutcome}
               standardBilling={standardBilling}
+              bookingInvoice={bookingInvoice}
+              standardBankTransferSub={standardBankTransferSub}
+              standardBankDetails={standardBankDetails}
+              cancellationRequest={cancellationRequest}
             />
-
-            {/* Request a change */}
-            {!(bookingType === 'checkout' && ['completed', 'cancelled', 'no_show', 'post_flight_approved'].includes(status)) && (
-              <div className="bg-white/5 border border-white/5 rounded-[1.25rem] p-5 opacity-60">
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Request a Change</h3>
-                <p className="text-xs text-oz-muted leading-relaxed">
-                  Need to cancel or modify this booking?{' '}
-                  <span className="text-oz-blue">Contact the operations team.</span>
-                </p>
-                <p className="text-[9px] text-slate-600 mt-3 uppercase tracking-widest">Self-service cancellation — coming soon</p>
-              </div>
-            )}
 
             {/* Quick booking info */}
             <div className="bg-white/5 border border-white/5 rounded-[1.25rem] p-5">

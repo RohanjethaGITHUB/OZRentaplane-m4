@@ -17,8 +17,8 @@ export type AvailabilityCheckResult =
 /**
  * Customer-safe live availability check for an exact time window.
  *
- * Calls `get_customer_aircraft_calendar_blocks` with the window expanded by
- * the aircraft's pre/post-flight buffers to detect true overlaps.
+ * Queries get_customer_aircraft_calendar_blocks for the exact window.
+ * No artificial buffer expansion — back-to-back bookings are allowed.
  *
  * Returns only public-safe fields — no internal_reason, no admin notes.
  */
@@ -41,34 +41,13 @@ export async function checkCustomerAvailability(
     return { available: false, message: 'Invalid time range.', conflicts: [] }
   }
 
-  // Fetch aircraft buffers to expand the check window, matching atomic RPC logic.
-  const { data: aircraft, error: aircraftErr } = await supabase
-    .from('aircraft')
-    .select('default_preflight_buffer_minutes, default_postflight_buffer_minutes')
-    .eq('id', aircraftId)
-    .single()
-
-  if (aircraftErr || !aircraft) {
-    console.error('[checkCustomerAvailability] Failed to fetch aircraft:', aircraftErr?.message)
-    return {
-      available:  false,
-      message:    'Unable to check availability. Please try again.',
-      conflicts:  [],
-    }
-  }
-
-  const checkStart = new Date(start)
-  checkStart.setMinutes(checkStart.getMinutes() - (aircraft.default_preflight_buffer_minutes || 0))
-
-  const checkEnd = new Date(end)
-  checkEnd.setMinutes(checkEnd.getMinutes() + (aircraft.default_postflight_buffer_minutes || 0))
-
+  // Query the exact requested window — no buffer expansion.
   const { data, error } = await supabase.rpc(
     'get_customer_aircraft_calendar_blocks',
     {
       p_aircraft_id: aircraftId,
-      p_from:        checkStart.toISOString(),
-      p_to:          checkEnd.toISOString(),
+      p_from:        start.toISOString(),
+      p_to:          end.toISOString(),
     }
   )
 

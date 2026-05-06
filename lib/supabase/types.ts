@@ -20,7 +20,7 @@ export type PilotClearanceStatus =
   | 'checkout_reschedule_required'
   | 'not_currently_eligible'
 
-export type DocumentType = 'pilot_licence' | 'medical_certificate' | 'photo_id'
+export type DocumentType = 'pilot_licence' | 'medical_certificate' | 'photo_id' | 'night_vfr_evidence'
 export type DocumentStatus = 'uploaded' | 'approved' | 'rejected'
 
 export type Profile = {

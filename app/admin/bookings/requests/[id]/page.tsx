@@ -9,6 +9,9 @@ import AdminCheckoutReviewPanel from './AdminCheckoutReviewPanel'
 import AdminClarificationForm from './AdminClarificationForm'
 import AdminOperationalActions from './AdminOperationalActions'
 import AdminBankTransferPanel from './AdminBankTransferPanel'
+import AdminStandardBankTransferPanel from './AdminStandardBankTransferPanel'
+import AdminStandardBillingPanel from './AdminStandardBillingPanel'
+import AdminCancellationReviewCard from './AdminCancellationReviewCard'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 
 export const metadata = { title: 'Booking Detail | Admin' }
@@ -26,6 +29,7 @@ const STATUS_CFG: Record<string, {
   pending_confirmation:            { label: 'Pending Confirmation',      color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   icon: 'pending'        },
   confirmed:                       { label: 'Confirmed',                 color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    icon: 'check_circle'   },
   cancelled:                       { label: 'Cancelled',                 color: 'text-rose-400',    bg: 'bg-rose-500/10',    border: 'border-rose-500/20',    icon: 'cancel'         },
+  cancellation_requested:          { label: 'Cancellation Requested',    color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   icon: 'pending_actions'},
   ready_for_dispatch:              { label: 'Ready for Dispatch',        color: 'text-green-400',   bg: 'bg-green-500/10',   border: 'border-green-500/20',   icon: 'flight_takeoff' },
   dispatched:                      { label: 'Dispatched',                color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', icon: 'flight'         },
   awaiting_flight_record:          { label: 'Awaiting Flight Record',    color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   icon: 'assignment'     },
@@ -139,8 +143,15 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   // When the booking is in checkout_completed_under_review (outcome-recording
   // state), also fetch airports list and customer credit balance for the
   // outcome form landing charges and credit display.
-  const isOutcomePending = booking.status === 'checkout_completed_under_review'
+  const bookingType       = (booking as { booking_type?: string }).booking_type ?? 'standard'
+  const isOutcomePending  = booking.status === 'checkout_completed_under_review'
   const isPaymentRequired = booking.status === 'checkout_payment_required'
+  // Standard booking billing panel shown for pending_post_flight_review
+  const isStandardBillingPending = bookingType === 'standard' && booking.status === 'pending_post_flight_review'
+  // Standard booking payment pending — show bank transfer panel if applicable
+  const isStandardPaymentPending = bookingType === 'standard' && booking.status === 'payment_pending'
+  // Fetch airports and credit for both checkout outcome form AND standard billing panel
+  const needsAirportsAndCredit = isOutcomePending || isStandardBillingPending
 
   const [
     { data: customer },
@@ -151,6 +162,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     { data: rawMessages },
     { data: airportRows },
     { data: creditRow },
+    { data: flightRecordRow },
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -187,22 +199,39 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       .eq('user_id', booking.booking_owner_user_id)
       .order('created_at', { ascending: false })
       .limit(50),
-    // Active airports for landing charge dropdown — only fetched when recording an outcome
-    isOutcomePending
+    // Active airports — fetched for checkout outcome form AND standard billing panel
+    needsAirportsAndCredit
       ? supabase.from('airports').select('id, icao_code, name, default_landing_fee_cents').eq('is_active', true).order('name')
       : Promise.resolve({ data: null, error: null }),
-    // Customer credit balance — only fetched when recording an outcome
-    isOutcomePending
+    // Customer credit balance — fetched for checkout outcome form AND standard billing panel
+    needsAirportsAndCredit
       ? supabase.from('customer_credit_balances').select('balance_cents').eq('customer_id', booking.booking_owner_user_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    // Flight record — fetched for standard billing panel
+    isStandardBillingPending
+      ? supabase.from('flight_records').select('vdo_total, landings, customer_notes').eq('booking_id', booking.id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
   ])
 
   const documents        = rawDocuments ?? []
   const messages         = rawMessages  ?? []
-  const airports         = (airportRows ?? []) as { id: string; icao_code: string; name: string; default_landing_fee_cents: number }[]
-  const customerCreditCents = (creditRow as { balance_cents?: number } | null)?.balance_cents ?? 0
 
-  // ── Bank transfer submissions ─────────────────────────────────────────────
+  // Sort airports so Sydney Bankstown (YSBK) appears first, then alphabetically.
+  const rawAirports = (airportRows ?? []) as { id: string; icao_code: string; name: string; default_landing_fee_cents: number }[]
+  const airports = [...rawAirports].sort((a, b) => {
+    const isBankstownA = a.icao_code === 'YSBK' || a.name.toLowerCase().includes('bankstown')
+    const isBankstownB = b.icao_code === 'YSBK' || b.name.toLowerCase().includes('bankstown')
+    if (isBankstownA && !isBankstownB) return -1
+    if (!isBankstownA && isBankstownB) return 1
+    return a.name.localeCompare(b.name)
+  })
+
+  const customerCreditCents = (creditRow as { balance_cents?: number } | null)?.balance_cents ?? 0
+  const initialVdo = (flightRecordRow as { vdo_total?: number } | null)?.vdo_total ?? undefined
+  const initialLandings = (flightRecordRow as { landings?: number } | null)?.landings ?? undefined
+  const initialNotes = (flightRecordRow as { customer_notes?: string } | null)?.customer_notes ?? undefined
+
+  // ── Bank transfer submissions (checkout) ─────────────────────────────────
   type BankTransferSub = {
     id: string
     status: string
@@ -238,9 +267,33 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     }
   }
 
+  // ── Bank transfer submissions (standard booking) ──────────────────────────
+  let standardBankTransferSubmissions: BankTransferSub[] = []
+  if (isStandardPaymentPending) {
+    const { data: stdInvoiceRow } = await supabase
+      .from('booking_invoices')
+      .select('id')
+      .eq('booking_id', booking.id)
+      .single()
+    if (stdInvoiceRow) {
+      const { data: stdSubs } = await supabase
+        .from('booking_bank_transfer_submissions')
+        .select('id, status, reference, receipt_storage_path, admin_note, submitted_at, reviewed_at')
+        .eq('invoice_id', stdInvoiceRow.id)
+        .order('submitted_at', { ascending: false })
+
+      standardBankTransferSubmissions = await Promise.all(
+        (stdSubs ?? []).map(async (sub) => {
+          const { data: signedData } = await supabase.storage
+            .from('bank_transfer_receipts')
+            .createSignedUrl(sub.receipt_storage_path, 3600)
+          return { ...sub, signedReceiptUrl: signedData?.signedUrl ?? null }
+        })
+      )
+    }
+  }
+
   // ── Derive manual payment pending state ───────────────────────────────────────
-  // When bank transfer proof has been submitted but admin has not yet confirmed,
-  // all status displays should say "Awaiting Payment Confirmation", not "Payment Required".
   const latestBankTransferSub = bankTransferSubmissions[0] ?? null
   const checkoutPaymentDisplayState = getCheckoutPaymentDisplayState(
     isPaymentRequired ? { status: 'payment_required' } : null,
@@ -248,8 +301,14 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   )
   const isAwaitingManualPayment = checkoutPaymentDisplayState === 'awaiting_manual_payment_confirmation'
 
+  // Standard booking: awaiting manual payment confirmation
+  const latestStdBankSub = standardBankTransferSubmissions[0] ?? null
+  const isStandardAwaitingManualPayment =
+    isStandardPaymentPending &&
+    latestStdBankSub != null &&
+    (latestStdBankSub.status === 'pending_review' || latestStdBankSub.status === 'approved')
+
   // External conflicts: active blocks in the held window NOT belonging to this booking.
-  // Expired temporary holds are excluded — same rule as the submission RPC and confirm action.
   const nowDate = new Date()
   const externalConflicts = ((overlappingRaw ?? []) as ScheduleBlockRow[]).filter(b => {
     if (b.related_booking_id === booking.id) return false
@@ -257,8 +316,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     return true
   })
 
-  const status        = booking.status as string
-  const bookingType   = (booking as { booking_type?: string }).booking_type ?? 'standard'
+  const status = booking.status as string
+  // bookingType is already declared above (const bookingType = ...)
   const statusCfgBase = STATUS_CFG[status] ?? {
     label:  status.replace(/_/g, ' '),
     color:  'text-slate-400',
@@ -266,9 +325,10 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     border: 'border-white/10',
     icon:   'info',
   }
-  const statusCfg = isAwaitingManualPayment
-    ? { label: 'Manual Payment Submitted', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: 'account_balance' }
-    : statusCfgBase
+  const statusCfg =
+    isAwaitingManualPayment || isStandardAwaitingManualPayment
+      ? { label: 'Manual Payment Submitted', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: 'account_balance' }
+      : statusCfgBase
   const clearanceStatus  = (customer as { pilot_clearance_status?: string } | null)?.pilot_clearance_status ?? 'checkout_required'
   const clearanceCfgBase = CLEARANCE_CFG[clearanceStatus] ?? CLEARANCE_CFG.checkout_required
   const clearanceCfg = isAwaitingManualPayment
@@ -279,10 +339,32 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const statusHistory = rawHistory ?? []
 
   // ── Standard booking state flags ────────────────────────────────────────────
-  const isPending            = status === 'pending_confirmation'
-  const isClarificationState = status === 'needs_clarification'
-  const OPERATIONAL_STATUSES = ['confirmed', 'ready_for_dispatch', 'dispatched', 'post_flight_approved']
-  const isOperational        = OPERATIONAL_STATUSES.includes(status)
+  const isPending               = status === 'pending_confirmation'
+  const isCancellationRequested = status === 'cancellation_requested'
+  const isClarificationState    = status === 'needs_clarification'
+  // post_flight_approved stays operational until billing is finalised;
+  // once payment_pending the standard billing panel replaces operational actions.
+  const OPERATIONAL_STATUSES    = ['confirmed', 'ready_for_dispatch', 'dispatched']
+  const isOperational           = OPERATIONAL_STATUSES.includes(status)
+
+  // ── Fetch pending cancellation request for review ─────────────────────────
+  type CancellationReqAdmin = {
+    id:                  string
+    customer_message:    string | null
+    booking_start_time:  string
+  }
+  let cancellationReqAdmin: CancellationReqAdmin | null = null
+  if (isCancellationRequested) {
+    const { data: crData } = await supabase
+      .from('booking_cancellation_requests')
+      .select('id, customer_message, booking_start_time')
+      .eq('booking_id', booking.id)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    cancellationReqAdmin = (crData as CancellationReqAdmin | null) ?? null
+  }
   const canRequestClarification = status === 'pending_confirmation' || status === 'confirmed'
   const clarificationQuestion = [...statusHistory].reverse().find(r => r.new_status === 'needs_clarification')?.note ?? null
   const clarificationResponse = [...statusHistory].reverse().find(r => r.old_status === 'needs_clarification' && r.new_status === 'pending_confirmation')?.note ?? null
@@ -359,11 +441,19 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         {/* ── Left column: details ─────────────────────────────────────────────── */}
         <div className="lg:col-span-2 space-y-6">
 
-          {/* ── Bank transfer review panel — shown when payment required ──────── */}
+          {/* ── Checkout bank transfer panel — shown when checkout payment required ── */}
           {isPaymentRequired && bankTransferSubmissions.length > 0 && (
             <AdminBankTransferPanel
               bookingId={booking.id}
               submissions={bankTransferSubmissions}
+            />
+          )}
+
+          {/* ── Standard booking bank transfer panel ─────────────────────────── */}
+          {isStandardPaymentPending && standardBankTransferSubmissions.length > 0 && (
+            <AdminStandardBankTransferPanel
+              bookingId={booking.id}
+              submissions={standardBankTransferSubmissions}
             />
           )}
 
@@ -582,7 +672,32 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               </div>
             )}
 
+            {/* ── Standard booking billing panel ───────────────────────────── */}
+            {isStandardBillingPending && (
+              <AdminStandardBillingPanel
+                bookingId={booking.id}
+                airports={airports}
+                customerCreditCents={customerCreditCents}
+                initialVdo={initialVdo}
+                initialLandings={initialLandings}
+                initialNotes={initialNotes}
+              />
+            )}
 
+            {/* ── Standard booking: awaiting bank transfer confirmation ─────── */}
+            {isStandardPaymentPending && standardBankTransferSubmissions.length === 0 && (
+              <div className="bg-orange-500/[0.06] border border-orange-500/20 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-orange-400 text-[16px]">payments</span>
+                  <h2 className="text-[9px] uppercase tracking-widest font-bold text-orange-400/70">
+                    Payment Pending
+                  </h2>
+                </div>
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  Payment request has been sent. Awaiting customer payment via Stripe or bank transfer.
+                </p>
+              </div>
+            )}
 
             {/* Admin actions — confirm/cancel while pending (standard bookings only) */}
             {isPending && !isCheckout && (
@@ -592,6 +707,18 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 </h2>
                 <AdminBookingActions bookingId={booking.id} />
               </div>
+            )}
+
+            {/* Cancellation request review — late cancel awaiting admin decision */}
+            {isCancellationRequested && cancellationReqAdmin && (
+              <AdminCancellationReviewCard
+                cancellationRequestId={cancellationReqAdmin.id}
+                bookingReference={(booking as { booking_reference?: string | null }).booking_reference ?? null}
+                customerMessage={cancellationReqAdmin.customer_message}
+                bookingStartTime={cancellationReqAdmin.booking_start_time}
+                estimatedAmount={(booking as { estimated_amount?: number | null }).estimated_amount ?? null}
+                estimatedHours={(booking as { estimated_hours?: number | null }).estimated_hours ?? null}
+              />
             )}
 
             {/* Waiting for clarification response */}

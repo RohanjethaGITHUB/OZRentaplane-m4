@@ -74,15 +74,12 @@ const OUTCOMES: { key: OutcomeKey; label: string; body: string; color: string; b
   },
 ]
 
-const CHECKOUT_RATE_PER_HOUR_CENTS = 29000   // $290 in cents
-
 let rowIdCounter = 0
 
-// Parse a VDO reading string; returns NaN if invalid.
-function parseVdo(s: string): number {
+// Parse a VDO reading string; one decimal place required, must be > 0.
+function parseVdoReading(s: string): number {
   const n = parseFloat(s)
-  if (isNaN(n) || n < 0) return NaN
-  // Only accept one decimal place (e.g. 124.2, not 124.25)
+  if (isNaN(n) || n <= 0) return NaN
   if (!/^\d+(\.\d)?$/.test(s.trim())) return NaN
   return n
 }
@@ -96,9 +93,11 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
   const [confirmingOutcome, setConfirmingOutcome] = useState<OutcomeKey | null>(null)
   const [adminNote, setAdminNote] = useState('')
 
-  // VDO meter state
-  const [vdoStart, setVdoStart] = useState('')
-  const [vdoEnd,   setVdoEnd]   = useState('')
+  // VDO reading state — single value from the aircraft paper sheet
+  const [vdoReading, setVdoReading] = useState('')
+
+  // Hourly rate state — admin-editable, default $290/hr
+  const [hourlyRate, setHourlyRate] = useState('290')
 
   // Landing charges state
   const [landingRows, setLandingRows] = useState<LandingChargeRow[]>([])
@@ -120,20 +119,18 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
     })
   }
 
-  // ── VDO-derived billing calculations (client-side preview only) ───────────
-  const vdoStartNum = parseVdo(vdoStart)
-  const vdoEndNum   = parseVdo(vdoEnd)
-  const validVdoStart = !isNaN(vdoStartNum)
-  const validVdoEnd   = !isNaN(vdoEndNum)
-  const validVdoPair  = validVdoStart && validVdoEnd && vdoEndNum > vdoStartNum
+  // ── Hourly rate parsing ───────────────────────────────────────────────────
+  const hourlyRateNum   = parseFloat(hourlyRate)
+  const validHourlyRate = !isNaN(hourlyRateNum) && hourlyRateNum > 0
+  const hourlyRateCents = validHourlyRate ? Math.round(hourlyRateNum * 100) : 0
 
-  // Round to 1 decimal to match VDO meter precision
-  const vdoHours = validVdoPair
-    ? Math.round((vdoEndNum - vdoStartNum) * 10) / 10
-    : 0
+  // ── VDO reading billing calculations (client-side preview only) ───────────
+  const vdoReadingNum   = parseVdoReading(vdoReading)
+  const validVdoReading = !isNaN(vdoReadingNum)
+  const vdoReadingValid = validVdoReading && vdoReadingNum >= 0.1 && vdoReadingNum <= 5.0
 
-  const vdoBaseCents = validVdoPair
-    ? Math.round(vdoHours * CHECKOUT_RATE_PER_HOUR_CENTS)
+  const vdoBaseCents = vdoReadingValid && validHourlyRate
+    ? Math.round(vdoReadingNum * hourlyRateCents)
     : 0
 
   // Landing fee is fixed at $25 per landing (matches server-side constant 2500 cents).
@@ -150,16 +147,14 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
   const creditApplicable   = Math.min(customerCreditCents, finalAmountCents)
   const estimatedAmountDue = Math.max(finalAmountCents - creditApplicable, 0)
 
-  // VDO validation details for UI feedback
-  const vdoHoursValid = vdoHours >= 0.1 && vdoHours <= 5.0
-  const vdoErrorMsg = validVdoPair && !vdoHoursValid
-    ? vdoHours < 0.1
-      ? `VDO difference (${vdoHours}h) is below 0.1h minimum — check readings`
-      : `VDO difference (${vdoHours}h) exceeds 5.0h maximum — check readings`
+  // VDO validation error message
+  const vdoErrorMsg = validVdoReading && !vdoReadingValid
+    ? vdoReadingNum < 0.1
+      ? `VDO reading (${vdoReadingNum}h) is below 0.1h minimum — check the paper sheet`
+      : `VDO reading (${vdoReadingNum}h) exceeds 5.0h maximum — check the paper sheet`
     : null
 
   // Incomplete landing row: airport blank with count > 0, or airport set with count <= 0.
-  // An entirely blank row (no airport, count = 0/"") is valid — it will be ignored on submit.
   const hasIncompleteLandingRows = landingRows.some(row => {
     const count     = parseInt(row.landingCount, 10)
     const hasAirport = !!row.airportId
@@ -179,7 +174,7 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
   const canSubmit = confirmingOutcome !== null && (
     paymentWaived
       ? waiverReason.trim().length > 0 && !hasIncompleteLandingRows && hasValidLandingRow
-      : validVdoPair && vdoHoursValid && !hasIncompleteLandingRows && finalAmountCents > 0 && hasValidLandingRow
+      : vdoReadingValid && validHourlyRate && !hasIncompleteLandingRows && finalAmountCents > 0 && hasValidLandingRow
   )
 
   function addLandingRow() {
@@ -187,7 +182,6 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
   }
 
   function removeLandingRow(id: number) {
-    // Enforce minimum of one mandatory landing row
     setLandingRows(rows => rows.length > 1 ? rows.filter(r => r.id !== id) : rows)
   }
 
@@ -198,8 +192,8 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
   function resetOutcomeForm() {
     setConfirmingOutcome(null)
     setAdminNote('')
-    setVdoStart('')
-    setVdoEnd('')
+    setVdoReading('')
+    setHourlyRate('290')
     setLandingRows([])
     setPaymentWaived(false)
     setWaiverReason('')
@@ -208,12 +202,9 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
 
   function handleOutcomeSelect(key: OutcomeKey) {
     setConfirmingOutcome(key)
-    // checkout_reschedule_required → waiver by default (often no flight occurred)
     setPaymentWaived(key === 'checkout_reschedule_required')
     setWaiverReason('')
-    setVdoStart('')
-    setVdoEnd('')
-    // Always start with one mandatory landing row in the payment path
+    setVdoReading('')
     setLandingRows([{ id: ++rowIdCounter, airportId: '', landingCount: '1' }])
     setError(null)
   }
@@ -221,10 +212,7 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
   function handlePaymentModeChange(waive: boolean) {
     setPaymentWaived(waive)
     setWaiverReason('')
-    if (!waive) {
-      setVdoStart('')
-      setVdoEnd('')
-    }
+    if (!waive) setVdoReading('')
   }
 
   function handleSubmit() {
@@ -237,21 +225,22 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
     if (paymentWaived) {
       run(() => markCheckoutOutcome({
         bookingId,
-        outcome:       confirmingOutcome,
-        adminNote:     adminNote || undefined,
-        paymentWaived: true,
+        outcome:              confirmingOutcome,
+        adminNote:            adminNote || undefined,
+        paymentWaived:        true,
         waiverReason,
-        landingCharges: validLandingCharges,
+        landingCharges:       validLandingCharges,
+        checkoutRatePerHour:  hourlyRateNum,
       }))
     } else {
       run(() => markCheckoutOutcome({
         bookingId,
-        outcome:         confirmingOutcome,
-        adminNote:       adminNote || undefined,
-        vdoStartReading: vdoStartNum,
-        vdoEndReading:   vdoEndNum,
-        landingCharges:  validLandingCharges,
-        paymentWaived:   false,
+        outcome:              confirmingOutcome,
+        adminNote:            adminNote || undefined,
+        vdoReading:           vdoReadingNum,
+        checkoutRatePerHour:  hourlyRateNum,
+        landingCharges:       validLandingCharges,
+        paymentWaived:        false,
       }))
     }
   }
@@ -307,7 +296,7 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
           {isPending ? 'Updating…' : 'Mark Checkout Completed'}
         </button>
         <p className="text-[9px] text-slate-600 leading-relaxed text-center">
-          Click after the checkout flight has physically occurred. You will then record the outcome and VDO meter readings.
+          Click after the checkout flight has physically occurred. You will then record the outcome and VDO reading.
         </p>
         <button
           onClick={() => setIsCancelling(true)}
@@ -456,185 +445,176 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
           )}
 
           <div className="space-y-2 mb-2">
-              {landingRows.map(row => {
-                const landingCount = parseInt(row.landingCount, 10)
-                const hasAirport   = !!row.airportId
-                const hasCount     = !isNaN(landingCount) && landingCount > 0
-                // Incomplete: one side filled but not the other
-                const rowError     = (hasCount && !hasAirport)
-                  ? 'Select an airport'
-                  : (hasAirport && !hasCount)
-                    ? 'Enter a landing count ≥ 1'
-                    : null
-                // Fee display: fixed $25 per landing
-                const rowTotal = hasAirport && hasCount ? LANDING_FEE_CENTS * landingCount : 0
+            {landingRows.map(row => {
+              const landingCount = parseInt(row.landingCount, 10)
+              const hasAirport   = !!row.airportId
+              const hasCount     = !isNaN(landingCount) && landingCount > 0
+              const rowError     = (hasCount && !hasAirport)
+                ? 'Select an airport'
+                : (hasAirport && !hasCount)
+                  ? 'Enter a landing count ≥ 1'
+                  : null
+              const rowTotal = hasAirport && hasCount ? LANDING_FEE_CENTS * landingCount : 0
 
-                return (
-                  <div key={row.id} className="space-y-0.5">
-                    <div className="flex gap-2 items-start">
-                      <select
-                        value={row.airportId}
-                        onChange={e => handleLandingChange(row.id, 'airportId', e.target.value)}
-                        disabled={isPending}
-                        className={`flex-1 bg-[#0a0b0d] border rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-500/50 min-w-0 ${
-                          hasCount && !hasAirport ? 'border-rose-500/40' : 'border-white/10'
-                        }`}
-                      >
-                        <option value="">Select airport…</option>
-                        {airports.map(a => (
-                          <option key={a.id} value={a.id}>
-                            {a.icao_code} — {a.name}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={row.landingCount}
-                        onChange={e => handleLandingChange(row.id, 'landingCount', e.target.value)}
-                        disabled={isPending}
-                        className={`w-14 bg-[#0a0b0d] border rounded-lg px-2 py-1.5 text-xs text-slate-200 text-center focus:outline-none focus:border-slate-500/50 ${
-                          hasAirport && !hasCount ? 'border-rose-500/40' : 'border-white/10'
-                        }`}
-                        title="Number of landings"
-                      />
-                      <div className="w-16 text-right flex-shrink-0 py-1.5">
-                        <span className="text-[10px] font-mono text-slate-400">
-                          {rowTotal > 0 && !paymentWaived ? `$${(rowTotal / 100).toFixed(2)}` : '—'}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeLandingRow(row.id)}
-                        disabled={isPending || landingRows.length <= 1}
-                        title={landingRows.length <= 1 ? 'At least one landing row is required' : 'Remove this row'}
-                        className="flex-shrink-0 p-1.5 text-slate-600 hover:text-rose-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                      >
-                        <span className="material-symbols-outlined text-[14px]">remove_circle</span>
-                      </button>
+              return (
+                <div key={row.id} className="space-y-0.5">
+                  <div className="flex gap-2 items-start">
+                    <select
+                      value={row.airportId}
+                      onChange={e => handleLandingChange(row.id, 'airportId', e.target.value)}
+                      disabled={isPending}
+                      className={`flex-1 bg-[#0a0b0d] border rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-500/50 min-w-0 ${
+                        hasCount && !hasAirport ? 'border-rose-500/40' : 'border-white/10'
+                      }`}
+                    >
+                      <option value="">Select airport…</option>
+                      {airports.map(a => (
+                        <option key={a.id} value={a.id}>
+                          {a.icao_code} — {a.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={row.landingCount}
+                      onChange={e => handleLandingChange(row.id, 'landingCount', e.target.value)}
+                      disabled={isPending}
+                      className={`w-14 bg-[#0a0b0d] border rounded-lg px-2 py-1.5 text-xs text-slate-200 text-center focus:outline-none focus:border-slate-500/50 ${
+                        hasAirport && !hasCount ? 'border-rose-500/40' : 'border-white/10'
+                      }`}
+                      title="Number of landings"
+                    />
+                    <div className="w-16 text-right flex-shrink-0 py-1.5">
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {rowTotal > 0 && !paymentWaived ? `$${(rowTotal / 100).toFixed(2)}` : '—'}
+                      </span>
                     </div>
-                    {rowError && (
-                      <p className="text-[9px] text-rose-400/80 pl-1">{rowError} — or remove this row.</p>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeLandingRow(row.id)}
+                      disabled={isPending || landingRows.length <= 1}
+                      title={landingRows.length <= 1 ? 'At least one landing row is required' : 'Remove this row'}
+                      className="flex-shrink-0 p-1.5 text-slate-600 hover:text-rose-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">remove_circle</span>
+                    </button>
                   </div>
-                )
-              })}
-
-              {!paymentWaived && landingSubtotalCents > 0 && (
-                <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-white/[0.02] border border-white/[0.05]">
-                  <span className="text-[10px] text-slate-500">Landing fees ($25 × landings)</span>
-                  <span className="text-[10px] font-mono text-slate-300">
-                    ${(landingSubtotalCents / 100).toFixed(2)}
-                  </span>
+                  {rowError && (
+                    <p className="text-[9px] text-rose-400/80 pl-1">{rowError} — or remove this row.</p>
+                  )}
                 </div>
-              )}
+              )
+            })}
 
-              {hasIncompleteLandingRows && (
-                <p className="text-[9px] text-rose-400/80 px-1">
-                  Complete or remove incomplete landing rows before submitting.
-                </p>
-              )}
-              {!hasValidLandingRow && !hasIncompleteLandingRows && (
-                <p className="text-[9px] text-rose-400/80 px-1">
-                  Select an airport and enter a landing count to continue.
-                </p>
-              )}
-            </div>
+            {!paymentWaived && landingSubtotalCents > 0 && (
+              <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-white/[0.02] border border-white/[0.05]">
+                <span className="text-[10px] text-slate-500">Landing fees ($25 × landings)</span>
+                <span className="text-[10px] font-mono text-slate-300">
+                  ${(landingSubtotalCents / 100).toFixed(2)}
+                </span>
+              </div>
+            )}
+
+            {hasIncompleteLandingRows && (
+              <p className="text-[9px] text-rose-400/80 px-1">
+                Complete or remove incomplete landing rows before submitting.
+              </p>
+            )}
+            {!hasValidLandingRow && !hasIncompleteLandingRows && (
+              <p className="text-[9px] text-rose-400/80 px-1">
+                Select an airport and enter a landing count to continue.
+              </p>
+            )}
+          </div>
         </div>
 
-        {/* ── Payment path — VDO meter ─────────────────────────────── */}
+        {/* ── Payment path — VDO reading ───────────────────────────── */}
         {!paymentWaived && (
           <div className="space-y-4">
 
-            {/* VDO meter readings section */}
             <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-3">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">
-                  VDO meter readings
+                  VDO reading
                 </p>
                 <p className="text-[9px] text-slate-600 leading-relaxed">
-                  Enter the aircraft VDO meter readings from before and after the checkout flight. The system calculates billable checkout time from the difference.
+                  Enter the VDO reading from the aircraft paper sheet. This is the total billable duration taken directly from the flight record.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[10px] font-medium text-slate-400 mb-1">
-                    Start VDO reading <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={vdoStart}
-                    onChange={e => setVdoStart(e.target.value)}
-                    placeholder="e.g. 124.2"
-                    className={`w-full bg-[#0a0b0d] border rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-slate-500/50 ${
-                      vdoStart && !validVdoStart ? 'border-rose-500/40' : 'border-white/10'
-                    }`}
-                    disabled={isPending}
-                  />
-                  {vdoStart && !validVdoStart && (
-                    <p className="text-[9px] text-rose-400/70 mt-0.5">Enter one decimal place, e.g. 124.2</p>
-                  )}
+              {/* Hourly rate — admin-editable, default $290 */}
+              <div>
+                <label className="block text-[10px] font-medium text-slate-400 mb-1">
+                  Hourly rate <span className="text-rose-400">*</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 pointer-events-none">$</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0.01"
+                      step="0.01"
+                      value={hourlyRate}
+                      onChange={e => setHourlyRate(e.target.value)}
+                      placeholder="290.00"
+                      className={`w-full bg-[#0a0b0d] border rounded-lg pl-6 pr-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-slate-500/50 ${
+                        hourlyRate && !validHourlyRate ? 'border-rose-500/40' : 'border-white/10'
+                      }`}
+                      disabled={isPending}
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-500 flex-shrink-0">/hr</span>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-medium text-slate-400 mb-1">
-                    End VDO reading <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={vdoEnd}
-                    onChange={e => setVdoEnd(e.target.value)}
-                    placeholder="e.g. 125.0"
-                    className={`w-full bg-[#0a0b0d] border rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-slate-500/50 ${
-                      vdoEnd && (!validVdoEnd || (validVdoStart && validVdoEnd && vdoEndNum <= vdoStartNum))
-                        ? 'border-rose-500/40'
-                        : 'border-white/10'
-                    }`}
-                    disabled={isPending}
-                  />
-                  {vdoEnd && !validVdoEnd && (
-                    <p className="text-[9px] text-rose-400/70 mt-0.5">Enter one decimal place, e.g. 125.0</p>
-                  )}
-                  {validVdoStart && validVdoEnd && vdoEndNum <= vdoStartNum && (
-                    <p className="text-[9px] text-rose-400/70 mt-0.5">Must be greater than start reading</p>
-                  )}
-                </div>
+                {hourlyRate && !validHourlyRate && (
+                  <p className="text-[9px] text-rose-400/70 mt-0.5">Enter a positive dollar amount, e.g. 290</p>
+                )}
               </div>
 
-              {/* VDO live preview */}
-              {validVdoPair && (
-                <div className="space-y-1.5 pt-1">
-                  {vdoErrorMsg ? (
-                    <p className="text-[10px] text-rose-400 leading-tight">{vdoErrorMsg}</p>
-                  ) : (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-slate-500">VDO hours flown</span>
-                        <span className="text-[10px] font-mono text-slate-300">{vdoHours.toFixed(1)} h</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-slate-500">
-                          Base checkout charge ({vdoHours.toFixed(1)}h × $290/hr)
-                        </span>
-                        <span className="text-[10px] font-mono text-slate-300">
-                          ${(vdoBaseCents / 100).toFixed(2)}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
+              {/* Single VDO reading field */}
+              <div>
+                <label className="block text-[10px] font-medium text-slate-400 mb-1">
+                  VDO reading <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={vdoReading}
+                  onChange={e => setVdoReading(e.target.value)}
+                  placeholder="e.g. 1.4"
+                  step="0.1"
+                  className={`w-full bg-[#0a0b0d] border rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-slate-500/50 ${
+                    vdoReading && !validVdoReading ? 'border-rose-500/40' : 'border-white/10'
+                  }`}
+                  disabled={isPending}
+                />
+                {vdoReading && !validVdoReading && (
+                  <p className="text-[9px] text-rose-400/70 mt-0.5">Enter one decimal place and a positive value, e.g. 1.4</p>
+                )}
+                {vdoErrorMsg && (
+                  <p className="text-[9px] text-rose-400/70 mt-0.5">{vdoErrorMsg}</p>
+                )}
+              </div>
             </div>
 
-            {/* Final amount preview (read-only, calculated server-side) */}
-            {validVdoPair && vdoHoursValid && (
+            {/* Final amount preview */}
+            {vdoReadingValid && validHourlyRate && (
               <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 space-y-1.5">
                 <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500">VDO reading</span>
+                  <span className="text-[10px] font-mono text-slate-300">{vdoReadingNum.toFixed(1)} h</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500">Hourly rate</span>
+                  <span className="text-[10px] font-mono text-slate-300">
+                    ${hourlyRateNum.toFixed(2)}/hr
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
                   <span className="text-[10px] text-slate-500">
-                    Base checkout charge ({vdoHours.toFixed(1)}h × $290/hr)
+                    Aircraft hire ({vdoReadingNum.toFixed(1)}h × ${hourlyRateNum.toFixed(2)})
                   </span>
                   <span className="text-[10px] font-mono text-slate-300">
                     ${(vdoBaseCents / 100).toFixed(2)}
@@ -642,7 +622,7 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
                 </div>
                 {landingSubtotalCents > 0 && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-slate-500">Landing fees</span>
+                    <span className="text-[10px] text-slate-500">Landing charges</span>
                     <span className="text-[10px] font-mono text-slate-300">
                       ${(landingSubtotalCents / 100).toFixed(2)}
                     </span>
@@ -658,7 +638,7 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
             )}
 
             {/* Credit display */}
-            {validVdoPair && vdoHoursValid && (
+            {vdoReadingValid && validHourlyRate && (
               <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-slate-500">Available customer credit</span>

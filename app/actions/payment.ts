@@ -258,6 +258,156 @@ export async function adminApproveBankTransfer(submissionId: string, bookingId: 
   return { success: true };
 }
 
+// ─── Standard booking Stripe payment ──────────────────────────────────────────
+
+export async function createBookingPaymentSession(bookingId: string) {
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    apiVersion: "2023-10-16" as any,
+  });
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error("Unauthorized");
+
+  const { data: invoice, error: invoiceErr } = await supabase
+    .from("booking_invoices")
+    .select("id, status, booking_id, customer_id")
+    .eq("booking_id", bookingId)
+    .eq("customer_id", user.id)
+    .single();
+
+  if (invoiceErr || !invoice) throw new Error("Booking invoice not found.");
+
+  const { data: prepRows, error: prepErr } = await supabase.rpc(
+    "prepare_booking_payment_atomic",
+    {
+      p_invoice_id:      invoice.id,
+      p_customer_id:     user.id,
+      p_fee_rate_bps:    PAYMENT_CONFIG.STRIPE_DOMESTIC_FEE_BPS,
+      p_fee_fixed_cents: PAYMENT_CONFIG.STRIPE_FIXED_FEE_CENTS,
+      p_apply_surcharge: PAYMENT_CONFIG.ENABLE_SURCHARGE,
+    }
+  );
+
+  if (prepErr || !prepRows?.[0]) {
+    console.error("[createBookingPaymentSession] prepare RPC failed", prepErr);
+    throw new Error(prepErr?.message ?? "Failed to prepare payment. Please try again.");
+  }
+
+  const { out_final_amount_cents, out_settled_by_credit } = prepRows[0] as {
+    out_final_amount_cents: number;
+    out_invoice_status:     string;
+    out_settled_by_credit:  boolean;
+  };
+
+  if (out_settled_by_credit) {
+    revalidatePath("/dashboard");
+    revalidatePath(`/dashboard/bookings/${bookingId}`);
+    redirect(`/dashboard/bookings/${bookingId}?payment=settled_by_credit`);
+  }
+
+  if (out_final_amount_cents <= 0) {
+    throw new Error("Amount due is zero — no payment needed.");
+  }
+
+  const appUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000";
+
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
+    mode: "payment",
+    customer_email: user.email,
+    line_items: [
+      {
+        price_data: {
+          currency: "aud",
+          product_data: { name: "OZRentAPlane Flight" },
+          unit_amount: out_final_amount_cents,
+        },
+        quantity: 1,
+      },
+    ],
+    metadata: {
+      invoice_id:   invoice.id,
+      booking_id:   bookingId,
+      customer_id:  user.id,
+      invoice_type: "standard",
+    },
+    success_url: `${appUrl}/dashboard/bookings/${bookingId}?payment=success`,
+    cancel_url:  `${appUrl}/dashboard/bookings/${bookingId}?payment=cancelled`,
+  });
+
+  await supabase
+    .from("booking_invoices")
+    .update({ stripe_checkout_session_id: session.id })
+    .eq("id", invoice.id);
+
+  if (!session.url) throw new Error("Failed to create Stripe session URL.");
+  redirect(session.url);
+}
+
+// ─── Standard booking bank transfer ───────────────────────────────────────────
+
+export async function submitStandardBankTransferProof(
+  invoiceId: string,
+  bookingId: string,
+  reference: string,
+  formData: FormData
+) {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error("Unauthorized");
+
+  const file = formData.get("receipt") as File;
+  if (!file) throw new Error("No receipt file provided.");
+
+  const validTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+  if (!validTypes.includes(file.type)) {
+    throw new Error("Invalid file type. Please upload a JPEG, PNG, WebP, or PDF.");
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error("File is too large. Maximum size is 5MB.");
+  }
+
+  const fileExt = file.name.split(".").pop();
+  const filePath = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("bank_transfer_receipts")
+    .upload(filePath, file, { upsert: false });
+
+  if (uploadError) {
+    console.error("Storage upload error:", uploadError);
+    throw new Error("Failed to upload receipt. Please try again.");
+  }
+
+  const { error: dbError } = await supabase
+    .from("booking_bank_transfer_submissions")
+    .insert({
+      invoice_id:           invoiceId,
+      booking_id:           bookingId,
+      customer_id:          user.id,
+      reference,
+      receipt_storage_path: filePath,
+      status:               "pending_review",
+    });
+
+  if (dbError) {
+    console.error("DB insert error:", dbError);
+    await supabase.storage.from("bank_transfer_receipts").remove([filePath]);
+    throw new Error("Failed to submit proof. Please try again.");
+  }
+
+  await supabase
+    .from("booking_invoices")
+    .update({ payment_method: "bank_transfer" })
+    .eq("id", invoiceId);
+
+  revalidatePath(`/dashboard/bookings/${bookingId}`);
+  return { success: true };
+}
+
 export async function adminRejectBankTransfer(submissionId: string, bookingId: string, adminNote: string) {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();

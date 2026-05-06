@@ -54,20 +54,27 @@ export async function uploadVerificationDocument(formData: FormData) {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) throw new Error('Unauthorized')
 
-  const storagePath = `${user.id}/${docType}`
+  // Each upload gets a unique storage path using a timestamp suffix.
+  // This preserves all uploaded files and allows multiple files per document type.
+  const timestamp   = Date.now()
+  const ext         = file.name.split('.').pop() ?? 'pdf'
+  const storagePath = `${user.id}/${docType}/${timestamp}.${ext}`
 
   const { error: uploadError } = await supabase.storage
     .from('verification_documents')
-    .upload(storagePath, file, { upsert: true, contentType: file.type })
+    .upload(storagePath, file, { upsert: false, contentType: file.type })
 
   if (uploadError) {
     console.error('[uploadVerificationDocument] Storage error:', uploadError)
     throw new Error('Upload failed. Please try again.')
   }
 
+  // INSERT a new row — the unique constraint on (user_id, document_type) was
+  // dropped in migration 051 to support multiple files per document type.
+  // Validation selects the latest non-rejected, non-expired row per type.
   const { error: dbError } = await supabase
     .from('user_documents')
-    .upsert({
+    .insert({
       user_id:         user.id,
       document_type:   docType,
       file_name:       file.name,
@@ -80,7 +87,7 @@ export async function uploadVerificationDocument(formData: FormData) {
       medical_class:   medicalClass,
       id_type:         idType,
       document_number: documentNumber,
-    }, { onConflict: 'user_id, document_type' })
+    })
 
   if (dbError) {
     console.error('[uploadVerificationDocument] DB error:', dbError)

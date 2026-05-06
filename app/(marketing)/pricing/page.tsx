@@ -1,504 +1,385 @@
 'use client'
 
 import { useState } from 'react'
-import { FadeUp, StaggerContainer, StaggerItem, HoverEmphasize } from '@/components/MotionPresets'
+import { FadeUp, StaggerContainer, StaggerItem } from '@/components/MotionPresets'
 
-// ─── Icon helper (Material Symbols Outlined) ──────────────────────────────────
-function Icon({ name, className = '', style }: { name: string; className?: string; style?: React.CSSProperties }) {
-  return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
+type FaqItemType = {
+  question: string
+  answer: string
 }
 
-// ─── FAQ accordion item ───────────────────────────────────────────────────────
-function FaqItem({ question, answer }: { question: string; answer: string }) {
+function Icon({ name, className = '' }: { name: string; className?: string }) {
+  return <span className={`material-symbols-outlined ${className}`}>{name}</span>
+}
+
+function FaqItem({ item }: { item: FaqItemType }) {
   const [open, setOpen] = useState(false)
+
   return (
-    <div className="bg-[#0c1827] rounded-lg overflow-hidden border border-white/5">
+    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#0d1828]/80 backdrop-blur-md transition-all duration-300 hover:border-[#9cb6de]/35 hover:bg-[#102036]/85">
       <button
-        className="w-full px-8 py-6 text-left flex justify-between items-center hover:bg-[#111e30] transition-colors"
-        onClick={() => setOpen(!open)}
+        type="button"
+        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-white/5 md:px-6"
+        onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        <span className="font-sans font-semibold text-[#d9e3f6]">{question}</span>
-        <Icon
-          name={open ? 'expand_less' : 'expand_more'}
-          className="text-[#aec7f7] transition-transform duration-200"
-        />
+        <span className="font-sans text-sm font-semibold text-[#ebf2ff] md:text-[0.95rem]">{item.question}</span>
+        <Icon name={open ? 'remove' : 'add'} className="shrink-0 text-[#bad0ef] transition-transform duration-300" />
       </button>
-      {open && (
-        <div className="px-8 pb-6 text-[0.85rem] text-[#94a3b8] leading-relaxed font-sans">
-          {answer}
+      {open ? (
+        <div className="border-t border-white/10 px-5 py-4 font-sans text-sm leading-relaxed text-[#c7d3e5] md:px-6">
+          {item.answer}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
 
-const FAQ_ITEMS = [
+const HERO_CHIPS = ['Fuel Included', 'GST Included', '$25 Per Landing', 'Billed by VDO Hours']
+
+const PRICING_TIERS = [
+  { tier: 'Less than 10 VDO hours', rate: '$330', highlight: false },
+  { tier: '10 to 24.9 VDO hours', rate: '$320', highlight: false },
+  { tier: '25 to 49.9 VDO hours', rate: '$310', highlight: false },
+  { tier: '50+ VDO hours', rate: '$300', highlight: true },
+]
+
+const WORKFLOW_STEPS = [
+  { title: 'Reserve', body: 'Book your aircraft slot online', icon: 'event_available' },
+  { title: 'Fly', body: 'Complete your flight', icon: 'flight_takeoff' },
+  { title: 'Record VDO', body: 'Submit VDO meter hours', icon: 'timer' },
+  { title: 'Apply Rate', body: 'Tiered rate plus landing fees', icon: 'calculate' },
+  { title: 'Final Invoice', body: 'Transparent digital billing', icon: 'receipt_long' },
+]
+
+const MINIMUM_RULES = [
+  { booked: '24 hrs booked', minimum: '4 VDO hrs minimum' },
+  { booked: '36 hrs booked', minimum: '6 VDO hrs minimum' },
+  { booked: '48 hrs booked', minimum: '8 VDO hrs minimum' },
+  { booked: '72 hrs booked', minimum: '12 VDO hrs minimum' },
+]
+
+const INCLUDED_CARDS = [
   {
-    question: 'How is fuel billing handled exactly?',
-    answer:
-      'We operate on a "Wet-Rate" equivalent. The base price is provided, and fuel is billed at the pump price minus our membership discount. This ensures you only pay for what you burn.',
+    icon: 'local_gas_station',
+    title: 'Fuel Included',
+    copy: 'Wet hire rates mean fuel is covered in your hourly rate.',
   },
   {
-    question: 'What happens if my package expires?',
-    answer:
-      'Unused hours in a pre-paid package are non-refundable after 12 months, but can be extended for a small administrative fee if requested at least 30 days before expiry.',
+    icon: 'receipt',
+    title: 'GST Included',
+    copy: 'All listed hourly rates include GST.',
   },
   {
-    question: 'Is insurance included in these rates?',
-    answer:
-      'Hull and liability insurance is included in all rental rates. Pilots are covered under our policy subject to meeting the minimum hours and currency requirements.',
+    icon: 'flight_land',
+    title: '$25 Per Landing',
+    copy: 'A flat $25 charge applies per landing.',
   },
   {
-    question: 'Can I use hours for multi-day trips?',
-    answer:
-      'Yes. Package hours can be used for extended cross-country flights. A 2-hour daily minimum applies when the aircraft is kept away from home base overnight.',
+    icon: 'speed',
+    title: 'VDO-Based Billing',
+    copy: 'Your flying time is measured using the aircraft’s VDO meter.',
   },
   {
-    question: 'What is the weather refund policy?',
-    answer:
-      'If a flight is cancelled due to weather and we deem conditions unsuitable, no hours are deducted from your package. For personal weather decisions, our standard cancellation policy applies.',
+    icon: 'post_add',
+    title: 'Simple Post-Flight Invoicing',
+    copy: 'Final charges are reviewed after your flight record is submitted.',
   },
   {
-    question: 'Do you offer aircraft for commercial training?',
-    answer:
-      'Our fleet is available for PPL and CPL training with an approved instructor. Commercial training bookings require prior coordination with our operations team.',
+    icon: 'workspace_premium',
+    title: 'Premium Aircraft Access',
+    copy: 'Access a well-maintained aircraft through a clear booking process.',
   },
 ]
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+const FAQ_ITEMS: FaqItemType[] = [
+  {
+    question: 'How are VDO hours calculated?',
+    answer:
+      'VDO hours are based on the aircraft’s VDO meter reading. Final standard hire charges are calculated from the VDO hours recorded for the booking.',
+  },
+  {
+    question: 'Are these fixed packages?',
+    answer:
+      'No. These are flexible hourly rate tiers. Your hourly rate depends on the total VDO hours flown for that booking.',
+  },
+  {
+    question: 'Is fuel included in the hourly rate?',
+    answer: 'Yes. Standard hire rates shown on this page include fuel.',
+  },
+  {
+    question: 'Is GST included?',
+    answer: 'Yes. The listed hourly rates include GST.',
+  },
+  {
+    question: 'Are landing fees included?',
+    answer: 'No. A $25 charge applies per landing.',
+  },
+  {
+    question: 'How does the multi-day minimum work?',
+    answer:
+      'For bookings of 24 hours or longer, minimum billable VDO time is pro-rated at 4 VDO hours per 24 hours booked. For example, 36 hours booked has a 6 VDO hour minimum.',
+  },
+]
+
 export default function PricingPage() {
   return (
-    <main className="bg-[#091421] text-[#d9e3f6] overflow-x-hidden">
-
-      {/* ── 1. Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative px-6 md:px-12 lg:px-20 overflow-hidden min-h-[500px] md:min-h-[750px] flex items-center">
+    <main className="overflow-x-hidden bg-[#091421] text-[#d9e3f6]">
+      <section className="relative flex min-h-[500px] items-center overflow-hidden px-6 md:min-h-[750px] md:px-12 lg:px-20">
         <div
           className="absolute inset-0 z-0 bg-cover bg-center"
-          style={{ backgroundImage: 'url("/pricing-hero.webp")' }}
+          style={{ backgroundImage: 'url("/pricing-hero.png")', opacity: 0.78 }}
         />
-        <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#040f1e]/70 via-[#040f1e]/30 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 h-[30%] z-0 bg-gradient-to-t from-[#091421] via-[#061224]/30 to-transparent" />
+        <div className="absolute inset-0 z-0 bg-[#050d1b]/45" />
+        <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#04101f]/92 via-[#05152a]/76 via-40% to-[#091626]/22" />
+        <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_18%_42%,rgba(15,34,62,0.55),rgba(8,18,33,0.15)_48%,rgba(8,18,33,0)_74%)]" />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 -bottom-px z-[20] h-[45%] bg-gradient-to-b from-transparent via-[#091421]/75 to-[#091421]" />
 
-        <div className="relative z-10 max-w-7xl mx-auto w-full pt-16">
-          <StaggerContainer className="max-w-xl" staggerDelay={0.25}>
-            <StaggerItem duration={1.4}>
-              <h1 className="font-serif text-5xl md:text-7xl font-normal leading-[1.05] tracking-tight mb-6 text-white">
-                Transparent <br />
-                Pricing
+        <div className="relative z-10 mx-auto w-full max-w-7xl pt-16">
+          <StaggerContainer className="max-w-xl" staggerDelay={0.18}>
+            <StaggerItem duration={1.2}>
+              <div className="mb-5 flex flex-wrap gap-2 md:gap-3">
+                {HERO_CHIPS.map((chip) => (
+                  <span
+                    key={chip}
+                    className="rounded-md border border-[#aac3e8]/35 bg-[#08162a]/84 px-3 py-1 font-sans text-[0.62rem] font-semibold uppercase tracking-[0.17em] text-[#e0ecff] shadow-[0_0_10px_rgba(41,72,119,0.22)] transition-all duration-300 hover:border-[#c8dbfb]/50 hover:bg-[#0d213e]/88"
+                  >
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            </StaggerItem>
+            <StaggerItem duration={1.25}>
+              <h1 className="mb-6 font-serif text-5xl font-normal leading-[1.05] tracking-tight text-white [text-shadow:0_12px_32px_rgba(2,8,18,0.7)] md:text-7xl">
+                Transparent Aircraft Hire Pricing
               </h1>
             </StaggerItem>
-            <StaggerItem duration={1.4}>
-              <p className="font-sans text-[1rem] leading-relaxed text-[#c4c6cf] mb-10 max-w-md">
-                Elevate your journey with predictable costs. Our premium fleet is accessible to
-                approved pilots with a clear structure designed for both casual sorties and regular
-                navigation.
+            <StaggerItem duration={1.2}>
+              <p className="mb-10 max-w-lg font-sans text-[1.02rem] font-medium leading-relaxed text-[#e0e9f8] [text-shadow:0_8px_22px_rgba(2,8,18,0.65)]">
+                Simple hourly pricing based on VDO hours flown. Fuel and GST included. $25 per landing.
               </p>
             </StaggerItem>
           </StaggerContainer>
-          <div className="flex flex-wrap items-center gap-4 mt-6">
-            <FadeUp delay={1.2} duration={1.4}>
+          <FadeUp delay={0.18} duration={1.15}>
+            <div className="mt-2 flex flex-wrap items-center gap-4">
               <a
                 href="/pilotRequirements"
-                className="inline-block bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] rounded-md font-sans font-bold tracking-widest uppercase text-[0.8rem] px-8 py-4 shadow-2xl shadow-[#aec7f7]/20 transition-all active:scale-95 hover:brightness-110"
+                className="inline-block rounded-md bg-gradient-to-r from-[#c3d8ff] to-[#7599d9] px-8 py-4 font-sans text-[0.8rem] font-bold uppercase tracking-widest text-[#0a1d38] shadow-2xl shadow-[#aec7f7]/25 transition-all duration-300 active:scale-95 hover:brightness-110"
               >
                 Get Approved to Fly
               </a>
-            </FadeUp>
-            <FadeUp delay={1.5} duration={1.4}>
               <a
-                href="/pilotRequirements"
-                className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded border border-white/20 text-[#c4c6cf] hover:bg-white/5 transition-colors"
+                href="/checkout-process"
+                className="rounded border border-[#d2e2ff]/40 bg-[#09182d]/56 px-8 py-4 font-sans text-[0.8rem] font-bold uppercase tracking-widest text-[#eef4ff] shadow-[0_0_18px_rgba(3,10,20,0.45)] transition-all duration-300 hover:bg-[#0f243f]/72"
               >
-                View Requirements
+                View Checkout Requirements
               </a>
-            </FadeUp>
-          </div>
+            </div>
+          </FadeUp>
         </div>
       </section>
 
-      {/* ── 2. Pricing Cards ─────────────────────────────────────────────────── */}
-      <section className="max-w-7xl mx-auto px-6 md:px-12 lg:px-20 -mt-16 relative z-20 pb-32">
-        <StaggerContainer className="mb-16 pt-16 border-t border-white/5" staggerDelay={0.2} viewportMargin="-20%">
-          <StaggerItem duration={1.4}>
-            <p className="font-sans font-semibold uppercase tracking-[0.25em] text-[0.65rem] text-[#64748b] mb-4">
-              Rental Rates
+      <section className="-mt-10 pb-24 pt-10 md:pt-14">
+        <FadeUp className="mx-auto grid max-w-6xl gap-8 px-6 md:grid-cols-12 md:gap-10 md:px-12" duration={1.05} viewportMargin="-80px">
+          <div className="md:col-span-4">
+            <p className="mb-3 font-sans text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-[#9fb8df]">Hourly Rate Ladder</p>
+            <h2 className="font-serif text-3xl text-[#eaf1ff] md:text-4xl">How Standard Aircraft Hire Pricing Works</h2>
+            <p className="mt-5 font-sans text-sm leading-relaxed text-[#c8d3e5]">
+              Final pricing is based on total VDO hours flown for the booking.
             </p>
-          </StaggerItem>
-          <StaggerItem duration={1.4}>
-            <h2 className="font-serif text-4xl md:text-5xl font-normal tracking-tight text-[#d9e3f6]">
-              Choose Your Plan
-            </h2>
-          </StaggerItem>
-        </StaggerContainer>
+            <div className="mt-7 rounded-lg border border-white/12 bg-[#101d31]/72 p-4">
+              <p className="font-sans text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[#bfd1ed]">Fuel included · GST included · $25 per landing</p>
+            </div>
+          </div>
 
-        <StaggerContainer className="grid grid-cols-1 md:grid-cols-3 gap-8" staggerDelay={0.3} viewportMargin="-20%">
-          {/* Casual Hourly */}
-          <StaggerItem duration={1.6}>
-            <HoverEmphasize hoverY={-12} hoverScale={1.02} duration={0.6} className="bg-gradient-to-br from-[#0a121e] to-[#08101a] p-10 rounded-xl flex flex-col h-full border border-white/5 shadow-lg relative group hover:from-[#0d1726] hover:to-[#0a121e] hover:border-[#aec7f7]/30 hover:shadow-2xl hover:shadow-[#aec7f7]/5 transition-all duration-500">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#121f33] text-[#94a3b8] px-6 py-1.5 rounded-full text-[10px] font-sans font-bold uppercase tracking-widest whitespace-nowrap shadow-md border border-white/5 group-hover:border-[#aec7f7]/20 group-hover:text-[#c4c6cf] transition-all duration-500">
-                Hourly Rate
+          <div className="md:col-span-8">
+            <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0c1829]/72 shadow-[0_30px_90px_rgba(0,0,0,0.35)] backdrop-blur-md">
+              <div className="grid grid-cols-[1fr_auto] border-b border-white/10 bg-[#111f35]/90 px-5 py-4 md:px-8">
+                <p className="font-sans text-[0.66rem] font-semibold uppercase tracking-[0.17em] text-[#9fb3d4]">VDO Tier</p>
+                <p className="font-sans text-[0.66rem] font-semibold uppercase tracking-[0.17em] text-[#9fb3d4]">Hourly Rate</p>
               </div>
-              <span className="font-sans font-semibold uppercase tracking-[0.25em] text-[0.65rem] text-[#64748b] mb-4 group-hover:text-[#aec7f7] transition-colors duration-500 mt-2">On-Demand</span>
-              <h3 className="font-serif text-3xl font-normal text-[#d9e3f6] mb-6 group-hover:text-white transition-colors duration-500">Casual Hourly Rate</h3>
-              <div className="mb-8 group-hover:scale-105 transform origin-left transition-transform duration-500">
-                <span className="text-5xl font-light text-[#aec7f7]">$320</span>
-                <span className="text-[#94a3b8] font-sans"> / hour</span>
-              </div>
-              <p className="text-[#94a3b8] font-sans mb-8 text-[0.85rem] leading-relaxed">
-                Perfect for the occasional pilot seeking spontaneous access to the skies without
-                long-term commitment.
-              </p>
-              <div className="mt-auto">
-                <button className="w-full font-sans font-bold text-[0.8rem] tracking-widest uppercase py-4 rounded border border-white/20 text-[#c4c6cf] group-hover:border-white/50 group-hover:text-white transition-all duration-300">
-                  Select Plan
-                </button>
-              </div>
-            </HoverEmphasize>
-          </StaggerItem>
-
-          {/* 10 Hour Package */}
-          <StaggerItem duration={1.6}>
-            <HoverEmphasize hoverY={-12} hoverScale={1.02} duration={0.6} className="bg-gradient-to-br from-[#0f1d2e] to-[#0a121e] p-10 rounded-xl flex flex-col h-full border border-[#aec7f7]/20 shadow-[0_20px_40px_rgba(0,0,0,0.3)] relative group hover:from-[#13253b] hover:to-[#0c1827] hover:border-[#aec7f7]/40 hover:shadow-2xl hover:shadow-[#aec7f7]/10 transition-all duration-500">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#1b314d] text-[#c4c6cf] px-6 py-1.5 rounded-full text-[10px] font-sans font-bold uppercase tracking-widest whitespace-nowrap shadow-lg border border-[#aec7f7]/20 group-hover:border-[#aec7f7]/40 group-hover:text-white transition-all duration-500">
-                Standard Combo
-              </div>
-              <span className="font-sans font-semibold uppercase tracking-[0.25em] text-[0.65rem] text-[#64748b] mb-4 group-hover:text-[#aec7f7] transition-colors duration-500 mt-2">The Weekend Flyer</span>
-              <h3 className="font-serif text-3xl font-normal text-[#d9e3f6] mb-6 group-hover:text-white transition-colors duration-500">10 Hour Package</h3>
-              <div className="mb-8 group-hover:scale-105 transform origin-left transition-transform duration-500">
-                <span className="text-5xl font-light text-[#aec7f7]">$3,000</span>
-              </div>
-              <div className="flex items-center gap-2 mb-8 text-[#94a3b8]">
-                <Icon name="check_circle" className="text-[#aec7f7] text-sm" />
-                <span className="font-sans text-[0.85rem] group-hover:text-[#c4c6cf] transition-colors duration-500">$300 effective hourly rate</span>
-              </div>
-              <p className="text-[#94a3b8] font-sans mb-8 text-[0.85rem] leading-relaxed">
-                Balanced flexibility for those who aim to fly regularly while maintaining a budget.
-              </p>
-              <div className="mt-auto">
-                <button className="w-full font-sans font-bold text-[0.8rem] tracking-widest uppercase py-4 rounded border border-[#aec7f7]/30 text-[#aec7f7] group-hover:bg-[#aec7f7]/20 transition-all duration-300">
-                  Select Plan
-                </button>
-              </div>
-            </HoverEmphasize>
-          </StaggerItem>
-
-          {/* 30 Hour Package */}
-          <StaggerItem duration={1.6}>
-            <HoverEmphasize hoverY={-16} hoverScale={1.03} duration={0.6} className="bg-gradient-to-br from-[#162740] to-[#0c1827] p-10 rounded-xl flex flex-col h-full border border-[#aec7f7]/30 relative shadow-2xl group hover:from-[#1b3152] hover:to-[#0f1d2e] hover:border-[#aec7f7]/60 hover:shadow-[0_30px_60px_rgba(174,199,247,0.15)] transition-all duration-500">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#aec7f7] text-[#143057] px-6 py-1.5 rounded-full text-[10px] font-sans font-bold uppercase tracking-widest whitespace-nowrap shadow-lg group-hover:shadow-[0_0_20px_rgba(174,199,247,0.4)] group-hover:brightness-110 transition-all duration-500">
-                Value Combo
-              </div>
-              <span className="font-sans font-semibold uppercase tracking-[0.25em] text-[0.65rem] text-[#aec7f7] mb-4 group-hover:brightness-125 transition-all duration-500 mt-2">Atmospheric Navigator</span>
-              <h3 className="font-serif text-3xl font-normal text-[#d9e3f6] mb-6 group-hover:text-white transition-colors duration-500">30 Hour Package</h3>
-              <div className="mb-8 group-hover:scale-105 transform origin-left transition-transform duration-500">
-                <span className="text-5xl font-light text-[#aec7f7]">$8,400</span>
-              </div>
-              <div className="flex flex-col gap-3 mb-8">
-                <div className="flex items-center gap-2 text-[#aec7f7]">
-                  <Icon name="stars" className="text-sm" />
-                  <span className="font-sans font-semibold text-[0.85rem] group-hover:brightness-110 transition-colors duration-500">$280 effective hourly rate</span>
+              {PRICING_TIERS.map((tier) => (
+                <div
+                  key={tier.tier}
+                  className={`group relative z-0 grid grid-cols-[1fr_auto] items-center border-b border-white/10 px-5 py-5 transition-all duration-300 hover:z-10 hover:scale-[1.018] hover:border-[#bdd1f2]/35 hover:bg-[#193153]/78 hover:shadow-[0_14px_34px_rgba(8,16,30,0.45),0_0_30px_rgba(113,151,215,0.2)] md:px-8 md:hover:py-6 ${
+                    tier.highlight ? 'bg-[#12243e]/72 shadow-[inset_0_0_30px_rgba(117,153,217,0.12)]' : ''
+                  }`}
+                >
+                  <p className={`font-sans text-sm transition-colors duration-300 md:text-[0.98rem] ${tier.highlight ? 'text-[#e2ebfb]' : 'text-[#c4d0e1] group-hover:text-[#e5efff]'}`}>{tier.tier}</p>
+                  <p className="font-serif text-3xl text-[#ecf2ff] transition-all duration-300 group-hover:text-[#f4f8ff] md:text-4xl md:group-hover:text-[2.55rem]">
+                    {tier.rate}
+                    <span className="ml-1 font-sans text-sm text-[#9db1d2] transition-colors duration-300 group-hover:text-[#bfd1ef]">/hr</span>
+                  </p>
                 </div>
-                <div className="flex items-center gap-2 text-[#94a3b8]">
-                  <Icon name="savings" className="text-sm" />
-                  <span className="font-sans text-[0.85rem] group-hover:text-[#c4c6cf] transition-colors duration-500">Save $1,200 over casual rates</span>
-                </div>
-              </div>
-              <p className="text-[#94a3b8] font-sans mb-8 text-[0.85rem] leading-relaxed">
-                Our most prestigious tier for dedicated pilots who call the stratosphere their second
-                home.
-              </p>
-              <div className="mt-auto">
-                <button className="w-full inline-block bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] rounded-md font-sans font-bold tracking-widest uppercase text-[0.8rem] py-4 shadow-lg transition-all active:scale-95 group-hover:brightness-110">
-                  Select Best Value
-                </button>
-              </div>
-            </HoverEmphasize>
-          </StaggerItem>
-        </StaggerContainer>
-      </section>
-
-      {/* ── 3. Comparison Strip ──────────────────────────────────────────────── */}
-      <section className="max-w-7xl mx-auto px-6 md:px-12 lg:px-20">
-        <FadeUp delay={0.6} duration={1.6} viewportMargin="-20%">
-          <div className="bg-[#0c1827] border-y border-white/5 py-8 px-8 md:px-12 rounded-lg hover:bg-[#111e30] transition-colors duration-500">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-8 items-center text-center">
-              <div className="font-sans font-semibold uppercase tracking-[0.25em] text-[0.65rem] text-[#64748b]">Comparative Overview</div>
-              <div>
-                <p className="text-[0.65rem] uppercase tracking-widest text-[#64748b] font-sans font-semibold mb-1">Total Investment</p>
-                <p className="text-2xl font-light text-[#d9e3f6]">
-                  $320 <span className="text-xs text-[#64748b]">vs</span> $8,400
-                </p>
-              </div>
-              <div>
-                <p className="text-[0.65rem] uppercase tracking-widest text-[#64748b] font-sans font-semibold mb-1">Hourly Efficiency</p>
-                <p className="text-2xl font-light text-[#d9e3f6]">
-                  $320 <span className="text-xs text-[#64748b]">→</span> $280
-                </p>
-              </div>
-              <div>
-                <p className="text-[0.65rem] uppercase tracking-widest text-[#64748b] font-sans font-semibold mb-1">Total Savings</p>
-                <p className="text-2xl font-medium text-[#aec7f7]">12.5% Optimized</p>
+              ))}
+              <div className="flex flex-wrap justify-center gap-5 px-5 py-4 md:px-8">
+                {['Fuel Included', 'GST Included', '$25 Landing Fee'].map((tag) => (
+                  <span
+                    key={tag}
+                    className="font-sans text-[0.64rem] font-semibold uppercase tracking-[0.16em] text-[#a7bcdd]"
+                  >
+                    {tag}
+                  </span>
+                ))}
               </div>
             </div>
           </div>
         </FadeUp>
       </section>
 
-      {/* ── 4. Inclusion / Exclusion Bento ───────────────────────────────────── */}
-      <section className="py-32 max-w-7xl mx-auto px-6 md:px-12 lg:px-20">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
+      <section className="border-y border-white/5 bg-[#07111e] px-6 py-24 md:px-12 lg:px-20">
+        <FadeUp className="mx-auto max-w-6xl" duration={1.05} viewportMargin="-80px">
+          <h2 className="text-center font-serif text-3xl text-[#eaf1ff] md:text-5xl">Seamless Billing Workflow</h2>
 
-          {/* Left Column (Heading + 4 smaller cards) */}
-          <div className="lg:col-span-7 flex flex-col justify-between">
-            <StaggerContainer className="mb-12 lg:mb-16" viewportMargin="-20%">
-              <StaggerItem duration={1.4}>
-                <p className="font-sans font-semibold uppercase tracking-[0.25em] text-[0.65rem] text-[#64748b] mb-4">
-                  What&apos;s Covered
-                </p>
-              </StaggerItem>
-              <StaggerItem duration={1.4}>
-                <h2 className="font-serif text-4xl md:text-5xl font-normal tracking-tight text-[#d9e3f6]">
-                  The Integrated Experience
-                </h2>
-              </StaggerItem>
-            </StaggerContainer>
-
-            <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 gap-8" staggerDelay={0.2} viewportMargin="-20%">
-              {[
-                { icon: 'flight', title: 'Aircraft Access', body: 'Unrestricted access to our meticulously maintained fleet of Cessna and Piper models.' },
-                { icon: 'schedule', title: 'Booking Platform', body: '24/7 digital reservation system with real-time fleet availability and weather integration.' },
-                { icon: 'support_agent', title: 'Concierge Support', body: 'Direct line to our operations team for maintenance logs, fuel logistics, and trip planning.' },
-                { icon: 'cleaning_services', title: 'Post-Flight Valet', body: 'Basic aircraft cleaning and hangar service included after every successful journey.' },
-              ].map(({ icon, title, body }) => (
-                <StaggerItem key={title} duration={1.4} className="h-full">
-                  <div className="bg-[#0c1827] p-8 rounded-xl border border-white/5 hover:bg-[#111e30] transition-colors h-full">
-                    <Icon name={icon} className="text-[#aec7f7] mb-4" style={{ fontSize: '32px' }} />
-                    <h4 className="font-serif text-xl text-[#d9e3f6] mb-3">{title}</h4>
-                    <p className="text-[0.85rem] text-[#94a3b8] font-sans leading-relaxed">{body}</p>
+          <div className="relative mt-16 hidden md:block">
+            <div className="absolute left-[8%] right-[8%] top-[22px] h-px bg-[#2e3f5d]" />
+            <div className="absolute left-[10%] right-[10%] top-[22px] h-px bg-gradient-to-r from-transparent via-[#84a8e5]/50 to-transparent" />
+            <div className="grid grid-cols-5 gap-4">
+              {WORKFLOW_STEPS.map((step) => (
+                <div key={step.title} className="group relative z-10 text-center">
+                  <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-[#87a6d8]/45 bg-[#12243e] shadow-[0_0_0_7px_#07111e] transition-all duration-300 group-hover:-translate-y-0.5 group-hover:border-[#bbcff2]/65 group-hover:shadow-[0_0_0_7px_#07111e,0_0_18px_rgba(117,153,217,0.35)]">
+                    <Icon name={step.icon} className="text-[#b8cef1] !text-[19px]" />
                   </div>
-                </StaggerItem>
+                  <p className="mt-4 font-sans text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-[#d9e5fb]">{step.title}</p>
+                  <p className="mx-auto mt-2 max-w-[160px] font-sans text-[0.78rem] leading-relaxed text-[#9eb0cc]">{step.body}</p>
+                </div>
               ))}
-            </StaggerContainer>
-          </div>
-
-          {/* Premium Inclusions Panel */}
-          <div className="lg:col-span-5 relative">
-            <FadeUp delay={0.4} duration={1.6} viewportMargin="-20%" className="h-full">
-              <div className="bg-gradient-to-b from-[#111e30] to-[#0c1827] p-10 md:p-12 rounded-xl border border-white/5 h-full flex flex-col shadow-2xl relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-32 bg-[#aec7f7]/5 rounded-full blur-[100px] pointer-events-none group-hover:bg-[#aec7f7]/10 transition-colors duration-1000"></div>
-
-                <div className="relative z-10">
-                  <p className="font-sans font-semibold uppercase tracking-[0.25em] text-[0.65rem] text-[#aec7f7] mb-4">
-                    Premium Inclusions
-                  </p>
-                  <h2 className="font-serif text-3xl font-normal text-[#d9e3f6] mb-6">Fully Included</h2>
-                  <p className="text-[#94a3b8] mb-10 text-[0.85rem] font-sans leading-relaxed">
-                    We believe in an elegant standard. Your package encompasses a complete aviation experience without hidden operational fees:
-                  </p>
-
-                  <ul className="space-y-6">
-                    {[
-                      { title: 'Regulated Fuel', body: 'All arrangements operate on a wet-rate basis, insulating you from market price fluctuations.' },
-                      { title: 'Headsets Provided', body: 'Premium noise-canceling headsets available in every aircraft for clear communications.' },
-                      { title: 'Flight Preparation', body: 'Direct operational support for detailed dispatch, weather routing, and weight & balance.' },
-                      { title: 'Post-Flight Care', body: 'Aircraft are professionally cleaned and detailed post-flight. You fly, we handle the wash.' },
-                      { title: 'Fleet Presentation', body: 'Guaranteed aircraft readiness. Step into a cockpit prepped to an absolute showroom standard.' },
-                    ].map(({ title, body }) => (
-                      <li key={title} className="flex items-start gap-4 group/item">
-                        <Icon name="check_circle" className="text-[#aec7f7] mt-0.5 shrink-0 group-hover/item:scale-110 transition-transform duration-300" />
-                        <div>
-                          <p className="font-sans font-semibold text-[#d9e3f6] text-[0.85rem]">{title}</p>
-                          <p className="text-[0.8rem] text-[#94a3b8] font-sans mt-1 leading-relaxed">{body}</p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </FadeUp>
-          </div>
-        </div>
-      </section>
-
-      {/* ── 5. Audience Profiles ─────────────────────────────────────────────── */}
-      <section className="border-t border-white/5 py-32">
-        <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-20">
-          <StaggerContainer className="text-center mb-16" viewportMargin="-25%">
-            <StaggerItem duration={1.4}>
-              <p className="font-sans font-semibold uppercase tracking-[0.25em] text-[0.65rem] text-[#64748b] mb-4">
-                Pilot Profiles
-              </p>
-            </StaggerItem>
-            <StaggerItem duration={1.4}>
-              <h2 className="font-serif text-4xl md:text-5xl font-normal tracking-tight text-[#d9e3f6]">
-                Tailored for Every Pilot
-              </h2>
-            </StaggerItem>
-          </StaggerContainer>
-
-          <StaggerContainer className="grid grid-cols-1 md:grid-cols-3 gap-12" viewportMargin="-25%" staggerDelay={0.25}>
-            {[
-              {
-                icon: 'cloud_queue',
-                title: 'Casual Flyer',
-                quote: '"I fly three or four times a year for the pure joy of it. The Hourly Rate gives me total freedom without overhead."',
-              },
-              {
-                icon: 'weekend',
-                title: 'Regular Weekend Flyer',
-                quote: '"I aim for one solid flight a month. The 10 Hour Package locks in a better rate while fitting my predictable schedule."',
-              },
-              {
-                icon: 'flight_takeoff',
-                title: 'Frequent Pilot',
-                quote: '"I\'m building hours or commuting by air. The 30 Hour Package is the only logical choice for high-frequency utility."',
-              },
-            ].map(({ icon, title, quote }) => (
-              <StaggerItem key={title} duration={1.4} className="text-center group">
-                <div className="w-20 h-20 bg-[#0c1827] mx-auto rounded-full flex items-center justify-center mb-8 border border-white/5 group-hover:border-[#aec7f7]/40 transition-colors duration-500 shadow-md">
-                  <Icon name={icon} className="text-[#aec7f7] group-hover:scale-110 transition-transform duration-500 ease-out" style={{ fontSize: '32px' }} />
-                </div>
-                <h4 className="font-serif text-2xl font-normal text-[#d9e3f6] mb-4">{title}</h4>
-                <p className="text-[0.85rem] text-[#94a3b8] font-sans leading-relaxed">{quote}</p>
-              </StaggerItem>
-            ))}
-          </StaggerContainer>
-        </div>
-      </section>
-
-      {/* ── 6. Operational Standards & Eligibility ───────────────────────────── */}
-      <section className="border-t border-white/5 max-w-7xl mx-auto px-6 md:px-12 lg:px-20 py-32 grid grid-cols-1 lg:grid-cols-2 gap-20">
-
-        {/* Operational Standards */}
-        <StaggerContainer viewportMargin="-30%">
-          <StaggerItem duration={1.4}>
-            <p className="font-sans font-semibold uppercase tracking-[0.25em] text-[0.65rem] text-[#64748b] mb-4">
-              Policy
-            </p>
-          </StaggerItem>
-          <StaggerItem duration={1.4}>
-            <h2 className="font-serif text-4xl md:text-5xl font-normal tracking-tight text-[#d9e3f6] mb-10">
-              Operational Standards
-            </h2>
-          </StaggerItem>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-12 gap-x-8">
-            {[
-              { label: 'Minimum Booking', body: '1.5 hours per daily reservation to ensure fleet rotation efficiency.' },
-              { label: 'Block Validity', body: 'Pre-paid packages are valid for 12 months from the date of activation.' },
-              { label: 'Cancellation', body: '24-hour notice required for standard flights; no charge for weather-related grounded flights.' },
-              { label: 'Overnight', body: '2-hour daily minimum applies for aircraft kept away from home base overnight.' },
-            ].map(({ label, body }) => (
-              <StaggerItem key={label} duration={1.4}>
-                <h5 className="font-sans font-semibold uppercase tracking-[0.25em] text-[0.65rem] text-[#aec7f7] mb-3">{label}</h5>
-                <p className="text-[0.85rem] text-[#94a3b8] font-sans leading-relaxed">{body}</p>
-              </StaggerItem>
-            ))}
-          </div>
-        </StaggerContainer>
-
-        {/* Eligibility card */}
-        <div className="relative">
-          <FadeUp delay={0.6} duration={1.8} viewportMargin="-30%" className="h-full">
-            <div className="p-12 h-full rounded-xl flex flex-col justify-center border border-white/5 relative overflow-hidden group hover:border-[#aec7f7]/20 transition-colors duration-700">
-              <div
-                className="absolute inset-0 bg-cover bg-center pointer-events-none group-hover:opacity-70 transition-opacity duration-1000"
-                style={{ backgroundImage: 'url("/CessnaWireframe.webp")' }}
-              />
-              {/* grey + dark overlay to keep text readable */}
-              <div className="absolute inset-0 bg-[#091421]/75 pointer-events-none" />
-              <div className="absolute inset-0 bg-gradient-to-br from-[#0c1827]/60 to-transparent pointer-events-none" />
-              <div className="relative z-10">
-                <p className="font-sans font-semibold uppercase tracking-[0.25em] text-[0.65rem] text-[#64748b] mb-4">
-                  Eligibility
-                </p>
-                <h3 className="font-serif text-3xl font-normal text-[#d9e3f6] mb-6">Are you eligible to fly?</h3>
-                <p className="text-[#94a3b8] font-sans mb-8 text-[0.85rem] leading-relaxed">
-                  Before booking, all pilots must complete a localised check-out and meet our insurance
-                  minimums (100 hours total time, 10 hours in type).
-                </p>
-                <div className="pt-2 overflow-hidden">
-                  <FadeUp delay={1.4} duration={1.4}>
-                    <a
-                      href="/pilotRequirements"
-                      className="inline-block font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded border border-white/20 text-[#c4c6cf] hover:bg-white/5 hover:border-white/40 transition-all duration-300"
-                    >
-                      Review Full Requirements
-                    </a>
-                  </FadeUp>
-                </div>
-              </div>
             </div>
-          </FadeUp>
-        </div>
+          </div>
+
+          <div className="mt-10 space-y-5 md:hidden">
+            {WORKFLOW_STEPS.map((step) => (
+              <div key={step.title} className="group relative pl-12">
+                <div className="absolute left-[18px] top-0 h-full w-px bg-[#2e3f5d]" />
+                <div className="absolute left-0 top-1.5 flex h-9 w-9 items-center justify-center rounded-full border border-[#87a6d8]/45 bg-[#12243e] transition-all duration-300 group-hover:border-[#bbcff2]/65 group-hover:shadow-[0_0_14px_rgba(117,153,217,0.35)]">
+                  <Icon name={step.icon} className="text-[#b8cef1] !text-[18px]" />
+                </div>
+                <p className="font-sans text-[0.75rem] font-semibold uppercase tracking-[0.14em] text-[#d9e5fb]">{step.title}</p>
+                <p className="mt-2 font-sans text-[0.82rem] leading-relaxed text-[#9eb0cc]">{step.body}</p>
+              </div>
+            ))}
+          </div>
+        </FadeUp>
       </section>
 
-      {/* ── 7. FAQ ───────────────────────────────────────────────────────────── */}
-      <section className="border-t border-white/5 max-w-4xl mx-auto px-6 md:px-12 lg:px-20 py-32">
-        <StaggerContainer className="text-center mb-16" viewportMargin="-25%">
-          <StaggerItem duration={1.4}>
-            <p className="font-sans font-semibold uppercase tracking-[0.25em] text-[0.65rem] text-[#64748b] mb-4">
-              FAQ
+      <section className="relative overflow-hidden px-6 py-24 md:px-12 lg:px-20">
+        <div className="absolute inset-0 bg-[#07111f]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(78,111,171,0.18),rgba(7,17,31,0)_45%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_65%,rgba(34,61,105,0.14),rgba(7,17,31,0)_46%)]" />
+        <div className="absolute inset-0 opacity-[0.22] [background-image:linear-gradient(rgba(137,163,203,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(137,163,203,0.08)_1px,transparent_1px)] [background-size:44px_44px]" />
+        <FadeUp className="relative z-10 mx-auto grid max-w-6xl items-start gap-10 lg:grid-cols-2" duration={1.05} viewportMargin="-80px">
+          <div>
+            <p className="font-sans text-[0.65rem] font-semibold uppercase tracking-[0.17em] text-[#9fb8df]">Multi-Day Hire Rule</p>
+            <h2 className="mt-3 font-serif text-4xl text-white md:text-5xl">Multi-Day Booking Minimum</h2>
+            <p className="mt-5 font-sans text-sm leading-relaxed text-[#c3d1e5] md:text-base">
+              For bookings of 24 hours or longer, a minimum flight usage rule applies.
             </p>
-          </StaggerItem>
-          <StaggerItem duration={1.4}>
-            <h2 className="font-serif text-4xl md:text-5xl font-normal tracking-tight text-[#d9e3f6]">
-              Common Enquiries
-            </h2>
-          </StaggerItem>
-        </StaggerContainer>
-        <StaggerContainer className="space-y-4" viewportMargin="-25%" staggerDelay={0.15}>
-          {FAQ_ITEMS.map((item) => (
-            <StaggerItem key={item.question} duration={1.2}>
-              <FaqItem question={item.question} answer={item.answer} />
-            </StaggerItem>
-          ))}
-        </StaggerContainer>
+            <div className="mt-6 rounded-lg border border-[#b9ccee]/30 bg-[#0f1e35]/70 p-5 backdrop-blur-md">
+              <p className="font-sans text-[0.64rem] font-semibold uppercase tracking-[0.16em] text-[#9fb8df]">Minimum Usage Rule</p>
+              <p className="mt-2 font-serif text-[1.6rem] leading-tight text-[#edf3ff] md:text-[1.95rem]">
+                For every 24 hours booked, a minimum of 4 VDO hours is billable.
+              </p>
+            </div>
+            <p className="mt-5 font-sans text-[0.9rem] leading-relaxed text-[#d0dbed]">
+              If you fly more than the minimum, billing is based on your actual VDO hours.
+            </p>
+          </div>
+          <div className="grid gap-3 self-center">
+            {MINIMUM_RULES.map((rule) => (
+              <div
+                key={rule.booked}
+                className="group flex items-center justify-between rounded-xl border border-white/16 bg-[#111f35]/74 p-4 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.015] hover:border-[#b9cdef]/52 hover:bg-[#182d4d]/84 hover:shadow-[0_12px_30px_rgba(2,8,18,0.38),0_0_24px_rgba(117,153,217,0.18)] md:p-5"
+              >
+                <span className="font-sans text-[0.95rem] text-[#e5efff] md:text-[1rem]">{rule.booked}</span>
+                <div className="flex items-center gap-2">
+                  <Icon name="east" className="text-[#b6caea] transition-transform duration-300 group-hover:translate-x-0.5" />
+                  <span className="rounded-full border border-[#c4d6f4]/36 bg-[#213a61]/82 px-3 py-1.5 font-sans text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[#e8f1ff] md:px-4 md:text-[0.7rem]">
+                    {rule.minimum}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </FadeUp>
       </section>
 
-      {/* ── 8. Final CTA ─────────────────────────────────────────────────────── */}
-      <section className="relative py-32 border-t border-white/5 text-center overflow-hidden">
+      <section className="px-6 py-24 md:px-12 lg:px-20">
+        <FadeUp className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-12" duration={1.05} viewportMargin="-80px">
+          <div className="lg:col-span-7">
+            <h2 className="font-serif text-3xl text-[#eaf1ff] md:text-5xl">What&apos;s Included</h2>
+            <p className="mt-4 max-w-2xl font-sans text-sm leading-relaxed text-[#b8c5d9] md:text-base">
+              Everything you need for a seamless flight experience, with no hidden fees.
+            </p>
+            <div className="mt-10 grid gap-3 md:grid-cols-2">
+              {INCLUDED_CARDS.map((card, i) => (
+                <article
+                  key={card.title}
+                  className={`rounded-lg border border-white/10 p-4 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-[#b8cbeb]/35 hover:shadow-[0_14px_30px_rgba(2,8,18,0.35)] ${
+                    i < 2 ? 'bg-[#121f33]/78' : 'bg-[#0d1828]/75'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/15 bg-[#14263f]">
+                      <Icon name={card.icon} className="text-[#b7cdee] !text-[18px]" />
+                    </div>
+                    <div>
+                      <h3 className="font-sans text-[0.95rem] font-semibold text-[#e5edf9]">{card.title}</h3>
+                      <p className="mt-1.5 font-sans text-[0.82rem] leading-relaxed text-[#aebcd1]">{card.copy}</p>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+          <div className="relative overflow-hidden rounded-xl border border-white/10 bg-[#0e1b2e] transition-all duration-300 hover:border-[#b8cbeb]/35 hover:shadow-[0_18px_34px_rgba(2,8,18,0.35)] lg:col-span-5">
+            <img src="/CockpitRunwayView.webp" alt="Cockpit runway view" className="h-full min-h-[340px] w-full object-cover opacity-72 transition-transform duration-700 hover:scale-[1.03]" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#091421] via-[#091421]/30 to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 p-6">
+              <p className="font-sans text-[0.66rem] font-semibold uppercase tracking-[0.17em] text-[#a6bfe4]">Transparent Billing</p>
+              <p className="mt-2 font-serif text-2xl text-[#edf3ff]">Built for clarity from booking to final invoice.</p>
+            </div>
+          </div>
+        </FadeUp>
+      </section>
+
+      <section className="border-t border-white/5 px-6 py-20 md:px-12 lg:px-20">
+        <FadeUp className="mx-auto max-w-4xl" duration={1.05} viewportMargin="-80px">
+          <h2 className="text-center font-serif text-3xl text-[#eaf1ff] md:text-5xl">Frequently Asked Questions</h2>
+          <div className="mt-10 space-y-3">
+            {FAQ_ITEMS.map((item) => (
+              <FaqItem key={item.question} item={item} />
+            ))}
+          </div>
+        </FadeUp>
+      </section>
+
+      <section className="relative overflow-hidden border-t border-white/5 px-6 py-24 md:px-12 lg:px-20">
         <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: 'url("/SleekPropeller.webp")' }}
+          style={{ backgroundImage: 'url("/Cockpit-twilight.webp")', opacity: 0.55 }}
         />
-        <div className="absolute inset-0 bg-[#091421]/80" />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#091421]/60 via-transparent to-[#091421]/60" />
-        <div className="relative z-10 max-w-2xl mx-auto px-6 md:px-12 lg:px-20">
-          <StaggerContainer viewportMargin="-30%" staggerDelay={0.4}>
-            <StaggerItem duration={1.6}>
-              <p className="font-sans font-semibold uppercase tracking-[0.25em] text-[0.65rem] text-[#64748b] mb-4">
-                Get Started
-              </p>
-            </StaggerItem>
-            <StaggerItem duration={1.6}>
-              <h2 className="font-serif text-4xl md:text-5xl font-normal tracking-tight text-[#d9e3f6] mb-12">
-                Your Flight Starts Here
-              </h2>
-            </StaggerItem>
-            <div className="flex flex-wrap justify-center gap-4">
-              <StaggerItem duration={1.6} className="shrink-0">
-                <a
-                  href="/pilotRequirements"
-                  className="inline-block bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] rounded-md font-sans font-bold tracking-widest uppercase text-[0.8rem] px-10 py-5 shadow-2xl shadow-[#aec7f7]/20 transition-all active:scale-95 hover:brightness-110"
-                >
-                  Get Approved
-                </a>
-              </StaggerItem>
-              <StaggerItem duration={1.6} className="shrink-0">
-                <a
-                  href="/pilotRequirements"
-                  className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-10 py-5 rounded border border-white/20 text-[#c4c6cf] hover:bg-white/5 transition-colors"
-                >
-                  Requirements
-                </a>
-              </StaggerItem>
-            </div>
-          </StaggerContainer>
-        </div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(56,84,130,0.3),rgba(7,15,29,0.93)_62%)]" />
+        <FadeUp className="relative z-10 mx-auto max-w-3xl text-center" duration={1.05} viewportMargin="-80px">
+          <h2 className="font-serif text-4xl text-white md:text-5xl">Ready to Fly?</h2>
+          <p className="mx-auto mt-4 max-w-2xl font-sans text-sm leading-relaxed text-[#c3d2e8] md:text-base">
+            Get approved and start booking with transparent, competitive aircraft hire pricing.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
+            <a
+              href="/pilotRequirements"
+              className="inline-block rounded-md bg-gradient-to-r from-[#c3d8ff] to-[#7599d9] px-8 py-4 font-sans text-[0.8rem] font-bold uppercase tracking-widest text-[#0a1d38] shadow-2xl shadow-[#aec7f7]/25 transition-all duration-300 active:scale-95 hover:brightness-110"
+            >
+              Get Approved
+            </a>
+            <a
+              href="mailto:ops@ozrentaplane.com.au?subject=Pricing%20enquiry"
+              className="rounded border border-[#d2e2ff]/40 bg-[#09182d]/56 px-8 py-4 font-sans text-[0.8rem] font-bold uppercase tracking-widest text-[#eef4ff] transition-all duration-300 hover:bg-[#0f243f]/72"
+            >
+              Contact Us
+            </a>
+          </div>
+        </FadeUp>
       </section>
-
     </main>
   )
 }
