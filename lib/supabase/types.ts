@@ -26,6 +26,10 @@ export type DocumentStatus = 'uploaded' | 'approved' | 'rejected'
 export type Profile = {
   id: string
   full_name: string | null
+  first_name: string | null
+  last_name: string | null
+  phone_country_code: string | null
+  phone_number: string | null
   email: string | null
   role: Role
   account_status: AccountStatus           // active | blocked | archived

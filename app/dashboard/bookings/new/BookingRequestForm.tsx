@@ -16,6 +16,7 @@ import {
 } from '@/lib/utils/sydney-time'
 import { validateFlightReviewDate, getFlightReviewCutoff } from '@/lib/utils/flight-review'
 import { formatDate, formatDateTime, formatDateLong } from '@/lib/formatDateTime'
+import CalendarDateField from '@/components/CalendarDateField'
 
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -418,25 +419,31 @@ function StepIndicator({ requirementsOk }: { requirementsOk: boolean }) {
 function DateInput({
   value,
   min,
+  max,
   disabled,
   onChange,
 }: {
   value: string
   min?: string
+  max?: string
   disabled?: boolean
   onChange: (v: string) => void
 }) {
+  const minYear = min ? Number(min.slice(0, 4)) || (new Date().getFullYear() - 20) : (new Date().getFullYear() - 20)
+  const maxYear = max ? Number(max.slice(0, 4)) || (new Date().getFullYear() + 5) : (new Date().getFullYear() + 5)
   return (
-    <input
-      type="date"
+    <CalendarDateField
       value={value}
-      min={min}
+      minDate={min}
+      maxDate={max}
+      minYear={minYear}
+      maxYear={maxYear}
       disabled={disabled}
-      onChange={e => onChange(e.target.value)}
+      onChange={onChange}
       className={`
         w-full px-4 py-3.5 bg-[#05080f] border border-white/[0.09]
         focus:border-blue-500/60 focus:outline-none rounded-lg
-        text-white text-sm transition-colors [color-scheme:dark]
+        text-white text-sm transition-colors
         ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:border-white/20'}
       `}
     />

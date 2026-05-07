@@ -19,8 +19,20 @@ export default function Cessna172nPage() {
           aria-hidden="true"
           className="absolute inset-0 z-0 h-full w-full object-cover"
         />
-        <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#040f1e]/70 via-[#040f1e]/30 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 h-[30%] z-0 bg-gradient-to-t from-[#091421] via-[#051122]/30 to-transparent" />
+        <div
+          className="absolute inset-0 z-[1]"
+          style={{
+            background:
+              'linear-gradient(90deg, rgba(7, 17, 29, 0.78) 0%, rgba(7, 17, 29, 0.56) 42%, rgba(7, 17, 29, 0.18) 100%)',
+          }}
+        />
+        <div
+          className="absolute inset-x-0 bottom-0 h-[30%] z-[1]"
+          style={{
+            background:
+              'linear-gradient(180deg, rgba(9, 20, 33, 0) 0%, rgba(9, 20, 33, 0.65) 55%, rgba(9, 20, 33, 0.95) 100%)',
+          }}
+        />
 
         <div className="relative z-10 max-w-7xl mx-auto w-full pt-16">
           <StaggerContainer className="max-w-xl">
@@ -86,20 +98,24 @@ export default function Cessna172nPage() {
 
           <FadeUp className="relative mb-6 md:mb-8" delay={0.4} duration={2.2} viewportMargin="-25%">
             <div className="w-full rounded-2xl overflow-hidden shadow-2xl relative border border-white/5 aspect-[4/3] md:aspect-[2.35/1]">
-              <picture>
-                <source srcSet="/Cockpit-twilight.webp" type="image/webp" />
-                <img
-                  src="/Cockpit-twilight.jpg"
-                  alt="Cessna 172N Cockpit at Twilight"
-                  className="absolute inset-0 w-full h-full object-cover object-center"
-                  loading="lazy"
-                  decoding="async"
-                />
-              </picture>
-              <div className="hidden md:block absolute top-[40%] left-[20%] bg-[#2a3647]/80 backdrop-blur-md px-4 py-2 rounded-lg border border-white/10 text-xs font-sans tracking-wide text-[#d9e3f6]">
+              <img
+                src="/Cockpit-twilight.jpg?v=safari-test-1"
+                alt="Cessna 172N Cockpit at Twilight"
+                className="absolute inset-0 z-0 h-full w-full object-cover object-center"
+                loading="lazy"
+                decoding="async"
+              />
+              <div
+                className="absolute inset-0 z-[1]"
+                style={{
+                  background:
+                    'linear-gradient(180deg, rgba(7, 17, 29, 0.16) 0%, rgba(7, 17, 29, 0.32) 55%, rgba(7, 17, 29, 0.46) 100%)',
+                }}
+              />
+              <div className="hidden md:block absolute z-10 top-[40%] left-[20%] bg-[#2a3647]/80 backdrop-blur-md px-4 py-2 rounded-lg border border-white/10 text-xs font-sans tracking-wide text-[#d9e3f6]">
                 Dual G5 Flight Instruments
               </div>
-              <div className="hidden md:block absolute bottom-[25%] right-[20%] bg-[#2a3647]/80 backdrop-blur-md px-4 py-2 rounded-lg border border-white/10 text-xs font-sans tracking-wide text-[#d9e3f6]">
+              <div className="hidden md:block absolute z-10 bottom-[25%] right-[20%] bg-[#2a3647]/80 backdrop-blur-md px-4 py-2 rounded-lg border border-white/10 text-xs font-sans tracking-wide text-[#d9e3f6]">
                 Reliable Analog Backup
               </div>
             </div>
@@ -392,7 +408,10 @@ export default function Cessna172nPage() {
           aria-hidden="true"
           className="absolute inset-0 z-0 h-full w-full object-cover"
         />
-        <div className="absolute inset-0 z-0 bg-[#0c1827]/80 backdrop-blur-[2px]" />
+        <div
+          className="absolute inset-0 z-[1]"
+          style={{ background: 'rgba(7, 17, 29, 0.58)' }}
+        />
 
         <FadeUp delay={0.2} duration={2.0} viewportMargin="-25%" className="relative z-10 px-6 md:px-12 lg:px-20 max-w-2xl mx-auto w-full">
           <p className="font-sans font-semibold uppercase tracking-[0.25em] text-[0.65rem] text-[#64748b] mb-4 text-shadow-sm">

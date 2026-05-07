@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import type {
@@ -13,6 +13,7 @@ import { getDocumentSignedUrl } from '@/app/actions/documents'
 import { saveLastFlightDate } from '@/app/actions/verification'
 import { fmtDate } from '@/lib/utils/format'
 import { validateFlightReviewDate, getFlightReviewCutoff } from '@/lib/utils/flight-review'
+import CalendarDateField from '@/components/CalendarDateField'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -392,17 +393,18 @@ function UploadModal({
                 onChange={v => set('medicalClass', v)}
                 cols={2}
               />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-oz-subtle">
                     Date of Issue
                     <span className="text-red-400/80 text-[8px] normal-case font-normal">Required</span>
                   </label>
-                  <input
-                    type="date"
+                  <CalendarDateField
                     value={form.issueDate}
-                    onChange={e => set('issueDate', e.target.value)}
-                    className="w-full bg-white/[0.03] border border-white/8 focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5"
+                    onChange={(next) => set('issueDate', next)}
+                    minYear={new Date().getFullYear() - 80}
+                    maxYear={new Date().getFullYear()}
+                    className="w-full bg-white/[0.03] border border-white/8 focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5 text-left flex items-center justify-between"
                   />
                 </div>
                 <div className="space-y-2">
@@ -410,11 +412,12 @@ function UploadModal({
                     Expiry Date
                     <span className="text-red-400/80 text-[8px] normal-case font-normal">Required</span>
                   </label>
-                  <input
-                    type="date"
+                  <CalendarDateField
                     value={form.expiryDate}
-                    onChange={e => set('expiryDate', e.target.value)}
-                    className="w-full bg-white/[0.03] border border-white/8 focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5"
+                    onChange={(next) => set('expiryDate', next)}
+                    minYear={new Date().getFullYear() - 5}
+                    maxYear={new Date().getFullYear() + 20}
+                    className="w-full bg-white/[0.03] border border-white/8 focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5 text-left flex items-center justify-between"
                   />
                 </div>
               </div>
@@ -916,14 +919,17 @@ export default function DocumentsPanel({ user: _user, documents, lastFlightDate,
               <span className="ml-1.5 text-red-400/80 font-normal normal-case">Required for checkout</span>
             </label>
             <div className="flex gap-3">
-              <input
-                type="date"
-                value={flightDate}
-                min={getFlightReviewCutoff()}
-                max={today}
-                onChange={e => { setFlightDate(e.target.value); setFlightDateSaved(false); setFlightDateError('') }}
-                className="flex-1 bg-white/[0.03] border border-white/[0.08] focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5"
-              />
+              <div className="flex-1">
+                <CalendarDateField
+                  value={flightDate}
+                  onChange={(next) => { setFlightDate(next); setFlightDateSaved(false); setFlightDateError('') }}
+                  minYear={new Date().getFullYear() - 20}
+                  maxYear={new Date().getFullYear()}
+                  minDate={getFlightReviewCutoff()}
+                  maxDate={today}
+                  className="w-full bg-white/[0.03] border border-white/[0.08] focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5 text-left flex items-center justify-between"
+                />
+              </div>
               <button
                 type="button"
                 onClick={handleSaveFlightDate}

@@ -16,6 +16,7 @@ import { validateFlightReviewDate, getFlightReviewCutoff } from '@/lib/utils/fli
 import { formatDate, formatDateTime } from '@/lib/formatDateTime'
 import type { UserDocument, DocumentType } from '@/lib/supabase/types'
 import type { CheckoutBookingResult } from '@/lib/supabase/booking-types'
+import CalendarDateField from '@/components/CalendarDateField'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -490,35 +491,6 @@ function DocModal({
   const [formError,    setFormError]    = useState<string | null>(null)
   const [dragOver,     setDragOver]     = useState(false)
 
-  // DD/MM/YYYY → YYYY-MM-DD (returns '' if invalid)
-  function parseDMY(raw: string): string {
-    const m = raw.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})$/)
-    if (!m) return ''
-    const [, d, mo, y] = m
-    const dd = String(d).padStart(2,'0'), mm = String(mo).padStart(2,'0')
-    return `${y}-${mm}-${dd}`
-  }
-  // YYYY-MM-DD → DD/MM/YYYY for display
-  function formatDMY(iso: string): string {
-    if (!iso) return ''
-    const [y, m, d] = iso.split('-')
-    return `${d}/${m}/${y}`
-  }
-
-  const [issueDateDisplay,  setIssueDateDisplay]  = useState(formatDMY(issueDate))
-  const [expiryDateDisplay, setExpiryDateDisplay] = useState(formatDMY(expiryDate))
-
-  function handleIssueDateInput(v: string) {
-    setIssueDateDisplay(v)
-    const iso = parseDMY(v)
-    setIssueDate(iso)
-  }
-  function handleExpiryDateInput(v: string) {
-    setExpiryDateDisplay(v)
-    const iso = parseDMY(v)
-    setExpiryDate(iso)
-  }
-
   function Pill({ value, active, onClick }: { value: string; active: boolean; onClick: () => void }) {
     return (
       <button type="button" onClick={onClick}
@@ -695,21 +667,23 @@ function DocModal({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Date of Issue <span className="text-red-400 font-normal normal-case">Required</span></p>
-                  <input type="text" inputMode="numeric" placeholder="DD/MM/YYYY"
-                    value={issueDateDisplay}
-                    onChange={e => handleIssueDateInput(e.target.value)}
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40 placeholder:text-white/20"
+                  <CalendarDateField
+                    value={issueDate}
+                    onChange={setIssueDate}
+                    minYear={new Date().getFullYear() - 80}
+                    maxYear={new Date().getFullYear()}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40 text-left flex items-center justify-between"
                   />
-                  {issueDateDisplay && !issueDate && <p className="text-[9px] text-amber-400">Use DD/MM/YYYY format</p>}
                 </div>
                 <div className="space-y-1.5">
                   <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Expiry Date <span className="text-red-400 font-normal normal-case">Required</span></p>
-                  <input type="text" inputMode="numeric" placeholder="DD/MM/YYYY"
-                    value={expiryDateDisplay}
-                    onChange={e => handleExpiryDateInput(e.target.value)}
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40 placeholder:text-white/20"
+                  <CalendarDateField
+                    value={expiryDate}
+                    onChange={setExpiryDate}
+                    minYear={new Date().getFullYear() - 5}
+                    maxYear={new Date().getFullYear() + 20}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40 text-left flex items-center justify-between"
                   />
-                  {expiryDateDisplay && !expiryDate && <p className="text-[9px] text-amber-400">Use DD/MM/YYYY format</p>}
                 </div>
               </div>
             </>
@@ -1163,12 +1137,13 @@ export default function CheckoutFlow({
                 <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
                   Date <span className="text-red-400 font-normal normal-case">Required</span>
                 </label>
-                <input
-                  type="date"
+                <CalendarDateField
                   value={date}
-                  min={minDateString()}
-                  onChange={e => { setDate(e.target.value); setStartTime(''); setAvail({ status: 'idle' }); setStepError(null); setSubmitError(null) }}
-                  className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors"
+                  onChange={(next) => { setDate(next); setStartTime(''); setAvail({ status: 'idle' }); setStepError(null); setSubmitError(null) }}
+                  minYear={new Date().getFullYear()}
+                  maxYear={new Date().getFullYear() + 2}
+                  minDate={minDateString()}
+                  className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors text-left flex items-center justify-between"
                 />
               </div>
 
@@ -1385,13 +1360,14 @@ export default function CheckoutFlow({
             <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
               When was your last flight review? <span className="text-red-400 font-normal normal-case">Required</span>
             </label>
-            <input
-              type="date"
+            <CalendarDateField
               value={lastFlightDate}
-              min={getFlightReviewCutoff()}
-              max={new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })}
-              onChange={e => setLastFlightDate(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors"
+              onChange={setLastFlightDate}
+              minYear={new Date().getFullYear() - 20}
+              maxYear={new Date().getFullYear()}
+              minDate={getFlightReviewCutoff()}
+              maxDate={new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })}
+              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors text-left flex items-center justify-between"
             />
             {lastFlightDate && validateFlightReviewDate(lastFlightDate) && (
               <p className="text-[10px] text-red-400 flex items-center gap-1.5">
