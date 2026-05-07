@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { HOME_HERO_SCROLL_FRAMES } from '@/lib/homeHeroScrollFrames'
+import { HOME_HERO_SCROLL_MOBILE_FRAMES } from '@/lib/homeHeroScrollMobileFrames'
 import HeroCloudLayers from '@/components/HeroCloudLayers'
 
 const SCROLL_HEIGHT_VH = 430
@@ -19,26 +20,51 @@ const WORD_FLY_DELAY_MS = 220
 const WORD_YOUR_DELAY_MS = 700
 const WORD_WAY_DELAY_MS = 1120
 const UNDERLINE_DELAY_MS = 1500
-// Frame ranges from manifest: S1(50) + S2(40) + S3(70) = 160 total.
-const SCENE_1_START = 0
-const SCENE_1_END = 49
-const SCENE_2_START = 50
-const SCENE_2_END = 89
-const SCENE_3_START = 90
-const SCENE_3_END = 159
 const SCENE_BOUNDARY_TRIGGER = 18
 const SCENE_WARMUP_COUNT = 32
 const CLOUD_FADE_START_FRAME = 22
 const CLOUD_FADE_END_FRAME = 34
 
-const SCENE_HEADINGS = [
-  { line1: 'FLY', line2: 'YOUR WAY', showCta: true, start: SCENE_1_START, end: SCENE_1_END },
-  { line1: 'TRAIN', line2: 'WITH CONFIDENCE', showCta: false, start: SCENE_2_START, end: SCENE_2_END },
-  { line1: 'TAKE', line2: 'THE CONTROLS', showCta: false, start: SCENE_3_START, end: SCENE_3_END },
+const SCENE_TEXT = [
+  { line1: 'FLY', line2: 'YOUR WAY', showCta: true },
+  { line1: 'TRAIN', line2: 'WITH CONFIDENCE', showCta: false },
+  { line1: 'TAKE', line2: 'THE CONTROLS', showCta: false },
 ] as const
+
+type SceneRange = { start: number; end: number }
+type ActiveSequence = {
+  key: 'desktop' | 'mobile'
+  frames: readonly string[]
+  scenes: [SceneRange, SceneRange, SceneRange]
+  totalFrames: number
+}
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
+}
+
+function deriveSceneMetadata(frames: readonly string[]): { scenes: [SceneRange, SceneRange, SceneRange]; totalFrames: number } {
+  let s1Count = 0
+  let s2Count = 0
+  let s3Count = 0
+  for (const frame of frames) {
+    if (frame.includes('/S1_') || frame.includes('/MS1_')) s1Count += 1
+    else if (frame.includes('/S2_') || frame.includes('/MS2_')) s2Count += 1
+    else if (frame.includes('/S3_') || frame.includes('/MS3_')) s3Count += 1
+  }
+  const s1End = Math.max(0, s1Count - 1)
+  const s2Start = s1Count
+  const s2End = s2Start + Math.max(0, s2Count - 1)
+  const s3Start = s2Start + s2Count
+  const s3End = s3Start + Math.max(0, s3Count - 1)
+  return {
+    scenes: [
+      { start: 0, end: s1End },
+      { start: s2Start, end: s2End },
+      { start: s3Start, end: s3End },
+    ],
+    totalFrames: frames.length,
+  }
 }
 
 export default function HomeHeroScrollSequence() {
@@ -54,6 +80,7 @@ export default function HomeHeroScrollSequence() {
 
   const [introDone, setIntroDone] = useState(false)
   const [sceneIndex, setSceneIndex] = useState(0)
+  const [isMobileViewport, setIsMobileViewport] = useState(false)
   const introDoneRef = useRef(false)
   const sceneIndexRef = useRef(0)
   const reducedMotionRef = useRef(false)
@@ -71,9 +98,29 @@ export default function HomeHeroScrollSequence() {
   const sectionTopRef = useRef(0)
   const sectionScrollableRef = useRef(1)
 
-  const frameCount = HOME_HERO_SCROLL_FRAMES.length
-
-  const frameZero = useMemo(() => HOME_HERO_SCROLL_FRAMES[0] ?? '', [])
+  const activeSequence = useMemo<ActiveSequence>(() => {
+    const frames = isMobileViewport ? HOME_HERO_SCROLL_MOBILE_FRAMES : HOME_HERO_SCROLL_FRAMES
+    const meta = deriveSceneMetadata(frames)
+    return {
+      key: isMobileViewport ? 'mobile' : 'desktop',
+      frames,
+      scenes: meta.scenes,
+      totalFrames: meta.totalFrames,
+    }
+  }, [isMobileViewport])
+  const activeSequenceRef = useRef<ActiveSequence>(activeSequence)
+  const [debugEnabled, setDebugEnabled] = useState(false)
+  const sceneHeadings = useMemo(
+    () =>
+      SCENE_TEXT.map((scene, idx) => ({
+        ...scene,
+        start: activeSequence.scenes[idx].start,
+        end: activeSequence.scenes[idx].end,
+      })),
+    [activeSequence],
+  )
+  const frameCount = activeSequence.totalFrames
+  const frameZero = useMemo(() => activeSequence.frames[0] ?? '', [activeSequence])
 
   function updateSectionMetrics() {
     const section = sectionRef.current
@@ -91,41 +138,58 @@ export default function HomeHeroScrollSequence() {
   }
 
   function preloadFrame(index: number) {
-    if (index < 0 || index >= frameCount) return
+    const sequence = activeSequenceRef.current
+    const frameTotal = sequence.totalFrames
+    if (index < 0 || index >= frameTotal) return
     if (loadedRef.current.has(index) || loadingRef.current.has(index)) return
 
-    const src = HOME_HERO_SCROLL_FRAMES[index]
+    const src = sequence.frames[index]
     if (!src) return
 
+    const sequenceKeyAtStart = sequence.key
     loadingRef.current.add(index)
     const img = new Image()
-    img.onload = () => markLoaded(index)
-    img.onerror = () => loadingRef.current.delete(index)
+    img.onload = () => {
+      if (sequenceKeyAtStart !== activeSequenceRef.current.key) return
+      markLoaded(index)
+    }
+    img.onerror = () => {
+      if (sequenceKeyAtStart !== activeSequenceRef.current.key) return
+      loadingRef.current.delete(index)
+    }
     img.src = src
   }
 
   function preloadRange(center: number) {
+    const frameTotal = activeSequenceRef.current.totalFrames
     const behind = directionRef.current > 0 ? PRELOAD_BEHIND : PRELOAD_AHEAD
     const ahead = directionRef.current > 0 ? PRELOAD_AHEAD : PRELOAD_BEHIND
-    const from = clamp(center - behind, 0, frameCount - 1)
-    const to = clamp(center + ahead, 0, frameCount - 1)
+    const from = clamp(center - behind, 0, frameTotal - 1)
+    const to = clamp(center + ahead, 0, frameTotal - 1)
     for (let i = from; i <= to; i += 1) preloadFrame(i)
   }
 
   function preloadSceneWarmup(center: number) {
+    const scenes = activeSequenceRef.current.scenes
     if (directionRef.current > 0) {
-      if (center >= SCENE_1_END - SCENE_BOUNDARY_TRIGGER && center <= SCENE_1_END) {
-        for (let i = SCENE_2_START; i < Math.min(SCENE_2_START + SCENE_WARMUP_COUNT, SCENE_2_END + 1); i += 1) preloadFrame(i)
+      const scene1 = scenes[0]
+      const scene2 = scenes[1]
+      const scene3 = scenes[2]
+      if (center >= scene1.end - SCENE_BOUNDARY_TRIGGER && center <= scene1.end) {
+        for (let i = scene2.start; i < Math.min(scene2.start + SCENE_WARMUP_COUNT, scene2.end + 1); i += 1) preloadFrame(i)
       }
-      if (center >= SCENE_2_END - SCENE_BOUNDARY_TRIGGER && center <= SCENE_2_END) {
-        for (let i = SCENE_3_START; i < Math.min(SCENE_3_START + SCENE_WARMUP_COUNT, SCENE_3_END + 1); i += 1) preloadFrame(i)
+      if (center >= scene2.end - SCENE_BOUNDARY_TRIGGER && center <= scene2.end) {
+        for (let i = scene3.start; i < Math.min(scene3.start + SCENE_WARMUP_COUNT, scene3.end + 1); i += 1) preloadFrame(i)
       }
     } else {
-      if (center >= SCENE_2_START && center <= SCENE_2_START + SCENE_BOUNDARY_TRIGGER) {
-        for (let i = Math.max(SCENE_1_END - SCENE_WARMUP_COUNT + 1, SCENE_1_START); i <= SCENE_1_END; i += 1) preloadFrame(i)
+      const scene1 = scenes[0]
+      const scene2 = scenes[1]
+      const scene3 = scenes[2]
+      if (center >= scene2.start && center <= scene2.start + SCENE_BOUNDARY_TRIGGER) {
+        for (let i = Math.max(scene1.end - SCENE_WARMUP_COUNT + 1, scene1.start); i <= scene1.end; i += 1) preloadFrame(i)
       }
-      if (center >= SCENE_3_START && center <= SCENE_3_START + SCENE_BOUNDARY_TRIGGER) {
-        for (let i = Math.max(SCENE_2_END - SCENE_WARMUP_COUNT + 1, SCENE_2_START); i <= SCENE_2_END; i += 1) preloadFrame(i)
+      if (center >= scene3.start && center <= scene3.start + SCENE_BOUNDARY_TRIGGER) {
+        for (let i = Math.max(scene2.end - SCENE_WARMUP_COUNT + 1, scene2.start); i <= scene2.end; i += 1) preloadFrame(i)
       }
     }
   }
@@ -156,25 +220,32 @@ export default function HomeHeroScrollSequence() {
   }
 
   function getSceneIndex(frame: number): number {
-    if (frame <= SCENE_1_END) return 0
-    if (frame <= SCENE_2_END) return 1
+    const scenes = activeSequenceRef.current.scenes
+    if (frame <= scenes[0].end) return 0
+    if (frame <= scenes[1].end) return 1
     return 2
   }
 
   function preloadRemainingInBackground() {
+    const sequenceKeyAtStart = activeSequenceRef.current.key
     let start = 0
     function tick() {
+      if (sequenceKeyAtStart !== activeSequenceRef.current.key) {
+        backgroundPreloadRafRef.current = null
+        return
+      }
+      const frameTotal = activeSequenceRef.current.totalFrames
       let done = true
       let loadedInBatch = 0
-      for (let i = start; i < frameCount && loadedInBatch < BACKGROUND_PRELOAD_BATCH; i += 1) {
+      for (let i = start; i < frameTotal && loadedInBatch < BACKGROUND_PRELOAD_BATCH; i += 1) {
         if (!loadedRef.current.has(i) && !loadingRef.current.has(i)) {
           preloadFrame(i)
           loadedInBatch += 1
           done = false
         }
       }
-      while (start < frameCount && (loadedRef.current.has(start) || loadingRef.current.has(start))) start += 1
-      if (!done && start < frameCount) {
+      while (start < frameTotal && (loadedRef.current.has(start) || loadingRef.current.has(start))) start += 1
+      if (!done && start < frameTotal) {
         backgroundPreloadRafRef.current = window.requestAnimationFrame(tick)
       } else {
         backgroundPreloadRafRef.current = null
@@ -186,6 +257,7 @@ export default function HomeHeroScrollSequence() {
   }
 
   function findDirectionalLoaded(target: number): number {
+    const frameTotal = activeSequenceRef.current.totalFrames
     if (loadedRef.current.has(target)) return target
 
     // Forward travel: prefer the furthest loaded frame at-or-before target.
@@ -194,12 +266,12 @@ export default function HomeHeroScrollSequence() {
         if (loadedRef.current.has(i)) return i
       }
       // If nothing behind, pick earliest loaded ahead.
-      for (let i = target + 1; i < frameCount; i += 1) {
+      for (let i = target + 1; i < frameTotal; i += 1) {
         if (loadedRef.current.has(i)) return i
       }
     } else {
       // Backward travel: prefer the earliest loaded frame at-or-after target.
-      for (let i = target; i < frameCount; i += 1) {
+      for (let i = target; i < frameTotal; i += 1) {
         if (loadedRef.current.has(i)) return i
       }
       // If nothing ahead, pick nearest loaded behind.
@@ -211,10 +283,11 @@ export default function HomeHeroScrollSequence() {
   }
 
   function applyBestFrame(playhead: number) {
+    const sequence = activeSequenceRef.current
     const imgEl = imgRef.current
     if (!imgEl) return
 
-    const desiredFloat = clamp(playhead, 0, frameCount - 1)
+    const desiredFloat = clamp(playhead, 0, sequence.totalFrames - 1)
     const shown = shownFrameRef.current
     const remainingToTarget = Math.abs(targetFrameRef.current - desiredFloat)
     const shouldSettleNow = remainingToTarget <= SETTLE_EPSILON_FRAMES
@@ -224,15 +297,15 @@ export default function HomeHeroScrollSequence() {
 
     let desired = shown
     if (shouldSettleNow) {
-      desired = clamp(Math.round(targetFrameRef.current), 0, frameCount - 1)
+      desired = clamp(Math.round(targetFrameRef.current), 0, sequence.totalFrames - 1)
     } else if (directionRef.current > 0) {
-      desired = clamp(Math.floor(desiredFloat), 0, frameCount - 1)
+      desired = clamp(Math.floor(desiredFloat), 0, sequence.totalFrames - 1)
     } else {
-      desired = clamp(Math.ceil(desiredFloat), 0, frameCount - 1)
+      desired = clamp(Math.ceil(desiredFloat), 0, sequence.totalFrames - 1)
     }
 
     const best = loadedRef.current.has(desired) ? desired : findDirectionalLoaded(desired)
-    const src = HOME_HERO_SCROLL_FRAMES[best]
+    const src = sequence.frames[best]
     if (!src) return
     if (shownFrameRef.current !== best) {
       shownFrameRef.current = best
@@ -241,10 +314,11 @@ export default function HomeHeroScrollSequence() {
   }
 
   function readScrollAndSetTarget() {
+    const frameTotal = activeSequenceRef.current.totalFrames
     const scrollY = window.scrollY || window.pageYOffset
     const raw = (scrollY - sectionTopRef.current) / sectionScrollableRef.current
     const progress = clamp(raw, 0, 1)
-    targetFrameRef.current = progress * (frameCount - 1)
+    targetFrameRef.current = progress * (frameTotal - 1)
     const diff = targetFrameRef.current - previousTargetFrameRef.current
     if (Math.abs(diff) > 0.001) directionRef.current = diff > 0 ? 1 : -1
     previousTargetFrameRef.current = targetFrameRef.current
@@ -281,11 +355,12 @@ export default function HomeHeroScrollSequence() {
       currentFrameRef.current = targetFrameRef.current
     }
 
-    const preloadCenter = clamp(Math.round(targetFrameRef.current), 0, frameCount - 1)
+    const frameTotal = activeSequenceRef.current.totalFrames
+    const preloadCenter = clamp(Math.round(targetFrameRef.current), 0, frameTotal - 1)
     preloadRange(preloadCenter)
     preloadSceneWarmup(preloadCenter)
     applyBestFrame(currentFrameRef.current)
-    const sceneFrame = clamp(Math.round(currentFrameRef.current), 0, frameCount - 1)
+    const sceneFrame = clamp(Math.round(currentFrameRef.current), 0, frameTotal - 1)
     updateCloudVisibility(sceneFrame)
     updateCtaVisibility(sceneFrame)
     const nextSceneIndex = getSceneIndex(sceneFrame)
@@ -301,6 +376,23 @@ export default function HomeHeroScrollSequence() {
     }
     rafRef.current = null
   }
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)')
+    const syncViewport = () => setIsMobileViewport(media.matches)
+    syncViewport()
+    media.addEventListener('change', syncViewport)
+    return () => media.removeEventListener('change', syncViewport)
+  }, [])
+
+  useEffect(() => {
+    activeSequenceRef.current = activeSequence
+  }, [activeSequence])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setDebugEnabled(window.location.search.includes('heroDebug=1'))
+  }, [])
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -337,11 +429,32 @@ export default function HomeHeroScrollSequence() {
       }, INTRO_DURATION_MS)
     }
 
-    if (frameZero && imgRef.current) {
-      imgRef.current.src = frameZero
-      loadedRef.current.add(0)
-      shownFrameRef.current = 0
+    loadedRef.current = new Set()
+    loadingRef.current = new Set()
+    if (rafRef.current !== null) {
+      window.cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
     }
+    if (backgroundPreloadRafRef.current !== null) {
+      window.cancelAnimationFrame(backgroundPreloadRafRef.current)
+      backgroundPreloadRafRef.current = null
+    }
+    updateSectionMetrics()
+    const scrollY = window.scrollY || window.pageYOffset
+    const raw = (scrollY - sectionTopRef.current) / sectionScrollableRef.current
+    const progress = clamp(raw, 0, 1)
+    const startFrame = clamp(Math.round(progress * Math.max(0, frameCount - 1)), 0, Math.max(0, frameCount - 1))
+    sceneIndexRef.current = getSceneIndex(startFrame)
+    setSceneIndex(sceneIndexRef.current)
+    targetFrameRef.current = startFrame
+    currentFrameRef.current = startFrame
+    previousTargetFrameRef.current = startFrame
+    shownFrameRef.current = startFrame
+    if (imgRef.current) {
+      const startSrc = activeSequenceRef.current.frames[startFrame] ?? frameZero
+      imgRef.current.src = startSrc
+    }
+    loadedRef.current.add(startFrame)
 
     for (let i = 1; i < Math.min(frameCount, INITIAL_PRELOAD_COUNT); i += 1) preloadFrame(i)
     preloadRemainingInBackground()
@@ -372,7 +485,7 @@ export default function HomeHeroScrollSequence() {
       if (scrollTickRef.current !== null) window.cancelAnimationFrame(scrollTickRef.current)
       if (backgroundPreloadRafRef.current !== null) window.cancelAnimationFrame(backgroundPreloadRafRef.current)
     }
-  }, [frameCount, frameZero])
+  }, [frameCount, frameZero, activeSequence])
 
   useEffect(() => {
     if (reducedMotionRef.current) return
@@ -390,14 +503,14 @@ export default function HomeHeroScrollSequence() {
           ref={imgRef}
           src={frameZero}
           alt="Aircraft flying through Sydney twilight"
-          className="absolute inset-0 h-full w-full object-cover"
+          className={`absolute inset-0 h-full w-full object-cover ${isMobileViewport ? 'object-[50%_38%]' : 'object-center'}`}
           loading="eager"
           decoding="sync"
         />
 
         <div className="absolute inset-0 bg-gradient-to-b from-[#091421]/35 via-[#091421]/25 to-[#091421]/70 pointer-events-none" />
         <div className="absolute inset-0 pointer-events-none" style={{ background: 'rgba(2,10,30,0.22)', mixBlendMode: 'multiply' }} />
-        <HeroCloudLayers innerRef={cloudWrapRef} />
+        <HeroCloudLayers innerRef={cloudWrapRef} className={isMobileViewport ? '-translate-y-[4%]' : ''} />
 
         {!reducedMotionRef.current && (
           <div
@@ -422,11 +535,11 @@ export default function HomeHeroScrollSequence() {
 
         <div className="absolute inset-0 z-10 px-6 md:px-12 lg:px-20">
           <div className={`pt-[16vh] text-center transition-opacity duration-500 ${introDone || reducedMotionRef.current ? 'opacity-100' : 'opacity-0'}`}>
-            <div key={`${SCENE_HEADINGS[sceneIndex]?.line1}-${SCENE_HEADINGS[sceneIndex]?.line2}`} className="hero-scene-heading-enter">
+            <div key={`${sceneHeadings[sceneIndex]?.line1}-${sceneHeadings[sceneIndex]?.line2}`} className="hero-scene-heading-enter">
               <h1 className="font-serif text-4xl font-normal leading-[1.04] tracking-[0.015em] text-[#e8f1ff] md:text-7xl [text-shadow:0_3px_14px_rgba(8,20,40,0.24)]">
-                <span className="block">{SCENE_HEADINGS[sceneIndex]?.line1}</span>
+                <span className="block">{sceneHeadings[sceneIndex]?.line1}</span>
                 <span className="relative block italic text-[#c7dcff] pb-3">
-                  {SCENE_HEADINGS[sceneIndex]?.line2}
+                  {sceneHeadings[sceneIndex]?.line2}
                   <svg viewBox="0 0 340 20" fill="none" aria-hidden="true" className="absolute left-1/2 -translate-x-1/2 bottom-[-2px] w-[90%] md:w-[85%] h-[14px] md:h-[18px] hero-scene-underline-drift">
                     <path d="M 6 13 C 45 5, 90 18, 145 10 C 200 3, 255 16, 310 10 C 322 8, 330 9, 334 11" stroke="rgba(167,200,255,0.58)" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
@@ -438,7 +551,7 @@ export default function HomeHeroScrollSequence() {
           <div className="absolute left-1/2 -translate-x-1/2 bottom-[12svh] z-20 w-[min(92vw,48rem)] text-center">
             <div
               ref={ctaWrapRef}
-              className={`pointer-events-auto transition-opacity duration-500 ${SCENE_HEADINGS[sceneIndex]?.showCta ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+              className={`pointer-events-auto transition-opacity duration-500 ${sceneHeadings[sceneIndex]?.showCta ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
             >
               <p className="mb-5 font-sans text-sm font-light leading-relaxed text-oz-muted md:mb-7 md:text-lg">
                 A modern platform for pilots — rent, fly, enjoy
@@ -454,6 +567,15 @@ export default function HomeHeroScrollSequence() {
         </div>
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[30%] bg-gradient-to-t from-[#091421] via-[#0b111a]/30 to-transparent" />
+        {debugEnabled && (
+          <div className="absolute right-3 top-3 z-50 rounded bg-black/65 px-3 py-2 text-[11px] leading-tight text-white">
+            <div>seq: {activeSequence.key}</div>
+            <div>frame: {shownFrameRef.current}/{Math.max(0, activeSequence.totalFrames - 1)}</div>
+            <div>scene: {sceneIndex + 1}</div>
+            <div>loaded: {loadedRef.current.size}</div>
+            <div className="max-w-[48vw] truncate">src: {activeSequence.frames[shownFrameRef.current] ?? ''}</div>
+          </div>
+        )}
         <style jsx>{`
           @keyframes hero-word-reveal {
             0% { opacity: 0; transform: translate3d(0, 8px, 0) skewX(-4deg) rotate(-0.6deg); }

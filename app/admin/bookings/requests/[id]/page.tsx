@@ -573,6 +573,24 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             </div>
           </div>
 
+          {/* ── Checkout action panel ─────────────────────────────────────── */}
+          {/* checkout_requested uses AdminCheckoutReviewPanel above in the left column */}
+          {(isCheckoutConfirmed || isCheckoutOutcomePending) && (
+            <div className={`rounded-2xl p-6 border ${
+              isCheckoutConfirmed ? 'bg-[#111316] border-green-500/15' : 'bg-[#111316] border-amber-500/15'
+            }`}>
+              <h2 className="text-[9px] uppercase tracking-widest font-bold text-[#a7c8ff]/50 mb-4">
+                {isCheckoutConfirmed ? 'Checkout Flight Actions' : 'Record Checkout Outcome'}
+              </h2>
+              <AdminCheckoutActions
+                bookingId={booking.id}
+                status={status as 'checkout_confirmed' | 'checkout_completed_under_review'}
+                airports={airports}
+                customerCreditCents={customerCreditCents}
+              />
+            </div>
+          )}
+
           {/* Status history */}
           {statusHistory.length > 0 && (
             <div className="bg-white/5 border border-white/5 rounded-2xl p-6">
@@ -653,24 +671,6 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         {/* ── Right column: actions, slot status, summary ───────────────────────── */}
         <div>
           <div className="sticky top-24 space-y-4">
-
-            {/* ── Checkout action panel ─────────────────────────────────────── */}
-            {/* checkout_requested uses AdminCheckoutReviewPanel in the left column */}
-            {(isCheckoutConfirmed || isCheckoutOutcomePending) && (
-              <div className={`rounded-2xl p-6 border ${
-                isCheckoutConfirmed ? 'bg-[#111316] border-green-500/15' : 'bg-[#111316] border-amber-500/15'
-              }`}>
-                <h2 className="text-[9px] uppercase tracking-widest font-bold text-[#a7c8ff]/50 mb-4">
-                  {isCheckoutConfirmed ? 'Checkout Flight Actions' : 'Record Checkout Outcome'}
-                </h2>
-                <AdminCheckoutActions
-                  bookingId={booking.id}
-                  status={status as 'checkout_confirmed' | 'checkout_completed_under_review'}
-                  airports={airports}
-                  customerCreditCents={customerCreditCents}
-                />
-              </div>
-            )}
 
             {/* ── Standard booking billing panel ───────────────────────────── */}
             {isStandardBillingPending && (
@@ -969,4 +969,3 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     </div>
   )
 }
-

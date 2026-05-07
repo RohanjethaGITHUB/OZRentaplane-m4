@@ -92,6 +92,7 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
   const [cancelReason, setCancelReason] = useState('')
   const [confirmingOutcome, setConfirmingOutcome] = useState<OutcomeKey | null>(null)
   const [adminNote, setAdminNote] = useState('')
+  const [submitAttempted, setSubmitAttempted] = useState(false)
 
   // VDO reading state — single value from the aircraft paper sheet
   const [vdoReading, setVdoReading] = useState('')
@@ -191,6 +192,7 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
 
   function resetOutcomeForm() {
     setConfirmingOutcome(null)
+    setSubmitAttempted(false)
     setAdminNote('')
     setVdoReading('')
     setHourlyRate('290')
@@ -202,6 +204,7 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
 
   function handleOutcomeSelect(key: OutcomeKey) {
     setConfirmingOutcome(key)
+    setSubmitAttempted(false)
     setPaymentWaived(key === 'checkout_reschedule_required')
     setWaiverReason('')
     setVdoReading('')
@@ -216,6 +219,7 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
   }
 
   function handleSubmit() {
+    setSubmitAttempted(true)
     if (!confirmingOutcome) return
 
     const validLandingCharges = landingRows
@@ -346,19 +350,26 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
 
   // Step 2: billing or waiver form
   const outcome = OUTCOMES.find(o => o.key === confirmingOutcome)!
+  const landingRowsRequiredError = !hasValidLandingRow || landingRows.length === 0
+  const showLandingRowsRequiredError = submitAttempted && landingRowsRequiredError
+  const showHourlyRateError = submitAttempted && !paymentWaived && !validHourlyRate
+  const showVdoError = submitAttempted && !paymentWaived && !vdoReadingValid
 
   return (
-    <div className="space-y-4">
-      <div className={`rounded-xl border p-4 ${outcome.border} bg-white/[0.02]`}>
-        <p className={`text-[10px] font-bold uppercase tracking-widest ${outcome.textColor} mb-1`}>
-          Recording: {outcome.label}
-        </p>
-        <p className="text-[11px] text-slate-500 leading-relaxed mb-4">{outcome.body}</p>
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-white/10 bg-[#0f1216] p-5">
+        <h3 className="text-base font-semibold text-white mb-4">Record Checkout Outcome</h3>
+        <div className={`rounded-xl border p-4 ${outcome.border} bg-white/[0.02]`}>
+          <p className={`text-sm font-semibold ${outcome.textColor} mb-1`}>
+            {outcome.label}
+          </p>
+          <p className="text-sm text-slate-300 leading-relaxed">{outcome.body}</p>
+        </div>
 
         {/* ── Payment mode toggle (non-cleared outcomes only) ────── */}
         {outcomeSupportsWaiver && (
-          <div className="mb-4 rounded-lg border border-white/[0.08] bg-white/[0.02] p-3">
-            <p className="text-[10px] font-medium text-slate-400 mb-2">
+          <div className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+            <p className="text-sm font-medium text-slate-300 mb-3">
               Charge customer for this checkout?
             </p>
             <div className="flex gap-2">
@@ -366,7 +377,7 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
                 type="button"
                 onClick={() => handlePaymentModeChange(false)}
                 disabled={isPending}
-                className={`flex-1 px-3 py-2 rounded-lg text-[10px] font-medium transition-colors ${
+                className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   !paymentWaived
                     ? 'bg-blue-600/30 border border-blue-500/40 text-blue-300'
                     : 'bg-white/[0.03] border border-white/[0.07] text-slate-400 hover:bg-white/[0.06]'
@@ -378,7 +389,7 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
                 type="button"
                 onClick={() => handlePaymentModeChange(true)}
                 disabled={isPending}
-                className={`flex-1 px-3 py-2 rounded-lg text-[10px] font-medium transition-colors ${
+                className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   paymentWaived
                     ? 'bg-amber-600/20 border border-amber-500/40 text-amber-300'
                     : 'bg-white/[0.03] border border-white/[0.07] text-slate-400 hover:bg-white/[0.06]'
@@ -392,14 +403,14 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
 
         {/* ── Waiver path ───────────────────────────────────────────── */}
         {paymentWaived && (
-          <div className="space-y-3">
-            <div className="rounded-lg bg-amber-500/[0.06] border border-amber-500/20 px-3 py-2.5">
-              <p className="text-[10px] text-amber-300/80 leading-relaxed">
+          <div className="mt-4 space-y-3">
+            <div className="rounded-lg bg-amber-500/[0.06] border border-amber-500/20 px-3 py-3">
+              <p className="text-sm text-amber-300/80 leading-relaxed">
                 Payment will be waived. The outcome will be applied immediately and the customer will not be asked to pay. A waived audit record will be stored.
               </p>
             </div>
             <div>
-              <label className="block text-[10px] font-medium text-slate-400 mb-1">
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">
                 Waiver reason <span className="text-rose-400">*</span>
               </label>
               <textarea
@@ -407,73 +418,78 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
                 onChange={e => setWaiverReason(e.target.value)}
                 rows={3}
                 placeholder="Required — e.g. weather cancellation, aircraft unavailable, customer did not fly, incorrect documents…"
-                className={`w-full bg-[#0a0b0d] border rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none resize-none ${
+                className={`w-full bg-[#0a0b0d] border rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none resize-none ${
                   waiverReason.trim() ? 'border-white/10 focus:border-slate-500/50' : 'border-rose-500/30 focus:border-rose-500/50'
                 }`}
                 disabled={isPending}
               />
               {!waiverReason.trim() && (
-                <p className="text-[9px] text-rose-400/70 mt-1">A waiver reason is required.</p>
+                <p className="text-xs text-rose-400/80 mt-1.5">A waiver reason is required.</p>
               )}
             </div>
           </div>
         )}
 
         {/* ── Airport landings section (Required for ALL outcomes) ─── */}
-        <div>
-          <div className="flex items-center justify-between mb-2 mt-2">
+        <div className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+          <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              <p className="text-base font-semibold text-white">
                 Airport landings
                 <span className="text-rose-400 ml-1">*</span>
               </p>
-              <p className="text-[9px] text-slate-600 mt-0.5 leading-relaxed">At least one landing airport is required for all checkouts.</p>
+              <p className="text-sm text-slate-400 mt-1 leading-relaxed">
+                Add each airport and number of landings. At least one valid landing row is required.
+              </p>
             </div>
             <button
               type="button"
               onClick={addLandingRow}
               disabled={isPending || airports.length === 0}
-              className="flex items-center gap-1 text-[10px] text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors disabled:opacity-40"
+              className="flex items-center gap-1.5 text-sm text-[#a7c8ff]/80 hover:text-[#a7c8ff] transition-colors disabled:opacity-40"
             >
-              <span className="material-symbols-outlined text-[12px]">add_circle</span>
+              <span className="material-symbols-outlined text-[14px]">add_circle</span>
               Add Airport
             </button>
           </div>
 
           {airports.length === 0 && (
-            <p className="text-[10px] text-slate-600 italic">No airports available — run migration 036 first.</p>
+            <p className="text-sm text-slate-500 italic">No airports available — run migration 036 first.</p>
           )}
 
-          <div className="space-y-2 mb-2">
+          <div className="space-y-3">
             {landingRows.map(row => {
               const landingCount = parseInt(row.landingCount, 10)
               const hasAirport   = !!row.airportId
               const hasCount     = !isNaN(landingCount) && landingCount > 0
-              const rowError     = (hasCount && !hasAirport)
-                ? 'Select an airport'
-                : (hasAirport && !hasCount)
-                  ? 'Enter a landing count ≥ 1'
-                  : null
+              const rowError = !hasAirport
+                ? 'Airport is required.'
+                : (!hasCount ? 'Landing count must be at least 1.' : null)
               const rowTotal = hasAirport && hasCount ? LANDING_FEE_CENTS * landingCount : 0
 
               return (
-                <div key={row.id} className="space-y-0.5">
-                  <div className="flex gap-2 items-start">
-                    <select
-                      value={row.airportId}
-                      onChange={e => handleLandingChange(row.id, 'airportId', e.target.value)}
-                      disabled={isPending}
-                      className={`flex-1 bg-[#0a0b0d] border rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-500/50 min-w-0 ${
-                        hasCount && !hasAirport ? 'border-rose-500/40' : 'border-white/10'
-                      }`}
-                    >
-                      <option value="">Select airport…</option>
-                      {airports.map(a => (
-                        <option key={a.id} value={a.id}>
-                          {a.icao_code} — {a.name}
-                        </option>
-                      ))}
-                    </select>
+                <div key={row.id} className="rounded-lg border border-white/10 bg-[#0a0d11] p-3">
+                  <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_110px_120px_44px] gap-2 items-start">
+                    <div className="relative min-w-0">
+                      <select
+                        value={row.airportId}
+                        onChange={e => handleLandingChange(row.id, 'airportId', e.target.value)}
+                        disabled={isPending}
+                        className={`w-full appearance-none bg-[#0c1015] border rounded-lg pl-3 pr-9 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-slate-500/60 ${
+                          showLandingRowsRequiredError || (!hasAirport && hasCount) ? 'border-rose-500/50' : 'border-white/10'
+                        }`}
+                      >
+                        <option value="">Select airport</option>
+                        {airports.map(a => (
+                          <option key={a.id} value={a.id}>
+                            {a.icao_code} — {a.name}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="pointer-events-none material-symbols-outlined text-[18px] text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2">
+                        unfold_more
+                      </span>
+                    </div>
                     <input
                       type="number"
                       min="1"
@@ -481,13 +497,13 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
                       value={row.landingCount}
                       onChange={e => handleLandingChange(row.id, 'landingCount', e.target.value)}
                       disabled={isPending}
-                      className={`w-14 bg-[#0a0b0d] border rounded-lg px-2 py-1.5 text-xs text-slate-200 text-center focus:outline-none focus:border-slate-500/50 ${
-                        hasAirport && !hasCount ? 'border-rose-500/40' : 'border-white/10'
+                      className={`w-full bg-[#0c1015] border rounded-lg px-3 py-2.5 text-sm text-slate-200 text-center focus:outline-none focus:border-slate-500/60 ${
+                        (showLandingRowsRequiredError && !hasCount) || (hasAirport && !hasCount) ? 'border-rose-500/50' : 'border-white/10'
                       }`}
                       title="Number of landings"
                     />
-                    <div className="w-16 text-right flex-shrink-0 py-1.5">
-                      <span className="text-[10px] font-mono text-slate-400">
+                    <div className="h-[42px] flex items-center justify-end rounded-lg border border-white/10 bg-[#0c1015] px-3">
+                      <span className="text-sm font-mono text-slate-300">
                         {rowTotal > 0 && !paymentWaived ? `$${(rowTotal / 100).toFixed(2)}` : '—'}
                       </span>
                     </div>
@@ -496,141 +512,141 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
                       onClick={() => removeLandingRow(row.id)}
                       disabled={isPending || landingRows.length <= 1}
                       title={landingRows.length <= 1 ? 'At least one landing row is required' : 'Remove this row'}
-                      className="flex-shrink-0 p-1.5 text-slate-600 hover:text-rose-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="h-[42px] flex items-center justify-center rounded-lg border border-white/10 bg-[#0c1015] text-slate-500 hover:text-rose-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                     >
-                      <span className="material-symbols-outlined text-[14px]">remove_circle</span>
+                      <span className="material-symbols-outlined text-[18px]">remove_circle</span>
                     </button>
                   </div>
-                  {rowError && (
-                    <p className="text-[9px] text-rose-400/80 pl-1">{rowError} — or remove this row.</p>
+                  {(submitAttempted || hasAirport || row.landingCount !== '1') && rowError && (
+                    <p className="text-xs text-rose-400/80 mt-1.5">{rowError}</p>
                   )}
                 </div>
               )
             })}
 
             {!paymentWaived && landingSubtotalCents > 0 && (
-              <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-white/[0.02] border border-white/[0.05]">
-                <span className="text-[10px] text-slate-500">Landing fees ($25 × landings)</span>
-                <span className="text-[10px] font-mono text-slate-300">
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.05]">
+                <span className="text-sm text-slate-400">Landing fees ($25 × landings)</span>
+                <span className="text-sm font-mono text-slate-200">
                   ${(landingSubtotalCents / 100).toFixed(2)}
                 </span>
               </div>
             )}
 
             {hasIncompleteLandingRows && (
-              <p className="text-[9px] text-rose-400/80 px-1">
+              <p className="text-xs text-rose-400/80">
                 Complete or remove incomplete landing rows before submitting.
               </p>
             )}
-            {!hasValidLandingRow && !hasIncompleteLandingRows && (
-              <p className="text-[9px] text-rose-400/80 px-1">
-                Select an airport and enter a landing count to continue.
-              </p>
+            {showLandingRowsRequiredError && (
+              <p className="text-xs text-rose-400/80">At least one airport landing is required, with landing count of 1 or more.</p>
             )}
           </div>
         </div>
 
         {/* ── Payment path — VDO reading ───────────────────────────── */}
         {!paymentWaived && (
-          <div className="space-y-4">
-
-            <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-3">
+          <div className="mt-4 space-y-4">
+            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 space-y-4">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">
-                  VDO reading
+                <p className="text-base font-semibold text-white mb-1">
+                  Flight Billing
                 </p>
-                <p className="text-[9px] text-slate-600 leading-relaxed">
+                <p className="text-sm text-slate-400 leading-relaxed">
                   Enter the VDO reading from the aircraft paper sheet. This is the total billable duration taken directly from the flight record.
                 </p>
               </div>
 
-              {/* Hourly rate — admin-editable, default $290 */}
-              <div>
-                <label className="block text-[10px] font-medium text-slate-400 mb-1">
-                  Hourly rate <span className="text-rose-400">*</span>
-                </label>
-                <div className="flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 pointer-events-none">$</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    Hourly rate <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative w-44 max-w-full">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 pointer-events-none">$</span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min="0.01"
+                        step="0.01"
+                        value={hourlyRate}
+                        onChange={e => setHourlyRate(e.target.value)}
+                        placeholder="290.00"
+                        className={`w-full bg-[#0a0b0d] border rounded-lg pl-7 pr-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-slate-500/50 ${
+                          showHourlyRateError || (hourlyRate && !validHourlyRate) ? 'border-rose-500/50' : 'border-white/10'
+                        }`}
+                        disabled={isPending}
+                      />
+                    </div>
+                    <span className="text-sm text-slate-400 flex-shrink-0">$ / hr</span>
+                  </div>
+                  {(showHourlyRateError || (hourlyRate && !validHourlyRate)) && (
+                    <p className="text-xs text-rose-400/80 mt-1.5">Enter a rate greater than 0.</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    VDO reading <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="flex items-center gap-2">
                     <input
-                      type="number"
+                      type="text"
                       inputMode="decimal"
-                      min="0.01"
-                      step="0.01"
-                      value={hourlyRate}
-                      onChange={e => setHourlyRate(e.target.value)}
-                      placeholder="290.00"
-                      className={`w-full bg-[#0a0b0d] border rounded-lg pl-6 pr-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-slate-500/50 ${
-                        hourlyRate && !validHourlyRate ? 'border-rose-500/40' : 'border-white/10'
+                      value={vdoReading}
+                      onChange={e => setVdoReading(e.target.value)}
+                      placeholder="e.g. 1.4"
+                      className={`w-40 max-w-full bg-[#0a0b0d] border rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-slate-500/50 ${
+                        showVdoError || (vdoReading && !validVdoReading) ? 'border-rose-500/50' : 'border-white/10'
                       }`}
                       disabled={isPending}
                     />
+                    <span className="text-sm text-slate-400">hours</span>
                   </div>
-                  <span className="text-[10px] text-slate-500 flex-shrink-0">/hr</span>
+                  {(showVdoError || (vdoReading && !validVdoReading)) && (
+                    <p className="text-xs text-rose-400/80 mt-1.5">Enter a valid reading greater than 0 with one decimal place (e.g. 1.4).</p>
+                  )}
+                  {vdoErrorMsg && (
+                    <p className="text-xs text-rose-400/80 mt-1">{vdoErrorMsg}</p>
+                  )}
                 </div>
-                {hourlyRate && !validHourlyRate && (
-                  <p className="text-[9px] text-rose-400/70 mt-0.5">Enter a positive dollar amount, e.g. 290</p>
-                )}
-              </div>
-
-              {/* Single VDO reading field */}
-              <div>
-                <label className="block text-[10px] font-medium text-slate-400 mb-1">
-                  VDO reading <span className="text-rose-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={vdoReading}
-                  onChange={e => setVdoReading(e.target.value)}
-                  placeholder="e.g. 1.4"
-                  step="0.1"
-                  className={`w-full bg-[#0a0b0d] border rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-slate-500/50 ${
-                    vdoReading && !validVdoReading ? 'border-rose-500/40' : 'border-white/10'
-                  }`}
-                  disabled={isPending}
-                />
-                {vdoReading && !validVdoReading && (
-                  <p className="text-[9px] text-rose-400/70 mt-0.5">Enter one decimal place and a positive value, e.g. 1.4</p>
-                )}
-                {vdoErrorMsg && (
-                  <p className="text-[9px] text-rose-400/70 mt-0.5">{vdoErrorMsg}</p>
-                )}
               </div>
             </div>
 
             {/* Final amount preview */}
             {vdoReadingValid && validHourlyRate && (
-              <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 space-y-1.5">
+              <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3.5 space-y-2">
+                <p className="text-base font-semibold text-white mb-1">Checkout Amount</p>
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-500">VDO reading</span>
-                  <span className="text-[10px] font-mono text-slate-300">{vdoReadingNum.toFixed(1)} h</span>
+                  <span className="text-sm text-slate-400">VDO reading</span>
+                  <span className="text-sm font-mono text-slate-200">{vdoReadingNum.toFixed(1)} h</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-500">Hourly rate</span>
-                  <span className="text-[10px] font-mono text-slate-300">
+                  <span className="text-sm text-slate-400">Hourly rate</span>
+                  <span className="text-sm font-mono text-slate-200">
                     ${hourlyRateNum.toFixed(2)}/hr
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-500">
+                  <span className="text-sm text-slate-400">
                     Aircraft hire ({vdoReadingNum.toFixed(1)}h × ${hourlyRateNum.toFixed(2)})
                   </span>
-                  <span className="text-[10px] font-mono text-slate-300">
+                  <span className="text-sm font-mono text-slate-200">
                     ${(vdoBaseCents / 100).toFixed(2)}
                   </span>
                 </div>
                 {landingSubtotalCents > 0 && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-slate-500">Landing charges</span>
-                    <span className="text-[10px] font-mono text-slate-300">
+                    <span className="text-sm text-slate-400">Landing charges</span>
+                    <span className="text-sm font-mono text-slate-200">
                       ${(landingSubtotalCents / 100).toFixed(2)}
                     </span>
                   </div>
                 )}
-                <div className="border-t border-white/[0.06] pt-1.5 flex items-center justify-between">
-                  <span className="text-[10px] font-medium text-slate-300">Final checkout amount</span>
-                  <span className="text-[11px] font-bold font-mono text-white">
+                <div className="border-t border-white/[0.08] pt-2.5 mt-1 flex items-center justify-between">
+                  <span className="text-base font-semibold text-slate-100">Final checkout amount</span>
+                  <span className="text-xl font-bold font-mono text-white">
                     ${(finalAmountCents / 100).toFixed(2)}
                   </span>
                 </div>
@@ -639,29 +655,30 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
 
             {/* Credit display */}
             {vdoReadingValid && validHourlyRate && (
-              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1.5">
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3.5 space-y-2">
+                <p className="text-base font-semibold text-white mb-1">Customer Credit</p>
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-500">Available customer credit</span>
-                  <span className={`text-[10px] font-mono ${customerCreditCents > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                  <span className="text-sm text-slate-400">Available customer credit</span>
+                  <span className={`text-lg font-semibold font-mono ${customerCreditCents > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
                     {customerCreditCents > 0 ? `$${(customerCreditCents / 100).toFixed(2)}` : '$0.00'}
                   </span>
                 </div>
                 {creditApplicable > 0 && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-slate-500">Credit will be applied</span>
-                    <span className="text-[10px] font-mono text-emerald-400">
+                    <span className="text-sm text-slate-400">Credit will be applied</span>
+                    <span className="text-sm font-mono text-emerald-400">
                       −${(creditApplicable / 100).toFixed(2)}
                     </span>
                   </div>
                 )}
-                <div className="border-t border-white/[0.06] pt-1.5 flex items-center justify-between">
-                  <span className="text-[10px] font-medium text-slate-300">Estimated amount due</span>
-                  <span className={`text-[11px] font-bold font-mono ${estimatedAmountDue > 0 ? 'text-amber-300' : 'text-emerald-400'}`}>
+                <div className="border-t border-white/[0.08] pt-2.5 mt-1 flex items-center justify-between">
+                  <span className="text-base font-semibold text-slate-100">Estimated amount due</span>
+                  <span className={`text-xl font-bold font-mono ${estimatedAmountDue > 0 ? 'text-amber-300' : 'text-emerald-400'}`}>
                     {estimatedAmountDue > 0 ? `$${(estimatedAmountDue / 100).toFixed(2)}` : 'Settled by credit'}
                   </span>
                 </div>
                 {estimatedAmountDue === 0 && customerCreditCents > 0 && (
-                  <p className="text-[9px] text-emerald-400/70 leading-relaxed">
+                  <p className="text-sm text-emerald-400/80 leading-relaxed">
                     Credit covers the full invoice. Booking will be marked completed immediately.
                   </p>
                 )}
@@ -671,13 +688,14 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
         )}
 
         {/* ── Notes (always shown) ──────────────────────────────────── */}
-        <div className="mt-4">
+        <div className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+          <p className="text-base font-semibold text-white mb-2">Internal Note (Optional)</p>
           <textarea
             value={adminNote}
             onChange={e => setAdminNote(e.target.value)}
             rows={3}
             placeholder="Optional internal note…"
-            className="w-full bg-[#0a0b0d] border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none resize-none"
+            className="w-full bg-[#0a0b0d] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none resize-none"
             disabled={isPending}
           />
         </div>
@@ -688,7 +706,7 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
           type="button"
           onClick={resetOutcomeForm}
           disabled={isPending}
-          className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-white/5 text-slate-300 hover:bg-white/10 transition-colors"
+          className="flex-1 px-3 py-2.5 rounded-lg text-sm font-medium bg-white/5 text-slate-300 hover:bg-white/10 transition-colors"
         >
           Back
         </button>
@@ -696,7 +714,7 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
           type="button"
           disabled={isPending || !canSubmit}
           onClick={handleSubmit}
-          className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium ${outcome.color} text-white transition-colors disabled:opacity-50`}
+          className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium ${outcome.color} text-white transition-colors disabled:opacity-50`}
         >
           {isPending
             ? 'Recording…'
@@ -705,7 +723,7 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
               : 'Confirm Outcome'}
         </button>
       </div>
-      {error && <p className="text-[10px] text-rose-400 leading-tight">{error}</p>}
+      {error && <p className="text-sm text-rose-400 leading-tight">{error}</p>}
     </div>
   )
 }

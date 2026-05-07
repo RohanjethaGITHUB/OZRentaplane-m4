@@ -13,9 +13,15 @@ const CLOUD_TUNING = {
   },
 }
 
-export default function HeroCloudLayers({ innerRef }: { innerRef?: React.Ref<HTMLDivElement> }) {
+export default function HeroCloudLayers({
+  innerRef,
+  className = '',
+}: {
+  innerRef?: React.Ref<HTMLDivElement>
+  className?: string
+}) {
   return (
-    <div ref={innerRef} className="absolute inset-0 pointer-events-none z-[8] overflow-hidden" aria-hidden="true">
+    <div ref={innerRef} className={`absolute inset-0 pointer-events-none z-[8] overflow-hidden ${className}`} aria-hidden="true">
       <div
         className={`hero-cloud-layer-a absolute left-[50%] ${CLOUD_TUNING.mobile.cloudA} ${CLOUD_TUNING.desktop.cloudA} flex items-end justify-center will-change-transform opacity-[0.40] mix-blend-screen`}
         style={{ animation: 'hero-cloud-a 16s ease-in-out infinite alternate', transform: 'translate3d(-50%,0,0)' }}
