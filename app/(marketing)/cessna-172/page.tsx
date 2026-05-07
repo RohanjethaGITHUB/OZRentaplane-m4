@@ -13,9 +13,11 @@ export default function Cessna172nPage() {
           1. Hero Section
       ──────────────────────────────────────────────────────────────*/}
       <section className="relative px-6 md:px-12 lg:px-20 overflow-hidden min-h-[500px] md:min-h-[750px] flex items-center">
-        <div
-          className="absolute inset-0 z-0 bg-cover bg-center"
-          style={{ backgroundImage: 'url("/Cessna-fleet.jpg")' }}
+        <img
+          src="/Cessna-fleet.jpg?v=safari-test-1"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 z-0 h-full w-full object-cover"
         />
         <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#040f1e]/70 via-[#040f1e]/30 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 h-[30%] z-0 bg-gradient-to-t from-[#091421] via-[#051122]/30 to-transparent" />
@@ -384,9 +386,11 @@ export default function Cessna172nPage() {
           8. Final CTA Section
       ──────────────────────────────────────────────────────────────*/}
       <section className="relative pt-24 pb-32 border-t border-white/5 text-center flex items-center justify-center min-h-[500px]">
-        <div
-          className="absolute inset-0 z-0 bg-cover bg-center"
-          style={{ backgroundImage: 'url("/TwilightFlight.jpg")' }}
+        <img
+          src="/TwilightFlight.jpg?v=safari-test-1"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 z-0 h-full w-full object-cover"
         />
         <div className="absolute inset-0 z-0 bg-[#0c1827]/80 backdrop-blur-[2px]" />
 
