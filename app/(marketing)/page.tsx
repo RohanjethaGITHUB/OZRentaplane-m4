@@ -1,4 +1,4 @@
-import HeroScrollStage from '@/components/HeroScrollStage'
+import HomeHeroScrollSequence from '@/components/HomeHeroScrollSequence'
 import HomeContent from '@/components/HomeContent'
 import { Metadata } from 'next'
 
@@ -48,7 +48,7 @@ export default function Home() {
           })
         }}
       />
-      <HeroScrollStage />
+      <HomeHeroScrollSequence />
       <HomeContent />
     </main>
   )
