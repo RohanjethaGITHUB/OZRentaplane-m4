@@ -5,7 +5,7 @@ import {
   motion, AnimatePresence,
   useMotionValue, useDragControls,
 } from 'framer-motion'
-import type { GalleryImage } from '@/lib/getFleetImages'
+import type { FleetGalleryImage } from '@/lib/fleetGalleryManifest'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const BASE     = '#091421'
@@ -70,41 +70,33 @@ function buildLayout(count: number) {
 
 // ─── Props ─────────────────────────────────────────────────────────────────────
 interface FleetGalleryProps {
-  images: GalleryImage[]
+  images: FleetGalleryImage[]
 }
 
 const PLACEHOLDER_COUNT = 10
 
-function isWebpSrc(src: string) {
-  return /\.webp$/i.test(src)
-}
-
-function toJpgFallback(src: string) {
-  return src.replace(/\.webp$/i, '.jpg')
-}
-
 function GalleryPicture({
-  src,
+  webp,
+  jpg,
   alt,
   className,
   loading,
   decoding = 'async',
   draggable = false,
 }: {
-  src: string
+  webp?: string
+  jpg: string
   alt: string
   className: string
   loading?: 'eager' | 'lazy'
   decoding?: 'async' | 'auto' | 'sync'
   draggable?: boolean
 }) {
-  const webp = isWebpSrc(src)
-  const fallback = webp ? toJpgFallback(src) : src
   return (
     <picture>
-      {webp && <source srcSet={src} type="image/webp" />}
+      {webp && <source srcSet={webp} type="image/webp" />}
       <img
-        src={fallback}
+        src={jpg}
         alt={alt}
         className={className}
         loading={loading}
@@ -131,12 +123,12 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
 
   const isEmpty  = images.length === 0
   const tileData = isEmpty
-    ? Array.from({ length: PLACEHOLDER_COUNT }, (_, i) => ({ src: '', alt: `Photograph ${i + 1}` }))
+    ? Array.from({ length: PLACEHOLDER_COUNT }, (_, i) => ({ webp: '', jpg: '', alt: `Photograph ${i + 1}` }))
     : images
   const layout = useMemo(() => buildLayout(tileData.length), [tileData.length])
 
   // Pad teaser images to 4 (cycle if fewer)
-  const teaserImgs: GalleryImage[] | null = isEmpty ? null : (
+  const teaserImgs: FleetGalleryImage[] | null = isEmpty ? null : (
     Array.from({ length: 4 }, (_, i) => images[i % images.length])
   )
 
@@ -329,7 +321,8 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
                         >
                           {img ? (
                             <GalleryPicture
-                              src={img.src}
+                              webp={img.webp}
+                              jpg={img.jpg}
                               alt={img.alt}
                               className="absolute inset-0 w-full h-full object-cover select-none"
                               draggable={false}
@@ -612,7 +605,8 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
                           />
                         ) : (
                           <GalleryPicture
-                            src={img.src}
+                            webp={img.webp}
+                            jpg={img.jpg}
                             alt={img.alt}
                             className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                             draggable={false}
@@ -669,8 +663,9 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
                   const isActive = idx === lightbox
                   return (
                     <GalleryPicture
-                      key={img.src}
-                      src={img.src}
+                      key={img.webp || img.jpg}
+                      webp={img.webp}
+                      jpg={img.jpg}
                       alt={img.alt}
                       className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-200 ${isActive ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
                       loading={isActive ? "eager" : "lazy"}

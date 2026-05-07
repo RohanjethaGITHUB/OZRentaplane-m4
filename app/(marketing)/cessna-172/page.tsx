@@ -1,11 +1,11 @@
 import React from 'react'
 import AircraftSpotlight from '@/components/AircraftSpotlight'
 import FleetGallery from '@/components/FleetGallery'
-import { getFleetImages } from '@/lib/getFleetImages'
+import { fleetGalleryManifest } from '@/lib/fleetGalleryManifest'
 import { FadeUp, StaggerContainer, StaggerItem, HoverEmphasize } from '@/components/MotionPresets'
 
 export default function Cessna172nPage() {
-  const images = getFleetImages()
+  const images = fleetGalleryManifest
   return (
     <main className="min-h-screen bg-[#091421] text-[#d9e3f6]">
 
@@ -355,10 +355,15 @@ export default function Cessna172nPage() {
             </FadeUp>
 
             <FadeUp delay={1.0} duration={2.6} viewportMargin="-20%" className="sm:mt-16 lg:mt-24">
-              <div className="relative rounded-[1.5rem] overflow-hidden aspect-[3/4] md:aspect-[4/5] group shadow-2xl bg-[#0c1827]">
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <span className="material-symbols-outlined text-[#64748b] text-5xl opacity-50">fastfood</span>
-                </div>
+              <div className="relative rounded-[1.5rem] overflow-hidden aspect-[3/4] md:aspect-[4/5] group shadow-2xl">
+                <img
+                  src="/100$burger.png"
+                  alt="$100 burger"
+                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                  style={{ objectPosition: '62% center' }}
+                  loading="lazy"
+                  decoding="async"
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#040810] via-[#040810]/40 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-8">
                   <h3 className="font-serif text-2xl md:text-3xl text-white mb-3 tracking-wide text-shadow-sm">
