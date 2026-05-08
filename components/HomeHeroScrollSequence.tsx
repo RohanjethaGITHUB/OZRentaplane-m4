@@ -8,9 +8,15 @@ import HeroCloudLayers from '@/components/HeroCloudLayers'
 const SCROLL_HEIGHT_VH = 430
 const FULL_MOTION_SMOOTHING_TAU_MS = 110
 const REDUCED_MOTION_SMOOTHING_TAU_MS = 56
-const MAX_FRAME_STEP_PER_TICK = 2.1
+const MOBILE_FULL_MOTION_SMOOTHING_TAU_MS = 120
+const MOBILE_REDUCED_MOTION_SMOOTHING_TAU_MS = 70
+const DESKTOP_MAX_FRAME_STEP_PER_TICK = 2.1
+const MOBILE_MAX_FRAME_STEP_PER_TICK = 1.8
+const MOBILE_FRAME_SWAP_INTERVAL_MS = 33
 const INITIAL_PRELOAD_COUNT = 50
+const MOBILE_INITIAL_PRELOAD_COUNT = 72
 const BACKGROUND_PRELOAD_BATCH = 12
+const MOBILE_BACKGROUND_PRELOAD_BATCH = 18
 const PRELOAD_AHEAD = 80
 const PRELOAD_BEHIND = 12
 const SETTLE_DIFF_EPS = 0.01
@@ -99,6 +105,7 @@ export default function HomeHeroScrollSequence() {
   const lastRafTimeRef = useRef<number | null>(null)
 
   const shownFrameRef = useRef(0)
+  const lastVisibleSwapTsRef = useRef(0)
 
   const sectionTopRef = useRef(0)
   const sectionScrollableRef = useRef(1)
@@ -119,8 +126,8 @@ export default function HomeHeroScrollSequence() {
   const [forceMotion, setForceMotion] = useState(false)
   const [forceReducedMotion, setForceReducedMotion] = useState(false)
   const [motionMode, setMotionMode] = useState<MotionMode>('full')
-  const debugTickRef = useRef<number>(0)
   const [debugTick, setDebugTick] = useState(0)
+  const debugIntervalRef = useRef<number | null>(null)
   const fpsAccumMsRef = useRef(0)
   const fpsFramesRef = useRef(0)
   const avgFpsRef = useRef(0)
@@ -141,15 +148,21 @@ export default function HomeHeroScrollSequence() {
   )
   const frameCount = activeSequence.totalFrames
   const frameZero = useMemo(() => activeSequence.frames[0] ?? '', [activeSequence])
-  const framePrefix = useMemo(() => (activeSequence.key === 'mobile' ? '/Mobile-home-hero/' : '/WebHomeHeroScroll/'), [activeSequence.key])
-  const userAgent = useMemo(() => (typeof navigator === 'undefined' ? '' : navigator.userAgent.slice(0, 140)), [])
-  const frameScrollEnabled = true
-  const sceneTextChangesEnabled = true
   const cloudFadeEnabled = true
   const ctaFadeEnabled = true
   const decorativeTextWaveEnabled = motionMode === 'full'
   const underlineWaveEnabled = motionMode === 'full'
   const cloudDriftEnabled = motionMode === 'full'
+  const reducedMotionStatusOn = forceReducedMotion || (!forceMotion && prefersReducedMotion)
+  const browserLabel = useMemo(() => {
+    if (typeof navigator === 'undefined') return 'Unknown'
+    const ua = navigator.userAgent
+    if (/Edg\//.test(ua)) return 'Edge'
+    if (/Firefox\//.test(ua)) return 'Firefox'
+    if (/Chrome\//.test(ua) && !/Edg\//.test(ua)) return 'Chrome'
+    if (/Safari\//.test(ua) && !/Chrome\//.test(ua)) return 'Safari'
+    return 'Unknown'
+  }, [])
 
   function updateSectionMetrics() {
     const section = sectionRef.current
@@ -267,7 +280,8 @@ export default function HomeHeroScrollSequence() {
       const frameTotal = activeSequenceRef.current.totalFrames
       let done = true
       let loadedInBatch = 0
-      for (let i = start; i < frameTotal && loadedInBatch < BACKGROUND_PRELOAD_BATCH; i += 1) {
+      const preloadBatch = activeSequenceRef.current.key === 'mobile' ? MOBILE_BACKGROUND_PRELOAD_BATCH : BACKGROUND_PRELOAD_BATCH
+      for (let i = start; i < frameTotal && loadedInBatch < preloadBatch; i += 1) {
         if (!loadedRef.current.has(i) && !loadingRef.current.has(i)) {
           preloadFrame(i)
           loadedInBatch += 1
@@ -312,7 +326,7 @@ export default function HomeHeroScrollSequence() {
     return shownFrameRef.current
   }
 
-  function applyBestFrame(playhead: number) {
+  function applyBestFrame(playhead: number, nowTs: number) {
     const sequence = activeSequenceRef.current
     const imgEl = imgRef.current
     if (!imgEl) return
@@ -339,8 +353,14 @@ export default function HomeHeroScrollSequence() {
     if (!src) return
     lastFallbackUsedRef.current = best !== desired
     if (!loadedRef.current.has(best) && shownFrameRef.current !== best) return
+    const shouldThrottleMobileSwap =
+      sequence.key === 'mobile' &&
+      !shouldSettleNow &&
+      nowTs - lastVisibleSwapTsRef.current < MOBILE_FRAME_SWAP_INTERVAL_MS
+    if (shouldThrottleMobileSwap) return
     if (shownFrameRef.current !== best) {
       shownFrameRef.current = best
+      lastVisibleSwapTsRef.current = nowTs
       imgEl.src = src
     }
   }
@@ -375,22 +395,30 @@ export default function HomeHeroScrollSequence() {
     if (!introDoneRef.current) {
       targetFrameRef.current = 0
       currentFrameRef.current = 0
-      applyBestFrame(0)
+      applyBestFrame(0, ts)
       updateCloudVisibility(0)
       rafRef.current = window.requestAnimationFrame(renderLoop)
       return
     }
 
     const diff = targetFrameRef.current - currentFrameRef.current
-    const smoothingTauMs = motionModeRef.current === 'reduced' ? REDUCED_MOTION_SMOOTHING_TAU_MS : FULL_MOTION_SMOOTHING_TAU_MS
+    const smoothingTauMs =
+      activeSequenceRef.current.key === 'mobile'
+        ? motionModeRef.current === 'reduced'
+          ? MOBILE_REDUCED_MOTION_SMOOTHING_TAU_MS
+          : MOBILE_FULL_MOTION_SMOOTHING_TAU_MS
+        : motionModeRef.current === 'reduced'
+          ? REDUCED_MOTION_SMOOTHING_TAU_MS
+          : FULL_MOTION_SMOOTHING_TAU_MS
+    const maxFrameStep = activeSequenceRef.current.key === 'mobile' ? MOBILE_MAX_FRAME_STEP_PER_TICK : DESKTOP_MAX_FRAME_STEP_PER_TICK
     const alpha = 1 - Math.exp(-dt / smoothingTauMs)
     const proposed = currentFrameRef.current + diff * alpha
 
     if (diff > 0) {
-      const limited = Math.min(proposed, currentFrameRef.current + MAX_FRAME_STEP_PER_TICK)
+      const limited = Math.min(proposed, currentFrameRef.current + maxFrameStep)
       currentFrameRef.current = Math.min(limited, targetFrameRef.current)
     } else if (diff < 0) {
-      const limited = Math.max(proposed, currentFrameRef.current - MAX_FRAME_STEP_PER_TICK)
+      const limited = Math.max(proposed, currentFrameRef.current - maxFrameStep)
       currentFrameRef.current = Math.max(limited, targetFrameRef.current)
     }
 
@@ -402,7 +430,7 @@ export default function HomeHeroScrollSequence() {
     const preloadCenter = clamp(Math.round(targetFrameRef.current), 0, frameTotal - 1)
     preloadRange(preloadCenter)
     preloadSceneWarmup(preloadCenter)
-    applyBestFrame(currentFrameRef.current)
+    applyBestFrame(currentFrameRef.current, ts)
     const sceneFrame = clamp(Math.round(currentFrameRef.current), 0, frameTotal - 1)
     updateCloudVisibility(sceneFrame)
     updateCtaVisibility(sceneFrame)
@@ -414,14 +442,9 @@ export default function HomeHeroScrollSequence() {
 
     const isSettled = Math.abs(targetFrameRef.current - currentFrameRef.current) < SETTLE_DIFF_EPS
     if (!isSettled) {
-      if (debugEnabled) {
-        debugTickRef.current += 1
-        if (debugTickRef.current % 8 === 0) setDebugTick((v) => v + 1)
-      }
       rafRef.current = window.requestAnimationFrame(renderLoop)
       return
     }
-    if (debugEnabled) setDebugTick((v) => v + 1)
     rafRef.current = null
   }
 
@@ -443,8 +466,24 @@ export default function HomeHeroScrollSequence() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    setDebugEnabled(window.location.search.includes('heroDebug=1'))
+    const params = new URLSearchParams(window.location.search)
+    setDebugEnabled(params.get('debugMode') === 'true' || params.get('heroDebug') === '1')
   }, [])
+
+  useEffect(() => {
+    if (!debugEnabled) {
+      if (debugIntervalRef.current !== null) window.clearInterval(debugIntervalRef.current)
+      debugIntervalRef.current = null
+      return
+    }
+    debugIntervalRef.current = window.setInterval(() => {
+      setDebugTick((v) => v + 1)
+    }, 250)
+    return () => {
+      if (debugIntervalRef.current !== null) window.clearInterval(debugIntervalRef.current)
+      debugIntervalRef.current = null
+    }
+  }, [debugEnabled])
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -508,13 +547,15 @@ export default function HomeHeroScrollSequence() {
     currentFrameRef.current = startFrame
     previousTargetFrameRef.current = startFrame
     shownFrameRef.current = startFrame
+    lastVisibleSwapTsRef.current = performance.now()
     if (imgRef.current) {
       const startSrc = activeSequenceRef.current.frames[startFrame] ?? frameZero
       imgRef.current.src = startSrc
     }
     preloadFrame(startFrame)
 
-    for (let i = 0; i < Math.min(frameCount, INITIAL_PRELOAD_COUNT); i += 1) preloadFrame(i)
+    const initialPreloadCount = activeSequenceRef.current.key === 'mobile' ? MOBILE_INITIAL_PRELOAD_COUNT : INITIAL_PRELOAD_COUNT
+    for (let i = 0; i < Math.min(frameCount, initialPreloadCount); i += 1) preloadFrame(i)
     preloadRemainingInBackground()
 
     const onScroll = () => {
@@ -647,39 +688,21 @@ export default function HomeHeroScrollSequence() {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[30%] bg-gradient-to-t from-[#091421] via-[#0b111a]/30 to-transparent" />
         {debugEnabled && (
           <div
-            className="fixed left-3 z-[9999] max-w-[calc(100vw-24px)] overflow-auto rounded border border-white/20 bg-[rgba(2,8,23,0.88)] p-2 text-[10px] leading-tight text-white pointer-events-none sm:text-[11px]"
+            className="fixed left-3 z-[9999] max-w-[calc(100vw-24px)] overflow-hidden rounded border border-white/20 bg-[rgba(2,8,23,0.88)] p-2 text-[10px] leading-tight text-white pointer-events-none sm:text-[11px]"
             style={{
               bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
-              maxHeight: '40vh',
             }}
           >
-            <div>seq: {activeSequence.key}</div>
-            <div>prefersReducedMotion: {String(prefersReducedMotion)}</div>
-            <div>forceMotion: {String(forceMotion)}</div>
-            <div>forceReducedMotion: {String(forceReducedMotion)}</div>
-            <div>motionMode: {motionMode}</div>
-            <div>frameScrollEnabled: {String(frameScrollEnabled)}</div>
-            <div>sceneTextChangesEnabled: {String(sceneTextChangesEnabled)}</div>
-            <div>cloudFadeEnabled: {String(cloudFadeEnabled)}</div>
-            <div>ctaFadeEnabled: {String(ctaFadeEnabled)}</div>
-            <div>decorativeTextWaveEnabled: {String(decorativeTextWaveEnabled)}</div>
-            <div>underlineWaveEnabled: {String(underlineWaveEnabled)}</div>
-            <div>cloudDriftEnabled: {String(cloudDriftEnabled)}</div>
-            <div>current: {Math.round(currentFrameRef.current)}</div>
-            <div>displayed: {shownFrameRef.current}</div>
-            <div>target: {Math.round(targetFrameRef.current)}</div>
-            <div>total: {Math.max(0, activeSequence.totalFrames - 1)}</div>
-            <div>scene: {sceneIndex + 1}</div>
-            <div>loaded: {loadedRef.current.size}</div>
-            <div>prefix: {framePrefix}</div>
-            <div>fallback: {String(lastFallbackUsedRef.current)}</div>
-            <div>scrollRaw: {scrollProgressRawRef.current.toFixed(4)}</div>
-            <div>scrollClamped: {scrollProgressClampedRef.current.toFixed(4)}</div>
-            <div>fps(avg): {avgFpsRef.current.toFixed(1)}</div>
-            <div>longFrames&gt;50ms: {longFrameCountRef.current}</div>
-            <div>viewport: {viewportRef.current.width}x{viewportRef.current.height}</div>
-            <div className="max-w-[48vw] truncate">ua: {userAgent}</div>
-            <div className="max-w-[48vw] truncate">src: {activeSequence.frames[shownFrameRef.current] ?? ''}</div>
+            <div>Sequence: {activeSequence.key === 'mobile' ? 'Mobile' : 'Desktop'}</div>
+            <div>Reduced Motion: {reducedMotionStatusOn ? 'On' : 'Off'}</div>
+            <div>Cloud Fade: {cloudFadeEnabled ? 'On' : 'Off'}</div>
+            <div>CTA Fade: {ctaFadeEnabled ? 'On' : 'Off'}</div>
+            <div>Text Wave: {decorativeTextWaveEnabled ? 'On' : 'Off'}</div>
+            <div>Cloud Drift: {cloudDriftEnabled ? 'On' : 'Off'}</div>
+            <div>FPS: {avgFpsRef.current.toFixed(0)}</div>
+            <div>Scene: {sceneIndex + 1}</div>
+            <div>Device: {browserLabel}</div>
+            <div>Frame: {shownFrameRef.current + 1}/{activeSequence.totalFrames}</div>
             <div className="hidden">{debugTick}</div>
           </div>
         )}
