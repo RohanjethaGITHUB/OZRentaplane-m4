@@ -80,7 +80,10 @@ export default function HomeHeroScrollSequence() {
 
   const [introDone, setIntroDone] = useState(false)
   const [sceneIndex, setSceneIndex] = useState(0)
-  const [isMobileViewport, setIsMobileViewport] = useState(false)
+  const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return window.matchMedia('(max-width: 767px)').matches
+  })
   const introDoneRef = useRef(false)
   const sceneIndexRef = useRef(0)
   const reducedMotionRef = useRef(false)
@@ -110,6 +113,15 @@ export default function HomeHeroScrollSequence() {
   }, [isMobileViewport])
   const activeSequenceRef = useRef<ActiveSequence>(activeSequence)
   const [debugEnabled, setDebugEnabled] = useState(false)
+  const debugTickRef = useRef<number>(0)
+  const [debugTick, setDebugTick] = useState(0)
+  const fpsAccumMsRef = useRef(0)
+  const fpsFramesRef = useRef(0)
+  const avgFpsRef = useRef(0)
+  const longFrameCountRef = useRef(0)
+  const viewportRef = useRef({ width: 0, height: 0 })
+  const lastFallbackUsedRef = useRef(false)
+  const mainImageFrameRef = useRef(0)
   const sceneHeadings = useMemo(
     () =>
       SCENE_TEXT.map((scene, idx) => ({
@@ -121,6 +133,8 @@ export default function HomeHeroScrollSequence() {
   )
   const frameCount = activeSequence.totalFrames
   const frameZero = useMemo(() => activeSequence.frames[0] ?? '', [activeSequence])
+  const framePrefix = useMemo(() => (activeSequence.key === 'mobile' ? '/Mobile-home-hero/' : '/WebHomeHeroScroll/'), [activeSequence.key])
+  const userAgent = useMemo(() => (typeof navigator === 'undefined' ? '' : navigator.userAgent.slice(0, 140)), [])
 
   function updateSectionMetrics() {
     const section = sectionRef.current
@@ -130,6 +144,7 @@ export default function HomeHeroScrollSequence() {
     const vh = window.innerHeight || 1
     sectionTopRef.current = rect.top + scrollY
     sectionScrollableRef.current = Math.max(1, rect.height - vh)
+    viewportRef.current = { width: window.innerWidth || 0, height: vh }
   }
 
   function markLoaded(index: number) {
@@ -307,6 +322,8 @@ export default function HomeHeroScrollSequence() {
     const best = loadedRef.current.has(desired) ? desired : findDirectionalLoaded(desired)
     const src = sequence.frames[best]
     if (!src) return
+    lastFallbackUsedRef.current = best !== desired
+    if (!loadedRef.current.has(best) && shownFrameRef.current !== best) return
     if (shownFrameRef.current !== best) {
       shownFrameRef.current = best
       imgEl.src = src
@@ -328,6 +345,14 @@ export default function HomeHeroScrollSequence() {
     const prevTs = lastRafTimeRef.current ?? ts
     const dt = Math.max(0, ts - prevTs)
     lastRafTimeRef.current = ts
+    fpsAccumMsRef.current += dt
+    fpsFramesRef.current += 1
+    if (dt > 50) longFrameCountRef.current += 1
+    if (fpsAccumMsRef.current >= 1000) {
+      avgFpsRef.current = (fpsFramesRef.current * 1000) / fpsAccumMsRef.current
+      fpsAccumMsRef.current = 0
+      fpsFramesRef.current = 0
+    }
 
     readScrollAndSetTarget()
     if (!introDoneRef.current) {
@@ -371,9 +396,14 @@ export default function HomeHeroScrollSequence() {
 
     const isSettled = Math.abs(targetFrameRef.current - currentFrameRef.current) < SETTLE_DIFF_EPS
     if (!isSettled) {
+      if (debugEnabled) {
+        debugTickRef.current += 1
+        if (debugTickRef.current % 8 === 0) setDebugTick((v) => v + 1)
+      }
       rafRef.current = window.requestAnimationFrame(renderLoop)
       return
     }
+    if (debugEnabled) setDebugTick((v) => v + 1)
     rafRef.current = null
   }
 
@@ -381,8 +411,12 @@ export default function HomeHeroScrollSequence() {
     const media = window.matchMedia('(max-width: 767px)')
     const syncViewport = () => setIsMobileViewport(media.matches)
     syncViewport()
-    media.addEventListener('change', syncViewport)
-    return () => media.removeEventListener('change', syncViewport)
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', syncViewport)
+      return () => media.removeEventListener('change', syncViewport)
+    }
+    media.addListener(syncViewport)
+    return () => media.removeListener(syncViewport)
   }, [])
 
   useEffect(() => {
@@ -418,7 +452,8 @@ export default function HomeHeroScrollSequence() {
       }
     }
 
-    media.addEventListener('change', onMotionChange)
+    if (typeof media.addEventListener === 'function') media.addEventListener('change', onMotionChange)
+    else media.addListener(onMotionChange as (this: MediaQueryList, ev: MediaQueryListEvent) => any)
     if (media.matches) {
       introDoneRef.current = true
       setIntroDone(true)
@@ -454,9 +489,9 @@ export default function HomeHeroScrollSequence() {
       const startSrc = activeSequenceRef.current.frames[startFrame] ?? frameZero
       imgRef.current.src = startSrc
     }
-    loadedRef.current.add(startFrame)
+    preloadFrame(startFrame)
 
-    for (let i = 1; i < Math.min(frameCount, INITIAL_PRELOAD_COUNT); i += 1) preloadFrame(i)
+    for (let i = 0; i < Math.min(frameCount, INITIAL_PRELOAD_COUNT); i += 1) preloadFrame(i)
     preloadRemainingInBackground()
 
     const onScroll = () => {
@@ -477,7 +512,8 @@ export default function HomeHeroScrollSequence() {
 
     return () => {
       if (introTimerRef.current !== null) window.clearTimeout(introTimerRef.current)
-      media.removeEventListener('change', onMotionChange)
+      if (typeof media.removeEventListener === 'function') media.removeEventListener('change', onMotionChange)
+      else media.removeListener(onMotionChange as (this: MediaQueryList, ev: MediaQueryListEvent) => any)
       window.removeEventListener('resize', onResize)
       window.removeEventListener('orientationchange', onResize)
       window.removeEventListener('scroll', onScroll)
@@ -506,6 +542,14 @@ export default function HomeHeroScrollSequence() {
           className={`absolute inset-0 h-full w-full object-cover ${isMobileViewport ? 'object-[50%_38%]' : 'object-center'}`}
           loading="eager"
           decoding="sync"
+          onLoad={(e) => {
+            const src = e.currentTarget.getAttribute('src') || ''
+            const idx = activeSequenceRef.current.frames.indexOf(src)
+            if (idx >= 0) {
+              markLoaded(idx)
+              mainImageFrameRef.current = idx
+            }
+          }}
         />
 
         <div className="absolute inset-0 bg-gradient-to-b from-[#091421]/35 via-[#091421]/25 to-[#091421]/70 pointer-events-none" />
@@ -568,12 +612,28 @@ export default function HomeHeroScrollSequence() {
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[30%] bg-gradient-to-t from-[#091421] via-[#0b111a]/30 to-transparent" />
         {debugEnabled && (
-          <div className="absolute right-3 top-3 z-50 rounded bg-black/65 px-3 py-2 text-[11px] leading-tight text-white">
+          <div
+            className="fixed left-3 z-[9999] max-w-[calc(100vw-24px)] overflow-auto rounded border border-white/20 bg-[rgba(2,8,23,0.88)] p-2 text-[10px] leading-tight text-white pointer-events-none sm:text-[11px]"
+            style={{
+              bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
+              maxHeight: '40vh',
+            }}
+          >
             <div>seq: {activeSequence.key}</div>
-            <div>frame: {shownFrameRef.current}/{Math.max(0, activeSequence.totalFrames - 1)}</div>
+            <div>current: {Math.round(currentFrameRef.current)}</div>
+            <div>displayed: {shownFrameRef.current}</div>
+            <div>target: {Math.round(targetFrameRef.current)}</div>
+            <div>total: {Math.max(0, activeSequence.totalFrames - 1)}</div>
             <div>scene: {sceneIndex + 1}</div>
             <div>loaded: {loadedRef.current.size}</div>
+            <div>prefix: {framePrefix}</div>
+            <div>fallback: {String(lastFallbackUsedRef.current)}</div>
+            <div>fps(avg): {avgFpsRef.current.toFixed(1)}</div>
+            <div>longFrames&gt;50ms: {longFrameCountRef.current}</div>
+            <div>viewport: {viewportRef.current.width}x{viewportRef.current.height}</div>
+            <div className="max-w-[48vw] truncate">ua: {userAgent}</div>
             <div className="max-w-[48vw] truncate">src: {activeSequence.frames[shownFrameRef.current] ?? ''}</div>
+            <div className="hidden">{debugTick}</div>
           </div>
         )}
         <style jsx>{`
