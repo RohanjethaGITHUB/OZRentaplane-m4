@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation'
 
 const NAV_ITEMS = [
   { label: 'Overview',      href: '/dashboard',              exact: true,  icon: 'grid_view',      badgeKey: null             },
-  { label: 'Book a Flight', href: '/dashboard/bookings/new', exact: true,  icon: 'flight_takeoff', badgeKey: null             },
   { label: 'My Bookings',   href: '/dashboard/bookings',     exact: false, excludePrefix: '/dashboard/bookings/new', icon: 'luggage', badgeKey: 'booking' },
   { label: 'Messages',      href: '/dashboard/messages',     exact: false, icon: 'chat',           badgeKey: 'message'        },
 ]
@@ -20,10 +19,20 @@ type Props = {
   verificationStatus?: string | null
   messageCount?: number
   bookingUpdateCount?: number
+  pilotClearanceStatus?: string | null
 }
 
-export default function CustomerPortalSubNav({ verificationStatus, messageCount = 0, bookingUpdateCount = 0 }: Props) {
+export default function CustomerPortalSubNav({ verificationStatus, messageCount = 0, bookingUpdateCount = 0, pilotClearanceStatus }: Props) {
   const pathname = usePathname()
+  const isClearedToFly = pilotClearanceStatus === 'cleared_to_fly'
+  const bookingNavItem = {
+    label: isClearedToFly ? 'Book a Flight' : 'Book Checkout',
+    href: isClearedToFly ? '/dashboard/bookings/new' : '/dashboard/checkout',
+    exact: true,
+    icon: 'flight_takeoff',
+    badgeKey: null,
+  } as const
+  const navItems = [NAV_ITEMS[0], bookingNavItem, ...NAV_ITEMS.slice(1)]
 
 
 
@@ -62,7 +71,7 @@ export default function CustomerPortalSubNav({ verificationStatus, messageCount 
           {/* Right: Nav Links with icons */}
           <div className="overflow-x-auto scrollbar-none flex-1">
             <ul className="flex items-center gap-0.5 px-1">
-              {NAV_ITEMS.map(item => {
+              {navItems.map(item => {
                 const active = isNavItemActive(item, pathname)
                 const badge  = getBadge(item.badgeKey)
                 return (

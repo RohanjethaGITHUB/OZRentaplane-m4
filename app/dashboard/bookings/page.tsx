@@ -29,7 +29,7 @@ const STATUS_CFG: Record<string, {
   awaiting_flight_record:     { label: 'Awaiting Record',         sublabel: 'Please submit flight log',  color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  icon: 'assignment'         },
   flight_record_overdue:      { label: 'Record Overdue',          sublabel: 'Flight log required',       color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'assignment_late'    },
   pending_post_flight_review: { label: 'Under Review',            sublabel: 'Post-flight review',        color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: 'rate_review'        },
-  needs_clarification:        { label: 'Clarification Needed',    sublabel: 'Admin has a question',      color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', icon: 'help'               },
+  needs_clarification:        { label: 'Clarification Needed',    sublabel: 'Team has a question',      color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', icon: 'help'               },
   post_flight_approved:       { label: 'Flight Approved',         sublabel: 'Records accepted',          color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20',  icon: 'verified'           },
   completed:                  { label: 'Completed',               sublabel: 'Booking closed',            color: 'text-slate-400',  bg: 'bg-white/5',       border: 'border-white/10',      icon: 'done_all'           },
   cancelled:                  { label: 'Cancelled',               sublabel: 'Will not proceed',          color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'cancel'             },
@@ -37,7 +37,7 @@ const STATUS_CFG: Record<string, {
   // Checkout booking statuses
   checkout_requested:         { label: 'Awaiting Review',         sublabel: 'Awaiting team review',      color: 'text-blue-400',  bg: 'bg-blue-500/10',   border: 'border-blue-500/20',   icon: 'pending_actions'    },
   checkout_confirmed:         { label: 'Checkout Confirmed',      sublabel: 'Confirmed by our team',     color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20',  icon: 'event_available'    },
-  checkout_completed_under_review: { label: 'Checkout Completed - Under Review', sublabel: 'Checkout complete',       color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  icon: 'rate_review'        },
+  checkout_completed_under_review: { label: 'Checkout completed, under review', sublabel: 'Awaiting team review',       color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  icon: 'rate_review'        },
   checkout_payment_required:       { label: 'Payment Required',                sublabel: 'Pay to unlock bookings',  color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', icon: 'payments'           },
 }
 
@@ -143,9 +143,9 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking, isAwaitingManua
             pending_actions
           </span>
           <div>
-            <h2 className="text-lg font-serif text-white mb-2">Checkout Request Under Review</h2>
-            <p className="text-slate-500 text-sm leading-relaxed">
-              Your checkout flight request has been submitted and is awaiting review by our team. Aircraft bookings will become available after your checkout flight is completed and the checkout invoice is paid.
+            <h2 className="text-lg font-serif text-white mb-2">No action needed right now</h2>
+            <p className="text-slate-400 text-base leading-relaxed">
+              Our team is reviewing your checkout request. We will contact you once it is confirmed or if another time is needed.
             </p>
             {checkoutBooking && (
               <div className="mt-4 bg-white/[0.03] border border-white/[0.06] rounded-lg px-4 py-3 inline-flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
@@ -269,7 +269,7 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking, isAwaitingManua
           <div>
             <h2 className="text-lg font-serif text-white mb-2">Additional Checkout Required</h2>
             <p className="text-slate-500 text-sm leading-relaxed mb-4">
-              Following your checkout, the admin team has determined that an additional checkout session is required before you can be cleared to fly. Book another checkout flight to continue.
+              Following your checkout, our team has determined that an additional checkout session is required before you can be cleared to fly. Book another checkout flight to continue.
             </p>
             <Link
               href="/dashboard/checkout"
@@ -494,12 +494,10 @@ export default async function CustomerBookingsPage() {
                             <p className="text-sm font-semibold text-white group-hover:text-blue-400 transition-colors">
                               Checkout Flight
                             </p>
-                            {b.booking_reference && (
-                              <span className="text-[10px] font-mono text-slate-600 bg-white/[0.04] px-1.5 py-0.5 rounded">
-                                {b.booking_reference}
-                              </span>
-                            )}
                           </div>
+                          {b.booking_reference && (
+                            <p className="text-[10px] text-slate-500 mt-1">Request ID: {b.booking_reference}</p>
+                          )}
                           <p className="text-[12px] font-medium text-slate-300 mt-1.5">
                             Cessna 172N · Registration {aircraft?.registration ?? 'VH-KZG'}
                           </p>
@@ -566,12 +564,12 @@ export default async function CustomerBookingsPage() {
                 flight_land
               </span>
               <h3 className="text-lg font-serif text-white/60 mb-2">
-                {isCleared ? 'No upcoming aircraft bookings' : 'No upcoming bookings yet'}
+                {isCleared ? 'No aircraft bookings yet' : 'No aircraft bookings yet'}
               </h3>
-              <p className="text-slate-600 text-sm mb-6 max-w-sm mx-auto leading-relaxed">
+              <p className="text-slate-500 text-base mb-6 max-w-sm mx-auto leading-relaxed">
                 {isCleared
-                  ? 'Request your first aircraft booking and the operations team will confirm it.'
-                  : 'Your bookings will appear here once you have been cleared for aircraft booking.'}
+                  ? 'Request your first aircraft booking and our team will confirm it.'
+                  : 'Aircraft bookings will become available once your checkout flight is completed and you are cleared to fly.'}
               </p>
               {isCleared && (
                 <Link

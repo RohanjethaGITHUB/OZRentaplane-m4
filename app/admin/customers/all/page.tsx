@@ -1,12 +1,12 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import AdminQueueTable from '../../AdminQueueTable'
-import type { QueueProfile } from '../../AdminQueueTable'
 import AdminPortalHero from '@/components/AdminPortalHero'
+import { TabLink } from '@/app/admin/components/AdminUi'
 
-export const metadata = { title: 'All Customers | Admin' }
+export const metadata = { title: 'Customer Directory | Admin' }
 
-export default async function AllCustomersPage() {
+export default async function AllCustomersPage({ searchParams }: { searchParams: { clearance?: string; account?: string; q?: string } }) {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -15,63 +15,62 @@ export default async function AllCustomersPage() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
-  const { data: profiles, count } = await supabase
+  let query = supabase
     .from('profiles')
-    .select(
-      'id, full_name, pilot_clearance_status, account_status, updated_at, reviewed_at, admin_review_note',
-      { count: 'exact' }
-    )
+    .select('id, full_name, email, pilot_clearance_status, account_status, updated_at', { count: 'exact' })
     .eq('role', 'customer')
     .order('updated_at', { ascending: false })
 
-  const profileIds = (profiles ?? []).map(p => p.id)
+  if (searchParams.clearance) query = query.eq('pilot_clearance_status', searchParams.clearance)
+  if (searchParams.account) query = query.eq('account_status', searchParams.account)
+  if (searchParams.q) query = query.ilike('full_name', `%${searchParams.q}%`)
 
-  // Fetch docs and unread customer message counts in parallel
-  const [{ data: allDocs }, { data: unreadEvents }] = await Promise.all([
-    profileIds.length > 0
-      ? supabase
-          .from('user_documents')
-          .select('user_id, document_type, uploaded_at')
-          .in('user_id', profileIds)
-      : Promise.resolve({ data: [] }),
-    profileIds.length > 0
-      ? supabase
-          .from('verification_events')
-          .select('user_id')
-          .in('user_id', profileIds)
-          .eq('actor_role', 'customer')
-          .is('admin_read_at', null)
-      : Promise.resolve({ data: [] }),
-  ])
+  const { data: profiles, count } = await query
 
-  const docsByUser: Record<string, Array<{ document_type: string; uploaded_at: string }>> = {}
-  for (const doc of allDocs ?? []) {
-    if (!docsByUser[doc.user_id]) docsByUser[doc.user_id] = []
-    docsByUser[doc.user_id].push(doc)
-  }
-
-  const unreadByUser: Record<string, number> = {}
-  for (const ev of unreadEvents ?? []) {
-    unreadByUser[ev.user_id] = (unreadByUser[ev.user_id] ?? 0) + 1
-  }
+  const clearanceTabs = [
+    { label: 'All', value: '' },
+    { label: 'Cleared', value: 'cleared_to_fly' },
+    { label: 'In checkout', value: 'checkout_requested' },
+    { label: 'Needs attention', value: 'additional_checkout_required' },
+  ]
 
   return (
     <>
-      <AdminPortalHero
-        eyebrow="Customer Management"
-        title="All Customers"
-        subtitle="All registered customer accounts and their pilot clearance status."
-      />
-      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24">
-        <AdminQueueTable
-          profiles={profiles as QueueProfile[] ?? []}
-          docsByUser={docsByUser}
-          totalCount={count ?? 0}
-          dateMode="joined"
-          actionLabel="View"
-          showDocs={false}
-          unreadByUser={unreadByUser}
-        />
+      <AdminPortalHero eyebrow="Customers" title="Customer Directory" subtitle="Search and filter all customer accounts." />
+      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24 space-y-6">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 flex flex-wrap gap-2">
+          {clearanceTabs.map((tab) => (
+            <TabLink key={tab.label} active={(searchParams.clearance ?? '') === tab.value} href={tab.value ? `/admin/customers/all?clearance=${tab.value}` : '/admin/customers/all'} label={tab.label} />
+          ))}
+          <TabLink active={(searchParams.account ?? '') === 'blocked'} href="/admin/customers/all?account=blocked" label="Blocked" />
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="border-b border-white/10 text-sm text-slate-400">
+              <tr>
+                <th className="px-5 py-4">Customer</th>
+                <th className="px-5 py-4">Clearance status</th>
+                <th className="px-5 py-4">Account</th>
+                <th className="px-5 py-4">Updated</th>
+                <th className="px-5 py-4 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(profiles ?? []).map((p) => (
+                <tr key={p.id} className="border-b border-white/5">
+                  <td className="px-5 py-4"><p className="text-white text-base">{p.full_name || 'Unnamed customer'}</p><p className="text-sm text-slate-400">{p.email || 'No email'}</p></td>
+                  <td className="px-5 py-4"><span className="text-sm text-slate-200 capitalize">{(p.pilot_clearance_status || 'unknown').replace(/_/g, ' ')}</span></td>
+                  <td className="px-5 py-4"><span className="text-sm text-slate-300 capitalize">{(p.account_status || 'active').replace(/_/g, ' ')}</span></td>
+                  <td className="px-5 py-4 text-sm text-slate-400">{new Date(p.updated_at).toLocaleDateString('en-AU')}</td>
+                  <td className="px-5 py-4 text-right"><Link href={`/admin/users/${p.id}`} className="text-blue-200">View Customer</Link></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {(!profiles || profiles.length === 0) && <div className="p-8 text-slate-400">No customers found for this filter.</div>}
+        </div>
+        <p className="text-sm text-slate-400">Showing {(profiles ?? []).length} of {count ?? 0} customers.</p>
       </div>
     </>
   )

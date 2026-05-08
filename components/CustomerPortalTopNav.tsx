@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { markNotificationsSeen } from '@/app/actions/auth-tracking'
-import type { PopoverNotification } from '@/lib/supabase/types'
+import type { PilotClearanceStatus, PopoverNotification } from '@/lib/supabase/types'
 
 const PUBLIC_LINKS = [
   { label: 'Fleet',             href: '/fleet'              },
@@ -41,9 +41,10 @@ type Props = {
   displayName: string
   notificationCount: number
   recentNotifications: PopoverNotification[]
+  pilotClearanceStatus: PilotClearanceStatus
 }
 
-export default function CustomerPortalTopNav({ displayName, notificationCount, recentNotifications }: Props) {
+export default function CustomerPortalTopNav({ displayName, notificationCount, recentNotifications, pilotClearanceStatus }: Props) {
   const [menuOpen,   setMenuOpen]   = useState(false)
   const [notifOpen,  setNotifOpen]  = useState(false)
   const [dropOpen,   setDropOpen]   = useState(false)
@@ -113,6 +114,10 @@ export default function CustomerPortalTopNav({ displayName, notificationCount, r
     .join('')
     .toUpperCase()
     .slice(0, 2) || '?'
+  const isClearedToFly = pilotClearanceStatus === 'cleared_to_fly'
+  const ctaHref = isClearedToFly ? '/dashboard/bookings/new' : '/dashboard/checkout'
+  const ctaLabel = isClearedToFly ? 'Book a Flight' : 'Book Checkout'
+  const ctaActive = pathname === ctaHref
 
   return (
     <header className="sticky top-0 z-50 bg-[#091421] border-b border-white/[0.07] shadow-[0_1px_0_rgba(255,255,255,0.04)]">
@@ -143,11 +148,11 @@ export default function CustomerPortalTopNav({ displayName, notificationCount, r
         {/* Right controls */}
         <div className="flex items-center gap-3 shrink-0">
 
-          {/* Book a Flight — primary CTA */}
+          {/* Primary CTA */}
           <Link
-            href="/dashboard/bookings/new"
+            href={ctaHref}
             className={`hidden md:inline-flex items-center gap-1.5 text-[12px] font-semibold px-4 py-2 rounded-full transition-colors duration-200 whitespace-nowrap ${
-              pathname === '/dashboard/bookings/new'
+              ctaActive
                 ? 'bg-white text-[#0c1a2e]'
                 : 'bg-[#c8dcff] text-[#0c1a2e] hover:bg-white'
             }`}
@@ -155,7 +160,7 @@ export default function CustomerPortalTopNav({ displayName, notificationCount, r
             <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 0, 'wght' 600" }}>
               flight_takeoff
             </span>
-            Book a Flight
+            {ctaLabel}
           </Link>
 
           {/* ── Notification bell ──────────────────────────────────────────── */}

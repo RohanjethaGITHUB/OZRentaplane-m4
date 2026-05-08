@@ -136,8 +136,8 @@ BEGIN
 
   -- ── Validate outcome value ────────────────────────────────────────────────
   IF p_checkout_outcome NOT IN (
-    'cleared_to_fly', 'additional_supervised_time_required',
-    'reschedule_required', 'not_currently_eligible'
+    'cleared_to_fly', 'additional_checkout_required',
+    'checkout_reschedule_required', 'not_currently_eligible'
   ) THEN
     RAISE EXCEPTION 'Invalid checkout outcome: %', p_checkout_outcome;
   END IF;

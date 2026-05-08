@@ -6,7 +6,8 @@ import { HOME_HERO_SCROLL_MOBILE_FRAMES } from '@/lib/homeHeroScrollMobileFrames
 import HeroCloudLayers from '@/components/HeroCloudLayers'
 
 const SCROLL_HEIGHT_VH = 430
-const SMOOTHING_TAU_MS = 110
+const FULL_MOTION_SMOOTHING_TAU_MS = 110
+const REDUCED_MOTION_SMOOTHING_TAU_MS = 56
 const MAX_FRAME_STEP_PER_TICK = 2.1
 const INITIAL_PRELOAD_COUNT = 50
 const BACKGROUND_PRELOAD_BATCH = 12
@@ -38,6 +39,7 @@ type ActiveSequence = {
   scenes: [SceneRange, SceneRange, SceneRange]
   totalFrames: number
 }
+type MotionMode = 'full' | 'reduced'
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
@@ -86,7 +88,7 @@ export default function HomeHeroScrollSequence() {
   })
   const introDoneRef = useRef(false)
   const sceneIndexRef = useRef(0)
-  const reducedMotionRef = useRef(false)
+  const motionModeRef = useRef<MotionMode>('full')
   const loadedRef = useRef<Set<number>>(new Set())
   const loadingRef = useRef<Set<number>>(new Set())
 
@@ -113,6 +115,10 @@ export default function HomeHeroScrollSequence() {
   }, [isMobileViewport])
   const activeSequenceRef = useRef<ActiveSequence>(activeSequence)
   const [debugEnabled, setDebugEnabled] = useState(false)
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
+  const [forceMotion, setForceMotion] = useState(false)
+  const [forceReducedMotion, setForceReducedMotion] = useState(false)
+  const [motionMode, setMotionMode] = useState<MotionMode>('full')
   const debugTickRef = useRef<number>(0)
   const [debugTick, setDebugTick] = useState(0)
   const fpsAccumMsRef = useRef(0)
@@ -122,6 +128,8 @@ export default function HomeHeroScrollSequence() {
   const viewportRef = useRef({ width: 0, height: 0 })
   const lastFallbackUsedRef = useRef(false)
   const mainImageFrameRef = useRef(0)
+  const scrollProgressRawRef = useRef(0)
+  const scrollProgressClampedRef = useRef(0)
   const sceneHeadings = useMemo(
     () =>
       SCENE_TEXT.map((scene, idx) => ({
@@ -135,6 +143,13 @@ export default function HomeHeroScrollSequence() {
   const frameZero = useMemo(() => activeSequence.frames[0] ?? '', [activeSequence])
   const framePrefix = useMemo(() => (activeSequence.key === 'mobile' ? '/Mobile-home-hero/' : '/WebHomeHeroScroll/'), [activeSequence.key])
   const userAgent = useMemo(() => (typeof navigator === 'undefined' ? '' : navigator.userAgent.slice(0, 140)), [])
+  const frameScrollEnabled = true
+  const sceneTextChangesEnabled = true
+  const cloudFadeEnabled = true
+  const ctaFadeEnabled = true
+  const decorativeTextWaveEnabled = motionMode === 'full'
+  const underlineWaveEnabled = motionMode === 'full'
+  const cloudDriftEnabled = motionMode === 'full'
 
   function updateSectionMetrics() {
     const section = sectionRef.current
@@ -335,6 +350,8 @@ export default function HomeHeroScrollSequence() {
     const scrollY = window.scrollY || window.pageYOffset
     const raw = (scrollY - sectionTopRef.current) / sectionScrollableRef.current
     const progress = clamp(raw, 0, 1)
+    scrollProgressRawRef.current = raw
+    scrollProgressClampedRef.current = progress
     targetFrameRef.current = progress * (frameTotal - 1)
     const diff = targetFrameRef.current - previousTargetFrameRef.current
     if (Math.abs(diff) > 0.001) directionRef.current = diff > 0 ? 1 : -1
@@ -365,7 +382,8 @@ export default function HomeHeroScrollSequence() {
     }
 
     const diff = targetFrameRef.current - currentFrameRef.current
-    const alpha = 1 - Math.exp(-dt / SMOOTHING_TAU_MS)
+    const smoothingTauMs = motionModeRef.current === 'reduced' ? REDUCED_MOTION_SMOOTHING_TAU_MS : FULL_MOTION_SMOOTHING_TAU_MS
+    const alpha = 1 - Math.exp(-dt / smoothingTauMs)
     const proposed = currentFrameRef.current + diff * alpha
 
     if (diff > 0) {
@@ -430,31 +448,36 @@ export default function HomeHeroScrollSequence() {
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    reducedMotionRef.current = media.matches
+
+    const deriveMotionMode = (prefers: boolean) => {
+      const params = new URLSearchParams(window.location.search)
+      const forceFull = params.get('heroForceMotion') === '1'
+      const forceReduced = params.get('heroForceReducedMotion') === '1'
+      let nextMode: MotionMode = prefers ? 'reduced' : 'full'
+      if (forceFull) nextMode = 'full'
+      else if (forceReduced) nextMode = 'reduced'
+      return { nextMode, forceFull, forceReduced }
+    }
+
+    const applyMotionState = (prefers: boolean) => {
+      const { nextMode, forceFull, forceReduced } = deriveMotionMode(prefers)
+      setPrefersReducedMotion(prefers)
+      setForceMotion(forceFull)
+      setForceReducedMotion(forceReduced)
+      motionModeRef.current = nextMode
+      setMotionMode(nextMode)
+    }
 
     const onMotionChange = (e: MediaQueryListEvent) => {
-      reducedMotionRef.current = e.matches
-      if (e.matches) {
-        introDoneRef.current = true
-        setIntroDone(true)
-      }
-      if (e.matches) {
-        if (rafRef.current !== null) window.cancelAnimationFrame(rafRef.current)
-        rafRef.current = null
-        lastRafTimeRef.current = null
-        shownFrameRef.current = 0
-        currentFrameRef.current = 0
-        targetFrameRef.current = 0
-        if (imgRef.current && frameZero) imgRef.current.src = frameZero
-      } else {
-        updateSectionMetrics()
-        if (rafRef.current === null) rafRef.current = window.requestAnimationFrame(renderLoop)
-      }
+      applyMotionState(e.matches)
+      updateSectionMetrics()
+      if (rafRef.current === null) rafRef.current = window.requestAnimationFrame(renderLoop)
     }
 
     if (typeof media.addEventListener === 'function') media.addEventListener('change', onMotionChange)
     else media.addListener(onMotionChange as (this: MediaQueryList, ev: MediaQueryListEvent) => any)
-    if (media.matches) {
+    applyMotionState(media.matches)
+    if (motionModeRef.current === 'reduced') {
       introDoneRef.current = true
       setIntroDone(true)
     } else {
@@ -508,7 +531,7 @@ export default function HomeHeroScrollSequence() {
     window.addEventListener('orientationchange', onResize)
     window.addEventListener('scroll', onScroll, { passive: true })
 
-    if (!reducedMotionRef.current) rafRef.current = window.requestAnimationFrame(renderLoop)
+    rafRef.current = window.requestAnimationFrame(renderLoop)
 
     return () => {
       if (introTimerRef.current !== null) window.clearTimeout(introTimerRef.current)
@@ -521,10 +544,9 @@ export default function HomeHeroScrollSequence() {
       if (scrollTickRef.current !== null) window.cancelAnimationFrame(scrollTickRef.current)
       if (backgroundPreloadRafRef.current !== null) window.cancelAnimationFrame(backgroundPreloadRafRef.current)
     }
-  }, [frameCount, frameZero, activeSequence])
+  }, [frameCount, frameZero, activeSequence, motionMode])
 
   useEffect(() => {
-    if (reducedMotionRef.current) return
     const onScrollKick = () => {
       if (rafRef.current === null) rafRef.current = window.requestAnimationFrame(renderLoop)
     }
@@ -533,7 +555,7 @@ export default function HomeHeroScrollSequence() {
   }, [])
 
   return (
-    <section ref={sectionRef} className="relative" style={{ height: `${SCROLL_HEIGHT_VH}vh` }}>
+    <section ref={sectionRef} className="relative" style={{ height: `${SCROLL_HEIGHT_VH}vh` }} data-motion-mode={motionMode}>
       <div className="sticky top-0 overflow-hidden min-h-screen min-h-[100svh] min-h-[100dvh]">
         <img
           ref={imgRef}
@@ -554,9 +576,13 @@ export default function HomeHeroScrollSequence() {
 
         <div className="absolute inset-0 bg-gradient-to-b from-[#091421]/35 via-[#091421]/25 to-[#091421]/70 pointer-events-none" />
         <div className="absolute inset-0 pointer-events-none" style={{ background: 'rgba(2,10,30,0.22)', mixBlendMode: 'multiply' }} />
-        <HeroCloudLayers innerRef={cloudWrapRef} className={isMobileViewport ? '-translate-y-[4%]' : ''} />
+        <HeroCloudLayers
+          innerRef={cloudWrapRef}
+          className={isMobileViewport ? '-translate-y-[4%]' : ''}
+          cloudDriftEnabled={cloudDriftEnabled}
+        />
 
-        {!reducedMotionRef.current && (
+        {decorativeTextWaveEnabled && (
           <div
             className={`absolute inset-0 z-20 pointer-events-none transition-opacity duration-700 ${introDone ? 'opacity-0' : 'opacity-100'}`}
           >
@@ -578,13 +604,21 @@ export default function HomeHeroScrollSequence() {
         )}
 
         <div className="absolute inset-0 z-10 px-6 md:px-12 lg:px-20">
-          <div className={`pt-[16vh] text-center transition-opacity duration-500 ${introDone || reducedMotionRef.current ? 'opacity-100' : 'opacity-0'}`}>
-            <div key={`${sceneHeadings[sceneIndex]?.line1}-${sceneHeadings[sceneIndex]?.line2}`} className="hero-scene-heading-enter">
+          <div className={`pt-[16vh] text-center transition-opacity duration-500 ${introDone || motionMode === 'reduced' ? 'opacity-100' : 'opacity-0'}`}>
+            <div
+              key={`${sceneHeadings[sceneIndex]?.line1}-${sceneHeadings[sceneIndex]?.line2}`}
+              className={`hero-scene-heading-enter ${motionMode === 'reduced' ? 'hero-scene-heading-enter-reduced' : ''}`}
+            >
               <h1 className="font-serif text-4xl font-normal leading-[1.04] tracking-[0.015em] text-[#e8f1ff] md:text-7xl [text-shadow:0_3px_14px_rgba(8,20,40,0.24)]">
                 <span className="block">{sceneHeadings[sceneIndex]?.line1}</span>
                 <span className="relative block italic text-[#c7dcff] pb-3">
                   {sceneHeadings[sceneIndex]?.line2}
-                  <svg viewBox="0 0 340 20" fill="none" aria-hidden="true" className="absolute left-1/2 -translate-x-1/2 bottom-[-2px] w-[90%] md:w-[85%] h-[14px] md:h-[18px] hero-scene-underline-drift">
+                  <svg
+                    viewBox="0 0 340 20"
+                    fill="none"
+                    aria-hidden="true"
+                    className={`absolute left-1/2 -translate-x-1/2 bottom-[-2px] w-[90%] md:w-[85%] h-[14px] md:h-[18px] ${underlineWaveEnabled ? 'hero-scene-underline-drift' : ''}`}
+                  >
                     <path d="M 6 13 C 45 5, 90 18, 145 10 C 200 3, 255 16, 310 10 C 322 8, 330 9, 334 11" stroke="rgba(167,200,255,0.58)" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </span>
@@ -620,6 +654,17 @@ export default function HomeHeroScrollSequence() {
             }}
           >
             <div>seq: {activeSequence.key}</div>
+            <div>prefersReducedMotion: {String(prefersReducedMotion)}</div>
+            <div>forceMotion: {String(forceMotion)}</div>
+            <div>forceReducedMotion: {String(forceReducedMotion)}</div>
+            <div>motionMode: {motionMode}</div>
+            <div>frameScrollEnabled: {String(frameScrollEnabled)}</div>
+            <div>sceneTextChangesEnabled: {String(sceneTextChangesEnabled)}</div>
+            <div>cloudFadeEnabled: {String(cloudFadeEnabled)}</div>
+            <div>ctaFadeEnabled: {String(ctaFadeEnabled)}</div>
+            <div>decorativeTextWaveEnabled: {String(decorativeTextWaveEnabled)}</div>
+            <div>underlineWaveEnabled: {String(underlineWaveEnabled)}</div>
+            <div>cloudDriftEnabled: {String(cloudDriftEnabled)}</div>
             <div>current: {Math.round(currentFrameRef.current)}</div>
             <div>displayed: {shownFrameRef.current}</div>
             <div>target: {Math.round(targetFrameRef.current)}</div>
@@ -628,6 +673,8 @@ export default function HomeHeroScrollSequence() {
             <div>loaded: {loadedRef.current.size}</div>
             <div>prefix: {framePrefix}</div>
             <div>fallback: {String(lastFallbackUsedRef.current)}</div>
+            <div>scrollRaw: {scrollProgressRawRef.current.toFixed(4)}</div>
+            <div>scrollClamped: {scrollProgressClampedRef.current.toFixed(4)}</div>
             <div>fps(avg): {avgFpsRef.current.toFixed(1)}</div>
             <div>longFrames&gt;50ms: {longFrameCountRef.current}</div>
             <div>viewport: {viewportRef.current.width}x{viewportRef.current.height}</div>
@@ -700,19 +747,25 @@ export default function HomeHeroScrollSequence() {
           .hero-scene-heading-enter {
             animation: hero-scene-heading-in 420ms ease-out forwards;
           }
+          .hero-scene-heading-enter-reduced {
+            animation: hero-scene-heading-in 140ms linear forwards;
+          }
           .hero-scene-underline-drift {
             animation: hero-scene-underline-wave 3.4s ease-in-out infinite;
           }
-          @media (prefers-reduced-motion: reduce) {
-            .hero-wind-fly, .hero-wind-your, .hero-wind-way, .hero-underline-drift {
-              animation: none !important;
-              opacity: 1 !important;
-              transform: none !important;
-            }
-            .hero-scene-heading-enter, .hero-scene-underline-drift {
-              animation: none !important;
-              filter: none !important;
-            }
+          section[data-motion-mode='reduced'] .hero-wind-fly,
+          section[data-motion-mode='reduced'] .hero-wind-your,
+          section[data-motion-mode='reduced'] .hero-wind-way,
+          section[data-motion-mode='reduced'] .hero-underline-drift {
+            animation: none !important;
+            opacity: 1 !important;
+            transform: none !important;
+          }
+          section[data-motion-mode='reduced'] .hero-scene-underline-drift {
+            animation: none !important;
+          }
+          section[data-motion-mode='reduced'] .hero-scene-heading-enter {
+            filter: none !important;
           }
         `}</style>
       </div>

@@ -6,7 +6,7 @@ import BookingRequestForm from './BookingRequestForm'
 import type { User } from '@supabase/supabase-js'
 import type { Profile, UserDocument } from '@/lib/supabase/types'
 
-export const metadata = { title: 'Book a Flight | Pilot Dashboard' }
+export const metadata = { title: 'Book a Flight | Pilot Overview' }
 
 // ── Helper: check document validity ─────────────────────────────────────────
 type DocGateResult =
@@ -173,7 +173,7 @@ export default async function NewBookingPage() {
         body="Your checkout flight has been approved. Please pay your checkout invoice before booking the aircraft."
         primaryLabel="Pay Checkout Invoice"
         primaryHref={`/dashboard/bookings/${unpaidCheckout.id}`}
-        secondaryLabel="Go to Dashboard"
+        secondaryLabel="Go to Overview"
         secondaryHref="/dashboard"
       />
     )
@@ -198,7 +198,7 @@ export default async function NewBookingPage() {
         body="Your checkout flight request is currently in progress. Once your checkout flight is completed and approved by the operations team, you'll receive your checkout invoice. After that invoice is paid, aircraft booking will become available."
         primaryLabel="View My Bookings"
         primaryHref="/dashboard/bookings"
-        secondaryLabel="Go to Dashboard"
+        secondaryLabel="Go to Overview"
         secondaryHref="/dashboard"
       />
     )
@@ -225,7 +225,7 @@ export default async function NewBookingPage() {
           colorCls="bg-red-500/10 border-red-500/20"
           heading="System Error: Missing Checkout Invoice"
           body="Your profile is cleared to fly, but we could not find a paid checkout invoice on file. Standard booking access requires a fully paid checkout. Please contact the operations team to resolve this issue."
-          primaryLabel="Return to Dashboard"
+          primaryLabel="Return to Overview"
           primaryHref="/dashboard"
         />
       )
@@ -290,7 +290,7 @@ export default async function NewBookingPage() {
     additional_checkout_required: {
       icon:      'schedule',
       title:     'Additional Checkout Required',
-      body:      'Following your checkout, the admin team has determined that an additional checkout session is required before you can be cleared to fly. Book another checkout flight to continue.',
+      body:      'Following your checkout, our team has determined that an additional checkout session is required before you can be cleared to fly. Book another checkout flight to continue.',
       ctaLabel:  'Book Another Checkout',
       ctaHref:   '/dashboard/checkout',
       colorCls:  'bg-amber-500/10 border-amber-500/20',
@@ -309,7 +309,7 @@ export default async function NewBookingPage() {
       icon:      'block',
       title:     'Not Currently Eligible',
       body:      'Based on your checkout assessment, further training is required before you can continue with aircraft hire. Please contact us when you are ready to try again.',
-      ctaLabel:  'Return to Dashboard',
+      ctaLabel:  'Return to Overview',
       ctaHref:   '/dashboard',
       colorCls:  'bg-red-500/10 border-red-500/20',
       iconColor: 'text-red-400',
@@ -320,7 +320,7 @@ export default async function NewBookingPage() {
     icon:      'lock',
     title:     'Solo Booking Unavailable',
     body:      'Solo hire is not available at this time. Please contact the operations team for assistance.',
-    ctaLabel:  'Return to Dashboard',
+    ctaLabel:  'Return to Overview',
     ctaHref:   '/dashboard',
     colorCls:  'bg-amber-500/10 border-amber-500/20',
     iconColor: 'text-amber-400',

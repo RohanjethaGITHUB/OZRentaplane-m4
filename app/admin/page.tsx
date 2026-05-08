@@ -2,10 +2,17 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import AdminPortalHero from '@/components/AdminPortalHero'
+import { ChartShell, SectionTitle, StatCard, StatusPill, TimeRangeControl, type TimeRangeValue } from './components/AdminUi'
+import { getRangeStartIso } from '@/lib/admin-time-range'
 
 export const metadata = { title: 'Admin Overview | OZRentAPlane' }
 
-export default async function AdminMasterOverview() {
+function getRange(value?: string): TimeRangeValue {
+  if (value === 'today' || value === '7d' || value === '30d' || value === '6m' || value === 'max') return value
+  return '7d'
+}
+
+export default async function AdminMasterOverview({ searchParams }: { searchParams: { range?: string } }) {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -14,193 +21,197 @@ export default async function AdminMasterOverview() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
-  // Counts — standard operations
+  const range = getRange(searchParams.range)
+  const startIso = getRangeStartIso(range)
+
+  let bookingQuery = supabase
+    .from('bookings')
+    .select('id, booking_type, status, scheduled_start, scheduled_end, created_at, pic_name, aircraft ( registration )')
+    .order('scheduled_start', { ascending: true })
+
+  if (startIso) bookingQuery = bookingQuery.gte('scheduled_start', startIso)
+  const { data: bookings } = await bookingQuery
+
   const [
-    { count: clearedForBookingCount },
-    { count: standardBookingReqs },
-    { count: confirmedUpcoming },
-    { count: awaitingFlightRecords },
-    { count: pendingPostReviews },
-    { count: openSquawks },
-    { count: checkoutRequests },
-    { count: checkoutConfirmed },
-    { count: checkoutAwaitingOutcome },
-    { count: checkoutPaymentRequired },
     { count: manualPaymentPending },
+    { count: blockedCustomers },
+    { data: aircraft },
+    { count: openSquawks },
   ] = await Promise.all([
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer').eq('pilot_clearance_status', 'cleared_to_fly'),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'pending_confirmation'),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'confirmed'),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'awaiting_flight_record'),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'pending_post_flight_review'),
-    supabase.from('squawks').select('*', { count: 'exact', head: true }).in('status', ['open', 'in_progress']),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_requested'),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_confirmed'),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_completed_under_review'),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_payment_required'),
-    // Count bank transfer submissions awaiting admin review
     supabase.from('checkout_bank_transfer_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending_review'),
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer').eq('account_status', 'blocked'),
+    supabase.from('aircraft').select('id, registration, status').eq('registration', 'VH-KZG').single(),
+    supabase.from('squawks').select('*', { count: 'exact', head: true }).in('status', ['open', 'in_progress']),
   ])
 
-  // Fetch KZG status
-  const { data: fleet } = await supabase.from('aircraft').select('registration, status').eq('registration', 'VH-KZG').single()
+  const statusCount: Record<string, number> = {}
+  const typeCount = { checkout: 0, standard: 0 }
+  for (const booking of bookings ?? []) {
+    statusCount[booking.status] = (statusCount[booking.status] ?? 0) + 1
+    if (booking.booking_type === 'checkout') typeCount.checkout += 1
+    if (booking.booking_type === 'standard') typeCount.standard += 1
+  }
 
-  // A. Action Required
-  const actionRequired = [
-    { label: 'New Checkout Requests', count: checkoutRequests || 0,        href: '/admin/bookings/checkout?status=checkout_requested',            color: 'text-blue-400',   icon: 'how_to_reg' },
-    { label: 'Manual Payment Verification', count: manualPaymentPending || 0, href: '/admin/bookings/checkout?status=checkout_payment_required',  color: 'text-amber-400',  icon: 'account_balance' },
-    { label: 'Checkout Outcomes Needed', count: checkoutAwaitingOutcome || 0, href: '/admin/bookings/checkout?status=checkout_completed_under_review', color: 'text-amber-400',  icon: 'rate_review' },
-    { label: 'New Booking Requests',  count: standardBookingReqs || 0,     href: '/admin/bookings/flights?status=pending_confirmation',           color: 'text-blue-400',   icon: 'fact_check' },
-    { label: 'Post-Flight Reviews',   count: pendingPostReviews || 0,      href: '/admin/bookings/post-flight',                                   color: 'text-purple-400', icon: 'assignment_turned_in' },
-  ].filter(a => a.count > 0)
-
-  // B. Today / Upcoming
-  const todayUpcoming = [
-    { label: 'Confirmed Checkout Flights', count: checkoutConfirmed || 0, href: '/admin/bookings/checkout?status=checkout_confirmed', color: 'text-green-400', icon: 'event_available' },
-    { label: 'Confirmed Upcoming Aircraft Bookings', count: confirmedUpcoming || 0, href: '/admin/bookings/flights', color: 'text-green-400', icon: 'event_available' },
+  const actionCards = [
+    {
+      title: 'New checkout requests',
+      value: statusCount.checkout_requested ?? 0,
+      helper: 'Review and confirm requested checkout flights.',
+      href: '/admin/bookings/checkout?status=checkout_requested',
+    },
+    {
+      title: 'Checkout outcomes needed',
+      value: statusCount.checkout_completed_under_review ?? 0,
+      helper: 'Mark flight outcome and apply next clearance step.',
+      href: '/admin/bookings/checkout?status=checkout_completed_under_review',
+    },
+    {
+      title: 'Manual payments to review',
+      value: manualPaymentPending ?? 0,
+      helper: 'Approve or reject pending transfer evidence.',
+      href: '/admin/bookings/payments-cancellations?tab=manual-payments',
+    },
+    {
+      title: 'Post-flight records pending',
+      value: (statusCount.awaiting_flight_record ?? 0) + (statusCount.pending_post_flight_review ?? 0),
+      helper: 'Bookings waiting for records or review actions.',
+      href: '/admin/bookings/flights?status=awaiting_flight_record',
+    },
+    {
+      title: 'Cancellation requests',
+      value: statusCount.cancellation_requested ?? 0,
+      helper: 'Resolve customer cancellation requests.',
+      href: '/admin/bookings/payments-cancellations?tab=cancellation-requests',
+    },
   ]
 
-  // C. Waiting on Customer
-  const waitingOnCustomer = [
-    { label: 'Checkout Payment Required', count: Math.max(0, (checkoutPaymentRequired || 0) - (manualPaymentPending || 0)), href: '/admin/bookings/payment-required', color: 'text-orange-400', icon: 'receipt_long' },
-    { label: 'Flight Records Pending', count: awaitingFlightRecords || 0, href: '/admin/bookings/flights', color: 'text-slate-400', icon: 'assignment' },
-  ]
+  const now = new Date()
+  const upcoming = (bookings ?? []).filter((b) => new Date(b.scheduled_start) >= now).slice(0, 10)
+  const nextBooking = upcoming[0]
 
   return (
     <>
       <AdminPortalHero
-        eyebrow="Operations Command Center"
-        title="Admin Overview"
-        subtitle="Focused on items requiring your immediate attention."
+        eyebrow="Operations"
+        title="Operations Overview"
+        subtitle="Today's bookings, checkout actions, payments, and aircraft status."
+        actions={<TimeRangeControl active={range} basePath="/admin" />}
       />
 
-      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24 space-y-12">
-
-        {/* A. Action Required */}
+      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24 space-y-10">
         <section>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" /> Action Required
-          </h3>
-          {actionRequired.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {actionRequired.map(a => (
-                <Link key={a.label} href={a.href} className="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:border-amber-500/30 rounded-xl p-5 transition-colors flex flex-col justify-between min-h-[120px] group relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-[40px] pointer-events-none rounded-full" />
-                  <div className="flex justify-between items-start relative z-10">
-                    <span className={`material-symbols-outlined text-[24px] ${a.color}`} style={{ fontVariationSettings: "'wght' 300" }}>{a.icon}</span>
-                    <span className="material-symbols-outlined text-sm text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">arrow_forward</span>
-                  </div>
-                  <div className="relative z-10 mt-4">
-                    <div className={`text-3xl font-light font-serif ${a.color} mb-1`}>{a.count}</div>
-                    <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider leading-tight">{a.label}</div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="bg-[#1e2023]/60 border border-white/5 rounded-[1.25rem] p-10 text-center flex flex-col items-center">
-              <span className="material-symbols-outlined text-4xl text-slate-600 mb-4" style={{ fontVariationSettings: "'wght' 200" }}>check_circle</span>
-              <p className="text-sm text-slate-400">No urgent admin actions right now.</p>
-            </div>
-          )}
-        </section>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* B. Today / Upcoming */}
-          <section>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
-              <span className="material-symbols-outlined text-[14px] text-blue-400/60" style={{ fontVariationSettings: "'wght' 300" }}>calendar_today</span>
-              Today / Upcoming
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {todayUpcoming.map(card => (
-                <Link
-                  key={card.label}
-                  href={card.href}
-                  className="bg-[#1e2023]/60 backdrop-blur-xl border border-white/5 rounded-2xl p-5 group hover:bg-[#282a2d] transition-colors flex flex-col justify-between min-h-[110px]"
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <span className="material-symbols-outlined text-xl text-slate-600 group-hover:text-slate-500 transition-colors" style={{ fontVariationSettings: "'wght' 300" }}>{card.icon}</span>
-                    <span className="material-symbols-outlined text-sm text-slate-700 group-hover:text-slate-500 transition-colors">arrow_forward</span>
-                  </div>
-                  <div>
-                    <div className={`text-2xl font-light font-serif ${card.count > 0 ? card.color : 'text-slate-500'}`}>{card.count}</div>
-                    <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mt-1 leading-tight">{card.label}</div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </section>
-
-          {/* C. Waiting on Customer */}
-          <section>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
-              <span className="material-symbols-outlined text-[14px] text-slate-400" style={{ fontVariationSettings: "'wght' 300" }}>hourglass_empty</span>
-              Waiting on Customer
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {waitingOnCustomer.map(card => (
-                <Link
-                  key={card.label}
-                  href={card.href}
-                  className="bg-[#1e2023]/60 backdrop-blur-xl border border-white/5 rounded-2xl p-5 group hover:bg-[#282a2d] transition-colors flex flex-col justify-between min-h-[110px]"
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <span className="material-symbols-outlined text-xl text-slate-600 group-hover:text-slate-500 transition-colors" style={{ fontVariationSettings: "'wght' 300" }}>{card.icon}</span>
-                    <span className="material-symbols-outlined text-sm text-slate-700 group-hover:text-slate-500 transition-colors">arrow_forward</span>
-                  </div>
-                  <div>
-                    <div className={`text-2xl font-light font-serif ${card.count > 0 ? card.color : 'text-slate-500'}`}>{card.count}</div>
-                    <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mt-1 leading-tight">{card.label}</div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        {/* D. Aircraft Status */}
-        <section>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
-            <span className="material-symbols-outlined text-[14px] text-slate-400" style={{ fontVariationSettings: "'wght' 300" }}>airlines</span>
-            Aircraft Status
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* KZG Status */}
-            <Link href="/admin/aircraft" className="bg-[#1e2023]/60 border border-white/5 rounded-xl p-4 flex items-center gap-4 hover:bg-[#282a2d] transition-colors">
-              <span className="material-symbols-outlined text-slate-500" style={{ fontVariationSettings: "'wght' 300" }}>flight_takeoff</span>
-              <div>
-                <div className="text-[10px] uppercase font-bold tracking-widest text-slate-500 mb-0.5">{fleet?.registration || 'VH-KZG'}</div>
-                <div className={`text-sm ${fleet?.status === 'active' ? 'text-green-400' : 'text-slate-400'} capitalize`}>
-                  {fleet?.status || 'Unknown'}
-                </div>
-              </div>
-            </Link>
-
-            {/* Squawks */}
-            <div className="bg-[#1e2023]/60 border border-white/5 rounded-xl p-4 flex items-center gap-4">
-              <span className="material-symbols-outlined text-slate-500" style={{ fontVariationSettings: "'wght' 300" }}>build_circle</span>
-              <div>
-                <div className="text-[10px] uppercase font-bold tracking-widest text-slate-500 mb-0.5">Open Squawks</div>
-                <div className={`text-sm ${openSquawks && openSquawks > 0 ? 'text-red-400' : 'text-slate-400'}`}>
-                  {openSquawks || 0} issues
-                </div>
-              </div>
-            </div>
-
-            {/* Cleared Customers */}
-            <Link href="/admin/customers" className="bg-[#1e2023]/60 border border-white/5 rounded-xl p-4 flex items-center gap-4 hover:bg-[#282a2d] transition-colors">
-              <span className="material-symbols-outlined text-slate-500" style={{ fontVariationSettings: "'wght' 300" }}>verified</span>
-              <div>
-                <div className="text-[10px] uppercase font-bold tracking-widest text-slate-500 mb-0.5">Cleared Customers</div>
-                <div className="text-sm text-green-400">
-                  {clearedForBookingCount || 0} pilots
-                </div>
-              </div>
-            </Link>
+          <SectionTitle title="Action Required" subtitle="Priority tasks that need admin attention now." />
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+            {actionCards.map((card) => (
+              <StatCard
+                key={card.title}
+                title={card.title}
+                value={card.value}
+                helper={card.helper}
+                href={card.href}
+                warn={card.value > 0}
+              />
+            ))}
           </div>
         </section>
 
+        <section>
+          <SectionTitle title="Visual Overview" subtitle="Booking activity, status mix, customer clearance, and payments." />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <ChartShell title="Bookings By Type">
+              <div className="space-y-3">
+                {[{ label: 'Checkout flights', val: typeCount.checkout, tone: 'blue' as const }, { label: 'Standard bookings', val: typeCount.standard, tone: 'green' as const }].map((item) => {
+                  const total = Math.max(1, typeCount.checkout + typeCount.standard)
+                  const pct = Math.round((item.val / total) * 100)
+                  return (
+                    <div key={item.label}>
+                      <div className="flex items-center justify-between text-sm mb-1"><span>{item.label}</span><span className="text-slate-400">{item.val}</span></div>
+                      <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+                        <div className={`h-full ${item.tone === 'blue' ? 'bg-blue-400' : 'bg-green-400'}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </ChartShell>
+            <ChartShell title="Booking Status Breakdown">
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(statusCount).slice(0, 8).map(([status, count]) => (
+                  <div key={status} className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2">
+                    <p className="text-xs text-slate-400">{status.replace(/_/g, ' ')}</p>
+                    <p className="text-lg text-white">{count}</p>
+                  </div>
+                ))}
+                {Object.keys(statusCount).length === 0 && <p className="text-slate-500 text-sm">No booking data in this range.</p>}
+              </div>
+            </ChartShell>
+            <ChartShell title="Customer Clearance Pipeline">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm"><span>Cleared to fly</span><StatusPill tone="green" label="Operational" /></div>
+                <div className="flex items-center justify-between text-sm"><span>In checkout flow</span><StatusPill tone="blue" label="In progress" /></div>
+                <div className="flex items-center justify-between text-sm"><span>Needs attention</span><StatusPill tone="amber" label="Review needed" /></div>
+                <div className="flex items-center justify-between text-sm"><span>Blocked customers</span><span className="text-rose-300">{blockedCustomers ?? 0}</span></div>
+              </div>
+            </ChartShell>
+            <ChartShell title="Payments Overview">
+              <div className="grid grid-cols-2 gap-3">
+                <Link href="/admin/bookings/payments-cancellations?tab=manual-payments" className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                  <p className="text-xs text-slate-400">Manual review</p>
+                  <p className="text-2xl text-amber-300">{manualPaymentPending ?? 0}</p>
+                </Link>
+                <Link href="/admin/bookings/payments-cancellations?tab=payment-required" className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                  <p className="text-xs text-slate-400">Payment required</p>
+                  <p className="text-2xl text-orange-300">{statusCount.checkout_payment_required ?? 0}</p>
+                </Link>
+              </div>
+            </ChartShell>
+          </div>
+        </section>
+
+        <section>
+          <SectionTitle title="Today / Upcoming" subtitle="Checkout flights, bookings, and aircraft blocks coming up." />
+          <div className="space-y-3">
+            {upcoming.length === 0 && <div className="rounded-xl border border-white/10 bg-white/[0.02] p-5 text-slate-400">No upcoming events in this range.</div>}
+            {upcoming.map((event) => {
+              const aircraftRow = Array.isArray(event.aircraft) ? event.aircraft[0] : event.aircraft
+              const tone = event.booking_type === 'checkout' ? 'blue' : 'green'
+              return (
+                <Link key={event.id} href="/admin/bookings/flights" className="rounded-xl border border-white/10 bg-white/[0.02] p-4 flex items-center justify-between gap-3 hover:bg-white/[0.05] transition-colors">
+                  <div>
+                    <p className="text-base text-white">{event.pic_name || 'Customer'} · {aircraftRow?.registration || 'VH-KZG'}</p>
+                    <p className="text-sm text-slate-400">{new Date(event.scheduled_start).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <StatusPill tone={tone} label={event.booking_type === 'checkout' ? 'Checkout' : 'Booking'} />
+                    {(event.status === 'checkout_payment_required' || event.status === 'awaiting_flight_record') && <StatusPill tone="amber" label={event.status === 'checkout_payment_required' ? 'Payment Required' : 'Awaiting Flight Record'} />}
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </section>
+
+        <section>
+          <SectionTitle title="Aircraft Status" subtitle="VH-KZG operational summary and next activity." />
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+              <p className="text-sm text-slate-400">Aircraft</p>
+              <p className="text-2xl text-white mt-1">{aircraft?.registration || 'VH-KZG'}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+              <p className="text-sm text-slate-400">Availability</p>
+              <p className="text-2xl mt-1 capitalize text-green-300">{aircraft?.status || 'unknown'}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+              <p className="text-sm text-slate-400">Next booking</p>
+              <p className="text-base text-white mt-2">{nextBooking ? new Date(nextBooking.scheduled_start).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'No upcoming booking'}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+              <p className="text-sm text-slate-400">Open squawks/issues</p>
+              <p className="text-2xl text-rose-300 mt-1">{openSquawks ?? 0}</p>
+            </div>
+          </div>
+        </section>
       </div>
     </>
   )

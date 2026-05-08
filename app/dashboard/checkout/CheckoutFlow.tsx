@@ -42,7 +42,7 @@ type Props = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-// Reference rate for display only — actual amount is set by admin after the flight
+// Reference rate for display only — actual amount is set by team after the flight
 const CHECKOUT_RATE = 290
 
 const ALL_TIME_OPTIONS = (() => {
@@ -57,6 +57,7 @@ const ALL_TIME_OPTIONS = (() => {
   }
   return opts
 })()
+const RECOMMENDED_DAY_START_TIMES = ['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00']
 
 // Returns an HH:MM string that is 2 hours after the given HH:MM, clamped to 22:00.
 function addTwoHours(timeStr: string): string {
@@ -793,6 +794,8 @@ function DocCard({
   const today   = new Date().toISOString().split('T')[0]!
   const expired = doc?.expiry_date ? doc.expiry_date < today : false
   const ok      = !!doc && !expired && doc.status !== 'rejected'
+  const uploadedOn = doc?.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : null
+  const secondaryFilename = doc?.file_name ? (doc.file_name.length > 24 ? `${doc.file_name.slice(0, 24)}...` : doc.file_name) : null
   const [modalOpen, setModalOpen] = useState(false)
 
   return (
@@ -824,26 +827,30 @@ function DocCard({
             <p className={`text-sm font-medium truncate ${ok ? 'text-white' : 'text-slate-400'}`}>{def.label}</p>
             {/* Metadata summary */}
             {ok && (
-              <p className="text-[10px] text-slate-600 mt-0.5 truncate">
-                {doc?.licence_type  && `${doc.licence_type} · `}
-                {doc?.medical_class && `${doc.medical_class} · `}
-                {doc?.id_type       && `${doc.id_type} · `}
-                {doc?.file_name}
-              </p>
+              <p className="text-[12px] text-slate-400 mt-0.5 truncate">Uploaded{uploadedOn ? ` on ${uploadedOn}` : ''}</p>
             )}
+            {ok && secondaryFilename && <p className="text-[10px] text-slate-500 truncate">{secondaryFilename}</p>}
             {expired && <p className="text-[10px] text-red-400 mt-0.5">Expired — please replace</p>}
           </div>
         </div>
         {/* Right: status badge + action */}
         <div className="flex items-center gap-2 flex-shrink-0 ml-3">
           {ok
-            ? <span className="text-[9px] font-bold uppercase tracking-widest text-green-400 border border-green-400/30 bg-green-500/10 px-2 py-0.5 rounded">Uploaded</span>
+            ? <span className="text-[10px] font-bold uppercase tracking-widest text-green-400 border border-green-400/30 bg-green-500/10 px-2 py-0.5 rounded">Uploaded</span>
             : expired
             ? <span className="text-[9px] font-bold uppercase tracking-widest text-red-400 border border-red-400/30 bg-red-500/10 px-2 py-0.5 rounded">Expired</span>
             : doc?.status === 'rejected'
             ? <span className="text-[9px] font-bold uppercase tracking-widest text-red-400 border border-red-400/30 bg-red-500/10 px-2 py-0.5 rounded">Rejected</span>
             : <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500 border border-white/10 px-2 py-0.5 rounded">Required</span>
           }
+          {ok && (
+            <button
+              onClick={() => setModalOpen(true)}
+              className="text-[10px] font-bold uppercase tracking-widest text-blue-300 border border-blue-500/30 hover:bg-blue-500/10 transition-colors px-2.5 py-1 rounded-full"
+            >
+              View
+            </button>
+          )}
           <button
             onClick={() => setModalOpen(true)}
             className={`text-[9px] font-bold uppercase tracking-widest transition-colors px-2.5 py-1 rounded-full border ${
@@ -852,7 +859,7 @@ function DocCard({
                 : 'text-blue-400 border-blue-500/30 hover:bg-blue-500/10'
             }`}
           >
-            {ok ? 'Replace' : 'Upload'}
+            {ok ? 'Replace' : def.type === 'photo_id' ? 'Upload photo ID' : 'Upload'}
           </button>
         </div>
       </div>
@@ -896,8 +903,8 @@ export default function CheckoutFlow({
   // Result state
   const [checkoutResult, setCheckoutResult] = useState<CheckoutBookingResult | null>(null)
 
-  // Optional message to admin
-  const [adminMessage, setAdminMessage] = useState('')
+  // Optional message to team
+  const [teamMessage, setTeamMessage] = useState('')
 
   // Last flight date — pre-filled from profile so it stays in sync with Documents page
   const [lastFlightDate, setLastFlightDate] = useState(initialLastFlightDate)
@@ -1019,7 +1026,7 @@ export default function CheckoutFlow({
           scheduled_time_sydney: startTime,
           has_night_vfr:         nightVfrRating,
           last_flight_date:      lastFlightDate || null,
-          customer_notes:        adminMessage.trim() || null,
+          customer_notes:        teamMessage.trim() || null,
           // scheduled_end is computed server-side as start + 2 hours
         })
         setCheckoutResult(result)
@@ -1047,7 +1054,7 @@ export default function CheckoutFlow({
           className="inline-flex items-center gap-1 text-oz-blue hover:text-blue-300 text-sm mb-8 transition-colors"
         >
           <span className="material-symbols-outlined text-base">arrow_back</span>
-          Back to Dashboard
+          Back to Overview
         </Link>
         <div className={`${CARD} p-8 text-center space-y-5`}>
           <div className="w-16 h-16 rounded-full bg-blue-500/15 border border-blue-500/30 flex items-center justify-center mx-auto">
@@ -1063,7 +1070,7 @@ export default function CheckoutFlow({
             onClick={() => router.push('/dashboard')}
             className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
           >
-            Go to Dashboard
+            Go to Overview
           </button>
         </div>
       </div>
@@ -1079,7 +1086,7 @@ export default function CheckoutFlow({
         className="inline-flex items-center gap-1 text-oz-blue hover:text-blue-300 text-sm mb-8 transition-colors"
       >
         <span className="material-symbols-outlined text-base">arrow_back</span>
-        Back to Dashboard
+        Back to Overview
       </Link>
 
       {/* Page header */}
@@ -1090,7 +1097,7 @@ export default function CheckoutFlow({
         <h1 className="text-3xl font-serif text-white tracking-tight">
           Book Your Checkout Flight
         </h1>
-        <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+        <p className="text-base text-slate-400 mt-2 leading-relaxed">
           To fly solo with us, you must first complete a checkout flight with our team.
         </p>
       </div>
@@ -1109,7 +1116,7 @@ export default function CheckoutFlow({
           {/* Header */}
           <div>
             <h2 className="text-lg font-serif text-white mb-1">Select Your Checkout Flight Time</h2>
-            <p className="text-sm text-slate-500">
+            <p className="text-base text-slate-400">
               Choose when you would like to complete your checkout flight in the{' '}
               {aircraftDisplayName}, registration {aircraftRegistration}.
             </p>
@@ -1121,7 +1128,7 @@ export default function CheckoutFlow({
             <div className="flex flex-wrap gap-x-5 gap-y-1">
               <span className="text-[11px] text-slate-400"><span className="text-slate-500">Aircraft:</span> {aircraftDisplayName} ({aircraftRegistration})</span>
               <span className="text-[11px] text-slate-400"><span className="text-slate-500">Session:</span> Checkout flight</span>
-              <span className="text-[11px] text-slate-400"><span className="text-slate-500">Slot:</span> 1 hr reserved</span>
+              <span className="text-[13px] text-slate-300"><span className="text-slate-500">Reserved slot:</span> 2 hours</span>
               <span className="text-[11px] text-slate-400"><span className="text-slate-500">Rate:</span> ${CHECKOUT_RATE}/hr (VDO meter) · $25/landing</span>
             </div>
           </div>
@@ -1150,9 +1157,12 @@ export default function CheckoutFlow({
               {/* Night VFR question — shown once date is selected */}
               {date && (
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block">
                     Do you hold a Night VFR Rating? <span className="text-red-400 font-normal normal-case">Required</span>
                   </label>
+                  <p className="text-[13px] text-slate-400">
+                    Only select yes if this is current and you can upload supporting evidence.
+                  </p>
                   <div className="grid grid-cols-2 gap-2">
                     {([true, false] as const).map(val => (
                       <button
@@ -1181,9 +1191,29 @@ export default function CheckoutFlow({
               {/* Departure time — shown once Night VFR is answered */}
               {date && nightVfrRating !== null && (
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block">
                     Departure time <span className="text-red-400 font-normal normal-case">Required</span>
                   </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {(nightVfrRating === false ? RECOMMENDED_DAY_START_TIMES : RECOMMENDED_DAY_START_TIMES.filter(t => timeOptions.some(o => o.value === t)))
+                      .filter(t => timeOptions.some(o => o.value === t))
+                      .map((t) => {
+                        const end = addTwoHours(t)
+                        const isActive = startTime === t
+                        return (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => { setStartTime(t); setAvail({ status: 'idle' }); setStepError(null); setSubmitError(null) }}
+                            className={`text-left px-3 py-2.5 rounded-lg border transition-all ${isActive ? 'bg-blue-500/15 border-blue-500/30 text-blue-300' : 'bg-white/[0.03] border-white/10 text-slate-300 hover:border-white/20 hover:text-white'}`}
+                          >
+                            <p className="text-[14px] font-medium">
+                              {ALL_TIME_OPTIONS.find(o => o.value === t)?.label} to {ALL_TIME_OPTIONS.find(o => o.value === end)?.label ?? end}
+                            </p>
+                          </button>
+                        )
+                      })}
+                  </div>
                   <TimeDropdown
                     value={startTime}
                     options={timeOptions}
@@ -1209,8 +1239,8 @@ export default function CheckoutFlow({
                     <span className="mx-2 text-slate-600">→</span>
                     {ALL_TIME_OPTIONS.find(o => o.value === endTime)?.label ?? endTime}
                   </p>
-                  <p className="text-[10px] text-slate-600 mt-1">A 2-hour slot is reserved for scheduling. The final amount is calculated from the VDO meter after the flight.</p>
-                </div>
+                    <p className="text-[13px] text-slate-400 mt-1">A 2-hour slot is reserved for scheduling.</p>
+                  </div>
               )}
 
               {/* D: Daily schedule timeline — shown once date + Night VFR are answered */}
@@ -1222,9 +1252,9 @@ export default function CheckoutFlow({
                     </p>
                   </div>
                   {startTime && (
-                    <p className="text-[10px] text-blue-400/60 mb-3 flex items-center gap-1.5">
+                    <p className="text-[12px] text-blue-300/70 mb-3 flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 300" }}>drag_pan</span>
-                      Drag the blue slot to adjust your checkout flight time.
+                      You can drag the blue slot to fine-tune the selected time.
                     </p>
                   )}
                   <AvailabilityTimeline
@@ -1272,8 +1302,8 @@ export default function CheckoutFlow({
                     <p className="text-sm text-blue-200/80 font-medium leading-snug">
                       No payment is required now.
                     </p>
-                    <p className="text-[11px] text-slate-400/80 mt-0.5 leading-relaxed">
-                      Checkout flights are billed after the flight using the aircraft VDO meter reading, plus any applicable landing fees. Estimated rate: $290/hour. Landing fees: $25 per landing, where applicable. The exact amount is calculated by our team after the flight.
+                    <p className="text-[13px] text-slate-300/90 mt-0.5 leading-relaxed">
+                      Your final checkout amount will be calculated after the flight using the aircraft VDO meter reading, plus any landing fees.
                     </p>
                   </div>
                 </div>
@@ -1304,7 +1334,7 @@ export default function CheckoutFlow({
         <div className={`${CARD} p-7 space-y-6`}>
           <div>
             <h2 className="text-lg font-serif text-white mb-1">Pilot Documents</h2>
-            <p className="text-sm text-slate-500 leading-relaxed">
+            <p className="text-base text-slate-400 leading-relaxed">
               Upload your required documents below. These are reviewed as part of your checkout request.
             </p>
           </div>
@@ -1322,16 +1352,21 @@ export default function CheckoutFlow({
               />
             ))}
           </div>
+          {!isDocOk(photoIdDoc) && (
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
+              <p className="text-sm text-amber-300">Please upload your Photo ID to continue.</p>
+            </div>
+          )}
 
           {/* Night VFR evidence — shown when user claims Night VFR Rating */}
           {nightVfrRating === true && (
             <div className="pt-4 border-t border-white/[0.06] space-y-3">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">
-                  Night VFR Evidence <span className="text-red-400 font-normal normal-case tracking-normal">Required</span>
+                  Night VFR evidence required <span className="text-red-400 font-normal normal-case tracking-normal">Required</span>
                 </p>
                 <p className="text-[10px] text-slate-600 leading-relaxed">
-                  Upload evidence that you hold a Night VFR rating. This can be a CASA licence record, eLicence screenshot, Night VFR flight review record, logbook endorsement, or other supporting document.
+                  Please upload proof that you hold a current Night VFR rating. This can be a CASA licence record, eLicence screenshot, Night VFR flight review record, logbook endorsement, or other supporting document.
                 </p>
               </div>
               <DocCard
@@ -1377,21 +1412,21 @@ export default function CheckoutFlow({
             )}
           </div>
 
-          {/* Optional admin message */}
+          {/* Optional team message */}
           <div className="space-y-2">
             <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
-              Additional message to admin <span className="text-slate-600 font-normal normal-case">(optional)</span>
+              Anything our team should know? <span className="text-slate-600 font-normal normal-case">(Optional)</span>
             </label>
             <textarea
-              value={adminMessage}
-              onChange={e => setAdminMessage(e.target.value)}
+              value={teamMessage}
+              onChange={e => setTeamMessage(e.target.value)}
               maxLength={1000}
               rows={3}
-              placeholder="Add any notes, timing preferences, questions, or context for the admin team..."
+              placeholder="Add any notes, timing preferences, questions, or context for our team..."
               className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors placeholder:text-white/20 resize-none"
             />
-            {adminMessage.length > 800 && (
-              <p className="text-[10px] text-slate-500 text-right">{adminMessage.length} / 1000</p>
+            {teamMessage.length > 800 && (
+              <p className="text-[10px] text-slate-500 text-right">{teamMessage.length} / 1000</p>
             )}
           </div>
 
@@ -1418,7 +1453,7 @@ export default function CheckoutFlow({
         <div className={`${CARD} p-7 space-y-6`}>
           <div>
             <h2 className="text-lg font-serif text-white mb-1">Review Your Checkout Request</h2>
-            <p className="text-sm text-slate-500">
+            <p className="text-base text-slate-400">
               Review the details below and submit your checkout request.
             </p>
           </div>
@@ -1428,8 +1463,8 @@ export default function CheckoutFlow({
             {[
               { label: 'Aircraft',         value: `${aircraftDisplayName} (${aircraftRegistration})` },
               { label: 'Date',             value: formatDate(date) },
-              { label: 'Departure',        value: formatDateTime(startUTC) },
-              { label: 'Return',           value: formatDateTime(endUTC) },
+              { label: 'Reserved from',    value: formatDateTime(startUTC) },
+              { label: 'Reserved until',   value: formatDateTime(endUTC) },
               { label: 'Slot reserved',    value: '2 hours (for scheduling)' },
               { label: 'Night VFR Rating', value: nightVfrRating === true ? 'Yes' : 'No' },
               { label: 'Flight window',    value: nightVfrRating === false
@@ -1455,11 +1490,11 @@ export default function CheckoutFlow({
             </div>
           )}
 
-          {/* Admin message summary */}
-          {adminMessage.trim() && (
+          {/* Team message summary */}
+          {teamMessage.trim() && (
             <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg px-4 py-3 space-y-1">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Your message to admin</p>
-              <p className="text-sm text-slate-300 leading-relaxed italic">&quot;{adminMessage.trim()}&quot;</p>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Your message to our team</p>
+              <p className="text-sm text-slate-300 leading-relaxed italic">&quot;{teamMessage.trim()}&quot;</p>
             </div>
           )}
 
@@ -1467,8 +1502,8 @@ export default function CheckoutFlow({
           <div className="bg-emerald-500/[0.06] border border-emerald-500/20 rounded-lg px-4 py-3 flex items-start gap-2">
             <span className="material-symbols-outlined text-emerald-400 text-[15px] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>info</span>
             <div>
-              <p className="text-[11px] text-emerald-300/80 leading-relaxed">
-                No payment is required now. The final checkout amount is calculated after the flight using the aircraft VDO meter reading, plus any applicable landing fees ($25 per landing). You will receive a checkout invoice after the outcome is recorded.
+              <p className="text-[13px] text-emerald-300/80 leading-relaxed">
+                No payment is required now. Your final checkout amount will be calculated after the flight using the aircraft VDO meter reading, plus any landing fees.
               </p>
             </div>
           </div>
@@ -1477,7 +1512,7 @@ export default function CheckoutFlow({
           <div className="bg-blue-500/[0.06] border border-blue-500/20 rounded-lg px-4 py-3 space-y-1">
             <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400">What happens after you submit</p>
             <p className="text-sm text-blue-200/70 leading-relaxed">
-              Once you submit this checkout request, your selected checkout time and documents will be sent to the admin team for review. Our Team may confirm this time or suggest an alternative. You&apos;ll be notified once the request has been reviewed.
+              Submitting this does not confirm the checkout flight yet. Our team will review your selected time and documents, then confirm this time or suggest an alternative.
             </p>
           </div>
 
@@ -1514,9 +1549,18 @@ export default function CheckoutFlow({
           </div>
           <div>
             <h2 className="text-2xl font-serif text-white mb-3">Checkout request submitted</h2>
-            <p className="text-sm text-slate-400 leading-relaxed max-w-md mx-auto">
-              Your checkout request has been submitted for review. Our team will review your selected time and documents. Aircraft bookings will become available after your checkout flight is completed and paid.
+            <p className="text-base text-slate-300 leading-relaxed max-w-xl mx-auto">
+              Your checkout request has been submitted for review. Our team will review your selected time and documents, then confirm the booking or suggest another time. Aircraft bookings will become available after your checkout flight is completed, approved, and any final amount has been paid.
             </p>
+          </div>
+          <div className="text-left bg-blue-500/[0.06] border border-blue-500/20 rounded-lg px-4 py-4 max-w-xl mx-auto">
+            <h3 className="text-[12px] font-bold uppercase tracking-widest text-blue-300 mb-2">What happens next</h3>
+            <ol className="space-y-1 text-[14px] text-slate-300">
+              <li>1. Our team reviews your selected time and documents.</li>
+              <li>2. We will confirm the checkout flight or suggest another time.</li>
+              <li>3. After the checkout flight, the final amount is calculated from the aircraft meter reading and any landing fees.</li>
+              <li>4. Once completed, approved, and paid, you will be cleared to book aircraft.</li>
+            </ol>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
             <button
@@ -1529,7 +1573,7 @@ export default function CheckoutFlow({
               onClick={() => router.push('/dashboard')}
               className="flex-1 py-3 border border-white/15 hover:border-white/25 hover:bg-white/[0.04] text-white/70 hover:text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
             >
-              Go to Dashboard
+              Go to Overview
             </button>
           </div>
         </div>

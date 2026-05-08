@@ -117,7 +117,7 @@ const CLEARANCE_HERO: Record<PilotClearanceStatus | string, HeroContent> = {
   checkout_awaiting_manual_payment: {
     subtitle: 'Payment Submitted',
     title:    'Awaiting Payment Confirmation',
-    body:     'Your bank transfer details have been submitted. An admin will verify the payment before your checkout result is finalised. No further action is required from you right now.',
+    body:     'Your bank transfer details have been submitted. Our team will verify the payment before your checkout result is finalised. No further action is required from you right now.',
     cta1:     'View Payment Details',
     cta1href: '/dashboard/bookings',   // overridden at render time with bookingId
     cta2:     'Contact Support',
@@ -139,7 +139,7 @@ const CLEARANCE_HERO: Record<PilotClearanceStatus | string, HeroContent> = {
   additional_checkout_required: {
     subtitle: 'Checkout Outcome',
     title:    'Additional Checkout Required',
-    body:     'Following your checkout, the admin team has determined that an additional checkout session is required before you can be cleared to fly. Book another checkout flight to continue your progress.',
+    body:     'Following your checkout, our team has determined that an additional checkout session is required before you can be cleared to fly. Book another checkout flight to continue your progress.',
     cta1:     'Book Another Checkout',
     cta1href: '/dashboard/checkout',
     cta2:     'Contact Support',
@@ -180,15 +180,17 @@ const CLEARANCE_STEPS: Record<PilotClearanceStatus, Step[]> = {
   checkout_required: [
     { label: 'Account created',      state: 'done'    },
     { label: 'Book checkout flight',  state: 'active'  },
-    { label: 'Complete checkout',     state: 'pending' },
-    { label: 'Cleared to fly', state: 'pending' },
+    { label: 'Upload documents',      state: 'pending' },
+    { label: 'Team review',           state: 'pending' },
+    { label: 'Complete checkout flight', state: 'pending' },
+    { label: 'Cleared to book aircraft', state: 'pending' },
   ],
   checkout_requested: [
     { label: 'Account created',             state: 'done'   },
     { label: 'Checkout request submitted',  state: 'done'   },
-    { label: 'Request confirmed',           state: 'active' },
-    { label: 'Complete checkout',           state: 'pending'},
-    { label: 'Cleared to fly',       state: 'pending'},
+    { label: 'Team review',                 state: 'active' },
+    { label: 'Complete checkout flight',    state: 'pending'},
+    { label: 'Cleared to book aircraft',    state: 'pending'},
   ],
   checkout_confirmed: [
     { label: 'Account created',       state: 'done'   },
@@ -230,6 +232,74 @@ const CLEARANCE_STEPS: Record<PilotClearanceStatus, Step[]> = {
     { label: 'Not currently eligible',   state: 'failed' },
     { label: 'Arrange further training', state: 'active' },
   ],
+}
+
+type NextStepConfig = {
+  title: string
+  body: string
+  primaryLabel: string
+  primaryHref: string
+  secondaryLabel?: string
+  secondaryHref?: string
+}
+
+const NEXT_STEP_BY_CLEARANCE: Record<PilotClearanceStatus, NextStepConfig> = {
+  checkout_required: {
+    title: 'Next step: Book your checkout flight',
+    body: 'Before you can hire the aircraft solo, you need to complete a one-time checkout flight with our team.',
+    primaryLabel: 'Book checkout flight',
+    primaryHref: '/dashboard/checkout',
+  },
+  checkout_requested: {
+    title: 'Next step: Wait for team review',
+    body: 'Your checkout request has been submitted. Our team will review your selected time and documents, then confirm the booking or suggest another time.',
+    primaryLabel: 'View my bookings',
+    primaryHref: '/dashboard/bookings',
+    secondaryLabel: 'Contact support',
+    secondaryHref: '/dashboard/messages',
+  },
+  checkout_confirmed: {
+    title: 'Next step: Attend your checkout flight',
+    body: 'Your checkout flight has been confirmed. Please attend at the scheduled time and bring anything required for the flight.',
+    primaryLabel: 'View checkout booking',
+    primaryHref: '/dashboard/bookings',
+  },
+  checkout_completed_under_review: {
+    title: 'Next step: Wait for checkout outcome',
+    body: 'Your checkout flight has been completed and is now being reviewed by our team. We will update you once the outcome is ready.',
+    primaryLabel: 'View my bookings',
+    primaryHref: '/dashboard/bookings',
+  },
+  checkout_payment_required: {
+    title: 'Next step: Complete checkout payment',
+    body: 'Your checkout flight has been reviewed and payment is required before you can be cleared to book aircraft.',
+    primaryLabel: 'Make payment',
+    primaryHref: '/dashboard/bookings',
+  },
+  cleared_to_fly: {
+    title: 'Next step: Book an aircraft',
+    body: 'You are cleared to book aircraft. Choose your preferred date and time to make a booking.',
+    primaryLabel: 'Book a flight',
+    primaryHref: '/dashboard/bookings/new',
+  },
+  additional_checkout_required: {
+    title: 'Next step: Additional checkout required',
+    body: 'Our team needs you to complete additional checkout time before you can be cleared to book aircraft.',
+    primaryLabel: 'Book additional checkout',
+    primaryHref: '/dashboard/checkout',
+  },
+  checkout_reschedule_required: {
+    title: 'Next step: Choose a new checkout time',
+    body: 'Our team needs you to select another checkout time. Please choose a new time so we can review and confirm it.',
+    primaryLabel: 'Reschedule checkout',
+    primaryHref: '/dashboard/checkout',
+  },
+  not_currently_eligible: {
+    title: 'Account not currently eligible',
+    body: 'Your account is not currently eligible to book aircraft. Please contact our team if you have questions.',
+    primaryLabel: 'Contact support',
+    primaryHref: '/dashboard/messages',
+  },
 }
 
 // ─── Step icon ───────────────────────────────────────────────────────────────
@@ -342,7 +412,7 @@ export default function DashboardContent({ user, profile, documents, events, isF
       ? {
           subtitle: 'Payment Submitted',
           title:    'Awaiting Payment Confirmation',
-          body:     'Your bank transfer details have been submitted. An admin will verify the payment before your checkout result is finalised. No further action is required from you right now.',
+          body:     'Your bank transfer details have been submitted. Our team will verify the payment before your checkout result is finalised. No further action is required from you right now.',
           cta1:     'View Payment Details',
           cta1href: checkoutBookingId ? `/dashboard/bookings/${checkoutBookingId}` : '/dashboard/bookings',
           cta2:     'Contact Support',
@@ -379,6 +449,7 @@ export default function DashboardContent({ user, profile, documents, events, isF
   const hero = { ...CLEARANCE_HERO[clearanceStatus], ...paymentHeroOverride }
   const isCleared       = clearanceStatus === 'cleared_to_fly'
   const inCheckoutFlow  = ['checkout_required', 'checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required'].includes(clearanceStatus)
+  const nextStep = NEXT_STEP_BY_CLEARANCE[clearanceStatus]
 
   const unreadCount       = events.filter(e => !e.is_read).length
 
@@ -599,7 +670,7 @@ export default function DashboardContent({ user, profile, documents, events, isF
                   <span className="material-symbols-outlined text-violet-400 text-[20px] flex-shrink-0">pending_actions</span>
                   <div>
                     <p className="text-[11px] font-bold text-violet-400 mb-0.5">Bank transfer submitted</p>
-                    <p className="text-[10px] text-slate-500 leading-relaxed">Awaiting admin verification. No further action needed.</p>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">Awaiting our team verification. No further action needed.</p>
                   </div>
                 </div>
               ) : (
@@ -673,101 +744,35 @@ export default function DashboardContent({ user, profile, documents, events, isF
       {/* ══ MAIN CONTENT ════════════════════════════════════════════════════ */}
       <div className="max-w-[1280px] mx-auto px-6 md:px-10 xl:px-12 py-10 space-y-8">
 
-        {clearanceStatus === 'checkout_requested' && (
-          <section className="bg-blue-500/[0.06] border border-blue-500/20 rounded-xl p-6 space-y-3">
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-blue-400 text-xl animate-pulse" style={{ fontVariationSettings: "'wght' 300" }}>
-                pending_actions
-              </span>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-blue-400">
-                Checkout Request Under Review
-              </h4>
-            </div>
-            <p className="text-sm text-white/75 leading-relaxed pl-8">
-              Your selected checkout time has been submitted for review. Our Team may confirm this time or suggest an alternative. You will be notified once the request has been reviewed.
-            </p>
-          </section>
-        )}
-
-        {clearanceStatus === 'checkout_confirmed' && (
-          <section className="bg-green-500/[0.06] border border-green-500/20 rounded-xl p-6 space-y-3">
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-green-400 text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                verified
-              </span>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-green-400">
-                Checkout Confirmed
-              </h4>
-            </div>
-            <p className="text-sm text-white/75 leading-relaxed pl-8">
-              Your checkout flight has been confirmed by our team. Check your bookings for the full details.
-            </p>
-          </section>
-        )}
-
-        {clearanceStatus === 'checkout_completed_under_review' && (
-          <section className="bg-amber-500/[0.06] border border-amber-500/20 rounded-xl p-6 space-y-3">
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-amber-400 text-xl animate-pulse" style={{ fontVariationSettings: "'wght' 300" }}>
-                hourglass_top
-              </span>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-amber-400">
-                Checkout Outcome Under Review
-              </h4>
-            </div>
-            <p className="text-sm text-white/75 leading-relaxed pl-8">
-              Your checkout flight has been completed. The flight operations team is reviewing the outcome and will update your clearance status shortly.
-            </p>
-          </section>
-        )}
-
-        {clearanceStatus === 'additional_checkout_required' && (
-          <section className="bg-amber-500/[0.06] border border-amber-500/20 rounded-xl p-6 space-y-3">
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-amber-400 text-xl" style={{ fontVariationSettings: "'wght' 300" }}>
-                schedule
-              </span>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-amber-400">
-                Additional Checkout Required
-              </h4>
-            </div>
-            <p className="text-sm text-white/75 leading-relaxed pl-8">
-              Following your checkout, the admin team has determined that an additional checkout session is required before you can be cleared to fly. Book another checkout flight when you are ready to continue.
-            </p>
-          </section>
-        )}
-
-        {clearanceStatus === 'checkout_reschedule_required' && (
-          <section className="bg-amber-500/[0.06] border border-amber-500/20 rounded-xl p-6 space-y-3">
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-amber-400 text-xl" style={{ fontVariationSettings: "'wght' 300" }}>
-                event_repeat
-              </span>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-amber-400">
-                Checkout Reschedule Required
-              </h4>
-            </div>
-            <p className="text-sm text-white/75 leading-relaxed pl-8">
-              Your checkout could not be fully assessed this time. Book another checkout session when you are ready to try again.
-            </p>
-          </section>
-        )}
-
-        {clearanceStatus === 'not_currently_eligible' && (
-          <section className="bg-red-500/[0.06] border border-red-500/20 rounded-xl p-6 space-y-3">
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-red-400 text-xl" style={{ fontVariationSettings: "'wght' 300" }}>
-                block
-              </span>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-red-400">
-                Not Currently Eligible to Fly
-              </h4>
-            </div>
-            <p className="text-sm text-white/75 leading-relaxed pl-8">
-              Your account is not currently eligible to fly. Please contact the operations team for further information.
-            </p>
-          </section>
-        )}
+        <section className="bg-blue-500/[0.06] border border-blue-500/20 rounded-xl p-6 space-y-3">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-blue-400 text-xl" style={{ fontVariationSettings: "'wght' 300" }}>
+              task_alt
+            </span>
+            <h4 className="text-sm font-bold tracking-wide text-blue-300">
+              {nextStep.title}
+            </h4>
+          </div>
+          <p className="text-base text-white/80 leading-relaxed">
+            {nextStep.body}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => router.push(nextStep.primaryHref)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors"
+            >
+              {nextStep.primaryLabel}
+            </button>
+            {nextStep.secondaryLabel && nextStep.secondaryHref && (
+              <button
+                onClick={() => router.push(nextStep.secondaryHref!)}
+                className="inline-flex items-center gap-2 px-5 py-2.5 border border-white/20 hover:border-white/35 text-white/85 rounded-full text-xs font-bold uppercase tracking-widest transition-colors"
+              >
+                {nextStep.secondaryLabel}
+              </button>
+            )}
+          </div>
+        </section>
 
         {/* 2×2 Grid */}
         <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -812,8 +817,8 @@ export default function DashboardContent({ user, profile, documents, events, isF
               {documents.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-4 gap-3 text-center">
                   <span className="material-symbols-outlined text-white/10 text-4xl" style={{ fontVariationSettings: "'wght' 100, 'FILL' 0" }}>upload_file</span>
-                  <p className="text-sm text-slate-500 font-light leading-relaxed">
-                    No documents uploaded yet. Start with your pilot licence.
+                  <p className="text-base text-slate-400 font-light leading-relaxed">
+                    No documents uploaded yet. You’ll upload your required documents during the checkout request.
                   </p>
                 </div>
               ) : (

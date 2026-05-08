@@ -2,8 +2,9 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import CustomerPortalTopNav from '@/components/CustomerPortalTopNav'
 import CustomerPortalSubNav from '@/components/CustomerPortalSubNav'
-import Footer from '@/components/Footer'
+import PortalFooter from '@/components/PortalFooter'
 import type { PopoverNotification } from '@/lib/supabase/types'
+import type { PilotClearanceStatus } from '@/lib/supabase/types'
 
 // Single server-side shell for all /dashboard/* routes.
 // Fetches auth + profile once; child pages do their own data fetching.
@@ -15,7 +16,7 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, full_name, verification_status, last_notification_seen_at, last_bookings_viewed_at')
+    .select('role, full_name, verification_status, pilot_clearance_status, last_notification_seen_at, last_bookings_viewed_at')
     .eq('id', user.id)
     .single()
 
@@ -25,6 +26,7 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
   const displayName = profile?.full_name ?? user.email?.split('@')[0] ?? 'Pilot'
   const seenAt      = profile?.last_notification_seen_at ?? null
   const viewedAt    = profile?.last_bookings_viewed_at ?? null
+  const pilotClearanceStatus = (profile?.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
 
   // Fetch badge counts and recent notification events in parallel
   const [msgResult, notifResult, bookingResult] = await Promise.all([
@@ -98,11 +100,13 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
         displayName={displayName}
         notificationCount={notificationCount}
         recentNotifications={recentNotifications}
+        pilotClearanceStatus={pilotClearanceStatus}
       />
       <CustomerPortalSubNav
         verificationStatus={profile?.verification_status}
         messageCount={messageCount}
         bookingUpdateCount={bookingUpdateCount}
+        pilotClearanceStatus={pilotClearanceStatus}
       />
 
       {/* Page content */}
@@ -110,8 +114,7 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
         {children}
       </main>
 
-      {/* Global footer */}
-      <Footer forceShow />
+      <PortalFooter />
     </div>
   )
 }
