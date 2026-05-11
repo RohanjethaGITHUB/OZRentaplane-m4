@@ -405,7 +405,6 @@ export type CreateBookingInput = {
   scheduled_end: string          // ISO 8601
   last_flight_date: string       // YYYY-MM-DD — customer's most recent flight review date
   customer_notes?: string | null
-  terms_accepted?: boolean
   risk_acknowledgement_accepted?: boolean
 }
 
@@ -522,6 +521,11 @@ export type CreateCheckoutBookingInput = {
   scheduled_date_sydney: string          // YYYY-MM-DD
   scheduled_time_sydney: string          // HH:MM
   has_night_vfr:         boolean | null  // form selection — validated against profile on server
+  terms_accepted:        boolean
+  terms_document_id:     string
+  terms_version:         string
+  terms_document_url?:   string | null
+  terms_content_hash?:   string | null
   customer_notes?:       string | null
   last_flight_date?:     string | null   // YYYY-MM-DD — customer's most recent flight before checkout
 }

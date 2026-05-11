@@ -16,19 +16,32 @@ type NavGroupType = {
 
 const NAV_GROUPS: NavGroupType[] = [
   {
-    title: 'Overview',
+    title: 'Actions',
     href: '/admin',
     icon: 'dashboard',
+  },
+  {
+    title: 'Checkouts',
+    href: '/admin/checkouts',
+    icon: 'fact_check',
+    items: [
+      { label: 'Overview', href: '/admin/checkouts' },
+      { label: 'All Checkouts', href: '/admin/checkouts/all' },
+      { label: 'Payments', href: '/admin/checkouts/payments' },
+      { label: 'History', href: '/admin/checkouts/history' },
+    ],
   },
   {
     title: 'Bookings',
     href: '/admin/bookings',
     icon: 'event_seat',
     items: [
-      { label: 'Bookings Overview', href: '/admin/bookings' },
-      { label: 'Checkout Flights', href: '/admin/bookings/checkout' },
-      { label: 'Flight Bookings', href: '/admin/bookings/flights' },
-      { label: 'Payments & Cancellations', href: '/admin/bookings/payments-cancellations' },
+      { label: 'Overview', href: '/admin/bookings' },
+      { label: 'Upcoming Flights', href: '/admin/bookings/upcoming-flights' },
+      { label: 'Awaiting Flight Records', href: '/admin/bookings/awaiting-flight-records' },
+      { label: 'Post-flight Review', href: '/admin/bookings/post-flight-review' },
+      { label: 'Payments', href: '/admin/bookings/payments' },
+      { label: 'History', href: '/admin/bookings/history' },
     ],
   },
   {
@@ -81,6 +94,7 @@ export default function AdminSidebar({
   const supabase = createClient()
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    Checkouts: true,
     Bookings: true,
     Customers: true,
     Aircraft: true,
@@ -137,7 +151,7 @@ export default function AdminSidebar({
     <>
       <button
         onClick={() => setMobileMenuOpen(true)}
-        className="lg:hidden fixed top-20 left-4 z-40 p-2 bg-[#111620] border border-white/10 rounded-xl text-white/70 hover:text-white"
+        className="lg:hidden fixed top-20 left-4 z-40 p-2 bg-[var(--admin-sidebar-bg)] border border-[var(--admin-border)] rounded-xl text-[var(--admin-text-muted)] hover:text-[var(--admin-text)]"
       >
         <span className="material-symbols-outlined" style={{ fontVariationSettings: "'wght' 300" }}>menu</span>
       </button>
@@ -151,7 +165,7 @@ export default function AdminSidebar({
 
       <aside className={`
         fixed left-0 top-[64px] lg:top-0 lg:absolute h-[calc(100vh-64px)] lg:h-full w-72
-        border-r border-white/5 bg-slate-950/95 lg:bg-slate-950/50 backdrop-blur-xl z-[70] lg:z-10
+        border-r border-[var(--admin-border)] bg-[var(--admin-sidebar-bg)]/95 lg:bg-[var(--admin-sidebar-bg)]/88 backdrop-blur-xl z-[70] lg:z-10
         flex flex-col py-6 transition-transform duration-300 ease-in-out
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
@@ -161,9 +175,9 @@ export default function AdminSidebar({
           </button>
         </div>
 
-        <div className="hidden lg:block mb-8 px-8 mt-4">
-          <h1 className="text-lg font-serif italic text-blue-100 tracking-wide leading-tight">OZ Rent A Plane</h1>
-          <p className="text-xs text-slate-400 mt-1">Admin Control Centre</p>
+        <div className="hidden lg:block mb-10 px-8 mt-4">
+          <h1 className="text-[2.65rem] leading-none font-semibold italic tracking-tight text-[var(--admin-text)]">OZ Rent A Plane</h1>
+          <p className="text-xs tracking-[0.24em] uppercase text-[var(--admin-text-muted)] mt-2">Admin Control Centre</p>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-4 pb-6 custom-scrollbar flex flex-col gap-2 text-base">
@@ -180,10 +194,10 @@ export default function AdminSidebar({
                     href={group.href}
                     className={`flex-1 flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 border border-transparent
                       ${groupActive
-                        ? 'text-blue-200 font-semibold bg-[#0c1326] border-blue-900/50 shadow-[0_0_20px_rgba(30,58,138,0.2)]'
-                        : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
+                        ? 'text-[#dbeafe] font-semibold bg-[rgba(59,130,246,0.16)] border-[rgba(96,165,250,0.32)]'
+                        : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-white/5'}`}
                   >
-                    <span className={`material-symbols-outlined text-[20px] ${groupActive ? 'text-blue-300' : 'text-slate-500'}`} style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>
+                    <span className={`material-symbols-outlined text-[20px] ${groupActive ? 'text-[#93c5fd]' : 'text-[var(--admin-text-dim)]'}`} style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>
                       {group.icon}
                     </span>
                     <span className="flex-1 whitespace-nowrap">{group.title}</span>
@@ -197,7 +211,7 @@ export default function AdminSidebar({
                   {group.items && (
                     <button
                       onClick={(e) => toggleGroup(group.title, e)}
-                      className="p-2 ml-1 text-slate-500 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+                      className="p-2 ml-1 text-[var(--admin-text-dim)] hover:text-[var(--admin-text)] rounded-lg hover:bg-white/5 transition-colors"
                       title={`Toggle ${group.title}`}
                     >
                       <span className={`material-symbols-outlined text-[18px] transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
@@ -209,7 +223,7 @@ export default function AdminSidebar({
 
                 {group.items && (
                   <div className={`grid transition-[grid-template-rows,opacity] duration-[300ms] ease-in-out ${isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-                    <div className="overflow-hidden flex flex-col gap-1 pl-10 pr-2 border-l border-white/5 ml-6">
+                    <div className="overflow-hidden flex flex-col gap-1 pl-10 pr-2 border-l border-[var(--admin-divider)] ml-6">
                       <div className="py-1" />
                       {group.items.map(item => {
                         const active = isItemActive(item.href)
@@ -219,8 +233,8 @@ export default function AdminSidebar({
                             href={item.href}
                             className={`flex items-center px-3 py-2 rounded-lg text-sm transition-colors duration-200
                               ${active
-                                ? 'text-blue-200 font-semibold bg-white/[0.03]'
-                                : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.02]'}`}
+                                ? 'text-[var(--admin-accent)] font-semibold bg-[rgba(59,130,246,0.08)]'
+                                : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-white/[0.02]'}`}
                           >
                             <span>{item.label}</span>
                           </Link>
@@ -235,20 +249,20 @@ export default function AdminSidebar({
           })}
         </nav>
 
-        <div className="mt-auto px-4 pt-4 border-t border-white/5 shrink-0 block bg-slate-950/50 lg:bg-transparent">
-          <div className="px-4 py-3 flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-[16px] hover:bg-white/[0.05] transition-colors">
+        <div className="mt-auto px-4 pt-4 border-t border-[var(--admin-divider)] shrink-0 block bg-slate-950/50 lg:bg-transparent">
+          <div className="px-4 py-3 flex items-center justify-between bg-white/[0.03] border border-[var(--admin-border)] rounded-[16px] hover:bg-white/[0.05] transition-colors">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-full bg-blue-900/50 border border-blue-300/20 flex items-center justify-center flex-shrink-0 shadow-inner">
-                <span className="text-[11px] font-bold text-blue-200">{initials}</span>
+              <div className="w-9 h-9 rounded-full bg-[#1a2333] border border-[var(--admin-border)] flex items-center justify-center flex-shrink-0 shadow-inner">
+                <span className="text-[11px] font-bold text-[var(--admin-text)]">{initials}</span>
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-white truncate">{displayName}</p>
-                <p className="text-xs text-slate-500 mt-0.5">Administrator</p>
+                <p className="text-sm font-semibold text-[var(--admin-text)] truncate">{displayName}</p>
+                <p className="text-xs text-[var(--admin-text-dim)] mt-0.5">Administrator</p>
               </div>
             </div>
             <button
               onClick={handleLogout}
-              className="text-slate-500 hover:text-red-400/80 transition-colors flex-shrink-0 ml-2"
+              className="text-[var(--admin-text-dim)] hover:text-[var(--admin-danger)] transition-colors flex-shrink-0 ml-2"
               title="Sign out"
             >
               <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>logout</span>

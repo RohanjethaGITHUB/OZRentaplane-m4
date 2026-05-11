@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import ScreenshotMode from './ScreenshotMode'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
@@ -45,6 +46,18 @@ export const metadata: Metadata = {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const screenshotModeBootScript = `
+    (function () {
+      try {
+        var enabled = new URLSearchParams(window.location.search).get('screenshot') === '1';
+        if (enabled) {
+          document.documentElement.classList.add('screenshot-mode');
+          if (document.body) document.body.classList.add('screenshot-mode');
+        }
+      } catch (_) {}
+    })();
+  `
+
   return (
     <html lang="en">
       <head>
@@ -58,6 +71,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
           rel="stylesheet"
         />
+        <script dangerouslySetInnerHTML={{ __html: screenshotModeBootScript }} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -94,7 +108,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           }}
         />
       </head>
-      <body>
+      <body className="bg-[#06101f] text-slate-100">
+        <ScreenshotMode />
         {children}
       </body>
     </html>

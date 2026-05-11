@@ -11,7 +11,7 @@ const PUBLIC_LINKS = [
   { label: 'Fleet',             href: '/fleet'              },
   { label: 'Checkout Process',  href: '/checkout-process'   },
   { label: 'Safety',            href: '/safety'             },
-  { label: 'Resources',         href: '/pilotRequirements'  },
+  { label: 'Resources',         href: '/resources'          },
   { label: 'Pricing',           href: '/pricing'            },
 ]
 

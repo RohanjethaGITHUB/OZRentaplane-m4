@@ -88,7 +88,11 @@ function MetricChip({ value, unit, label, align = 'left' }: ChipProps) {
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function AircraftSpotlight() {
+type AircraftSpotlightProps = {
+  showHeading?: boolean
+}
+
+export default function AircraftSpotlight({ showHeading = true }: AircraftSpotlightProps) {
   const sectionRef = useRef<HTMLElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const isInView = useInView(sectionRef, { once: true, margin: '-25% 0px' })
@@ -155,35 +159,37 @@ export default function AircraftSpotlight() {
       <div className="relative z-10 max-w-6xl mx-auto">
 
         {/* ── Heading block ─────────────────────────────────────────────────── */}
-        <motion.div
-          variants={fadeUp}
-          initial="hidden"
-          animate={isInView ? 'visible' : 'hidden'}
-          transition={{ duration: 1.5, ease: EASE_OUT }}
-          className="mb-10 md:mb-14"
-        >
-          <p
-            className="font-sans font-semibold tracking-[0.44em] uppercase mb-5"
-            style={{ fontSize: '0.58rem', color: 'rgba(174,199,247,0.52)' }}
+        {showHeading ? (
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            animate={isInView ? 'visible' : 'hidden'}
+            transition={{ duration: 1.5, ease: EASE_OUT }}
+            className="mb-10 md:mb-14"
           >
-            Fleet Highlight
-          </p>
+            <p
+              className="font-sans font-semibold tracking-[0.44em] uppercase mb-5"
+              style={{ fontSize: '0.58rem', color: 'rgba(174,199,247,0.52)' }}
+            >
+              Fleet Highlight
+            </p>
 
-          <h2
-            className="font-serif font-normal leading-[1.04] tracking-tight mb-5"
-            style={{ fontSize: 'clamp(2rem, 4vw, 3.5rem)', color: '#d9e3f6' }}
-          >
-            Aircraft Spotlight
-          </h2>
+            <h2
+              className="font-serif font-normal leading-[1.04] tracking-tight mb-5"
+              style={{ fontSize: 'clamp(2rem, 4vw, 3.5rem)', color: '#d9e3f6' }}
+            >
+              Aircraft Spotlight
+            </h2>
 
-          <p
-            className="font-sans text-sm leading-relaxed max-w-[360px]"
-            style={{ color: '#c4c6cf', opacity: 0.82 }}
-          >
-            A trusted four-seat aircraft designed for stable handling,
-            practical touring range, and a calm flying experience.
-          </p>
-        </motion.div>
+            <p
+              className="font-sans text-sm leading-relaxed max-w-[360px]"
+              style={{ color: '#c4c6cf', opacity: 0.82 }}
+            >
+              A trusted four-seat aircraft designed for stable handling,
+              practical touring range, and a calm flying experience.
+            </p>
+          </motion.div>
+        ) : null}
 
         {/* ── Spotlight card ────────────────────────────────────────────────── */}
         <motion.div
@@ -288,7 +294,7 @@ export default function AircraftSpotlight() {
                 style={{ width: 'clamp(160px, 14vw, 200px)' }}
               >
                 <MetricChip value="4" unit="Seats" label="Capacity" />
-                <MetricChip value="640" unit="NM" label="Range" />
+                <MetricChip value="50 gal" unit="/ 189 L" label="Fuel Capacity" />
               </motion.div>
 
               {/* Aircraft viewer — takes remaining space */}
@@ -315,7 +321,7 @@ export default function AircraftSpotlight() {
                 style={{ width: 'clamp(160px, 14vw, 200px)' }}
               >
                 <MetricChip value="122" unit="KTAS" label="Cruise" align="right" />
-                <MetricChip value="Garmin" unit="G1000 NXi" label="Avionics" align="right" />
+                <MetricChip value="2,400 lb" unit="/ 1,088 kg" label="MTOW" align="right" />
               </motion.div>
 
             </div>
@@ -329,8 +335,8 @@ export default function AircraftSpotlight() {
             >
               <MetricChip value="4" unit="Seats" label="Capacity" />
               <MetricChip value="122" unit="KTAS" label="Cruise" />
-              <MetricChip value="640" unit="NM" label="Range" />
-              <MetricChip value="Garmin" unit="G1000" label="Avionics" />
+              <MetricChip value="50 gal" unit="/ 189 L" label="Fuel Capacity" />
+              <MetricChip value="398 kg" unit="useful" label="Useful Load" />
             </motion.div>
 
             {/* ── BG layer 5: model label strip at card bottom ── */}

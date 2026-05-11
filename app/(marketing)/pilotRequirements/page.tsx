@@ -51,8 +51,8 @@ export default function PilotRequirementsPage() {
         </div>
       </section>
 
-      {/* 2. Eligibility Overview Cards — sits cleanly below hero, no aggressive overlap */}
-      <section className="relative px-6 md:px-12 lg:px-20 max-w-7xl mx-auto -mt-10 z-20">
+      {/* 3. Eligibility Overview Cards — sits cleanly below hero, no aggressive overlap */}
+      <section className="relative px-6 md:px-12 lg:px-20 max-w-7xl mx-auto mt-0 z-20">
         <StaggerContainer className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6" staggerDelay={0.2} viewportMargin="-20%">
           {/* Card 1 */}
           <StaggerItem duration={1.4}>
@@ -238,7 +238,7 @@ export default function PilotRequirementsPage() {
               { id: 1, title: 'Profile Submitted', desc: 'Securely upload your flight credentials.' },
               { id: 2, title: 'Document Review', desc: 'Verify medical and CASA status in database.' },
               { id: 3, title: 'Review & Verification', desc: 'Background check processing by chief pilot.' },
-              { id: 4, title: 'Checkout Induction', desc: 'Flight evaluation with an OZRent instructor.' },
+              { id: 4, title: 'Checkout Induction', desc: 'Checkout flight evaluation with the Oz Rent A Plane team.' },
               { id: 5, title: 'Booking Access', desc: 'Full profile unlocked for aircraft reservations.' },
             ].map((step, idx) => (
               <StaggerItem key={idx} duration={1.4} className="relative z-10 flex flex-col items-center flex-1 text-center group">
@@ -373,7 +373,6 @@ export default function PilotRequirementsPage() {
           </StaggerContainer>
         </div>
       </section>
-
     </main>
   )
 }

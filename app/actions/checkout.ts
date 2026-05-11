@@ -1,7 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
 import { isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
 import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 import type {
@@ -48,6 +51,7 @@ export async function submitCheckoutRequest(
   input: CreateCheckoutBookingInput,
 ): Promise<CheckoutBookingResult> {
   const { supabase, userId, profile } = await requireCustomer()
+  const ACCEPTANCE_TEXT = 'I have read and accept the Checkout Terms and Conditions.'
 
   // ── Document gate ──────────────────────────────────────────────────────────
   // Validates all required document fields per document type.
@@ -158,6 +162,68 @@ export async function submitCheckoutRequest(
     )
   }
 
+  if (!input.terms_accepted) {
+    throw new Error('VALIDATION: You must accept the Checkout Terms and Conditions before submitting.')
+  }
+
+  let activeTermsRow: Record<string, unknown> | null = null
+  {
+    const primary = await supabase
+      .from('terms_documents')
+      .select('*')
+      .eq('is_active', true)
+      .order('effective_from', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle()
+
+    activeTermsRow = (primary.data as Record<string, unknown> | null)
+      ?? (await supabase
+        .from('terms_documents')
+        .select('*')
+        .order('effective_from', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle()).data as Record<string, unknown> | null
+    if (!activeTermsRow) {
+      // RLS-safe fallback: use service role for authoritative active terms lookup.
+      const admin = createAdminClient()
+      const adminPrimary = await admin
+        .from('terms_documents')
+        .select('*')
+        .eq('is_active', true)
+        .order('effective_from', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle()
+      activeTermsRow = (adminPrimary.data as Record<string, unknown> | null)
+        ?? (await admin
+          .from('terms_documents')
+          .select('*')
+          .order('effective_from', { ascending: false, nullsFirst: false })
+          .order('created_at', { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle()).data as Record<string, unknown> | null
+    }
+  }
+  const normalizedTerms = normalizeActiveCheckoutTerms(activeTermsRow)
+  if (!normalizedTerms) {
+    throw new Error('VALIDATION: No active checkout terms document is available right now. Please try again.')
+  }
+  const activeTermsId = normalizedTerms.id
+  const activeTermsVersion = normalizedTerms.version
+  const activeTermsUrl = normalizedTerms.public_url
+  const activeTermsHash = normalizedTerms.content_hash
+  if (!input.terms_document_id || !input.terms_version || !input.terms_content_hash) {
+    throw new Error('VALIDATION: Terms acceptance details were not submitted. Please review and accept terms again.')
+  }
+  if (input.terms_document_id !== activeTermsId || input.terms_version !== activeTermsVersion) {
+    throw new Error('VALIDATION: Checkout Terms and Conditions were updated. Please review and accept the latest version.')
+  }
+  if (activeTermsHash && input.terms_content_hash !== activeTermsHash) {
+    throw new Error('VALIDATION: Checkout Terms and Conditions were updated. Please review and accept the latest version.')
+  }
+
   // ── Time validation ────────────────────────────────────────────────────────
   const start = new Date(input.scheduled_start)
   if (isNaN(start.getTime())) {
@@ -179,7 +245,8 @@ export async function submitCheckoutRequest(
     throw new Error(error.message)
   }
 
-  const result = data as {
+  const rpcRow = Array.isArray(data) ? data[0] : data
+  const result = rpcRow as {
     booking_id:        string
     booking_reference: string
     scheduled_start:   string
@@ -187,6 +254,136 @@ export async function submitCheckoutRequest(
     status:            string
     estimated_hours:   number
     estimated_amount:  number
+  }
+  const bookingId = typeof result?.booking_id === 'string' ? result.booking_id : ''
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(bookingId)
+  if (!isUuid) {
+    console.error('[submitCheckoutRequest] RPC returned invalid booking_id shape:', {
+      data,
+      parsed: result,
+    })
+    throw new Error('Checkout request could not be created due to an invalid server response. Please try again.')
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.info(
+      '[submitCheckoutRequest] booking_id=%s status=%s booking_reference=%s scheduled_start=%s',
+      bookingId,
+      result.status,
+      result.booking_reference,
+      result.scheduled_start,
+    )
+  }
+
+  const h = await headers()
+  const forwardedFor = h.get('x-forwarded-for')
+  const acceptedIp =
+    forwardedFor?.split(',')[0]?.trim() ||
+    h.get('x-real-ip')?.trim() ||
+    h.get('cf-connecting-ip')?.trim() ||
+    null
+  const userAgent = h.get('user-agent') ?? null
+
+  const admin = createAdminClient()
+  const acceptancePayload = {
+    user_id: userId,
+    booking_id: null,
+    checkout_request_id: bookingId,
+    terms_document_id: activeTermsId,
+    terms_version: activeTermsVersion,
+    terms_document_url: input.terms_document_url || activeTermsUrl,
+    terms_content_hash: input.terms_content_hash || (activeTermsHash || null),
+    acceptance_text: ACCEPTANCE_TEXT,
+    accepted_ip: acceptedIp,
+    user_agent: userAgent,
+  }
+
+  const { error: termsErr } = await admin
+    .from('booking_terms_acceptances')
+    .insert(acceptancePayload)
+  if (termsErr) {
+    console.error('[submitCheckoutRequest] booking_terms_acceptances insert failed:', {
+      message: termsErr.message,
+      details: termsErr.details,
+      hint: termsErr.hint,
+      code: termsErr.code,
+      booking_id: bookingId,
+      user_id: userId,
+      terms_document_id: activeTermsId,
+      terms_version: activeTermsVersion,
+      terms_content_hash: acceptancePayload.terms_content_hash,
+    })
+    const rollback: {
+      attempted: boolean
+      blocks_deleted: number | null
+      booking_deleted: boolean
+      profile_restored: boolean
+      error: string | null
+      skipped_cleanup_reason: string | null
+    } = {
+      attempted: true,
+      blocks_deleted: null,
+      booking_deleted: false,
+      profile_restored: false,
+      error: null,
+      skipped_cleanup_reason: null,
+    }
+
+    try {
+      if (!isUuid) {
+        rollback.skipped_cleanup_reason = 'booking_id missing/invalid; cleanup not attempted'
+      } else {
+        const { count: deletedBlocks, error: blocksErr } = await admin
+          .from('schedule_blocks')
+          .delete({ count: 'exact' })
+          .eq('related_booking_id', bookingId)
+        if (blocksErr) throw new Error(`schedule_blocks cleanup failed: ${blocksErr.message}`)
+        rollback.blocks_deleted = deletedBlocks ?? 0
+
+        const { error: bookingDeleteErr } = await admin
+          .from('bookings')
+          .delete()
+          .eq('id', bookingId)
+          .eq('booking_owner_user_id', userId)
+          .eq('booking_type', 'checkout')
+          .eq('status', 'checkout_requested')
+        if (bookingDeleteErr) throw new Error(`booking cleanup failed: ${bookingDeleteErr.message}`)
+        rollback.booking_deleted = true
+
+        const previousClearance = profile.pilot_clearance_status
+        if (previousClearance && previousClearance !== 'checkout_requested') {
+          const { error: profileRestoreErr } = await admin
+            .from('profiles')
+            .update({ pilot_clearance_status: previousClearance, updated_at: new Date().toISOString() })
+            .eq('id', userId)
+          if (profileRestoreErr) throw new Error(`profile restore failed: ${profileRestoreErr.message}`)
+          rollback.profile_restored = true
+        }
+      }
+    } catch (rollbackErr) {
+      rollback.error = rollbackErr instanceof Error ? rollbackErr.message : 'unknown rollback error'
+      console.error('[submitCheckoutRequest] rollback failed after terms insert error:', {
+        booking_id: bookingId || null,
+        user_id: userId,
+        rollback,
+      })
+    }
+
+    const isSchemaCacheError =
+      termsErr.code === 'PGRST204' &&
+      (termsErr.message?.includes("'terms_content_hash' column") || termsErr.message?.includes('schema cache'))
+
+    if (process.env.NODE_ENV !== 'production') {
+      if (isSchemaCacheError) {
+        throw new Error(
+          `Unable to record your terms acceptance. Schema cache mismatch for booking_terms_acceptances. Apply migration 059/061 and run: notify pgrst, 'reload schema'. DB error: ${termsErr.message}. Rollback: ${JSON.stringify(rollback)}`
+        )
+      }
+      throw new Error(
+        `Unable to record your terms acceptance. DB error: ${termsErr.message}${termsErr.code ? ` (code ${termsErr.code})` : ''}. Rollback: ${JSON.stringify(rollback)}`
+      )
+    }
+    throw new Error('Unable to record your terms acceptance. Please try again.')
   }
 
   // Save last_flight_date to both the booking and the profile so the Documents
@@ -196,7 +393,7 @@ export async function submitCheckoutRequest(
       supabase
         .from('bookings')
         .update({ last_flight_date: input.last_flight_date })
-        .eq('id', result.booking_id),
+        .eq('id', bookingId),
       supabase
         .from('profiles')
         .update({ last_flight_date: input.last_flight_date })
@@ -218,9 +415,11 @@ export async function submitCheckoutRequest(
 
   revalidatePath('/dashboard')
   revalidatePath('/admin')
+  revalidatePath('/admin/checkouts')
+  revalidatePath('/admin/checkouts/all')
 
   return {
-    bookingId:        result.booking_id,
+    bookingId,
     bookingReference: result.booking_reference,
     scheduledStart:   result.scheduled_start,
     scheduledEnd:     result.scheduled_end,
@@ -245,4 +444,3 @@ export async function getMyCheckoutBooking() {
 
   return data ?? null
 }
-

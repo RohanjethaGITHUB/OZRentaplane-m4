@@ -17,6 +17,7 @@ import { formatDate, formatDateTime } from '@/lib/formatDateTime'
 import type { UserDocument, DocumentType } from '@/lib/supabase/types'
 import type { CheckoutBookingResult } from '@/lib/supabase/booking-types'
 import CalendarDateField from '@/components/CalendarDateField'
+import RunwayJourney from '@/components/customer/RunwayJourney'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -29,15 +30,24 @@ type AvailabilityState =
 type Step = 'time' | 'documents' | 'review' | 'success'
 
 type Props = {
+  firstName:               string
   aircraftId:               string
   aircraftRegistration:     string
   aircraftDisplayName:      string
   aircraftStatus:           string
   documents:                UserDocument[]
   pilotClearanceStatus:     string
+  journeyActiveIndex:       number
+  journeyCompletedMap:      Record<string, boolean>
   initialLastFlightDate:    string
   initialNightVfrRating:    boolean | null
   initialInstrumentRating:  boolean | null
+  activeCheckoutTerms: {
+    id: string
+    version: string
+    public_url: string
+    content_hash: string | null
+  }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -57,8 +67,6 @@ const ALL_TIME_OPTIONS = (() => {
   }
   return opts
 })()
-const RECOMMENDED_DAY_START_TIMES = ['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00']
-
 // Returns an HH:MM string that is 2 hours after the given HH:MM, clamped to 22:00.
 function addTwoHours(timeStr: string): string {
   const [h, m] = timeStr.split(':').map(Number)
@@ -107,43 +115,7 @@ function timeStrToMin(t: string): number {
 
 // ── Step indicator ─────────────────────────────────────────────────────────────
 
-function StepIndicator({ current }: { current: Step }) {
-  const steps: { key: Step; label: string }[] = [
-    { key: 'time',      label: 'Checkout Time'  },
-    { key: 'documents', label: 'Documents'       },
-    { key: 'review',    label: 'Review & Submit' },
-  ]
-  const order: Step[] = ['time', 'documents', 'review', 'success']
-  const currentIdx = order.indexOf(current)
-
-  return (
-    <div className="flex items-center gap-6 sm:gap-10">
-      {steps.map((step, i) => {
-        const state = i < currentIdx ? 'done' : i === currentIdx ? 'active' : 'pending'
-        return (
-          <div key={step.key} className="flex items-center gap-2.5">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold
-              ${state === 'done'    ? 'bg-green-500/15 border border-green-500/40 text-green-400' : ''}
-              ${state === 'active'  ? 'bg-blue-600/20 border border-blue-500/50 text-blue-400' : ''}
-              ${state === 'pending' ? 'bg-white/[0.04] border border-white/10 text-slate-600' : ''}
-            `}>
-              {state === 'done'
-                ? <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'wght' 600" }}>check</span>
-                : i + 1}
-            </div>
-            <span className={`text-[10px] font-semibold uppercase tracking-widest hidden sm:block
-              ${state === 'done'    ? 'text-green-400/70' : ''}
-              ${state === 'active'  ? 'text-white' : ''}
-              ${state === 'pending' ? 'text-slate-600' : ''}
-            `}>
-              {step.label}
-            </span>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
+// Replaced with shared reusable component in components/customer/RunwayJourney.tsx
 
 // ── Availability timeline ──────────────────────────────────────────────────────
 
@@ -256,7 +228,7 @@ function AvailabilityTimeline({
   return (
     <div className="space-y-3">
       <div className="relative" ref={barContainerRef}>
-        <div className={`relative h-10 rounded-lg overflow-hidden border ${dayVfrWindow ? 'bg-[#0a0e1a] border-white/[0.06]' : 'bg-green-500/15 border-green-500/10'}`}>
+        <div className={`relative h-10 rounded-lg overflow-hidden border ${dayVfrWindow ? 'bg-[#0a1628] border-white/15' : 'bg-green-500/15 border-green-500/10'}`}>
           {/* Day VFR window zones — only rendered when Night VFR = No */}
           {dayVfrWindow && (
             <>
@@ -337,7 +309,7 @@ function AvailabilityTimeline({
         </span>
         {dayVfrWindow && (
           <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600">
-            <span className="w-2.5 h-2.5 rounded-sm bg-slate-700 border border-white/10 inline-block" />Night restricted
+            <span className="w-2.5 h-2.5 rounded-sm bg-slate-700 border border-white/15 inline-block" />Night restricted
           </span>
         )}
         <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600">
@@ -402,9 +374,9 @@ function TimeDropdown({
         type="button"
         disabled={disabled}
         onClick={() => setOpen(o => !o)}
-        className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500/60 flex items-center justify-between transition-colors hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed text-white"
+        className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500/60 flex items-center justify-between transition-colors hover:border-white/25 disabled:opacity-40 disabled:cursor-not-allowed text-white"
       >
-        <span className={value === '' ? 'text-white/25' : ''}>{value === '' ? 'Select a departure time' : selectedLabel}</span>
+        <span className={value === '' ? 'text-slate-500' : ''}>{value === '' ? 'Select a departure time' : selectedLabel}</span>
         <span
           className={`material-symbols-outlined text-[18px] text-slate-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
           style={{ fontVariationSettings: "'wght' 300" }}
@@ -414,7 +386,7 @@ function TimeDropdown({
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full bg-[#0c1220] border border-white/[0.12] rounded-lg shadow-2xl overflow-hidden">
+        <div className="absolute z-50 mt-1 w-full bg-[#0c1220] border border-white/10 rounded-lg shadow-2xl overflow-hidden">
           <div ref={listRef} className="max-h-52 overflow-y-auto overscroll-contain">
             {options.map(o => (
               <button
@@ -424,7 +396,7 @@ function TimeDropdown({
                 onClick={() => { onChange(o.value); setOpen(false) }}
                 className={`w-full px-3 py-2 text-sm text-left transition-colors ${
                   o.value === value
-                    ? 'bg-blue-500/20 text-blue-300 font-medium'
+                    ? 'bg-blue-500/20 text-blue-200 font-medium'
                     : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
                 }`}
               >
@@ -457,6 +429,32 @@ const DOC_DEFS: DocCardDef[] = [
   { type: 'medical_certificate', label: 'Medical Certificate', icon: 'health_and_safety' },
   { type: 'photo_id',            label: 'Photo ID',            icon: 'id_card'           },
 ]
+
+function pickBestDocumentForType(
+  docs: UserDocument[],
+  type: DocumentType,
+  todayIso: string,
+): UserDocument | undefined {
+  const candidates = docs.filter((d) => d.document_type === type)
+  if (candidates.length === 0) return undefined
+
+  function score(d: UserDocument): number {
+    const rejected = d.status === 'rejected'
+    const expired = !!(d.expiry_date && d.expiry_date < todayIso)
+    if (!rejected && !expired) return 3
+    if (!rejected && expired) return 2
+    if (rejected && !expired) return 1
+    return 0
+  }
+
+  return [...candidates].sort((a, b) => {
+    const scoreDiff = score(b) - score(a)
+    if (scoreDiff !== 0) return scoreDiff
+    const aTime = new Date(a.uploaded_at ?? 0).getTime()
+    const bTime = new Date(b.uploaded_at ?? 0).getTime()
+    return bTime - aTime
+  })[0]
+}
 
 // ── Document upload modal ──────────────────────────────────────────────────────
 
@@ -491,6 +489,8 @@ function DocModal({
   const [fileResults,  setFileResults]  = useState<{ name: string; ok: boolean; msg?: string }[]>([])
   const [formError,    setFormError]    = useState<string | null>(null)
   const [dragOver,     setDragOver]     = useState(false)
+
+  useEffect(() => { setFormError(null) }, [licenceType, licenceNumber, nightVfrRating, instrumentRating, medicalClass, issueDate, expiryDate, idType, documentNumber])
 
   function Pill({ value, active, onClick }: { value: string; active: boolean; onClick: () => void }) {
     return (
@@ -665,7 +665,7 @@ function DocModal({
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Date of Issue <span className="text-red-400 font-normal normal-case">Required</span></p>
                   <CalendarDateField
@@ -870,17 +870,23 @@ function DocCard({
 // ── Main flow component ────────────────────────────────────────────────────────
 
 export default function CheckoutFlow({
+  firstName,
   aircraftId,
   aircraftRegistration,
   aircraftDisplayName,
   aircraftStatus,
   documents,
   pilotClearanceStatus,
+  journeyActiveIndex,
+  journeyCompletedMap,
   initialLastFlightDate,
   initialNightVfrRating,
   initialInstrumentRating,
+  activeCheckoutTerms,
 }: Props) {
   const router = useRouter()
+  const stepSectionRef = useRef<HTMLDivElement>(null)
+  const prevStepRef = useRef<Step>('time')
   const [step, setStep] = useState<Step>('time')
 
   // Time selection — nothing preselected; user must actively choose date and time.
@@ -895,10 +901,17 @@ export default function CheckoutFlow({
 
   // Step 1 navigation error (shown when user clicks Continue without completing required fields)
   const [stepError, setStepError] = useState<string | null>(null)
+  const [step2Error, setStep2Error] = useState<string | null>(null)
+  const [hasAttemptedStep2Continue, setHasAttemptedStep2Continue] = useState(false)
 
   // Submission state
   const [submitError, setSubmitError]   = useState<string | null>(null)
   const [isPending, startTransition]    = useTransition()
+  const [termsAccepted, setTermsAccepted] = useState(false)
+  const [termsModalOpen, setTermsModalOpen] = useState(false)
+  const [termsScrolledToEnd, setTermsScrolledToEnd] = useState(false)
+  const [termsModalChecked, setTermsModalChecked] = useState(false)
+  const [termsError, setTermsError] = useState<string | null>(null)
 
   // Result state
   const [checkoutResult, setCheckoutResult] = useState<CheckoutBookingResult | null>(null)
@@ -909,13 +922,20 @@ export default function CheckoutFlow({
   // Last flight date — pre-filled from profile so it stays in sync with Documents page
   const [lastFlightDate, setLastFlightDate] = useState(initialLastFlightDate)
 
+  useEffect(() => {
+    if (prevStepRef.current !== step && step !== 'success') {
+      stepSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+    prevStepRef.current = step
+  }, [step])
+
   // ── Document gate ──────────────────────────────────────────────────────────
 
   const today = new Date().toISOString().split('T')[0]!
 
-  const licenceDoc = documents.find(d => d.document_type === 'pilot_licence')
-  const medicalDoc = documents.find(d => d.document_type === 'medical_certificate')
-  const photoIdDoc = documents.find(d => d.document_type === 'photo_id')
+  const licenceDoc = pickBestDocumentForType(documents, 'pilot_licence', today)
+  const medicalDoc = pickBestDocumentForType(documents, 'medical_certificate', today)
+  const photoIdDoc = pickBestDocumentForType(documents, 'photo_id', today)
 
   const isDocOk = (doc: UserDocument | undefined): boolean => {
     if (!doc) return false
@@ -924,10 +944,17 @@ export default function CheckoutFlow({
     return true
   }
 
-  const nightVfrEvidenceDoc = documents.find(d => d.document_type === 'night_vfr_evidence')
+  const nightVfrEvidenceDoc = pickBestDocumentForType(documents, 'night_vfr_evidence', today)
 
   const allDocsUploaded = isDocOk(licenceDoc) && isDocOk(medicalDoc) && isDocOk(photoIdDoc)
   const nightVfrEvidenceOk = nightVfrRating !== true || isDocOk(nightVfrEvidenceDoc)
+  const flightReviewError = lastFlightDate ? validateFlightReviewDate(lastFlightDate) : 'Please enter your last flight review date.'
+
+  const missingRequiredDocs: string[] = [
+    !isDocOk(licenceDoc) ? 'Pilot Licence' : null,
+    !isDocOk(medicalDoc) ? 'Medical Certificate' : null,
+    !isDocOk(photoIdDoc) ? 'Photo ID' : null,
+  ].filter((v): v is string => !!v)
 
   // ── Derived time values ────────────────────────────────────────────────────
   // end is always exactly 2 hours after start — never submitted from the client.
@@ -1014,9 +1041,47 @@ export default function CheckoutFlow({
     setStep('documents')
   }
 
+  function handleDocumentsNext() {
+    setHasAttemptedStep2Continue(true)
+    setStep2Error(null)
+
+    if (missingRequiredDocs.length > 0) {
+      if (missingRequiredDocs.length === 1) {
+        setStep2Error(`Please upload your ${missingRequiredDocs[0]} to continue.`)
+      } else {
+        setStep2Error(`Please upload all required documents to continue: ${missingRequiredDocs.join(', ')}.`)
+      }
+      return
+    }
+
+    if (!nightVfrEvidenceOk) {
+      setStep2Error('Please upload Night VFR evidence to continue.')
+      return
+    }
+
+    if (flightReviewError) {
+      setStep2Error(flightReviewError)
+      return
+    }
+
+    setStep('review')
+  }
+
+  useEffect(() => {
+    if (!hasAttemptedStep2Continue) return
+    if (missingRequiredDocs.length === 0 && nightVfrEvidenceOk && !flightReviewError) {
+      setStep2Error(null)
+    }
+  }, [hasAttemptedStep2Continue, missingRequiredDocs.length, nightVfrEvidenceOk, flightReviewError])
+
   function handleSubmit() {
     if (!startUTC) return
     setSubmitError(null)
+    setTermsError(null)
+    if (!termsAccepted) {
+      setTermsError('Please read the Checkout Terms and Conditions and accept them before submitting.')
+      return
+    }
     startTransition(async () => {
       try {
         const result = await submitCheckoutRequest({
@@ -1027,20 +1092,31 @@ export default function CheckoutFlow({
           has_night_vfr:         nightVfrRating,
           last_flight_date:      lastFlightDate || null,
           customer_notes:        teamMessage.trim() || null,
+          terms_accepted:        termsAccepted,
+          terms_document_id:     activeCheckoutTerms.id,
+          terms_version:         activeCheckoutTerms.version,
+          terms_document_url:    activeCheckoutTerms.public_url,
+          terms_content_hash:    activeCheckoutTerms.content_hash,
           // scheduled_end is computed server-side as start + 2 hours
         })
         setCheckoutResult(result)
         setStep('success')
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Submission failed. Please try again.'
-        setSubmitError(msg.replace(/^VALIDATION: |^AVAILABILITY: /, ''))
+        const cleaned = msg.replace(/^VALIDATION: |^AVAILABILITY: /, '')
+        const isValidation = msg.startsWith('VALIDATION:') || msg.startsWith('AVAILABILITY:')
+        setSubmitError(
+          isValidation || process.env.NODE_ENV !== 'production'
+            ? cleaned
+            : "We couldn't submit your checkout request. Please try again or contact support."
+        )
       }
     })
   }
 
   // ── Shared card style ──────────────────────────────────────────────────────
 
-  const CARD = 'bg-gradient-to-br from-[#0c1525] to-[#080e1c] border border-white/[0.07] rounded-xl shadow-[0_4px_30px_rgba(0,0,0,0.35)]'
+  const CARD = 'bg-[#1a2c45] border border-blue-900/40 rounded-2xl shadow-[0_8px_20px_rgba(3,10,25,0.18)]'
 
   // ── "Already submitted" view ───────────────────────────────────────────────
   // When the user lands on /dashboard/checkout with checkout_requested status
@@ -1061,8 +1137,8 @@ export default function CheckoutFlow({
             <span className="material-symbols-outlined text-3xl text-blue-400" style={{ fontVariationSettings: "'wght' 300" }}>pending_actions</span>
           </div>
           <div>
-            <h2 className="text-2xl font-serif text-white mb-3">Checkout Request Submitted</h2>
-            <p className="text-sm text-slate-400 leading-relaxed max-w-md mx-auto">
+          <h2 className="text-2xl font-semibold text-white mb-3">Checkout Request Submitted</h2>
+          <p className="text-sm text-slate-300 leading-relaxed max-w-md mx-auto">
               Your checkout request has been submitted for review. Our team will review your selected time and documents. You will be notified once the request has been reviewed.
             </p>
           </div>
@@ -1080,7 +1156,7 @@ export default function CheckoutFlow({
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="px-6 md:px-10 py-10 max-w-2xl mx-auto w-full">
+    <div className="px-2 md:px-3 py-4 w-full">
       <Link
         href="/dashboard"
         className="inline-flex items-center gap-1 text-oz-blue hover:text-blue-300 text-sm mb-8 transition-colors"
@@ -1090,46 +1166,58 @@ export default function CheckoutFlow({
       </Link>
 
       {/* Page header */}
-      <div className="mb-8">
-        <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-blue-400/80 mb-2">
+      <div className="mb-5">
+        <p className="text-xs font-bold uppercase tracking-[0.35em] text-blue-400/80 mb-2">
           Checkout Onboarding
         </p>
-        <h1 className="text-3xl font-serif text-white tracking-tight">
+        <h1 className="text-3xl font-semibold text-white tracking-tight">
           Book Your Checkout Flight
         </h1>
-        <p className="text-base text-slate-400 mt-2 leading-relaxed">
+        <p className="text-base text-slate-300 mt-2 leading-relaxed">
           To fly solo with us, you must first complete a checkout flight with our team.
         </p>
       </div>
 
-      {/* Step indicator — hidden on success */}
-      {step !== 'success' && (
-        <div className={`${CARD} p-5 mb-6`}>
-          <StepIndicator current={step} />
-        </div>
-      )}
-
-      {/* ── STEP 1: Time selection ─────────────────────────────────────────── */}
-      {step === 'time' && (
-        <div className={`${CARD} p-7 space-y-6`}>
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,68%)_minmax(280px,32%)] gap-5 items-start">
+        <aside className="order-1 xl:order-2">
+          <RunwayJourney pilotClearanceStatus={pilotClearanceStatus} formStep={step} orientation="vertical" />
+        </aside>
+        <div className="order-2 xl:order-1 text-[15px]">
+          {/* ── STEP 1: Time selection ─────────────────────────────────────────── */}
+          {step === 'time' && (
+            <div ref={stepSectionRef} className={`${CARD} p-6 md:p-8 space-y-7`}>
 
           {/* Header */}
-          <div>
-            <h2 className="text-lg font-serif text-white mb-1">Select Your Checkout Flight Time</h2>
-            <p className="text-base text-slate-400">
+          <div className="pb-5 border-b border-white/10">
+            <h2 className="text-3xl md:text-4xl font-semibold text-white mb-2">Select Your Checkout Flight Time</h2>
+            <p className="text-lg text-slate-300">
               Choose when you would like to complete your checkout flight in the{' '}
               {aircraftDisplayName}, registration {aircraftRegistration}.
             </p>
           </div>
 
           {/* A: Compact read-only flight summary */}
-          <div className="bg-white/[0.025] border border-white/[0.06] rounded-xl px-4 py-3">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600 mb-2">Checkout flight summary</p>
-            <div className="flex flex-wrap gap-x-5 gap-y-1">
-              <span className="text-[11px] text-slate-400"><span className="text-slate-500">Aircraft:</span> {aircraftDisplayName} ({aircraftRegistration})</span>
-              <span className="text-[11px] text-slate-400"><span className="text-slate-500">Session:</span> Checkout flight</span>
-              <span className="text-[13px] text-slate-300"><span className="text-slate-500">Reserved slot:</span> 2 hours</span>
-              <span className="text-[11px] text-slate-400"><span className="text-slate-500">Rate:</span> ${CHECKOUT_RATE}/hr (VDO meter) · $25/landing</span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="h-[136px] rounded-xl border border-white/10 bg-[#09182d] px-4 py-3 flex flex-col justify-between">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Aircraft</p>
+              <div>
+                <p className="text-4xl font-semibold text-white leading-none">{aircraftRegistration}</p>
+                <p className="text-lg text-slate-300 mt-1">{aircraftDisplayName}</p>
+              </div>
+            </div>
+            <div className="h-[136px] rounded-xl border border-white/10 bg-[#09182d] px-4 py-3 flex flex-col justify-between">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Duration</p>
+              <div>
+                <p className="text-4xl font-semibold text-white leading-none">2 Hours</p>
+                <p className="text-lg text-slate-300 mt-1">Reserved slot</p>
+              </div>
+            </div>
+            <div className="h-[136px] rounded-xl border border-white/10 bg-[#09182d] px-4 py-3 flex flex-col justify-between">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Rate</p>
+              <div>
+                <p className="text-4xl font-semibold text-white leading-none">${CHECKOUT_RATE}/hr</p>
+                <p className="text-lg text-slate-300 mt-1">VDO meter · $25/landing</p>
+              </div>
             </div>
           </div>
 
@@ -1140,8 +1228,8 @@ export default function CheckoutFlow({
           ) : (
             <>
               {/* B: Date selection */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
+              <div className="space-y-2">
+                <label className="text-base font-semibold tracking-wide text-slate-200 block">
                   Date <span className="text-red-400 font-normal normal-case">Required</span>
                 </label>
                 <CalendarDateField
@@ -1150,14 +1238,14 @@ export default function CheckoutFlow({
                   minYear={new Date().getFullYear()}
                   maxYear={new Date().getFullYear() + 2}
                   minDate={minDateString()}
-                  className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors text-left flex items-center justify-between"
+                  className="w-full h-14 bg-[#0a1830] border border-white/12 rounded-xl px-4 py-3 text-base text-white focus:outline-none focus:border-blue-500/60 transition-colors text-left flex items-center justify-between"
                 />
               </div>
 
               {/* Night VFR question — shown once date is selected */}
               {date && (
                 <div className="space-y-2">
-                  <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block">
+                  <label className="text-sm font-semibold text-slate-200 block">
                     Do you hold a Night VFR Rating? <span className="text-red-400 font-normal normal-case">Required</span>
                   </label>
                   <p className="text-[13px] text-slate-400">
@@ -1169,10 +1257,10 @@ export default function CheckoutFlow({
                         key={String(val)}
                         type="button"
                         onClick={() => { setNightVfrRating(val); setStepError(null); if (!val && startTime && !isWithinDayVfrWindow(startTime, date, 120)) setStartTime('') }}
-                        className={`px-3 py-2 rounded-lg text-[11px] font-medium border transition-all text-left ${
+                        className={`px-3 py-2.5 rounded-lg text-sm font-medium border transition-all text-left ${
                           nightVfrRating === val
-                            ? 'bg-blue-500/15 border-blue-500/30 text-blue-300'
-                            : 'bg-white/[0.03] border-white/10 text-white/40 hover:text-white/70 hover:border-white/20'
+                            ? 'bg-blue-500/15 border-blue-500/40 text-blue-200'
+                            : 'bg-white/[0.03] border-white/10 text-slate-300 hover:text-white hover:border-blue-500/40'
                         }`}
                       >
                         {val ? 'Yes — I hold a Night VFR Rating' : 'No — Day VFR only'}
@@ -1180,7 +1268,7 @@ export default function CheckoutFlow({
                     ))}
                   </div>
                   {nightVfrRating === false && (
-                    <p className="text-[10px] text-slate-500 flex items-center gap-1.5">
+                    <p className="text-xs text-slate-400 flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'wght' 300" }}>wb_sunny</span>
                       {getDayVfrWindow(date).start}–{getDayVfrWindow(date).end} Sydney time allowed. Bookings outside this window require Night VFR.
                     </p>
@@ -1191,36 +1279,16 @@ export default function CheckoutFlow({
               {/* Departure time — shown once Night VFR is answered */}
               {date && nightVfrRating !== null && (
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block">
+                  <label className="text-sm font-semibold text-slate-200 block">
                     Departure time <span className="text-red-400 font-normal normal-case">Required</span>
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {(nightVfrRating === false ? RECOMMENDED_DAY_START_TIMES : RECOMMENDED_DAY_START_TIMES.filter(t => timeOptions.some(o => o.value === t)))
-                      .filter(t => timeOptions.some(o => o.value === t))
-                      .map((t) => {
-                        const end = addTwoHours(t)
-                        const isActive = startTime === t
-                        return (
-                          <button
-                            key={t}
-                            type="button"
-                            onClick={() => { setStartTime(t); setAvail({ status: 'idle' }); setStepError(null); setSubmitError(null) }}
-                            className={`text-left px-3 py-2.5 rounded-lg border transition-all ${isActive ? 'bg-blue-500/15 border-blue-500/30 text-blue-300' : 'bg-white/[0.03] border-white/10 text-slate-300 hover:border-white/20 hover:text-white'}`}
-                          >
-                            <p className="text-[14px] font-medium">
-                              {ALL_TIME_OPTIONS.find(o => o.value === t)?.label} to {ALL_TIME_OPTIONS.find(o => o.value === end)?.label ?? end}
-                            </p>
-                          </button>
-                        )
-                      })}
-                  </div>
                   <TimeDropdown
                     value={startTime}
                     options={timeOptions}
                     onChange={v => { setStartTime(v); setAvail({ status: 'idle' }); setStepError(null); setSubmitError(null) }}
                   />
                   {nightVfrTimeError && (
-                    <p className="text-[10px] text-amber-400 flex items-center gap-1.5">
+                    <p className="text-xs text-amber-400 flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[12px]">warning</span>
                       {nightVfrTimeError}
                     </p>
@@ -1230,16 +1298,16 @@ export default function CheckoutFlow({
 
               {/* C: Selected checkout window — shown once time is selected */}
               {date && nightVfrRating !== null && startTime && (
-                <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-4 py-3">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600 mb-1.5">
+                <div className="bg-white/[0.03] border border-white/10 rounded-lg px-4 py-3">
+                  <p className="text-xs font-semibold text-slate-200 mb-1.5">
                     Selected checkout window
                   </p>
-                  <p className="text-sm font-medium text-white/90">
+                  <p className="text-sm font-medium text-white">
                     {ALL_TIME_OPTIONS.find(o => o.value === startTime)?.label ?? startTime}
-                    <span className="mx-2 text-slate-600">→</span>
+                    <span className="mx-2 text-slate-400">→</span>
                     {ALL_TIME_OPTIONS.find(o => o.value === endTime)?.label ?? endTime}
                   </p>
-                    <p className="text-[13px] text-slate-400 mt-1">A 2-hour slot is reserved for scheduling.</p>
+                    <p className="text-sm text-slate-400 mt-1">A 2-hour slot is reserved for scheduling.</p>
                   </div>
               )}
 
@@ -1247,12 +1315,12 @@ export default function CheckoutFlow({
               {date && nightVfrRating !== null && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    <p className="text-xs font-semibold text-slate-300">
                       {formatDate(date)} — Daily Schedule
                     </p>
                   </div>
                   {startTime && (
-                    <p className="text-[12px] text-blue-300/70 mb-3 flex items-center gap-1.5">
+                    <p className="text-sm text-blue-200 mb-3 flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 300" }}>drag_pan</span>
                       You can drag the blue slot to fine-tune the selected time.
                     </p>
@@ -1295,14 +1363,14 @@ export default function CheckoutFlow({
               )}
 
               {/* G: Payment timing notice */}
-              <div className="bg-[#0a1628] border border-blue-500/[0.18] rounded-lg px-4 py-3">
+              <div className="bg-blue-500/[0.08] border border-blue-400/25 rounded-xl px-4 py-4">
                 <div className="flex items-start gap-2">
-                  <span className="material-symbols-outlined text-blue-400/60 text-[16px] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>info</span>
+                  <span className="material-symbols-outlined text-blue-300 text-[18px] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>info</span>
                   <div>
-                    <p className="text-sm text-blue-200/80 font-medium leading-snug">
+                    <p className="text-base text-blue-100 font-medium leading-snug">
                       No payment is required now.
                     </p>
-                    <p className="text-[13px] text-slate-300/90 mt-0.5 leading-relaxed">
+                    <p className="text-sm text-slate-300 mt-1 leading-relaxed">
                       Your final checkout amount will be calculated after the flight using the aircraft VDO meter reading, plus any landing fees.
                     </p>
                   </div>
@@ -1318,23 +1386,27 @@ export default function CheckoutFlow({
               )}
 
               {/* H: Continue button */}
-              <button
-                onClick={handleTimeNext}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
-              >
-                Continue to Documents
-              </button>
+              <div className="pt-4 border-t border-white/10 flex justify-end">
+                <button
+                  onClick={handleTimeNext}
+                  data-testid="checkout-step1-continue"
+                  disabled={!date || nightVfrRating === null || !startTime || avail.status !== 'available' || isTimeNightRestricted}
+                  className="w-full sm:w-auto sm:min-w-[300px] px-6 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-base font-semibold transition-all"
+                >
+                  Continue to Documents
+                </button>
+              </div>
             </>
           )}
-        </div>
-      )}
+            </div>
+          )}
 
-      {/* ── STEP 2: Documents ─────────────────────────────────────────────── */}
-      {step === 'documents' && (
-        <div className={`${CARD} p-7 space-y-6`}>
+          {/* ── STEP 2: Documents ─────────────────────────────────────────────── */}
+          {step === 'documents' && (
+            <div ref={stepSectionRef} className={`${CARD} p-5 md:p-6 space-y-5`}>
           <div>
-            <h2 className="text-lg font-serif text-white mb-1">Pilot Documents</h2>
-            <p className="text-base text-slate-400 leading-relaxed">
+            <h2 className="text-lg font-semibold text-white mb-1">Pilot Documents</h2>
+            <p className="text-base text-slate-300 leading-relaxed">
               Upload your required documents below. These are reviewed as part of your checkout request.
             </p>
           </div>
@@ -1345,34 +1417,42 @@ export default function CheckoutFlow({
               <DocCard
                 key={def.type}
                 def={def}
-                doc={documents.find(d => d.document_type === def.type)}
-                onUploaded={() => router.refresh()}
+                doc={pickBestDocumentForType(documents, def.type, today)}
+                onUploaded={() => {
+                  setStep2Error(null)
+                  setHasAttemptedStep2Continue(false)
+                  router.refresh()
+                }}
                 initialNightVfrRating={def.type === 'pilot_licence' ? nightVfrRating : undefined}
                 initialInstrumentRating={def.type === 'pilot_licence' ? initialInstrumentRating : undefined}
               />
             ))}
           </div>
-          {!isDocOk(photoIdDoc) && (
+          {hasAttemptedStep2Continue && step2Error && (
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
-              <p className="text-sm text-amber-300">Please upload your Photo ID to continue.</p>
+              <p className="text-sm text-amber-300">{step2Error}</p>
             </div>
           )}
 
           {/* Night VFR evidence — shown when user claims Night VFR Rating */}
           {nightVfrRating === true && (
-            <div className="pt-4 border-t border-white/[0.06] space-y-3">
+            <div className="pt-4 border-t border-white/10 space-y-3">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">
                   Night VFR evidence required <span className="text-red-400 font-normal normal-case tracking-normal">Required</span>
                 </p>
-                <p className="text-[10px] text-slate-600 leading-relaxed">
+                <p className="text-[10px] text-slate-300 leading-relaxed">
                   Please upload proof that you hold a current Night VFR rating. This can be a CASA licence record, eLicence screenshot, Night VFR flight review record, logbook endorsement, or other supporting document.
                 </p>
               </div>
               <DocCard
                 def={{ type: 'night_vfr_evidence', label: 'Night VFR Evidence', icon: 'nightlight' }}
                 doc={nightVfrEvidenceDoc}
-                onUploaded={() => router.refresh()}
+                onUploaded={() => {
+                  setStep2Error(null)
+                  setHasAttemptedStep2Continue(false)
+                  router.refresh()
+                }}
               />
               {!isDocOk(nightVfrEvidenceDoc) && (
                 <p className="text-[10px] text-amber-400 flex items-center gap-1.5">
@@ -1391,8 +1471,8 @@ export default function CheckoutFlow({
           )}
 
           {/* Flight review date */}
-          <div className="pt-2 border-t border-white/[0.06] space-y-2">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
+          <div className="pt-2 border-t border-white/10 space-y-2">
+            <label className="text-[10px] font-semibold text-slate-200 block">
               When was your last flight review? <span className="text-red-400 font-normal normal-case">Required</span>
             </label>
             <CalendarDateField
@@ -1402,7 +1482,7 @@ export default function CheckoutFlow({
               maxYear={new Date().getFullYear()}
               minDate={getFlightReviewCutoff()}
               maxDate={new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })}
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors text-left flex items-center justify-between"
+              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors text-left flex items-center justify-between"
             />
             {lastFlightDate && validateFlightReviewDate(lastFlightDate) && (
               <p className="text-[10px] text-red-400 flex items-center gap-1.5">
@@ -1414,8 +1494,8 @@ export default function CheckoutFlow({
 
           {/* Optional team message */}
           <div className="space-y-2">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
-              Anything our team should know? <span className="text-slate-600 font-normal normal-case">(Optional)</span>
+            <label className="text-[10px] font-semibold text-slate-200 block">
+              Anything our team should know? <span className="text-slate-400 font-normal normal-case">(Optional)</span>
             </label>
             <textarea
               value={teamMessage}
@@ -1423,7 +1503,7 @@ export default function CheckoutFlow({
               maxLength={1000}
               rows={3}
               placeholder="Add any notes, timing preferences, questions, or context for our team..."
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors placeholder:text-white/20 resize-none"
+              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors placeholder:text-slate-500 resize-none"
             />
             {teamMessage.length > 800 && (
               <p className="text-[10px] text-slate-500 text-right">{teamMessage.length} / 1000</p>
@@ -1433,27 +1513,27 @@ export default function CheckoutFlow({
           <div className="flex gap-3 pt-2">
             <button
               onClick={() => setStep('time')}
-              className="px-5 py-3 border border-white/15 hover:border-white/25 text-slate-400 hover:text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
+              className="px-5 py-3 border border-white/15 hover:border-blue-500/50 text-slate-300 hover:text-white rounded-full text-[10px] font-semibold transition-all"
             >
               Back
             </button>
             <button
-              onClick={() => { setSubmitError(null); setStep('review') }}
-              disabled={!allDocsUploaded || !nightVfrEvidenceOk || !lastFlightDate || !!validateFlightReviewDate(lastFlightDate)}
+              onClick={handleDocumentsNext}
+              data-testid="checkout-step2-continue"
               className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
             >
               Continue to Review
             </button>
           </div>
-        </div>
-      )}
+            </div>
+          )}
 
-      {/* ── STEP 3: Review & Submit ───────────────────────────────────────── */}
-      {step === 'review' && startUTC && endUTC && (
-        <div className={`${CARD} p-7 space-y-6`}>
+          {/* ── STEP 3: Review & Submit ───────────────────────────────────────── */}
+          {step === 'review' && startUTC && endUTC && (
+            <div ref={stepSectionRef} className={`${CARD} p-5 md:p-6 space-y-5`}>
           <div>
-            <h2 className="text-lg font-serif text-white mb-1">Review Your Checkout Request</h2>
-            <p className="text-base text-slate-400">
+            <h2 className="text-lg font-semibold text-white mb-1">Review Your Checkout Request</h2>
+            <p className="text-base text-slate-300">
               Review the details below and submit your checkout request.
             </p>
           </div>
@@ -1474,9 +1554,9 @@ export default function CheckoutFlow({
               { label: 'Landing fees',     value: '$25 per landing, if applicable' },
               { label: 'Final amount',     value: 'Calculated after flight from VDO meter' },
             ].map(({ label, value }) => (
-              <div key={label} className="flex items-center justify-between py-3 border-b border-white/[0.06] last:border-0">
-                <span className="text-sm text-slate-500">{label}</span>
-                <span className="text-sm text-white/90 font-medium text-right">{value}</span>
+              <div key={label} className="flex items-center justify-between py-3 border-b border-white/10 last:border-0">
+                <span className="text-sm text-slate-400">{label}</span>
+                <span className="text-sm text-white font-medium text-right">{value}</span>
               </div>
             ))}
           </div>
@@ -1492,9 +1572,9 @@ export default function CheckoutFlow({
 
           {/* Team message summary */}
           {teamMessage.trim() && (
-            <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg px-4 py-3 space-y-1">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Your message to our team</p>
-              <p className="text-sm text-slate-300 leading-relaxed italic">&quot;{teamMessage.trim()}&quot;</p>
+            <div className="bg-white/[0.03] border border-white/10 rounded-lg px-4 py-3 space-y-1">
+              <p className="text-[10px] font-semibold text-slate-300">Your message to our team</p>
+              <p className="text-sm text-slate-200 leading-relaxed italic">&quot;{teamMessage.trim()}&quot;</p>
             </div>
           )}
 
@@ -1509,11 +1589,49 @@ export default function CheckoutFlow({
           </div>
 
           {/* Clarifying note */}
-          <div className="bg-blue-500/[0.06] border border-blue-500/20 rounded-lg px-4 py-3 space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400">What happens after you submit</p>
-            <p className="text-sm text-blue-200/70 leading-relaxed">
+          <div className="bg-blue-500/[0.08] border border-blue-500/30 rounded-lg px-4 py-3 space-y-1">
+            <p className="text-[10px] font-semibold text-blue-200">What happens after you submit</p>
+            <p className="text-sm text-blue-100 leading-relaxed">
               Submitting this does not confirm the checkout flight yet. Our team will review your selected time and documents, then confirm this time or suggest an alternative.
             </p>
+          </div>
+
+          {/* Checkout terms acceptance */}
+          <div className="bg-white/[0.03] border border-white/10 rounded-lg p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-white">Checkout Terms and Conditions</h3>
+            <p className="text-sm text-slate-300">
+              You must open the terms document, scroll to the bottom, and accept before submitting.
+            </p>
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setTermsModalOpen(true)
+                  if (termsAccepted) {
+                    setTermsScrolledToEnd(true)
+                    setTermsModalChecked(true)
+                  } else {
+                    setTermsScrolledToEnd(false)
+                    setTermsModalChecked(false)
+                  }
+                }}
+                className="px-4 py-2 bg-white/[0.04] border border-white/15 hover:border-blue-500/50 text-slate-200 rounded-full text-[10px] font-semibold transition-all"
+              >
+                Open terms document
+              </button>
+              {termsAccepted ? (
+                <span className="text-[11px] font-semibold text-green-300 bg-green-500/10 border border-green-500/30 px-2.5 py-1 rounded-full">
+                  Terms accepted
+                </span>
+              ) : (
+                <span className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-full">
+                  Acceptance required
+                </span>
+              )}
+            </div>
+            {termsError && (
+              <p className="text-sm text-red-300">{termsError}</p>
+            )}
           </div>
 
           {submitError && (
@@ -1526,36 +1644,125 @@ export default function CheckoutFlow({
             <button
               onClick={() => setStep('documents')}
               disabled={isPending}
-              className="px-5 py-3 border border-white/15 hover:border-white/25 text-slate-400 hover:text-white disabled:opacity-40 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
+              className="px-5 py-3 border border-white/15 hover:border-blue-500/50 text-slate-300 hover:text-white disabled:opacity-40 rounded-full text-[10px] font-semibold transition-all"
             >
               Back
             </button>
             <button
               onClick={handleSubmit}
-              disabled={isPending || (nightVfrRating === false && !!startTime && !!date && !isWithinDayVfrWindow(startTime, date, 120))}
+              data-testid="checkout-submit-request"
+              disabled={
+                isPending ||
+                (nightVfrRating === false && !!startTime && !!date && !isWithinDayVfrWindow(startTime, date, 120)) ||
+                !termsAccepted
+              }
               className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all shadow-[0_0_20px_rgba(37,99,235,0.35)]"
             >
               {isPending ? 'Submitting…' : 'Submit Checkout Request'}
             </button>
           </div>
+            </div>
+          )}
+
+      {termsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-4xl bg-[#0c1220] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+              <h4 className="text-sm font-semibold text-white">Checkout Terms and Conditions</h4>
+              <button
+                type="button"
+                onClick={() => setTermsModalOpen(false)}
+                className="text-white/30 hover:text-white/70 transition-colors"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-slate-300">
+                Scroll to the end of the document to enable acceptance.
+              </p>
+              <div
+                data-testid="checkout-terms-scrollbox"
+                className="h-[55vh] min-h-[340px] max-h-[680px] overflow-y-auto border border-white/[0.1] rounded-lg bg-[#050a14]"
+                onScroll={(e) => {
+                  const el = e.currentTarget
+                  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 4) {
+                    setTermsScrolledToEnd(true)
+                  }
+                }}
+              >
+                <embed
+                  src={activeCheckoutTerms.public_url}
+                  type="application/pdf"
+                  className="w-full min-h-[1200px]"
+                />
+              </div>
+              <div className={`text-sm ${termsScrolledToEnd ? 'text-green-300' : 'text-amber-300'}`}>
+                {termsScrolledToEnd ? 'You have reached the end. You can now accept the terms.' : 'Scroll to the bottom to continue'}
+              </div>
+            </div>
+            <div className="sticky bottom-0 px-5 py-4 border-t border-white/[0.06] bg-[#0c1220] flex flex-col gap-3">
+              <label className={`flex items-start gap-3 rounded-lg border px-3 py-2 ${termsScrolledToEnd ? 'border-green-500/30 bg-green-500/5' : 'border-white/10 bg-white/[0.02]'}`}>
+                <input
+                  type="checkbox"
+                  checked={termsModalChecked}
+                  disabled={!termsScrolledToEnd}
+                  data-testid="checkout-terms-checkbox"
+                  onChange={(e) => setTermsModalChecked(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-blue-500 rounded cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <div className="space-y-1">
+                  <span className={`text-sm ${termsScrolledToEnd ? 'text-slate-200' : 'text-slate-400'}`}>
+                    I have read and accept the Checkout Terms and Conditions.
+                  </span>
+                  {!termsScrolledToEnd && (
+                    <p className="text-[11px] text-slate-500">
+                      This checkbox is disabled until you scroll to the end of the document.
+                    </p>
+                  )}
+                </div>
+              </label>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setTermsModalOpen(false)}
+                  className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTermsAccepted(true)
+                    setTermsError(null)
+                    setTermsModalOpen(false)
+                  }}
+                  disabled={!termsScrolledToEnd || !termsModalChecked}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
+                >
+                  Accept terms
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* ── STEP 4: Success ───────────────────────────────────────────────── */}
-      {step === 'success' && checkoutResult && (
-        <div className={`${CARD} p-8 text-center space-y-5`}>
+          {/* ── STEP 4: Success ───────────────────────────────────────────────── */}
+          {step === 'success' && checkoutResult && (
+            <div className={`${CARD} p-7 text-center space-y-5`}>
           <div className="w-16 h-16 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center mx-auto">
             <span className="material-symbols-outlined text-3xl text-green-400" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
           </div>
           <div>
-            <h2 className="text-2xl font-serif text-white mb-3">Checkout request submitted</h2>
-            <p className="text-base text-slate-300 leading-relaxed max-w-xl mx-auto">
+          <h2 className="text-2xl font-semibold text-white mb-3">Checkout request submitted</h2>
+          <p className="text-base text-slate-300 leading-relaxed max-w-xl mx-auto">
               Your checkout request has been submitted for review. Our team will review your selected time and documents, then confirm the booking or suggest another time. Aircraft bookings will become available after your checkout flight is completed, approved, and any final amount has been paid.
             </p>
           </div>
           <div className="text-left bg-blue-500/[0.06] border border-blue-500/20 rounded-lg px-4 py-4 max-w-xl mx-auto">
-            <h3 className="text-[12px] font-bold uppercase tracking-widest text-blue-300 mb-2">What happens next</h3>
-            <ol className="space-y-1 text-[14px] text-slate-300">
+            <h3 className="text-[12px] font-semibold text-blue-200 mb-2">What happens next</h3>
+            <ol className="space-y-1 text-[14px] text-slate-200">
               <li>1. Our team reviews your selected time and documents.</li>
               <li>2. We will confirm the checkout flight or suggest another time.</li>
               <li>3. After the checkout flight, the final amount is calculated from the aircraft meter reading and any landing fees.</li>
@@ -1571,13 +1778,15 @@ export default function CheckoutFlow({
             </button>
             <button
               onClick={() => router.push('/dashboard')}
-              className="flex-1 py-3 border border-white/15 hover:border-white/25 hover:bg-white/[0.04] text-white/70 hover:text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
+              className="flex-1 py-3 border border-white/15 hover:border-blue-500/50 hover:bg-white/[0.03] text-slate-300 hover:text-white rounded-full text-[10px] font-semibold transition-all"
             >
               Go to Overview
             </button>
           </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }

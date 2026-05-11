@@ -41,7 +41,8 @@ const PRICING_TIERS = [
   { tier: 'Less than 10 VDO hours', rate: '$330', highlight: false },
   { tier: '10 to 24.9 VDO hours', rate: '$320', highlight: false },
   { tier: '25 to 49.9 VDO hours', rate: '$310', highlight: false },
-  { tier: '50+ VDO hours', rate: '$300', highlight: true },
+  { tier: '50 to 99.9 VDO hours', rate: '$300', highlight: false },
+  { tier: '100+ VDO hours', rate: '$290', highlight: true },
 ]
 
 const WORKFLOW_STEPS = [
@@ -89,6 +90,11 @@ const INCLUDED_CARDS = [
     icon: 'workspace_premium',
     title: 'Premium Aircraft Access',
     copy: 'Access a well-maintained aircraft through a clear booking process.',
+  },
+  {
+    icon: 'garage',
+    title: 'Easy hangar access',
+    copy: 'Aircraft access is straightforward with sliding hangar doors and 24-hour hangar availability.',
   },
 ]
 
@@ -189,6 +195,12 @@ export default function PricingPage() {
             </p>
             <div className="mt-7 rounded-lg border border-white/12 bg-[#101d31]/72 p-4">
               <p className="font-sans text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[#bfd1ed]">Fuel included · GST included · $25 per landing</p>
+            </div>
+            <div className="mt-4 rounded-lg border border-[#c2d5f4]/20 bg-[#0f1d32]/72 p-4">
+              <p className="font-sans text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[#bfd1ed]">Important note</p>
+              <p className="mt-2 font-sans text-[0.84rem] leading-relaxed text-[#d5e0f3]">
+                Overnight aircraft parking charges at other airports are not included and are the pilot&apos;s responsibility.
+              </p>
             </div>
           </div>
 

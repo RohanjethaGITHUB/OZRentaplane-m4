@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import Navbar from '@/components/Navbar'
 import AdminSidebar from './AdminSidebar'
 
 // Server-side guard: only admins can access any /admin route.
@@ -28,7 +27,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .is('admin_read_at', null)
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#0d1117] text-[#e2e2e6] font-sans relative">
+    <div className="admin-theme min-h-screen flex flex-col bg-[var(--admin-bg)] text-[var(--admin-text)] font-sans relative">
 
       {/* Grain overlay */}
       <div
@@ -37,20 +36,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       />
 
       {/* Ambient glow */}
-      <div className="fixed top-0 left-0 w-[500px] h-[400px] bg-[#a7c8ff]/[0.025] blur-[130px] rounded-full pointer-events-none -z-10" />
-
-      {/* Public Top Nav */}
-      <Navbar initialUser={user} />
+      <div className="fixed top-0 left-0 w-[500px] h-[400px] bg-[#7ba4cf]/[0.02] blur-[130px] rounded-full pointer-events-none -z-10" />
 
       {/* Admin Layout with Sidebar */}
-      <div className="flex flex-1 overflow-hidden relative mt-16 lg:mt-20">
+      <div className="flex flex-1 overflow-hidden relative">
         <AdminSidebar
           displayName={adminName}
           unreadMessageCount={unreadMessageCount ?? 0}
         />
         
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto lg:ml-72 bg-[#0d1117] relative">
+        <main className="flex-1 overflow-y-auto lg:ml-72 bg-[var(--admin-content-bg)] relative">
           <div className="min-h-full">
             {children}
           </div>
@@ -59,4 +55,3 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     </div>
   )
 }
-

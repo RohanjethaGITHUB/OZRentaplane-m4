@@ -32,11 +32,7 @@ const SCENE_WARMUP_COUNT = 32
 const CLOUD_FADE_START_FRAME = 22
 const CLOUD_FADE_END_FRAME = 34
 
-const SCENE_TEXT = [
-  { line1: 'FLY', line2: 'YOUR WAY', showCta: true },
-  { line1: 'TRAIN', line2: 'WITH CONFIDENCE', showCta: false },
-  { line1: 'TAKE', line2: 'THE CONTROLS', showCta: false },
-] as const
+const HERO_TEXT = { line1: 'FLY', line2: 'YOUR WAY', showCta: true } as const
 
 type SceneRange = { start: number; end: number }
 type ActiveSequence = {
@@ -139,10 +135,12 @@ export default function HomeHeroScrollSequence() {
   const scrollProgressClampedRef = useRef(0)
   const sceneHeadings = useMemo(
     () =>
-      SCENE_TEXT.map((scene, idx) => ({
-        ...scene,
-        start: activeSequence.scenes[idx].start,
-        end: activeSequence.scenes[idx].end,
+      activeSequence.scenes.map((scene, idx) => ({
+        line1: idx === 0 ? HERO_TEXT.line1 : '',
+        line2: idx === 0 ? HERO_TEXT.line2 : '',
+        showCta: idx === 0 ? HERO_TEXT.showCta : false,
+        start: scene.start,
+        end: scene.end,
       })),
     [activeSequence],
   )
@@ -646,10 +644,11 @@ export default function HomeHeroScrollSequence() {
 
         <div className="absolute inset-0 z-10 px-6 md:px-12 lg:px-20">
           <div className={`pt-[16vh] text-center transition-opacity duration-500 ${introDone || motionMode === 'reduced' ? 'opacity-100' : 'opacity-0'}`}>
-            <div
-              key={`${sceneHeadings[sceneIndex]?.line1}-${sceneHeadings[sceneIndex]?.line2}`}
-              className={`hero-scene-heading-enter ${motionMode === 'reduced' ? 'hero-scene-heading-enter-reduced' : ''}`}
-            >
+            {sceneHeadings[sceneIndex]?.line2 ? (
+              <div
+                key={`${sceneHeadings[sceneIndex]?.line1}-${sceneHeadings[sceneIndex]?.line2}`}
+                className={`hero-scene-heading-enter ${motionMode === 'reduced' ? 'hero-scene-heading-enter-reduced' : ''}`}
+              >
               <h1 className="font-serif text-4xl font-normal leading-[1.04] tracking-[0.015em] text-[#e8f1ff] md:text-7xl [text-shadow:0_3px_14px_rgba(8,20,40,0.24)]">
                 <span className="block">{sceneHeadings[sceneIndex]?.line1}</span>
                 <span className="relative block italic text-[#c7dcff] pb-3">
@@ -664,7 +663,8 @@ export default function HomeHeroScrollSequence() {
                   </svg>
                 </span>
               </h1>
-            </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="absolute left-1/2 -translate-x-1/2 bottom-[12svh] z-20 w-[min(92vw,48rem)] text-center">

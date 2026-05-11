@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -63,20 +64,64 @@ export default function CalendarDateField({
   const [viewYear, setViewYear] = useState(initial.getFullYear())
   const [viewMonth, setViewMonth] = useState(initial.getMonth())
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const popoverRef = useRef<HTMLDivElement | null>(null)
+  const [popoverStyle, setPopoverStyle] = useState<{ top: number; left: number; width: number }>({
+    top: 0,
+    left: 0,
+    width: 280,
+  })
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (!open) return
+    function updatePopoverPosition() {
+      if (!buttonRef.current || !popoverRef.current) return
+      const anchor = buttonRef.current.getBoundingClientRect()
+      const popup = popoverRef.current.getBoundingClientRect()
+      const viewportH = window.innerHeight
+      const viewportW = window.innerWidth
+      const margin = 12
+      const desiredWidth = Math.min(320, Math.max(260, anchor.width))
+      const belowTop = anchor.bottom + 6
+      const aboveTop = anchor.top - popup.height - 6
+      const fitsBelow = belowTop + popup.height <= viewportH - margin
+      const top = fitsBelow ? belowTop : Math.max(margin, aboveTop)
+      const left = Math.min(
+        viewportW - desiredWidth - margin,
+        Math.max(margin, anchor.left),
+      )
+      setPopoverStyle({ top, left, width: desiredWidth })
+    }
+
+    updatePopoverPosition()
+
     function onDocMouseDown(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      const inRoot = !!rootRef.current?.contains(target)
+      const inPopover = !!popoverRef.current?.contains(target)
+      if (!inRoot && !inPopover) setOpen(false)
     }
     function onEsc(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false)
     }
+    function onViewportChange() {
+      updatePopoverPosition()
+    }
+
     document.addEventListener('mousedown', onDocMouseDown)
     document.addEventListener('keydown', onEsc)
+    window.addEventListener('resize', onViewportChange)
+    window.addEventListener('scroll', onViewportChange, true)
     return () => {
       document.removeEventListener('mousedown', onDocMouseDown)
       document.removeEventListener('keydown', onEsc)
+      window.removeEventListener('resize', onViewportChange)
+      window.removeEventListener('scroll', onViewportChange, true)
     }
   }, [open])
 
@@ -116,6 +161,7 @@ export default function CalendarDateField({
         </label>
       )}
       <button
+        ref={buttonRef}
         type="button"
         disabled={disabled}
         onClick={() => setOpen(v => !v)}
@@ -128,8 +174,12 @@ export default function CalendarDateField({
         <span className="material-symbols-outlined text-white/45 text-[18px]">calendar_month</span>
       </button>
 
-      {open && (
-        <div className="absolute z-[120] mt-1 w-[280px] max-w-[calc(100vw-3rem)] rounded-xl border border-white/12 bg-[#0b1322] shadow-[0_16px_32px_rgba(0,0,0,0.5)] p-3">
+      {open && mounted && createPortal(
+        <div
+          ref={popoverRef}
+          className="fixed z-[1000] max-w-[calc(100vw-1.5rem)] rounded-xl border border-white/12 bg-[#0b1322] shadow-[0_16px_32px_rgba(0,0,0,0.5)] p-3"
+          style={{ top: popoverStyle.top, left: popoverStyle.left, width: popoverStyle.width }}
+        >
           <div className="grid grid-cols-2 gap-2 mb-3">
             <select
               value={viewMonth}
@@ -185,7 +235,8 @@ export default function CalendarDateField({
               )
             })}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
       {error && (
         <p className="text-[11px] text-red-400 mt-1.5 flex items-center gap-1">

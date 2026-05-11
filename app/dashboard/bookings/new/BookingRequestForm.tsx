@@ -518,7 +518,6 @@ export default function BookingRequestForm({
   const [lastFlightDate,  setLastFlightDate]  = useState(initialLastFlightDate)
   const [notes,           setNotes]           = useState('')
   const [medical,         setMedical]         = useState(false)
-  const [terms,           setTerms]           = useState(false)
   const [submitError,     setSubmitError]     = useState<string | null>(null)
   const [successState,    setSuccessState]    = useState<SuccessState | null>(null)
 
@@ -692,8 +691,7 @@ export default function BookingRequestForm({
     !endIsBeforeStart &&
     availability.status === 'available' &&
     flightReviewValid &&
-    medical &&
-    terms
+    medical
 
   function getDisabledReason(): string | null {
     if (eligibilityBlocked) return 'Booking access is suspended. See the eligibility notice above.'
@@ -704,7 +702,7 @@ export default function BookingRequestForm({
     if (availability.status === 'unavailable') return 'Selected time is unavailable.'
     if (!lastFlightDate) return 'Please enter your last flight review date.'
     if (flightReviewError) return flightReviewError
-    if (!medical || !terms) return 'Please complete the required confirmations.'
+    if (!medical) return 'Please complete the required confirmations.'
     return null
   }
 
@@ -735,7 +733,7 @@ export default function BookingRequestForm({
       setSubmitError('Please wait for the availability check to complete, or choose a different time.')
       return
     }
-    if (!medical || !terms) {
+    if (!medical) {
       setSubmitError('You must complete the required confirmations.')
       return
     }
@@ -754,7 +752,6 @@ export default function BookingRequestForm({
       pic_name:                       picName  ?? undefined,
       pic_arn:                        picArn   ?? undefined,
       customer_notes:                 notes || null,
-      terms_accepted:                 terms,
       risk_acknowledgement_accepted:  medical,
     }
 
@@ -787,7 +784,6 @@ export default function BookingRequestForm({
   }
 
   const disabledReason = getDisabledReason()
-
   // ── Success state ─────────────────────────────────────────────────────────
 
   if (successState) {
@@ -1364,19 +1360,6 @@ export default function BookingRequestForm({
                       I confirm that I hold a valid medical certificate and will ensure it is carried during the flight.
                     </span>
                   </label>
-                  <label className="flex items-start gap-3.5 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={terms}
-                      onChange={e => setTerms(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 accent-blue-500 rounded cursor-pointer flex-shrink-0"
-                    />
-                    <span className="text-sm text-slate-500 group-hover:text-slate-300 transition-colors leading-relaxed">
-                      I agree to the{' '}
-                      <a href="/terms-and-conditions" target="_blank" className="text-blue-500 hover:underline">Terms &amp; Conditions</a>
-                      {' '}and understand the cancellation policy.
-                    </span>
-                  </label>
                 </div>
 
                 {/* Submit button */}
@@ -1426,7 +1409,6 @@ export default function BookingRequestForm({
           </div>
         </form>
       </div>
-
     </div>
   )
 }

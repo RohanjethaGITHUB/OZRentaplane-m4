@@ -276,11 +276,11 @@ export default async function NewBookingPage() {
           picName={typedProfile?.full_name ?? null}
           picArn={typedProfile?.pilot_arn ?? null}
           eligibilityBlocked={eligibilityBlocked}
-          eligibilityWarnings={eligibilityWarnings}
-          initialLastFlightDate={typedProfile?.last_flight_date ?? ''}
-        />
-      </CustomerBookingShell>
-    )
+        eligibilityWarnings={eligibilityWarnings}
+        initialLastFlightDate={typedProfile?.last_flight_date ?? ''}
+      />
+    </CustomerBookingShell>
+  )
   }
 
   // ── Other statuses (additional checkout, reschedule, not eligible) ────────

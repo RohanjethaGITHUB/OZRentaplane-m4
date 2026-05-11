@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { motion, useScroll, useTransform } from 'framer-motion'
+import { motion, useMotionValueEvent, useScroll, useTransform } from 'framer-motion'
 
 interface RunwaySpineProps {
   containerRef: React.RefObject<HTMLDivElement>
@@ -11,6 +11,16 @@ export default function RunwaySpine({ containerRef }: RunwaySpineProps) {
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ['start 50%', 'end 50%'],
+  })
+  const [isReverse, setIsReverse] = React.useState(false)
+  const lastProgressRef = React.useRef(0)
+
+  useMotionValueEvent(scrollYProgress, 'change', (latest) => {
+    const delta = latest - lastProgressRef.current
+    if (Math.abs(delta) > 0.0008) {
+      setIsReverse(delta < 0)
+      lastProgressRef.current = latest
+    }
   })
 
   const progress = scrollYProgress
@@ -36,7 +46,7 @@ export default function RunwaySpine({ containerRef }: RunwaySpineProps) {
    *   0.78 – 0.88  descent             — scale eases down to 3.0, lift –40px
    *   0.88 – 1.00  landing roll        — scale eases back to 1.0, y 0px
    */
-  const planeRotate = 180
+  const planeRotate = isReverse ? 0 : 180
 
   const scaleKeys   = [0,    0.45, 0.52, 0.60, 0.68, 0.78, 0.85, 0.92, 1.0]
   const scaleVals   = [1.0,  1.0,  2.2,  4.2,  5.5,  5.5,  3.5,  1.8,  1.0]

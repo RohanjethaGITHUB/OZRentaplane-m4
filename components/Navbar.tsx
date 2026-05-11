@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 const NAV_LINKS = [
   { label: 'Checkout Process', href: '/checkout-process' },
   { label: 'Safety', href: '/safety' },
-  { label: 'Resources', href: '/pilotRequirements' },
+  { label: 'Resources', href: '/resources' },
   { label: 'Pricing', href: '/pricing' },
   { label: 'Shop', href: '/shop' },
 ]

@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 import { generateReviewFlags } from '@/lib/booking/review-flags'
@@ -75,6 +76,14 @@ export async function createBooking(
   if (start <= new Date()) {
     throw new Error('VALIDATION: Booking start time must be in the future.')
   }
+  const h = await headers()
+  const forwardedFor = h.get('x-forwarded-for')
+  const acceptedIp =
+    forwardedFor?.split(',')[0]?.trim() ||
+    h.get('x-real-ip')?.trim() ||
+    h.get('cf-connecting-ip')?.trim() ||
+    null
+  const userAgent = h.get('user-agent') ?? null
 
   const { data, error } = await supabase.rpc('create_aircraft_booking_atomic', {
     p_aircraft_id:                   input.aircraft_id,
@@ -84,7 +93,11 @@ export async function createBooking(
     p_scheduled_start:               input.scheduled_start,
     p_scheduled_end:                 input.scheduled_end,
     p_customer_notes:                input.customer_notes                ?? null,
-    p_terms_accepted:                input.terms_accepted                ?? false,
+    p_terms_accepted:                false,
+    p_terms_acceptance_text:         null,
+    p_terms_acceptance_confirmed:    false,
+    p_accepted_ip:                   acceptedIp,
+    p_user_agent:                    userAgent,
     p_risk_acknowledgement_accepted: input.risk_acknowledgement_accepted ?? false,
   })
 

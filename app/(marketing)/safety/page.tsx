@@ -34,24 +34,6 @@ export default function SafetyPage() {
             </StaggerItem>
           </StaggerContainer>
           
-          <div className="flex flex-wrap items-center gap-4 mt-6">
-            <FadeUp delay={1.2} duration={1.4}>
-              <a
-                href="/pilotRequirements"
-                className="inline-block bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] rounded-md font-sans font-bold tracking-widest uppercase text-[0.8rem] px-8 py-4 shadow-2xl shadow-[#aec7f7]/20 transition-all active:scale-95 hover:brightness-110"
-              >
-                View Requirements
-              </a>
-            </FadeUp>
-            <FadeUp delay={1.5} duration={1.4}>
-              <a
-                href="#contact"
-                className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded border border-white/20 text-[#c4c6cf] hover:bg-white/5 transition-colors"
-              >
-                Contact Us
-              </a>
-            </FadeUp>
-          </div>
         </div>
       </section>
 
@@ -127,12 +109,12 @@ export default function SafetyPage() {
             {
               phase: 'Phase 01',
               title: 'Licence Verification',
-              body: 'Validation of current PPL/CPL credentials and medical certifications directly with regulatory databases.',
+              body: 'Validation of current RPL, PPL, CPL, and ATPL credentials and medical certifications directly with regulatory databases.',
             },
             {
               phase: 'Phase 02',
               title: 'Document Review',
-              body: 'Analysis of logbook history and currency requirements to ensure legal and operational compliance.',
+              body: 'We review your pilot licence and medical records as part of the document verification process.',
             },
             {
               phase: 'Phase 03',
@@ -142,7 +124,7 @@ export default function SafetyPage() {
             {
               phase: 'Phase 04',
               title: 'Checkout Induction',
-              body: 'A mandatory flight with an OZ authorized instructor to verify handling and system knowledge.',
+              body: 'A mandatory flight to verify handling and system knowledge.',
             },
           ].map(({ phase, title, body }) => (
             <StaggerItem key={phase} duration={1.6}>
@@ -186,12 +168,12 @@ export default function SafetyPage() {
                 {
                   icon: 'task_alt',
                   title: 'Return-to-Service Protocols',
-                  body: 'No aircraft leaves the hangar without a dual-signature sign-off from both the engineering lead and the quality assurance officer.',
+                  body: 'No aircraft leaves the maintenance hangar without a thorough inspection by a qualified aviation mechanic.',
                 },
                 {
                   icon: 'monitoring',
-                  title: 'Digital Health Monitoring',
-                  body: 'Real-time data logging on our glass-cockpit fleet allows us to track engine trends and predict maintenance needs before they arise.',
+                  title: 'Health Monitoring',
+                  body: 'Real-time data logging helps us monitor aircraft usage and identify maintenance needs early.',
                 },
               ].map(({ icon, title, body }) => (
                 <StaggerItem key={title} duration={1.4}>
@@ -296,9 +278,10 @@ export default function SafetyPage() {
               <ul className="space-y-6">
                 {[
                   'Detailed flight log entry including Hobbs/Tach',
+                  'Confirm VDO meter and air switch status',
                   "Reporting of any defects or 'squawks' immediately",
-                  'Ensuring aircraft is secured and refueled for next use',
-                  'Cabin cleanup and electronics master off check',
+                  'Return the aircraft safely to the hangar.',
+                  'Take all of your belongings.',
                 ].map(item => (
                   <li key={item} className="flex gap-4">
                     <Icon name="radio_button_checked" className="text-[#a9cbe4] shrink-0" />
@@ -335,11 +318,6 @@ export default function SafetyPage() {
             <p className="text-[#c4c6cf] text-lg font-sans mb-12">
               OZ Rent A Plane maintains a strict zero-penalty rescheduling policy for weather-related cancellations. If the conditions don&apos;t look right, we support your decision to stay on the ground.
             </p>
-          </StaggerItem>
-          <StaggerItem duration={1.6}>
-            <div className="inline-flex items-center gap-2 text-[#aec7f7] font-sans uppercase tracking-widest text-sm border-b border-[#aec7f7] pb-1 cursor-pointer hover:text-white transition-colors">
-              Read Our Weather Policy
-            </div>
           </StaggerItem>
         </StaggerContainer>
       </section>

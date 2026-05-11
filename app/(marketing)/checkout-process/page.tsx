@@ -153,18 +153,13 @@ export default function CheckoutProcessPage() {
           {/* Compact Timeline Header */}
           <StaggerContainer className="mb-16 text-center" staggerDelay={0.2} viewportMargin="-15%">
             <StaggerItem duration={1.4}>
-              <span className="text-xs font-sans uppercase tracking-[0.28em] text-[#aec7f7] mb-3 block" style={{ opacity: 0.8 }}>
-                Step by step
-              </span>
-            </StaggerItem>
-            <StaggerItem duration={1.4}>
               <h2 className="font-serif text-3xl md:text-5xl font-normal tracking-tight text-[#d9e3f6] mb-3">
-                From checkout to request solo hire clearance
+                Step-by-Step Process
               </h2>
             </StaggerItem>
             <StaggerItem duration={1.4}>
               <p className="font-sans text-[0.95rem] text-[#c4c6cf] max-w-xl mx-auto">
-                A clear step-by-step path from account setup to your first approved solo hire.
+                A clear path from account setup to your first approved solo hire.
               </p>
             </StaggerItem>
           </StaggerContainer>
@@ -200,11 +195,15 @@ export default function CheckoutProcessPage() {
                       <div className="flex justify-between items-center px-6 pt-6 pb-4">
                         <div className="rounded px-4 py-2" style={{ background: '#2b3544' }}>
                           <p className="font-sans text-[10px] uppercase tracking-widest text-[#c4c6cf]">Rate</p>
-                          <p className="font-sans text-xl font-bold text-[#aec7f7]">$290/hour</p>
+                          <p className="font-sans text-xs text-[#c4c6cf]">
+                            <span className="line-through opacity-75">$330/hr</span>{' '}
+                            <span className="text-[#aec7f7] font-bold text-xl">$290/hr</span>{' '}
+                            <span className="text-[10px] uppercase tracking-wider">special checkout flight rate</span>
+                          </p>
                         </div>
                         <div className="text-right rounded px-4 py-2" style={{ background: '#2b3544' }}>
                           <p className="font-sans text-[10px] uppercase tracking-widest text-[#c4c6cf]">Duration</p>
-                          <p className="font-sans text-xl font-bold text-[#aec7f7]">1 hour</p>
+                          <p className="font-sans text-xl font-bold text-[#aec7f7]">Flexible</p>
                         </div>
                       </div>
                       <div className="relative">
@@ -222,7 +221,7 @@ export default function CheckoutProcessPage() {
                   <div className="md:w-1/2 text-left order-2">
                     <span className="text-[#a9cbe4] font-sans font-bold text-6xl opacity-5 absolute -top-8 left-0 md:relative md:top-0">02</span>
                     <h3 className="font-serif text-3xl font-normal mb-4 text-[#d9e3f6]">Request your checkout flight</h3>
-                    <p className="text-[#c4c6cf] font-sans font-light">Choose your preferred one-hour checkout flight time. This first flight is reviewed and confirmed by the operations team.</p>
+                    <p className="text-[#c4c6cf] font-sans font-light">Choose your preferred checkout flight time. This first flight is reviewed and confirmed by the operations team.</p>
                   </div>
                 </div>
               </FadeUp>
@@ -260,20 +259,16 @@ export default function CheckoutProcessPage() {
                     <div>
                       <span className="text-[#aec7f7] font-sans text-xs tracking-[0.2em] uppercase">Step 05 &amp; 06</span>
                       <h3 className="font-serif text-4xl font-normal my-4 text-[#d9e3f6]">Checkout &amp; Clearance</h3>
-                      <p className="text-[#c4c6cf] font-sans mb-6 leading-relaxed">Complete your flight with an approved instructor. Post-flight, your status will be updated to 'Cleared for solo hire'.</p>
+                      <p className="text-[#c4c6cf] font-sans mb-6 leading-relaxed">Complete your checkout flight. Post-flight, your status will be updated to 'Cleared for solo hire'.</p>
                       <div className="space-y-3">
                         <div className="flex items-center gap-3 text-[#a9cbe4]">
                           <Icon name="check_circle" className="!text-lg" />
                           <span className="text-sm font-semibold font-sans">Cleared for solo hire</span>
                         </div>
-                        <div className="flex items-center gap-3 text-[#c4c6cf] opacity-50">
-                          <Icon name="info" className="!text-lg" />
-                          <span className="text-sm font-sans">Additional time required</span>
-                        </div>
                       </div>
                     </div>
                     <div className="rounded-xl overflow-hidden shadow-2xl aspect-[4/3] relative">
-                      <img className="w-full h-full object-cover" style={{ opacity: 0.72, filter: 'contrast(0.9) brightness(0.85)' }} alt="Pilot and approved instructor during checkout flight" src="/Checkout&Clearance.png" />
+                      <img className="w-full h-full object-cover" style={{ opacity: 0.72, filter: 'contrast(0.9) brightness(0.85)' }} alt="Pilot during checkout flight" src="/Checkout&Clearance.png" />
                       <div className="absolute inset-0 bg-[#091421]/25 pointer-events-none" />
                     </div>
                   </div>
@@ -305,7 +300,7 @@ export default function CheckoutProcessPage() {
       ══════════════════════════════════════════════════════════════ */}
       <section className="py-32 px-6 md:px-12 lg:px-20 bg-[#091421]">
         <div className="max-w-7xl mx-auto">
-          <h2 className="font-serif text-4xl md:text-5xl font-normal text-center mb-20 text-[#d9e3f6]">After you&apos;re cleared</h2>
+          <h2 className="font-serif text-4xl md:text-5xl font-normal text-center mb-20 text-[#d9e3f6]">After you&apos;re checked out</h2>
           <StaggerContainer className="grid grid-cols-1 md:grid-cols-4 gap-8" staggerDelay={0.2} viewportMargin="-20%">
             {[
               { icon: 'calendar_month', title: 'Book slots directly', body: 'Instant access to the fleet calendar for all approved aircraft types.' },
@@ -319,30 +314,6 @@ export default function CheckoutProcessPage() {
                   <h4 className="font-serif text-xl mb-4 text-[#d9e3f6]">{title}</h4>
                   <p className="text-sm text-[#c4c6cf] font-light font-sans leading-relaxed">{body}</p>
                 </div>
-              </StaggerItem>
-            ))}
-          </StaggerContainer>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════════
-          6. Built on Absolute Trust
-      ══════════════════════════════════════════════════════════════ */}
-      <section className="py-24 bg-[#050f1b]">
-        <div className="max-w-4xl mx-auto px-12 text-center border-y border-[#44474e]/10 py-20">
-          <FadeUp duration={1.4}>
-            <h2 className="font-serif text-4xl font-normal mb-16 text-[#d9e3f6]">Built on Absolute Trust</h2>
-          </FadeUp>
-          <StaggerContainer className="grid grid-cols-2 md:grid-cols-4 gap-8" staggerDelay={0.2}>
-            {[
-              { num: '01', label: 'One-time checkout' },
-              { num: '02', label: 'Document-backed' },
-              { num: '03', label: 'Instructor-led' },
-              { num: '04', label: 'Clear records' },
-            ].map(({ num, label }) => (
-              <StaggerItem key={num} duration={1.4} className="space-y-2">
-                <p className="text-[#aec7f7] font-sans font-bold text-lg">{num}</p>
-                <p className="text-xs uppercase tracking-widest text-[#c4c6cf] font-sans">{label}</p>
               </StaggerItem>
             ))}
           </StaggerContainer>

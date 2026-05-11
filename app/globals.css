@@ -22,6 +22,33 @@ html {
   background-color: #091421;
 }
 
+/* Admin design tokens (Stitch benchmark direction) */
+.admin-theme {
+  --admin-bg: #080c12;
+  --admin-sidebar-bg: #0b111a;
+  --admin-content-bg: #080c12;
+  --admin-panel-bg: #111b2a;
+  --admin-panel-bg-soft: #121a27;
+  --admin-card-bg: #101826;
+  --admin-input-bg: #0c121b;
+  --admin-button-bg: rgba(30, 64, 175, 0.18);
+  --admin-border: rgba(148, 163, 184, 0.12);
+  --admin-divider: rgba(148, 163, 184, 0.09);
+  --admin-row-hover: rgba(30, 41, 59, 0.45);
+  --admin-text: #e5e7eb;
+  --admin-text-muted: #94a3b8;
+  --admin-text-dim: #64748b;
+  --admin-accent: #93c5fd;
+  --admin-accent-soft: rgba(96, 165, 250, 0.32);
+  --admin-success: #86efac;
+  --admin-warning: #d6b06e;
+  --admin-danger: #fca5a5;
+  --admin-radius-lg: 14px;
+  --admin-radius-xl: 16px;
+  --admin-radius-2xl: 18px;
+  --admin-shadow-panel: 0 14px 30px rgba(3, 8, 16, 0.38);
+}
+
 /* Canvas hero fill */
 .hero-canvas {
   display: block;
@@ -91,4 +118,68 @@ html, body {
       0 0 0 1px rgba(167,200,255,0.13),
       0 24px 64px -16px rgba(0,0,0,0.52);
   }
+}
+
+/* Screenshot mode: use ?screenshot=1 to force fully-rendered static content for full-page captures. */
+html.screenshot-mode,
+body.screenshot-mode {
+  scroll-behavior: auto !important;
+}
+
+html.screenshot-mode *,
+html.screenshot-mode *::before,
+html.screenshot-mode *::after,
+body.screenshot-mode *,
+body.screenshot-mode *::before,
+body.screenshot-mode *::after {
+  animation: none !important;
+  transition: none !important;
+  animation-delay: 0ms !important;
+  animation-duration: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-delay: 0ms !important;
+  transition-duration: 0ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Reset hidden/reveal states (Framer Motion + CSS reveal classes/attrs). */
+html.screenshot-mode [data-animate],
+html.screenshot-mode [data-motion],
+html.screenshot-mode [data-motion-mode],
+html.screenshot-mode .animate-in,
+html.screenshot-mode .animate-fade-in,
+html.screenshot-mode .fade-in,
+html.screenshot-mode .motion-reveal,
+html.screenshot-mode .scroll-reveal,
+html.screenshot-mode .hero-wind-fly,
+html.screenshot-mode .hero-wind-your,
+html.screenshot-mode .hero-wind-way,
+html.screenshot-mode .hero-your-way-group,
+html.screenshot-mode .hero-underline-drift,
+html.screenshot-mode .hero-scene-underline-drift,
+html.screenshot-mode .hero-scene-heading-enter,
+html.screenshot-mode .how-it-works-glow,
+/* Framer/inline motion states commonly emitted pre-animation. */
+html.screenshot-mode [style*='opacity: 0'],
+html.screenshot-mode [style*='opacity:0'],
+html.screenshot-mode [style*='opacity: 0.0'],
+html.screenshot-mode [style*='filter: blur'],
+html.screenshot-mode [style*='filter:blur'],
+html.screenshot-mode [style*='clip-path'],
+html.screenshot-mode [style*='opacity: 0'][style*='transform'],
+html.screenshot-mode [style*='opacity:0'][style*='transform'],
+html.screenshot-mode [style*='opacity: 0'][style*='translate3d('],
+html.screenshot-mode [style*='opacity:0'][style*='translate3d('],
+html.screenshot-mode [style*='opacity: 0'][style*='translateX('],
+html.screenshot-mode [style*='opacity:0'][style*='translateX('],
+html.screenshot-mode [style*='opacity: 0'][style*='translateY('],
+html.screenshot-mode [style*='opacity:0'][style*='translateY('] {
+  opacity: 1 !important;
+  transform: none !important;
+  translate: none !important;
+  scale: 1 !important;
+  filter: none !important;
+  clip-path: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }

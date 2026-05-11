@@ -11,7 +11,7 @@ import BookingPaymentCard from './BookingPaymentCard'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
 import type { BookingStatus, FlightRecord, FlightRecordAttachment, FlightRecordClarification } from '@/lib/supabase/booking-types'
-import { formatDateFromISO } from '@/lib/formatDateTime'
+import { formatDateFromISO, formatDateTime } from '@/lib/formatDateTime'
 import { PAYMENT_CONFIG } from '@/lib/payments/config'
 import { markFlightReturned } from '@/app/actions/booking'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
@@ -782,6 +782,22 @@ export default async function BookingDetailPage({ params }: PageProps) {
   const aircraft    = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
   const status      = booking.status as string
   const bookingType = (booking as { booking_type?: string }).booking_type ?? 'standard'
+  const { data: termsAcceptanceRow } = await supabase
+    .from('booking_terms_acceptances')
+    .select('accepted_at, terms_version, terms_document_id')
+    .eq('booking_id', booking.id)
+    .order('accepted_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  let acceptedTermsPublicUrl: string | null = null
+  if (termsAcceptanceRow?.terms_document_id) {
+    const { data: termsDocRow } = await supabase
+      .from('terms_documents')
+      .select('public_url')
+      .eq('id', termsAcceptanceRow.terms_document_id)
+      .maybeSingle()
+    acceptedTermsPublicUrl = (termsDocRow as { public_url?: string | null } | null)?.public_url ?? null
+  }
 
   // Fetch the checkout outcome for completed checkout bookings.
   // checkout_invoices.checkout_outcome is the authoritative source set by
@@ -1378,6 +1394,20 @@ export default async function BookingDetailPage({ params }: PageProps) {
                 </div>
               )}
             </div>
+            {termsAcceptanceRow && (
+              <div className="bg-[#0c121e]/60 border border-white/5 rounded-[1.25rem] p-6 space-y-3">
+                <h3 className="text-[10px] uppercase tracking-widest font-bold text-oz-muted">Terms accepted</h3>
+                <p className="text-sm text-slate-300">
+                  Accepted date/time: {termsAcceptanceRow.accepted_at ? formatDateTime(termsAcceptanceRow.accepted_at) : '—'}
+                </p>
+                <p className="text-sm text-slate-300">Version: {termsAcceptanceRow.terms_version ?? '—'}</p>
+                {acceptedTermsPublicUrl && (
+                  <a href={acceptedTermsPublicUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-400 hover:underline">
+                    View terms
+                  </a>
+                )}
+              </div>
+            )}
 
             {/* Forward-looking pipeline — show for standard bookings and checkout bookings */}
             {!isCancelled && (isStandardPipeline || isCheckoutPipeline) && (

@@ -337,6 +337,22 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const bookingRef    = (booking as { booking_reference?: string }).booking_reference
     ?? booking.id.split('-')[0].toUpperCase()
   const statusHistory = rawHistory ?? []
+  const { data: termsAcceptanceRow } = await supabase
+    .from('booking_terms_acceptances')
+    .select('accepted_at, terms_version, terms_document_id, accepted_ip, user_agent')
+    .eq('booking_id', booking.id)
+    .order('accepted_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  let acceptedTermsPublicUrl: string | null = null
+  if (termsAcceptanceRow?.terms_document_id) {
+    const { data: termsDocRow } = await supabase
+      .from('terms_documents')
+      .select('public_url')
+      .eq('id', termsAcceptanceRow.terms_document_id)
+      .maybeSingle()
+    acceptedTermsPublicUrl = (termsDocRow as { public_url?: string | null } | null)?.public_url ?? null
+  }
 
   // ── Standard booking state flags ────────────────────────────────────────────
   const isPending               = status === 'pending_confirmation'
@@ -532,6 +548,26 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               </div>
             )}
           </div>
+          {termsAcceptanceRow && (
+            <div className="bg-white/5 border border-white/5 rounded-2xl p-6">
+              <h2 className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-5">
+                Customer accepted Terms and Conditions
+              </h2>
+              <div className="space-y-2 text-sm text-slate-300">
+                <p>Accepted date/time: {termsAcceptanceRow.accepted_at ? formatDateTime(termsAcceptanceRow.accepted_at) : '—'}</p>
+                <p>Version: {termsAcceptanceRow.terms_version ?? '—'}</p>
+                <p>IP: {termsAcceptanceRow.accepted_ip ?? '—'}</p>
+                <p>Browser: {termsAcceptanceRow.user_agent ?? '—'}</p>
+                {acceptedTermsPublicUrl && (
+                  <p>
+                    <a href={acceptedTermsPublicUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">
+                      View accepted terms document
+                    </a>
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Customer details */}
           <div className="bg-white/5 border border-white/5 rounded-2xl p-6">

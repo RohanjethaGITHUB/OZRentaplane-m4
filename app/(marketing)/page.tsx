@@ -48,7 +48,16 @@ export default function Home() {
           })
         }}
       />
-      <HomeHeroScrollSequence />
+      <div className="relative">
+        <HomeHeroScrollSequence />
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-[120px] md:h-[170px]"
+          style={{
+            background:
+              'linear-gradient(180deg, rgba(2,11,25,0) 0%, rgba(2,11,25,0.35) 42%, rgba(2,11,25,0.75) 78%, #020B19 100%)',
+          }}
+        />
+      </div>
       <HomeContent />
     </main>
   )
