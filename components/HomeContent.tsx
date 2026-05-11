@@ -69,45 +69,47 @@ function AircraftShowcase() {
   return (
     <section className="relative pt-14 md:pt-16 pb-14 md:pb-16 px-6 md:px-12 lg:px-20 bg-[radial-gradient(circle_at_50%_24%,rgba(8,27,52,0.48),transparent_56%),linear-gradient(180deg,#06152A_0%,#020B19_100%)]">
       <div className="relative z-10 max-w-[1220px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1.06fr)_minmax(410px,0.94fr)] gap-8 lg:gap-12 items-start">
-        <FadeUp duration={1.1} delay={0.06} viewportMargin="-100px" className="rounded-xl p-2.5" style={{ backgroundColor: 'rgba(8,27,52,0.4)' }}>
-          <div className="relative overflow-hidden rounded-[12px] border aspect-[16/10] max-h-[345px]" style={{ borderColor: 'rgba(151,177,215,0.12)' }}>
-            <img src={galleryImages[activeImage].src} alt={galleryImages[activeImage].alt} className="h-full w-full object-cover object-center" />
-            <button
-              type="button"
-              onClick={showPrevImage}
-              aria-label="Previous aircraft image"
-              className="absolute left-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full border flex items-center justify-center transition-colors hover:bg-[rgba(8,27,52,0.72)] hover:border-[rgba(151,177,215,0.22)] focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E0B13B] focus-visible:outline-offset-2"
-              style={{ backgroundColor: 'rgba(8,27,52,0.6)', borderColor: 'rgba(151,177,215,0.14)', color: '#D8DFEA' }}
-            >
-              <span aria-hidden="true" className="text-base leading-none">‹</span>
-            </button>
-            <button
-              type="button"
-              onClick={showNextImage}
-              aria-label="Next aircraft image"
-              className="absolute right-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full border flex items-center justify-center transition-colors hover:bg-[rgba(8,27,52,0.72)] hover:border-[rgba(151,177,215,0.22)] focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E0B13B] focus-visible:outline-offset-2"
-              style={{ backgroundColor: 'rgba(8,27,52,0.6)', borderColor: 'rgba(151,177,215,0.14)', color: '#D8DFEA' }}
-            >
-              <span aria-hidden="true" className="text-base leading-none">›</span>
-            </button>
-          </div>
+        <FadeUp duration={1.1} delay={0.06} viewportMargin="-100px">
+          <div className="rounded-xl p-2.5" style={{ backgroundColor: 'rgba(8,27,52,0.4)' }}>
+            <div className="relative overflow-hidden rounded-[12px] border aspect-[16/10] max-h-[345px]" style={{ borderColor: 'rgba(151,177,215,0.12)' }}>
+              <img src={galleryImages[activeImage].src} alt={galleryImages[activeImage].alt} className="h-full w-full object-cover object-center" />
+              <button
+                type="button"
+                onClick={showPrevImage}
+                aria-label="Previous aircraft image"
+                className="absolute left-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full border flex items-center justify-center transition-colors hover:bg-[rgba(8,27,52,0.72)] hover:border-[rgba(151,177,215,0.22)] focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E0B13B] focus-visible:outline-offset-2"
+                style={{ backgroundColor: 'rgba(8,27,52,0.6)', borderColor: 'rgba(151,177,215,0.14)', color: '#D8DFEA' }}
+              >
+                <span aria-hidden="true" className="text-base leading-none">‹</span>
+              </button>
+              <button
+                type="button"
+                onClick={showNextImage}
+                aria-label="Next aircraft image"
+                className="absolute right-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full border flex items-center justify-center transition-colors hover:bg-[rgba(8,27,52,0.72)] hover:border-[rgba(151,177,215,0.22)] focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E0B13B] focus-visible:outline-offset-2"
+                style={{ backgroundColor: 'rgba(8,27,52,0.6)', borderColor: 'rgba(151,177,215,0.14)', color: '#D8DFEA' }}
+              >
+                <span aria-hidden="true" className="text-base leading-none">›</span>
+              </button>
+            </div>
 
-          <div className="mt-3 grid grid-cols-4 gap-2.5 md:gap-3">
-            {galleryImages.map((image, idx) => {
-              const isActive = idx === activeImage
-              return (
-                <button
-                  key={image.src}
-                  type="button"
-                  onClick={() => setActiveImage(idx)}
-                  aria-label={`Aircraft gallery thumbnail ${idx + 1}`}
-                  className="relative h-[62px] md:h-[68px] overflow-hidden rounded-[8px] border transition-colors focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E0B13B] focus-visible:outline-offset-2 hover:border-[rgba(151,177,215,0.24)]"
-                  style={{ borderColor: isActive ? '#E0B13B' : 'rgba(151,177,215,0.16)', borderWidth: isActive ? '1.5px' : '1px' }}
-                >
-                  <img src={image.src} alt={image.alt} className="h-full w-full object-cover object-center opacity-90" />
-                </button>
-              )
-            })}
+            <div className="mt-3 grid grid-cols-4 gap-2.5 md:gap-3">
+              {galleryImages.map((image, idx) => {
+                const isActive = idx === activeImage
+                return (
+                  <button
+                    key={image.src}
+                    type="button"
+                    onClick={() => setActiveImage(idx)}
+                    aria-label={`Aircraft gallery thumbnail ${idx + 1}`}
+                    className="relative h-[62px] md:h-[68px] overflow-hidden rounded-[8px] border transition-colors focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E0B13B] focus-visible:outline-offset-2 hover:border-[rgba(151,177,215,0.24)]"
+                    style={{ borderColor: isActive ? '#E0B13B' : 'rgba(151,177,215,0.16)', borderWidth: isActive ? '1.5px' : '1px' }}
+                  >
+                    <img src={image.src} alt={image.alt} className="h-full w-full object-cover object-center opacity-90" />
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </FadeUp>
 

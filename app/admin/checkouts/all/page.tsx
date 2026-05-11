@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { unstable_noStore as noStore } from 'next/cache'
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import CheckoutFilters from './CheckoutFilters'
 import {
@@ -222,13 +223,15 @@ export default async function AllCheckoutsPage({ searchParams }: { searchParams:
           <AdminMetricCard label="Awaiting outcome" value={summary.awaitingOutcome} />
         </AdminMetricGrid>
 
-        <CheckoutFilters
-          status={statusFilter}
-          outcome={outcomeFilter}
-          payment={paymentFilter}
-          tabs={tabs}
-          statusCounts={statusCounts}
-        />
+        <Suspense fallback={null}>
+          <CheckoutFilters
+            status={statusFilter}
+            outcome={outcomeFilter}
+            payment={paymentFilter}
+            tabs={tabs}
+            statusCounts={statusCounts}
+          />
+        </Suspense>
 
         <section className="space-y-4">
           <div>

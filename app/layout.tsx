@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import ScreenshotMode from './ScreenshotMode'
+import { Suspense } from 'react'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
@@ -109,7 +110,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className="bg-[#06101f] text-slate-100">
-        <ScreenshotMode />
+        <Suspense fallback={null}>
+          <ScreenshotMode />
+        </Suspense>
         {children}
       </body>
     </html>
