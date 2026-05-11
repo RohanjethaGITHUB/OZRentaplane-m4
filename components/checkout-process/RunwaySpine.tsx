@@ -185,7 +185,7 @@ export default function RunwaySpine({ containerRef }: RunwaySpineProps) {
                 inset: '-14px',
                 borderRadius: '50%',
                 background:
-                  'radial-gradient(circle, rgba(174,199,247,0.15) 0%, transparent 70%)',
+                  'radial-gradient(circle, rgba(224,177,59,0.18) 0%, transparent 70%)',
                 pointerEvents: 'none',
               }}
             />
@@ -197,6 +197,7 @@ export default function RunwaySpine({ containerRef }: RunwaySpineProps) {
                 fontSize: '19px',
                 color: '#aec7f7',
                 fontVariationSettings: "'FILL' 1",
+                textShadow: '0 0 8px rgba(224,177,59,0.26)',
               }}
             >
               flight

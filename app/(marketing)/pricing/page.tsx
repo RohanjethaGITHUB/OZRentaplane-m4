@@ -16,18 +16,21 @@ function FaqItem({ item }: { item: FaqItemType }) {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#0d1828]/80 backdrop-blur-md transition-all duration-300 hover:border-[#9cb6de]/35 hover:bg-[#102036]/85">
+    <div className="overflow-hidden rounded-xl border border-white/10 bg-[#08162A]/76 backdrop-blur-sm transition-all duration-300 hover:border-[#E0B13B]/35">
       <button
         type="button"
-        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-white/5 md:px-6"
+        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left md:px-6"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        <span className="font-sans text-sm font-semibold text-[#ebf2ff] md:text-[0.95rem]">{item.question}</span>
-        <Icon name={open ? 'remove' : 'add'} className="shrink-0 text-[#bad0ef] transition-transform duration-300" />
+        <span className="font-sans text-sm font-medium text-[#F4F6FA] md:text-[0.96rem]">{item.question}</span>
+        <Icon
+          name={open ? 'remove' : 'add'}
+          className="shrink-0 text-[#E0B13B] transition-transform duration-300"
+        />
       </button>
       {open ? (
-        <div className="border-t border-white/10 px-5 py-4 font-sans text-sm leading-relaxed text-[#c7d3e5] md:px-6">
+        <div className="border-t border-white/10 px-5 py-4 font-sans text-sm leading-relaxed text-[#A6B2C6] md:px-6">
           {item.answer}
         </div>
       ) : null}
@@ -130,53 +133,57 @@ const FAQ_ITEMS: FaqItemType[] = [
 
 export default function PricingPage() {
   return (
-    <main className="overflow-x-hidden bg-[#091421] text-[#d9e3f6]">
-      <section className="relative flex min-h-[500px] items-center overflow-hidden px-6 md:min-h-[750px] md:px-12 lg:px-20">
+    <main className="relative overflow-x-hidden bg-[#020B19] text-[#F4F6FA]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_9%,rgba(39,79,146,0.28),transparent_35%),radial-gradient(circle_at_80%_45%,rgba(18,53,108,0.24),transparent_40%),radial-gradient(circle_at_55%_82%,rgba(10,37,76,0.2),transparent_44%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:radial-gradient(circle_at_20%_30%,#8ca8d6_1px,transparent_1px),radial-gradient(circle_at_80%_60%,#8ca8d6_1px,transparent_1px)] [background-size:34px_34px,46px_46px]" />
+
+      <section className="relative flex min-h-[560px] items-center overflow-hidden px-6 pb-20 pt-24 md:min-h-[760px] md:px-12 lg:px-20">
         <div
           className="absolute inset-0 z-0 bg-cover bg-center"
-          style={{ backgroundImage: 'url("/pricing-hero.png")', opacity: 0.78 }}
+          style={{ backgroundImage: 'url("/pricing-hero.png")', opacity: 0.62 }}
         />
-        <div className="absolute inset-0 z-0 bg-[#050d1b]/45" />
-        <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#04101f]/92 via-[#05152a]/76 via-40% to-[#091626]/22" />
-        <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_18%_42%,rgba(15,34,62,0.55),rgba(8,18,33,0.15)_48%,rgba(8,18,33,0)_74%)]" />
-        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 -bottom-px z-[20] h-[45%] bg-gradient-to-b from-transparent via-[#091421]/75 to-[#091421]" />
+        <div className="absolute inset-0 z-0 bg-[linear-gradient(95deg,rgba(2,11,25,0.95)_12%,rgba(6,21,42,0.82)_44%,rgba(8,27,52,0.24)_78%)]" />
+        <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_24%_38%,rgba(18,43,79,0.52),transparent_56%)]" />
+        <div className="absolute left-[5%] top-[16%] z-0 h-[360px] w-[360px] rounded-full border border-white/10 opacity-20" />
+        <div className="absolute left-[9%] top-[20%] z-0 h-[280px] w-[280px] rounded-full border border-[#E0B13B]/30 opacity-20" />
 
-        <div className="relative z-10 mx-auto w-full max-w-7xl pt-16">
-          <StaggerContainer className="max-w-xl" staggerDelay={0.18}>
-            <StaggerItem duration={1.2}>
-              <div className="mb-5 flex flex-wrap gap-2 md:gap-3">
+        <div className="relative z-10 mx-auto w-full max-w-7xl">
+          <StaggerContainer className="max-w-xl" staggerDelay={0.15}>
+            <StaggerItem duration={1.05}>
+              <div className="mb-5 flex flex-wrap gap-2.5">
                 {HERO_CHIPS.map((chip) => (
                   <span
                     key={chip}
-                    className="rounded-md border border-[#aac3e8]/35 bg-[#08162a]/84 px-3 py-1 font-sans text-[0.62rem] font-semibold uppercase tracking-[0.17em] text-[#e0ecff] shadow-[0_0_10px_rgba(41,72,119,0.22)] transition-all duration-300 hover:border-[#c8dbfb]/50 hover:bg-[#0d213e]/88"
+                    className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-[#081B34]/78 px-3.5 py-1.5 font-sans text-[0.62rem] font-semibold uppercase tracking-[0.14em] text-[#F4F6FA]"
                   >
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#E0B13B]" />
                     {chip}
                   </span>
                 ))}
               </div>
             </StaggerItem>
-            <StaggerItem duration={1.25}>
-              <h1 className="mb-6 font-serif text-5xl font-normal leading-[1.05] tracking-tight text-white [text-shadow:0_12px_32px_rgba(2,8,18,0.7)] md:text-7xl">
-                Transparent Aircraft Hire Pricing
+            <StaggerItem duration={1.1}>
+              <h1 className="mb-5 font-serif text-5xl leading-[1.02] tracking-tight text-[#F4F6FA] md:text-7xl">
+                Transparent Aircraft Hire <span className="text-[#F4F6FA] [text-shadow:0_0_18px_rgba(224,177,59,0.26)]">Pricing</span>
               </h1>
             </StaggerItem>
-            <StaggerItem duration={1.2}>
-              <p className="mb-10 max-w-lg font-sans text-[1.02rem] font-medium leading-relaxed text-[#e0e9f8] [text-shadow:0_8px_22px_rgba(2,8,18,0.65)]">
+            <StaggerItem duration={1.05}>
+              <p className="mb-10 max-w-lg font-sans text-base leading-relaxed text-[#C7D2E5]">
                 Simple hourly pricing based on VDO hours flown. Fuel and GST included. $25 per landing.
               </p>
             </StaggerItem>
           </StaggerContainer>
-          <FadeUp delay={0.18} duration={1.15}>
-            <div className="mt-2 flex flex-wrap items-center gap-4">
+          <FadeUp delay={0.15} duration={1}>
+            <div className="flex flex-wrap items-center gap-4">
               <a
                 href="/pilotRequirements"
-                className="inline-block rounded-md bg-gradient-to-r from-[#c3d8ff] to-[#7599d9] px-8 py-4 font-sans text-[0.8rem] font-bold uppercase tracking-widest text-[#0a1d38] shadow-2xl shadow-[#aec7f7]/25 transition-all duration-300 active:scale-95 hover:brightness-110"
+                className="inline-flex rounded-md bg-[#E0B13B] px-8 py-4 font-sans text-[0.79rem] font-bold uppercase tracking-[0.15em] text-[#061120] transition-colors duration-300 hover:bg-[#F0C24A]"
               >
                 Get Approved to Fly
               </a>
               <a
                 href="/checkout-process"
-                className="rounded border border-[#d2e2ff]/40 bg-[#09182d]/56 px-8 py-4 font-sans text-[0.8rem] font-bold uppercase tracking-widest text-[#eef4ff] shadow-[0_0_18px_rgba(3,10,20,0.45)] transition-all duration-300 hover:bg-[#0f243f]/72"
+                className="inline-flex rounded-md border border-white/28 bg-[#06152A]/60 px-8 py-4 font-sans text-[0.79rem] font-bold uppercase tracking-[0.15em] text-[#F4F6FA] transition-all duration-300 hover:border-[#E0B13B]/70 hover:text-[#FFF3D2]"
               >
                 View Checkout Requirements
               </a>
@@ -185,50 +192,59 @@ export default function PricingPage() {
         </div>
       </section>
 
-      <section className="-mt-10 pb-24 pt-10 md:pt-14">
-        <FadeUp className="mx-auto grid max-w-6xl gap-8 px-6 md:grid-cols-12 md:gap-10 md:px-12" duration={1.05} viewportMargin="-80px">
+      <section className="relative pb-24 pt-6 md:pt-12">
+        <FadeUp className="mx-auto grid max-w-6xl gap-10 px-6 md:grid-cols-12 md:px-12" duration={1.05} viewportMargin="-80px">
           <div className="md:col-span-4">
-            <p className="mb-3 font-sans text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-[#9fb8df]">Hourly Rate Ladder</p>
-            <h2 className="font-serif text-3xl text-[#eaf1ff] md:text-4xl">How Standard Aircraft Hire Pricing Works</h2>
-            <p className="mt-5 font-sans text-sm leading-relaxed text-[#c8d3e5]">
+            <p className="mb-3 font-sans text-[0.67rem] font-semibold uppercase tracking-[0.2em] text-[#E0B13B]">Hourly Rate Ladder</p>
+            <h2 className="font-serif text-4xl leading-tight text-[#F4F6FA]">How Standard Aircraft Hire Pricing Works</h2>
+            <p className="mt-5 font-sans text-[0.95rem] leading-relaxed text-[#A6B2C6]">
               Final pricing is based on total VDO hours flown for the booking.
             </p>
-            <div className="mt-7 rounded-lg border border-white/12 bg-[#101d31]/72 p-4">
-              <p className="font-sans text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[#bfd1ed]">Fuel included · GST included · $25 per landing</p>
-            </div>
-            <div className="mt-4 rounded-lg border border-[#c2d5f4]/20 bg-[#0f1d32]/72 p-4">
-              <p className="font-sans text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[#bfd1ed]">Important note</p>
-              <p className="mt-2 font-sans text-[0.84rem] leading-relaxed text-[#d5e0f3]">
-                Overnight aircraft parking charges at other airports are not included and are the pilot&apos;s responsibility.
-              </p>
+            <div className="mt-7 space-y-3">
+              <div className="rounded-xl border border-white/12 bg-[#081B34]/70 p-4">
+                <p className="inline-flex items-center gap-2 font-sans text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-[#D7E2F6]">
+                  <Icon name="verified" className="!text-[14px] text-[#E0B13B]" />
+                  Fuel Included · GST Included · $25 Per Landing
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/12 bg-[#081B34]/70 p-4">
+                <p className="inline-flex items-center gap-2 font-sans text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-[#D7E2F6]">
+                  <Icon name="shield" className="!text-[14px] text-[#E0B13B]" />
+                  Important Note
+                </p>
+                <p className="mt-2 font-sans text-[0.84rem] leading-relaxed text-[#A6B2C6]">
+                  Overnight aircraft parking charges at other airports are not included and are the pilot&apos;s responsibility.
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="md:col-span-8">
-            <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0c1829]/72 shadow-[0_30px_90px_rgba(0,0,0,0.35)] backdrop-blur-md">
-              <div className="grid grid-cols-[1fr_auto] border-b border-white/10 bg-[#111f35]/90 px-5 py-4 md:px-8">
-                <p className="font-sans text-[0.66rem] font-semibold uppercase tracking-[0.17em] text-[#9fb3d4]">VDO Tier</p>
-                <p className="font-sans text-[0.66rem] font-semibold uppercase tracking-[0.17em] text-[#9fb3d4]">Hourly Rate</p>
+          <div className="relative md:col-span-8">
+            <div className="absolute -right-6 bottom-8 hidden h-32 w-32 rounded-full border border-white/10 opacity-25 lg:block" />
+            <div className="overflow-hidden rounded-2xl border border-white/12 bg-[linear-gradient(180deg,rgba(8,27,52,0.86),rgba(6,21,42,0.85))] shadow-[0_26px_70px_rgba(0,0,0,0.45),inset_0_0_40px_rgba(56,99,171,0.15)] backdrop-blur-md">
+              <div className="grid grid-cols-[1fr_auto] border-b border-white/10 px-6 py-4 md:px-8">
+                <p className="font-sans text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[#90A4C4]">VDO Tier</p>
+                <p className="font-sans text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[#90A4C4]">Hourly Rate</p>
               </div>
               {PRICING_TIERS.map((tier) => (
                 <div
                   key={tier.tier}
-                  className={`group relative z-0 grid grid-cols-[1fr_auto] items-center border-b border-white/10 px-5 py-5 transition-all duration-300 hover:z-10 hover:scale-[1.018] hover:border-[#bdd1f2]/35 hover:bg-[#193153]/78 hover:shadow-[0_14px_34px_rgba(8,16,30,0.45),0_0_30px_rgba(113,151,215,0.2)] md:px-8 md:hover:py-6 ${
-                    tier.highlight ? 'bg-[#12243e]/72 shadow-[inset_0_0_30px_rgba(117,153,217,0.12)]' : ''
+                  className={`grid grid-cols-[1fr_auto] items-center border-b border-white/10 px-6 py-5 md:px-8 ${
+                    tier.highlight ? 'bg-[#0D2649]/40' : ''
                   }`}
                 >
-                  <p className={`font-sans text-sm transition-colors duration-300 md:text-[0.98rem] ${tier.highlight ? 'text-[#e2ebfb]' : 'text-[#c4d0e1] group-hover:text-[#e5efff]'}`}>{tier.tier}</p>
-                  <p className="font-serif text-3xl text-[#ecf2ff] transition-all duration-300 group-hover:text-[#f4f8ff] md:text-4xl md:group-hover:text-[2.55rem]">
+                  <p className="font-sans text-[0.95rem] text-[#D4DEEF]">{tier.tier}</p>
+                  <p className="font-serif text-[2.15rem] leading-none text-[#F4F6FA]">
                     {tier.rate}
-                    <span className="ml-1 font-sans text-sm text-[#9db1d2] transition-colors duration-300 group-hover:text-[#bfd1ef]">/hr</span>
+                    <span className="ml-1 font-sans text-sm text-[#90A4C4]">/hr</span>
                   </p>
                 </div>
               ))}
-              <div className="flex flex-wrap justify-center gap-5 px-5 py-4 md:px-8">
+              <div className="flex flex-wrap justify-center gap-6 px-6 py-4 md:px-8">
                 {['Fuel Included', 'GST Included', '$25 Landing Fee'].map((tag) => (
                   <span
                     key={tag}
-                    className="font-sans text-[0.64rem] font-semibold uppercase tracking-[0.16em] text-[#a7bcdd]"
+                    className="font-sans text-[0.64rem] font-semibold uppercase tracking-[0.14em] text-[#98ACCA]"
                   >
                     {tag}
                   </span>
@@ -239,73 +255,88 @@ export default function PricingPage() {
         </FadeUp>
       </section>
 
-      <section className="border-y border-white/5 bg-[#07111e] px-6 py-24 md:px-12 lg:px-20">
+      <section className="relative px-6 py-24 md:px-12 lg:px-20">
         <FadeUp className="mx-auto max-w-6xl" duration={1.05} viewportMargin="-80px">
-          <h2 className="text-center font-serif text-3xl text-[#eaf1ff] md:text-5xl">Seamless Billing Workflow</h2>
+          <p className="text-center font-sans text-[0.67rem] font-semibold uppercase tracking-[0.2em] text-[#E0B13B]">Seamless Billing Workflow</p>
+          <h2 className="mt-3 text-center font-serif text-4xl text-[#F4F6FA] md:text-6xl">Seamless Billing Workflow</h2>
 
           <div className="relative mt-16 hidden md:block">
-            <div className="absolute left-[8%] right-[8%] top-[22px] h-px bg-[#2e3f5d]" />
-            <div className="absolute left-[10%] right-[10%] top-[22px] h-px bg-gradient-to-r from-transparent via-[#84a8e5]/50 to-transparent" />
+            <div className="absolute left-[8%] right-[8%] top-[24px] h-px bg-gradient-to-r from-transparent via-[#8AA6CF]/50 to-transparent" />
             <div className="grid grid-cols-5 gap-4">
-              {WORKFLOW_STEPS.map((step) => (
-                <div key={step.title} className="group relative z-10 text-center">
-                  <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-[#87a6d8]/45 bg-[#12243e] shadow-[0_0_0_7px_#07111e] transition-all duration-300 group-hover:-translate-y-0.5 group-hover:border-[#bbcff2]/65 group-hover:shadow-[0_0_0_7px_#07111e,0_0_18px_rgba(117,153,217,0.35)]">
-                    <Icon name={step.icon} className="text-[#b8cef1] !text-[19px]" />
+              {WORKFLOW_STEPS.map((step, idx) => (
+                <div key={step.title} className="relative z-10 text-center">
+                  <p className="mb-2 font-sans text-[0.66rem] font-semibold tracking-[0.16em] text-[#E0B13B]">{String(idx + 1).padStart(2, '0')}</p>
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-[#081B34] shadow-[0_0_0_8px_#020B19]">
+                    <Icon name={step.icon} className="text-[#BFCDE2] !text-[19px]" />
                   </div>
-                  <p className="mt-4 font-sans text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-[#d9e5fb]">{step.title}</p>
-                  <p className="mx-auto mt-2 max-w-[160px] font-sans text-[0.78rem] leading-relaxed text-[#9eb0cc]">{step.body}</p>
+                  <p className="mt-4 font-sans text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[#E3EBF8]">{step.title}</p>
+                  <p className="mx-auto mt-2 max-w-[150px] font-sans text-[0.8rem] leading-relaxed text-[#A6B2C6]">{step.body}</p>
                 </div>
               ))}
             </div>
           </div>
 
           <div className="mt-10 space-y-5 md:hidden">
-            {WORKFLOW_STEPS.map((step) => (
-              <div key={step.title} className="group relative pl-12">
-                <div className="absolute left-[18px] top-0 h-full w-px bg-[#2e3f5d]" />
-                <div className="absolute left-0 top-1.5 flex h-9 w-9 items-center justify-center rounded-full border border-[#87a6d8]/45 bg-[#12243e] transition-all duration-300 group-hover:border-[#bbcff2]/65 group-hover:shadow-[0_0_14px_rgba(117,153,217,0.35)]">
-                  <Icon name={step.icon} className="text-[#b8cef1] !text-[18px]" />
+            {WORKFLOW_STEPS.map((step, idx) => (
+              <div key={step.title} className="relative pl-12">
+                <div className="absolute left-[18px] top-0 h-full w-px bg-white/15" />
+                <div className="absolute left-0 top-1.5 flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-[#081B34]">
+                  <Icon name={step.icon} className="text-[#BFCDE2] !text-[18px]" />
                 </div>
-                <p className="font-sans text-[0.75rem] font-semibold uppercase tracking-[0.14em] text-[#d9e5fb]">{step.title}</p>
-                <p className="mt-2 font-sans text-[0.82rem] leading-relaxed text-[#9eb0cc]">{step.body}</p>
+                <p className="font-sans text-[0.66rem] font-semibold tracking-[0.16em] text-[#E0B13B]">{String(idx + 1).padStart(2, '0')}</p>
+                <p className="mt-1 font-sans text-[0.75rem] font-semibold uppercase tracking-[0.14em] text-[#E3EBF8]">{step.title}</p>
+                <p className="mt-1.5 font-sans text-[0.82rem] leading-relaxed text-[#A6B2C6]">{step.body}</p>
               </div>
             ))}
           </div>
         </FadeUp>
       </section>
 
-      <section className="relative overflow-hidden px-6 py-24 md:px-12 lg:px-20">
-        <div className="absolute inset-0 bg-[#07111f]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(78,111,171,0.18),rgba(7,17,31,0)_45%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_65%,rgba(34,61,105,0.14),rgba(7,17,31,0)_46%)]" />
-        <div className="absolute inset-0 opacity-[0.22] [background-image:linear-gradient(rgba(137,163,203,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(137,163,203,0.08)_1px,transparent_1px)] [background-size:44px_44px]" />
-        <FadeUp className="relative z-10 mx-auto grid max-w-6xl items-start gap-10 lg:grid-cols-2" duration={1.05} viewportMargin="-80px">
-          <div>
-            <p className="font-sans text-[0.65rem] font-semibold uppercase tracking-[0.17em] text-[#9fb8df]">Multi-Day Hire Rule</p>
-            <h2 className="mt-3 font-serif text-4xl text-white md:text-5xl">Multi-Day Booking Minimum</h2>
-            <p className="mt-5 font-sans text-sm leading-relaxed text-[#c3d1e5] md:text-base">
+      <section className="relative overflow-hidden px-6 py-24 md:px-12 md:py-[100px] lg:px-20">
+        <div
+          className="absolute inset-0 z-0 bg-cover bg-no-repeat"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, rgba(2, 11, 25, 0.28) 0%, rgba(2, 11, 25, 0.14) 35%, rgba(2, 11, 25, 0.08) 70%, rgba(2, 11, 25, 0.12) 100%), linear-gradient(180deg, rgba(2, 11, 25, 0.12) 0%, rgba(2, 11, 25, 0.04) 50%, rgba(2, 11, 25, 0.12) 100%), url('/pricing-multiday.png')",
+            backgroundPosition: 'center right, center, center right',
+          }}
+        />
+        <FadeUp className="relative z-10 mx-auto grid max-w-6xl items-start gap-10 md:gap-12 lg:grid-cols-[46%_54%]" duration={1.05} viewportMargin="-80px">
+          <div className="max-w-[560px]">
+            <p className="mb-5 font-sans text-[12px] font-semibold uppercase tracking-[0.16em] text-[#E0B13B]">Multi-Day Hire Rule</p>
+            <h2 className="max-w-[11ch] font-serif text-[3.1rem] leading-[0.98] text-[#F4F6FA] md:mb-0 md:text-[4.5rem]">Multi-Day Booking Minimum</h2>
+            <p className="mb-0 mt-6 max-w-[520px] font-sans text-[1rem] leading-[1.6] text-[#A6B2C6] md:text-[1.05rem]">
               For bookings of 24 hours or longer, a minimum flight usage rule applies.
             </p>
-            <div className="mt-6 rounded-lg border border-[#b9ccee]/30 bg-[#0f1e35]/70 p-5 backdrop-blur-md">
-              <p className="font-sans text-[0.64rem] font-semibold uppercase tracking-[0.16em] text-[#9fb8df]">Minimum Usage Rule</p>
-              <p className="mt-2 font-serif text-[1.6rem] leading-tight text-[#edf3ff] md:text-[1.95rem]">
-                For every 24 hours booked, a minimum of 4 VDO hours is billable.
-              </p>
+            <div className="mt-8 rounded-2xl border border-[#97B1D7]/[0.12] bg-[#07162B]/[0.72] p-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] md:p-[30px]">
+              <div className="flex items-start gap-4">
+                <div className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#E0B13B]/30 bg-[#0B213D]/85">
+                  <Icon name="flight" className="!text-[15px] text-[#E0B13B]" />
+                </div>
+                <div>
+                  <p className="mb-3 font-sans text-[12px] font-semibold uppercase tracking-[0.16em] text-[#E0B13B]">Minimum Usage Rule</p>
+                  <p className="font-serif text-[1.9rem] leading-[1.18] text-[#F4F6FA] md:text-[2.05rem]">
+                    For every 24 hours booked, a minimum of 4 VDO hours is billable.
+                  </p>
+                </div>
+              </div>
             </div>
-            <p className="mt-5 font-sans text-[0.9rem] leading-relaxed text-[#d0dbed]">
+            <p className="mt-6 font-sans text-[0.92rem] leading-[1.6] text-[#A6B2C6]">
               If you fly more than the minimum, billing is based on your actual VDO hours.
             </p>
           </div>
-          <div className="grid gap-3 self-center">
+
+          <div className="grid gap-4 self-center md:gap-[17px]">
             {MINIMUM_RULES.map((rule) => (
               <div
                 key={rule.booked}
-                className="group flex items-center justify-between rounded-xl border border-white/16 bg-[#111f35]/74 p-4 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.015] hover:border-[#b9cdef]/52 hover:bg-[#182d4d]/84 hover:shadow-[0_12px_30px_rgba(2,8,18,0.38),0_0_24px_rgba(117,153,217,0.18)] md:p-5"
+                className="flex min-h-[80px] items-center justify-between rounded-2xl border border-[rgba(233,240,250,0.22)] bg-[rgba(7,22,43,0.48)] px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] md:px-7"
               >
-                <span className="font-sans text-[0.95rem] text-[#e5efff] md:text-[1rem]">{rule.booked}</span>
-                <div className="flex items-center gap-2">
-                  <Icon name="east" className="text-[#b6caea] transition-transform duration-300 group-hover:translate-x-0.5" />
-                  <span className="rounded-full border border-[#c4d6f4]/36 bg-[#213a61]/82 px-3 py-1.5 font-sans text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[#e8f1ff] md:px-4 md:text-[0.7rem]">
+                <span className="font-sans text-[1.02rem] font-medium leading-[1.2] text-[#F4F6FA] md:text-[1.12rem]">{rule.booked}</span>
+                <div className="flex items-center gap-3">
+                  <Icon name="east" className="text-[#D8DFEA] !text-[20px]" />
+                  <span className="inline-flex h-10 items-center gap-2 rounded-full border border-[#E0B13B]/[0.28] bg-[#081B34]/[0.78] px-4 font-sans text-[0.72rem] font-bold uppercase tracking-[0.08em] text-[#F4F6FA] md:h-11 md:px-[18px] md:text-[0.75rem]">
+                    <Icon name="schedule" className="!text-[14px] text-[#E0B13B]" />
                     {rule.minimum}
                   </span>
                 </div>
@@ -315,48 +346,51 @@ export default function PricingPage() {
         </FadeUp>
       </section>
 
-      <section className="px-6 py-24 md:px-12 lg:px-20">
+      <section className="relative px-6 py-24 md:px-12 lg:px-20">
         <FadeUp className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-12" duration={1.05} viewportMargin="-80px">
           <div className="lg:col-span-7">
-            <h2 className="font-serif text-3xl text-[#eaf1ff] md:text-5xl">What&apos;s Included</h2>
-            <p className="mt-4 max-w-2xl font-sans text-sm leading-relaxed text-[#b8c5d9] md:text-base">
+            <p className="font-sans text-[0.67rem] font-semibold uppercase tracking-[0.2em] text-[#E0B13B]">What&apos;s Included</p>
+            <h2 className="mt-3 font-serif text-4xl text-[#F4F6FA] md:text-6xl">What&apos;s Included</h2>
+            <p className="mt-4 max-w-2xl font-sans text-[0.95rem] leading-relaxed text-[#A6B2C6]">
               Everything you need for a seamless flight experience, with no hidden fees.
             </p>
             <div className="mt-10 grid gap-3 md:grid-cols-2">
-              {INCLUDED_CARDS.map((card, i) => (
-                <article
-                  key={card.title}
-                  className={`rounded-lg border border-white/10 p-4 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-[#b8cbeb]/35 hover:shadow-[0_14px_30px_rgba(2,8,18,0.35)] ${
-                    i < 2 ? 'bg-[#121f33]/78' : 'bg-[#0d1828]/75'
-                  }`}
-                >
+              {INCLUDED_CARDS.map((card) => (
+                <article key={card.title} className="rounded-xl border border-white/10 bg-[#081B34]/70 p-4">
                   <div className="flex items-start gap-3">
-                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/15 bg-[#14263f]">
-                      <Icon name={card.icon} className="text-[#b7cdee] !text-[18px]" />
+                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/15 bg-[#0A223F]">
+                      <Icon name={card.icon} className="text-[#E0B13B] !text-[18px]" />
                     </div>
                     <div>
-                      <h3 className="font-sans text-[0.95rem] font-semibold text-[#e5edf9]">{card.title}</h3>
-                      <p className="mt-1.5 font-sans text-[0.82rem] leading-relaxed text-[#aebcd1]">{card.copy}</p>
+                      <h3 className="font-sans text-[0.95rem] font-semibold text-[#EAF1FC]">{card.title}</h3>
+                      <p className="mt-1.5 font-sans text-[0.82rem] leading-relaxed text-[#A6B2C6]">{card.copy}</p>
                     </div>
                   </div>
                 </article>
               ))}
             </div>
           </div>
-          <div className="relative overflow-hidden rounded-xl border border-white/10 bg-[#0e1b2e] transition-all duration-300 hover:border-[#b8cbeb]/35 hover:shadow-[0_18px_34px_rgba(2,8,18,0.35)] lg:col-span-5">
-            <img src="/CockpitRunwayView.webp" alt="Cockpit runway view" className="h-full min-h-[340px] w-full object-cover opacity-72 transition-transform duration-700 hover:scale-[1.03]" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#091421] via-[#091421]/30 to-transparent" />
+
+          <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-[#06152A] lg:col-span-5">
+            <img
+              src="/CockpitRunwayView.webp"
+              alt="Cockpit runway view"
+              className="h-full min-h-[360px] w-full object-cover opacity-70"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#020B19] via-[#020B19]/32 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 p-6">
-              <p className="font-sans text-[0.66rem] font-semibold uppercase tracking-[0.17em] text-[#a6bfe4]">Transparent Billing</p>
-              <p className="mt-2 font-serif text-2xl text-[#edf3ff]">Built for clarity from booking to final invoice.</p>
+              <p className="font-sans text-[0.66rem] font-semibold uppercase tracking-[0.17em] text-[#E0B13B]">Transparent Billing</p>
+              <p className="mt-2 font-serif text-3xl leading-tight text-[#F4F6FA]">Built for clarity from booking to final invoice.</p>
             </div>
           </div>
         </FadeUp>
       </section>
 
-      <section className="border-t border-white/5 px-6 py-20 md:px-12 lg:px-20">
-        <FadeUp className="mx-auto max-w-4xl" duration={1.05} viewportMargin="-80px">
-          <h2 className="text-center font-serif text-3xl text-[#eaf1ff] md:text-5xl">Frequently Asked Questions</h2>
+      <section className="relative px-6 py-20 md:px-12 lg:px-20">
+        <div className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:radial-gradient(circle,#89a5d4_1px,transparent_1px)] [background-size:20px_20px]" />
+        <FadeUp className="relative mx-auto max-w-5xl" duration={1.05} viewportMargin="-80px">
+          <p className="text-center font-sans text-[0.67rem] font-semibold uppercase tracking-[0.2em] text-[#E0B13B]">Frequently Asked Questions</p>
+          <h2 className="mt-3 text-center font-serif text-4xl text-[#F4F6FA] md:text-6xl">Frequently Asked Questions</h2>
           <div className="mt-10 space-y-3">
             {FAQ_ITEMS.map((item) => (
               <FaqItem key={item.question} item={item} />
@@ -365,27 +399,27 @@ export default function PricingPage() {
         </FadeUp>
       </section>
 
-      <section className="relative overflow-hidden border-t border-white/5 px-6 py-24 md:px-12 lg:px-20">
+      <section className="relative overflow-hidden px-6 py-24 md:px-12 lg:px-20">
         <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: 'url("/Cockpit-twilight.webp")', opacity: 0.55 }}
+          style={{ backgroundImage: 'url("/Cockpit-twilight.webp")', opacity: 0.5 }}
         />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(56,84,130,0.3),rgba(7,15,29,0.93)_62%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,11,25,0.72),rgba(2,11,25,0.88))]" />
         <FadeUp className="relative z-10 mx-auto max-w-3xl text-center" duration={1.05} viewportMargin="-80px">
-          <h2 className="font-serif text-4xl text-white md:text-5xl">Ready to Fly?</h2>
-          <p className="mx-auto mt-4 max-w-2xl font-sans text-sm leading-relaxed text-[#c3d2e8] md:text-base">
+          <h2 className="font-serif text-5xl text-[#F4F6FA] md:text-7xl">Ready to Fly?</h2>
+          <p className="mx-auto mt-4 max-w-2xl font-sans text-[0.95rem] leading-relaxed text-[#C0CCE0] md:text-base">
             Get approved and start booking with transparent, competitive aircraft hire pricing.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
             <a
               href="/pilotRequirements"
-              className="inline-block rounded-md bg-gradient-to-r from-[#c3d8ff] to-[#7599d9] px-8 py-4 font-sans text-[0.8rem] font-bold uppercase tracking-widest text-[#0a1d38] shadow-2xl shadow-[#aec7f7]/25 transition-all duration-300 active:scale-95 hover:brightness-110"
+              className="inline-flex rounded-md bg-[#E0B13B] px-8 py-4 font-sans text-[0.79rem] font-bold uppercase tracking-[0.15em] text-[#061120] transition-colors duration-300 hover:bg-[#F0C24A]"
             >
               Get Approved
             </a>
             <a
               href="mailto:ops@ozrentaplane.com.au?subject=Pricing%20enquiry"
-              className="rounded border border-[#d2e2ff]/40 bg-[#09182d]/56 px-8 py-4 font-sans text-[0.8rem] font-bold uppercase tracking-widest text-[#eef4ff] transition-all duration-300 hover:bg-[#0f243f]/72"
+              className="inline-flex rounded-md border border-white/28 bg-[#06152A]/52 px-8 py-4 font-sans text-[0.79rem] font-bold uppercase tracking-[0.15em] text-[#F4F6FA] transition-all duration-300 hover:border-[#E0B13B]/70 hover:text-[#FFF3D2]"
             >
               Contact Us
             </a>

@@ -8,7 +8,7 @@ function Icon({ name, className = '' }: { name: string; className?: string }) {
 
 export default function SafetyPage() {
   return (
-    <main className="bg-[#091421] text-[#d9e3f6] font-sans overflow-x-hidden">
+    <main className="bg-[#020B19] text-[#d9e3f6] font-sans overflow-x-hidden">
 
       {/* ═══ Section 1: Hero ═══════════════════════════════════════════════════ */}
       <section className="relative px-6 md:px-12 lg:px-20 overflow-hidden min-h-[500px] md:min-h-[750px] flex items-center">
@@ -21,6 +21,9 @@ export default function SafetyPage() {
 
         <div className="relative z-10 max-w-7xl mx-auto w-full pt-16">
           <StaggerContainer className="max-w-xl" staggerDelay={0.25}>
+            <StaggerItem duration={1.2}>
+              <p className="mb-4 font-sans text-[12px] font-semibold uppercase tracking-[0.14em] text-[#E0B13B]">Flight Safety</p>
+            </StaggerItem>
             <StaggerItem duration={1.4}>
               <h1 className="font-serif text-5xl md:text-7xl font-normal leading-[1.05] tracking-tight mb-6 text-white">
                 Safety Built Into <br />
@@ -38,11 +41,12 @@ export default function SafetyPage() {
       </section>
 
       {/* ═══ Section 2: Safety Philosophy ═════════════════════════════════════ */}
-      <section className="-mt-12 pt-12 pb-32 px-8 md:px-24 bg-[#091421] relative z-20">
+      <section className="-mt-12 pt-12 pb-32 px-8 md:px-24 bg-[#020B19] relative z-20">
         <StaggerContainer className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-20" viewportMargin="-20%">
           <div className="lg:col-span-5">
             <StaggerItem duration={1.4}>
-              <h2 className="font-serif font-normal text-4xl md:text-5xl text-[#aec7f7] mb-6">Our Philosophy</h2>
+              <h2 className="font-serif font-normal text-4xl md:text-5xl text-[#F4F6FA] mb-6">Our Philosophy</h2>
+              <div className="h-[2px] w-[48px] bg-[#E0B13B] mb-6" />
             </StaggerItem>
             <StaggerItem duration={1.4}>
               <p className="text-[#c4c6cf] text-lg font-sans leading-relaxed">
@@ -77,9 +81,11 @@ export default function SafetyPage() {
           ].map(({ icon, title, body }) => (
             <StaggerItem key={title} duration={1.4}>
               <div
-                className="bg-[#121c29] p-10 flex flex-col justify-between h-80 group hover:bg-[#212b38] transition-all duration-500"
+                className="bg-[#121c29] border border-[rgba(151,177,215,0.14)] p-10 flex flex-col justify-between h-80 group hover:bg-[rgba(224,177,59,0.03)] hover:border-[rgba(224,177,59,0.35)] transition-all duration-500"
               >
-                <Icon name={icon} className="text-[#aec7f7] !text-4xl group-hover:scale-110 transition-transform duration-500" />
+                <span className="flex h-12 w-12 items-center justify-center rounded-full border border-[rgba(224,177,59,0.35)] bg-[rgba(8,27,52,0.32)]">
+                  <Icon name={icon} className="text-[#D8DFEA] !text-3xl group-hover:scale-110 transition-transform duration-500" />
+                </span>
                 <div>
                   <h3 className="font-serif font-normal text-2xl text-[#d9e3f6] mb-3">{title}</h3>
                   <p className="text-sm text-[#c4c6cf] leading-relaxed">{body}</p>
@@ -91,11 +97,12 @@ export default function SafetyPage() {
       </section>
 
       {/* ═══ Section 3: Pilot Approval Standards ══════════════════════════════ */}
-      <section className="py-32 px-8 md:px-24 bg-[#050f1b]">
+      <section className="py-32 px-8 md:px-24 bg-[#06152A]">
         <StaggerContainer className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8" viewportMargin="-20%">
           <div>
             <StaggerItem duration={1.4}>
               <h2 className="font-serif font-normal text-4xl md:text-6xl text-[#d9e3f6] mb-4">Pilot Approval Standards</h2>
+              <div className="h-[2px] w-[52px] bg-[#E0B13B] mb-4" />
             </StaggerItem>
             <StaggerItem duration={1.4}>
               <p className="text-[#c4c6cf] max-w-xl font-sans">The standard for flying an OZ aircraft is deliberate and uncompromising.</p>
@@ -128,10 +135,8 @@ export default function SafetyPage() {
             },
           ].map(({ phase, title, body }) => (
             <StaggerItem key={phase} duration={1.6}>
-              <div
-                className="bg-[#121c29] p-8 border-l-2 border-[#aec7f7]/20 h-full"
-              >
-                <span className="text-xs font-sans uppercase tracking-[0.2em] text-[#aec7f7]/60 mb-6 block">{phase}</span>
+              <div className="bg-[#121c29] p-8 border-l-2 border-[rgba(224,177,59,0.35)] h-full">
+                <span className="text-xs font-sans uppercase tracking-[0.2em] text-[#E0B13B]/90 mb-6 block">{phase}</span>
                 <h4 className="font-serif font-normal text-2xl mb-4 text-[#d9e3f6]">{title}</h4>
                 <p className="text-sm text-[#c4c6cf] font-sans leading-relaxed">{body}</p>
               </div>
@@ -141,15 +146,17 @@ export default function SafetyPage() {
       </section>
 
       {/* ═══ Section 4: Maintenance Standards ════════════════════════════════ */}
-      <section className="py-0 grid grid-cols-1 lg:grid-cols-2 bg-[#091421]">
+      <section className="py-0 grid grid-cols-1 lg:grid-cols-2 bg-[#020B19]">
         {/* Left: image */}
         <FadeUp duration={2.4} viewportMargin="-20%" delay={0.1} className="relative min-h-[500px]">
           <img
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover brightness-[0.84] saturate-[0.9] contrast-[0.94]"
             src="/Close-upNose.webp"
             alt="Aircraft maintenance close-up"
           />
-          <div className="absolute inset-0 bg-[#aec7f7]/10 mix-blend-overlay" />
+          <div className="absolute inset-0 bg-[rgba(2,11,25,0.28)]" />
+          <div className="absolute inset-0 bg-[rgba(6,21,42,0.32)] mix-blend-multiply" />
+          <div className="absolute inset-0 bg-gradient-to-br from-[rgba(8,27,52,0.24)] via-transparent to-[rgba(8,27,52,0.2)]" />
         </FadeUp>
 
         {/* Right: content */}
@@ -157,6 +164,7 @@ export default function SafetyPage() {
           <StaggerContainer staggerDelay={0.4} viewportMargin="-30%">
             <StaggerItem duration={1.4}>
               <h2 className="font-serif font-normal text-4xl md:text-5xl text-[#d9e3f6] mb-8">Maintenance Standards</h2>
+              <div className="h-[2px] w-[48px] bg-[#E0B13B] mb-8" />
             </StaggerItem>
             <div className="space-y-8">
               {[
@@ -178,7 +186,9 @@ export default function SafetyPage() {
               ].map(({ icon, title, body }) => (
                 <StaggerItem key={title} duration={1.4}>
                   <div className="flex gap-6">
-                    <Icon name={icon} className="text-[#aec7f7] mt-1 shrink-0" />
+                    <span className="mt-1 flex h-9 w-9 items-center justify-center rounded-full border border-[rgba(224,177,59,0.35)] bg-[rgba(8,27,52,0.34)] shrink-0">
+                      <Icon name={icon} className="text-[#D8DFEA] !text-[19px]" />
+                    </span>
                     <div>
                       <h5 className="text-xl font-serif font-normal mb-2 text-[#d9e3f6]">{title}</h5>
                       <p className="text-sm text-[#c4c6cf]">{body}</p>
@@ -196,6 +206,7 @@ export default function SafetyPage() {
         <StaggerContainer className="max-w-4xl mx-auto text-center mb-20" viewportMargin="-20%">
           <StaggerItem duration={1.4}>
             <h2 className="font-serif font-normal text-4xl md:text-6xl mb-6 text-[#d9e3f6]">Operational Safeguards</h2>
+            <div className="mx-auto h-[2px] w-[48px] bg-[#E0B13B] mb-6" />
           </StaggerItem>
           <StaggerItem duration={1.4}>
             <p className="text-[#c4c6cf] font-sans text-lg">We provide the structure; you provide the command.</p>
@@ -204,9 +215,11 @@ export default function SafetyPage() {
 
         <StaggerContainer className="space-y-4" staggerDelay={0.4} viewportMargin="-20%">
           <StaggerItem duration={1.4}>
-            <div className="grid grid-cols-1 md:grid-cols-12 items-center bg-[#121c29] p-8 rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-12 items-center bg-[#121c29] border border-[rgba(151,177,215,0.14)] hover:border-[rgba(224,177,59,0.35)] p-8 rounded-lg transition-colors">
               <div className="md:col-span-1 text-[#aec7f7]">
-                <Icon name="shield" className="!text-3xl" />
+                <span className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(224,177,59,0.35)] bg-[rgba(8,27,52,0.3)]">
+                  <Icon name="shield" className="!text-xl text-[#D8DFEA]" />
+                </span>
               </div>
               <div className="md:col-span-3">
                 <h4 className="font-serif font-normal text-xl text-[#d9e3f6]">Booking Controls</h4>
@@ -220,9 +233,11 @@ export default function SafetyPage() {
           </StaggerItem>
 
           <StaggerItem duration={1.4}>
-            <div className="grid grid-cols-1 md:grid-cols-12 items-center bg-[#121c29] p-8 rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-12 items-center bg-[#121c29] border border-[rgba(151,177,215,0.14)] hover:border-[rgba(224,177,59,0.35)] p-8 rounded-lg transition-colors">
               <div className="md:col-span-1 text-[#aec7f7]">
-                <Icon name="psychology" className="!text-3xl" />
+                <span className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(224,177,59,0.35)] bg-[rgba(8,27,52,0.3)]">
+                  <Icon name="psychology" className="!text-xl text-[#D8DFEA]" />
+                </span>
               </div>
               <div className="md:col-span-3">
                 <h4 className="font-serif font-normal text-xl text-[#d9e3f6]">Decision Support</h4>
@@ -238,14 +253,14 @@ export default function SafetyPage() {
       </section>
 
       {/* ═══ Section 6: Pre-flight / Post-flight ══════════════════════════════ */}
-      <section className="py-32 px-8 md:px-24 bg-[#050f1b]">
+      <section className="py-32 px-8 md:px-24 bg-[#06152A]">
         <StaggerContainer className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-[#44474e]/10" staggerDelay={0.4} viewportMargin="-20%">
 
           {/* Pre-flight */}
           <StaggerItem duration={1.4}>
             <div className="bg-[#091421] p-12 md:p-20 h-full">
               <div className="flex items-center gap-4 mb-10">
-                <span className="w-12 h-12 rounded-full bg-[#1b365d]/30 flex items-center justify-center text-[#aec7f7] font-bold font-sans">
+                <span className="w-12 h-12 rounded-full bg-[rgba(224,177,59,0.12)] border border-[rgba(224,177,59,0.35)] flex items-center justify-center text-[#E0B13B] font-bold font-sans">
                   01
                 </span>
                 <h2 className="font-serif font-normal text-3xl md:text-4xl text-[#d9e3f6]">Pre-flight</h2>
@@ -258,7 +273,7 @@ export default function SafetyPage() {
                   'Weather briefing and alternate selection',
                 ].map(item => (
                   <li key={item} className="flex gap-4">
-                    <Icon name="check_circle" className="text-[#a9cbe4] shrink-0" />
+                    <Icon name="check_circle" className="text-[#E0B13B] shrink-0" />
                     <span className="text-[#c4c6cf]">{item}</span>
                   </li>
                 ))}
@@ -270,7 +285,7 @@ export default function SafetyPage() {
           <StaggerItem duration={1.4}>
             <div className="bg-[#091421] p-12 md:p-20 h-full">
               <div className="flex items-center gap-4 mb-10">
-                <span className="w-12 h-12 rounded-full bg-[#15394d]/30 flex items-center justify-center text-[#a9cbe4] font-bold font-sans">
+                <span className="w-12 h-12 rounded-full bg-[rgba(224,177,59,0.12)] border border-[rgba(224,177,59,0.35)] flex items-center justify-center text-[#E0B13B] font-bold font-sans">
                   02
                 </span>
                 <h2 className="font-serif font-normal text-3xl md:text-4xl text-[#d9e3f6]">Post-flight</h2>
@@ -284,7 +299,7 @@ export default function SafetyPage() {
                   'Take all of your belongings.',
                 ].map(item => (
                   <li key={item} className="flex gap-4">
-                    <Icon name="radio_button_checked" className="text-[#a9cbe4] shrink-0" />
+                    <Icon name="radio_button_checked" className="text-[#E0B13B] shrink-0" />
                     <span className="text-[#c4c6cf]">{item}</span>
                   </li>
                 ))}
@@ -308,6 +323,7 @@ export default function SafetyPage() {
         <StaggerContainer className="relative z-10 max-w-3xl" staggerDelay={0.5} viewportMargin="-25%">
           <StaggerItem duration={1.6}>
             <h2 className="font-serif font-normal text-5xl md:text-7xl mb-8 text-[#d9e3f6]">The Go/No-Go Culture</h2>
+            <div className="mx-auto h-[2px] w-[48px] bg-[#E0B13B] mb-8" />
           </StaggerItem>
           <StaggerItem duration={1.6}>
             <p className="font-sans text-xl text-[#d9e3f6] mb-10 leading-relaxed italic">
@@ -323,22 +339,23 @@ export default function SafetyPage() {
       </section>
 
       {/* ═══ Section 8: Type Familiarisation ══════════════════════════════════ */}
-      <section className="py-32 px-8 md:px-24 bg-[#091421]">
-        <StaggerContainer className="bg-[#16202e] p-12 md:p-24 rounded-lg flex flex-col md:flex-row gap-16 items-center" viewportMargin="-25%">
+      <section className="py-32 px-8 md:px-24 bg-[#020B19]">
+        <StaggerContainer className="bg-[#16202e] border border-[rgba(151,177,215,0.14)] p-12 md:p-24 rounded-lg flex flex-col md:flex-row gap-16 items-center" viewportMargin="-25%">
 
           {/* Text */}
           <StaggerItem duration={1.6} className="flex-1 w-full">
             <h2 className="font-serif font-normal text-4xl mb-8 text-[#d9e3f6]">Type Familiarisation</h2>
+            <div className="h-[2px] w-[48px] bg-[#E0B13B] mb-8" />
             <p className="text-[#c4c6cf] text-lg mb-8 font-sans leading-relaxed">
               Even for highly experienced pilots, every cockpit is a unique ecosystem. Our mandatory checkouts aren&apos;t just about &lsquo;flying the plane&rsquo;—they are about mastering the specific avionics, emergency procedures, and operational nuances of the OZ fleet.
             </p>
             <div className="grid grid-cols-2 gap-8">
               <div>
-                <h6 className="font-bold text-[#aec7f7] mb-2 uppercase text-xs tracking-widest font-sans">Typical Duration</h6>
+                <h6 className="font-bold text-[#E0B13B] mb-2 uppercase text-xs tracking-widest font-sans">Typical Duration</h6>
                 <p className="font-serif font-normal text-2xl text-[#d9e3f6]">1.5 – 3 Hours</p>
               </div>
               <div>
-                <h6 className="font-bold text-[#aec7f7] mb-2 uppercase text-xs tracking-widest font-sans">Validity</h6>
+                <h6 className="font-bold text-[#E0B13B] mb-2 uppercase text-xs tracking-widest font-sans">Validity</h6>
                 <p className="font-serif font-normal text-2xl text-[#d9e3f6]">90 Days Recency</p>
               </div>
             </div>
@@ -361,11 +378,12 @@ export default function SafetyPage() {
       </section>
 
       {/* ═══ Section 9: Safety FAQ ════════════════════════════════════════════ */}
-      <section className="py-32 px-8 md:px-24 bg-[#050f1b]">
+      <section className="py-32 px-8 md:px-24 bg-[#06152A]">
         <div className="max-w-4xl mx-auto">
           <StaggerContainer className="mb-16 text-center" viewportMargin="-20%">
             <StaggerItem duration={1.4}>
               <h2 className="font-serif font-normal text-4xl text-[#d9e3f6]">Safety Questions</h2>
+              <div className="mx-auto h-[2px] w-[48px] bg-[#E0B13B] mt-4" />
             </StaggerItem>
           </StaggerContainer>
 
@@ -375,7 +393,7 @@ export default function SafetyPage() {
               <div className="bg-[#091421] p-8">
                 <div className="flex justify-between items-center cursor-pointer">
                   <h4 className="font-serif font-normal text-xl text-[#d9e3f6]">How is aircraft maintenance tracked?</h4>
-                  <Icon name="expand_more" className="text-[#aec7f7]" />
+                  <Icon name="expand_more" className="text-[#E0B13B]" />
                 </div>
                 <div className="mt-4 text-[#c4c6cf] text-sm leading-relaxed max-w-3xl">
                   We use a digital maintenance logbook accessible to all pilots during the pre-flight phase. This ensures you have a live view of the aircraft&apos;s airworthiness status and engine hours at all times.
@@ -392,7 +410,7 @@ export default function SafetyPage() {
                 <div className="bg-[#091421] p-8">
                   <div className="flex justify-between items-center cursor-pointer">
                     <h4 className="font-serif font-normal text-xl text-[#d9e3f6]">{q}</h4>
-                    <Icon name="expand_more" className="text-[#aec7f7]" />
+                    <Icon name="expand_more" className="text-[#E0B13B]" />
                   </div>
                 </div>
               </StaggerItem>
@@ -402,11 +420,12 @@ export default function SafetyPage() {
       </section>
 
       {/* ═══ Section 10: Final CTA ════════════════════════════════════════════ */}
-      <section className="py-32 px-8 md:px-24 text-center bg-[#091421]" id="contact">
+      <section className="py-32 px-8 md:px-24 text-center bg-[#020B19]" id="contact">
         <div className="max-w-2xl mx-auto">
           <StaggerContainer staggerDelay={0.3} viewportMargin="-25%">
             <StaggerItem duration={1.4}>
               <h2 className="font-serif font-normal text-4xl md:text-6xl mb-8 text-[#d9e3f6]">Ready to Apply for Access?</h2>
+              <div className="mx-auto h-[2px] w-[52px] bg-[#E0B13B] mb-8" />
             </StaggerItem>
             <StaggerItem duration={1.4}>
               <p className="text-[#c4c6cf] text-lg mb-12 font-sans">
@@ -419,7 +438,7 @@ export default function SafetyPage() {
             <FadeUp delay={0.8} duration={1.4}>
               <a
                 href="/pilotRequirements"
-                className="inline-block bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] px-8 py-4 rounded-md font-sans font-bold uppercase tracking-widest text-sm shadow-2xl shadow-[#aec7f7]/20 transition-all active:scale-95 hover:brightness-110"
+                className="inline-block bg-[#E0B13B] text-[#061120] px-8 py-4 rounded-md border border-[#B8871E] font-sans font-bold uppercase tracking-widest text-sm transition-colors active:scale-95 hover:bg-[#F0C24A]"
               >
                 View Pilot Requirements
               </a>

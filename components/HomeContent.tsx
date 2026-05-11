@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 import { FadeUp, StaggerContainer, StaggerItem, HoverEmphasize } from '@/components/MotionPresets'
 
 // ── Palette — matches AeroVista design system exactly ─────────────────────────
-const BASE = '#091421'   // surface — matches sticky floor & shared canvas
+const BASE = '#020B19'
 
 // Text tokens from AeroVista
 const T_SURFACE = '#d9e3f6'  // on-surface  — primary headings (h2)
@@ -67,7 +67,11 @@ function AircraftShowcase() {
   ]
 
   return (
-    <section className="relative pt-14 md:pt-16 pb-14 md:pb-16 px-6 md:px-12 lg:px-20 bg-[radial-gradient(circle_at_50%_24%,rgba(8,27,52,0.48),transparent_56%),linear-gradient(180deg,#06152A_0%,#020B19_100%)]">
+    <section className="relative px-6 pt-20 pb-16 md:px-12 md:pt-24 md:pb-[68px] lg:px-20 lg:pt-24 lg:pb-[72px]">
+      <div
+        className="pointer-events-none absolute inset-0 z-0"
+        style={{ background: 'radial-gradient(circle at 38% 28%, rgba(10,43,87,0.28), transparent 42%)' }}
+      />
       <div className="relative z-10 max-w-[1220px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1.06fr)_minmax(410px,0.94fr)] gap-8 lg:gap-12 items-start">
         <FadeUp duration={1.1} delay={0.06} viewportMargin="-100px">
           <div className="rounded-xl p-2.5" style={{ backgroundColor: 'rgba(8,27,52,0.4)' }}>
@@ -174,7 +178,14 @@ function FlightManifest() {
   ]
 
   return (
-    <section className="py-24 md:py-28 border-y border-[rgba(151,177,215,0.14)] bg-[linear-gradient(180deg,rgba(11,26,46,0.9)_0%,rgba(9,20,33,1)_100%)]">
+    <section className="relative py-16 md:py-[68px] lg:py-[72px]">
+      <div
+        className="pointer-events-none absolute inset-0 z-0"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(2,11,25,0.1) 0%, rgba(2,11,25,0.34) 100%), radial-gradient(circle at 50% 48%, rgba(151,177,215,0.08), transparent 38%)',
+        }}
+      />
       <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-20">
 
         {/* Section heading */}
@@ -195,7 +206,7 @@ function FlightManifest() {
           staggerDelay={0.22}
           viewportMargin="-80px"
         >
-          <div className="pointer-events-none absolute left-[16%] right-[16%] top-[32px] hidden md:block border-t border-dashed border-[rgba(151,177,215,0.2)]" />
+          <div className="pointer-events-none absolute left-[16%] right-[16%] top-[32px] hidden md:block border-t border-dashed border-[rgba(151,177,215,0.16)]" />
           {steps.map((step) => (
             <StaggerItem key={step.n} duration={1.15}>
               <div className="relative text-center">
@@ -296,11 +307,14 @@ function WhyFlyWithUs() {
   ]
 
   return (
-    <section className="relative pt-20 md:pt-24 pb-24 md:pb-28 px-6 md:px-12 lg:px-20 overflow-hidden">
+    <section className="relative overflow-hidden px-6 pt-16 pb-20 md:px-12 md:pt-[72px] md:pb-24 lg:px-20 lg:pt-20 lg:pb-24">
       {/* Soft illuminated field — static, not animated */}
       <div
         className="absolute inset-0 pointer-events-none z-0"
-        style={{ background: 'radial-gradient(ellipse 90% 60% at 50% 55%, rgba(174,199,247,0.055) 0%, transparent 70%)' }}
+        style={{
+          background:
+            'radial-gradient(circle at 50% 30%, rgba(8,27,52,0.42), transparent 48%), radial-gradient(ellipse 90% 60% at 50% 55%, rgba(174,199,247,0.055) 0%, transparent 70%)',
+        }}
       />
 
       <div className="relative z-10 max-w-7xl mx-auto">
@@ -333,7 +347,7 @@ function WhyFlyWithUs() {
 
         {/* Features grid — light separators, not heavy cards */}
         <StaggerContainer
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-0 border-y border-[rgba(151,177,215,0.14)]"
+          className="grid grid-cols-1 gap-0 border-y border-[rgba(151,177,215,0.1)] md:grid-cols-2 lg:grid-cols-3"
           staggerDelay={0.22}
           viewportMargin="-80px"
         >
@@ -344,8 +358,8 @@ function WhyFlyWithUs() {
                   className="p-8 md:p-9 relative group overflow-hidden transition-all duration-300 h-full"
                   style={{
                     background: 'linear-gradient(180deg, rgba(255,255,255,0.008) 0%, rgba(255,255,255,0.003) 100%)',
-                    borderRight: idx % 3 !== 2 ? '1px solid rgba(151,177,215,0.14)' : undefined,
-                    borderTop: idx > 2 ? '1px solid rgba(151,177,215,0.14)' : undefined,
+                    borderRight: idx % 3 !== 2 ? '1px solid rgba(151,177,215,0.1)' : undefined,
+                    borderTop: idx > 2 ? '1px solid rgba(151,177,215,0.1)' : undefined,
                   }}
                 >
                   <div className="absolute inset-0 bg-gradient-to-b from-[rgba(151,177,215,0.025)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
@@ -370,53 +384,47 @@ function WhyFlyWithUs() {
 // ── Section 4: Your Clearance Awaits ──────────────────────────────────────────
 function ClearanceAwaits() {
   return (
-    <section className="relative pt-8 md:pt-10 pb-20 md:pb-24 px-6 md:px-12 lg:px-20 overflow-hidden">
+    <section
+      className="relative w-full overflow-hidden px-6 pt-[108px] pb-[92px] md:px-12 md:pt-[122px] md:pb-[112px] lg:px-20 lg:pt-[136px] lg:pb-[132px] min-h-[360px] md:min-h-[420px] lg:min-h-[500px]"
+    >
       <div
-        className="relative z-10 max-w-[1240px] mx-auto w-full min-h-[250px] md:min-h-[280px] rounded-xl overflow-hidden border"
+        className="pointer-events-none absolute inset-0"
         style={{
-          borderColor: 'rgba(224, 177, 59, 0.45)',
           backgroundImage: 'url("/home-preFooter.png")',
           backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          backgroundPosition: 'center top',
           backgroundRepeat: 'no-repeat',
         }}
-      >
-        <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,11,25,0.92)_0%,rgba(2,11,25,0.72)_42%,rgba(2,11,25,0.45)_70%,rgba(2,11,25,0.35)_100%)]" />
-        </div>
-        <div className="relative z-10 h-full max-w-[520px] px-6 py-10 md:px-12 md:py-12 lg:px-16 lg:py-14 flex flex-col justify-center">
+      />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,11,25,0.84)_0%,rgba(2,11,25,0.68)_40%,rgba(2,11,25,0.88)_100%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-[96px] md:h-[104px] lg:h-[110px] bg-[linear-gradient(180deg,rgba(2,11,25,0.72)_0%,rgba(2,11,25,0.34)_58%,rgba(2,11,25,0)_100%)]" />
 
-        {/* H2 — first to reveal */}
+      <div className="relative z-10 mx-auto flex h-full w-full max-w-[720px] flex-col items-center justify-center text-center">
         <FadeUp duration={1.4} delay={0} viewportMargin="-80px">
-          <h2 className="font-serif text-[2rem] md:text-[2.55rem] lg:text-[2.9rem] font-normal leading-[1.1] tracking-tight mb-4" style={{ color: '#F4F6FA' }}>
+          <h2 className="font-serif text-[2.2rem] md:text-[3.35rem] lg:text-[3.85rem] font-normal leading-[1.08] tracking-tight mb-4 md:mb-5" style={{ color: '#F4F6FA' }}>
             Your clearance awaits.
           </h2>
         </FadeUp>
 
-        {/* Supporting copy */}
         <FadeUp duration={1.25} delay={0.3} viewportMargin="-80px">
-          <p className="font-sans text-[15px] md:text-[16px] leading-[1.6] mb-7 md:mb-8 max-w-[500px]" style={{ color: '#D8DFEA' }}>
+          <p className="font-sans text-[16px] md:text-[18px] leading-[1.6] mb-8 md:mb-9 max-w-[620px]" style={{ color: '#D8DFEA' }}>
             Join the next generation of pilots at OZ Rent A Plane.
           </p>
         </FadeUp>
 
-        {/* CTA button */}
         <FadeUp duration={1.1} delay={0.55} viewportMargin="-80px">
-          <button
-            className="inline-flex items-center gap-2.5 h-[46px] px-6 md:px-7 rounded-[3px] font-sans font-bold text-[13px] tracking-[0.08em] uppercase transition-colors duration-300 active:scale-95"
-            style={{
-              background: '#E0B13B',
-              color: '#061120',
-            }}
+          <a
+            href="/login"
+            className="inline-flex items-center gap-2.5 h-[48px] px-8 rounded-[4px] font-sans font-bold text-[13px] tracking-[0.08em] uppercase transition-colors duration-300 active:scale-95"
+            style={{ background: '#E0B13B', color: '#061120' }}
             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F0C24A' }}
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#E0B13B' }}
           >
             Create an account
             <span aria-hidden="true">→</span>
-          </button>
+          </a>
         </FadeUp>
         </div>
-      </div>
     </section>
   )
 }
@@ -424,22 +432,27 @@ function ClearanceAwaits() {
 // ── Default export ─────────────────────────────────────────────────────────────
 export default function HomeContent() {
   return (
-    <>
-      {/* The Image World */}
+    <div
+      className="relative z-20 w-full overflow-hidden"
+      style={{
+        background:
+          'radial-gradient(circle at 50% 8%, rgba(10,43,87,0.32), transparent 36%), radial-gradient(circle at 20% 44%, rgba(8,27,52,0.38), transparent 34%), radial-gradient(circle at 80% 74%, rgba(10,43,87,0.24), transparent 36%), linear-gradient(180deg, #020B19 0%, #06152A 38%, #020B19 100%)',
+      }}
+    >
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-[220px]"
+        style={{ background: 'linear-gradient(180deg, rgba(2,11,25,0.85) 0%, rgba(2,11,25,0) 100%)' }}
+      />
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[180px]"
+        style={{ background: 'linear-gradient(180deg, rgba(2,11,25,0) 0%, rgba(2,11,25,0.45) 55%, rgba(2,11,25,0.72) 100%)' }}
+      />
       <AircraftShowcase />
-
-      {/* 
-        The Navy World Shared Canvas
-        This opaque wrapper starts strictly after AircraftShowcase, acting as a solid floor 
-        which permanently ends the hero photographic image bleed. 
-        Because AircraftShowcase already fades fully into BASE at its bottom, this transition 
-        is organically seamless.
-      */}
-      <div className="relative z-20 w-full" style={{ backgroundColor: BASE }}>
+      <div className="relative z-10 w-full" style={{ backgroundColor: 'transparent' }}>
         <FlightManifest />
         <WhyFlyWithUs />
         <ClearanceAwaits />
       </div>
-    </>
+    </div>
   )
 }

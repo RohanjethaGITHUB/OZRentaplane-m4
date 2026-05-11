@@ -10,6 +10,7 @@ const NAV_LINKS = [
   { label: 'Safety', href: '/safety' },
   { label: 'Resources', href: '/resources' },
   { label: 'Pricing', href: '/pricing' },
+  { label: 'Contact', href: '/contact' },
   { label: 'Shop', href: '/shop' },
 ]
 
@@ -136,14 +137,16 @@ export default function Navbar({ initialUser }: { initialUser: User | null }) {
 
           {NAV_LINKS.map((link) => {
             const isActive = pathname === link.href
+            const isCheckoutProcess = link.href === '/checkout-process'
             return (
               <a
                 key={link.label}
                 href={link.href}
                 className={`whitespace-nowrap font-sans text-[13.5px] font-medium transition-colors duration-200 ${isActive
-                  ? 'text-white border-b border-oz-blue pb-0.5'
+                  ? 'text-white pb-0.5'
                   : 'text-white/70 hover:text-white'
                   }`}
+                style={isActive ? { borderBottom: `1px solid ${isCheckoutProcess ? '#E0B13B' : 'rgb(59, 130, 246)'}` } : undefined}
               >
                 {link.label}
               </a>

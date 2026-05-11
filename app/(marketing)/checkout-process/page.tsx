@@ -40,13 +40,15 @@ function CheckoutCTAButton({ className, style }: { className?: string; style?: R
 function StepNode({ icon }: { icon: string }) {
   return (
     <div
-      className="z-10 shrink-0 w-12 h-12 rounded-full flex items-center justify-center"
+      className="relative z-10 shrink-0 w-12 h-12 rounded-full flex items-center justify-center"
       style={{
-        background: 'linear-gradient(135deg, #aec7f7 0%, #1b365d 100%)',
-        boxShadow: '0 0 0 8px #091421, 0 0 0 9.5px rgba(174,199,247,0.18), 0 4px 20px rgba(174,199,247,0.14)',
+        background: '#091421',
+        border: '1px solid rgba(224,177,59,0.7)',
+        boxShadow: '0 0 0 8px #091421, 0 0 0 9.5px rgba(224,177,59,0.22), 0 4px 20px rgba(224,177,59,0.18)',
       }}
     >
-      <Icon name={icon} className="!text-[20px] text-[#143057]" fill />
+      <div className="w-2 h-2 rounded-full absolute" style={{ background: '#E0B13B' }} />
+      <Icon name={icon} className="!text-[20px] text-[#d9e3f6] relative z-10" fill />
     </div>
   )
 }
@@ -104,7 +106,7 @@ export default function CheckoutProcessPage() {
         <div className="relative z-10 max-w-7xl mx-auto w-full pt-16">
           <StaggerContainer className="max-w-2xl" staggerDelay={0.22}>
             <StaggerItem duration={1.4}>
-              <span className="text-xs font-sans uppercase tracking-[0.28em] text-[#aec7f7] mb-5 block" style={{ opacity: 0.82 }}>
+              <span className="text-xs font-sans uppercase tracking-[0.28em] text-[#E0B13B] mb-5 block" style={{ opacity: 0.9 }}>
                 Before Solo Hire
               </span>
             </StaggerItem>
@@ -125,11 +127,12 @@ export default function CheckoutProcessPage() {
           <div className="flex flex-wrap items-center gap-4 mt-2">
             <FadeUp delay={1.1} duration={1.4}>
               <CheckoutCTAButton
-                className="inline-block rounded-md font-sans font-bold tracking-widest uppercase text-[0.8rem] px-8 py-4 shadow-2xl transition-all active:scale-95 hover:brightness-110"
+                className="inline-block rounded-md font-sans font-bold tracking-widest uppercase text-[0.8rem] px-8 py-4 shadow-2xl transition-all active:scale-95 hover:bg-[#F0C24A]"
                 style={{
-                  background: 'linear-gradient(135deg, #aec7f7 0%, #1b365d 100%)',
-                  color: '#143057',
-                  boxShadow: '0 0 28px rgba(174,199,247,0.18)',
+                  background: '#E0B13B',
+                  color: '#061120',
+                  border: '1px solid #B8871E',
+                  boxShadow: '0 0 22px rgba(224,177,59,0.16)',
                 }}
               />
             </FadeUp>
@@ -156,6 +159,9 @@ export default function CheckoutProcessPage() {
               <h2 className="font-serif text-3xl md:text-5xl font-normal tracking-tight text-[#d9e3f6] mb-3">
                 Step-by-Step Process
               </h2>
+            </StaggerItem>
+            <StaggerItem duration={1.2}>
+              <div className="mx-auto h-[2px] w-12 rounded-full" style={{ background: '#E0B13B' }} />
             </StaggerItem>
             <StaggerItem duration={1.4}>
               <p className="font-sans text-[0.95rem] text-[#c4c6cf] max-w-xl mx-auto">
@@ -251,13 +257,13 @@ export default function CheckoutProcessPage() {
 
               {/* 05 & 06 */}
               <FadeUp viewportMargin="-60px">
-                <div className="relative p-12 rounded-2xl border shadow-2xl overflow-hidden" style={{ background: 'rgba(22,32,46,0.8)', backdropFilter: 'blur(20px)', borderColor: 'rgba(174,199,247,0.2)' }}>
+                <div className="relative p-12 rounded-2xl border shadow-2xl overflow-hidden" style={{ background: 'rgba(22,32,46,0.8)', backdropFilter: 'blur(20px)', borderColor: 'rgba(224,177,59,0.35)' }}>
                   <div className="absolute top-0 right-0 p-8 opacity-5">
-                    <Icon name="flight_takeoff" className="!text-9xl text-[#aec7f7]" />
+                    <Icon name="flight_takeoff" className="!text-9xl text-[#E0B13B]" />
                   </div>
                   <div className="grid md:grid-cols-2 gap-12 items-center relative z-10">
                     <div>
-                      <span className="text-[#aec7f7] font-sans text-xs tracking-[0.2em] uppercase">Step 05 &amp; 06</span>
+                      <span className="text-[#E0B13B] font-sans text-xs tracking-[0.2em] uppercase">Step 05 &amp; 06</span>
                       <h3 className="font-serif text-4xl font-normal my-4 text-[#d9e3f6]">Checkout &amp; Clearance</h3>
                       <p className="text-[#c4c6cf] font-sans mb-6 leading-relaxed">Complete your checkout flight. Post-flight, your status will be updated to 'Cleared for solo hire'.</p>
                       <div className="space-y-3">
@@ -302,15 +308,18 @@ export default function CheckoutProcessPage() {
         <div className="max-w-7xl mx-auto">
           <h2 className="font-serif text-4xl md:text-5xl font-normal text-center mb-20 text-[#d9e3f6]">After you&apos;re checked out</h2>
           <StaggerContainer className="grid grid-cols-1 md:grid-cols-4 gap-8" staggerDelay={0.2} viewportMargin="-20%">
-            {[
-              { icon: 'calendar_month', title: 'Book slots directly', body: 'Instant access to the fleet calendar for all approved aircraft types.' },
-              { icon: 'dashboard', title: 'Manage bookings', body: 'Modify or cancel upcoming flights through your centralized pilot portal.' },
-              { icon: 'history_edu', title: 'Post-flight records', body: 'Seamlessly submit flight times and maintenance notes via mobile.' },
-              { icon: 'verified', title: 'Stay current', body: 'Receive automated alerts for upcoming medical and licence renewals.' },
-            ].map(({ icon, title, body }) => (
-              <StaggerItem key={title} duration={1.4}>
-                <div className="bg-[#121c29] p-10 rounded-xl hover:bg-[#212b38] transition-colors group h-full border border-transparent hover:border-[#44474e]/20">
-                  <Icon name={icon} className="text-[#aec7f7] !text-4xl mb-6 block group-hover:scale-110 transition-transform duration-500" />
+              {[
+                { icon: 'calendar_month', title: 'Book slots directly', body: 'Instant access to the fleet calendar for all approved aircraft types.' },
+                { icon: 'dashboard', title: 'Manage bookings', body: 'Modify or cancel upcoming flights through your centralized pilot portal.' },
+                { icon: 'history_edu', title: 'Post-flight records', body: 'Seamlessly submit flight times and maintenance notes via mobile.' },
+                { icon: 'verified', title: 'Stay current', body: 'Receive automated alerts for upcoming medical and licence renewals.' },
+              ].map(({ icon, title, body }) => (
+                <StaggerItem key={title} duration={1.4}>
+                <div className="bg-[#121c29] p-10 rounded-xl transition-colors group h-full border border-transparent hover:border-[rgba(224,177,59,0.35)] hover:bg-[rgba(224,177,59,0.03)]">
+                  <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-full border" style={{ borderColor: 'rgba(224,177,59,0.35)', background: 'rgba(9,20,33,0.72)' }}>
+                    <Icon name={icon} className="text-[#D8DFEA] !text-3xl block group-hover:scale-110 transition-transform duration-500" />
+                    <span className="absolute h-1.5 w-1.5 rounded-full" style={{ background: '#E0B13B', transform: 'translate(16px, -12px)' }} />
+                  </div>
                   <h4 className="font-serif text-xl mb-4 text-[#d9e3f6]">{title}</h4>
                   <p className="text-sm text-[#c4c6cf] font-light font-sans leading-relaxed">{body}</p>
                 </div>
@@ -340,6 +349,9 @@ export default function CheckoutProcessPage() {
               Ready to request your checkout flight?
             </h2>
           </StaggerItem>
+          <StaggerItem duration={1.2}>
+            <div className="mx-auto mb-8 h-[2px] w-12 rounded-full" style={{ background: '#E0B13B' }} />
+          </StaggerItem>
           <StaggerItem duration={1.4}>
             <p className="font-sans text-xl text-[#c4c6cf] mb-12 max-w-2xl mx-auto font-light">
               Create your pilot account, choose a checkout time, and upload your required documents in one guided flow.
@@ -348,18 +360,20 @@ export default function CheckoutProcessPage() {
           <div className="flex flex-col md:flex-row justify-center gap-6">
             <FadeUp delay={0.8} duration={1.4}>
               <CheckoutCTAButton
-                className="inline-block rounded-md font-sans font-bold text-lg px-10 py-5 shadow-2xl transition-transform hover:scale-105"
+                className="inline-block rounded-md font-sans font-bold text-lg px-10 py-5 shadow-2xl transition-all hover:scale-105 hover:bg-[#F0C24A]"
                 style={{
-                  background: 'linear-gradient(135deg, #aec7f7 0%, #1b365d 100%)',
-                  color: '#143057',
-                  boxShadow: '0 0 28px rgba(174,199,247,0.2)',
+                  background: '#E0B13B',
+                  color: '#061120',
+                  border: '1px solid #B8871E',
+                  boxShadow: '0 0 24px rgba(224,177,59,0.18)',
                 }}
               />
             </FadeUp>
             <FadeUp delay={1.1} duration={1.4}>
               <a
                 href="/fleet"
-                className="inline-block bg-[#2b3544] text-[#d9e3f6] px-10 py-5 rounded-md font-sans font-bold text-lg border border-[#44474e]/30 transition-colors hover:bg-[#303a48]"
+                className="inline-block bg-[#2b3544] text-[#d9e3f6] px-10 py-5 rounded-md font-sans font-bold text-lg border transition-colors hover:bg-[#303a48] hover:border-[rgba(224,177,59,0.45)]"
+                style={{ borderColor: 'rgba(151,177,215,0.22)' }}
               >
                 View the fleet
               </a>
