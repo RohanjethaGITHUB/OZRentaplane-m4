@@ -17,10 +17,12 @@ export default function HeroCloudLayers({
   innerRef,
   className = '',
   cloudDriftEnabled = true,
+  liteEffects = false,
 }: {
   innerRef?: React.Ref<HTMLDivElement>
   className?: string
   cloudDriftEnabled?: boolean
+  liteEffects?: boolean
 }) {
   return (
     <div ref={innerRef} className={`absolute inset-0 pointer-events-none z-[8] overflow-hidden ${className}`} aria-hidden="true">
@@ -29,6 +31,8 @@ export default function HeroCloudLayers({
         style={{
           animation: cloudDriftEnabled ? 'hero-cloud-a 16s ease-in-out infinite alternate' : 'none',
           transform: 'translate3d(-50%,0,0)',
+          mixBlendMode: liteEffects ? 'normal' : 'screen',
+          opacity: liteEffects ? 0.28 : 0.4,
         }}
       >
         <img
@@ -36,9 +40,9 @@ export default function HeroCloudLayers({
           alt=""
           className="w-full h-full object-cover"
           style={{
-            filter: 'brightness(0.90) contrast(1.05) sepia(0.14) hue-rotate(230deg) saturate(1.08)',
-            maskImage: 'radial-gradient(ellipse 90% 100% at 50% 100%, black 15%, rgba(0,0,0,0.4) 50%, transparent 80%)',
-            WebkitMaskImage: 'radial-gradient(ellipse 90% 100% at 50% 100%, black 15%, rgba(0,0,0,0.4) 50%, transparent 80%)',
+            filter: liteEffects ? 'none' : 'brightness(0.90) contrast(1.05) sepia(0.14) hue-rotate(230deg) saturate(1.08)',
+            maskImage: liteEffects ? 'none' : 'radial-gradient(ellipse 90% 100% at 50% 100%, black 15%, rgba(0,0,0,0.4) 50%, transparent 80%)',
+            WebkitMaskImage: liteEffects ? 'none' : 'radial-gradient(ellipse 90% 100% at 50% 100%, black 15%, rgba(0,0,0,0.4) 50%, transparent 80%)',
           }}
         />
       </div>
@@ -48,6 +52,8 @@ export default function HeroCloudLayers({
         style={{
           animation: cloudDriftEnabled ? 'hero-cloud-b 13s ease-in-out infinite alternate' : 'none',
           transform: 'translate3d(-50%,0,0)',
+          mixBlendMode: liteEffects ? 'normal' : 'screen',
+          opacity: liteEffects ? 0.24 : 0.34,
         }}
       >
         <img
@@ -55,9 +61,9 @@ export default function HeroCloudLayers({
           alt=""
           className="w-full h-full object-cover"
           style={{
-            filter: 'brightness(0.85) contrast(1.05) sepia(0.18) hue-rotate(230deg) saturate(1.14)',
-            maskImage: 'radial-gradient(ellipse 85% 100% at 50% 100%, black 20%, rgba(0,0,0,0.5) 50%, transparent 85%)',
-            WebkitMaskImage: 'radial-gradient(ellipse 85% 100% at 50% 100%, black 20%, rgba(0,0,0,0.5) 50%, transparent 85%)',
+            filter: liteEffects ? 'none' : 'brightness(0.85) contrast(1.05) sepia(0.18) hue-rotate(230deg) saturate(1.14)',
+            maskImage: liteEffects ? 'none' : 'radial-gradient(ellipse 85% 100% at 50% 100%, black 20%, rgba(0,0,0,0.5) 50%, transparent 85%)',
+            WebkitMaskImage: liteEffects ? 'none' : 'radial-gradient(ellipse 85% 100% at 50% 100%, black 20%, rgba(0,0,0,0.5) 50%, transparent 85%)',
           }}
         />
       </div>

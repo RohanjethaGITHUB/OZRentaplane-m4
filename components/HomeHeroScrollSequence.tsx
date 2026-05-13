@@ -13,15 +13,16 @@ const MOBILE_REDUCED_MOTION_SMOOTHING_TAU_MS = 70
 const DESKTOP_MAX_FRAME_STEP_PER_TICK = 2.1
 const MOBILE_MAX_FRAME_STEP_PER_TICK = 1.8
 const MOBILE_FRAME_SWAP_INTERVAL_MS = 33
-const INITIAL_PRELOAD_COUNT = 50
-const MOBILE_INITIAL_PRELOAD_COUNT = 72
-const BACKGROUND_PRELOAD_BATCH = 12
-const MOBILE_BACKGROUND_PRELOAD_BATCH = 18
-const PRELOAD_AHEAD = 80
-const PRELOAD_BEHIND = 12
+const INITIAL_PRELOAD_COUNT = 16
+const MOBILE_INITIAL_PRELOAD_COUNT = 10
+const BACKGROUND_PRELOAD_BATCH = 4
+const MOBILE_BACKGROUND_PRELOAD_BATCH = 3
+const PRELOAD_AHEAD = 28
+const PRELOAD_BEHIND = 8
 const SETTLE_DIFF_EPS = 0.01
 const SETTLE_EPSILON_FRAMES = 0.25
-const MIN_VISIBLE_FRAME_DELTA = 0.35
+const MIN_VISIBLE_FRAME_DELTA = 0.5
+const MIN_TARGET_FRAME_DELTA = 0.08
 const INTRO_DURATION_MS = 3000
 const WORD_FLY_DELAY_MS = 220
 const WORD_YOUR_DELAY_MS = 700
@@ -42,6 +43,17 @@ type ActiveSequence = {
   totalFrames: number
 }
 type MotionMode = 'full' | 'reduced'
+type ScrollLockSnapshot = {
+  scrollY: number
+  htmlOverflow: string
+  htmlOverscrollBehavior: string
+  bodyOverflow: string
+  bodyPosition: string
+  bodyTop: string
+  bodyLeft: string
+  bodyRight: string
+  bodyWidth: string
+}
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
@@ -122,6 +134,7 @@ export default function HomeHeroScrollSequence() {
   const [forceMotion, setForceMotion] = useState(false)
   const [forceReducedMotion, setForceReducedMotion] = useState(false)
   const [motionMode, setMotionMode] = useState<MotionMode>('full')
+  const [coarsePointer, setCoarsePointer] = useState(false)
   const [debugTick, setDebugTick] = useState(0)
   const debugIntervalRef = useRef<number | null>(null)
   const fpsAccumMsRef = useRef(0)
@@ -133,6 +146,7 @@ export default function HomeHeroScrollSequence() {
   const mainImageFrameRef = useRef(0)
   const scrollProgressRawRef = useRef(0)
   const scrollProgressClampedRef = useRef(0)
+  const scrollLockSnapshotRef = useRef<ScrollLockSnapshot | null>(null)
   const sceneHeadings = useMemo(
     () =>
       activeSequence.scenes.map((scene, idx) => ({
@@ -151,6 +165,10 @@ export default function HomeHeroScrollSequence() {
   const decorativeTextWaveEnabled = motionMode === 'full'
   const underlineWaveEnabled = motionMode === 'full'
   const cloudDriftEnabled = motionMode === 'full'
+  const lowPowerDevice =
+    coarsePointer ||
+    (typeof navigator !== 'undefined' && (navigator as any).deviceMemory && (navigator as any).deviceMemory <= 4)
+  const liteCloudFx = motionMode === 'reduced' || isMobileViewport || lowPowerDevice
   const reducedMotionStatusOn = forceReducedMotion || (!forceMotion && prefersReducedMotion)
   const browserLabel = useMemo(() => {
     if (typeof navigator === 'undefined') return 'Unknown'
@@ -270,6 +288,10 @@ export default function HomeHeroScrollSequence() {
   function preloadRemainingInBackground() {
     const sequenceKeyAtStart = activeSequenceRef.current.key
     let start = 0
+    const scheduleIdle =
+      typeof window.requestIdleCallback === 'function'
+        ? (cb: () => void) => window.requestIdleCallback(() => cb(), { timeout: 180 })
+        : (cb: () => void) => window.setTimeout(cb, 80)
     function tick() {
       if (sequenceKeyAtStart !== activeSequenceRef.current.key) {
         backgroundPreloadRafRef.current = null
@@ -288,7 +310,9 @@ export default function HomeHeroScrollSequence() {
       }
       while (start < frameTotal && (loadedRef.current.has(start) || loadingRef.current.has(start))) start += 1
       if (!done && start < frameTotal) {
-        backgroundPreloadRafRef.current = window.requestAnimationFrame(tick)
+        scheduleIdle(() => {
+          backgroundPreloadRafRef.current = window.requestAnimationFrame(tick)
+        })
       } else {
         backgroundPreloadRafRef.current = null
       }
@@ -370,10 +394,58 @@ export default function HomeHeroScrollSequence() {
     const progress = clamp(raw, 0, 1)
     scrollProgressRawRef.current = raw
     scrollProgressClampedRef.current = progress
-    targetFrameRef.current = progress * (frameTotal - 1)
-    const diff = targetFrameRef.current - previousTargetFrameRef.current
+    const nextTarget = progress * (frameTotal - 1)
+    const diff = nextTarget - previousTargetFrameRef.current
+    if (Math.abs(diff) < MIN_TARGET_FRAME_DELTA) return
+    targetFrameRef.current = nextTarget
     if (Math.abs(diff) > 0.001) directionRef.current = diff > 0 ? 1 : -1
     previousTargetFrameRef.current = targetFrameRef.current
+  }
+
+  function lockPageScroll() {
+    if (typeof window === 'undefined') return
+    if (scrollLockSnapshotRef.current) return
+    const html = document.documentElement
+    const body = document.body
+    const scrollY = window.scrollY || window.pageYOffset || 0
+    scrollLockSnapshotRef.current = {
+      scrollY,
+      htmlOverflow: html.style.overflow,
+      htmlOverscrollBehavior: html.style.overscrollBehavior,
+      bodyOverflow: body.style.overflow,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyLeft: body.style.left,
+      bodyRight: body.style.right,
+      bodyWidth: body.style.width,
+    }
+    html.style.overflow = 'hidden'
+    html.style.overscrollBehavior = 'none'
+    body.style.overflow = 'hidden'
+    body.style.position = 'fixed'
+    body.style.top = `-${scrollY}px`
+    body.style.left = '0'
+    body.style.right = '0'
+    body.style.width = '100%'
+  }
+
+  function unlockPageScroll() {
+    if (typeof window === 'undefined') return
+    const snapshot = scrollLockSnapshotRef.current
+    if (!snapshot) return
+    const html = document.documentElement
+    const body = document.body
+    html.style.overflow = snapshot.htmlOverflow
+    html.style.overscrollBehavior = snapshot.htmlOverscrollBehavior
+    body.style.overflow = snapshot.bodyOverflow
+    body.style.position = snapshot.bodyPosition
+    body.style.top = snapshot.bodyTop
+    body.style.left = snapshot.bodyLeft
+    body.style.right = snapshot.bodyRight
+    body.style.width = snapshot.bodyWidth
+    scrollLockSnapshotRef.current = null
+    const currentY = window.scrollY || window.pageYOffset || 0
+    if (Math.abs(currentY - snapshot.scrollY) > 1) window.scrollTo(0, snapshot.scrollY)
   }
 
   function renderLoop(ts: number) {
@@ -456,6 +528,18 @@ export default function HomeHeroScrollSequence() {
     }
     media.addListener(syncViewport)
     return () => media.removeListener(syncViewport)
+  }, [])
+
+  useEffect(() => {
+    const media = window.matchMedia('(pointer: coarse)')
+    const sync = () => setCoarsePointer(media.matches)
+    sync()
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', sync)
+      return () => media.removeEventListener('change', sync)
+    }
+    media.addListener(sync)
+    return () => media.removeListener(sync)
   }, [])
 
   useEffect(() => {
@@ -586,6 +670,45 @@ export default function HomeHeroScrollSequence() {
   }, [frameCount, frameZero, activeSequence, motionMode])
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const shouldLock = motionMode !== 'reduced' && !introDone
+    if (!shouldLock) {
+      unlockPageScroll()
+      return
+    }
+
+    lockPageScroll()
+    const blockedKeys = new Set([
+      ' ',
+      'PageUp',
+      'PageDown',
+      'End',
+      'Home',
+      'ArrowUp',
+      'ArrowDown',
+      'ArrowLeft',
+      'ArrowRight',
+    ])
+
+    const preventScrollInput = (e: Event) => e.preventDefault()
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (blockedKeys.has(e.key)) e.preventDefault()
+    }
+
+    window.addEventListener('wheel', preventScrollInput, { passive: false })
+    window.addEventListener('touchmove', preventScrollInput, { passive: false })
+    window.addEventListener('keydown', onKeyDown, { passive: false })
+
+    return () => {
+      window.removeEventListener('wheel', preventScrollInput)
+      window.removeEventListener('touchmove', preventScrollInput)
+      window.removeEventListener('keydown', onKeyDown)
+      unlockPageScroll()
+    }
+  }, [introDone, motionMode])
+
+  useEffect(() => {
     const onScrollKick = () => {
       if (rafRef.current === null) rafRef.current = window.requestAnimationFrame(renderLoop)
     }
@@ -619,6 +742,7 @@ export default function HomeHeroScrollSequence() {
           innerRef={cloudWrapRef}
           className={isMobileViewport ? '-translate-y-[4%]' : ''}
           cloudDriftEnabled={cloudDriftEnabled}
+          liteEffects={liteCloudFx}
         />
 
         {decorativeTextWaveEnabled && (
