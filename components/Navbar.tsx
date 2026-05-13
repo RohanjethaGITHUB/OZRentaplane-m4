@@ -45,9 +45,6 @@ export default function Navbar({ initialUser }: { initialUser: User | null }) {
     router.refresh()
   }
 
-  // Early return must come after ALL hook calls.
-  if (pathname.startsWith('/dashboard')) return null
-
   const ctaClass =
     'font-sans font-semibold text-[#0c1a2e] bg-[#c8dcff] hover:bg-white rounded-full transition-colors duration-200'
 
@@ -57,7 +54,7 @@ export default function Navbar({ initialUser }: { initialUser: User | null }) {
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isAuthPage
         ? 'bg-transparent border-b border-white/5 backdrop-blur-md opacity-40 hover:opacity-100'
-        : 'bg-[#091421] shadow-[0_1px_0_rgba(255,255,255,0.07)]'
+        : 'bg-mkt-main shadow-[0_1px_0_rgba(255,255,255,0.07)]'
         }`}
     >
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 h-[84px] flex items-center justify-between gap-8">
@@ -110,9 +107,9 @@ export default function Navbar({ initialUser }: { initialUser: User | null }) {
             >
               {/* Arrow tip */}
               <div className="flex justify-center mb-[-1px] relative z-10">
-                <div className="w-2.5 h-2.5 rotate-45 bg-[#0d1e34] border-l border-t border-white/10" />
+                <div className="w-2.5 h-2.5 rotate-45 bg-[#0d1e34] border-l border-t border-white/[0.08]" />
               </div>
-              <div className="bg-[#0d1e34] border border-white/10 rounded-xl overflow-hidden shadow-2xl shadow-black/50 backdrop-blur-xl">
+              <div className="bg-[#0d1e34] border border-white/[0.08] rounded-xl overflow-hidden shadow-2xl shadow-black/50 backdrop-blur-xl">
                 {FLEET_ITEMS.map((item) =>
                   item.disabled ? (
                     <span
@@ -176,7 +173,7 @@ export default function Navbar({ initialUser }: { initialUser: User | null }) {
               href="/login"
               className={`hidden md:inline-flex items-center text-[13px] px-5 py-2 whitespace-nowrap ${ctaClass}`}
             >
-              Renter Login
+              Login
             </a>
           )}
 
@@ -195,7 +192,7 @@ export default function Navbar({ initialUser }: { initialUser: User | null }) {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="lg:hidden bg-[#091421]/98 backdrop-blur-xl border-t border-white/8 px-6 py-5 flex flex-col gap-4">
+        <div className="lg:hidden bg-mkt-main/98 backdrop-blur-xl border-t border-white/[0.08] px-6 py-5 flex flex-col gap-4">
           {/* Fleet expandable */}
           <div>
             <button
@@ -217,7 +214,7 @@ export default function Navbar({ initialUser }: { initialUser: User | null }) {
             </button>
 
             {mobileFleetOpen && (
-              <div className="mt-2 ml-3 flex flex-col gap-2 border-l border-white/10 pl-4">
+              <div className="mt-2 ml-3 flex flex-col gap-2 border-l border-white/[0.08] pl-4">
                 {FLEET_ITEMS.map((item) =>
                   item.disabled ? (
                     <span
@@ -277,7 +274,7 @@ export default function Navbar({ initialUser }: { initialUser: User | null }) {
               onClick={() => setMenuOpen(false)}
               className={`mt-2 inline-flex justify-center text-sm px-5 py-3 ${ctaClass}`}
             >
-              Renter Login
+              Login
             </a>
           )}
         </div>

@@ -7,7 +7,7 @@ import { FadeUp, StaggerContainer, StaggerItem, HoverEmphasize } from '@/compone
 export default function Cessna172nPage() {
   const images = fleetGalleryManifest
   return (
-    <main className="min-h-screen bg-[#091421] text-[#d9e3f6]">
+    <main className="min-h-screen bg-mkt-main text-[#d9e3f6]">
       {/* ─────────────────────────────────────────────────────────────
           2. Aircraft Spotlight Section
       ──────────────────────────────────────────────────────────────*/}
@@ -21,7 +21,7 @@ export default function Cessna172nPage() {
       {/* ─────────────────────────────────────────────────────────────
           7. Perfectly Suited For Section (Use Cases)
       ──────────────────────────────────────────────────────────────*/}
-      <section className="relative py-32 bg-[#091421]">
+      <section className="relative py-32 bg-mkt-main">
         <div className="px-6 md:px-12 lg:px-20 max-w-7xl mx-auto">
 
           <FadeUp className="max-w-2xl mb-24 relative">

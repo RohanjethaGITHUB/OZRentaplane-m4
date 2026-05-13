@@ -8,7 +8,7 @@ import {
 import type { FleetGalleryImage } from '@/lib/fleetGalleryManifest'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
-const BASE     = '#091421'
+const BASE     = '#061524'
 const EASE_OUT = [0.22, 1, 0.36, 1] as [number, number, number, number]
 
 // ─── Teaser collage: each card has explicit size + position ───────────────────

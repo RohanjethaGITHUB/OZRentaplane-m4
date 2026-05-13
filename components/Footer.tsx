@@ -7,10 +7,10 @@ type FooterProps = { forceShow?: boolean }
 
 export default function Footer({ forceShow = false }: FooterProps) {
   const pathname = usePathname()
-  if (!forceShow && (pathname.startsWith('/dashboard') || pathname.startsWith('/admin'))) return null
+  if (!forceShow && ((pathname?.startsWith('/dashboard') ?? false) || (pathname?.startsWith('/admin') ?? false))) return null
 
   return (
-    <footer className="bg-[#050B14] pt-24 pb-12 px-6 md:px-12 lg:px-20 border-t border-white/5">
+    <footer className="bg-mkt-main pt-24 pb-12 px-6 md:px-12 lg:px-20 border-t border-white/5">
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start gap-16 md:gap-8 mb-24">
         
         {/* Left Brand Area */}

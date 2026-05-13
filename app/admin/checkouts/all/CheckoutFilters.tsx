@@ -67,7 +67,7 @@ export default function CheckoutFilters({
   }, [status, outcome, payment, tabs])
 
   const apply = (next: Partial<{ status: StatusFilter; outcome: OutcomeFilter; payment: PaymentFilter }>) => {
-    const p = new URLSearchParams(search.toString())
+    const p = new URLSearchParams(search?.toString() ?? '')
     const s = next.status ?? status
     const o = next.outcome ?? outcome
     const pay = next.payment ?? payment

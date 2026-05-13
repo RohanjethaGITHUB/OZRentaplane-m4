@@ -80,7 +80,7 @@ export default function CustomerSidebar({
 
   function isGroupActive(group: NavGroup): boolean {
     if (activeTab && group.activeTabs?.includes(activeTab)) return true
-    if (group.activeRoutes?.some(r => pathname.startsWith(r))) return true
+    if (group.activeRoutes?.some(r => pathname?.startsWith(r) ?? false)) return true
     return false
   }
 
@@ -110,7 +110,7 @@ export default function CustomerSidebar({
     if (item.href) {
       // Exact match for /dashboard/bookings (don't highlighted for sub-routes of sub-routes)
       if (item.href === '/dashboard/bookings') return pathname === '/dashboard/bookings'
-      return pathname === item.href || pathname.startsWith(item.href + '/')
+      return pathname === item.href || (pathname?.startsWith(item.href + '/') ?? false)
     }
     return false
   }

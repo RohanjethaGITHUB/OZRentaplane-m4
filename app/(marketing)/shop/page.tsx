@@ -187,7 +187,7 @@ function ProductCard({ product }: { product: Product }) {
       hoverY={-6}
       hoverScale={1.01}
       duration={0.45}
-      className="group bg-[#0a1929] border border-white/[0.07] rounded-xl overflow-hidden flex flex-col h-full shadow-lg hover:border-[#aec7f7]/20 hover:shadow-2xl hover:shadow-[#aec7f7]/[0.04] transition-colors duration-500"
+      className="group bg-mkt-lift border border-white/[0.07] rounded-xl overflow-hidden flex flex-col h-full shadow-lg hover:border-[#aec7f7]/20 hover:shadow-2xl hover:shadow-[#aec7f7]/[0.04] transition-colors duration-500"
     >
       {/* Image area */}
       <div className="relative h-44 flex-shrink-0">
@@ -264,7 +264,7 @@ function ProductCard({ product }: { product: Product }) {
 function FaqItem({ question, answer }: { question: string; answer: string }) {
   const [open, setOpen] = useState(false)
   return (
-    <div className="bg-[#0c1827] rounded-lg overflow-hidden border border-white/5">
+    <div className="bg-mkt-lift rounded-lg overflow-hidden border border-white/5">
       <button
         className="w-full px-6 py-5 text-left flex justify-between items-center hover:bg-[#111e30] transition-colors"
         onClick={() => setOpen(!open)}
@@ -297,7 +297,7 @@ export default function ShopPage() {
       : PRODUCTS.filter((p) => p.category === activeCategory)
 
   return (
-    <main className="bg-[#091421] text-[#d9e3f6] overflow-x-hidden">
+    <main className="bg-mkt-main text-[#d9e3f6] overflow-x-hidden">
 
       {/* ── 1. Hero ─────────────────────────────────────────────────────────── */}
       <section className="relative px-6 md:px-12 lg:px-20 overflow-hidden min-h-[500px] md:min-h-[750px] flex items-center">
@@ -309,7 +309,7 @@ export default function ShopPage() {
         {/* Dark navy tint — heavier left, fades right */}
         <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#040f1e]/70 via-[#040f1e]/30 to-transparent" />
         {/* Bottom fade into next section */}
-        <div className="absolute inset-x-0 bottom-0 h-[30%] z-0 bg-gradient-to-t from-[#091421] via-[#041022]/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-[30%] z-0 bg-gradient-to-t from-[#061524] via-[#041022]/30 to-transparent" />
 
         <div className="relative z-10 max-w-7xl mx-auto w-full pt-16">
           <StaggerContainer className="max-w-xl" staggerDelay={0.25}>
@@ -339,7 +339,7 @@ export default function ShopPage() {
             <FadeUp delay={1.5} duration={1.4}>
               <a
                 href="/resources"
-                className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded border border-white/20 text-[#c4c6cf] hover:bg-white/5 transition-colors"
+                className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded border border-white/[0.14] text-[#c4c6cf] hover:bg-white/5 transition-colors"
               >
                 View Pilot Resources
               </a>
@@ -359,7 +359,7 @@ export default function ShopPage() {
                 className={`font-sans text-[0.72rem] font-semibold tracking-wider uppercase px-5 py-2 rounded-full border transition-all duration-200 ${
                   activeCategory === cat
                     ? 'bg-[#aec7f7] text-[#0a1929] border-[#aec7f7]'
-                    : 'border-white/10 text-[#8e9098] hover:border-[#aec7f7]/30 hover:text-[#c4c6cf]'
+                    : 'border-white/[0.08] text-[#8e9098] hover:border-[#aec7f7]/30 hover:text-[#c4c6cf]'
                 }`}
               >
                 {cat}
@@ -435,7 +435,7 @@ export default function ShopPage() {
                   alt="Laminated checklist resting on a Cessna cockpit seat"
                   className="absolute inset-0 w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#091421] via-transparent to-transparent opacity-80" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#061524] via-transparent to-transparent opacity-80" />
               </div>
             </FadeUp>
 
@@ -447,7 +447,7 @@ export default function ShopPage() {
                 <HoverEmphasize hoverY={-4} hoverScale={1.01} duration={0.4}
                   className="h-full"
                 >
-                  <div className="relative bg-[#0d1e30] rounded-xl p-6 overflow-hidden border border-white/[0.07] hover:border-[#aec7f7]/20 transition-colors duration-500 h-full"
+                  <div className="relative bg-mkt-lift rounded-xl p-6 overflow-hidden border border-white/[0.07] hover:border-[#aec7f7]/20 transition-colors duration-500 h-full"
                     style={{ background: 'linear-gradient(135deg, rgba(174,199,247,0.05) 0%, #0d1e30 100%)' }}
                   >
                     {/* Red emergency-checklist accent strip */}
@@ -471,12 +471,12 @@ export default function ShopPage() {
                 <HoverEmphasize hoverY={-4} hoverScale={1.01} duration={0.4}
                   className="h-full"
                 >
-                  <div className="relative bg-[#0d1e30] rounded-xl p-6 overflow-hidden border border-white/[0.07] hover:border-[#aec7f7]/10 transition-colors duration-500 h-full"
+                  <div className="relative bg-mkt-lift rounded-xl p-6 overflow-hidden border border-white/[0.07] hover:border-[#aec7f7]/10 transition-colors duration-500 h-full"
                     style={{ background: 'linear-gradient(135deg, rgba(174,199,247,0.05) 0%, #0d1e30 100%)' }}
                   >
                     <div className="flex justify-between items-start mb-4">
                       <Icon name="library_books" className="text-[#608bca]" style={{ fontSize: '1.5rem' }} />
-                      <span className="bg-white/[0.05] text-[#64748b] text-[0.6rem] font-sans font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border border-white/10">
+                      <span className="bg-white/[0.05] text-[#64748b] text-[0.6rem] font-sans font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border border-white/[0.08]">
                         Coming Soon
                       </span>
                     </div>
@@ -491,12 +491,12 @@ export default function ShopPage() {
               {/* Weight & Balance Sheet — Coming Soon, full width */}
               <StaggerItem duration={1.0} className="md:col-span-2">
                 <HoverEmphasize hoverY={-4} hoverScale={1.005} duration={0.4}>
-                  <div className="relative bg-[#0d1e30] rounded-xl p-6 overflow-hidden border border-white/[0.07] hover:border-[#aec7f7]/10 transition-colors duration-500"
+                  <div className="relative bg-mkt-lift rounded-xl p-6 overflow-hidden border border-white/[0.07] hover:border-[#aec7f7]/10 transition-colors duration-500"
                     style={{ background: 'linear-gradient(135deg, rgba(174,199,247,0.05) 0%, #0d1e30 100%)' }}
                   >
                     <div className="flex justify-between items-start mb-4">
                       <Icon name="balance" className="text-[#608bca]" style={{ fontSize: '1.5rem' }} />
-                      <span className="bg-white/[0.05] text-[#64748b] text-[0.6rem] font-sans font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border border-white/10">
+                      <span className="bg-white/[0.05] text-[#64748b] text-[0.6rem] font-sans font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border border-white/[0.08]">
                         Coming Soon
                       </span>
                     </div>
@@ -517,7 +517,7 @@ export default function ShopPage() {
       <section className="px-6 md:px-12 lg:px-20 pb-20">
         <div className="max-w-7xl mx-auto">
           <FadeUp>
-            <div className="bg-[#0a1929] rounded-xl p-8 md:p-14 relative overflow-hidden border border-white/[0.06]">
+            <div className="bg-mkt-lift rounded-xl p-8 md:p-14 relative overflow-hidden border border-white/[0.06]">
 
               {/* Subtle primary glow */}
               <div className="absolute inset-0 bg-gradient-to-br from-[#aec7f7]/[0.04] to-transparent pointer-events-none rounded-xl" />
@@ -551,7 +551,7 @@ export default function ShopPage() {
                         className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 relative z-10 border transition-all duration-500 ${
                           step.active
                             ? 'bg-[#162a48] border-[#aec7f7]/30 shadow-[0_0_18px_rgba(174,199,247,0.15)]'
-                            : 'bg-[#0d1e30] border-white/10'
+                            : 'bg-mkt-lift border-white/[0.08]'
                         }`}
                       >
                         <Icon
@@ -576,11 +576,11 @@ export default function ShopPage() {
                   <Icon name="local_mall" style={{ fontSize: '1rem' }} />
                   Pickup available
                 </div>
-                <div className="border border-white/10 text-[#8e9098] px-4 py-2 rounded-full font-sans text-[0.78rem] flex items-center gap-2">
+                <div className="border border-white/[0.08] text-[#8e9098] px-4 py-2 rounded-full font-sans text-[0.78rem] flex items-center gap-2">
                   <Icon name="local_shipping" style={{ fontSize: '1rem' }} />
                   Postage options
                 </div>
-                <div className="border border-white/10 text-[#8e9098] px-4 py-2 rounded-full font-sans text-[0.78rem] flex items-center gap-2">
+                <div className="border border-white/[0.08] text-[#8e9098] px-4 py-2 rounded-full font-sans text-[0.78rem] flex items-center gap-2">
                   <Icon name="cloud_download" style={{ fontSize: '1rem' }} />
                   Digital resources separate
                 </div>
@@ -603,7 +603,7 @@ export default function ShopPage() {
               alt="OZRentAPlane branded polo, cap, and keyring on a dark aviation surface"
               className="absolute inset-0 w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#091421] via-transparent to-transparent opacity-90" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#061524] via-transparent to-transparent opacity-90" />
           </FadeUp>
 
           {/* Right: copy + tiles */}
@@ -657,7 +657,7 @@ export default function ShopPage() {
       <section className="py-6 px-6 md:px-12 lg:px-20 pb-20">
         <div className="max-w-7xl mx-auto">
           <FadeUp>
-            <div className="bg-[#0a1929] rounded-xl border border-white/[0.06] overflow-hidden relative">
+            <div className="bg-mkt-lift rounded-xl border border-white/[0.06] overflow-hidden relative">
 
               {/* Flight-plan dashed vertical lines in background */}
               <div

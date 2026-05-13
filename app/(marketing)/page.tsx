@@ -3,25 +3,27 @@ import HomeContent from '@/components/HomeContent'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Sydney Aircraft Rental | Cessna 172 | OZRentAPlane',
-  description: 'Rent a Cessna 172 in Sydney. A premium aircraft rental platform exclusively for licensed pilots. Streamlined vetting, easy approval, and meticulously maintained fleet.',
+  title: {
+    absolute: 'OZ Rent A Plane | Aircraft Hire From Bankstown',
+  },
+  description: 'Rent a Cessna 172 from Bankstown with transparent pricing, checkout flights, and online booking for pilots.',
   alternates: {
-    canonical: '/',
+    canonical: 'https://www.ozrentaplane.com/',
   },
   openGraph: {
-    title: 'Sydney Aircraft Rental | Cessna 172 | OZRentAPlane',
-    description: 'Premium Cessna 172 rental for licensed pilots in Sydney. Fast approval process.',
-    url: '/',
+    title: 'OZ Rent A Plane | Aircraft Hire From Bankstown',
+    description: 'Rent a Cessna 172 from Bankstown with transparent pricing, checkout flights, and online booking for pilots.',
+    url: 'https://www.ozrentaplane.com/',
     images: [{ url: '/Pilot&aircraftTwilight.webp', width: 1200, height: 630 }],
   },
   twitter: {
-    title: 'Sydney Aircraft Rental | OZRentAPlane',
-    description: 'Premium Cessna 172 rental for licensed pilots in Sydney.',
+    title: 'OZ Rent A Plane | Aircraft Hire From Bankstown',
+    description: 'Rent a Cessna 172 from Bankstown with transparent pricing, checkout flights, and online booking for pilots.',
   }
 }
 
 export default function Home() {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.ozrentaplane.com'
   
   return (
     <main>
@@ -54,7 +56,7 @@ export default function Home() {
           className="pointer-events-none absolute inset-x-0 bottom-0 h-[120px] md:h-[170px]"
           style={{
             background:
-              'linear-gradient(180deg, rgba(2,11,25,0) 0%, rgba(2,11,25,0.35) 42%, rgba(2,11,25,0.75) 78%, #020B19 100%)',
+              'linear-gradient(180deg, rgba(2,11,25,0) 0%, rgba(2,11,25,0.35) 42%, rgba(2,11,25,0.75) 78%, #061524 100%)',
           }}
         />
       </div>

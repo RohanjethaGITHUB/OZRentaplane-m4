@@ -170,7 +170,7 @@ export default function CustomerAccountForm({
           <button
             type="submit"
             disabled={loading}
-            className="px-6 py-3 rounded-full text-[10px] font-bold uppercase tracking-widest bg-white text-[#07101c] hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-3 rounded-full text-[10px] font-bold uppercase tracking-widest bg-[#f4c943] text-[#07101c] hover:bg-[#ffd761] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Saving…' : 'Update Details'}
           </button>

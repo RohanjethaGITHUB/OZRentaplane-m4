@@ -9,10 +9,10 @@ const NAV_ITEMS = [
   { label: 'Messages',      href: '/dashboard/messages',     exact: false, icon: 'chat',           badgeKey: 'message'        },
 ]
 
-function isNavItemActive(item: typeof NAV_ITEMS[number], pathname: string): boolean {
-  if ('excludePrefix' in item && item.excludePrefix && pathname.startsWith(item.excludePrefix)) return false
+function isNavItemActive(item: typeof NAV_ITEMS[number], pathname: string | null): boolean {
+  if ('excludePrefix' in item && item.excludePrefix && (pathname?.startsWith(item.excludePrefix) ?? false)) return false
   if (item.exact) return pathname === item.href
-  return pathname === item.href || pathname.startsWith(item.href + '/')
+  return pathname === item.href || (pathname?.startsWith(item.href + '/') ?? false)
 }
 
 type Props = {

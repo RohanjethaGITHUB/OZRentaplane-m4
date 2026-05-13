@@ -3,18 +3,18 @@ import './globals.css'
 import ScreenshotMode from './ScreenshotMode'
 import { Suspense } from 'react'
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.ozrentaplane.com'
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
     template: '%s | OZRentAPlane',
-    default: 'OZRentAPlane — Fly Your Way',
+    default: 'OZ Rent A Plane',
   },
-  description: 'Rent a Cessna 172 and take to the skies. A modern aircraft rental platform for licensed pilots.',
+  description: 'Rent a Cessna 172 from Bankstown with transparent pricing, checkout flights, and online booking for pilots.',
   openGraph: {
-    title: 'OZRentAPlane — Fly Your Way',
-    description: 'Rent a Cessna 172 and take to the skies. A modern aircraft rental platform for licensed pilots.',
+    title: 'OZ Rent A Plane',
+    description: 'Rent a Cessna 172 from Bankstown with transparent pricing, checkout flights, and online booking for pilots.',
     url: '/',
     siteName: 'OZRentAPlane',
     images: [
@@ -30,19 +30,17 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'OZRentAPlane — Fly Your Way',
-    description: 'Rent a Cessna 172 and take to the skies. A modern aircraft rental platform for licensed pilots.',
+    title: 'OZ Rent A Plane',
+    description: 'Rent a Cessna 172 from Bankstown with transparent pricing, checkout flights, and online booking for pilots.',
     images: ['/Pilot&aircraftTwilight.webp'],
   },
   icons: {
     icon: [
-      { url: '/favicon.png', sizes: '32x32', type: 'image/png' },
-      { url: '/favicon.png', sizes: '96x96', type: 'image/png' },
-      { url: '/favicon.png', sizes: '192x192', type: 'image/png' },
+      { url: '/favicon.ico' },
+      { url: '/icon.png', sizes: '512x512', type: 'image/png' },
     ],
-    apple: [
-      { url: '/favicon.png', sizes: '180x180', type: 'image/png' },
-    ],
+    shortcut: ['/favicon.ico'],
+    apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
   },
 }
 

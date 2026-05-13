@@ -11,9 +11,9 @@ const ITEMS = [
   { label: 'Messages', href: '/dashboard/messages' },
 ]
 
-function isActive(pathname: string, href: string, exact?: boolean): boolean {
+function isActive(pathname: string | null, href: string, exact?: boolean): boolean {
   if (exact) return pathname === href
-  return pathname === href || pathname.startsWith(href + '/')
+  return pathname === href || (pathname?.startsWith(href + '/') ?? false)
 }
 
 export default function CustomerPortalSubNavSimple() {

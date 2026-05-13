@@ -9,7 +9,7 @@ export default function ScreenshotMode() {
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    const enabled = searchParams.get('screenshot') === '1'
+    const enabled = searchParams?.get('screenshot') === '1'
     const html = document.documentElement
     const body = document.body
 

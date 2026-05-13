@@ -25,7 +25,7 @@ export default function CustomerPortalSidebar() {
       <nav className="px-3 pb-4">
         <ul className="flex md:block gap-2 overflow-x-auto md:overflow-visible">
           {NAV.map((item) => {
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
+            const active = pathname === item.href || (pathname?.startsWith(`${item.href}/`) ?? false)
             return (
               <li key={item.href} className="md:mb-1">
                 <Link

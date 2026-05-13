@@ -8,7 +8,10 @@ import { generateReviewFlags } from '@/lib/booking/review-flags'
 import {
   notifyBookingSubmitted,
   notifyBookingCancelled,
+  notifyCancellationRequested,
+  notifyAdminCancellationReviewRequired,
   notifyClarificationResponseReceived,
+  notifyFlightRecordSubmitted,
   notifyFlightRecordResubmitted,
 } from '@/lib/booking/notifications'
 import type {
@@ -143,6 +146,7 @@ export async function createBooking(
         aircraft:      input.aircraft_id,
         start:         new Date(input.scheduled_start).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }),
         end:           new Date(input.scheduled_end).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }),
+        bookingId:     result.booking_id,
       }).catch(e => console.error('[createBooking] notification error:', e))
     }
   }
@@ -395,6 +399,20 @@ export async function submitFlightRecord(
   revalidatePath('/dashboard')
   revalidatePath('/admin')
 
+  const [{ data: profile }, { data: aircraft }] = await Promise.all([
+    supabase.from('profiles').select('full_name, email').eq('id', userId).single(),
+    supabase.from('aircraft').select('registration').eq('id', booking.aircraft_id).single(),
+  ])
+  if (profile?.email) {
+    await notifyFlightRecordSubmitted({
+      bookingId: input.booking_id,
+      customerEmail: profile.email,
+      customerName: profile.full_name ?? 'Pilot',
+      aircraft: (aircraft as { registration?: string } | null)?.registration ?? 'Aircraft',
+      bookingDate: new Date(booking.scheduled_start).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }),
+    }).catch((error) => console.error('[submitFlightRecord] email failed:', error))
+  }
+
   return { flightRecordId: flightRecord.id }
 }
 
@@ -461,6 +479,7 @@ export async function submitClarificationResponse(
     ref:          booking.booking_reference ?? bookingId.slice(0, 8).toUpperCase(),
     customerName: prof?.full_name ?? 'Customer',
     response,
+    bookingId,
   }).catch(e => console.error('[submitClarificationResponse] notification error:', e))
 
   revalidatePath('/dashboard')
@@ -593,6 +612,7 @@ export async function resubmitFlightRecord(
     ref:          booking.booking_reference ?? input.booking_id.slice(0, 8).toUpperCase(),
     customerName: prof?.full_name ?? 'Customer',
     aircraftReg:  (aircraft as { registration?: string } | null)?.registration ?? 'Unknown',
+    bookingId:    input.booking_id,
   }).catch(e => console.error('[resubmitFlightRecord] notification error:', e))
 
   revalidatePath('/dashboard')
@@ -829,6 +849,7 @@ export async function cancelBookingNow(bookingId: string): Promise<void> {
         customerName:  (prof as { full_name?: string | null } | null)?.full_name ?? 'Pilot',
         ref:           notifyData.booking_reference ?? bookingId.slice(0, 8).toUpperCase(),
         reason:        'You cancelled this booking.',
+        bookingId,
       }).catch(e => console.error('[cancelBookingNow] notification error:', e))
     }
   }
@@ -920,6 +941,25 @@ export async function requestLateCancellation(
     event_summary: 'Customer requested late cancellation (<24 h). Pending admin review.',
     new_value:     { status: 'cancellation_requested', customer_message: customerMessage },
   })
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name, email')
+    .eq('id', userId)
+    .single()
+  if (profile?.email) {
+    await notifyCancellationRequested({
+      customerEmail: profile.email,
+      bookingId,
+    }).catch((error) => console.error('[requestLateCancellation] customer email failed:', error))
+
+    await notifyAdminCancellationReviewRequired({
+      bookingId,
+      customerName: profile.full_name ?? 'Customer',
+      customerEmail: profile.email,
+      reason: customerMessage ?? null,
+    }).catch((error) => console.error('[requestLateCancellation] admin email failed:', error))
+  }
 
   revalidatePath(`/dashboard/bookings/${bookingId}`)
   revalidatePath('/dashboard/bookings')

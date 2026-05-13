@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import { sendEmail } from "@/lib/email/send-email";
+import { paymentConfirmedEmail } from "@/lib/email/templates/payment";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -128,6 +130,22 @@ export async function POST(req: Request) {
       })
 
       try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("email")
+          .eq("id", customerId)
+          .single()
+        if (profile?.email) {
+          const template = paymentConfirmedEmail("Payment has been received and recorded for your flight.")
+          await sendEmail({
+            to: profile.email,
+            subject: template.subject,
+            html: template.html,
+            eventType: "post_flight_payment_received",
+            entityType: "booking",
+            entityId: bookingId,
+          })
+        }
         await supabase.from("verification_events").insert({
           user_id:      customerId,
           actor_role:   "system",
@@ -202,6 +220,23 @@ export async function POST(req: Request) {
     }
 
     try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("id", customerId)
+        .single()
+      if (profile?.email) {
+        const template = paymentConfirmedEmail(notifBody)
+        await sendEmail({
+          to: profile.email,
+          subject: template.subject,
+          html: template.html,
+          eventType: "payment_confirmed",
+          entityType: "checkout",
+          entityId: bookingId,
+          metadata: { checkoutOutcome: checkoutOutcome ?? null },
+        })
+      }
       const { error: notifErr } = await supabase
         .from("verification_events")
         .insert({

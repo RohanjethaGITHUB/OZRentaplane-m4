@@ -71,13 +71,13 @@ const SECTIONS = [
 export default function TermsPage() {
   return (
     <main
-      className="bg-[#091421] text-[#d9e3f6] font-sans min-h-screen"
+      className="bg-mkt-main text-[#d9e3f6] font-sans min-h-screen"
       style={{ paddingTop: '62px' }}
     >
       {/* ── Page header ──────────────────────────────────────────────────── */}
       <div
         className="px-6 md:px-12 lg:px-20 py-20 md:py-28 border-b"
-        style={{ borderColor: 'rgba(255,255,255,0.06)', background: '#091421' }}
+        style={{ borderColor: 'rgba(255,255,255,0.06)', background: '#061524' }}
       >
         <div className="max-w-3xl mx-auto">
           <span

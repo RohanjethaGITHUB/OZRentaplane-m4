@@ -46,6 +46,7 @@ export default async function DashboardPage() {
     { data: documents },
     { data: events },
     checkoutBookingResult,
+    activeBookingResult,
   ] = await Promise.all([
     supabase
       .from('user_documents')
@@ -67,9 +68,18 @@ export default async function DashboardPage() {
           .limit(1)
           .single()
       : Promise.resolve({ data: null }),
+    supabase
+      .from('bookings')
+      .select('id, status')
+      .eq('booking_owner_user_id', user.id)
+      .eq('booking_type', 'standard')
+      .order('scheduled_start', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   const checkoutBookingId = (checkoutBookingResult.data as { id: string } | null)?.id ?? null
+  const activeBooking = (activeBookingResult.data as { id: string; status: string } | null) ?? null
 
   // Fetch invoice data only when we have a booking ID
   let checkoutInvoice: import('./DashboardContent').CheckoutInvoiceData | null = null
@@ -142,6 +152,7 @@ export default async function DashboardPage() {
       isFirstLogin={isFirstLogin}
       checkoutBookingId={checkoutBookingId}
       checkoutInvoice={checkoutInvoice}
+      activeBooking={activeBooking}
     />
   )
 }

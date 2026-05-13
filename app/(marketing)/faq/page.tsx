@@ -137,13 +137,13 @@ function AccordionItem({ item, defaultOpen = false }: { item: FaqItem; defaultOp
     <div
       className="overflow-hidden transition-all duration-300"
       style={{
-        background: '#121c29',
+        background: '#0B2035',
         borderRadius: '6px',
       }}
     >
       <button
         className="w-full flex items-center justify-between p-7 text-left transition-colors duration-200"
-        style={{ background: open ? '#16202e' : 'transparent' }}
+        style={{ background: open ? '#0B2035' : 'transparent' }}
         onClick={() => setOpen(!open)}
         aria-expanded={open}
       >
@@ -282,7 +282,7 @@ export default function FaqPage() {
 
   return (
     <main
-      className="bg-[#091421] text-[#d9e3f6] font-sans overflow-x-hidden"
+      className="bg-mkt-main text-[#d9e3f6] font-sans overflow-x-hidden"
       style={{ paddingTop: '62px' }}
     >
 
@@ -295,7 +295,7 @@ export default function FaqPage() {
           style={{ backgroundImage: 'url("/Pilot&aircraftTwilight.webp")', opacity: 0.75 }}
         />
         <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#040f1e]/70 via-[#040f1e]/30 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 h-[30%] z-0 bg-gradient-to-t from-[#091421] via-[#070b1a]/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-[30%] z-0 bg-gradient-to-t from-[#061524] via-[#070b1a]/30 to-transparent" />
 
         <div className="relative z-10 max-w-7xl mx-auto w-full pt-16">
           <StaggerContainer className="max-w-xl" staggerDelay={0.2}>
@@ -323,7 +323,7 @@ export default function FaqPage() {
               </a>
               <a
                 href="#booking"
-                className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded border border-white/20 text-[#c4c6cf] hover:bg-white/5 transition-colors"
+                className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded border border-white/[0.14] text-[#c4c6cf] hover:bg-white/5 transition-colors"
               >
                 Book a Flight
               </a>
@@ -471,7 +471,7 @@ export default function FaqPage() {
       {/* ════════════════════════════════════════════════════════════
           Section 4 — Pre-Flight Checklist
       ════════════════════════════════════════════════════════════ */}
-      <section className="py-24" style={{ background: '#050f1b' }}>
+      <section className="bg-mkt-dot py-24">
         <div className="max-w-[1400px] mx-auto px-6 md:px-12 lg:px-20">
           <div
             className="grid grid-cols-1 md:grid-cols-2 overflow-hidden rounded-xl border"
@@ -496,7 +496,7 @@ export default function FaqPage() {
             {/* Right — checklist */}
             <div
               className="p-10 md:p-16 flex flex-col justify-center"
-              style={{ background: '#16202e' }}
+              style={{ background: '#0B2035' }}
             >
               <h2
                 className="font-serif text-[2rem] md:text-[2.4rem] leading-tight mb-10"

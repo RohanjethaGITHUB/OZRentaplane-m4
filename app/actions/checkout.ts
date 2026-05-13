@@ -5,6 +5,7 @@ import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
+import { notifyCheckoutRequestSubmitted } from '@/lib/booking/notifications'
 import { isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
 import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 import type {
@@ -412,6 +413,25 @@ export async function submitCheckoutRequest(
     email_status: 'skipped',
   })
   if (notifErr) console.error('[submitCheckoutRequest] notification failed:', notifErr.message)
+
+  const { data: profileRow } = await supabase
+    .from('profiles')
+    .select('full_name, email')
+    .eq('id', userId)
+    .single()
+
+  if (profileRow?.email) {
+    await notifyCheckoutRequestSubmitted({
+      customerEmail: profileRow.email,
+      customerName: profileRow.full_name ?? 'Pilot',
+      bookingId,
+      requestedTime: new Date(result.scheduled_start).toLocaleString('en-AU', {
+        timeZone: 'Australia/Sydney',
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }),
+    }).catch((error) => console.error('[submitCheckoutRequest] email failed:', error))
+  }
 
   revalidatePath('/dashboard')
   revalidatePath('/admin')

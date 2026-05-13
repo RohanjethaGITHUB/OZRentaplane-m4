@@ -5,6 +5,12 @@ import Stripe from "stripe";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { PAYMENT_CONFIG } from "@/lib/payments/config";
+import {
+  notifyAdminBankTransferProofUploaded,
+  notifyBankTransferProofReceived,
+} from "@/lib/booking/notifications";
+import { sendEmail } from "@/lib/email/send-email";
+import { paymentConfirmedEmail } from "@/lib/email/templates/payment";
 
 export async function createCheckoutPaymentSession(bookingId: string) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -187,6 +193,24 @@ export async function submitBankTransferProof(
     .update({ payment_method: "bank_transfer" })
     .eq("id", invoiceId);
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, email")
+    .eq("id", user.id)
+    .single();
+  if (profile?.email) {
+    await notifyBankTransferProofReceived({ customerEmail: profile.email, bookingId }).catch((error) =>
+      console.error("[submitBankTransferProof] customer email failed:", error),
+    );
+    await notifyAdminBankTransferProofUploaded({
+      bookingId,
+      customerName: profile.full_name ?? "Pilot",
+      customerEmail: profile.email,
+      amount: "Pending review",
+      invoiceType: "checkout",
+    }).catch((error) => console.error("[submitBankTransferProof] admin email failed:", error));
+  }
+
   revalidatePath(`/dashboard/bookings/${bookingId}`);
   return { success: true };
 }
@@ -247,6 +271,24 @@ export async function adminApproveBankTransfer(submissionId: string, bookingId: 
         is_read:      false,
         email_status: "pending",
       });
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("id", sub.customer_id)
+        .single();
+      if (profile?.email) {
+        const template = paymentConfirmedEmail(notifBody);
+        await sendEmail({
+          to: profile.email,
+          subject: template.subject,
+          html: template.html,
+          eventType: "payment_confirmed",
+          entityType: "checkout",
+          entityId: bookingId,
+          metadata: { outcome: outcome ?? null },
+        }).catch((error) => console.error("[adminApproveBankTransfer] email failed:", error));
+      }
     }
   } catch (notifErr: any) {
     console.warn("Failed to send approval notification (non-fatal):", notifErr?.message);
@@ -404,6 +446,24 @@ export async function submitStandardBankTransferProof(
     .update({ payment_method: "bank_transfer" })
     .eq("id", invoiceId);
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, email")
+    .eq("id", user.id)
+    .single();
+  if (profile?.email) {
+    await notifyBankTransferProofReceived({ customerEmail: profile.email, bookingId }).catch((error) =>
+      console.error("[submitStandardBankTransferProof] customer email failed:", error),
+    );
+    await notifyAdminBankTransferProofUploaded({
+      bookingId,
+      customerName: profile.full_name ?? "Pilot",
+      customerEmail: profile.email,
+      amount: "Pending review",
+      invoiceType: "standard",
+    }).catch((error) => console.error("[submitStandardBankTransferProof] admin email failed:", error));
+  }
+
   revalidatePath(`/dashboard/bookings/${bookingId}`);
   return { success: true };
 }
@@ -445,6 +505,22 @@ export async function adminRejectBankTransfer(submissionId: string, bookingId: s
       is_read: false,
       email_status: "pending"
     });
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", sub.customer_id)
+      .single();
+    if (profile?.email) {
+      await sendEmail({
+        to: profile.email,
+        subject: "Payment proof update",
+        html: paymentConfirmedEmail(`Your bank transfer payment proof was rejected. Note: ${adminNote}. Please upload a new receipt or contact support.`).html,
+        eventType: "bank_transfer_rejected",
+        entityType: "payment",
+        entityId: bookingId,
+      }).catch((error) => console.error("[adminRejectBankTransfer] email failed:", error));
+    }
   }
 
   revalidatePath("/admin/bookings");

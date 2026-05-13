@@ -17,7 +17,6 @@ import { formatDate, formatDateTime } from '@/lib/formatDateTime'
 import type { UserDocument, DocumentType } from '@/lib/supabase/types'
 import type { CheckoutBookingResult } from '@/lib/supabase/booking-types'
 import CalendarDateField from '@/components/CalendarDateField'
-import RunwayJourney from '@/components/customer/RunwayJourney'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -495,8 +494,8 @@ function DocModal({
   function Pill({ value, active, onClick }: { value: string; active: boolean; onClick: () => void }) {
     return (
       <button type="button" onClick={onClick}
-        className={`px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-all text-left ${
-          active ? 'bg-blue-500/15 border-blue-500/30 text-blue-300' : 'bg-white/[0.03] border-white/10 text-white/40 hover:text-white/70'
+        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all text-left ${
+          active ? 'bg-blue-500/15 border-blue-400/50 text-blue-100' : 'bg-white/[0.03] border-white/20 text-slate-200 hover:text-white'
         }`}
       >{value}</button>
     )
@@ -575,15 +574,15 @@ function DocModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-[#0c1220] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+      <div className="w-full max-w-md bg-[#13243a] border border-[#4c6b8f] rounded-2xl shadow-2xl overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-lg text-blue-400" style={{ fontVariationSettings: "'wght' 300" }}>{def.icon}</span>
             <div>
-              <p className="text-[9px] uppercase tracking-widest text-blue-400/70 font-bold">{isReplace ? 'Replace' : 'Upload'}</p>
-              <p className="text-sm font-semibold text-white">{def.label}</p>
+              <p className="text-xs uppercase tracking-widest text-blue-200 font-bold">{isReplace ? 'Replace' : 'Upload'}</p>
+              <p className="text-lg font-semibold text-white">{def.label}</p>
             </div>
           </div>
           <button onClick={onClose} className="text-white/30 hover:text-white/70 transition-colors">
@@ -598,7 +597,7 @@ function DocModal({
           {def.type === 'pilot_licence' && (
             <>
               <div className="space-y-2">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Licence Type <span className="text-red-400 font-normal normal-case">Required</span></p>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Licence Type <span className="text-red-300 font-semibold normal-case">Required</span></p>
                 <div className="grid grid-cols-2 gap-1.5">
                   {['Recreational (RPL)', 'Private (PPL)', 'Commercial (CPL)', 'Other'].map(t => (
                     <Pill key={t} value={t} active={licenceType === t.split(' ')[0] || licenceType === t} onClick={() => setLicenceType(t.split(' ')[0] ?? t)} />
@@ -608,11 +607,11 @@ function DocModal({
 
               {/* Additional Ratings */}
               <div className="pt-1 border-t border-white/[0.06]">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-3">Additional Ratings</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-300 mb-3">Additional Ratings</p>
                 <div className="space-y-3">
                   <div className="space-y-2">
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
-                      Night VFR Rating <span className="text-red-400 font-normal normal-case">Required</span>
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-300">
+                      Night VFR Rating <span className="text-red-300 font-semibold normal-case">Required</span>
                     </p>
                     <div className="grid grid-cols-2 gap-1.5">
                       {([true, false] as const).map(val => (
@@ -626,8 +625,8 @@ function DocModal({
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
-                      IFR / Instrument Rating <span className="text-red-400 font-normal normal-case">Required</span>
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-300">
+                      IFR / Instrument Rating <span className="text-red-300 font-semibold normal-case">Required</span>
                     </p>
                     <div className="grid grid-cols-2 gap-1.5">
                       {([true, false] as const).map(val => (
@@ -644,11 +643,11 @@ function DocModal({
               </div>
 
               <div className="space-y-1.5">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Pilot Licence Number / ARN <span className="text-red-400 font-normal normal-case">Required</span></p>
-                <p className="text-[9px] text-slate-600">Your ARN is your CASA-issued aviation reference number.</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Pilot Licence Number / ARN <span className="text-red-300 font-semibold normal-case">Required</span></p>
+                <p className="text-sm text-slate-200">Your ARN is your CASA-issued aviation reference number.</p>
                 <input type="text" value={licenceNumber} onChange={e => setLicenceNumber(e.target.value)}
                   placeholder="e.g. 123456"
-                  className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40 placeholder:text-white/20"
+                  className="w-full bg-white/[0.03] border border-white/20 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-400/60 placeholder:text-slate-400"
                 />
               </div>
             </>
@@ -658,7 +657,7 @@ function DocModal({
           {def.type === 'medical_certificate' && (
             <>
               <div className="space-y-2">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Medical Class <span className="text-red-400 font-normal normal-case">Required</span></p>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Medical Class <span className="text-red-300 font-semibold normal-case">Required</span></p>
                 <div className="grid grid-cols-2 gap-1.5">
                   {['Class 1', 'Class 2', 'Basic Class 2', 'Other'].map(c => (
                     <Pill key={c} value={c} active={medicalClass === c} onClick={() => setMedicalClass(c)} />
@@ -667,23 +666,23 @@ function DocModal({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Date of Issue <span className="text-red-400 font-normal normal-case">Required</span></p>
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Date of Issue <span className="text-red-300 font-semibold normal-case">Required</span></p>
                   <CalendarDateField
                     value={issueDate}
                     onChange={setIssueDate}
                     minYear={new Date().getFullYear() - 80}
                     maxYear={new Date().getFullYear()}
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40 text-left flex items-center justify-between"
+                    className="w-full bg-white/[0.03] border border-white/20 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-400/60 text-left flex items-center justify-between"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Expiry Date <span className="text-red-400 font-normal normal-case">Required</span></p>
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Expiry Date <span className="text-red-300 font-semibold normal-case">Required</span></p>
                   <CalendarDateField
                     value={expiryDate}
                     onChange={setExpiryDate}
                     minYear={new Date().getFullYear() - 5}
                     maxYear={new Date().getFullYear() + 20}
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40 text-left flex items-center justify-between"
+                    className="w-full bg-white/[0.03] border border-white/20 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-400/60 text-left flex items-center justify-between"
                   />
                 </div>
               </div>
@@ -694,7 +693,7 @@ function DocModal({
           {def.type === 'photo_id' && (
             <>
               <div className="space-y-2">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">ID Type <span className="text-red-400 font-normal normal-case">Required</span></p>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-300">ID Type <span className="text-red-300 font-semibold normal-case">Required</span></p>
                 <div className="grid grid-cols-3 gap-1.5">
                   {['Passport', 'Driver Licence', 'Other'].map(t => (
                     <Pill key={t} value={t} active={idType === t} onClick={() => setIdType(t)} />
@@ -702,10 +701,10 @@ function DocModal({
                 </div>
               </div>
               <div className="space-y-1.5">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Document Number <span className="text-red-400 font-normal normal-case">Required</span></p>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Document Number <span className="text-red-300 font-semibold normal-case">Required</span></p>
                 <input type="text" value={documentNumber} onChange={e => setDocumentNumber(e.target.value)}
                   placeholder="Passport or licence number"
-                  className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40 placeholder:text-white/20"
+                  className="w-full bg-white/[0.03] border border-white/20 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-400/60 placeholder:text-slate-400"
                 />
               </div>
             </>
@@ -713,8 +712,8 @@ function DocModal({
 
           {/* Multi-file drag-and-drop upload */}
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">
-              Document File(s) <span className="text-red-400 font-normal normal-case">Required</span>
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-300 mb-1.5">
+              Document File(s) <span className="text-red-300 font-semibold normal-case">Required</span>
             </p>
             <label
               className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-dashed cursor-pointer transition-all ${
@@ -722,7 +721,7 @@ function DocModal({
                   ? 'border-blue-400/70 bg-blue-500/10'
                   : uploading
                   ? 'border-blue-500/30 bg-blue-500/5'
-                  : 'border-white/10 hover:border-blue-500/40 hover:bg-white/[0.02]'
+                  : 'border-[#5f7fa5] bg-[#173150] hover:border-blue-300/70 hover:bg-[#1e3c61]'
               }`}
               onDragOver={e => { e.preventDefault(); setDragOver(true) }}
               onDragLeave={() => setDragOver(false)}
@@ -735,8 +734,8 @@ function DocModal({
                 {uploading ? 'progress_activity' : 'cloud_upload'}
               </span>
               <div className="text-center">
-                <p className="text-sm text-white/60">{uploading ? 'Uploading…' : 'Drop files here or click to browse'}</p>
-                <p className="text-[10px] text-slate-600 mt-0.5">PDF, JPG, PNG · up to 10 MB each · multiple files supported</p>
+                <p className="text-base text-slate-100">{uploading ? 'Uploading…' : 'Drop files here or click to browse'}</p>
+                <p className="text-sm text-slate-200 mt-0.5">PDF, JPG, PNG · up to 10 MB each · multiple files supported</p>
               </div>
             </label>
 
@@ -744,28 +743,28 @@ function DocModal({
             {fileResults.length > 0 && (
               <div className="mt-3 space-y-1.5">
                 {fileResults.map((r, i) => (
-                  <div key={i} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] ${
+                  <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
                     r.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
                   }`}>
                     <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>
                       {r.ok ? 'check_circle' : 'error'}
                     </span>
                     <span className="truncate flex-1">{r.name}</span>
-                    {r.msg && <span className="text-[9px] opacity-70">{r.msg}</span>}
+                    {r.msg && <span className="text-xs opacity-80">{r.msg}</span>}
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          {formError && <p className="text-[10px] text-red-400">{formError}</p>}
+          {formError && <p className="text-sm text-red-300">{formError}</p>}
         </div>
 
         {/* Footer */}
         <div className="px-5 py-4 border-t border-white/[0.06] flex items-center gap-3">
-          <p className="text-[9px] text-slate-600 flex-1">You can upload multiple files at once — e.g. front and back of a document.</p>
+          <p className="text-sm text-slate-300 flex-1">You can upload multiple files at once, for example front and back of a document.</p>
           <button onClick={onClose}
-            className="px-5 py-2 text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
+            className="px-5 py-2 text-xs font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors"
           >
             Close
           </button>
@@ -810,7 +809,7 @@ function DocCard({
           initialInstrumentRating={initialInstrumentRating}
         />
       )}
-      <div className={`flex items-center justify-between rounded-xl border px-4 py-3 transition-all ${
+      <div className={`flex items-center justify-between rounded-xl border px-4 py-4 transition-all ${
         ok      ? 'bg-green-500/[0.04] border-green-500/15' :
         expired ? 'bg-red-500/[0.04] border-red-500/15' :
                   'bg-white/[0.03] border-white/[0.08]'
@@ -824,39 +823,39 @@ function DocCard({
             {def.icon}
           </span>
           <div className="min-w-0">
-            <p className={`text-sm font-medium truncate ${ok ? 'text-white' : 'text-slate-400'}`}>{def.label}</p>
+            <p className={`text-base font-semibold truncate ${ok ? 'text-white' : 'text-slate-200'}`}>{def.label}</p>
             {/* Metadata summary */}
             {ok && (
-              <p className="text-[12px] text-slate-400 mt-0.5 truncate">Uploaded{uploadedOn ? ` on ${uploadedOn}` : ''}</p>
+              <p className="text-sm text-slate-300 mt-0.5 truncate">Uploaded{uploadedOn ? ` on ${uploadedOn}` : ''}</p>
             )}
-            {ok && secondaryFilename && <p className="text-[10px] text-slate-500 truncate">{secondaryFilename}</p>}
-            {expired && <p className="text-[10px] text-red-400 mt-0.5">Expired — please replace</p>}
+            {ok && secondaryFilename && <p className="text-sm text-slate-400 truncate">{secondaryFilename}</p>}
+            {expired && <p className="text-sm text-red-300 mt-0.5">Expired - please replace</p>}
           </div>
         </div>
         {/* Right: status badge + action */}
         <div className="flex items-center gap-2 flex-shrink-0 ml-3">
           {ok
-            ? <span className="text-[10px] font-bold uppercase tracking-widest text-green-400 border border-green-400/30 bg-green-500/10 px-2 py-0.5 rounded">Uploaded</span>
+            ? <span className="text-xs font-bold uppercase tracking-widest text-green-300 border border-green-400/30 bg-green-500/10 px-2.5 py-1 rounded">Uploaded</span>
             : expired
-            ? <span className="text-[9px] font-bold uppercase tracking-widest text-red-400 border border-red-400/30 bg-red-500/10 px-2 py-0.5 rounded">Expired</span>
+            ? <span className="text-xs font-bold uppercase tracking-widest text-red-300 border border-red-400/30 bg-red-500/10 px-2.5 py-1 rounded">Expired</span>
             : doc?.status === 'rejected'
-            ? <span className="text-[9px] font-bold uppercase tracking-widest text-red-400 border border-red-400/30 bg-red-500/10 px-2 py-0.5 rounded">Rejected</span>
-            : <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500 border border-white/10 px-2 py-0.5 rounded">Required</span>
+            ? <span className="text-xs font-bold uppercase tracking-widest text-red-300 border border-red-400/30 bg-red-500/10 px-2.5 py-1 rounded">Rejected</span>
+            : <span className="text-xs font-bold uppercase tracking-widest text-slate-200 border border-white/20 px-2.5 py-1 rounded">Required</span>
           }
           {ok && (
             <button
               onClick={() => setModalOpen(true)}
-              className="text-[10px] font-bold uppercase tracking-widest text-blue-300 border border-blue-500/30 hover:bg-blue-500/10 transition-colors px-2.5 py-1 rounded-full"
+              className="text-xs font-bold uppercase tracking-widest text-blue-200 border border-blue-400/50 hover:bg-blue-500/15 transition-colors px-3 py-1.5 rounded-full"
             >
               View
             </button>
           )}
           <button
             onClick={() => setModalOpen(true)}
-            className={`text-[9px] font-bold uppercase tracking-widest transition-colors px-2.5 py-1 rounded-full border ${
+            className={`text-xs font-bold uppercase tracking-widest transition-colors px-3 py-1.5 rounded-full border ${
               ok
-                ? 'text-slate-500 border-white/10 hover:text-white hover:border-white/25'
-                : 'text-blue-400 border-blue-500/30 hover:bg-blue-500/10'
+                ? 'text-slate-200 border-white/20 hover:text-white hover:border-white/35'
+                : 'text-blue-200 border-blue-400/50 hover:bg-blue-500/15'
             }`}
           >
             {ok ? 'Replace' : def.type === 'photo_id' ? 'Upload photo ID' : 'Upload'}
@@ -1178,11 +1177,7 @@ export default function CheckoutFlow({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,68%)_minmax(280px,32%)] gap-5 items-start">
-        <aside className="order-1 xl:order-2">
-          <RunwayJourney pilotClearanceStatus={pilotClearanceStatus} formStep={step} orientation="vertical" />
-        </aside>
-        <div className="order-2 xl:order-1 text-[15px]">
+      <div className="w-full text-[15px]">
           {/* ── STEP 1: Time selection ─────────────────────────────────────────── */}
           {step === 'time' && (
             <div ref={stepSectionRef} className={`${CARD} p-6 md:p-8 space-y-7`}>
@@ -1198,25 +1193,25 @@ export default function CheckoutFlow({
 
           {/* A: Compact read-only flight summary */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="h-[136px] rounded-xl border border-white/10 bg-[#09182d] px-4 py-3 flex flex-col justify-between">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Aircraft</p>
+            <div className="h-[148px] rounded-2xl border border-white/12 bg-[#223752] px-5 py-4 flex flex-col justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">Aircraft</p>
               <div>
-                <p className="text-4xl font-semibold text-white leading-none">{aircraftRegistration}</p>
-                <p className="text-lg text-slate-300 mt-1">{aircraftDisplayName}</p>
+                <p className="text-3xl font-bold text-white leading-none">{aircraftRegistration}</p>
+                <p className="text-base text-slate-200 mt-1">{aircraftDisplayName}</p>
               </div>
             </div>
-            <div className="h-[136px] rounded-xl border border-white/10 bg-[#09182d] px-4 py-3 flex flex-col justify-between">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Duration</p>
+            <div className="h-[148px] rounded-2xl border border-white/12 bg-[#223752] px-5 py-4 flex flex-col justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">Duration</p>
               <div>
-                <p className="text-4xl font-semibold text-white leading-none">2 Hours</p>
-                <p className="text-lg text-slate-300 mt-1">Reserved slot</p>
+                <p className="text-3xl font-bold text-white leading-none">2 Hours</p>
+                <p className="text-base text-slate-200 mt-1">Reserved checkout slot</p>
               </div>
             </div>
-            <div className="h-[136px] rounded-xl border border-white/10 bg-[#09182d] px-4 py-3 flex flex-col justify-between">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Rate</p>
+            <div className="h-[148px] rounded-2xl border border-white/12 bg-[#223752] px-5 py-4 flex flex-col justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">Rate</p>
               <div>
-                <p className="text-4xl font-semibold text-white leading-none">${CHECKOUT_RATE}/hr</p>
-                <p className="text-lg text-slate-300 mt-1">VDO meter · $25/landing</p>
+                <p className="text-3xl font-bold text-white leading-none">${CHECKOUT_RATE}/hr</p>
+                <p className="text-base text-slate-200 mt-1">VDO meter + $25/landing</p>
               </div>
             </div>
           </div>
@@ -1403,16 +1398,16 @@ export default function CheckoutFlow({
 
           {/* ── STEP 2: Documents ─────────────────────────────────────────────── */}
           {step === 'documents' && (
-            <div ref={stepSectionRef} className={`${CARD} p-5 md:p-6 space-y-5`}>
+            <div ref={stepSectionRef} className={`${CARD} p-6 md:p-8 space-y-7`}>
           <div>
-            <h2 className="text-lg font-semibold text-white mb-1">Pilot Documents</h2>
-            <p className="text-base text-slate-300 leading-relaxed">
+            <h2 className="text-2xl font-semibold text-white mb-2">Pilot Documents</h2>
+            <p className="text-base md:text-lg text-slate-200 leading-relaxed">
               Upload your required documents below. These are reviewed as part of your checkout request.
             </p>
           </div>
 
           {/* Document cards — click Upload/Replace to open modal */}
-          <div className="space-y-2.5">
+          <div className="space-y-4">
             {DOC_DEFS.map(def => (
               <DocCard
                 key={def.type}
@@ -1436,12 +1431,12 @@ export default function CheckoutFlow({
 
           {/* Night VFR evidence — shown when user claims Night VFR Rating */}
           {nightVfrRating === true && (
-            <div className="pt-4 border-t border-white/10 space-y-3">
+            <div className="pt-5 border-t border-white/10 space-y-4">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-300 mb-1">
                   Night VFR evidence required <span className="text-red-400 font-normal normal-case tracking-normal">Required</span>
                 </p>
-                <p className="text-[10px] text-slate-300 leading-relaxed">
+                <p className="text-sm text-slate-200 leading-relaxed">
                   Please upload proof that you hold a current Night VFR rating. This can be a CASA licence record, eLicence screenshot, Night VFR flight review record, logbook endorsement, or other supporting document.
                 </p>
               </div>
@@ -1455,7 +1450,7 @@ export default function CheckoutFlow({
                 }}
               />
               {!isDocOk(nightVfrEvidenceDoc) && (
-                <p className="text-[10px] text-amber-400 flex items-center gap-1.5">
+                <p className="text-sm text-amber-300 flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[12px]">warning</span>
                   Night VFR evidence is required to book a checkout outside the Day VFR window.
                 </p>
@@ -1472,7 +1467,7 @@ export default function CheckoutFlow({
 
           {/* Flight review date */}
           <div className="pt-2 border-t border-white/10 space-y-2">
-            <label className="text-[10px] font-semibold text-slate-200 block">
+            <label className="text-sm font-semibold text-slate-100 block">
               When was your last flight review? <span className="text-red-400 font-normal normal-case">Required</span>
             </label>
             <CalendarDateField
@@ -1482,10 +1477,10 @@ export default function CheckoutFlow({
               maxYear={new Date().getFullYear()}
               minDate={getFlightReviewCutoff()}
               maxDate={new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })}
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors text-left flex items-center justify-between"
+              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-3 text-base text-white focus:outline-none focus:border-blue-500/60 transition-colors text-left flex items-center justify-between"
             />
             {lastFlightDate && validateFlightReviewDate(lastFlightDate) && (
-              <p className="text-[10px] text-red-400 flex items-center gap-1.5">
+              <p className="text-sm text-red-300 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[12px]">error</span>
                 {validateFlightReviewDate(lastFlightDate)}
               </p>
@@ -1494,7 +1489,7 @@ export default function CheckoutFlow({
 
           {/* Optional team message */}
           <div className="space-y-2">
-            <label className="text-[10px] font-semibold text-slate-200 block">
+            <label className="text-sm font-semibold text-slate-100 block">
               Anything our team should know? <span className="text-slate-400 font-normal normal-case">(Optional)</span>
             </label>
             <textarea
@@ -1503,10 +1498,10 @@ export default function CheckoutFlow({
               maxLength={1000}
               rows={3}
               placeholder="Add any notes, timing preferences, questions, or context for our team..."
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors placeholder:text-slate-500 resize-none"
+              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-3 text-base text-white focus:outline-none focus:border-blue-500/60 transition-colors placeholder:text-slate-500 resize-none"
             />
             {teamMessage.length > 800 && (
-              <p className="text-[10px] text-slate-500 text-right">{teamMessage.length} / 1000</p>
+              <p className="text-sm text-slate-400 text-right">{teamMessage.length} / 1000</p>
             )}
           </div>
 
@@ -1530,10 +1525,10 @@ export default function CheckoutFlow({
 
           {/* ── STEP 3: Review & Submit ───────────────────────────────────────── */}
           {step === 'review' && startUTC && endUTC && (
-            <div ref={stepSectionRef} className={`${CARD} p-5 md:p-6 space-y-5`}>
+            <div ref={stepSectionRef} className={`${CARD} p-6 md:p-8 space-y-6`}>
           <div>
-            <h2 className="text-lg font-semibold text-white mb-1">Review Your Checkout Request</h2>
-            <p className="text-base text-slate-300">
+            <h2 className="text-2xl font-semibold text-white mb-2">Review Your Checkout Request</h2>
+            <p className="text-base text-slate-200">
               Review the details below and submit your checkout request.
             </p>
           </div>
@@ -1541,22 +1536,17 @@ export default function CheckoutFlow({
           {/* Summary */}
           <div className="space-y-0">
             {[
-              { label: 'Aircraft',         value: `${aircraftDisplayName} (${aircraftRegistration})` },
-              { label: 'Date',             value: formatDate(date) },
-              { label: 'Reserved from',    value: formatDateTime(startUTC) },
-              { label: 'Reserved until',   value: formatDateTime(endUTC) },
-              { label: 'Slot reserved',    value: '2 hours (for scheduling)' },
-              { label: 'Night VFR Rating', value: nightVfrRating === true ? 'Yes' : 'No' },
-              { label: 'Flight window',    value: nightVfrRating === false
-                  ? `Day VFR (${getDayVfrWindow(date).start}–${getDayVfrWindow(date).end} Sydney time)`
-                  : 'Night VFR requested' },
-              { label: 'Checkout rate',    value: `$${CHECKOUT_RATE} / hour (VDO meter)` },
-              { label: 'Landing fees',     value: '$25 per landing, if applicable' },
-              { label: 'Final amount',     value: 'Calculated after flight from VDO meter' },
+              { label: 'Aircraft', value: `${aircraftDisplayName} (${aircraftRegistration})` },
+              { label: 'Date', value: formatDate(date) },
+              { label: 'Time', value: `${formatDateTime(startUTC)} to ${formatDateTime(endUTC)}` },
+              { label: 'Duration', value: '2 hours' },
+              { label: 'Rate', value: `$${CHECKOUT_RATE} / hour` },
+              { label: 'Landing fee note', value: '$25 per landing, if applicable' },
+              { label: 'Documents uploaded', value: allDocsUploaded && nightVfrEvidenceOk ? 'Yes' : 'Pending required documents' },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-center justify-between py-3 border-b border-white/10 last:border-0">
-                <span className="text-sm text-slate-400">{label}</span>
-                <span className="text-sm text-white font-medium text-right">{value}</span>
+                <span className="text-base text-slate-300">{label}</span>
+                <span className="text-base text-white font-semibold text-right">{value}</span>
               </div>
             ))}
           </div>
@@ -1570,14 +1560,6 @@ export default function CheckoutFlow({
             </div>
           )}
 
-          {/* Team message summary */}
-          {teamMessage.trim() && (
-            <div className="bg-white/[0.03] border border-white/10 rounded-lg px-4 py-3 space-y-1">
-              <p className="text-[10px] font-semibold text-slate-300">Your message to our team</p>
-              <p className="text-sm text-slate-200 leading-relaxed italic">&quot;{teamMessage.trim()}&quot;</p>
-            </div>
-          )}
-
           {/* Payment notice */}
           <div className="bg-emerald-500/[0.06] border border-emerald-500/20 rounded-lg px-4 py-3 flex items-start gap-2">
             <span className="material-symbols-outlined text-emerald-400 text-[15px] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>info</span>
@@ -1586,14 +1568,6 @@ export default function CheckoutFlow({
                 No payment is required now. Your final checkout amount will be calculated after the flight using the aircraft VDO meter reading, plus any landing fees.
               </p>
             </div>
-          </div>
-
-          {/* Clarifying note */}
-          <div className="bg-blue-500/[0.08] border border-blue-500/30 rounded-lg px-4 py-3 space-y-1">
-            <p className="text-[10px] font-semibold text-blue-200">What happens after you submit</p>
-            <p className="text-sm text-blue-100 leading-relaxed">
-              Submitting this does not confirm the checkout flight yet. Our team will review your selected time and documents, then confirm this time or suggest an alternative.
-            </p>
           </div>
 
           {/* Checkout terms acceptance */}
@@ -1624,9 +1598,7 @@ export default function CheckoutFlow({
                   Terms accepted
                 </span>
               ) : (
-                <span className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-full">
-                  Acceptance required
-                </span>
+                <span className="text-[11px] text-slate-300 bg-white/5 border border-white/20 px-2.5 py-1 rounded-full">Not accepted yet</span>
               )}
             </div>
             {termsError && (
@@ -1638,6 +1610,12 @@ export default function CheckoutFlow({
             <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
               <p className="text-sm text-red-300">{submitError}</p>
             </div>
+          )}
+
+          {!termsAccepted && (
+            <p className="text-sm text-amber-200">
+              Please accept the terms and conditions to submit your checkout request.
+            </p>
           )}
 
           <div className="flex gap-3 pt-2">
@@ -1666,7 +1644,7 @@ export default function CheckoutFlow({
 
       {termsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-4xl bg-[#0c1220] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+          <div className="w-full max-w-4xl bg-[#13243a] border border-[#4c6b8f] rounded-2xl shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
               <h4 className="text-sm font-semibold text-white">Checkout Terms and Conditions</h4>
               <button
@@ -1683,7 +1661,7 @@ export default function CheckoutFlow({
               </p>
               <div
                 data-testid="checkout-terms-scrollbox"
-                className="h-[55vh] min-h-[340px] max-h-[680px] overflow-y-auto border border-white/[0.1] rounded-lg bg-[#050a14]"
+                className="h-[55vh] min-h-[340px] max-h-[680px] overflow-y-auto border border-[#5f7fa5] rounded-lg bg-[#10233a]"
                 onScroll={(e) => {
                   const el = e.currentTarget
                   if (el.scrollTop + el.clientHeight >= el.scrollHeight - 4) {
@@ -1785,7 +1763,6 @@ export default function CheckoutFlow({
           </div>
             </div>
           )}
-        </div>
       </div>
     </div>
   )

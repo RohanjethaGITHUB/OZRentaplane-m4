@@ -106,8 +106,8 @@ export default async function CheckoutPage() {
   })
   return (
     <CustomerBookingShell user={user as User} profile={typedProfile}>
-      <div className="space-y-5">
-        <section className="bg-[#071426] rounded-3xl border border-blue-900/35 shadow-[0_14px_34px_rgba(3,10,25,0.3)] p-4 md:p-6">
+      <section className="space-y-6">
+        <section className="rounded-2xl border border-[rgba(148,163,184,0.16)] bg-[rgba(8,22,39,0.88)] p-3 md:p-5 shadow-sm">
           <CheckoutFlow
             firstName={firstName}
             aircraftId={aircraft.id}
@@ -124,7 +124,7 @@ export default async function CheckoutPage() {
             activeCheckoutTerms={activeCheckoutTerms}
           />
         </section>
-      </div>
+      </section>
     </CustomerBookingShell>
   )
 }

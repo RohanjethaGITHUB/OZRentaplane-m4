@@ -13,7 +13,11 @@ import {
   notifyBookingCancelled,
   notifyClarificationRequested,
   notifyPostFlightClarificationRequested,
+  notifyCheckoutConfirmed,
 } from '@/lib/booking/notifications'
+import { sendEmail } from '@/lib/email/send-email'
+import { checkoutOutcomeEmail } from '@/lib/email/templates/checkout'
+import { paymentConfirmedEmail } from '@/lib/email/templates/payment'
 import {
   FLIGHT_RECORD_REVIEW_STATUSES,
   FLIGHT_RECORD_APPROVAL_STATUSES,
@@ -499,6 +503,7 @@ export async function confirmBookingRequest(bookingId: string) {
         aircraft:      (acft as { registration?: string } | null)?.registration ?? 'aircraft',
         start:         new Date(notifyData.scheduled_start).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }),
         end:           new Date(notifyData.scheduled_end).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }),
+        bookingId,
       }).catch(e => console.error('[confirmBookingRequest] notification error:', e))
     }
   }
@@ -579,6 +584,7 @@ export async function cancelBookingRequest(bookingId: string, reason: string) {
         customerName:  (prof as { full_name?: string | null } | null)?.full_name ?? 'Pilot',
         ref:           cancelNotifyData.booking_reference ?? bookingId.slice(0, 8).toUpperCase(),
         reason,
+        bookingId,
       }).catch(e => console.error('[cancelBookingRequest] notification error:', e))
     }
   }
@@ -653,6 +659,7 @@ export async function requestClarification(bookingId: string, message: string) {
       customerName:  prof.full_name ?? 'Pilot',
       ref:           booking.booking_reference ?? bookingId.slice(0, 8).toUpperCase(),
       question:      message,
+      bookingId,
     }).catch(e => console.error('[requestClarification] notification error:', e))
   }
 
@@ -898,6 +905,7 @@ export async function requestPostFlightClarification(input: {
       ref:           booking.booking_reference ?? input.bookingId.slice(0, 8).toUpperCase(),
       category:      input.category,
       message:       input.message,
+      bookingId:     input.bookingId,
     }).catch(e => console.error('[requestPostFlightClarification] email error:', e))
   }
 
@@ -982,6 +990,25 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
     email_status:  'skipped',
   })
   if (notifErr) console.error('[confirmCheckoutBooking] notification failed:', notifErr.message)
+
+  const { data: customerProfile } = await supabase
+    .from('profiles')
+    .select('email')
+    .eq('id', booking.booking_owner_user_id)
+    .single()
+  const { data: aircraft } = await supabase
+    .from('aircraft')
+    .select('registration')
+    .eq('id', booking.aircraft_id)
+    .single()
+  if (customerProfile?.email) {
+    await notifyCheckoutConfirmed({
+      customerEmail: customerProfile.email,
+      bookingId,
+      time: fmtStart,
+      aircraft: aircraft?.registration ?? 'Assigned aircraft',
+    }).catch((error) => console.error('[confirmCheckoutBooking] email failed:', error))
+  }
 
   revalidatePath('/admin')
   revalidatePath('/dashboard')
@@ -1307,6 +1334,66 @@ export async function markCheckoutOutcome(input: {
     is_read:       false,
     email_status:  'skipped',
   })
+
+  const { data: profileForEmail } = await supabase
+    .from('profiles')
+    .select('email')
+    .eq('id', booking.booking_owner_user_id)
+    .single()
+
+  if (profileForEmail?.email) {
+    let emailEventType = 'checkout_payment_required'
+    let template = checkoutOutcomeEmail(
+      'Payment required for your checkout flight',
+      'Payment required for your checkout flight',
+      'Payment is required before the checkout process can be completed.',
+      'Pay Now',
+    )
+
+    if (input.outcome === 'cleared_to_fly' && finalBookingStatus === 'completed') {
+      emailEventType = 'cleared_to_fly'
+      template = checkoutOutcomeEmail(
+        'You are cleared to fly',
+        'You are cleared to fly',
+        'You are now cleared to book aircraft hire through the platform.',
+        'Book Aircraft',
+      )
+    } else if (input.outcome === 'additional_checkout_required' && finalBookingStatus === 'completed') {
+      emailEventType = 'additional_checkout_required'
+      template = checkoutOutcomeEmail(
+        'Additional checkout time required',
+        'Additional checkout time required',
+        'The OZ Rent A Plane team requires additional checkout time before solo hire can be approved.',
+        'View Checkout Status',
+      )
+    } else if (input.outcome === 'checkout_reschedule_required' && finalBookingStatus === 'completed') {
+      emailEventType = 'checkout_reschedule_required'
+      template = checkoutOutcomeEmail(
+        'Checkout reschedule required',
+        'Checkout reschedule required',
+        'Your checkout needs to be rescheduled. Please return to the portal to choose a new time.',
+        'Reschedule Checkout',
+      )
+    } else if (input.outcome === 'not_currently_eligible' && finalBookingStatus === 'completed') {
+      emailEventType = 'not_currently_eligible'
+      template = checkoutOutcomeEmail(
+        'Checkout outcome update',
+        'Checkout outcome update',
+        'You are not currently eligible for aircraft hire. Please contact the OZ Rent A Plane team if you have questions.',
+        'Contact Team',
+      )
+    }
+
+    await sendEmail({
+      to: profileForEmail.email,
+      subject: template.subject,
+      html: template.html,
+      eventType: emailEventType,
+      entityType: 'checkout',
+      entityId: input.bookingId,
+      metadata: { outcome: input.outcome, finalBookingStatus, finalClearanceStatus },
+    }).catch((error) => console.error('[markCheckoutOutcome] email failed:', error))
+  }
 
   revalidatePath('/admin')
   revalidatePath('/admin/bookings/checkout')
@@ -1664,6 +1751,7 @@ export async function adminApproveCancellationWaived(
         customerName:  (prof as { full_name?: string | null } | null)?.full_name ?? 'Pilot',
         ref:           notifyData.booking_reference ?? r.booking_id.slice(0, 8).toUpperCase(),
         reason:        'Your cancellation request has been approved. No cancellation charge applies.',
+        bookingId:     r.booking_id,
       }).catch(e => console.error('[adminApproveCancellationWaived] notification error:', e))
     }
   }
@@ -1703,6 +1791,23 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
       is_read:      false,
       email_status: 'pending',
     })
+
+    const { data: profileForPaymentEmail } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', sub.customer_id)
+      .single()
+    if (profileForPaymentEmail?.email) {
+      const template = paymentConfirmedEmail('Payment has been received and recorded for your booking.')
+      await sendEmail({
+        to: profileForPaymentEmail.email,
+        subject: template.subject,
+        html: template.html,
+        eventType: 'post_flight_payment_received',
+        entityType: 'booking',
+        entityId: bookingId,
+      }).catch((emailError) => console.error('[adminConfirmStandardBankTransfer] email failed:', emailError))
+    }
   }
 
   await supabase.from('booking_status_history').insert({
@@ -1753,6 +1858,22 @@ export async function adminRejectStandardBankTransfer(
       is_read:      false,
       email_status: 'pending',
     })
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', sub.customer_id)
+      .single()
+    if (profile?.email) {
+      await sendEmail({
+        to: profile.email,
+        subject: 'Payment proof update',
+        html: paymentConfirmedEmail(`Your bank transfer payment proof was rejected. Note: ${adminNote}. Please upload a new receipt or contact support.`).html,
+        eventType: 'bank_transfer_rejected',
+        entityType: 'payment',
+        entityId: bookingId,
+      }).catch((error) => console.error('[adminRejectStandardBankTransfer] email failed:', error))
+    }
   }
 
   revalidatePath('/admin')
@@ -1869,6 +1990,30 @@ export async function finaliseStandardBookingInvoice(input: {
     email_status: 'skipped',
   })
 
+  const { data: profileForInvoiceEmail } = await supabase
+    .from('profiles')
+    .select('email')
+    .eq('id', booking.booking_owner_user_id)
+    .single()
+  if (profileForInvoiceEmail?.email) {
+    const template = isSettledByCredit
+      ? paymentConfirmedEmail('Payment has been recorded for your flight.')
+      : checkoutOutcomeEmail(
+          'Payment required for your flight',
+          'Payment required for your flight',
+          'Your post-flight invoice is ready. Please complete payment from your dashboard.',
+          'Pay Now',
+        )
+    await sendEmail({
+      to: profileForInvoiceEmail.email,
+      subject: template.subject,
+      html: template.html,
+      eventType: isSettledByCredit ? 'post_flight_payment_received' : 'post_flight_payment_required',
+      entityType: 'booking',
+      entityId: input.bookingId,
+    }).catch((error) => console.error('[finaliseStandardBookingInvoice] email failed:', error))
+  }
+
   revalidatePath('/admin')
   revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
   revalidatePath('/dashboard')
@@ -1983,6 +2128,7 @@ export async function adminApproveCancellationCharged(
         reason: chargeCents > 0
           ? `Your cancellation request has been approved. As the booking was cancelled inside the 24-hour window, a cancellation charge of ${chargeDisplay} applies. Please contact operations to arrange payment.`
           : 'Your cancellation request has been approved. A cancellation charge may apply — please contact operations.',
+        bookingId: r.booking_id,
       }).catch(e => console.error('[adminApproveCancellationCharged] notification error:', e))
     }
   }

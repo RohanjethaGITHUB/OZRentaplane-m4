@@ -107,7 +107,7 @@ export default function AdminSidebar({
 
     for (const group of NAV_GROUPS) {
       if (!group.items) continue
-      const inGroup = pathname === group.href || pathname.startsWith(group.href + '/')
+      const inGroup = pathname === group.href || (pathname?.startsWith(group.href + '/') ?? false)
       if (inGroup && !newOpenState[group.title]) {
         newOpenState[group.title] = true
         changed = true
@@ -127,7 +127,7 @@ export default function AdminSidebar({
   }
 
   function isGroupActive(group: NavGroupType) {
-    return pathname === group.href || pathname.startsWith(group.href + '/')
+    return pathname === group.href || (pathname?.startsWith(group.href + '/') ?? false)
   }
 
   function isItemActive(href: string) {
