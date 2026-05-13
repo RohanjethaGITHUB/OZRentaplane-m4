@@ -6,7 +6,7 @@ import { FadeUp, StaggerContainer, StaggerItem, HoverEmphasize } from '@/compone
 
 export default function PilotRequirementsPage() {
   return (
-    <main className="min-h-screen bg-[#091421] text-[#d9e3f6]">
+    <main className="min-h-screen bg-mkt-main text-[#d9e3f6]">
       
       {/* 1. Hero Section */}
       <section className="relative px-6 md:px-12 lg:px-20 overflow-hidden min-h-[500px] md:min-h-[750px] flex items-center">
@@ -15,7 +15,7 @@ export default function PilotRequirementsPage() {
           style={{ backgroundImage: 'url("/PilotRequirementsHero-Sunset.webp")' }}
         />
         <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#040f1e]/70 via-[#040f1e]/30 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 h-[30%] z-0 bg-gradient-to-t from-[#091421] via-[#2a130a]/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-[30%] z-0 bg-gradient-to-t from-[#061524] via-[#2a130a]/30 to-transparent" />
 
         <div className="relative z-10 max-w-7xl mx-auto w-full pt-16">
           <StaggerContainer className="max-w-xl" staggerDelay={0.25}>
@@ -42,7 +42,7 @@ export default function PilotRequirementsPage() {
             <FadeUp delay={1.5} duration={1.4}>
               <a
                 href="/fleet"
-                className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded border border-white/20 text-[#c4c6cf] hover:bg-white/5 transition-colors"
+                className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded border border-white/[0.14] text-[#c4c6cf] hover:bg-white/5 transition-colors"
               >
                 View Aircraft
               </a>
@@ -56,7 +56,7 @@ export default function PilotRequirementsPage() {
         <StaggerContainer className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6" staggerDelay={0.2} viewportMargin="-20%">
           {/* Card 1 */}
           <StaggerItem duration={1.4}>
-            <HoverEmphasize className="group relative bg-[#121c29] border border-white/5 rounded-2xl p-9 md:p-10 shadow-lg transition-all duration-500 ease-out hover:bg-[#212b38] hover:border-[#aec7f7]/30 hover:shadow-2xl hover:shadow-[#aec7f7]/5">
+            <HoverEmphasize className="group relative bg-mkt-lift border border-white/5 rounded-2xl p-9 md:p-10 shadow-lg transition-all duration-500 ease-out hover:bg-[#212b38] hover:border-[#aec7f7]/30 hover:shadow-2xl hover:shadow-[#aec7f7]/5">
               <div className="mb-5 text-[#aec7f7] group-hover:brightness-110 transition-all duration-500">
                 <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <rect x="3" y="4" width="18" height="16" rx="2" />
@@ -74,7 +74,7 @@ export default function PilotRequirementsPage() {
 
           {/* Card 2 */}
           <StaggerItem duration={1.4}>
-            <HoverEmphasize className="group relative bg-[#121c29] border border-white/5 rounded-2xl p-9 md:p-10 shadow-lg transition-all duration-500 ease-out hover:bg-[#212b38] hover:border-[#aec7f7]/30 hover:shadow-2xl hover:shadow-[#aec7f7]/5">
+            <HoverEmphasize className="group relative bg-mkt-lift border border-white/5 rounded-2xl p-9 md:p-10 shadow-lg transition-all duration-500 ease-out hover:bg-[#212b38] hover:border-[#aec7f7]/30 hover:shadow-2xl hover:shadow-[#aec7f7]/5">
               <div className="mb-5 text-[#aec7f7] group-hover:brightness-110 transition-all duration-500">
                 <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <circle cx="12" cy="12" r="10" />
@@ -92,7 +92,7 @@ export default function PilotRequirementsPage() {
 
           {/* Card 3 */}
           <StaggerItem duration={1.4}>
-            <HoverEmphasize className="group relative bg-[#121c29] border border-white/5 rounded-2xl p-9 md:p-10 shadow-lg transition-all duration-500 ease-out hover:bg-[#212b38] hover:border-[#aec7f7]/30 hover:shadow-2xl hover:shadow-[#aec7f7]/5">
+            <HoverEmphasize className="group relative bg-mkt-lift border border-white/5 rounded-2xl p-9 md:p-10 shadow-lg transition-all duration-500 ease-out hover:bg-[#212b38] hover:border-[#aec7f7]/30 hover:shadow-2xl hover:shadow-[#aec7f7]/5">
               <div className="mb-5 text-[#aec7f7] group-hover:brightness-110 transition-all duration-500">
                 <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
@@ -112,7 +112,7 @@ export default function PilotRequirementsPage() {
       {/* 3. Recency / Experience Strip */}
       <section className="relative px-6 md:px-12 lg:px-20 max-w-7xl mx-auto mt-5 pb-16">
         <FadeUp duration={1.6} delay={0.2} viewportMargin="-20%">
-          <div className="bg-[#303a48]/30 backdrop-blur-[20px] border border-white/5 rounded-2xl flex flex-col md:flex-row items-center md:items-stretch justify-between gap-0 shadow-xl overflow-hidden group transition-all duration-500 ease-out hover:bg-[#303a48]/40 hover:border-[#aec7f7]/30 hover:shadow-2xl hover:shadow-[#aec7f7]/5">
+          <div className="bg-[#303a48]/30 backdrop-blur-md md:backdrop-blur-[14px] border border-white/5 rounded-2xl flex flex-col md:flex-row items-center md:items-stretch justify-between gap-0 shadow-xl overflow-hidden group transition-all duration-500 ease-out hover:bg-[#303a48]/40 hover:border-[#aec7f7]/30 hover:shadow-2xl hover:shadow-[#aec7f7]/5">
             <div className="flex-1 p-9 md:p-12 lg:p-14">
               <h3 className="font-serif text-[1.5rem] text-[#d9e3f6] mb-4">
                 Recent Experience
@@ -139,7 +139,7 @@ export default function PilotRequirementsPage() {
       </section>
 
       {/* 4. Responsible Pilot Editorial Section */}
-      <section className="relative py-32 bg-[#121c29] overflow-hidden">
+      <section className="relative py-32 bg-mkt-lift overflow-hidden">
         <div className="px-6 md:px-12 lg:px-20 max-w-7xl mx-auto">
           <StaggerContainer className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center" staggerDelay={0.4} viewportMargin="-25%">
             <div className="order-2 lg:order-1">
@@ -164,7 +164,7 @@ export default function PilotRequirementsPage() {
             </div>
             <div className="order-1 lg:order-2 relative">
               <FadeUp delay={0.6} duration={2.0}>
-                <div className="aspect-[16/10] bg-[#091421] rounded-xl overflow-hidden shadow-2xl relative border border-white/5">
+                <div className="aspect-[16/10] bg-mkt-main rounded-xl overflow-hidden shadow-2xl relative border border-white/5">
                   <img 
                     src="/Pilot%26aircraftTwilight.webp" 
                     alt="The Responsible Pilot"
@@ -174,7 +174,7 @@ export default function PilotRequirementsPage() {
               </FadeUp>
               {/* Overlaid quote box */}
               <FadeUp delay={1.4} duration={1.8}>
-                <div className="absolute -bottom-5 -left-5 md:-bottom-6 md:-left-6 bg-[#2b3544]/95 backdrop-blur-md p-5 md:p-6 rounded-lg border border-white/10 max-w-[240px] shadow-2xl">
+                <div className="absolute -bottom-5 -left-5 md:-bottom-6 md:-left-6 bg-mkt-lift/95 backdrop-blur-md p-5 md:p-6 rounded-lg border border-white/[0.08] max-w-[240px] shadow-2xl">
                   <p className="font-serif text-lg italic text-[#aec7f7] leading-relaxed">
                     &quot;Precise execution on the flight deck defines the culture of our community.&quot;
                   </p>
@@ -186,7 +186,7 @@ export default function PilotRequirementsPage() {
       </section>
 
       {/* 5. Mandatory Credentials Section */}
-      <section className="relative py-24 bg-[#091421] border-t border-white/5">
+      <section className="relative bg-mkt-dot py-24 border-t border-white/5">
         <div className="px-6 md:px-12 lg:px-20 max-w-6xl mx-auto">
           <StaggerContainer className="text-center mb-20" viewportMargin="-20%">
             <StaggerItem duration={1.4}>
@@ -227,7 +227,7 @@ export default function PilotRequirementsPage() {
       </section>
 
       {/* 6. Approval / Checkout Process Steps */}
-      <section className="relative py-24 bg-[#091421]">
+      <section className="relative bg-mkt-dot py-24">
         <div className="max-w-6xl mx-auto px-6 overflow-x-auto border-t border-white/5 pt-24 pb-12">
           <StaggerContainer className="min-w-[800px] flex justify-between items-start relative px-4" staggerDelay={0.3} viewportMargin="-20%">
             {/* Connecting line */}
@@ -242,7 +242,7 @@ export default function PilotRequirementsPage() {
               { id: 5, title: 'Booking Access', desc: 'Full profile unlocked for aircraft reservations.' },
             ].map((step, idx) => (
               <StaggerItem key={idx} duration={1.4} className="relative z-10 flex flex-col items-center flex-1 text-center group">
-                <div className="w-10 h-10 bg-[#0c1827] border border-white/10 flex items-center justify-center font-serif text-[1rem] text-[#64748b] mb-6 shadow-md transition-all duration-500 group-hover:bg-[#1b365d] group-hover:text-[#aec7f7]">
+                <div className="w-10 h-10 bg-mkt-lift border border-white/[0.08] flex items-center justify-center font-serif text-[1rem] text-[#64748b] mb-6 shadow-md transition-all duration-500 group-hover:bg-[#1b365d] group-hover:text-[#aec7f7]">
                   {step.id}
                 </div>
                 <h4 className="font-sans text-[0.65rem] uppercase tracking-[0.15em] font-bold text-[#d9e3f6] mb-3">
@@ -258,7 +258,7 @@ export default function PilotRequirementsPage() {
       </section>
 
       {/* 7. Operational Standards Section */}
-      <section className="relative py-24 bg-[#091421] border-t border-white/5">
+      <section className="relative py-24 bg-mkt-main border-t border-white/5">
         <div className="px-6 md:px-12 lg:px-20 max-w-7xl mx-auto">
           <div className="bg-[#212b38] rounded-2xl overflow-hidden flex flex-col lg:flex-row shadow-2xl">
             
@@ -301,7 +301,7 @@ export default function PilotRequirementsPage() {
             </div>
 
             {/* Right Image Placeholder */}
-            <div className="lg:w-[50%] relative min-h-[300px] lg:min-h-auto bg-[#0c1827]">
+            <div className="lg:w-[50%] relative min-h-[300px] lg:min-h-auto bg-mkt-lift">
               <FadeUp duration={2.4} delay={0.2} viewportMargin="-25%" className="absolute inset-0 w-full h-full">
                 <img 
                   src="/Close-upNose.webp" 
@@ -316,7 +316,7 @@ export default function PilotRequirementsPage() {
       </section>
 
       {/* 8. Safety / Discretion Interstitial */}
-      <section className="relative py-24 bg-[#091421] text-center border-t border-white/5">
+      <section className="relative py-24 bg-mkt-main text-center border-t border-white/5">
         <StaggerContainer className="max-w-3xl mx-auto px-6" viewportMargin="-25%" staggerDelay={0.3}>
           <StaggerItem duration={1.6}>
             <div className="w-10 h-10 mx-auto mb-6 text-[#aec7f7] bg-[#aec7f7]/10 flex items-center justify-center rounded-full">
@@ -340,14 +340,14 @@ export default function PilotRequirementsPage() {
       </section>
 
       {/* 9. Final CTA Section */}
-      <section className="relative py-40 bg-[#091421] overflow-hidden border-t border-white/5">
+      <section className="relative py-40 bg-mkt-main overflow-hidden border-t border-white/5">
         <div className="absolute inset-0 z-0 bg-black">
           <img 
             src="/TwilightFlight.webp" 
             alt="The horizon awaits your command" 
             className="absolute inset-0 w-full h-full object-cover" 
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#091421]/90 via-[#091421]/20 to-transparent pointer-events-none"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#061524]/90 via-[#061524]/20 to-transparent pointer-events-none"></div>
         </div>
         
         <div className="relative z-10 max-w-4xl mx-auto px-8 text-center">

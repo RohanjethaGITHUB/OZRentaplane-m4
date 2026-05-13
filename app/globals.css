@@ -5,21 +5,52 @@
 :root {
   --font-newsreader: 'Newsreader', Georgia, serif;
   --font-manrope: 'Manrope', system-ui, sans-serif;
+  --mkt-bg-main: #061524;
+  --mkt-bg-lift: #0b2035;
+  --mkt-border-subtle: rgba(255, 255, 255, 0.08);
+  --mkt-border-strong: rgba(255, 255, 255, 0.14);
 }
 
 html {
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
 }
 
 body {
-  background-color: #091421;
+  background-color: var(--mkt-bg-main);
   color: #d6e3ff;
   font-family: var(--font-manrope);
   overflow-x: hidden;
 }
 
 html {
-  background-color: #091421;
+  background-color: var(--mkt-bg-main);
+}
+
+.bg-mkt-main {
+  background-color: var(--mkt-bg-main);
+}
+
+.bg-mkt-lift {
+  background-color: var(--mkt-bg-lift);
+}
+
+.bg-mkt-dot {
+  background-color: var(--mkt-bg-main);
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(174, 199, 247, 0.11) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+.bg-mkt-image-overlay {
+  background: linear-gradient(180deg, rgba(6, 21, 36, 0.42) 0%, rgba(6, 21, 36, 0.7) 55%, rgba(6, 21, 36, 0.86) 100%);
+}
+
+.border-mkt-subtle {
+  border-color: var(--mkt-border-subtle);
+}
+
+.border-mkt-strong {
+  border-color: var(--mkt-border-strong);
 }
 
 /* Admin design tokens (Stitch benchmark direction) */
@@ -101,6 +132,16 @@ html, body {
       0 0 36px 8px rgba(167,200,255,0.10),
       0 24px 64px -16px rgba(0,0,0,0.52);
   }
+}
+
+@keyframes runwayPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 2px rgba(250,204,21,0.20), 0 0 26px rgba(250,204,21,0.48); }
+  50% { transform: scale(1.05); box-shadow: 0 0 0 2px rgba(250,204,21,0.28), 0 0 34px rgba(250,204,21,0.64); }
+}
+
+@keyframes planeIdle {
+  0%, 100% { transform: rotate(-3deg) translateY(0); }
+  50% { transform: rotate(2deg) translateY(-2px); }
 }
 
 .how-it-works-glow {

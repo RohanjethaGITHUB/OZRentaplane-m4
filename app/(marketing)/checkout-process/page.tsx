@@ -42,9 +42,9 @@ function StepNode({ icon }: { icon: string }) {
     <div
       className="relative z-10 shrink-0 w-12 h-12 rounded-full flex items-center justify-center"
       style={{
-        background: '#091421',
+        background: '#061524',
         border: '1px solid rgba(224,177,59,0.7)',
-        boxShadow: '0 0 0 8px #091421, 0 0 0 9.5px rgba(224,177,59,0.22), 0 4px 20px rgba(224,177,59,0.18)',
+        boxShadow: '0 0 0 8px #061524, 0 0 0 9.5px rgba(224,177,59,0.22), 0 4px 20px rgba(224,177,59,0.18)',
       }}
     >
       <div className="w-2 h-2 rounded-full absolute" style={{ background: '#E0B13B' }} />
@@ -58,12 +58,12 @@ function StepPhoto({ src, alt, header }: { src: string; alt: string; header?: Re
   return (
     <div
       className="rounded-xl overflow-hidden border shadow-xl relative"
-      style={{ background: 'rgba(22,32,46,0.82)', backdropFilter: 'blur(20px)', borderColor: 'rgba(68,71,78,0.22)' }}
+      style={{ background: 'rgba(22,32,46,0.82)', backdropFilter: 'blur(10px)', borderColor: 'rgba(68,71,78,0.22)' }}
     >
       {header && <div className="px-5 pt-5 pb-3 relative z-10">{header}</div>}
       <div className="relative">
-        <img src={src} alt={alt} className="w-full object-cover block" style={{ opacity: 0.72, display: 'block', filter: 'contrast(0.9) brightness(0.85)' }} />
-        <div className="absolute inset-0 bg-[#091421]/25 pointer-events-none" />
+        <img src={src} alt={alt} className="w-full object-cover block" style={{ opacity: 0.92, display: 'block', filter: 'contrast(0.98) brightness(0.95)' }} />
+        <div className="absolute inset-0 bg-mkt-main/10 pointer-events-none" />
       </div>
     </div>
   )
@@ -90,7 +90,7 @@ export default function CheckoutProcessPage() {
   const journeyRef = useRef<HTMLDivElement>(null)
 
   return (
-    <main className="bg-[#091421] text-[#d9e3f6] font-sans overflow-x-hidden">
+    <main className="bg-mkt-main text-[#d9e3f6] font-sans overflow-x-hidden">
 
       {/* ══════════════════════════════════════════════════════════════
           1. Hero
@@ -101,7 +101,7 @@ export default function CheckoutProcessPage() {
           style={{ backgroundImage: 'url("/CessnaTarmac.webp")', opacity: 0.72 }}
         />
         <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#040f1e]/70 via-[#040f1e]/30 to-transparent" />
-        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 -bottom-px z-[20] h-[45%] bg-gradient-to-b from-transparent via-[#091421]/75 to-[#091421]" />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 -bottom-px z-[20] h-[45%] bg-gradient-to-b from-transparent via-[#061524]/75 to-[#061524]" />
 
         <div className="relative z-10 max-w-7xl mx-auto w-full pt-16">
           <StaggerContainer className="max-w-2xl" staggerDelay={0.22}>
@@ -139,7 +139,7 @@ export default function CheckoutProcessPage() {
             <FadeUp delay={1.4} duration={1.4}>
               <a
                 href="/pilotRequirements"
-                className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded border border-white/20 text-[#c4c6cf] hover:bg-white/5 transition-colors"
+                className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded border border-white/[0.14] text-[#c4c6cf] hover:bg-white/5 transition-colors"
               >
                 View Requirements
               </a>
@@ -151,7 +151,7 @@ export default function CheckoutProcessPage() {
       {/* ══════════════════════════════════════════════════════════════
           4. Timeline
       ══════════════════════════════════════════════════════════════ */}
-      <section className="-mt-12 pt-12 pb-32 bg-[#091421] relative z-20">
+      <section className="-mt-12 pt-12 pb-32 bg-mkt-dot relative z-20">
         <div className="max-w-6xl mx-auto px-6 md:px-12">
           {/* Compact Timeline Header */}
           <StaggerContainer className="mb-16 text-center" staggerDelay={0.2} viewportMargin="-15%">
@@ -185,7 +185,7 @@ export default function CheckoutProcessPage() {
                   </div>
                   <div className="order-1 md:order-2 shrink-0"><StepNode icon="person_add" /></div>
                   <div className="md:w-1/2 order-3">
-                    <StepPhoto src="/hiw-step1-account.png" alt="Pilot portal account setup" />
+                    <StepPhoto src="/optimized/hiw-step1-account-900.jpg" alt="Pilot portal account setup" />
                   </div>
                 </div>
               </FadeUp>
@@ -196,30 +196,28 @@ export default function CheckoutProcessPage() {
                   <div className="md:w-1/2 order-3 md:order-1">
                     <div
                       className="rounded-xl overflow-hidden border shadow-xl"
-                      style={{ background: 'rgba(22,32,46,0.82)', backdropFilter: 'blur(20px)', borderColor: 'rgba(68,71,78,0.22)' }}
+                      style={{ background: 'rgba(22,32,46,0.82)', backdropFilter: 'blur(10px)', borderColor: 'rgba(68,71,78,0.22)' }}
                     >
                       <div className="flex justify-between items-center px-6 pt-6 pb-4">
                         <div className="rounded px-4 py-2" style={{ background: '#2b3544' }}>
-                          <p className="font-sans text-[10px] uppercase tracking-widest text-[#c4c6cf]">Rate</p>
-                          <p className="font-sans text-xs text-[#c4c6cf]">
-                            <span className="line-through opacity-75">$330/hr</span>{' '}
-                            <span className="text-[#aec7f7] font-bold text-xl">$290/hr</span>{' '}
-                            <span className="text-[10px] uppercase tracking-wider">special checkout flight rate</span>
-                          </p>
-                        </div>
-                        <div className="text-right rounded px-4 py-2" style={{ background: '#2b3544' }}>
-                          <p className="font-sans text-[10px] uppercase tracking-widest text-[#c4c6cf]">Duration</p>
-                          <p className="font-sans text-xl font-bold text-[#aec7f7]">Flexible</p>
+                          <p className="mb-2.5 font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-[#d3d6df]">Rate</p>
+                          <div className="font-sans leading-relaxed">
+                            <p className="text-[#aec7f7] font-bold text-lg md:text-xl">$290 per hour VDO + landing</p>
+                            <p className="mt-1 text-[13px] font-medium text-[#d7dbe5]">
+                              <span className="line-through decoration-[1.6px]">$330 per hour</span>
+                            </p>
+                            <p className="mt-1 text-[11px] text-[#c4c6cf]">special checkout flight rate</p>
+                          </div>
                         </div>
                       </div>
                       <div className="relative">
                         <img
-                          src="/hiw-step4-booking.png"
+                          src="/optimized/hiw-step4-booking-900.jpg"
                           alt="Checkout booking calendar"
                           className="w-full object-cover block"
-                          style={{ opacity: 0.72, filter: 'contrast(0.9) brightness(0.85)' }}
+                          style={{ opacity: 0.92, filter: 'contrast(0.98) brightness(0.95)' }}
                         />
-                        <div className="absolute inset-0 bg-[#091421]/25 pointer-events-none" />
+                        <div className="absolute inset-0 bg-mkt-main/10 pointer-events-none" />
                       </div>
                     </div>
                   </div>
@@ -242,7 +240,7 @@ export default function CheckoutProcessPage() {
                   </div>
                   <div className="order-1 md:order-2 shrink-0"><StepNode icon="cloud_upload" /></div>
                   <div className="md:w-1/2 order-3">
-                    <StepPhoto src="/pilot-licence.png" alt="Uploading pilot documents" />
+                    <StepPhoto src="/optimized/pilot-licence-1100.jpg" alt="Uploading pilot documents" />
                   </div>
                 </div>
               </FadeUp>
@@ -257,7 +255,7 @@ export default function CheckoutProcessPage() {
 
               {/* 05 & 06 */}
               <FadeUp viewportMargin="-60px">
-                <div className="relative p-12 rounded-2xl border shadow-2xl overflow-hidden" style={{ background: 'rgba(22,32,46,0.8)', backdropFilter: 'blur(20px)', borderColor: 'rgba(224,177,59,0.35)' }}>
+                <div className="relative p-12 rounded-2xl border shadow-2xl overflow-hidden" style={{ background: 'rgba(22,32,46,0.8)', backdropFilter: 'blur(10px)', borderColor: 'rgba(224,177,59,0.35)' }}>
                   <div className="absolute top-0 right-0 p-8 opacity-5">
                     <Icon name="flight_takeoff" className="!text-9xl text-[#E0B13B]" />
                   </div>
@@ -274,8 +272,8 @@ export default function CheckoutProcessPage() {
                       </div>
                     </div>
                     <div className="rounded-xl overflow-hidden shadow-2xl aspect-[4/3] relative">
-                      <img className="w-full h-full object-cover" style={{ opacity: 0.72, filter: 'contrast(0.9) brightness(0.85)' }} alt="Pilot during checkout flight" src="/Checkout&Clearance.png" />
-                      <div className="absolute inset-0 bg-[#091421]/25 pointer-events-none" />
+                      <img className="w-full h-full object-cover" style={{ opacity: 0.92, filter: 'contrast(0.98) brightness(0.95)' }} alt="Pilot during checkout flight" src="/optimized/checkout-clearance-900.jpg" />
+                      <div className="absolute inset-0 bg-mkt-main/10 pointer-events-none" />
                     </div>
                   </div>
                 </div>
@@ -291,7 +289,7 @@ export default function CheckoutProcessPage() {
                   </div>
                   <div className="order-1 md:order-2 shrink-0"><StepNode icon="assignment_turned_in" /></div>
                   <div className="md:w-1/2 order-3">
-                    <StepPhoto src="/record-finalize.png" alt="Logbook record" />
+                    <StepPhoto src="/optimized/record-finalize-900.jpg" alt="Logbook record" />
                   </div>
                 </div>
               </FadeUp>
@@ -304,7 +302,7 @@ export default function CheckoutProcessPage() {
       {/* ══════════════════════════════════════════════════════════════
           5. After you're cleared
       ══════════════════════════════════════════════════════════════ */}
-      <section className="py-32 px-6 md:px-12 lg:px-20 bg-[#091421]">
+      <section className="py-32 px-6 md:px-12 lg:px-20 bg-mkt-dot">
         <div className="max-w-7xl mx-auto">
           <h2 className="font-serif text-4xl md:text-5xl font-normal text-center mb-20 text-[#d9e3f6]">After you&apos;re checked out</h2>
           <StaggerContainer className="grid grid-cols-1 md:grid-cols-4 gap-8" staggerDelay={0.2} viewportMargin="-20%">
@@ -315,7 +313,7 @@ export default function CheckoutProcessPage() {
                 { icon: 'verified', title: 'Stay current', body: 'Receive automated alerts for upcoming medical and licence renewals.' },
               ].map(({ icon, title, body }) => (
                 <StaggerItem key={title} duration={1.4}>
-                <div className="bg-[#121c29] p-10 rounded-xl transition-colors group h-full border border-transparent hover:border-[rgba(224,177,59,0.35)] hover:bg-[rgba(224,177,59,0.03)]">
+                <div className="bg-mkt-lift p-10 rounded-xl transition-colors group h-full border border-transparent hover:border-[rgba(224,177,59,0.35)] hover:bg-[rgba(224,177,59,0.03)]">
                   <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-full border" style={{ borderColor: 'rgba(224,177,59,0.35)', background: 'rgba(9,20,33,0.72)' }}>
                     <Icon name={icon} className="text-[#D8DFEA] !text-3xl block group-hover:scale-110 transition-transform duration-500" />
                     <span className="absolute h-1.5 w-1.5 rounded-full" style={{ background: '#E0B13B', transform: 'translate(16px, -12px)' }} />
@@ -340,7 +338,7 @@ export default function CheckoutProcessPage() {
             alt="Hangar"
             style={{ opacity: 0.2 }}
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#091421] via-transparent to-[#091421]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#061524] via-transparent to-[#061524]" />
         </div>
         
         <StaggerContainer className="relative z-10 max-w-4xl mx-auto text-center" staggerDelay={0.3} viewportMargin="-25%">
@@ -372,7 +370,7 @@ export default function CheckoutProcessPage() {
             <FadeUp delay={1.1} duration={1.4}>
               <a
                 href="/fleet"
-                className="inline-block bg-[#2b3544] text-[#d9e3f6] px-10 py-5 rounded-md font-sans font-bold text-lg border transition-colors hover:bg-[#303a48] hover:border-[rgba(224,177,59,0.45)]"
+                className="inline-block bg-mkt-lift text-[#d9e3f6] px-10 py-5 rounded-md font-sans font-bold text-lg border transition-colors hover:bg-[#303a48] hover:border-[rgba(224,177,59,0.45)]"
                 style={{ borderColor: 'rgba(151,177,215,0.22)' }}
               >
                 View the fleet

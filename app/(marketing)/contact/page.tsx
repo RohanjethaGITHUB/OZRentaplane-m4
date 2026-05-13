@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     description:
       'Reach the OZ Rent A Plane operations team for aircraft hire, checkout flights, and booking support.',
     url: '/contact',
-    images: [{ url: '/Contact-hero.png', width: 1200, height: 630 }],
+    images: [{ url: '/optimized/contact-hero-1280.jpg', width: 1200, height: 630 }],
   },
 }
 
@@ -22,17 +22,17 @@ function Icon({ name, className = '' }: { name: string; className?: string }) {
 
 export default function ContactPage() {
   return (
-    <main className="overflow-x-hidden bg-[#071321] text-[#d9e3f6]">
+    <main className="overflow-x-hidden bg-mkt-main text-[#d9e3f6]">
       <section className="relative flex min-h-[560px] items-center overflow-hidden px-6 pb-16 pt-36 md:min-h-[700px] md:px-12 md:pt-40 lg:px-20">
         <div
           className="absolute inset-0 z-0 bg-cover bg-center"
-          style={{ backgroundImage: 'url("/Contact-hero.png")' }}
+          style={{ backgroundImage: 'url("/optimized/contact-hero-1280.jpg")' }}
         />
         <div className="absolute inset-0 z-0 bg-[#081a2f]/40" />
         <div className="absolute inset-0 z-0 bg-gradient-to-r from-[#050f1d]/76 via-[#081a31]/56 via-45% to-[#0c2442]/28" />
         <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_22%_40%,rgba(27,59,98,0.30),rgba(8,20,36,0.12)_46%,rgba(8,20,36,0)_74%)]" />
         <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_28%_64%,rgba(250,204,21,0.11),rgba(250,204,21,0.04)_20%,rgba(250,204,21,0)_42%)]" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-28 bg-gradient-to-b from-transparent to-[#071321]" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-28 bg-gradient-to-b from-transparent to-[#061524]" />
 
         <div className="relative z-10 mx-auto w-full max-w-6xl">
           <div className="max-w-2xl">
@@ -46,7 +46,7 @@ export default function ContactPage() {
 
       <section className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 px-6 py-10 md:px-12 lg:grid-cols-12 lg:gap-7 lg:px-20 lg:py-14">
         <div className="lg:col-span-8">
-          <div className="rounded-lg border border-white/10 bg-[#0f1f34]/84 p-5 shadow-[0_26px_70px_rgba(2,8,20,0.3)] backdrop-blur-md md:p-7">
+          <div className="rounded-lg border border-white/[0.08] bg-[#0f1f34]/84 p-5 shadow-[0_26px_70px_rgba(2,8,20,0.3)] backdrop-blur-sm md:backdrop-blur-md md:p-7">
             <h2 className="mb-5 flex items-center gap-2 font-serif text-3xl text-[#e8efff] md:text-[2rem]">
               <Icon name="flight_takeoff" className="!text-[24px] text-[#facc15]" />
               Flight Plan Enquiry
@@ -113,7 +113,7 @@ export default function ContactPage() {
         </div>
 
         <div className="flex flex-col gap-4 lg:col-span-4">
-          <div className="rounded-lg border border-[rgba(148,163,184,0.18)] bg-[rgba(16,34,56,0.82)] p-4 backdrop-blur-md">
+          <div className="rounded-lg border border-[rgba(148,163,184,0.18)] bg-[rgba(16,34,56,0.82)] p-4 backdrop-blur-sm md:backdrop-blur-md">
             <div className="flex items-start gap-3">
               <div className="rounded bg-[#2a3d59]/58 p-2">
                 <Icon name="support_agent" className="text-[#facc15]" />
@@ -126,7 +126,7 @@ export default function ContactPage() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-[rgba(148,163,184,0.18)] bg-[rgba(16,34,56,0.82)] p-4 backdrop-blur-md">
+          <div className="rounded-lg border border-[rgba(148,163,184,0.18)] bg-[rgba(16,34,56,0.82)] p-4 backdrop-blur-sm md:backdrop-blur-md">
             <div className="flex items-start gap-3">
               <div className="rounded bg-[#2a3d59]/58 p-2">
                 <Icon name="mail" className="text-[#facc15]" />
@@ -179,7 +179,7 @@ export default function ContactPage() {
         </div>
       </section>
 
-      <section className="border-y border-[#93aed1]/15 bg-[#0b1b2f] px-6 py-14 md:px-12 md:py-16 lg:px-20">
+      <section className="border-y border-[#93aed1]/15 bg-mkt-lift px-6 py-14 md:px-12 md:py-16 lg:px-20">
         <div className="mx-auto max-w-4xl text-center">
           <Icon name="verified" className="mb-4 text-[#facc15]" />
           <p className="font-sans text-[0.96rem] leading-[1.8] text-[#d6e0f0] md:text-[1.08rem]">

@@ -16,7 +16,7 @@ function FaqItem({ item }: { item: FaqItemType }) {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="overflow-hidden rounded-xl border border-white/10 bg-[#08162A]/76 backdrop-blur-sm transition-all duration-300 hover:border-[#E0B13B]/35">
+    <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#08162A]/76 backdrop-blur-sm transition-all duration-300 hover:border-[#E0B13B]/35">
       <button
         type="button"
         className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left md:px-6"
@@ -30,7 +30,7 @@ function FaqItem({ item }: { item: FaqItemType }) {
         />
       </button>
       {open ? (
-        <div className="border-t border-white/10 px-5 py-4 font-sans text-sm leading-relaxed text-[#A6B2C6] md:px-6">
+        <div className="border-t border-white/[0.08] px-5 py-4 font-sans text-sm leading-relaxed text-[#A6B2C6] md:px-6">
           {item.answer}
         </div>
       ) : null}
@@ -133,18 +133,18 @@ const FAQ_ITEMS: FaqItemType[] = [
 
 export default function PricingPage() {
   return (
-    <main className="relative overflow-x-hidden bg-[#020B19] text-[#F4F6FA]">
+    <main className="relative overflow-x-hidden bg-mkt-main text-[#F4F6FA]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_9%,rgba(39,79,146,0.28),transparent_35%),radial-gradient(circle_at_80%_45%,rgba(18,53,108,0.24),transparent_40%),radial-gradient(circle_at_55%_82%,rgba(10,37,76,0.2),transparent_44%)]" />
       <div className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:radial-gradient(circle_at_20%_30%,#8ca8d6_1px,transparent_1px),radial-gradient(circle_at_80%_60%,#8ca8d6_1px,transparent_1px)] [background-size:34px_34px,46px_46px]" />
 
       <section className="relative flex min-h-[560px] items-center overflow-hidden px-6 pb-20 pt-24 md:min-h-[760px] md:px-12 lg:px-20">
         <div
           className="absolute inset-0 z-0 bg-cover bg-center"
-          style={{ backgroundImage: 'url("/pricing-hero.png")', opacity: 0.62 }}
+          style={{ backgroundImage: 'url("/optimized/pricing-hero-1400.jpg")', opacity: 0.62 }}
         />
         <div className="absolute inset-0 z-0 bg-[linear-gradient(95deg,rgba(2,11,25,0.95)_12%,rgba(6,21,42,0.82)_44%,rgba(8,27,52,0.24)_78%)]" />
         <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_24%_38%,rgba(18,43,79,0.52),transparent_56%)]" />
-        <div className="absolute left-[5%] top-[16%] z-0 h-[360px] w-[360px] rounded-full border border-white/10 opacity-20" />
+        <div className="absolute left-[5%] top-[16%] z-0 h-[360px] w-[360px] rounded-full border border-white/[0.08] opacity-20" />
         <div className="absolute left-[9%] top-[20%] z-0 h-[280px] w-[280px] rounded-full border border-[#E0B13B]/30 opacity-20" />
 
         <div className="relative z-10 mx-auto w-full max-w-7xl">
@@ -183,7 +183,7 @@ export default function PricingPage() {
               </a>
               <a
                 href="/checkout-process"
-                className="inline-flex rounded-md border border-white/28 bg-[#06152A]/60 px-8 py-4 font-sans text-[0.79rem] font-bold uppercase tracking-[0.15em] text-[#F4F6FA] transition-all duration-300 hover:border-[#E0B13B]/70 hover:text-[#FFF3D2]"
+                className="inline-flex rounded-md border border-white/28 bg-mkt-lift/60 px-8 py-4 font-sans text-[0.79rem] font-bold uppercase tracking-[0.15em] text-[#F4F6FA] transition-all duration-300 hover:border-[#E0B13B]/70 hover:text-[#FFF3D2]"
               >
                 View Checkout Requirements
               </a>
@@ -220,16 +220,16 @@ export default function PricingPage() {
           </div>
 
           <div className="relative md:col-span-8">
-            <div className="absolute -right-6 bottom-8 hidden h-32 w-32 rounded-full border border-white/10 opacity-25 lg:block" />
-            <div className="overflow-hidden rounded-2xl border border-white/12 bg-[linear-gradient(180deg,rgba(8,27,52,0.86),rgba(6,21,42,0.85))] shadow-[0_26px_70px_rgba(0,0,0,0.45),inset_0_0_40px_rgba(56,99,171,0.15)] backdrop-blur-md">
-              <div className="grid grid-cols-[1fr_auto] border-b border-white/10 px-6 py-4 md:px-8">
+            <div className="absolute -right-6 bottom-8 hidden h-32 w-32 rounded-full border border-white/[0.08] opacity-25 lg:block" />
+            <div className="overflow-hidden rounded-2xl border border-white/12 bg-[linear-gradient(180deg,rgba(8,27,52,0.86),rgba(6,21,42,0.85))] shadow-[0_26px_70px_rgba(0,0,0,0.45),inset_0_0_40px_rgba(56,99,171,0.15)] backdrop-blur-sm md:backdrop-blur-md">
+              <div className="grid grid-cols-[1fr_auto] border-b border-white/[0.08] px-6 py-4 md:px-8">
                 <p className="font-sans text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[#90A4C4]">VDO Tier</p>
                 <p className="font-sans text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[#90A4C4]">Hourly Rate</p>
               </div>
               {PRICING_TIERS.map((tier) => (
                 <div
                   key={tier.tier}
-                  className={`grid grid-cols-[1fr_auto] items-center border-b border-white/10 px-6 py-5 md:px-8 ${
+                  className={`grid grid-cols-[1fr_auto] items-center border-b border-white/[0.08] px-6 py-5 md:px-8 ${
                     tier.highlight ? 'bg-[#0D2649]/40' : ''
                   }`}
                 >
@@ -266,7 +266,7 @@ export default function PricingPage() {
               {WORKFLOW_STEPS.map((step, idx) => (
                 <div key={step.title} className="relative z-10 text-center">
                   <p className="mb-2 font-sans text-[0.66rem] font-semibold tracking-[0.16em] text-[#E0B13B]">{String(idx + 1).padStart(2, '0')}</p>
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-[#081B34] shadow-[0_0_0_8px_#020B19]">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-white/[0.14] bg-[#081B34] shadow-[0_0_0_8px_#061524]">
                     <Icon name={step.icon} className="text-[#BFCDE2] !text-[19px]" />
                   </div>
                   <p className="mt-4 font-sans text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[#E3EBF8]">{step.title}</p>
@@ -280,7 +280,7 @@ export default function PricingPage() {
             {WORKFLOW_STEPS.map((step, idx) => (
               <div key={step.title} className="relative pl-12">
                 <div className="absolute left-[18px] top-0 h-full w-px bg-white/15" />
-                <div className="absolute left-0 top-1.5 flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-[#081B34]">
+                <div className="absolute left-0 top-1.5 flex h-9 w-9 items-center justify-center rounded-full border border-white/[0.14] bg-[#081B34]">
                   <Icon name={step.icon} className="text-[#BFCDE2] !text-[18px]" />
                 </div>
                 <p className="font-sans text-[0.66rem] font-semibold tracking-[0.16em] text-[#E0B13B]">{String(idx + 1).padStart(2, '0')}</p>
@@ -297,7 +297,7 @@ export default function PricingPage() {
           className="absolute inset-0 z-0 bg-cover bg-no-repeat"
           style={{
             backgroundImage:
-              "linear-gradient(90deg, rgba(2, 11, 25, 0.28) 0%, rgba(2, 11, 25, 0.14) 35%, rgba(2, 11, 25, 0.08) 70%, rgba(2, 11, 25, 0.12) 100%), linear-gradient(180deg, rgba(2, 11, 25, 0.12) 0%, rgba(2, 11, 25, 0.04) 50%, rgba(2, 11, 25, 0.12) 100%), url('/pricing-multiday.png')",
+              "linear-gradient(90deg, rgba(2, 11, 25, 0.28) 0%, rgba(2, 11, 25, 0.14) 35%, rgba(2, 11, 25, 0.08) 70%, rgba(2, 11, 25, 0.12) 100%), linear-gradient(180deg, rgba(2, 11, 25, 0.12) 0%, rgba(2, 11, 25, 0.04) 50%, rgba(2, 11, 25, 0.12) 100%), url('/optimized/pricing-multiday-1500.jpg')",
             backgroundPosition: 'center right, center, center right',
           }}
         />
@@ -356,7 +356,7 @@ export default function PricingPage() {
             </p>
             <div className="mt-10 grid gap-3 md:grid-cols-2">
               {INCLUDED_CARDS.map((card) => (
-                <article key={card.title} className="rounded-xl border border-white/10 bg-[#081B34]/70 p-4">
+                <article key={card.title} className="rounded-xl border border-white/[0.08] bg-[#081B34]/70 p-4">
                   <div className="flex items-start gap-3">
                     <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/15 bg-[#0A223F]">
                       <Icon name={card.icon} className="text-[#E0B13B] !text-[18px]" />
@@ -371,13 +371,13 @@ export default function PricingPage() {
             </div>
           </div>
 
-          <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-[#06152A] lg:col-span-5">
+          <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-mkt-lift lg:col-span-5">
             <img
               src="/CockpitRunwayView.webp"
               alt="Cockpit runway view"
               className="h-full min-h-[360px] w-full object-cover opacity-70"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#020B19] via-[#020B19]/32 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#061524] via-[#061524]/32 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 p-6">
               <p className="font-sans text-[0.66rem] font-semibold uppercase tracking-[0.17em] text-[#E0B13B]">Transparent Billing</p>
               <p className="mt-2 font-serif text-3xl leading-tight text-[#F4F6FA]">Built for clarity from booking to final invoice.</p>
@@ -419,7 +419,7 @@ export default function PricingPage() {
             </a>
             <a
               href="mailto:ops@ozrentaplane.com.au?subject=Pricing%20enquiry"
-              className="inline-flex rounded-md border border-white/28 bg-[#06152A]/52 px-8 py-4 font-sans text-[0.79rem] font-bold uppercase tracking-[0.15em] text-[#F4F6FA] transition-all duration-300 hover:border-[#E0B13B]/70 hover:text-[#FFF3D2]"
+              className="inline-flex rounded-md border border-white/28 bg-mkt-lift/52 px-8 py-4 font-sans text-[0.79rem] font-bold uppercase tracking-[0.15em] text-[#F4F6FA] transition-all duration-300 hover:border-[#E0B13B]/70 hover:text-[#FFF3D2]"
             >
               Contact Us
             </a>

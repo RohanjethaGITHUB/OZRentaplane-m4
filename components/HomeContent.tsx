@@ -1,9 +1,9 @@
 'use client'
-import React, { useState } from 'react'
+import React from 'react'
 import { FadeUp, StaggerContainer, StaggerItem, HoverEmphasize } from '@/components/MotionPresets'
 
 // ── Palette — matches AeroVista design system exactly ─────────────────────────
-const BASE = '#020B19'
+const BASE = '#061524'
 
 // Text tokens from AeroVista
 const T_SURFACE = '#d9e3f6'  // on-surface  — primary headings (h2)
@@ -13,19 +13,7 @@ const T_PRIMARY = '#aec7f7'  // primary     — accent, labels
 
 // ── Section 1: Aircraft Showcase ──────────────────────────────────────────────
 function AircraftShowcase() {
-  const galleryImages = [
-    { src: '/Cessna-172.webp', alt: 'Cessna 172N parked on wet runway at dusk' },
-    { src: '/CessnaImage-1.webp', alt: 'Cessna 172N side profile on apron' },
-    { src: '/CessnaImage-2.webp', alt: 'Cessna 172N cockpit interior view' },
-    { src: '/CessnaImage-3.webp', alt: 'Cessna 172N instrument panel close-up' },
-  ] as const
-  const [activeImage, setActiveImage] = useState(0)
-  const showPrevImage = () => {
-    setActiveImage((prev) => (prev - 1 + galleryImages.length) % galleryImages.length)
-  }
-  const showNextImage = () => {
-    setActiveImage((prev) => (prev + 1) % galleryImages.length)
-  }
+  const aircraftImage = { src: '/Cessna-172.webp', alt: 'Cessna 172N parked on wet runway at dusk' } as const
 
   const specs = [
     {
@@ -42,8 +30,8 @@ function AircraftShowcase() {
     },
     {
       label: 'Fuel Capacity',
-      value: '30 gal',
-      sub: 'usable',
+      value: '54 gallons',
+      sub: '(50 usable)',
       icon: <path d="M8 20h8M9 20V9.8a2.8 2.8 0 0 1 2.8-2.8h.4A2.8 2.8 0 0 1 15 9.8V20m0-9h2l1.5 2.5V20" />,
     },
     {
@@ -60,8 +48,8 @@ function AircraftShowcase() {
     },
     {
       label: 'Cruise Speed',
-      value: '105 kt',
-      sub: 'typical cruise',
+      value: '124 knots TAS',
+      sub: '',
       icon: <path d="M4 16c2.5-2 5.5-3 8-3s5.5 1 8 3M12 6l2.5 5H9.5L12 6z" />,
     },
   ]
@@ -76,43 +64,7 @@ function AircraftShowcase() {
         <FadeUp duration={1.1} delay={0.06} viewportMargin="-100px">
           <div className="rounded-xl p-2.5" style={{ backgroundColor: 'rgba(8,27,52,0.4)' }}>
             <div className="relative overflow-hidden rounded-[12px] border aspect-[16/10] max-h-[345px]" style={{ borderColor: 'rgba(151,177,215,0.12)' }}>
-              <img src={galleryImages[activeImage].src} alt={galleryImages[activeImage].alt} className="h-full w-full object-cover object-center" />
-              <button
-                type="button"
-                onClick={showPrevImage}
-                aria-label="Previous aircraft image"
-                className="absolute left-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full border flex items-center justify-center transition-colors hover:bg-[rgba(8,27,52,0.72)] hover:border-[rgba(151,177,215,0.22)] focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E0B13B] focus-visible:outline-offset-2"
-                style={{ backgroundColor: 'rgba(8,27,52,0.6)', borderColor: 'rgba(151,177,215,0.14)', color: '#D8DFEA' }}
-              >
-                <span aria-hidden="true" className="text-base leading-none">‹</span>
-              </button>
-              <button
-                type="button"
-                onClick={showNextImage}
-                aria-label="Next aircraft image"
-                className="absolute right-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full border flex items-center justify-center transition-colors hover:bg-[rgba(8,27,52,0.72)] hover:border-[rgba(151,177,215,0.22)] focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E0B13B] focus-visible:outline-offset-2"
-                style={{ backgroundColor: 'rgba(8,27,52,0.6)', borderColor: 'rgba(151,177,215,0.14)', color: '#D8DFEA' }}
-              >
-                <span aria-hidden="true" className="text-base leading-none">›</span>
-              </button>
-            </div>
-
-            <div className="mt-3 grid grid-cols-4 gap-2.5 md:gap-3">
-              {galleryImages.map((image, idx) => {
-                const isActive = idx === activeImage
-                return (
-                  <button
-                    key={image.src}
-                    type="button"
-                    onClick={() => setActiveImage(idx)}
-                    aria-label={`Aircraft gallery thumbnail ${idx + 1}`}
-                    className="relative h-[62px] md:h-[68px] overflow-hidden rounded-[8px] border transition-colors focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E0B13B] focus-visible:outline-offset-2 hover:border-[rgba(151,177,215,0.24)]"
-                    style={{ borderColor: isActive ? '#E0B13B' : 'rgba(151,177,215,0.16)', borderWidth: isActive ? '1.5px' : '1px' }}
-                  >
-                    <img src={image.src} alt={image.alt} className="h-full w-full object-cover object-center opacity-90" />
-                  </button>
-                )
-              })}
+              <img src={aircraftImage.src} alt={aircraftImage.alt} className="h-full w-full object-cover object-center" />
             </div>
           </div>
         </FadeUp>
@@ -390,7 +342,7 @@ function ClearanceAwaits() {
       <div
         className="pointer-events-none absolute inset-0"
         style={{
-          backgroundImage: 'url("/home-preFooter.png")',
+          backgroundImage: 'url("/optimized/home-preFooter-1600.jpg")',
           backgroundSize: 'cover',
           backgroundPosition: 'center top',
           backgroundRepeat: 'no-repeat',
@@ -436,7 +388,7 @@ export default function HomeContent() {
       className="relative z-20 w-full overflow-hidden"
       style={{
         background:
-          'radial-gradient(circle at 50% 8%, rgba(10,43,87,0.32), transparent 36%), radial-gradient(circle at 20% 44%, rgba(8,27,52,0.38), transparent 34%), radial-gradient(circle at 80% 74%, rgba(10,43,87,0.24), transparent 36%), linear-gradient(180deg, #020B19 0%, #06152A 38%, #020B19 100%)',
+          'radial-gradient(circle at 50% 8%, rgba(10,43,87,0.32), transparent 36%), radial-gradient(circle at 20% 44%, rgba(8,27,52,0.38), transparent 34%), radial-gradient(circle at 80% 74%, rgba(10,43,87,0.24), transparent 36%), linear-gradient(180deg, #061524 0%, #0B2035 38%, #061524 100%)',
       }}
     >
       <div

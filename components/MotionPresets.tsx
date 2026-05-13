@@ -22,11 +22,11 @@ type WrapperProps = {
  * A standardized, slow fading block that triggers slightly upward when it enters the viewport.
  * Suitable for standalone elements, large images, or distinct section blocks.
  */
-export function FadeUp({ children, className = '', delay = 0, duration = 1.3, viewportMargin = '-50px' }: WrapperProps) {
+export function FadeUp({ children, className = '', delay = 0, duration = 0.85, viewportMargin = '-24px' }: WrapperProps) {
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0, y: 30 }}
+      initial={{ opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: viewportMargin as any }}
       transition={{ 
@@ -45,7 +45,7 @@ export function FadeUp({ children, className = '', delay = 0, duration = 1.3, vi
  * Implements a cascading reveal for its direct StaggerItem children.
  * E.g., Headers, text columns, or a sequence of cards.
  */
-export function StaggerContainer({ children, className = '', staggerDelay = 0.2, viewportMargin = '-50px' }: WrapperProps) {
+export function StaggerContainer({ children, className = '', staggerDelay = 0.14, viewportMargin = '-24px' }: WrapperProps) {
   return (
     <motion.div
       className={className}
@@ -69,12 +69,12 @@ export function StaggerContainer({ children, className = '', staggerDelay = 0.2,
  * StaggerItem:
  * Inherits the "hidden" and "visible" state cues from StaggerContainer.
  */
-export function StaggerItem({ children, className = '', duration = 1.15 }: WrapperProps) {
+export function StaggerItem({ children, className = '', duration = 0.75 }: WrapperProps) {
   return (
     <motion.div
       className={className}
       variants={{
-        hidden: { opacity: 0, y: 20 },
+        hidden: { opacity: 0, y: 12 },
         visible: { 
           opacity: 1, 
           y: 0, 
