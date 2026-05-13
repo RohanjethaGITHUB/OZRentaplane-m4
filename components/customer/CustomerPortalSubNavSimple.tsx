@@ -3,12 +3,19 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-const ITEMS = [
+type CustomerPortalItem = {
+  label: string
+  href: string
+  icon: string
+  exact?: boolean
+}
+
+const ITEMS: CustomerPortalItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: 'dashboard', exact: true },
   { label: 'Checkout', href: '/dashboard/checkout', icon: 'flight_takeoff' },
   { label: 'Bookings', href: '/dashboard/bookings', icon: 'event' },
   { label: 'Profile', href: '/dashboard/settings', icon: 'person' },
-] as const
+]
 
 function isActive(pathname: string | null, href: string, exact?: boolean): boolean {
   if (exact) return pathname === href
@@ -22,7 +29,12 @@ export default function CustomerPortalSubNavSimple({ hideCheckout = false }: { h
   return (
     <div className="hidden md:block">
       <div className="inline-flex min-w-max items-center gap-2 rounded-2xl border border-white/6 bg-[#0b1a2d] px-2 py-2 shadow-[0_6px_14px_rgba(2,10,24,0.24)]">
-        <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-100/75">Customer Portal</p>
+        <Link
+          href="/dashboard"
+          className="px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-100/75 transition-colors hover:text-blue-50"
+        >
+          Pilot Portal
+        </Link>
 
         {visibleItems.map((item) => {
           const active = isActive(pathname, item.href, item.exact)

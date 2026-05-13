@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
@@ -15,12 +16,19 @@ const NAV_LINKS = [
   { label: 'Shop', href: '/shop' },
 ]
 
-const CUSTOMER_PORTAL_LINKS = [
+type CustomerPortalLink = {
+  label: string
+  href: string
+  icon: string
+  exact?: boolean
+}
+
+const CUSTOMER_PORTAL_LINKS: CustomerPortalLink[] = [
   { label: 'Dashboard', href: '/dashboard', icon: 'dashboard', exact: true },
   { label: 'Checkout', href: '/dashboard/checkout', icon: 'flight_takeoff' },
   { label: 'Bookings', href: '/dashboard/bookings', icon: 'event' },
   { label: 'Profile', href: '/dashboard/settings', icon: 'person' },
-] as const
+]
 
 const FLEET_ITEMS = [
   { label: 'Cessna 172N', href: '/cessna-172', disabled: false },
@@ -279,7 +287,13 @@ export default function Navbar({
           {user && (
             <>
               <div className="my-1 h-px bg-white/[0.08]" />
-              <p className="text-[10px] uppercase tracking-[0.18em] text-blue-100/70">Customer Portal</p>
+              <Link
+                href="/dashboard"
+                onClick={() => setMenuOpen(false)}
+                className="text-[10px] uppercase tracking-[0.18em] text-blue-100/70 transition-colors hover:text-blue-50"
+              >
+                Pilot Portal
+              </Link>
               {visibleCustomerPortalLinks.map((link) => {
                 const isActive = isPortalLinkActive(link.href, link.exact)
                 return (
