@@ -7,12 +7,10 @@ type Props = {
   bookingId:              string
   showCancelButton:       boolean
   showFlightRecordButton: boolean
-  // Computed server-side: true when departure is ≤24 h from page load.
-  // Controls which cancel modal variant is shown. The server action enforces
-  // the actual 24 h rule — this flag is only for UX branching.
   isWithin24Hours:        boolean
-  // Sydney-local departure time string, shown inside the late-cancel modal.
   departureSydney:        string
+  heroLayout?:            boolean
+  yellowPrimary?:         boolean
 }
 
 // Three possible modal states — null means no modal is open.
@@ -24,6 +22,8 @@ export default function CustomerBookingActions({
   showFlightRecordButton,
   isWithin24Hours,
   departureSydney,
+  heroLayout = false,
+  yellowPrimary = false,
 }: Props) {
   const [isPending, startTransition] = useTransition()
   const [activeModal, setActiveModal] = useState<ActiveModal>(null)
@@ -84,16 +84,22 @@ export default function CustomerBookingActions({
   return (
     <>
       {/* ── Trigger buttons ─────────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-2 mt-3">
+      <div className={heroLayout ? 'flex flex-col gap-3 w-full max-w-[400px]' : 'flex flex-wrap gap-2 mt-3'}>
 
         {showFlightRecordButton && (
           <button
             onClick={() => openModal('flight_record')}
             disabled={isPending}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-colors"
+            className={heroLayout
+              ? (yellowPrimary
+                  ? 'inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-[#f4b928] hover:bg-[#f9cb50] disabled:opacity-50 disabled:cursor-not-allowed text-[#0a1628] rounded-lg text-[11px] font-bold uppercase tracking-[0.14em] transition-colors w-full'
+                  : 'inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-[11px] font-bold uppercase tracking-[0.14em] transition-colors w-full')
+              : 'inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-colors'
+            }
           >
             <span className="material-symbols-outlined text-sm">assignment</span>
-            Submit flight record
+            Submit Post Flight Records
+            {heroLayout && <span className="material-symbols-outlined text-sm ml-1">arrow_forward</span>}
           </button>
         )}
 
@@ -101,10 +107,13 @@ export default function CustomerBookingActions({
           <button
             onClick={() => openModal(isWithin24Hours ? 'cancel_late' : 'cancel_immediate')}
             disabled={isPending}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-transparent hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed border border-red-500/40 hover:border-red-500/60 text-red-400 hover:text-red-300 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-colors"
+            className={heroLayout
+              ? 'inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-transparent hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed border border-red-500/50 hover:border-red-500/70 text-red-400 hover:text-red-300 rounded-lg text-[11px] font-bold uppercase tracking-[0.14em] transition-colors w-full'
+              : 'inline-flex items-center gap-1.5 px-4 py-2 bg-transparent hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed border border-red-500/40 hover:border-red-500/60 text-red-400 hover:text-red-300 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-colors'
+            }
           >
             <span className="material-symbols-outlined text-sm">cancel</span>
-            Cancel booking
+            Cancel Booking
           </button>
         )}
       </div>
@@ -197,17 +206,17 @@ export default function CustomerBookingActions({
             </div>
           )}
 
-          {/* ── Submit flight record confirmation ──────────────────────── */}
+          {/* ── Submit Post Flight Records confirmation ────────────────── */}
           {activeModal === 'flight_record' && (
             <div className="relative z-10 w-full max-w-md bg-[#0c1525] border border-white/10 rounded-2xl p-7 shadow-2xl">
               <div className="flex items-center gap-3 mb-4">
                 <span className="material-symbols-outlined text-blue-400 text-xl">assignment</span>
                 <h2 className="text-sm font-bold uppercase tracking-widest text-blue-300">
-                  Submit flight record?
+                  Submit Post Flight Records?
                 </h2>
               </div>
               <p className="text-sm text-slate-300 leading-relaxed mb-6">
-                You are about to start the flight record submission process for this booking. Please continue only if the aircraft has returned and you are ready to enter the required post-flight readings.
+                You are about to start the post flight records submission process for this booking. Please continue only if the aircraft has returned and you are ready to enter the required post-flight readings.
               </p>
               {error && <ErrorLine message={error} />}
               <div className="flex gap-3">

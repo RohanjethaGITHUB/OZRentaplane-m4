@@ -10,6 +10,7 @@ import {
   type SafeConflict,
 } from '@/app/actions/customer-availability'
 import { uploadVerificationDocument } from '@/app/actions/upload'
+import { getDocumentSignedUrl } from '@/app/actions/documents'
 import { sydneyInputToUTC, formatSydTime } from '@/lib/utils/sydney-time'
 import { getDayVfrWindow, isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
 import { validateFlightReviewDate, getFlightReviewCutoff } from '@/lib/utils/flight-review'
@@ -373,7 +374,7 @@ function TimeDropdown({
         type="button"
         disabled={disabled}
         onClick={() => setOpen(o => !o)}
-        className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500/60 flex items-center justify-between transition-colors hover:border-white/25 disabled:opacity-40 disabled:cursor-not-allowed text-white"
+        className="w-full bg-[#0d1c33] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500/60 flex items-center justify-between transition-colors hover:border-white/25 disabled:opacity-40 disabled:cursor-not-allowed text-white"
       >
         <span className={value === '' ? 'text-slate-500' : ''}>{value === '' ? 'Select a departure time' : selectedLabel}</span>
         <span
@@ -504,7 +505,6 @@ function DocModal({
   function validateMeta(): string | null {
     if (def.type === 'pilot_licence') {
       if (!licenceType)              return 'Please select a licence type.'
-      if (nightVfrRating === null)   return 'Please confirm your Night VFR rating status.'
       if (instrumentRating === null) return 'Please confirm your Instrument Rating status.'
       if (!licenceNumber)            return 'Please enter your pilot licence number / ARN.'
     }
@@ -605,40 +605,21 @@ function DocModal({
                 </div>
               </div>
 
-              {/* Additional Ratings */}
-              <div className="pt-1 border-t border-white/[0.06]">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-300 mb-3">Additional Ratings</p>
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-300">
-                      Night VFR Rating <span className="text-red-300 font-semibold normal-case">Required</span>
-                    </p>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {([true, false] as const).map(val => (
-                        <Pill
-                          key={String(val)}
-                          value={val ? 'Yes' : 'No'}
-                          active={nightVfrRating === val}
-                          onClick={() => setNightVfrRating(val)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-300">
-                      IFR / Instrument Rating <span className="text-red-300 font-semibold normal-case">Required</span>
-                    </p>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {([true, false] as const).map(val => (
-                        <Pill
-                          key={String(val)}
-                          value={val ? 'Yes' : 'No'}
-                          active={instrumentRating === val}
-                          onClick={() => setInstrumentRating(val)}
-                        />
-                      ))}
-                    </div>
-                  </div>
+              {/* Instrument Rating — Night VFR comes from Step 1, not re-asked here */}
+              <div className="pt-1 border-t border-white/[0.06] space-y-2">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-300">
+                  Instrument Rating (IFR) <span className="text-red-300 font-semibold normal-case">Required</span>
+                </p>
+                <p className="text-sm text-slate-400">Do you hold a current IFR / Instrument Rating?</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {([true, false] as const).map(val => (
+                    <Pill
+                      key={String(val)}
+                      value={val ? 'Yes' : 'No'}
+                      active={instrumentRating === val}
+                      onClick={() => setInstrumentRating(val)}
+                    />
+                  ))}
                 </div>
               </div>
 
@@ -905,6 +886,8 @@ export default function CheckoutFlow({
 
   // Submission state
   const [submitError, setSubmitError]   = useState<string | null>(null)
+  const [docViewError, setDocViewError] = useState<string | null>(null)
+  const [docViewLoadingType, setDocViewLoadingType] = useState<DocumentType | null>(null)
   const [isPending, startTransition]    = useTransition()
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [termsModalOpen, setTermsModalOpen] = useState(false)
@@ -923,7 +906,7 @@ export default function CheckoutFlow({
 
   useEffect(() => {
     if (prevStepRef.current !== step && step !== 'success') {
-      stepSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
     }
     prevStepRef.current = step
   }, [step])
@@ -1113,6 +1096,20 @@ export default function CheckoutFlow({
     })
   }
 
+  async function handleViewDocument(doc: UserDocument | undefined) {
+    if (!doc) return
+    setDocViewError(null)
+    setDocViewLoadingType(doc.document_type)
+    try {
+      const signedUrl = await getDocumentSignedUrl(doc.document_type)
+      window.open(signedUrl, '_blank', 'noopener,noreferrer')
+    } catch {
+      setDocViewError('Could not open one of your uploaded documents. Please try again.')
+    } finally {
+      setDocViewLoadingType(null)
+    }
+  }
+
   // ── Shared card style ──────────────────────────────────────────────────────
 
   const CARD = 'bg-[#1a2c45] border border-blue-900/40 rounded-2xl shadow-[0_8px_20px_rgba(3,10,25,0.18)]'
@@ -1164,465 +1161,767 @@ export default function CheckoutFlow({
         Back to Overview
       </Link>
 
-      {/* Page header */}
-      <div className="mb-5">
-        <p className="text-xs font-bold uppercase tracking-[0.35em] text-blue-400/80 mb-2">
-          Checkout Onboarding
-        </p>
-        <h1 className="text-3xl font-semibold text-white tracking-tight">
-          Book Your Checkout Flight
-        </h1>
-        <p className="text-base text-slate-300 mt-2 leading-relaxed">
-          To fly solo with us, you must first complete a checkout flight with our team.
-        </p>
+      {/* Page header — two-column on desktop */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-10 mb-7">
+
+        {/* Left: title + intro — changes based on step */}
+        <div>
+          {step === 'review' ? (
+            <>
+              <h1 className="text-[42px] font-bold text-white tracking-tight leading-[1.15]">
+                Review &amp; Submit Checkout
+              </h1>
+              <p className="text-[18px] text-slate-300 mt-2 leading-relaxed">
+                Please review your checkout details and submit your request.
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-3xl font-semibold text-white tracking-tight">
+                Book Your Checkout Flight
+              </h1>
+              <p className="text-base text-slate-300 mt-2 leading-relaxed">
+                To fly solo with us, you must first complete a checkout flight with our team.
+              </p>
+            </>
+          )}
+        </div>
+
+        {/* Right: booking context pills — one horizontal row */}
+        <div className="flex flex-wrap gap-2 md:shrink-0">
+          <div className="inline-flex items-center gap-2.5 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3.5 py-2.5">
+            <span className="material-symbols-outlined text-[15px] text-slate-500 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>flight</span>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-none">Aircraft</p>
+              <p className="text-[13px] text-slate-300 mt-0.5 leading-none">{aircraftDisplayName}</p>
+            </div>
+          </div>
+          <div className="inline-flex items-center gap-2.5 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3.5 py-2.5">
+            <span className="material-symbols-outlined text-[15px] text-slate-500 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>schedule</span>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-none">Duration</p>
+              <p className="text-[13px] text-slate-300 mt-0.5 leading-none">2 hours</p>
+            </div>
+          </div>
+          <div className="inline-flex items-center gap-2.5 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3.5 py-2.5">
+            <span className="material-symbols-outlined text-[15px] text-slate-500 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>payments</span>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-none">Rate</p>
+              <p className="text-[13px] text-slate-300 mt-0.5 leading-none">${CHECKOUT_RATE}/hr + $25/landing</p>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <div className="w-full text-[15px]">
           {/* ── STEP 1: Time selection ─────────────────────────────────────────── */}
           {step === 'time' && (
-            <div ref={stepSectionRef} className={`${CARD} p-6 md:p-8 space-y-7`}>
-
-          {/* Header */}
-          <div className="pb-5 border-b border-white/10">
-            <h2 className="text-3xl md:text-4xl font-semibold text-white mb-2">Select Your Checkout Flight Time</h2>
-            <p className="text-lg text-slate-300">
-              Choose when you would like to complete your checkout flight in the{' '}
-              {aircraftDisplayName}, registration {aircraftRegistration}.
-            </p>
-          </div>
-
-          {/* A: Compact read-only flight summary */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="h-[148px] rounded-2xl border border-white/12 bg-[#223752] px-5 py-4 flex flex-col justify-between">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">Aircraft</p>
-              <div>
-                <p className="text-3xl font-bold text-white leading-none">{aircraftRegistration}</p>
-                <p className="text-base text-slate-200 mt-1">{aircraftDisplayName}</p>
-              </div>
-            </div>
-            <div className="h-[148px] rounded-2xl border border-white/12 bg-[#223752] px-5 py-4 flex flex-col justify-between">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">Duration</p>
-              <div>
-                <p className="text-3xl font-bold text-white leading-none">2 Hours</p>
-                <p className="text-base text-slate-200 mt-1">Reserved checkout slot</p>
-              </div>
-            </div>
-            <div className="h-[148px] rounded-2xl border border-white/12 bg-[#223752] px-5 py-4 flex flex-col justify-between">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">Rate</p>
-              <div>
-                <p className="text-3xl font-bold text-white leading-none">${CHECKOUT_RATE}/hr</p>
-                <p className="text-base text-slate-200 mt-1">VDO meter + $25/landing</p>
-              </div>
-            </div>
-          </div>
+            <div ref={stepSectionRef} className={`${CARD} p-6 md:p-8`}>
 
           {aircraftStatus === 'inactive' || aircraftStatus === 'grounded' ? (
             <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-sm text-red-300">
               This aircraft is currently unavailable. Please contact the flight operations team.
             </div>
           ) : (
-            <>
-              {/* B: Date selection */}
-              <div className="space-y-2">
-                <label className="text-base font-semibold tracking-wide text-slate-200 block">
-                  Date <span className="text-red-400 font-normal normal-case">Required</span>
-                </label>
-                <CalendarDateField
-                  value={date}
-                  onChange={(next) => { setDate(next); setStartTime(''); setAvail({ status: 'idle' }); setStepError(null); setSubmitError(null) }}
-                  minYear={new Date().getFullYear()}
-                  maxYear={new Date().getFullYear() + 2}
-                  minDate={minDateString()}
-                  className="w-full h-14 bg-[#0a1830] border border-white/12 rounded-xl px-4 py-3 text-base text-white focus:outline-none focus:border-blue-500/60 transition-colors text-left flex items-center justify-between"
-                />
+            <div className="space-y-0">
+
+              {/* Step 1: Checkout date */}
+              <div className="py-7 border-b border-white/[0.07]">
+                <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-8">
+                  <div className="flex items-start gap-4 md:w-[42%]">
+                    <div className="w-9 h-9 rounded-full border border-blue-500/60 bg-blue-600/[0.18] flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-sm font-semibold text-blue-200">1</span>
+                    </div>
+                    <div>
+                      <p className="text-[17px] font-semibold text-slate-100">Checkout date</p>
+                      <p className="text-[15px] text-slate-400 mt-1 leading-relaxed">Select the date you would like to complete your checkout flight.</p>
+                    </div>
+                  </div>
+                  <div className="md:flex-1 flex md:justify-start">
+                    <div className="w-full sm:max-w-[320px]">
+                      <CalendarDateField
+                        value={date}
+                        onChange={(next) => { setDate(next); setStartTime(''); setAvail({ status: 'idle' }); setStepError(null); setSubmitError(null) }}
+                        minYear={new Date().getFullYear()}
+                        maxYear={new Date().getFullYear() + 2}
+                        minDate={minDateString()}
+                        className="w-full h-12 bg-[#0b1a2f] border border-white/20 rounded-xl px-4 py-3 text-base text-white focus:outline-none focus:border-blue-500/60 transition-colors text-left flex items-center justify-between"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Night VFR question — shown once date is selected */}
+              {/* Step 2: Night VFR (shown once date is selected) */}
               {date && (
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-200 block">
-                    Do you hold a Night VFR Rating? <span className="text-red-400 font-normal normal-case">Required</span>
-                  </label>
-                  <p className="text-[13px] text-slate-400">
-                    Only select yes if this is current and you can upload supporting evidence.
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {([true, false] as const).map(val => (
-                      <button
-                        key={String(val)}
-                        type="button"
-                        onClick={() => { setNightVfrRating(val); setStepError(null); if (!val && startTime && !isWithinDayVfrWindow(startTime, date, 120)) setStartTime('') }}
-                        className={`px-3 py-2.5 rounded-lg text-sm font-medium border transition-all text-left ${
-                          nightVfrRating === val
-                            ? 'bg-blue-500/15 border-blue-500/40 text-blue-200'
-                            : 'bg-white/[0.03] border-white/10 text-slate-300 hover:text-white hover:border-blue-500/40'
-                        }`}
-                      >
-                        {val ? 'Yes — I hold a Night VFR Rating' : 'No — Day VFR only'}
-                      </button>
-                    ))}
+                <div className="py-7 border-b border-white/[0.07]">
+                  <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-8">
+                    <div className="flex items-start gap-4 md:w-[42%]">
+                      <div className="w-9 h-9 rounded-full border border-blue-500/60 bg-blue-600/[0.18] flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-sm font-semibold text-blue-200">2</span>
+                      </div>
+                      <div>
+                        <p className="text-[17px] font-semibold text-slate-100">Night VFR rating</p>
+                        <p className="text-[15px] text-slate-400 mt-1">Do you currently hold a Night VFR rating?</p>
+                        <p className="text-sm text-slate-500 mt-1.5">Only select &apos;Yes&apos; if this is current and you can upload supporting evidence.</p>
+                        {nightVfrRating === false && (
+                          <p className="text-[13px] text-slate-400 flex items-center gap-1.5 mt-2">
+                            <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 300" }}>wb_sunny</span>
+                            {getDayVfrWindow(date).start}–{getDayVfrWindow(date).end} Sydney time allowed. Bookings outside this window require Night VFR.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="md:flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {([true, false] as const).map(val => (
+                        <button
+                          key={String(val)}
+                          type="button"
+                          onClick={() => { setNightVfrRating(val); setStepError(null); if (!val && startTime && !isWithinDayVfrWindow(startTime, date, 120)) setStartTime('') }}
+                          className={`flex items-center gap-3.5 px-5 py-4 rounded-xl text-[15px] font-medium border transition-all text-left ${
+                            nightVfrRating === val
+                              ? 'bg-blue-500/[0.18] border-blue-400/55 text-blue-100 shadow-[0_0_14px_rgba(59,130,246,0.12)]'
+                              : 'bg-[#0d1c33] border-white/[0.12] text-slate-300 hover:text-white hover:border-blue-500/40'
+                          }`}
+                        >
+                          <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                            nightVfrRating === val ? 'border-blue-400 bg-blue-500' : 'border-white/25'
+                          }`}>
+                            {nightVfrRating === val && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                          </span>
+                          {val ? 'Yes, I hold a Night VFR rating' : 'No, Day VFR only'}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  {nightVfrRating === false && (
-                    <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'wght' 300" }}>wb_sunny</span>
-                      {getDayVfrWindow(date).start}–{getDayVfrWindow(date).end} Sydney time allowed. Bookings outside this window require Night VFR.
-                    </p>
-                  )}
                 </div>
               )}
 
-              {/* Departure time — shown once Night VFR is answered */}
+              {/* Step 3: Departure time (shown once Night VFR is answered) */}
               {date && nightVfrRating !== null && (
-                <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-200 block">
-                    Departure time <span className="text-red-400 font-normal normal-case">Required</span>
-                  </label>
-                  <TimeDropdown
-                    value={startTime}
-                    options={timeOptions}
-                    onChange={v => { setStartTime(v); setAvail({ status: 'idle' }); setStepError(null); setSubmitError(null) }}
-                  />
-                  {nightVfrTimeError && (
-                    <p className="text-xs text-amber-400 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[12px]">warning</span>
-                      {nightVfrTimeError}
-                    </p>
-                  )}
+                <div className="py-7">
+                  <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-8">
+                    <div className="flex items-start gap-4 md:w-[42%]">
+                      <div className="w-9 h-9 rounded-full border border-blue-500/60 bg-blue-600/[0.18] flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-sm font-semibold text-blue-200">3</span>
+                      </div>
+                      <div>
+                        <p className="text-[17px] font-semibold text-slate-100">Departure time</p>
+                        <p className="text-[15px] text-slate-400 mt-1">Select an available departure time for your checkout flight.</p>
+                        <p className="text-sm text-slate-500 mt-1.5">Available times are based on aircraft availability and Day/Night VFR rules.</p>
+                      </div>
+                    </div>
+                    <div className="md:flex-1 space-y-3">
+                      <TimeDropdown
+                        value={startTime}
+                        options={timeOptions}
+                        onChange={v => { setStartTime(v); setAvail({ status: 'idle' }); setStepError(null); setSubmitError(null) }}
+                      />
+                      {nightVfrTimeError && (
+                        <p className="text-sm text-amber-400 flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[13px]">warning</span>
+                          {nightVfrTimeError}
+                        </p>
+                      )}
+                      {startTime && (
+                        <div className="bg-[#0d1c33] border border-white/10 rounded-lg px-4 py-3">
+                          <p className="text-[13px] font-semibold text-slate-200 mb-1.5">Selected checkout window</p>
+                          <p className="text-[15px] font-medium text-white">
+                            {ALL_TIME_OPTIONS.find(o => o.value === startTime)?.label ?? startTime}
+                            <span className="mx-2 text-slate-400">→</span>
+                            {ALL_TIME_OPTIONS.find(o => o.value === endTime)?.label ?? endTime}
+                          </p>
+                          <p className="text-sm text-slate-400 mt-1">A 2-hour slot is reserved for scheduling.</p>
+                        </div>
+                      )}
+                      <div className="rounded-xl border border-white/10 bg-[#0d1a2c]/70 p-4 md:p-5">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-[15px] font-semibold text-slate-200">Daily schedule</p>
+                          <p className="text-sm text-slate-400">{formatDate(date)}</p>
+                        </div>
+                        {startTime && (
+                          <p className="text-[13px] text-blue-300/80 mb-3 flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 300" }}>drag_pan</span>
+                            Drag the blue slot to fine-tune your selected time.
+                          </p>
+                        )}
+                        <AvailabilityTimeline
+                          selectedDate={date}
+                          daySlots={daySlots}
+                          startDT={startDT}
+                          endDT={endDT}
+                          onTimeChange={v => { setStartTime(v); setAvail({ status: 'idle' }); setStepError(null); setSubmitError(null) }}
+                          dayVfrWindow={dayVfrWindow}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
-              {/* C: Selected checkout window — shown once time is selected */}
-              {date && nightVfrRating !== null && startTime && (
-                <div className="bg-white/[0.03] border border-white/10 rounded-lg px-4 py-3">
-                  <p className="text-xs font-semibold text-slate-200 mb-1.5">
-                    Selected checkout window
-                  </p>
-                  <p className="text-sm font-medium text-white">
-                    {ALL_TIME_OPTIONS.find(o => o.value === startTime)?.label ?? startTime}
-                    <span className="mx-2 text-slate-400">→</span>
-                    {ALL_TIME_OPTIONS.find(o => o.value === endTime)?.label ?? endTime}
-                  </p>
-                    <p className="text-sm text-slate-400 mt-1">A 2-hour slot is reserved for scheduling.</p>
-                  </div>
-              )}
-
-              {/* D: Daily schedule timeline — shown once date + Night VFR are answered */}
-              {date && nightVfrRating !== null && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-semibold text-slate-300">
-                      {formatDate(date)} — Daily Schedule
-                    </p>
-                  </div>
-                  {startTime && (
-                    <p className="text-sm text-blue-200 mb-3 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 300" }}>drag_pan</span>
-                      You can drag the blue slot to fine-tune the selected time.
-                    </p>
-                  )}
-                  <AvailabilityTimeline
-                    selectedDate={date}
-                    daySlots={daySlots}
-                    startDT={startDT}
-                    endDT={endDT}
-                    onTimeChange={v => { setStartTime(v); setAvail({ status: 'idle' }); setStepError(null); setSubmitError(null) }}
-                    dayVfrWindow={dayVfrWindow}
-                  />
-                </div>
-              )}
-
-              {/* F: Availability state */}
+              {/* Availability state */}
               {avail.status === 'checking' && (
-                <p className="text-xs text-slate-500 animate-pulse flex items-center gap-1.5">
+                <p className="text-xs text-slate-500 animate-pulse flex items-center gap-1.5 pt-2 pb-1">
                   <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
                   Checking availability…
                 </p>
               )}
               {avail.status === 'available' && !isTimeNightRestricted && (
-                <p className="text-xs text-green-400 flex items-center gap-1.5">
+                <p className="text-xs text-green-400 flex items-center gap-1.5 pt-2 pb-1">
                   <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                   This time slot is available
                 </p>
               )}
               {avail.status === 'available' && isTimeNightRestricted && (
-                <p className="text-xs text-amber-400 flex items-center gap-1.5">
+                <p className="text-xs text-amber-400 flex items-center gap-1.5 pt-2 pb-1">
                   <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>nightlight</span>
                   This time requires a Night VFR Rating.
                 </p>
               )}
               {avail.status === 'unavailable' && (
-                <p className="text-xs text-red-400 flex items-center gap-1.5">
+                <p className="text-xs text-red-400 flex items-center gap-1.5 pt-2 pb-1">
                   <span className="material-symbols-outlined text-sm">block</span>
                   {(avail as { status: 'unavailable'; message: string }).message}
                 </p>
               )}
 
-              {/* G: Payment timing notice */}
-              <div className="bg-blue-500/[0.08] border border-blue-400/25 rounded-xl px-4 py-4">
-                <div className="flex items-start gap-2">
+              {/* No payment notice */}
+              <div className="bg-blue-500/[0.10] border border-blue-400/[0.22] rounded-xl px-5 py-4 mt-4">
+                <div className="flex items-start gap-3">
                   <span className="material-symbols-outlined text-blue-300 text-[18px] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>info</span>
                   <div>
-                    <p className="text-base text-blue-100 font-medium leading-snug">
-                      No payment is required now.
-                    </p>
-                    <p className="text-sm text-slate-300 mt-1 leading-relaxed">
-                      Your final checkout amount will be calculated after the flight using the aircraft VDO meter reading, plus any landing fees.
-                    </p>
+                    <p className="text-[15px] text-blue-100 font-medium leading-snug">No payment is required now.</p>
+                    <p className="text-[15px] text-slate-400 mt-0.5 leading-relaxed">Your final checkout amount will be calculated after the flight using the aircraft VDO meter reading, plus any landing fees.</p>
                   </div>
                 </div>
               </div>
 
               {/* Step error */}
               {stepError && (
-                <p className="text-xs text-red-400 flex items-center gap-1.5">
+                <p className="text-xs text-red-400 flex items-center gap-1.5 mt-3">
                   <span className="material-symbols-outlined text-sm">error</span>
                   {stepError}
                 </p>
               )}
 
-              {/* H: Continue button */}
-              <div className="pt-4 border-t border-white/10 flex justify-end">
+              {/* CTA */}
+              {(!date || nightVfrRating === null || !startTime || avail.status !== 'available' || isTimeNightRestricted) && (
+                <p className="text-xs text-slate-400 text-center mt-3">Complete all required fields to continue.</p>
+              )}
+              <div className="pt-5 mt-2 border-t border-white/[0.07] flex items-center justify-center gap-3">
+                <button
+                  onClick={() => router.push('/dashboard')}
+                  className="px-6 py-2.5 border border-white/[0.15] hover:border-white/[0.30] text-slate-300 hover:text-white rounded-xl text-sm font-medium transition-all"
+                >
+                  Back
+                </button>
                 <button
                   onClick={handleTimeNext}
                   data-testid="checkout-step1-continue"
                   disabled={!date || nightVfrRating === null || !startTime || avail.status !== 'available' || isTimeNightRestricted}
-                  className="w-full sm:w-auto sm:min-w-[300px] px-6 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-base font-semibold transition-all"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700/50 disabled:text-slate-400 disabled:border disabled:border-white/[0.08] disabled:cursor-not-allowed text-white rounded-xl text-sm font-semibold transition-all"
                 >
+                  {(!date || nightVfrRating === null || !startTime || avail.status !== 'available' || isTimeNightRestricted) && (
+                    <span className="material-symbols-outlined text-[15px]" style={{ fontVariationSettings: "'wght' 300" }}>lock</span>
+                  )}
                   Continue to Documents
                 </button>
               </div>
-            </>
+
+            </div>
           )}
             </div>
           )}
 
           {/* ── STEP 2: Documents ─────────────────────────────────────────────── */}
           {step === 'documents' && (
-            <div ref={stepSectionRef} className={`${CARD} p-6 md:p-8 space-y-7`}>
-          <div>
-            <h2 className="text-2xl font-semibold text-white mb-2">Pilot Documents</h2>
-            <p className="text-base md:text-lg text-slate-200 leading-relaxed">
-              Upload your required documents below. These are reviewed as part of your checkout request.
-            </p>
+            <div ref={stepSectionRef} className={`${CARD} p-6 md:p-8`}>
+
+          {/* Row 1: Pilot documents */}
+          <div className="py-7 border-b border-white/[0.07]">
+            <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-8">
+              <div className="flex items-start gap-4 md:w-[42%]">
+                <div className="w-9 h-9 rounded-full border border-blue-500/60 bg-blue-600/[0.18] flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-sm font-semibold text-blue-200">1</span>
+                </div>
+                <div>
+                  <p className="text-[17px] font-semibold text-slate-100">Pilot documents</p>
+                  <p className="text-[15px] text-slate-400 mt-1 leading-relaxed">Upload the required pilot documents reviewed as part of your checkout request.</p>
+                </div>
+              </div>
+              <div className="md:flex-1 space-y-3">
+                {DOC_DEFS.map(def => (
+                  <DocCard
+                    key={def.type}
+                    def={def}
+                    doc={pickBestDocumentForType(documents, def.type, today)}
+                    onUploaded={() => {
+                      setStep2Error(null)
+                      setHasAttemptedStep2Continue(false)
+                      router.refresh()
+                    }}
+                    initialNightVfrRating={def.type === 'pilot_licence' ? nightVfrRating : undefined}
+                    initialInstrumentRating={def.type === 'pilot_licence' ? initialInstrumentRating : undefined}
+                  />
+                ))}
+                {allDocsUploaded && nightVfrEvidenceOk && (
+                  <div className="bg-green-500/[0.06] border border-green-500/20 rounded-lg px-4 py-3 flex items-center gap-3">
+                    <span className="material-symbols-outlined text-green-400 text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                    <p className="text-sm text-green-300">All required documents have been uploaded.</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* Document cards — click Upload/Replace to open modal */}
-          <div className="space-y-4">
-            {DOC_DEFS.map(def => (
-              <DocCard
-                key={def.type}
-                def={def}
-                doc={pickBestDocumentForType(documents, def.type, today)}
-                onUploaded={() => {
-                  setStep2Error(null)
-                  setHasAttemptedStep2Continue(false)
-                  router.refresh()
-                }}
-                initialNightVfrRating={def.type === 'pilot_licence' ? nightVfrRating : undefined}
-                initialInstrumentRating={def.type === 'pilot_licence' ? initialInstrumentRating : undefined}
-              />
-            ))}
+          {/* Row 2: Night VFR evidence */}
+          <div className="py-7 border-b border-white/[0.07]">
+            <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-8">
+              <div className="flex items-start gap-4 md:w-[42%]">
+                <div className="w-9 h-9 rounded-full border border-blue-500/60 bg-blue-600/[0.18] flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-sm font-semibold text-blue-200">2</span>
+                </div>
+                <div>
+                  <p className="text-[17px] font-semibold text-slate-100">Night VFR evidence</p>
+                  <p className="text-[15px] text-slate-400 mt-1 leading-relaxed">Provide supporting evidence only if you selected that you hold a Night VFR rating.</p>
+                </div>
+              </div>
+              <div className="md:flex-1 space-y-3">
+                {nightVfrRating === true ? (
+                  <>
+                    <p className="text-sm text-slate-300 leading-relaxed">
+                      You selected that you hold a Night VFR rating. Please upload supporting evidence for this rating. This can be a CASA licence record, eLicence screenshot, flight review record, logbook endorsement, or other supporting document.
+                    </p>
+                    <DocCard
+                      def={{ type: 'night_vfr_evidence', label: 'Night VFR Evidence', icon: 'nightlight' }}
+                      doc={nightVfrEvidenceDoc}
+                      onUploaded={() => {
+                        setStep2Error(null)
+                        setHasAttemptedStep2Continue(false)
+                        router.refresh()
+                      }}
+                    />
+                    {!isDocOk(nightVfrEvidenceDoc) && (
+                      <p className="text-sm text-amber-300 flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[12px]">warning</span>
+                        Night VFR evidence is required before you can continue.
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setStep('time')}
+                      className="text-sm text-blue-300 hover:text-blue-200 underline underline-offset-2 transition-colors"
+                    >
+                      Don&apos;t have a Night VFR rating? Go back and update your checkout details.
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-start gap-3 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3.5">
+                      <span className="material-symbols-outlined text-slate-500 text-[18px] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>check_circle</span>
+                      <div>
+                        <p className="text-sm font-medium text-slate-300">Not required</p>
+                        <p className="text-sm text-slate-500 mt-0.5">Night VFR evidence is not required because you selected Day VFR only.</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setStep('time')}
+                      className="text-sm text-blue-300 hover:text-blue-200 underline underline-offset-2 transition-colors"
+                    >
+                      Have a Night VFR rating? Go back and update your checkout details.
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
+
+          {/* Row 3: Last flight review + notes */}
+          <div className="py-7">
+            <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-8">
+              <div className="flex items-start gap-4 md:w-[42%]">
+                <div className="w-9 h-9 rounded-full border border-blue-500/60 bg-blue-600/[0.18] flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-sm font-semibold text-blue-200">3</span>
+                </div>
+                <div>
+                  <p className="text-[17px] font-semibold text-slate-100">Last flight review</p>
+                  <p className="text-[15px] text-slate-400 mt-1 leading-relaxed">Tell us when your most recent flight review was completed and add any extra notes if needed.</p>
+                </div>
+              </div>
+              <div className="md:flex-1 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-100 block">
+                    When was your last flight review? <span className="text-red-400 font-normal">Required</span>
+                  </label>
+                  <CalendarDateField
+                    value={lastFlightDate}
+                    onChange={setLastFlightDate}
+                    minYear={new Date().getFullYear() - 20}
+                    maxYear={new Date().getFullYear()}
+                    minDate={getFlightReviewCutoff()}
+                    maxDate={new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })}
+                    className="w-full bg-[#0d1c33] border border-white/10 rounded-lg px-3 py-3 text-base text-white focus:outline-none focus:border-blue-500/60 transition-colors text-left flex items-center justify-between"
+                  />
+                  {lastFlightDate && validateFlightReviewDate(lastFlightDate) && (
+                    <p className="text-sm text-red-300 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[12px]">error</span>
+                      {validateFlightReviewDate(lastFlightDate)}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-100 block">
+                    Anything our team should know? <span className="text-slate-500 font-normal">(Optional)</span>
+                  </label>
+                  <textarea
+                    value={teamMessage}
+                    onChange={e => setTeamMessage(e.target.value)}
+                    maxLength={1000}
+                    rows={3}
+                    placeholder="Add any notes, timing preferences, questions, or context for our team..."
+                    className="w-full bg-[#0d1c33] border border-white/10 rounded-lg px-3 py-3 text-base text-white focus:outline-none focus:border-blue-500/60 transition-colors placeholder:text-slate-500 resize-none"
+                  />
+                  {teamMessage.length > 800 && (
+                    <p className="text-sm text-slate-400 text-right">{teamMessage.length} / 1000</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {hasAttemptedStep2Continue && step2Error && (
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3 mt-2">
               <p className="text-sm text-amber-300">{step2Error}</p>
             </div>
           )}
 
-          {/* Night VFR evidence — shown when user claims Night VFR Rating */}
-          {nightVfrRating === true && (
-            <div className="pt-5 border-t border-white/10 space-y-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-300 mb-1">
-                  Night VFR evidence required <span className="text-red-400 font-normal normal-case tracking-normal">Required</span>
-                </p>
-                <p className="text-sm text-slate-200 leading-relaxed">
-                  Please upload proof that you hold a current Night VFR rating. This can be a CASA licence record, eLicence screenshot, Night VFR flight review record, logbook endorsement, or other supporting document.
-                </p>
-              </div>
-              <DocCard
-                def={{ type: 'night_vfr_evidence', label: 'Night VFR Evidence', icon: 'nightlight' }}
-                doc={nightVfrEvidenceDoc}
-                onUploaded={() => {
-                  setStep2Error(null)
-                  setHasAttemptedStep2Continue(false)
-                  router.refresh()
-                }}
-              />
-              {!isDocOk(nightVfrEvidenceDoc) && (
-                <p className="text-sm text-amber-300 flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[12px]">warning</span>
-                  Night VFR evidence is required to book a checkout outside the Day VFR window.
-                </p>
-              )}
-            </div>
-          )}
-
-          {allDocsUploaded && nightVfrEvidenceOk && (
-            <div className="bg-green-500/[0.06] border border-green-500/20 rounded-lg px-4 py-3 flex items-center gap-3">
-              <span className="material-symbols-outlined text-green-400 text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-              <p className="text-sm text-green-300">All required documents have been uploaded.</p>
-            </div>
-          )}
-
-          {/* Flight review date */}
-          <div className="pt-2 border-t border-white/10 space-y-2">
-            <label className="text-sm font-semibold text-slate-100 block">
-              When was your last flight review? <span className="text-red-400 font-normal normal-case">Required</span>
-            </label>
-            <CalendarDateField
-              value={lastFlightDate}
-              onChange={setLastFlightDate}
-              minYear={new Date().getFullYear() - 20}
-              maxYear={new Date().getFullYear()}
-              minDate={getFlightReviewCutoff()}
-              maxDate={new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })}
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-3 text-base text-white focus:outline-none focus:border-blue-500/60 transition-colors text-left flex items-center justify-between"
-            />
-            {lastFlightDate && validateFlightReviewDate(lastFlightDate) && (
-              <p className="text-sm text-red-300 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[12px]">error</span>
-                {validateFlightReviewDate(lastFlightDate)}
-              </p>
-            )}
-          </div>
-
-          {/* Optional team message */}
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-100 block">
-              Anything our team should know? <span className="text-slate-400 font-normal normal-case">(Optional)</span>
-            </label>
-            <textarea
-              value={teamMessage}
-              onChange={e => setTeamMessage(e.target.value)}
-              maxLength={1000}
-              rows={3}
-              placeholder="Add any notes, timing preferences, questions, or context for our team..."
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-3 text-base text-white focus:outline-none focus:border-blue-500/60 transition-colors placeholder:text-slate-500 resize-none"
-            />
-            {teamMessage.length > 800 && (
-              <p className="text-sm text-slate-400 text-right">{teamMessage.length} / 1000</p>
-            )}
-          </div>
-
-          <div className="flex gap-3 pt-2">
+          {/* Bottom buttons */}
+          <div className="pt-6 mt-2 border-t border-white/[0.07] flex items-center justify-center gap-3">
             <button
               onClick={() => setStep('time')}
-              className="px-5 py-3 border border-white/15 hover:border-blue-500/50 text-slate-300 hover:text-white rounded-full text-[10px] font-semibold transition-all"
+              className="px-6 py-2.5 border border-white/[0.15] hover:border-white/[0.30] text-slate-300 hover:text-white rounded-xl text-sm font-medium transition-all"
             >
               Back
             </button>
             <button
               onClick={handleDocumentsNext}
               data-testid="checkout-step2-continue"
-              className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition-all"
             >
               Continue to Review
             </button>
           </div>
+
             </div>
           )}
 
           {/* ── STEP 3: Review & Submit ───────────────────────────────────────── */}
           {step === 'review' && startUTC && endUTC && (
-            <div ref={stepSectionRef} className={`${CARD} p-6 md:p-8 space-y-6`}>
-          <div>
-            <h2 className="text-2xl font-semibold text-white mb-2">Review Your Checkout Request</h2>
-            <p className="text-base text-slate-200">
-              Review the details below and submit your checkout request.
-            </p>
-          </div>
+            <div ref={stepSectionRef} className={`${CARD} p-6 md:p-8`}>
 
-          {/* Summary */}
-          <div className="space-y-0">
-            {[
-              { label: 'Aircraft', value: `${aircraftDisplayName} (${aircraftRegistration})` },
-              { label: 'Date', value: formatDate(date) },
-              { label: 'Time', value: `${formatDateTime(startUTC)} to ${formatDateTime(endUTC)}` },
-              { label: 'Duration', value: '2 hours' },
-              { label: 'Rate', value: `$${CHECKOUT_RATE} / hour` },
-              { label: 'Landing fee note', value: '$25 per landing, if applicable' },
-              { label: 'Documents uploaded', value: allDocsUploaded && nightVfrEvidenceOk ? 'Yes' : 'Pending required documents' },
-            ].map(({ label, value }) => (
-              <div key={label} className="flex items-center justify-between py-3 border-b border-white/10 last:border-0">
-                <span className="text-base text-slate-300">{label}</span>
-                <span className="text-base text-white font-semibold text-right">{value}</span>
+          {/* ── Section 1: Checkout details ── */}
+          <div className="flex flex-col md:flex-row gap-6 md:gap-8 py-7 border-b border-white/[0.07]">
+            {/* Left */}
+            <div className="flex gap-4 md:w-[270px] flex-shrink-0">
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-[0_0_18px_rgba(37,99,235,0.40)]">
+                  <span className="text-xl font-bold text-white">1</span>
+                </div>
               </div>
-            ))}
-          </div>
-
-          {/* Night VFR window blocker — shown if time became invalid before reaching review */}
-          {nightVfrRating === false && startTime && date && !isWithinDayVfrWindow(startTime, date, 120) && (
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
-              <p className="text-sm text-amber-300">
-                The selected departure time is outside the allowed Day VFR window ({getDayVfrWindow(date).start}–{getDayVfrWindow(date).end} Sydney time). Please go back and choose a daylight time, or confirm that you hold a Night VFR Rating.
-              </p>
+              <div className="self-start pt-1">
+                <h3 className="text-[22px] font-bold text-white leading-tight">Checkout details</h3>
+                <p className="text-[15px] text-slate-400 mt-1.5 leading-relaxed">Review your flight and pricing details.</p>
+              </div>
             </div>
-          )}
-
-          {/* Payment notice */}
-          <div className="bg-emerald-500/[0.06] border border-emerald-500/20 rounded-lg px-4 py-3 flex items-start gap-2">
-            <span className="material-symbols-outlined text-emerald-400 text-[15px] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>info</span>
-            <div>
-              <p className="text-[13px] text-emerald-300/80 leading-relaxed">
-                No payment is required now. Your final checkout amount will be calculated after the flight using the aircraft VDO meter reading, plus any landing fees.
-              </p>
-            </div>
-          </div>
-
-          {/* Checkout terms acceptance */}
-          <div className="bg-white/[0.03] border border-white/10 rounded-lg p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-white">Checkout Terms and Conditions</h3>
-            <p className="text-sm text-slate-300">
-              You must open the terms document, scroll to the bottom, and accept before submitting.
-            </p>
-            <div className="flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setTermsModalOpen(true)
-                  if (termsAccepted) {
-                    setTermsScrolledToEnd(true)
-                    setTermsModalChecked(true)
-                  } else {
-                    setTermsScrolledToEnd(false)
-                    setTermsModalChecked(false)
-                  }
-                }}
-                className="px-4 py-2 bg-white/[0.04] border border-white/15 hover:border-blue-500/50 text-slate-200 rounded-full text-[10px] font-semibold transition-all"
-              >
-                Open terms document
-              </button>
-              {termsAccepted ? (
-                <span className="text-[11px] font-semibold text-green-300 bg-green-500/10 border border-green-500/30 px-2.5 py-1 rounded-full">
-                  Terms accepted
-                </span>
-              ) : (
-                <span className="text-[11px] text-slate-300 bg-white/5 border border-white/20 px-2.5 py-1 rounded-full">Not accepted yet</span>
+            {/* Right: 2×3 review card */}
+            <div className="flex-1">
+              <div className="bg-[#0f1e35] border border-white/[0.08] rounded-[18px] overflow-hidden">
+                <div className="grid grid-cols-1 md:grid-cols-2">
+                  {/* Row 1 */}
+                  <div className="flex gap-3 px-5 py-4 border-b border-white/[0.07] md:border-r md:border-b border-white/[0.07]">
+                    <span className="material-symbols-outlined text-[17px] text-slate-500 mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>calendar_month</span>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#8FA3BF]">Date</p>
+                      <p className="text-[17px] font-semibold text-white mt-0.5">{formatDate(date)}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 px-5 py-4 border-b border-white/[0.07]">
+                    <span className="material-symbols-outlined text-[17px] text-slate-500 mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>schedule</span>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#8FA3BF]">Departure time</p>
+                      <p className="text-[17px] font-semibold text-white mt-0.5">{formatDateTime(startUTC)}</p>
+                    </div>
+                  </div>
+                  {/* Row 2 */}
+                  <div className="flex gap-3 px-5 py-4 border-b border-white/[0.07] md:border-r border-white/[0.07]">
+                    <span className="material-symbols-outlined text-[17px] text-slate-500 mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>{nightVfrRating ? 'nightlight' : 'wb_sunny'}</span>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#8FA3BF]">Night VFR</p>
+                      <p className="text-[17px] font-semibold text-white mt-0.5">{nightVfrRating ? 'Yes — Night VFR held' : 'No – Day VFR only'}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 px-5 py-4 border-b border-white/[0.07]">
+                    <span className="material-symbols-outlined text-[17px] text-slate-500 mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>timer</span>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#8FA3BF]">Duration</p>
+                      <p className="text-[17px] font-semibold text-white mt-0.5">2 hours</p>
+                    </div>
+                  </div>
+                  {/* Row 3 */}
+                  <div className="flex gap-3 px-5 py-4 md:border-r border-white/[0.07]">
+                    <span className="material-symbols-outlined text-[17px] text-slate-500 mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>payments</span>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#8FA3BF]">Rate</p>
+                      <p className="text-[17px] font-semibold text-white mt-0.5">${CHECKOUT_RATE}/hr + $25/landing</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 px-5 py-4">
+                    <span className="material-symbols-outlined text-[17px] text-slate-500 mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>schedule</span>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#8FA3BF]">Return time (AEST)</p>
+                      <p className="text-[17px] font-semibold text-white mt-0.5">{formatDateTime(endUTC)}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {/* Night VFR window blocker */}
+              {nightVfrRating === false && startTime && date && !isWithinDayVfrWindow(startTime, date, 120) && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 mt-3">
+                  <p className="text-sm text-amber-300">
+                    The selected departure time is outside the allowed Day VFR window ({getDayVfrWindow(date).start}–{getDayVfrWindow(date).end} Sydney time). Please go back and choose a daylight time, or confirm that you hold a Night VFR Rating.
+                  </p>
+                </div>
               )}
             </div>
-            {termsError && (
-              <p className="text-sm text-red-300">{termsError}</p>
-            )}
           </div>
 
+          {/* ── Section 2: Uploaded documents ── */}
+          <div className="flex flex-col md:flex-row gap-6 md:gap-8 py-7 border-b border-white/[0.07]">
+            {/* Left */}
+            <div className="flex gap-4 md:w-[270px] flex-shrink-0">
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-[0_0_18px_rgba(37,99,235,0.40)]">
+                  <span className="text-xl font-bold text-white">2</span>
+                </div>
+              </div>
+              <div className="self-start pt-1">
+                <h3 className="text-[22px] font-bold text-white leading-tight">Uploaded documents</h3>
+                <p className="text-[15px] text-slate-400 mt-1.5 leading-relaxed">Ensure your documents are up to date and valid.</p>
+              </div>
+            </div>
+            {/* Right: 4 doc status cards */}
+            <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { label: 'Pilot Licence',       icon: 'badge',             ok: isDocOk(licenceDoc),         doc: licenceDoc },
+                { label: 'Medical Certificate', icon: 'health_and_safety', ok: isDocOk(medicalDoc),         doc: medicalDoc },
+                { label: 'Photo ID',            icon: 'id_card',           ok: isDocOk(photoIdDoc),         doc: photoIdDoc },
+              ].map(({ label, icon, ok, doc }) => (
+                <div key={label} className="bg-[#0f1e35] border border-white/[0.08] rounded-2xl px-4 py-4 flex flex-col gap-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[17px] text-slate-400 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>{icon}</span>
+                    <p className="text-[13px] font-semibold text-white leading-tight">{label}</p>
+                  </div>
+                  {ok ? (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[13px] text-green-400" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                        <span className="text-[13px] font-semibold text-green-400">Uploaded</span>
+                      </div>
+                      {doc && (
+                        <button
+                          type="button"
+                          onClick={() => handleViewDocument(doc)}
+                          disabled={docViewLoadingType === doc.document_type}
+                          className="mt-0.5 inline-flex w-fit items-center gap-1 text-[12px] font-semibold text-blue-300 hover:text-blue-200 underline underline-offset-2"
+                        >
+                          {docViewLoadingType === doc.document_type ? 'Opening…' : 'View'}
+                          <span className="material-symbols-outlined text-[13px]">open_in_new</span>
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[13px] text-red-400">error</span>
+                      <span className="text-[13px] font-semibold text-red-400">Missing</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {/* Night VFR evidence card */}
+              <div className="bg-[#0f1e35] border border-white/[0.08] rounded-2xl px-4 py-4 flex flex-col gap-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[17px] text-slate-400 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>nightlight</span>
+                  <p className="text-[13px] font-semibold text-white leading-tight">Night VFR evidence</p>
+                </div>
+                {nightVfrRating === true ? (
+                  isDocOk(nightVfrEvidenceDoc) ? (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[13px] text-green-400" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                        <span className="text-[13px] font-semibold text-green-400">Uploaded</span>
+                      </div>
+                      {nightVfrEvidenceDoc && (
+                        <button
+                          type="button"
+                          onClick={() => handleViewDocument(nightVfrEvidenceDoc)}
+                          disabled={docViewLoadingType === nightVfrEvidenceDoc.document_type}
+                          className="mt-0.5 inline-flex w-fit items-center gap-1 text-[12px] font-semibold text-blue-300 hover:text-blue-200 underline underline-offset-2"
+                        >
+                          {docViewLoadingType === nightVfrEvidenceDoc.document_type ? 'Opening…' : 'View'}
+                          <span className="material-symbols-outlined text-[13px]">open_in_new</span>
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[13px] text-red-400">error</span>
+                      <span className="text-[13px] font-semibold text-red-400">Missing</span>
+                    </div>
+                  )
+                ) : (
+                  <span className="text-[13px] font-medium text-[#8FA3BF]">Not required</span>
+                )}
+              </div>
+            </div>
+            {docViewError && <p className="col-span-2 md:col-span-4 text-sm text-red-300">{docViewError}</p>}
+          </div>
+
+          {/* ── Section 3: Additional information ── */}
+          <div className="flex flex-col md:flex-row gap-6 md:gap-8 py-7 border-b border-white/[0.07]">
+            {/* Left */}
+            <div className="flex gap-4 md:w-[270px] flex-shrink-0">
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-[0_0_18px_rgba(37,99,235,0.40)]">
+                  <span className="text-xl font-bold text-white">3</span>
+                </div>
+              </div>
+              <div className="self-start pt-1">
+                <h3 className="text-[22px] font-bold text-white leading-tight">Additional information</h3>
+                <p className="text-[15px] text-slate-400 mt-1.5 leading-relaxed">Review your additional details and notes.</p>
+              </div>
+            </div>
+            {/* Right: 2-column review card */}
+            <div className="flex-1">
+              <div className="bg-[#0f1e35] border border-white/[0.08] rounded-[18px] overflow-hidden">
+                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/[0.07]">
+                  <div className="flex gap-3 px-5 py-5">
+                    <span className="material-symbols-outlined text-[17px] text-slate-500 mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>calendar_month</span>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#8FA3BF]">Last flight review</p>
+                      <p className="text-[17px] font-semibold text-white mt-0.5">{lastFlightDate ? formatDate(lastFlightDate) : '—'}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 px-5 py-5">
+                    <span className="material-symbols-outlined text-[17px] text-slate-500 mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>chat</span>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#8FA3BF]">Notes</p>
+                      <p className="text-[17px] font-semibold text-white mt-0.5 leading-snug">{teamMessage.trim() || 'No additional notes provided.'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Submit error ── */}
           {submitError && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
               <p className="text-sm text-red-300">{submitError}</p>
             </div>
           )}
 
-          {!termsAccepted && (
-            <p className="text-sm text-amber-200">
-              Please accept the terms and conditions to submit your checkout request.
-            </p>
-          )}
+          {/* ── Payment notice ── */}
+          <div className="bg-[#162d4a] border border-white/[0.08] rounded-2xl px-6 py-5 mt-2">
+            <div className="flex items-start gap-3.5">
+              <span className="material-symbols-outlined text-blue-300/80 text-[20px] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>info</span>
+              <div>
+                <p className="text-[17px] font-semibold text-white">No payment is required now.</p>
+                <p className="text-[15px] text-slate-400 mt-1 leading-relaxed">Your final checkout amount will be calculated after the flight using the aircraft VDO meter reading, plus any landing fees.</p>
+              </div>
+            </div>
+          </div>
 
-          <div className="flex gap-3 pt-2">
+          {/* ── Terms and conditions acceptance (final consent step) ── */}
+          <div className="bg-[#0f1e35] border border-white/[0.08] rounded-[18px] px-5 py-5 mt-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-amber-200">Required before submit</p>
+              {termsAccepted ? (
+                <span className="text-[12px] font-semibold text-green-400 bg-green-500/10 border border-green-500/30 px-2.5 py-1 rounded-full whitespace-nowrap">Accepted</span>
+              ) : (
+                <span className="text-[12px] font-semibold text-amber-200/90 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-full whitespace-nowrap">Not accepted</span>
+              )}
+            </div>
+            <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
+              <div className="flex items-start gap-4 flex-1">
+                <span className="material-symbols-outlined text-[26px] text-slate-400 flex-shrink-0 mt-0.5" style={{ fontVariationSettings: "'wght' 300" }}>description</span>
+                <div>
+                  <p className="text-[15px] font-semibold text-white">Checkout terms and conditions</p>
+                  <p className="text-sm text-slate-400 mt-1 leading-relaxed">Open and read the checkout terms document, then accept to enable submission.</p>
+                </div>
+              </div>
+              <div className="flex flex-col items-start md:items-end gap-2.5 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTermsModalOpen(true)
+                    if (termsAccepted) {
+                      setTermsScrolledToEnd(true)
+                      setTermsModalChecked(true)
+                    } else {
+                      setTermsScrolledToEnd(false)
+                      setTermsModalChecked(false)
+                    }
+                  }}
+                  className="px-4 py-2.5 bg-white/[0.05] border border-white/[0.15] hover:border-blue-400/50 text-slate-200 hover:text-white rounded-xl text-sm font-semibold transition-all whitespace-nowrap"
+                >
+                  Open terms document
+                </button>
+              </div>
+            </div>
+            <label className={`mt-4 flex items-start gap-3 rounded-xl border px-4 py-3 transition-colors ${
+              termsAccepted ? 'border-green-500/30 bg-green-500/[0.07]' : 'border-white/[0.12] bg-white/[0.03] hover:border-blue-400/45'
+            }`}>
+              <input
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setTermsModalOpen(true)
+                    setTermsScrolledToEnd(false)
+                    setTermsModalChecked(false)
+                    return
+                  }
+                  setTermsAccepted(false)
+                  setTermsModalChecked(false)
+                  setTermsScrolledToEnd(false)
+                }}
+                className="mt-0.5 h-4 w-4 accent-blue-500 cursor-pointer"
+              />
+              <div className="space-y-1">
+                <span className={`text-sm ${termsAccepted ? 'text-green-200' : 'text-slate-200'}`}>
+                  I have read and accept the checkout terms and conditions.
+                </span>
+                {!termsAccepted && (
+                  <p className="text-[12px] text-slate-400">
+                    Check this to review and accept the terms. Submission stays disabled until accepted.
+                  </p>
+                )}
+              </div>
+            </label>
+            {termsError && <p className="text-sm text-red-300 mt-2">{termsError}</p>}
+            {!termsAccepted && (
+              <p className="text-sm text-amber-200/80 mt-2">Please accept the terms and conditions to submit your checkout request.</p>
+            )}
+          </div>
+
+          {/* ── Bottom buttons ── */}
+          <div className="pt-7 mt-2 border-t border-white/[0.07] flex items-center justify-center gap-4">
             <button
               onClick={() => setStep('documents')}
               disabled={isPending}
-              className="px-5 py-3 border border-white/15 hover:border-blue-500/50 text-slate-300 hover:text-white disabled:opacity-40 rounded-full text-[10px] font-semibold transition-all"
+              className="w-[132px] h-12 border border-white/[0.15] hover:border-white/[0.30] text-slate-300 hover:text-white disabled:opacity-40 rounded-xl text-base font-semibold transition-all"
             >
               Back
             </button>
@@ -1634,11 +1933,12 @@ export default function CheckoutFlow({
                 (nightVfrRating === false && !!startTime && !!date && !isWithinDayVfrWindow(startTime, date, 120)) ||
                 !termsAccepted
               }
-              className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all shadow-[0_0_20px_rgba(37,99,235,0.35)]"
+              className="w-[256px] h-12 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-base font-semibold transition-all shadow-[0_0_24px_rgba(37,99,235,0.35)]"
             >
               {isPending ? 'Submitting…' : 'Submit Checkout Request'}
             </button>
           </div>
+
             </div>
           )}
 

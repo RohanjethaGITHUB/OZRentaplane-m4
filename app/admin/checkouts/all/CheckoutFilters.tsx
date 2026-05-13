@@ -83,12 +83,14 @@ export default function CheckoutFilters({
   const clearAll = () => router.push('/admin/checkouts/all')
 
   return (
-    <AdminFilterPanel
-      title="Filter checkout requests"
-      subtitle={`${activeFilters.length} active filter${activeFilters.length === 1 ? '' : 's'}`}
-      open={open}
-      onToggle={() => setOpen((v) => !v)}
-    >
+    <div className={`w-full md:w-auto ${open ? 'md:max-w-[920px]' : 'md:max-w-[380px]'}`}>
+      <AdminFilterPanel
+        title="Filters"
+        open={open}
+        onToggle={() => setOpen((v) => !v)}
+        headerClassName="px-4 md:px-5 py-3.5 md:py-3"
+        titleClassName="text-[1rem] md:text-[1rem] leading-[1.2] tracking-[0.01em]"
+      >
       <div className="pt-5 space-y-5">
           <div className="space-y-2">
             <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-[var(--admin-text-muted)]">Status</p>
@@ -154,13 +156,14 @@ export default function CheckoutFilters({
             </div>
           </div>
       </div>
-      <div className="mt-5 border-t border-[var(--admin-divider)] pt-4">
-        <AdminActiveFilterChips
-          chips={activeFilters}
-          onRemove={(key) => apply({ [key]: 'all' } as Partial<{ status: StatusFilter; outcome: OutcomeFilter; payment: PaymentFilter }>)}
-          onClearAll={clearAll}
-        />
-      </div>
-    </AdminFilterPanel>
+        <div className="mt-5 border-t border-[var(--admin-divider)] pt-4">
+          <AdminActiveFilterChips
+            chips={activeFilters}
+            onRemove={(key) => apply({ [key]: 'all' } as Partial<{ status: StatusFilter; outcome: OutcomeFilter; payment: PaymentFilter }>)}
+            onClearAll={clearAll}
+          />
+        </div>
+      </AdminFilterPanel>
+    </div>
   )
 }

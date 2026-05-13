@@ -154,9 +154,7 @@ export default function CheckoutOverviewCharts({
     const labelMap: Record<string, string> = {
       cleared_to_fly: 'Cleared to Fly',
       additional_checkout_required: 'Additional Checkout Required',
-      additional_supervised_time_required: 'Additional Checkout Required',
       checkout_reschedule_required: 'Checkout Reschedule Required',
-      reschedule_required: 'Checkout Reschedule Required',
       not_currently_eligible: 'Not Currently Eligible',
     }
 

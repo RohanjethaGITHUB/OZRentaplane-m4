@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 
 type AuthMode = 'signin' | 'signup'
-type OAuthProvider = 'google' | 'facebook' | 'apple'
+type OAuthProvider = 'google'
 
 const EASE_PREMIUM = [0.25, 1, 0.35, 1] as const
 const TRANSITION = { duration: 1.4, ease: EASE_PREMIUM }
@@ -23,22 +23,6 @@ function GoogleIcon() {
   )
 }
 
-function FacebookIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="15" height="15" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-    </svg>
-  )
-}
-
-function AppleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-    </svg>
-  )
-}
-
 function SpinIcon() {
   return (
     <svg className="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -49,39 +33,38 @@ function SpinIcon() {
 
 const PROVIDERS: { id: OAuthProvider; label: string; Icon: () => JSX.Element }[] = [
   { id: 'google', label: 'Google', Icon: GoogleIcon },
-  { id: 'facebook', label: 'Facebook', Icon: FacebookIcon },
-  { id: 'apple', label: 'Apple', Icon: AppleIcon },
 ]
+
+const FIELD_LABEL_CLASS = 'block text-[10px] font-sans uppercase tracking-[0.2em] text-white/[0.72] mb-1.5 group-focus-within:text-oz-blue transition-colors'
+const FIELD_INPUT_CLASS = 'w-full bg-white/[0.09] border border-white/30 px-3.5 py-3.5 text-white placeholder:text-white/50 focus:ring-0 focus:border-oz-blue focus:bg-white/[0.13] transition-all outline-none font-sans rounded-xl'
 
 interface SocialButtonsProps {
   context: 'signin' | 'signup'
   oauthLoading: OAuthProvider | null
   oauthError: string
   disabled: boolean
+  unavailableProviders: Set<OAuthProvider>
   onSignIn: (provider: OAuthProvider) => void
 }
 
-function SocialButtons({ context, oauthLoading, oauthError, disabled, onSignIn }: SocialButtonsProps) {
-  return (
-    <div className="pt-5 space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="flex-1 h-px bg-white/10" />
-        <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-oz-subtle whitespace-nowrap">{context === 'signin' ? 'or sign in with' : 'or sign up with'}</span>
-        <div className="flex-1 h-px bg-white/10" />
-      </div>
+function SocialButtons({ context, oauthLoading, oauthError, disabled, unavailableProviders, onSignIn }: SocialButtonsProps) {
+  const availableProviders = PROVIDERS.filter(({ id }) => !unavailableProviders.has(id))
+  if (!availableProviders.length) return null
 
+  return (
+    <div className="space-y-3">
       <div className="flex gap-2">
-        {PROVIDERS.map(({ id, label, Icon }) => (
+        {availableProviders.map(({ id, label, Icon }) => (
           <button
             key={id}
             type="button"
             onClick={() => onSignIn(id)}
             disabled={disabled}
-            aria-label={`Continue with ${label}`}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] hover:border-white/20 transition-all duration-300 text-white/60 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+            aria-label={context === 'signin' ? `Continue with ${label}` : `Sign up with ${label}`}
+            className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-white/[0.12] border border-white/[0.34] hover:bg-white/[0.17] hover:border-oz-blue/50 transition-all duration-300 text-white/95 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {oauthLoading === id ? <SpinIcon /> : <Icon />}
-            <span className="text-[10px] font-sans uppercase tracking-[0.12em] hidden sm:block">{label}</span>
+            <span className="text-[10px] font-sans uppercase tracking-[0.12em]">{context === 'signin' ? 'Continue with Google' : 'Sign up with Google'}</span>
           </button>
         ))}
       </div>
@@ -91,7 +74,23 @@ function SocialButtons({ context, oauthLoading, oauthError, disabled, onSignIn }
   )
 }
 
-export default function LoginContent() {
+function EmailDivider({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-3 pt-1">
+      <div className="flex-1 h-px bg-white/[0.26]" />
+      <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-white/60 whitespace-nowrap">{text}</span>
+      <div className="flex-1 h-px bg-white/[0.26]" />
+    </div>
+  )
+}
+
+interface LoginContentProps {
+  presentation?: 'page' | 'modal'
+  onRequestClose?: () => void
+  onBusyChange?: (isBusy: boolean) => void
+}
+
+export default function LoginContent({ presentation = 'page', onRequestClose, onBusyChange }: LoginContentProps) {
   const COUNTRY_CODE_REGEX = /^\+?\d{1,4}$/
   const PHONE_NUMBER_REGEX = /^\d*$/
 
@@ -116,13 +115,26 @@ export default function LoginContent() {
   const [loading, setLoading] = useState(false)
   const [oauthLoading, setOauthLoading] = useState<OAuthProvider | null>(null)
   const [oauthError, setOauthError] = useState('')
+  const [unavailableProviders, setUnavailableProviders] = useState<Set<OAuthProvider>>(() => {
+    const rawProviders = process.env.NEXT_PUBLIC_AUTH_ENABLED_PROVIDERS
+    if (!rawProviders) return new Set()
+    const allowed = rawProviders.split(',').map((value) => value.trim().toLowerCase()) as OAuthProvider[]
+    return new Set(PROVIDERS.map((provider) => provider.id).filter((id) => !allowed.includes(id)))
+  })
 
   const anyLoading = loading || !!oauthLoading
+  const isModal = presentation === 'modal'
 
   function clearErrors() {
     setSiError('')
     setSuError('')
     setOauthError('')
+  }
+
+  function setModeWithReset(nextMode: AuthMode) {
+    clearErrors()
+    setSuSuccess(false)
+    setMode(nextMode)
   }
 
   async function handleSignIn(e: React.FormEvent) {
@@ -188,6 +200,7 @@ export default function LoginContent() {
   }
 
   async function handleOAuthSignIn(provider: OAuthProvider) {
+    if (unavailableProviders.has(provider)) return
     clearErrors()
     setOauthLoading(provider)
     const { error } = await supabase.auth.signInWithOAuth({
@@ -195,24 +208,48 @@ export default function LoginContent() {
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     })
     if (error) {
+      const message = error.message.toLowerCase()
+      if (
+        message.includes('unsupported provider') ||
+        message.includes('provider is not enabled') ||
+        message.includes('not enabled')
+      ) {
+        setUnavailableProviders((prev) => new Set(prev).add(provider))
+      }
       setOauthError(error.message)
       setOauthLoading(null)
     }
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-[#050B14] via-[#0A111F] to-[#04080F] flex flex-col items-center justify-center pt-[120px] pb-12 px-6 md:px-12 lg:px-24 relative overflow-hidden">
-      <div className="fixed top-0 right-0 w-[600px] h-[600px] bg-[#1E3A8A]/10 blur-[120px] -z-10 rounded-full pointer-events-none" />
-      <div className="fixed bottom-0 left-0 w-[600px] h-[600px] bg-[#0F172A]/30 blur-[120px] -z-10 rounded-full pointer-events-none" />
-      <div className="fixed inset-0 opacity-[0.03] pointer-events-none z-50 mix-blend-overlay" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/carbon-fibre.png")' }} />
+  useEffect(() => {
+    onBusyChange?.(anyLoading)
+  }, [anyLoading, onBusyChange])
 
-      <main className="w-full max-w-[1300px] h-auto my-auto md:min-h-[700px] md:h-[calc(100vh-160px)] md:max-h-[900px] bg-[#0A101C]/80 backdrop-blur-2xl rounded-2xl md:rounded-[2rem] overflow-hidden flex flex-col md:flex-row relative shadow-[0_40px_100px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.1)] ring-1 ring-white/10">
+  return (
+    <div className={`${isModal ? 'w-full' : 'min-h-screen pt-[120px] pb-12 px-6 md:px-12 lg:px-24 bg-gradient-to-br from-[#050B14] via-[#0A111F] to-[#04080F]'} flex flex-col items-center justify-center relative overflow-hidden`}>
+      {!isModal && <div className="fixed top-0 right-0 w-[600px] h-[600px] bg-[#1E3A8A]/10 blur-[120px] -z-10 rounded-full pointer-events-none" />}
+      {!isModal && <div className="fixed bottom-0 left-0 w-[600px] h-[600px] bg-[#0F172A]/30 blur-[120px] -z-10 rounded-full pointer-events-none" />}
+      {!isModal && <div className="fixed inset-0 opacity-[0.03] pointer-events-none z-50 mix-blend-overlay" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/carbon-fibre.png")' }} />}
+
+      <main className={`${isModal ? 'w-full max-w-[1220px] h-[min(calc(100vh-48px),880px)] min-h-0 rounded-[1.65rem]' : 'w-full max-w-[1300px] h-auto my-auto md:min-h-[700px] md:h-[calc(100vh-160px)] md:max-h-[900px] rounded-2xl md:rounded-[2rem]'} bg-[#0A101C]/80 backdrop-blur-2xl overflow-hidden flex flex-col md:flex-row relative shadow-[0_40px_100px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.1)] ring-1 ring-white/10`}>
+        {isModal && (
+          <button
+            type="button"
+            onClick={onRequestClose}
+            disabled={anyLoading}
+            aria-label="Close authentication"
+            className="absolute top-4 right-4 z-30 h-10 w-10 p-0 rounded-full border border-white/15 bg-[#0a1423]/80 text-white/70 hover:text-white hover:border-white/30 hover:bg-[#12233d]/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+          >
+            <span className="material-symbols-outlined block leading-none text-[18px]">close</span>
+          </button>
+        )}
         <section className="relative flex-1 min-h-[400px] md:min-h-full overflow-hidden border-b md:border-b-0 md:border-r border-white/5">
           <div className="absolute inset-0 z-0">
-            <motion.div className="w-full h-full" initial={false} animate={{ scale: mode === 'signin' ? 1 : 1.15, filter: mode === 'signin' ? 'blur(0px) brightness(0.45)' : 'blur(20px) brightness(0.15)' }} transition={TRANSITION}>
+            <motion.div className="w-full h-full" initial={false} animate={{ scale: mode === 'signin' ? 1.06 : 1.09, filter: mode === 'signin' ? 'blur(12px) brightness(0.42) contrast(0.9) saturate(0.72)' : 'blur(15px) brightness(0.34) contrast(0.86) saturate(0.66)' }} transition={TRANSITION}>
               <Image src="/Cockpit-twilight.webp" alt="Cockpit at twilight" fill className="object-cover" priority />
             </motion.div>
-            <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-[#0c121e] via-[#0c121e]/85 to-[#0c121e]/55 pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-[#040a15]/94 via-[#071225]/90 to-[#0a1730]/84 pointer-events-none" />
+            <div className="absolute inset-0 bg-[#081224]/46 pointer-events-none" />
           </div>
 
           <div className="relative z-10 w-full h-full p-8 md:p-14 lg:p-20 flex flex-col">
@@ -221,36 +258,39 @@ export default function LoginContent() {
                 {mode === 'signin' ? (
                   <motion.div key="signin-active" initial={{ opacity: 0, x: -30, filter: 'blur(10px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: 30, filter: 'blur(10px)' }} transition={TRANSITION} className="max-w-md w-full">
                     <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif text-white mb-4 leading-tight tracking-tight">Welcome Back, Pilot</h1>
-                    <p className="text-oz-muted font-sans font-light mb-10 text-lg tracking-wide">Your aircraft is waiting. Please authenticate to access your dashboard.</p>
-                    <form className="space-y-6" onSubmit={handleSignIn}>
+                    <p className="text-white/[0.78] font-sans font-light mb-10 text-lg tracking-wide">Your aircraft is waiting. Please authenticate to access your dashboard.</p>
+                    <form className="space-y-7" onSubmit={handleSignIn}>
+                      <SocialButtons context="signin" oauthLoading={oauthLoading} oauthError={oauthError} unavailableProviders={unavailableProviders} disabled={anyLoading} onSignIn={handleOAuthSignIn} />
+                      <EmailDivider text="or sign in with email" />
                       <div className="group relative">
-                        <label className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-subtle mb-1 group-focus-within:text-oz-blue transition-colors">Email Address</label>
-                        <input type="email" placeholder="captain@ozrentaplane.com.au" value={siEmail} onChange={(e) => setSiEmail(e.target.value)} required className="w-full bg-white/[0.02] border-0 border-b border-white/10 px-3 py-3 text-white placeholder:text-white/20 focus:ring-0 focus:border-oz-blue focus:bg-white/[0.04] transition-all outline-none font-sans rounded-t-md" />
+                        <label className={FIELD_LABEL_CLASS}>Email Address</label>
+                        <input type="email" placeholder="captain@ozrentaplane.com.au" value={siEmail} onChange={(e) => setSiEmail(e.target.value)} required className={FIELD_INPUT_CLASS} />
                       </div>
                       <div className="group relative">
-                        <label className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-subtle mb-1 group-focus-within:text-oz-blue transition-colors">Authentication Code</label>
-                        <input type="password" placeholder="••••••••" value={siPassword} onChange={(e) => setSiPassword(e.target.value)} required className="w-full bg-white/[0.02] border-0 border-b border-white/10 px-3 py-3 text-white placeholder:text-white/20 focus:ring-0 focus:border-oz-blue focus:bg-white/[0.04] transition-all outline-none font-sans font-mono rounded-t-md" />
+                        <label className={FIELD_LABEL_CLASS}>Password</label>
+                        <input type="password" placeholder="••••••••" value={siPassword} onChange={(e) => setSiPassword(e.target.value)} required className={`${FIELD_INPUT_CLASS} font-mono`} />
                       </div>
                       {siError && <p className="text-red-400 text-[11px] font-sans font-light tracking-wide -mt-2">{siError}</p>}
                       <div className="pt-8 flex items-center justify-between">
                         <button type="submit" disabled={anyLoading} className="bg-gradient-to-br from-oz-blue to-oz-blue-dim text-oz-deep px-8 py-3.5 rounded-full font-sans text-xs uppercase tracking-[0.15em] font-bold shadow-[0_4px_16px_rgba(167,200,255,0.15)] hover:shadow-[0_4px_24px_rgba(167,200,255,0.25)] hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">{loading ? 'Signing In…' : 'Sign In'}</button>
-                        <a href="#" className="text-[10px] font-sans uppercase tracking-[0.1em] text-oz-subtle hover:text-white transition-colors">Forgot Access?</a>
+                        <a href="#" className="text-[10px] font-sans uppercase tracking-[0.1em] text-white/[0.66] hover:text-white transition-colors">Forgot password?</a>
                       </div>
 
-                      <SocialButtons context="signin" oauthLoading={oauthLoading} oauthError={oauthError} disabled={anyLoading} onSignIn={handleOAuthSignIn} />
-
                       <div className="pt-6 mt-2 border-t border-white/5 flex items-center justify-between">
-                        <span className="text-oz-muted text-xs font-sans font-light">New pilot?</span>
-                        <button type="button" onClick={() => setMode('signup')} className="text-[10px] font-sans uppercase tracking-[0.15em] text-oz-blue hover:text-white transition-colors">Create Profile</button>
+                        <span className="text-white/[0.72] text-xs font-sans font-light">New pilot?</span>
+                        <button type="button" onClick={() => setModeWithReset('signup')} className="text-[10px] font-sans uppercase tracking-[0.15em] text-oz-blue hover:text-white transition-colors">Create account</button>
                       </div>
                     </form>
                   </motion.div>
                 ) : (
-                  <motion.div key="signin-inactive" initial={{ opacity: 0, x: -20, filter: 'blur(12px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -20, filter: 'blur(12px)' }} transition={TRANSITION} className="max-w-md w-full my-auto">
-                    <span className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-blue/60 mb-3">Existing Pilots</span>
-                    <h2 className="text-3xl md:text-5xl font-serif text-white/50 mb-4 tracking-tight">Member Access</h2>
-                    <p className="text-oz-muted/50 font-sans font-light text-base mb-8">Return to the cockpit. Access your active aircraft bookings and manage fleet availability.</p>
-                    <button onClick={() => setMode('signin')} className="border border-white/10 px-6 py-3 rounded-full text-[10px] uppercase tracking-[0.15em] text-white/70 hover:bg-white/5 hover:text-white transition-colors duration-300 font-sans shadow-lg">Switch to Sign In</button>
+                  <motion.div key="signin-inactive" initial={{ opacity: 0, x: -20, filter: 'blur(12px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -20, filter: 'blur(12px)' }} transition={TRANSITION} className="max-w-md w-full my-auto relative flex justify-center">
+                    <div className="absolute -z-10 left-1/2 top-1/2 h-56 w-56 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#7ca6e8]/20 blur-[78px]" />
+                    <div className="w-full max-w-[430px] rounded-[24px] border border-white/[0.12] bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-transparent px-7 py-8 md:px-9 md:py-10 shadow-[0_12px_48px_rgba(8,16,30,0.45)] flex flex-col items-center text-center">
+                      <span className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-blue/70 mb-3">Existing Pilots</span>
+                      <h2 className="text-[2.35rem] md:text-[2.8rem] leading-tight font-serif text-white/[0.80] mb-4 tracking-tight">Member Access</h2>
+                      <p className="text-white/[0.72] font-sans font-light text-base mb-8 max-w-[30ch]">Return to the cockpit. Access your active aircraft bookings and manage fleet availability.</p>
+                      <button onClick={() => setModeWithReset('signin')} className="border border-oz-blue/40 bg-oz-blue/[0.10] px-6 py-3 rounded-full text-[10px] uppercase tracking-[0.15em] text-oz-blue hover:bg-oz-blue/[0.16] hover:text-[#d3e4ff] transition-colors duration-300 font-sans shadow-lg">Switch to Sign In</button>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -258,22 +298,23 @@ export default function LoginContent() {
           </div>
         </section>
 
-        <section className="relative flex-1 min-h-[400px] md:min-h-full overflow-hidden">
+        <section className="relative flex-1 min-h-[420px] md:min-h-full overflow-hidden">
           <div className="absolute inset-0 z-0">
-            <motion.div className="w-full h-full" initial={false} animate={{ scale: mode === 'signup' ? 1 : 1.15, filter: mode === 'signup' ? 'blur(0px) brightness(0.45)' : 'blur(20px) brightness(0.15)' }} transition={TRANSITION}>
+            <motion.div className="w-full h-full" initial={false} animate={{ scale: mode === 'signup' ? 1.06 : 1.09, filter: mode === 'signup' ? 'blur(12px) brightness(0.42) contrast(0.9) saturate(0.74)' : 'blur(15px) brightness(0.34) contrast(0.86) saturate(0.66)' }} transition={TRANSITION}>
               <Image src="/Pilot&aircraftTwilight.webp" alt="Aircraft on tarmac at twilight" fill className="object-cover" priority />
             </motion.div>
-            <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-l from-[#0c121e] via-[#0c121e]/85 to-[#0c121e]/55 pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-l from-[#040a15]/94 via-[#071225]/90 to-[#0a1730]/84 pointer-events-none" />
+            <div className="absolute inset-0 bg-[#081224]/46 pointer-events-none" />
           </div>
 
-          <div className="relative z-10 w-full h-full p-8 md:p-14 lg:p-20 flex flex-col items-center justify-center overflow-y-auto">
+          <div className="relative z-10 w-full h-full min-h-0 p-8 md:p-14 lg:p-20 flex flex-col items-center justify-start overflow-y-auto">
             <AnimatePresence mode="popLayout" initial={false}>
               {mode === 'signup' ? (
                 <motion.div key="signup-active" initial={{ opacity: 0, x: 30, filter: 'blur(10px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -30, filter: 'blur(10px)' }} transition={TRANSITION} className="w-full max-w-md mx-auto">
                   <div className="mb-10 text-center md:text-left">
-                    <span className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-blue mb-3">New Aviator Application</span>
-                    <h2 className="text-4xl md:text-6xl font-serif text-white mb-4 leading-tight tracking-tight">Create Profile</h2>
-                    <p className="text-oz-muted font-sans font-light text-lg">Join Sydney's premier aircraft rental platform for licensed aviation professionals.</p>
+                    <span className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-blue mb-3">New Aviator Registration</span>
+                    <h2 className="text-4xl md:text-6xl font-serif text-white mb-4 leading-tight tracking-tight">Create account</h2>
+                    <p className="text-white/[0.78] font-sans font-light text-lg">Join Sydney's premier aircraft rental platform for licensed aviation professionals.</p>
                   </div>
 
                   {suSuccess ? (
@@ -283,26 +324,28 @@ export default function LoginContent() {
                       <p className="text-oz-muted font-sans font-light text-sm leading-relaxed max-w-xs">A confirmation link has been sent to <span className="text-white">{suEmail}</span>. Follow the link to activate your account.</p>
                     </div>
                   ) : (
-                    <form className="space-y-6" onSubmit={handleSignUp}>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <form className="space-y-7" onSubmit={handleSignUp}>
+                      <SocialButtons context="signup" oauthLoading={oauthLoading} oauthError={oauthError} unavailableProviders={unavailableProviders} disabled={anyLoading} onSignIn={handleOAuthSignIn} />
+                      <EmailDivider text="or create account with email" />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
                         <div className="group relative">
-                          <label className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-subtle mb-1 group-focus-within:text-oz-blue transition-colors">First Name</label>
-                          <input type="text" placeholder="e.g. Julian" value={suFirstName} onChange={(e) => setSuFirstName(e.target.value)} required className="w-full bg-white/[0.02] border-0 border-b border-white/10 px-3 py-3 text-white placeholder:text-white/20 focus:ring-0 focus:border-oz-blue focus:bg-white/[0.04] transition-all outline-none font-sans rounded-t-md" />
+                          <label className={FIELD_LABEL_CLASS}>First Name</label>
+                          <input type="text" placeholder="e.g. Julian" value={suFirstName} onChange={(e) => setSuFirstName(e.target.value)} required className={FIELD_INPUT_CLASS} />
                         </div>
                         <div className="group relative">
-                          <label className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-subtle mb-1 group-focus-within:text-oz-blue transition-colors">Last Name</label>
-                          <input type="text" placeholder="e.g. Vance" value={suLastName} onChange={(e) => setSuLastName(e.target.value)} required className="w-full bg-white/[0.02] border-0 border-b border-white/10 px-3 py-3 text-white placeholder:text-white/20 focus:ring-0 focus:border-oz-blue focus:bg-white/[0.04] transition-all outline-none font-sans rounded-t-md" />
+                          <label className={FIELD_LABEL_CLASS}>Last Name</label>
+                          <input type="text" placeholder="e.g. Vance" value={suLastName} onChange={(e) => setSuLastName(e.target.value)} required className={FIELD_INPUT_CLASS} />
                         </div>
                       </div>
 
                       <div className="group relative">
-                        <label className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-subtle mb-1 group-focus-within:text-oz-blue transition-colors">Email Address</label>
-                        <input type="email" placeholder="pilot@example.com" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} required className="w-full bg-white/[0.02] border-0 border-b border-white/10 px-3 py-3 text-white placeholder:text-white/20 focus:ring-0 focus:border-oz-blue focus:bg-white/[0.04] transition-all outline-none font-sans rounded-t-md" />
+                        <label className={FIELD_LABEL_CLASS}>Email Address</label>
+                        <input type="email" placeholder="pilot@example.com" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} required className={FIELD_INPUT_CLASS} />
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-7">
                         <div className="group relative">
-                          <label className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-subtle mb-1 group-focus-within:text-oz-blue transition-colors">Country Code</label>
+                          <label className={FIELD_LABEL_CLASS}>Country Code</label>
                           <input
                             type="text"
                             placeholder="+61"
@@ -311,11 +354,11 @@ export default function LoginContent() {
                               const value = e.target.value
                               if (/^\+?\d{0,4}$/.test(value)) setSuPhoneCountryCode(value)
                             }}
-                            className="w-full bg-white/[0.02] border-0 border-b border-white/10 px-3 py-3 text-white placeholder:text-white/20 focus:ring-0 focus:border-oz-blue focus:bg-white/[0.04] transition-all outline-none font-sans rounded-t-md"
+                            className={FIELD_INPUT_CLASS}
                           />
                         </div>
                         <div className="group relative">
-                          <label className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-subtle mb-1 group-focus-within:text-oz-blue transition-colors">Phone Number (Optional)</label>
+                          <label className={FIELD_LABEL_CLASS}>Phone Number (Optional)</label>
                           <input
                             type="tel"
                             placeholder="e.g. 412345678"
@@ -324,19 +367,19 @@ export default function LoginContent() {
                               const value = e.target.value
                               if (/^\d*$/.test(value)) setSuPhoneNumber(value)
                             }}
-                            className="w-full bg-white/[0.02] border-0 border-b border-white/10 px-3 py-3 text-white placeholder:text-white/20 focus:ring-0 focus:border-oz-blue focus:bg-white/[0.04] transition-all outline-none font-sans rounded-t-md"
+                            className={FIELD_INPUT_CLASS}
                           />
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
                         <div className="group relative">
-                          <label className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-subtle mb-1 group-focus-within:text-oz-blue transition-colors">Password</label>
-                          <input type="password" placeholder="••••••••" value={suPassword} onChange={(e) => setSuPassword(e.target.value)} required className="w-full bg-white/[0.02] border-0 border-b border-white/10 px-3 py-3 text-white placeholder:text-white/20 focus:ring-0 focus:border-oz-blue focus:bg-white/[0.04] transition-all outline-none font-sans font-mono rounded-t-md" />
+                          <label className={FIELD_LABEL_CLASS}>Password</label>
+                          <input type="password" placeholder="••••••••" value={suPassword} onChange={(e) => setSuPassword(e.target.value)} required className={`${FIELD_INPUT_CLASS} font-mono`} />
                         </div>
                         <div className="group relative">
-                          <label className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-subtle mb-1 group-focus-within:text-oz-blue transition-colors">Confirm Code</label>
-                          <input type="password" placeholder="••••••••" value={suConfirm} onChange={(e) => setSuConfirm(e.target.value)} required className="w-full bg-white/[0.02] border-0 border-b border-white/10 px-3 py-3 text-white placeholder:text-white/20 focus:ring-0 focus:border-oz-blue focus:bg-white/[0.04] transition-all outline-none font-sans font-mono rounded-t-md" />
+                          <label className={FIELD_LABEL_CLASS}>Confirm Password</label>
+                          <input type="password" placeholder="••••••••" value={suConfirm} onChange={(e) => setSuConfirm(e.target.value)} required className={`${FIELD_INPUT_CLASS} font-mono`} />
                         </div>
                       </div>
 
@@ -344,25 +387,26 @@ export default function LoginContent() {
 
                       <div className="pt-6">
                         <button type="submit" disabled={anyLoading} className="w-full bg-white text-oz-deep py-4 rounded-full font-sans text-xs uppercase tracking-[0.15em] font-bold shadow-[0_4px_16px_rgba(255,255,255,0.1)] hover:bg-gray-100 transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
-                          {loading ? 'Processing…' : (<><span>Start Application</span><span className="material-symbols-outlined text-[1rem]">arrow_forward</span></>)}
+                          {loading ? 'Processing…' : (<><span>Create Account</span><span className="material-symbols-outlined text-[1rem]">arrow_forward</span></>)}
                         </button>
                       </div>
 
-                      <SocialButtons context="signup" oauthLoading={oauthLoading} oauthError={oauthError} disabled={anyLoading} onSignIn={handleOAuthSignIn} />
-
                       <div className="pt-4 mt-2 border-t border-white/5 flex items-center justify-between px-2">
                         <span className="text-oz-muted text-xs font-sans font-light">Already have access?</span>
-                        <button type="button" onClick={() => setMode('signin')} className="text-[10px] font-sans uppercase tracking-[0.15em] text-oz-blue hover:text-white transition-colors">Sign In</button>
+                        <button type="button" onClick={() => setModeWithReset('signin')} className="text-[10px] font-sans uppercase tracking-[0.15em] text-oz-blue hover:text-white transition-colors">Sign In</button>
                       </div>
                     </form>
                   )}
                 </motion.div>
               ) : (
-                <motion.div key="signup-inactive" initial={{ opacity: 0, x: 20, filter: 'blur(12px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: 20, filter: 'blur(12px)' }} transition={TRANSITION} className="max-w-xs w-full flex flex-col items-center text-center my-auto">
-                  <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-6"><span className="material-symbols-outlined text-white/50 text-2xl">flight_takeoff</span></div>
-                  <h2 className="text-3xl font-serif text-white/50 mb-4 tracking-tight">Join the Fleet</h2>
-                  <p className="text-oz-muted/50 font-sans font-light text-sm mb-8 leading-relaxed">Access premium aircraft exclusively for verified pilots. Step into the cockpit with OZRentAPlane.</p>
-                  <button onClick={() => setMode('signup')} className="border border-white/10 px-8 py-3.5 rounded-full text-[10px] uppercase tracking-[0.15em] text-white/70 hover:bg-white/5 hover:text-white transition-colors duration-300 font-sans shadow-lg backdrop-blur-sm">Create Profile</button>
+                <motion.div key="signup-inactive" initial={{ opacity: 0, x: 20, filter: 'blur(12px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: 20, filter: 'blur(12px)' }} transition={TRANSITION} className="max-w-md w-full flex justify-center my-auto relative">
+                  <div className="absolute -z-10 left-1/2 top-1/2 h-[240px] w-[240px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#6d8fbf]/18 blur-[80px]" />
+                  <div className="w-full max-w-[430px] rounded-[26px] border border-white/[0.12] bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-transparent px-7 py-8 md:px-9 md:py-10 shadow-[0_12px_48px_rgba(8,16,30,0.45)] flex flex-col items-center text-center">
+                    <div className="w-16 h-16 rounded-full bg-white/[0.08] border border-white/[0.16] flex items-center justify-center mb-6 shadow-[0_0_35px_rgba(154,187,235,0.18)]"><span className="material-symbols-outlined text-white/[0.70] text-2xl">flight_takeoff</span></div>
+                    <h2 className="text-[2.2rem] md:text-[2.5rem] font-serif text-white/[0.80] mb-4 tracking-tight">Join the Fleet</h2>
+                    <p className="text-white/[0.72] font-sans font-light text-sm md:text-base mb-8 leading-relaxed max-w-[30ch]">Access premium aircraft exclusively for verified pilots. Step into the cockpit with OZRentAPlane.</p>
+                    <button onClick={() => setModeWithReset('signup')} className="border border-oz-blue/40 bg-oz-blue/[0.10] px-8 py-3.5 rounded-full text-[10px] uppercase tracking-[0.15em] text-oz-blue hover:bg-oz-blue/[0.16] hover:text-[#d3e4ff] transition-colors duration-300 font-sans shadow-lg backdrop-blur-sm">Create account</button>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -370,10 +414,12 @@ export default function LoginContent() {
         </section>
       </main>
 
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 text-center pointer-events-none opacity-40">
-        <p className="text-[9px] font-sans uppercase tracking-[0.4em] text-white/60 mb-2">OZRentAPlane Authentication</p>
-        <p className="text-[10px] font-serif italic text-white/40">Securing your journey to the horizon.</p>
-      </div>
+      {!isModal && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 text-center pointer-events-none opacity-40">
+          <p className="text-[9px] font-sans uppercase tracking-[0.4em] text-white/60 mb-2">OZRentAPlane Authentication</p>
+          <p className="text-[10px] font-serif italic text-white/40">Securing your journey to the horizon.</p>
+        </div>
+      )}
     </div>
   )
 }

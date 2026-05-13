@@ -3,6 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import DashboardContent from './DashboardContent'
 import type { Profile, UserDocument, VerificationEvent, PilotClearanceStatus } from '@/lib/supabase/types'
 
+type MainBookingHeroState = {
+  mode: 'post_flight_required' | 'post_flight_under_review' | 'upcoming_confirmed'
+  bookingId: string
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient()
 
@@ -36,6 +41,7 @@ export default async function DashboardPage() {
 
   const clearanceStatus = ((profile as Profile | null)?.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
   const paymentPending  = clearanceStatus === 'checkout_payment_required'
+  const nowIso = new Date().toISOString()
 
   // ── Parallel fetches ──────────────────────────────────────────────────────
   // When payment is pending, also fetch:
@@ -47,6 +53,9 @@ export default async function DashboardPage() {
     { data: events },
     checkoutBookingResult,
     activeBookingResult,
+    postFlightRequiredBookingResult,
+    postFlightUnderReviewBookingResult,
+    upcomingConfirmedBookingResult,
   ] = await Promise.all([
     supabase
       .from('user_documents')
@@ -76,10 +85,50 @@ export default async function DashboardPage() {
       .order('scheduled_start', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from('bookings')
+      .select('id, status, scheduled_end')
+      .eq('booking_owner_user_id', user.id)
+      .eq('booking_type', 'standard')
+      .in('status', ['awaiting_flight_record', 'flight_record_overdue'])
+      .order('scheduled_end', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('bookings')
+      .select('id, status, updated_at')
+      .eq('booking_owner_user_id', user.id)
+      .eq('booking_type', 'standard')
+      .in('status', ['pending_post_flight_review', 'needs_clarification'])
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('bookings')
+      .select('id, status, scheduled_start')
+      .eq('booking_owner_user_id', user.id)
+      .eq('booking_type', 'standard')
+      .in('status', ['confirmed', 'ready_for_dispatch'])
+      .gte('scheduled_start', nowIso)
+      .order('scheduled_start', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   const checkoutBookingId = (checkoutBookingResult.data as { id: string } | null)?.id ?? null
   const activeBooking = (activeBookingResult.data as { id: string; status: string } | null) ?? null
+  const postFlightRequiredBooking = (postFlightRequiredBookingResult.data as { id: string } | null) ?? null
+  const postFlightUnderReviewBooking = (postFlightUnderReviewBookingResult.data as { id: string } | null) ?? null
+  const upcomingConfirmedBooking = (upcomingConfirmedBookingResult.data as { id: string } | null) ?? null
+
+  const mainBookingHeroState: MainBookingHeroState | null =
+    postFlightRequiredBooking
+      ? { mode: 'post_flight_required', bookingId: postFlightRequiredBooking.id }
+      : postFlightUnderReviewBooking
+        ? { mode: 'post_flight_under_review', bookingId: postFlightUnderReviewBooking.id }
+        : upcomingConfirmedBooking
+          ? { mode: 'upcoming_confirmed', bookingId: upcomingConfirmedBooking.id }
+          : null
 
   // Fetch invoice data only when we have a booking ID
   let checkoutInvoice: import('./DashboardContent').CheckoutInvoiceData | null = null
@@ -153,6 +202,7 @@ export default async function DashboardPage() {
       checkoutBookingId={checkoutBookingId}
       checkoutInvoice={checkoutInvoice}
       activeBooking={activeBooking}
+      mainBookingHeroState={mainBookingHeroState}
     />
   )
 }

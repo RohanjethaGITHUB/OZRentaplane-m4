@@ -93,19 +93,27 @@ export function AdminFilterPanel({
   open,
   onToggle,
   children,
+  className,
+  headerClassName,
+  titleClassName,
+  subtitleClassName,
 }: {
   title: string
-  subtitle: string
+  subtitle?: string
   open: boolean
   onToggle: () => void
   children: ReactNode
+  className?: string
+  headerClassName?: string
+  titleClassName?: string
+  subtitleClassName?: string
 }) {
   return (
-    <section className="rounded-[var(--admin-radius-2xl)] border border-[var(--admin-border)] bg-[var(--admin-panel-bg)] shadow-[var(--admin-shadow-panel)]">
-      <button type="button" onClick={onToggle} className="w-full px-7 md:px-8 py-6 flex items-start justify-between text-left">
+    <section className={`rounded-[var(--admin-radius-2xl)] border border-[var(--admin-border)] bg-[var(--admin-panel-bg)] shadow-[var(--admin-shadow-panel)] ${className ?? ''}`}>
+      <button type="button" onClick={onToggle} className={`w-full px-7 md:px-8 py-6 flex items-start justify-between text-left ${headerClassName ?? ''}`}>
         <div>
-          <h2 className="text-[2rem] md:text-[2.1rem] leading-[1.08] font-semibold text-[var(--admin-text)]">{title}</h2>
-          <p className="text-base text-[var(--admin-text-muted)] mt-2">{subtitle}</p>
+          <h2 className={`text-[2rem] md:text-[2.1rem] leading-[1.08] font-semibold text-[var(--admin-text)] ${titleClassName ?? ''}`}>{title}</h2>
+          {subtitle ? <p className={`text-base text-[var(--admin-text-muted)] mt-2 ${subtitleClassName ?? ''}`}>{subtitle}</p> : null}
         </div>
         <span className={`material-symbols-outlined text-[var(--admin-text-muted)] transition-transform mt-2 ${open ? 'rotate-180' : ''}`}>expand_more</span>
       </button>

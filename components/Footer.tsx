@@ -43,7 +43,7 @@ export default function Footer({ forceShow = false }: FooterProps) {
           <div className="flex flex-col gap-[0.85rem]">
             <h4 className="font-sans font-bold text-[0.85rem] text-[#dbeafe] mb-1">Support</h4>
             <a href="#" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#E0B13B] transition-colors opacity-70">Help Center</a>
-            <a href="/contact" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#E0B13B] transition-colors opacity-70">Contact</a>
+            <a href="/contact-us" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#E0B13B] transition-colors opacity-70">Contact Us</a>
             <a href="/faq" className="font-sans text-[0.8rem] text-[#c4c6cf] hover:text-[#E0B13B] transition-colors opacity-70">FAQ</a>
           </div>
 
@@ -72,7 +72,7 @@ export default function Footer({ forceShow = false }: FooterProps) {
               <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
             </svg>
           </a>
-          <a href="/contact" aria-label="Contact" className="hover:opacity-100 hover:text-[#E0B13B] transition-colors">
+          <a href="/contact-us" aria-label="Contact Us" className="hover:opacity-100 hover:text-[#E0B13B] transition-colors">
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
               <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
             </svg>

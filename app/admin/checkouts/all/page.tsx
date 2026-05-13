@@ -36,8 +36,8 @@ function getPaymentFilter(v?: string): PaymentFilter {
 function outcomeLabel(v: string | null): string {
   if (!v) return 'No outcome yet'
   if (v === 'cleared_to_fly') return 'Cleared to Fly'
-  if (v === 'additional_checkout_required' || v === 'additional_supervised_time_required') return 'Additional Checkout Required'
-  if (v === 'checkout_reschedule_required' || v === 'reschedule_required') return 'Checkout Reschedule Required'
+  if (v === 'additional_checkout_required') return 'Additional Checkout Required'
+  if (v === 'checkout_reschedule_required') return 'Checkout Reschedule Required'
   if (v === 'not_currently_eligible') return 'Not Currently Eligible'
   return v.replace(/_/g, ' ')
 }
@@ -152,7 +152,7 @@ export default async function AllCheckoutsPage({ searchParams }: { searchParams:
   const filteredBase = enriched.filter((r) => {
     if (outcomeFilter !== 'all') {
       if (outcomeFilter === 'none' && r.outcome) return false
-      if (outcomeFilter !== 'none' && r.outcome !== outcomeFilter && !(outcomeFilter === 'additional_checkout_required' && r.outcome === 'additional_supervised_time_required') && !(outcomeFilter === 'checkout_reschedule_required' && r.outcome === 'reschedule_required')) return false
+      if (outcomeFilter !== 'none' && r.outcome !== outcomeFilter) return false
     }
 
     if (paymentFilter !== 'all') {

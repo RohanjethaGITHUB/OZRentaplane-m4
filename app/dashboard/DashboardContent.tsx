@@ -36,6 +36,10 @@ type Props = {
   checkoutBookingId?: string | null
   checkoutInvoice?: CheckoutInvoiceData | null
   activeBooking?: { id: string; status: string } | null
+  mainBookingHeroState?: {
+    mode: 'post_flight_required' | 'post_flight_under_review' | 'upcoming_confirmed'
+    bookingId: string
+  } | null
 }
 
 type StatusConfig = {
@@ -197,6 +201,7 @@ export default function DashboardContent({
   checkoutBookingId,
   checkoutInvoice,
   activeBooking,
+  mainBookingHeroState,
 }: Props) {
   const router = useRouter()
 
@@ -217,7 +222,7 @@ export default function DashboardContent({
   const isAwaitingManualPayment =
     checkoutPaymentDisplayState === 'awaiting_manual_payment_confirmation'
 
-  const statusConfig: StatusConfig = isAwaitingManualPayment
+  const baseStatusConfig: StatusConfig = isAwaitingManualPayment
     ? {
         ...STATUS_CONFIG.checkout_payment_required,
         subtitle: 'Payment Submitted',
@@ -229,17 +234,63 @@ export default function DashboardContent({
       }
     : STATUS_CONFIG[clearanceStatus]
 
+  const heroOverride: Partial<StatusConfig> | null =
+    clearanceStatus === 'cleared_to_fly' && mainBookingHeroState
+      ? (
+          mainBookingHeroState.mode === 'post_flight_required'
+            ? {
+                statusPill: 'Flight Completed',
+                statusTone: 'amber',
+                actionTitle: 'Submit post-flight records',
+                actionBody: 'Your flight is complete. Please submit your VDO/tacho readings and landing details so the team can finalise the booking.',
+                primaryCtaLabel: 'Submit Post Flight Records',
+                primaryCtaHref: `/dashboard/bookings/${mainBookingHeroState.bookingId}`,
+                secondaryCtaLabel: 'View Booking',
+                secondaryCtaHref: `/dashboard/bookings/${mainBookingHeroState.bookingId}`,
+              }
+            : mainBookingHeroState.mode === 'post_flight_under_review'
+              ? {
+                  statusPill: 'Records Submitted',
+                  statusTone: 'blue',
+                  actionTitle: 'Post-flight records under review',
+                  actionBody: 'Thanks, your post-flight details have been submitted. The team will review them and finalise the booking.',
+                  primaryCtaLabel: 'View Booking',
+                  primaryCtaHref: `/dashboard/bookings/${mainBookingHeroState.bookingId}`,
+                  secondaryCtaLabel: 'View Bookings',
+                  secondaryCtaHref: '/dashboard/bookings',
+                }
+              : {
+                  statusPill: 'Flight Confirmed',
+                  statusTone: 'blue',
+                  actionTitle: 'Get ready for your flight',
+                  actionBody: 'Your aircraft booking is confirmed. Review the details before arrival and contact the team if anything changes.',
+                  primaryCtaLabel: 'View Booking',
+                  primaryCtaHref: `/dashboard/bookings/${mainBookingHeroState.bookingId}`,
+                  secondaryCtaLabel: 'View Bookings',
+                  secondaryCtaHref: '/dashboard/bookings',
+                }
+        )
+      : null
+
+  const statusConfig: StatusConfig = heroOverride
+    ? { ...baseStatusConfig, ...heroOverride }
+    : baseStatusConfig
+
   const hasActiveBooking = Boolean(
     activeBooking && !['completed', 'cancelled', 'no_show'].includes(activeBooking.status),
   )
   const mainCtaHref =
     clearanceStatus === 'checkout_payment_required' && checkoutBookingId
       ? `/dashboard/bookings/${checkoutBookingId}`
-      : clearanceStatus === 'cleared_to_fly' && hasActiveBooking && activeBooking
+      : clearanceStatus === 'cleared_to_fly' && mainBookingHeroState
+        ? `/dashboard/bookings/${mainBookingHeroState.bookingId}`
+        : clearanceStatus === 'cleared_to_fly' && hasActiveBooking && activeBooking
         ? `/dashboard/bookings/${activeBooking.id}`
         : statusConfig.primaryCtaHref
   const mainCtaLabel =
-    clearanceStatus === 'cleared_to_fly' && hasActiveBooking
+    clearanceStatus === 'cleared_to_fly' && mainBookingHeroState
+      ? statusConfig.primaryCtaLabel
+      : clearanceStatus === 'cleared_to_fly' && hasActiveBooking
       ? 'View booking'
       : statusConfig.primaryCtaLabel
 
@@ -247,8 +298,7 @@ export default function DashboardContent({
     <div>
       {/* ─── 1. HERO (WELCOME + RUNWAY) ────────────────────────────────── */}
       <section
-        className="relative w-full overflow-hidden bg-[#061422]"
-        style={{ minHeight: 'clamp(900px, 100vh, 1220px)' }}
+        className="relative w-full overflow-hidden bg-[#061422] md:left-1/2 md:right-1/2 md:ml-[-50vw] md:mr-[-50vw] md:w-screen md:min-h-[clamp(900px,100vh,1220px)]"
       >
         <div
           className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
@@ -258,8 +308,10 @@ export default function DashboardContent({
         <div className="absolute inset-0 z-10 bg-gradient-to-b from-transparent via-[rgba(16,45,82,0.12)] to-[rgba(24,66,118,0.34)]" />
         <div className="absolute bottom-0 inset-x-0 z-10 h-28 bg-gradient-to-t from-[#061422] via-[#0a2a4a]/28 to-transparent" />
 
-        <div className="relative z-20 mx-auto w-full max-w-[1500px] px-6 md:px-8" style={{ minHeight: 'inherit' }}>
-          <h1 className="absolute left-1/2 top-[35%] z-30 w-full -translate-x-1/2 -translate-y-1/2 text-center font-serif text-[34px] leading-[1.06] tracking-[-0.02em] text-[#dce7fb] md:top-[32%] md:text-[54px]">
+        <div className="relative z-20 mx-auto w-full max-w-[1500px] px-6 md:px-8 md:min-h-[inherit]">
+          {/* Mobile: static flow so heading and card stack vertically without overlap */}
+          {/* Desktop (md+): heading is absolutely centred, runway card pinned to bottom */}
+          <h1 className="relative pt-16 pb-2 md:pt-0 md:pb-0 md:absolute md:left-1/2 md:top-[32%] z-30 w-full md:-translate-x-1/2 md:-translate-y-1/2 text-center font-serif text-[34px] leading-[1.06] tracking-[-0.02em] text-[#dce7fb] md:text-[54px]">
             <span className="block">Welcome to the Cockpit</span>
             <span
               className="mt-2 block font-normal text-[#f3c94e] tracking-[0.02em] text-[38px] md:text-[62px] leading-[0.95] drop-shadow-[0_0_6px_rgba(250,204,21,0.28)]"
@@ -274,9 +326,10 @@ export default function DashboardContent({
             </span>
           </h1>
 
-          <div className="absolute inset-x-6 bottom-2 z-20 overflow-x-hidden md:inset-x-8 md:bottom-6">
+          <div className="relative z-20 overflow-x-hidden md:absolute md:inset-x-8 md:bottom-6">
             <DashboardHeroRunway
               clearanceStatus={clearanceStatus}
+              checkoutPaymentDisplayState={checkoutPaymentDisplayState}
               activeBooking={hasActiveBooking && activeBooking ? activeBooking : null}
               blocked={clearanceStatus === 'not_currently_eligible'}
             />

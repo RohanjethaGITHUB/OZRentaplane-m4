@@ -4,25 +4,40 @@ import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
+import AuthModal from './AuthModal'
 
 const NAV_LINKS = [
   { label: 'Checkout Process', href: '/checkout-process' },
   { label: 'Safety', href: '/safety' },
   { label: 'Resources', href: '/resources' },
   { label: 'Pricing', href: '/pricing' },
-  { label: 'Contact', href: '/contact' },
+  { label: 'Contact Us', href: '/contact-us' },
   { label: 'Shop', href: '/shop' },
 ]
+
+const CUSTOMER_PORTAL_LINKS = [
+  { label: 'Dashboard', href: '/dashboard', icon: 'dashboard', exact: true },
+  { label: 'Checkout', href: '/dashboard/checkout', icon: 'flight_takeoff' },
+  { label: 'Bookings', href: '/dashboard/bookings', icon: 'event' },
+  { label: 'Profile', href: '/dashboard/settings', icon: 'person' },
+] as const
 
 const FLEET_ITEMS = [
   { label: 'Cessna 172N', href: '/cessna-172', disabled: false },
   { label: 'More coming soon', href: null, disabled: true },
 ]
 
-export default function Navbar({ initialUser }: { initialUser: User | null }) {
+export default function Navbar({
+  initialUser,
+  hideCustomerCheckoutLink = false,
+}: {
+  initialUser: User | null
+  hideCustomerCheckoutLink?: boolean
+}) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [mobileFleetOpen, setMobileFleetOpen] = useState(false)
   const [user, setUser] = useState<User | null>(initialUser)
+  const [authModalOpen, setAuthModalOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   const isAuthPage = pathname === '/login'
@@ -49,12 +64,17 @@ export default function Navbar({ initialUser }: { initialUser: User | null }) {
     'font-sans font-semibold text-[#0c1a2e] bg-[#c8dcff] hover:bg-white rounded-full transition-colors duration-200'
 
   const isFleetActive = pathname === '/cessna-172' || pathname === '/fleet'
+  const isPortalLinkActive = (href: string, exact?: boolean) =>
+    exact ? pathname === href : pathname === href || (pathname?.startsWith(`${href}/`) ?? false)
+  const visibleCustomerPortalLinks = CUSTOMER_PORTAL_LINKS.filter(
+    (link) => !(hideCustomerCheckoutLink && link.href === '/dashboard/checkout'),
+  )
 
   return (
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isAuthPage
         ? 'bg-transparent border-b border-white/5 backdrop-blur-md opacity-40 hover:opacity-100'
-        : 'bg-mkt-main shadow-[0_1px_0_rgba(255,255,255,0.07)]'
+        : 'bg-mkt-main'
         }`}
     >
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 h-[84px] flex items-center justify-between gap-8">
@@ -169,12 +189,16 @@ export default function Navbar({ initialUser }: { initialUser: User | null }) {
               </button>
             </>
           ) : (
-            <a
-              href="/login"
+            <button
+              type="button"
+              onClick={() => {
+                if (isAuthPage) return
+                setAuthModalOpen(true)
+              }}
               className={`hidden md:inline-flex items-center text-[13px] px-5 py-2 whitespace-nowrap ${ctaClass}`}
             >
               Login
-            </a>
+            </button>
           )}
 
           {/* Hamburger, mobile only */}
@@ -252,6 +276,31 @@ export default function Navbar({ initialUser }: { initialUser: User | null }) {
             )
           })}
 
+          {user && (
+            <>
+              <div className="my-1 h-px bg-white/[0.08]" />
+              <p className="text-[10px] uppercase tracking-[0.18em] text-blue-100/70">Customer Portal</p>
+              {visibleCustomerPortalLinks.map((link) => {
+                const isActive = isPortalLinkActive(link.href, link.exact)
+                return (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMenuOpen(false)}
+                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-[14px] font-medium transition-colors ${
+                      isActive
+                        ? 'border-blue-300/35 bg-blue-500/20 text-blue-100'
+                        : 'border-transparent text-white/80 hover:border-white/10 hover:bg-white/5 hover:text-white'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[17px]" aria-hidden="true">{link.icon}</span>
+                    <span>{link.label}</span>
+                  </a>
+                )
+              })}
+            </>
+          )}
+
           {user ? (
             <>
               <a
@@ -269,16 +318,22 @@ export default function Navbar({ initialUser }: { initialUser: User | null }) {
               </button>
             </>
           ) : (
-            <a
-              href="/login"
-              onClick={() => setMenuOpen(false)}
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false)
+                if (isAuthPage) return
+                setAuthModalOpen(true)
+              }}
               className={`mt-2 inline-flex justify-center text-sm px-5 py-3 ${ctaClass}`}
             >
               Login
-            </a>
+            </button>
           )}
         </div>
       )}
+
+      <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
     </header>
   )
 }
