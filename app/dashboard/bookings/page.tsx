@@ -547,8 +547,13 @@ export default async function CustomerBookingsPage() {
                     <div className="flex flex-col sm:flex-row sm:items-center gap-0">
 
                       {/* Thumbnail area */}
-                      <div className="relative sm:w-[180px] sm:flex-shrink-0 h-[120px] sm:h-auto sm:self-stretch rounded-t-2xl sm:rounded-l-2xl sm:rounded-tr-none overflow-hidden bg-gradient-to-br from-[#0a1528] to-[#060d1a] flex items-center justify-center">
-                        <span className="material-symbols-outlined text-[48px] text-blue-400/20" style={{ fontVariationSettings: "'wght' 200" }} aria-hidden="true">flight</span>
+                      <div className="relative sm:w-[180px] sm:flex-shrink-0 h-[120px] sm:h-auto sm:self-stretch rounded-t-2xl sm:rounded-l-2xl sm:rounded-tr-none overflow-hidden border-r border-white/[0.06]">
+                        <div
+                          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+                          style={{ backgroundImage: "url('/Cessna-172.webp')", backgroundPosition: 'center center' }}
+                          aria-hidden="true"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-br from-[#061427]/56 via-[#071a31]/34 to-[#04101f]/62" aria-hidden="true" />
                         {/* Aircraft badge overlay */}
                         <div className="absolute bottom-2.5 left-2.5 w-8 h-8 rounded-full bg-blue-600 border-2 border-[#080f1e] flex items-center justify-center shadow-lg">
                           <span className="material-symbols-outlined text-white text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">flight_takeoff</span>

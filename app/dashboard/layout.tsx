@@ -22,12 +22,27 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
   return (
     <>
       <Navbar initialUser={user} hideCustomerCheckoutLink={isClearedToFly} />
-      <div className="min-h-screen bg-mkt-main pt-[84px] text-[#e5edf8]">
-        <div className="hidden md:flex sticky top-[84px] z-40 -mt-px justify-center bg-mkt-main px-4 pb-2 pt-1 md:px-8 md:pt-2">
+      <div
+        className="relative min-h-screen pt-[84px] text-[#e5edf8]"
+        style={{
+          backgroundColor: '#020b16',
+          backgroundImage: "url('/CustomerDashboard/dashboard-main-bg.png')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center bottom',
+          backgroundRepeat: 'no-repeat',
+        }}
+      >
+        <div
+          className="pointer-events-none absolute inset-0 z-0"
+          style={{ background: 'linear-gradient(to bottom, rgba(2,10,22,0.45), rgba(2,10,22,0.35), rgba(2,10,22,0.48))' }}
+          aria-hidden="true"
+        />
+
+        <div className="relative z-40 hidden md:flex sticky top-[84px] -mt-px justify-center bg-transparent px-4 pb-0 pt-0 md:px-8">
           <CustomerPortalSubNavSimple hideCheckout={isClearedToFly} />
         </div>
 
-        <main className="mx-auto w-full max-w-[1400px] px-4 pb-6 pt-4 md:px-8 md:pb-10 md:pt-4">
+        <main className="relative z-10 mx-auto w-full max-w-[1400px] px-4 pb-10 pt-4 md:px-8 md:pb-14 md:pt-4">
           <div className="space-y-6">{children}</div>
         </main>
       </div>

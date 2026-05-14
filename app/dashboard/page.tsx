@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import DashboardContent from './DashboardContent'
+import type { FlightSnapshotBooking } from './DashboardContent'
 import type { Profile, UserDocument, VerificationEvent, PilotClearanceStatus } from '@/lib/supabase/types'
 
 type MainBookingHeroState = {
@@ -56,6 +57,7 @@ export default async function DashboardPage() {
     postFlightRequiredBookingResult,
     postFlightUnderReviewBookingResult,
     upcomingConfirmedBookingResult,
+    checkoutSnapshotBookingResult,
   ] = await Promise.all([
     supabase
       .from('user_documents')
@@ -87,7 +89,7 @@ export default async function DashboardPage() {
       .maybeSingle(),
     supabase
       .from('bookings')
-      .select('id, status, scheduled_end')
+      .select('id, status, scheduled_start, scheduled_end, aircraft(registration)')
       .eq('booking_owner_user_id', user.id)
       .eq('booking_type', 'standard')
       .in('status', ['awaiting_flight_record', 'flight_record_overdue'])
@@ -96,7 +98,7 @@ export default async function DashboardPage() {
       .maybeSingle(),
     supabase
       .from('bookings')
-      .select('id, status, updated_at')
+      .select('id, status, scheduled_start, scheduled_end, updated_at, aircraft(registration)')
       .eq('booking_owner_user_id', user.id)
       .eq('booking_type', 'standard')
       .in('status', ['pending_post_flight_review', 'needs_clarification'])
@@ -105,7 +107,7 @@ export default async function DashboardPage() {
       .maybeSingle(),
     supabase
       .from('bookings')
-      .select('id, status, scheduled_start')
+      .select('id, status, scheduled_start, scheduled_end, aircraft(registration)')
       .eq('booking_owner_user_id', user.id)
       .eq('booking_type', 'standard')
       .in('status', ['confirmed', 'ready_for_dispatch'])
@@ -113,13 +115,57 @@ export default async function DashboardPage() {
       .order('scheduled_start', { ascending: true })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from('bookings')
+      .select('id, status, scheduled_start, scheduled_end, aircraft(registration)')
+      .eq('booking_owner_user_id', user.id)
+      .eq('booking_type', 'checkout')
+      .in('status', ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
+
+  type BookingSnapshotRow = {
+    id: string
+    status: string
+    scheduled_start?: string | null
+    scheduled_end?: string | null
+    aircraft?: { registration: string } | { registration: string }[] | null
+  }
+  function extractAircraftReg(aircraft: BookingSnapshotRow['aircraft']): string | null {
+    if (!aircraft) return null
+    if (Array.isArray(aircraft)) return (aircraft[0] as { registration: string } | undefined)?.registration ?? null
+    return (aircraft as { registration: string }).registration ?? null
+  }
 
   const checkoutBookingId = (checkoutBookingResult.data as { id: string } | null)?.id ?? null
   const activeBooking = (activeBookingResult.data as { id: string; status: string } | null) ?? null
-  const postFlightRequiredBooking = (postFlightRequiredBookingResult.data as { id: string } | null) ?? null
-  const postFlightUnderReviewBooking = (postFlightUnderReviewBookingResult.data as { id: string } | null) ?? null
-  const upcomingConfirmedBooking = (upcomingConfirmedBookingResult.data as { id: string } | null) ?? null
+  const postFlightRequiredBooking = (postFlightRequiredBookingResult.data as BookingSnapshotRow | null) ?? null
+  const postFlightUnderReviewBooking = (postFlightUnderReviewBookingResult.data as BookingSnapshotRow | null) ?? null
+  const upcomingConfirmedBooking = (upcomingConfirmedBookingResult.data as BookingSnapshotRow | null) ?? null
+  const checkoutSnapshotBooking = (checkoutSnapshotBookingResult.data as BookingSnapshotRow | null) ?? null
+
+  const standardSnapshotBooking = postFlightRequiredBooking ?? postFlightUnderReviewBooking ?? upcomingConfirmedBooking
+  const flightSnapshotBooking: FlightSnapshotBooking | null = standardSnapshotBooking
+    ? {
+        id: standardSnapshotBooking.id,
+        bookingType: 'standard',
+        status: standardSnapshotBooking.status,
+        scheduledStart: standardSnapshotBooking.scheduled_start ?? '',
+        scheduledEnd: standardSnapshotBooking.scheduled_end ?? null,
+        aircraftRegistration: extractAircraftReg(standardSnapshotBooking.aircraft),
+      }
+    : checkoutSnapshotBooking
+    ? {
+        id: checkoutSnapshotBooking.id,
+        bookingType: 'checkout',
+        status: checkoutSnapshotBooking.status,
+        scheduledStart: checkoutSnapshotBooking.scheduled_start ?? '',
+        scheduledEnd: checkoutSnapshotBooking.scheduled_end ?? null,
+        aircraftRegistration: extractAircraftReg(checkoutSnapshotBooking.aircraft),
+      }
+    : null
 
   const mainBookingHeroState: MainBookingHeroState | null =
     postFlightRequiredBooking
@@ -203,6 +249,7 @@ export default async function DashboardPage() {
       checkoutInvoice={checkoutInvoice}
       activeBooking={activeBooking}
       mainBookingHeroState={mainBookingHeroState}
+      flightSnapshotBooking={flightSnapshotBooking}
     />
   )
 }

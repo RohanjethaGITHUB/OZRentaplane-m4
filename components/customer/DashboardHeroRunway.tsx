@@ -336,7 +336,7 @@ export default function DashboardHeroRunway({ clearanceStatus, checkoutPaymentDi
 
   // ── render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="mt-2 w-full max-w-[1420px]">
+    <div className="mt-0 w-full max-w-[1420px]">
 
       {/* ── DESKTOP: original runway/SVG layout ── */}
       <div className="relative hidden h-[530px] md:block">
