@@ -133,42 +133,12 @@ const STEPS = [
   },
   {
     num: '03',
-    icon: 'upload_file',
-    title: 'Upload Documents',
-    body: 'Submit your licence, medical, and ID securely.',
-  },
-  {
-    num: '04',
     icon: 'flight_takeoff',
     title: 'Get Cleared to Fly',
     body: 'After your checkout is confirmed, you can book future hire online.',
   },
 ] as const
 
-const INCLUDED_RATE = [
-  'Wet hire',
-  'Fuel included',
-  'GST included',
-  'Cessna 172N aircraft hire',
-  'Online booking process',
-  'Secure document upload',
-]
-
-const GOOD_TO_KNOW = [
-  'Launch checkout rate is $290/hr VDO',
-  'Standard checkout rate is normally $330/hr',
-  'Plus $25 per landing',
-  'First flight is a checkout flight with our team',
-  'After clearance, you can book future aircraft hire online',
-  'Based at Bankstown Airport, YSBK',
-]
-
-const IDEAL_FOR = [
-  'New PPL holders',
-  'Returning pilots',
-  'Licence conversions',
-  'Pilots looking for private Cessna 172N hire',
-]
 
 // ─── Section title with yellow wing accent ────────────────────────────────────
 
@@ -417,43 +387,6 @@ export default function AirshowPage() {
           </div>
         </div>
 
-        {/* ── Cessna info card — absolute bottom-right (desktop only) ── */}
-        <div
-          className="absolute hidden md:block"
-          style={{
-            zIndex: 20,
-            right: 'clamp(40px, 7vw, 96px)',
-            bottom: '80px',
-          }}
-        >
-          <div
-            style={{
-              background: 'rgba(5,22,41,0.48)',
-              border: '1px solid rgba(140,185,235,0.22)',
-              backdropFilter: 'blur(10px)',
-              boxShadow: '0 12px 34px rgba(0,0,0,0.20)',
-              borderRadius: '15px',
-              padding: '18px 22px',
-              width: '240px',
-            }}
-          >
-            <p className="font-bold text-white mb-4" style={{ fontSize: '16px' }}>
-              Cessna 172N
-            </p>
-            {[
-              { icon: 'event_seat', label: '4 seats' },
-              { icon: 'speed', label: '180HP' },
-              { icon: 'lock_open', label: 'Private hire after checkout clearance' },
-            ].map(({ icon, label }) => (
-              <div key={label} className="flex items-start gap-2.5 mb-3.5 last:mb-0">
-                <Icon name={icon} className="text-[16px] mt-0.5 flex-shrink-0" color="#F2BC1B" />
-                <span style={{ fontSize: '13px', color: 'rgba(245,247,251,0.84)', lineHeight: 1.4 }}>
-                  {label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
       </section>
 
       {/* ── Middle background band: Sections 2, 3, 4 share one continuous image ── */}
@@ -649,111 +582,98 @@ export default function AirshowPage() {
               </div>
             </div>
 
-            {/* 3-column grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-0">
-              {/* Column 1 */}
+            {/* 3 equal cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
+
+              {/* Card 1 — What's included */}
               <div
-                className="md:pr-10 md:border-r"
-                style={{ borderColor: 'rgba(120,170,230,0.15)' }}
+                className="rounded-[16px] p-5 md:p-6"
+                style={{
+                  background: 'rgba(4,16,34,0.72)',
+                  border: '1px solid rgba(120,170,230,0.18)',
+                  boxShadow: '0 6px 24px rgba(0,0,0,0.22)',
+                }}
               >
-                <h3
-                  className="font-bold mb-5"
-                  style={{
-                    fontSize: 'clamp(15px, 1.6vw, 18px)',
-                    color: '#F2BC1B',
-                  }}
-                >
-                  Included in the checkout rate
+                <h3 className="font-bold mb-4" style={{ fontSize: '15px', color: '#F2BC1B', letterSpacing: '0.02em' }}>
+                  What&apos;s included
                 </h3>
-                <ul className="space-y-4">
-                  {INCLUDED_RATE.map((item) => (
-                    <li key={item} className="flex items-start gap-3">
-                      <Icon
-                        name="check"
-                        className="text-[18px] mt-0.5 flex-shrink-0"
-                        color="#34d399"
-                      />
-                      <span
-                        className="leading-[1.5]"
-                        style={{
-                          fontSize: 'clamp(14px, 1.4vw, 16px)',
-                          color: 'rgba(245,247,251,0.82)',
-                        }}
-                      >
-                        {item}
-                      </span>
+                <ul className="space-y-3.5">
+                  {['Cessna 172N aircraft hire', 'Fuel included', 'GST included', 'Online booking after clearance'].map((item) => (
+                    <li key={item} className="flex items-start gap-2.5">
+                      <Icon name="check" className="text-[16px] mt-0.5 flex-shrink-0" color="#34d399" />
+                      <span style={{ fontSize: '14px', color: 'rgba(245,247,251,0.82)', lineHeight: 1.5 }}>{item}</span>
                     </li>
                   ))}
                 </ul>
               </div>
 
-              {/* Column 2 */}
+              {/* Card 2 — How checkout works */}
               <div
-                className="md:px-10 md:border-r"
-                style={{ borderColor: 'rgba(120,170,230,0.15)' }}
+                className="rounded-[16px] p-5 md:p-6"
+                style={{
+                  background: 'rgba(4,16,34,0.72)',
+                  border: '1px solid rgba(120,170,230,0.18)',
+                  boxShadow: '0 6px 24px rgba(0,0,0,0.22)',
+                }}
               >
-                <h3
-                  className="font-bold mb-5"
-                  style={{
-                    fontSize: 'clamp(15px, 1.6vw, 18px)',
-                    color: '#F2BC1B',
-                  }}
-                >
-                  Good to know
+                <h3 className="font-bold mb-4" style={{ fontSize: '15px', color: '#F2BC1B', letterSpacing: '0.02em' }}>
+                  How checkout works
                 </h3>
-                <ul className="space-y-4">
-                  {GOOD_TO_KNOW.map((item) => (
-                    <li key={item} className="flex items-start gap-3">
-                      <span
-                        className="w-1.5 h-1.5 rounded-full mt-2.5 flex-shrink-0"
-                        style={{ background: 'rgba(200,218,242,0.40)' }}
-                      />
-                      <span
-                        className="leading-[1.5]"
-                        style={{
-                          fontSize: 'clamp(14px, 1.4vw, 16px)',
-                          color: 'rgba(245,247,251,0.76)',
-                        }}
-                      >
-                        {item}
-                      </span>
+                <ul className="space-y-3.5">
+                  {[
+                    'First flight is a checkout flight with our team',
+                    'Launch checkout rate: $290/hr VDO',
+                    'Standard checkout rate is usually $330/hr',
+                    'Landing fees apply at $25 per landing',
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2.5">
+                      <Icon name="info" className="text-[16px] mt-0.5 flex-shrink-0" color="#60a5fa" />
+                      <span style={{ fontSize: '14px', color: 'rgba(245,247,251,0.82)', lineHeight: 1.5 }}>{item}</span>
                     </li>
                   ))}
                 </ul>
               </div>
 
-              {/* Column 3 */}
-              <div className="md:pl-10">
-                <h3
-                  className="font-bold mb-5"
-                  style={{
-                    fontSize: 'clamp(15px, 1.6vw, 18px)',
-                    color: '#F2BC1B',
-                  }}
-                >
+              {/* Card 3 — Ideal for */}
+              <div
+                className="rounded-[16px] p-5 md:p-6"
+                style={{
+                  background: 'rgba(4,16,34,0.72)',
+                  border: '1px solid rgba(120,170,230,0.18)',
+                  boxShadow: '0 6px 24px rgba(0,0,0,0.22)',
+                }}
+              >
+                <h3 className="font-bold mb-4" style={{ fontSize: '15px', color: '#F2BC1B', letterSpacing: '0.02em' }}>
                   Ideal for
                 </h3>
-                <ul className="space-y-4">
-                  {IDEAL_FOR.map((item) => (
-                    <li key={item} className="flex items-start gap-3">
-                      <Icon
-                        name="person_check"
-                        className="text-[18px] mt-0.5 flex-shrink-0"
-                        color="#60a5fa"
-                      />
-                      <span
-                        className="leading-[1.5]"
-                        style={{
-                          fontSize: 'clamp(14px, 1.4vw, 16px)',
-                          color: 'rgba(245,247,251,0.82)',
-                        }}
-                      >
-                        {item}
-                      </span>
+                <ul className="space-y-3.5">
+                  {[
+                    'New PPL holders',
+                    'Returning pilots',
+                    'Licence conversions',
+                    'Pilots wanting private Cessna 172N hire',
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2.5">
+                      <Icon name="person_check" className="text-[16px] mt-0.5 flex-shrink-0" color="#F2BC1B" />
+                      <span style={{ fontSize: '14px', color: 'rgba(245,247,251,0.82)', lineHeight: 1.5 }}>{item}</span>
                     </li>
                   ))}
                 </ul>
               </div>
+            </div>
+
+            {/* Note strip */}
+            <div
+              className="flex items-start gap-3 mt-6 rounded-[12px] px-4 py-3.5"
+              style={{
+                background: 'rgba(4,14,28,0.60)',
+                border: '1px solid rgba(120,170,230,0.12)',
+              }}
+            >
+              <Icon name="info" className="text-[17px] mt-0.5 flex-shrink-0" color="rgba(200,218,242,0.48)" />
+              <p style={{ fontSize: '13px', color: 'rgba(245,247,251,0.66)', lineHeight: 1.55 }}>
+                Once cleared, you can book future aircraft hire online through the OZ Rent A Plane platform.
+              </p>
             </div>
           </div>
         </div>
@@ -775,14 +695,14 @@ export default function AirshowPage() {
           <SectionTitle>HOW IT WORKS</SectionTitle>
 
           {/* ── Desktop: horizontal timeline ── */}
-          <div className="hidden md:grid md:grid-cols-4 gap-4 relative">
-            {/* Dotted connector line through icon centres */}
+          <div className="hidden md:grid md:grid-cols-3 gap-6 relative">
+            {/* Dotted connector line — centres at 1/6 and 5/6 of container for 3 cols */}
             <div
               className="absolute pointer-events-none"
               style={{
                 top: '70px',
-                left: 'calc(12.5% + 40px)',
-                right: 'calc(12.5% + 40px)',
+                left: 'calc(16.67% + 40px)',
+                right: 'calc(16.67% + 40px)',
                 height: '1px',
                 background:
                   'repeating-linear-gradient(90deg, rgba(245,247,251,0.30) 0, rgba(245,247,251,0.30) 8px, transparent 8px, transparent 18px)',
@@ -1026,7 +946,7 @@ export default function AirshowPage() {
               backgroundImage: "url('/LandingPage/ready.png')",
               backgroundSize: 'cover',
               backgroundPosition: 'center',
-              minHeight: 'clamp(360px, 40vh, 440px)',
+              minHeight: 'clamp(400px, 44vh, 500px)',
               border: '1px solid rgba(242,188,27,0.26)',
               boxShadow: '0 24px 72px rgba(0,0,0,0.44)',
             }}
@@ -1046,54 +966,84 @@ export default function AirshowPage() {
             />
 
             {/* Content */}
-            <div className="relative z-10 w-full flex flex-col md:flex-row md:items-center md:justify-between gap-8 md:gap-12 px-8 py-12 md:px-14 md:py-16">
-              {/* Left: headings and copy */}
-              <div className="md:max-w-[580px]">
-                {/*
-                  Baked heading is visible in the image on desktop.
-                  Show the HTML heading on mobile (image may crop it).
-                  Keep in DOM always for accessibility.
-                */}
-                <h2
-                  className="font-serif text-white mb-4 block md:sr-only"
-                  style={{ fontSize: 'clamp(28px, 4.5vw, 50px)' }}
-                >
-                  Ready to take off?
-                </h2>
-                <p
-                  className="leading-[1.5] mb-4"
-                  style={{
-                    fontSize: 'clamp(16px, 1.8vw, 20px)',
-                    color: 'rgba(245,247,251,0.88)',
-                  }}
-                >
-                  Book your checkout flight today and start your aviation
-                  journey with a simpler online process.
-                </p>
-                <p
-                  style={{
-                    fontSize: 'clamp(13px, 1.4vw, 16px)',
-                    color: 'rgba(245,247,251,0.62)',
-                  }}
-                >
-                  Launch checkout rate: $290/hr VDO. Fuel and GST included.
-                  Plus $25 per landing.
-                </p>
+            <div className="relative z-10 w-full px-8 pt-10 pb-10 md:px-14 md:pt-14 md:pb-12">
+
+              {/* Heading — centered with symmetric wings matching PERFECT FOR */}
+              <div className="text-center mb-8 md:mb-10">
+
+                {/* Desktop: title flanked by triple-line wings */}
+                <div className="hidden sm:flex items-center justify-center gap-6 md:gap-8 mb-3">
+                  <div className="flex flex-col items-end gap-[7px] flex-shrink-0 self-center">
+                    <div style={{ width: '90px', height: '1.5px', background: 'rgba(242,188,27,0.60)' }} />
+                    <div style={{ width: '62px', height: '1px', background: 'rgba(242,188,27,0.36)' }} />
+                    <div style={{ width: '36px', height: '1px', background: 'rgba(242,188,27,0.18)' }} />
+                  </div>
+                  <h2
+                    className="font-serif text-white tracking-[0.06em] leading-tight flex-shrink-0"
+                    style={{ fontSize: 'clamp(22px, 2.8vw, 36px)', fontWeight: 600 }}
+                  >
+                    Ready to take off?
+                  </h2>
+                  <div className="flex flex-col items-start gap-[7px] flex-shrink-0 self-center">
+                    <div style={{ width: '90px', height: '1.5px', background: 'rgba(242,188,27,0.60)' }} />
+                    <div style={{ width: '62px', height: '1px', background: 'rgba(242,188,27,0.36)' }} />
+                    <div style={{ width: '36px', height: '1px', background: 'rgba(242,188,27,0.18)' }} />
+                  </div>
+                </div>
+
+                {/* Mobile: single-line flanks */}
+                <div className="flex sm:hidden items-center justify-center gap-4 mb-3">
+                  <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, transparent, rgba(242,188,27,0.55))' }} />
+                  <h2 className="font-serif text-white tracking-[0.06em] leading-tight flex-shrink-0" style={{ fontSize: 'clamp(22px, 7vw, 30px)', fontWeight: 600 }}>
+                    Ready to take off?
+                  </h2>
+                  <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, rgba(242,188,27,0.55), transparent)' }} />
+                </div>
+
+                {/* Diamond divider — centered */}
+                <div className="flex items-center justify-center gap-2">
+                  <div style={{ width: '32px', height: '1px', background: 'rgba(242,188,27,0.32)' }} />
+                  <div style={{ width: '6px', height: '6px', background: '#F2BC1B', transform: 'rotate(45deg)', borderRadius: '1px' }} />
+                  <div style={{ width: '32px', height: '1px', background: 'rgba(242,188,27,0.32)' }} />
+                </div>
               </div>
 
-              {/* Right: CTAs */}
-              <div className="flex flex-col sm:flex-row md:flex-col lg:flex-row gap-4 md:flex-shrink-0">
+              {/* Copy */}
+              <p
+                className="leading-[1.5] mb-3"
+                style={{
+                  fontSize: 'clamp(16px, 1.8vw, 20px)',
+                  color: 'rgba(245,247,251,0.88)',
+                  maxWidth: '640px',
+                }}
+              >
+                Book your checkout flight today and start your aviation
+                journey with a simpler online process.
+              </p>
+              <p
+                className="mb-8"
+                style={{
+                  fontSize: 'clamp(13px, 1.4vw, 16px)',
+                  color: 'rgba(245,247,251,0.62)',
+                }}
+              >
+                Launch checkout rate: $290/hr VDO. Fuel and GST included.
+                Plus $25 per landing.
+              </p>
+
+              {/* CTAs — left-aligned below the text */}
+              <div className="flex flex-col sm:flex-row items-start gap-4">
                 <CheckoutCTA className={PRIMARY_BTN} style={PRIMARY_BTN_STYLE}>
                   <Icon name="flight_takeoff" className="text-[18px]" fill color="#04172A" />
                   Book Your Checkout Flight
                 </CheckoutCTA>
                 <a
                   href="/pricing"
-                  className="inline-flex items-center justify-center gap-1.5 font-semibold transition-all hover:opacity-75 whitespace-nowrap"
+                  className="inline-flex items-center gap-1.5 font-semibold transition-all hover:opacity-75 whitespace-nowrap self-center"
                   style={{
                     fontSize: '15px',
                     color: 'rgba(245,247,251,0.80)',
-                    padding: '15px 20px',
+                    padding: '15px 4px',
                   }}
                 >
                   View Pricing
