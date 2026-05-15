@@ -329,18 +329,16 @@ export default function AirshowPage() {
               </div>
 
               {/* Price row */}
-              <div className="flex items-end gap-4 mb-3">
-                <span
-                  className="font-medium line-through leading-none"
-                  style={{ fontSize: 'clamp(22px, 2.2vw, 27px)', color: 'rgba(245,247,251,0.45)' }}
+              <div className="mb-3">
+                <p
+                  className="font-medium line-through leading-none mb-2"
+                  style={{ fontSize: 'clamp(16px, 1.8vw, 19px)', color: 'rgba(245,247,251,0.45)' }}
                 >
-                  $330/hr
-                </span>
-                <span className="font-bold leading-none" style={{ color: '#F2BC1B' }}>
-                  <span style={{ fontSize: 'clamp(42px, 4.5vw, 48px)' }}>$290</span>
-                  <span className="font-semibold" style={{ fontSize: 'clamp(17px, 1.8vw, 21px)' }}>/hr</span>
-                  <span className="font-semibold ml-1" style={{ fontSize: '14px', color: 'rgba(242,188,27,0.78)' }}>VDO</span>
-                </span>
+                  Usually $330/hr
+                </p>
+                <p className="font-bold leading-tight" style={{ color: '#F2BC1B', fontSize: 'clamp(24px, 3.1vw, 32px)' }}>
+                  Checkout flight launch rate: $290/hr VDO
+                </p>
               </div>
 
               {/* Benefits */}
@@ -349,7 +347,7 @@ export default function AirshowPage() {
                 <span className="mx-1.5" style={{ color: '#F2BC1B' }}>•</span>
                 GST included
                 <span className="mx-1.5" style={{ color: '#F2BC1B' }}>•</span>
-                Plus $25 per landing
+                + landing fee
               </p>
             </div>
 

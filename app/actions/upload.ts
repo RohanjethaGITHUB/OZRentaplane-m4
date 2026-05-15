@@ -23,6 +23,11 @@ export async function uploadVerificationDocument(formData: FormData) {
   const medicalClass    = (formData.get('medicalClass')    as string | null) || null
   const idType          = (formData.get('idType')          as string | null) || null
   const documentNumber  = (formData.get('documentNumber')  as string | null) || null
+  const hasRedCardRaw   = formData.get('hasRedCard') as string | null
+  const redCardExpiry   = (formData.get('redCardExpiry') as string | null) || null
+  const hasRedCard: boolean | null = hasRedCardRaw === 'true' ? true : hasRedCardRaw === 'false' ? false : null
+  const redCardExpiryMonth = redCardExpiry ? Number(redCardExpiry.split('-')[1]) : null
+  const redCardExpiryYear  = redCardExpiry ? Number(redCardExpiry.split('-')[0]) : null
 
   // Pilot ratings (pilot_licence only) — sent as 'true' or 'false' strings
   const nightVfrRatingRaw    = formData.get('nightVfrRating')   as string | null
@@ -42,6 +47,10 @@ export async function uploadVerificationDocument(formData: FormData) {
     if (!licenceType)                throw new Error('Licence type is required for the Pilot Licence.')
     if (hasNightVfrRating === null)  throw new Error('Night VFR rating status is required for the Pilot Licence.')
     if (hasInstrumentRating === null) throw new Error('Instrument rating status is required for the Pilot Licence.')
+    if (hasRedCard === null)         throw new Error('Red Card status is required for the Pilot Licence.')
+    if (hasRedCard && (!redCardExpiryMonth || !redCardExpiryYear)) {
+      throw new Error('Red Card expiry month and year are required when Red Card is set to Yes.')
+    }
   }
 
   // Photo ID requires ID type
@@ -87,6 +96,9 @@ export async function uploadVerificationDocument(formData: FormData) {
       medical_class:   medicalClass,
       id_type:         idType,
       document_number: documentNumber,
+      has_red_card: hasRedCard,
+      red_card_expiry_month: redCardExpiryMonth,
+      red_card_expiry_year: redCardExpiryYear,
     })
 
   if (dbError) {

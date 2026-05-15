@@ -13,7 +13,7 @@ const NAV_LINKS = [
   { label: 'Resources', href: '/resources' },
   { label: 'Pricing', href: '/pricing' },
   { label: 'Contact Us', href: '/contact-us' },
-  { label: 'Shop', href: '/shop' },
+  { label: 'Shop', href: '/shop', disabled: true },
 ]
 
 type CustomerPortalLink = {
@@ -163,6 +163,24 @@ export default function Navbar({
           {NAV_LINKS.map((link) => {
             const isActive = pathname === link.href
             const isCheckoutProcess = link.href === '/checkout-process'
+
+            if (link.disabled) {
+              return (
+                <div key={link.label} className="relative group">
+                  <span
+                    className="whitespace-nowrap font-sans text-[13.5px] font-medium text-white/30 cursor-not-allowed select-none"
+                    tabIndex={0}
+                    aria-disabled="true"
+                  >
+                    {link.label}
+                  </span>
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 rounded-md bg-[#0d1e34] border border-white/[0.08] text-[11px] font-sans text-white/60 whitespace-nowrap opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+                    Coming soon
+                  </div>
+                </div>
+              )
+            }
+
             return (
               <a
                 key={link.label}
@@ -272,6 +290,20 @@ export default function Navbar({
 
           {NAV_LINKS.map((link) => {
             const isActive = pathname === link.href
+
+            if (link.disabled) {
+              return (
+                <span
+                  key={link.label}
+                  className="font-sans text-[15px] font-medium text-white/30 cursor-not-allowed flex items-center gap-2"
+                  aria-disabled="true"
+                >
+                  {link.label}
+                  <span className="text-[11px] text-white/40 tracking-wide">Coming soon</span>
+                </span>
+              )
+            }
+
             return (
               <a
                 key={link.label}

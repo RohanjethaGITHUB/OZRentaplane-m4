@@ -134,7 +134,7 @@ export async function submitCheckoutRequest(
     )
   }
 
-  // Night VFR evidence gate: require at least one valid night_vfr_evidence document.
+  // Night VFR gate: require at least one valid night_vfr_evidence document.
   if (input.has_night_vfr === true) {
     const nightVfrEvidence = docMap['night_vfr_evidence']
     const hasValidEvidence =
@@ -143,7 +143,7 @@ export async function submitCheckoutRequest(
       !(nightVfrEvidence.expiry_date && nightVfrEvidence.expiry_date < today)
     if (!hasValidEvidence) {
       throw new Error(
-        'VALIDATION: Please upload Night VFR evidence before requesting a night checkout.'
+        'VALIDATION: Please upload Night VFR before requesting a night checkout.'
       )
     }
   }

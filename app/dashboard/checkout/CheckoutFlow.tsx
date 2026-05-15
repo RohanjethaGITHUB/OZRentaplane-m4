@@ -17,6 +17,7 @@ import { validateFlightReviewDate, getFlightReviewCutoff } from '@/lib/utils/fli
 import { formatDate, formatDateTime } from '@/lib/formatDateTime'
 import type { UserDocument, DocumentType } from '@/lib/supabase/types'
 import type { CheckoutBookingResult } from '@/lib/supabase/booking-types'
+import { TERMS_INTRO, TERMS_LAST_UPDATED, TERMS_SECTIONS } from '@/lib/checkout-terms-content'
 import CalendarDateField from '@/components/CalendarDateField'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -54,6 +55,7 @@ type Props = {
 
 // Reference rate for display only — actual amount is set by team after the flight
 const CHECKOUT_RATE = 290
+const DEFAULT_CHECKOUT_START_TIME = '09:00'
 
 const ALL_TIME_OPTIONS = (() => {
   const opts: { value: string; label: string }[] = []
@@ -480,6 +482,12 @@ function DocModal({
   const [licenceNumber,      setLicenceNumber]       = useState(doc?.licence_number  ?? '')
   const [nightVfrRating,     setNightVfrRating]      = useState<boolean | null>(initialNightVfrRating ?? null)
   const [instrumentRating,   setInstrumentRating]    = useState<boolean | null>(initialInstrumentRating ?? null)
+  const [hasRedCard,         setHasRedCard]          = useState<boolean | null>(doc?.has_red_card ?? null)
+  const [redCardExpiry,      setRedCardExpiry]       = useState(
+    doc?.red_card_expiry_year && doc?.red_card_expiry_month
+      ? `${String(doc.red_card_expiry_year)}-${String(doc.red_card_expiry_month).padStart(2, '0')}`
+      : ''
+  )
   const [medicalClass,       setMedicalClass]        = useState(doc?.medical_class   ?? '')
   const [issueDate,          setIssueDate]           = useState(doc?.issue_date      ?? '')
   const [expiryDate,         setExpiryDate]          = useState(doc?.expiry_date     ?? '')
@@ -490,7 +498,7 @@ function DocModal({
   const [formError,    setFormError]    = useState<string | null>(null)
   const [dragOver,     setDragOver]     = useState(false)
 
-  useEffect(() => { setFormError(null) }, [licenceType, licenceNumber, nightVfrRating, instrumentRating, medicalClass, issueDate, expiryDate, idType, documentNumber])
+  useEffect(() => { setFormError(null) }, [licenceType, licenceNumber, nightVfrRating, instrumentRating, hasRedCard, redCardExpiry, medicalClass, issueDate, expiryDate, idType, documentNumber])
 
   function Pill({ value, active, onClick }: { value: string; active: boolean; onClick: () => void }) {
     return (
@@ -506,6 +514,8 @@ function DocModal({
     if (def.type === 'pilot_licence') {
       if (!licenceType)              return 'Please select a licence type.'
       if (instrumentRating === null) return 'Please confirm your Instrument Rating status.'
+      if (hasRedCard === null)       return 'Please confirm your Red Card status.'
+      if (hasRedCard && !redCardExpiry) return 'Please enter your Red Card expiry month and year.'
       if (!licenceNumber)            return 'Please enter your pilot licence number / ARN.'
     }
     if (def.type === 'medical_certificate') {
@@ -543,6 +553,8 @@ function DocModal({
         if (licenceType)               fd.append('licenceType',      licenceType)
         if (nightVfrRating !== null)   fd.append('nightVfrRating',   String(nightVfrRating))
         if (instrumentRating !== null) fd.append('instrumentRating', String(instrumentRating))
+        if (hasRedCard !== null)       fd.append('hasRedCard',       String(hasRedCard))
+        if (redCardExpiry)             fd.append('redCardExpiry',    redCardExpiry)
         if (licenceNumber)             fd.append('licenceNumber',    licenceNumber)
         if (medicalClass)              fd.append('medicalClass',     medicalClass)
         if (issueDate)                 fd.append('issueDate',        issueDate)
@@ -621,6 +633,36 @@ function DocModal({
                     />
                   ))}
                 </div>
+              </div>
+
+              <div className="pt-1 border-t border-white/[0.06] space-y-2">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-300">
+                  Red Card <span className="text-red-300 font-semibold normal-case">Required</span>
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {([true, false] as const).map(val => (
+                    <Pill
+                      key={`red-${String(val)}`}
+                      value={val ? 'Yes' : 'No'}
+                      active={hasRedCard === val}
+                      onClick={() => {
+                        setHasRedCard(val)
+                        if (!val) setRedCardExpiry('')
+                      }}
+                    />
+                  ))}
+                </div>
+                {hasRedCard === true && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Red Card Expiry (Month/Year) <span className="text-red-300 font-semibold normal-case">Required</span></p>
+                    <input
+                      type="month"
+                      value={redCardExpiry}
+                      onChange={e => setRedCardExpiry(e.target.value)}
+                      className="w-full bg-white/[0.03] border border-white/20 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-400/60"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -993,11 +1035,16 @@ export default function CheckoutFlow({
   // Dropdown options — filtered to the Day VFR window when Night VFR = No so
   // the user cannot manually pick a restricted time from the list.
   const timeOptions = (date && nightVfrRating === false)
-    ? (() => {
-        const w = getDayVfrWindow(date)
-        return ALL_TIME_OPTIONS.filter(o => isWithinDayVfrWindow(o.value, date, 120))
-      })()
+    ? ALL_TIME_OPTIONS.filter(o => isWithinDayVfrWindow(o.value, date, 120))
     : ALL_TIME_OPTIONS
+
+  useEffect(() => {
+    if (!date || nightVfrRating === null) return
+    const hasCurrent = timeOptions.some(o => o.value === startTime)
+    if (hasCurrent) return
+    const fallback = timeOptions.find(o => o.value === DEFAULT_CHECKOUT_START_TIME)?.value ?? timeOptions[0]?.value ?? ''
+    if (fallback) setStartTime(fallback)
+  }, [date, nightVfrRating, startTime, timeOptions])
 
   // Inline error shown when a selected time is outside the allowed window.
   // This can still occur if the user drags the timeline slot (drag is clamped but guards
@@ -1037,7 +1084,7 @@ export default function CheckoutFlow({
     }
 
     if (!nightVfrEvidenceOk) {
-      setStep2Error('Please upload Night VFR evidence to continue.')
+      setStep2Error('Please upload Night VFR to continue.')
       return
     }
 
@@ -1200,14 +1247,16 @@ export default function CheckoutFlow({
             <span className="material-symbols-outlined text-[15px] text-slate-500 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>schedule</span>
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-none">Duration</p>
-              <p className="text-[13px] text-slate-300 mt-0.5 leading-none">2 hours</p>
+              <p className="text-[13px] text-slate-300 mt-0.5 leading-none">Expected duration: 2 hours</p>
+              <p className="text-[11px] text-slate-400 mt-1 leading-tight">Approximately 1 hour familiarisation with the aircraft and procedures</p>
+              <p className="text-[11px] text-slate-400 mt-0.5 leading-tight">Approximately 1 hour checkout flight</p>
             </div>
           </div>
           <div className="inline-flex items-center gap-2.5 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3.5 py-2.5">
             <span className="material-symbols-outlined text-[15px] text-slate-500 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>payments</span>
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 leading-none">Rate</p>
-              <p className="text-[13px] text-slate-300 mt-0.5 leading-none">${CHECKOUT_RATE}/hr + $25/landing</p>
+              <p className="text-[13px] text-slate-300 mt-0.5 leading-none">${CHECKOUT_RATE} per VDO hour + landing fee</p>
             </div>
           </div>
         </div>
@@ -1475,7 +1524,7 @@ export default function CheckoutFlow({
             </div>
           </div>
 
-          {/* Row 2: Night VFR evidence */}
+          {/* Row 2: Night VFR */}
           <div className="py-7 border-b border-white/[0.07]">
             <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-8">
               <div className="flex items-start gap-4 md:w-[42%]">
@@ -1483,7 +1532,7 @@ export default function CheckoutFlow({
                   <span className="text-sm font-semibold text-blue-200">2</span>
                 </div>
                 <div>
-                  <p className="text-[17px] font-semibold text-slate-100">Night VFR evidence</p>
+                  <p className="text-[17px] font-semibold text-slate-100">Night VFR</p>
                   <p className="text-[15px] text-slate-400 mt-1 leading-relaxed">Provide supporting evidence only if you selected that you hold a Night VFR rating.</p>
                 </div>
               </div>
@@ -1494,7 +1543,7 @@ export default function CheckoutFlow({
                       You selected that you hold a Night VFR rating. Please upload supporting evidence for this rating. This can be a CASA licence record, eLicence screenshot, flight review record, logbook endorsement, or other supporting document.
                     </p>
                     <DocCard
-                      def={{ type: 'night_vfr_evidence', label: 'Night VFR Evidence', icon: 'nightlight' }}
+                      def={{ type: 'night_vfr_evidence', label: 'Night VFR', icon: 'nightlight' }}
                       doc={nightVfrEvidenceDoc}
                       onUploaded={() => {
                         setStep2Error(null)
@@ -1505,7 +1554,7 @@ export default function CheckoutFlow({
                     {!isDocOk(nightVfrEvidenceDoc) && (
                       <p className="text-sm text-amber-300 flex items-center gap-1.5">
                         <span className="material-symbols-outlined text-[12px]">warning</span>
-                        Night VFR evidence is required before you can continue.
+                        Night VFR is required before you can continue.
                       </p>
                     )}
                     <button
@@ -1522,7 +1571,7 @@ export default function CheckoutFlow({
                       <span className="material-symbols-outlined text-slate-500 text-[18px] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>check_circle</span>
                       <div>
                         <p className="text-sm font-medium text-slate-300">Not required</p>
-                        <p className="text-sm text-slate-500 mt-0.5">Night VFR evidence is not required because you selected Day VFR only.</p>
+                        <p className="text-sm text-slate-500 mt-0.5">Night VFR is not required because you selected Day VFR only.</p>
                       </div>
                     </div>
                     <button
@@ -1666,7 +1715,9 @@ export default function CheckoutFlow({
                     <span className="material-symbols-outlined text-[17px] text-slate-500 mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>timer</span>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#8FA3BF]">Duration</p>
-                      <p className="text-[17px] font-semibold text-white mt-0.5">2 hours</p>
+                      <p className="text-[17px] font-semibold text-white mt-0.5">Expected duration: 2 hours</p>
+                      <p className="text-[13px] text-slate-300 mt-1">Approximately 1 hour familiarisation with the aircraft and procedures</p>
+                      <p className="text-[13px] text-slate-300 mt-0.5">Approximately 1 hour checkout flight</p>
                     </div>
                   </div>
                   {/* Row 3 */}
@@ -1674,7 +1725,7 @@ export default function CheckoutFlow({
                     <span className="material-symbols-outlined text-[17px] text-slate-500 mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>payments</span>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#8FA3BF]">Rate</p>
-                      <p className="text-[17px] font-semibold text-white mt-0.5">${CHECKOUT_RATE}/hr + $25/landing</p>
+                      <p className="text-[17px] font-semibold text-white mt-0.5">${CHECKOUT_RATE} per VDO hour + landing fee</p>
                     </div>
                   </div>
                   <div className="flex gap-3 px-5 py-4">
@@ -1749,11 +1800,11 @@ export default function CheckoutFlow({
                   )}
                 </div>
               ))}
-              {/* Night VFR evidence card */}
+              {/* Night VFR card */}
               <div className="bg-[#0f1e35] border border-white/[0.08] rounded-2xl px-4 py-4 flex flex-col gap-2.5">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-[17px] text-slate-400 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>nightlight</span>
-                  <p className="text-[13px] font-semibold text-white leading-tight">Night VFR evidence</p>
+                  <p className="text-[13px] font-semibold text-white leading-tight">Night VFR</p>
                 </div>
                 {nightVfrRating === true ? (
                   isDocOk(nightVfrEvidenceDoc) ? (
@@ -1876,7 +1927,7 @@ export default function CheckoutFlow({
                   }}
                   className="px-4 py-2.5 bg-white/[0.05] border border-white/[0.15] hover:border-blue-400/50 text-slate-200 hover:text-white rounded-xl text-sm font-semibold transition-all whitespace-nowrap"
                 >
-                  Open terms document
+                  Open terms
                 </button>
               </div>
             </div>
@@ -1957,11 +2008,11 @@ export default function CheckoutFlow({
             </div>
             <div className="px-5 py-4 space-y-3">
               <p className="text-sm text-slate-300">
-                Scroll to the end of the document to enable acceptance.
+                Scroll to the end to enable acceptance.
               </p>
               <div
                 data-testid="checkout-terms-scrollbox"
-                className="h-[55vh] min-h-[340px] max-h-[680px] overflow-y-auto border border-[#5f7fa5] rounded-lg bg-[#10233a]"
+                className="h-[55vh] min-h-[340px] max-h-[680px] overflow-y-auto rounded-xl border border-white/10 bg-[#0b172b]"
                 onScroll={(e) => {
                   const el = e.currentTarget
                   if (el.scrollTop + el.clientHeight >= el.scrollHeight - 4) {
@@ -1969,14 +2020,39 @@ export default function CheckoutFlow({
                   }
                 }}
               >
-                <embed
-                  src={activeCheckoutTerms.public_url}
-                  type="application/pdf"
-                  className="w-full min-h-[1200px]"
-                />
+                <div className="px-6 py-6 md:px-8 md:py-8">
+                  <div className="max-w-3xl mx-auto space-y-8">
+                    <div className="pb-5 border-b border-white/10">
+                      <p className="text-[10px] uppercase tracking-[0.24em] text-blue-200/80 font-bold">OZ Rent A Plane</p>
+                      <h5 className="text-2xl md:text-3xl font-serif text-white mt-2">Terms and Conditions</h5>
+                      <p className="text-sm text-slate-300 mt-3 leading-relaxed">{TERMS_INTRO}</p>
+                      <p className="text-xs text-slate-500 mt-3">Last updated: {TERMS_LAST_UPDATED}</p>
+                    </div>
+                    {TERMS_SECTIONS.map((section) => (
+                      <section key={section.number} className="space-y-2">
+                        <div className="flex items-baseline gap-3">
+                          <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-200/50">{section.number}</span>
+                          <h6 className="text-lg md:text-xl font-serif text-slate-100">{section.title}</h6>
+                        </div>
+                        <p className="text-sm md:text-[15px] leading-7 text-slate-300 pl-6">{section.body}</p>
+                      </section>
+                    ))}
+                    <div className="pt-2 border-t border-white/10">
+                      <a
+                        href={activeCheckoutTerms.public_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs text-blue-300 hover:text-blue-200 underline underline-offset-2"
+                      >
+                        View source terms document
+                        <span className="material-symbols-outlined text-sm">open_in_new</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className={`text-sm ${termsScrolledToEnd ? 'text-green-300' : 'text-amber-300'}`}>
-                {termsScrolledToEnd ? 'You have reached the end. You can now accept the terms.' : 'Scroll to the bottom to continue'}
+                {termsScrolledToEnd ? 'You have reached the end. You can now accept the terms.' : 'Scroll to the bottom to continue.'}
               </div>
             </div>
             <div className="sticky bottom-0 px-5 py-4 border-t border-white/[0.06] bg-[#0c1220] flex flex-col gap-3">

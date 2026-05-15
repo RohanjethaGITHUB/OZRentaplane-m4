@@ -78,6 +78,9 @@ export type UserDocument = {
   medical_class: string | null   // Class 1 | Class 2 | Basic Class 2 | Other (medical_certificate)
   id_type: string | null         // Passport | Driver Licence | Other (photo_id)
   document_number: string | null // Document reference number (photo_id)
+  has_red_card: boolean | null
+  red_card_expiry_month: number | null
+  red_card_expiry_year: number | null
 }
 
 // ─── Verification events ──────────────────────────────────────────────────────

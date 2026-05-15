@@ -360,7 +360,7 @@ export default function AdminCheckoutReviewPanel({
               }
             </div>
             {nightVfrEvidenceDoc && (
-              <DocRow label="Night VFR Evidence" doc={nightVfrEvidenceDoc} docType="night_vfr_evidence" customerId={customerId} />
+              <DocRow label="Night VFR" doc={nightVfrEvidenceDoc} docType="night_vfr_evidence" customerId={customerId} />
             )}
           </div>
         </div>
@@ -632,4 +632,3 @@ export default function AdminCheckoutReviewPanel({
     </div>
   )
 }
-
