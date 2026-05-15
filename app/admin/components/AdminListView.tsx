@@ -190,7 +190,7 @@ export function AdminDataTable({
   columns,
   children,
 }: {
-  columns: string[]
+  columns: ReactNode[]
   children: ReactNode
 }) {
   return (
@@ -199,7 +199,7 @@ export function AdminDataTable({
         <thead className="bg-[#141b29] text-[var(--admin-text-muted)]">
           <tr>
             {columns.map((column, idx) => (
-              <th key={column} className={`px-5 py-4 text-[12px] tracking-[0.12em] uppercase font-semibold text-left ${idx === columns.length - 1 ? 'text-right' : ''}`}>
+              <th key={`col-${idx}`} className={`px-5 py-4 text-[12px] tracking-[0.12em] uppercase font-semibold text-left ${idx === columns.length - 1 ? 'text-right' : ''}`}>
                 {column}
               </th>
             ))}

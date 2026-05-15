@@ -106,8 +106,6 @@ type UploadForm = {
   licenceType:       string    // pilot_licence
   nightVfrRating:    boolean | null  // pilot_licence — null = unanswered
   instrumentRating:  boolean | null  // pilot_licence — null = unanswered
-  hasRedCard:        boolean | null  // pilot_licence — null = unanswered
-  redCardExpiry:     string          // pilot_licence — YYYY-MM
   licenceNumber:     string    // pilot_licence — also updates profile ARN
   medicalClass:      string    // medical_certificate
   issueDate:         string    // medical_certificate — date of issue
@@ -121,8 +119,6 @@ const EMPTY_FORM: UploadForm = {
   licenceType:       '',
   nightVfrRating:    null,
   instrumentRating:  null,
-  hasRedCard:        null,
-  redCardExpiry:     '',
   licenceNumber:     '',
   medicalClass:      '',
   issueDate:         '',
@@ -151,10 +147,6 @@ function UploadModal({
     ...EMPTY_FORM,
     licenceType:      existingDoc?.licence_type    ?? '',
     licenceNumber:    existingDoc?.licence_number  ?? '',
-    hasRedCard:       existingDoc?.has_red_card    ?? null,
-    redCardExpiry:    existingDoc?.red_card_expiry_year && existingDoc?.red_card_expiry_month
-      ? `${String(existingDoc.red_card_expiry_year)}-${String(existingDoc.red_card_expiry_month).padStart(2, '0')}`
-      : '',
     medicalClass:     existingDoc?.medical_class   ?? '',
     issueDate:        existingDoc?.issue_date       ?? '',
     expiryDate:       existingDoc?.expiry_date      ?? '',
@@ -190,8 +182,6 @@ function UploadModal({
       if (!form.licenceType)                return 'Please select a licence type.'
       if (form.nightVfrRating === null)     return 'Please confirm your Night VFR rating status.'
       if (form.instrumentRating === null)   return 'Please confirm your Instrument Rating status.'
-      if (form.hasRedCard === null)         return 'Please confirm your Red Card status.'
-      if (form.hasRedCard && !form.redCardExpiry) return 'Please enter your Red Card expiry month and year.'
       if (!form.licenceNumber)              return 'Please enter your pilot licence number / ARN.'
     }
     if (docType === 'medical_certificate') {
@@ -219,8 +209,6 @@ function UploadModal({
       if (form.licenceType)                     fd.append('licenceType',       form.licenceType)
       if (form.nightVfrRating !== null)         fd.append('nightVfrRating',    String(form.nightVfrRating))
       if (form.instrumentRating !== null)       fd.append('instrumentRating',  String(form.instrumentRating))
-      if (form.hasRedCard !== null)             fd.append('hasRedCard',        String(form.hasRedCard))
-      if (form.redCardExpiry)                   fd.append('redCardExpiry',     form.redCardExpiry)
       if (form.licenceNumber)                   fd.append('licenceNumber',     form.licenceNumber)
       if (form.medicalClass)   fd.append('medicalClass',   form.medicalClass)
       if (form.issueDate)      fd.append('issueDate',      form.issueDate)
@@ -274,8 +262,8 @@ function UploadModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-[#0c1220] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[80] flex items-start justify-center p-4 pt-24 md:pt-28 bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-md max-h-[calc(100vh-7.5rem)] bg-[#0c1220] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
@@ -298,7 +286,7 @@ function UploadModal({
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
+        <div className="px-6 py-5 space-y-5 overflow-y-auto min-h-0">
 
           {/* Pilot Licence fields */}
           {docType === 'pilot_licence' && (
@@ -376,47 +364,6 @@ function UploadModal({
                     </div>
                   </div>
 
-                  {/* Red Card */}
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-oz-subtle">
-                      Red Card
-                      <span className="text-red-400/80 text-[8px] normal-case font-normal">Required</span>
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {([true, false] as const).map(val => (
-                        <button
-                          key={String(val)}
-                          type="button"
-                          onClick={() => {
-                            set('hasRedCard', val)
-                            if (!val) set('redCardExpiry', '')
-                          }}
-                          className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all text-left ${
-                            form.hasRedCard === val
-                              ? 'bg-oz-blue/20 border-oz-blue/50 text-oz-blue'
-                              : 'bg-white/[0.03] border-white/10 text-white/50 hover:border-white/20 hover:text-white/70'
-                          }`}
-                        >
-                          {val ? 'Yes' : 'No'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {form.hasRedCard === true && (
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-oz-subtle">
-                        Red Card Expiry (Month/Year)
-                        <span className="text-red-400/80 text-[8px] normal-case font-normal">Required</span>
-                      </label>
-                      <input
-                        type="month"
-                        value={form.redCardExpiry}
-                        onChange={e => set('redCardExpiry', e.target.value)}
-                        className="w-full bg-white/[0.03] border border-white/8 focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5"
-                      />
-                    </div>
-                  )}
                 </div>
               </div>
 

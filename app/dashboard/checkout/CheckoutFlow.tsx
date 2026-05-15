@@ -10,14 +10,21 @@ import {
   type SafeConflict,
 } from '@/app/actions/customer-availability'
 import { uploadVerificationDocument } from '@/app/actions/upload'
-import { getDocumentSignedUrl } from '@/app/actions/documents'
+import { getDocumentSignedUrl, saveCheckoutRedCardDetails } from '@/app/actions/documents'
 import { sydneyInputToUTC, formatSydTime } from '@/lib/utils/sydney-time'
 import { getDayVfrWindow, isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
 import { validateFlightReviewDate, getFlightReviewCutoff } from '@/lib/utils/flight-review'
 import { formatDate, formatDateTime } from '@/lib/formatDateTime'
 import type { UserDocument, DocumentType } from '@/lib/supabase/types'
 import type { CheckoutBookingResult } from '@/lib/supabase/booking-types'
-import { TERMS_INTRO, TERMS_LAST_UPDATED, TERMS_SECTIONS } from '@/lib/checkout-terms-content'
+import {
+  TERMS_END_TEXT,
+  TERMS_LAST_UPDATED,
+  TERMS_MODAL_SUBTITLE,
+  TERMS_MODAL_TITLE,
+  TERMS_NOTICE,
+  TERMS_SECTIONS,
+} from '@/lib/checkout-terms-content'
 import CalendarDateField from '@/components/CalendarDateField'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -365,7 +372,13 @@ function TimeDropdown({
   useEffect(() => {
     if (!open || !listRef.current) return
     const selected = listRef.current.querySelector('[data-selected="true"]') as HTMLElement | null
-    selected?.scrollIntoView({ block: 'nearest' })
+    if (selected) {
+      selected.scrollIntoView({ block: 'nearest' })
+      return
+    }
+    // When nothing is selected yet, start the list around 9:00 AM.
+    const defaultStart = listRef.current.querySelector('[data-default-start="true"]') as HTMLElement | null
+    defaultStart?.scrollIntoView({ block: 'center' })
   }, [open])
 
   const selectedLabel = options.find(o => o.value === value)?.label ?? value
@@ -378,7 +391,7 @@ function TimeDropdown({
         onClick={() => setOpen(o => !o)}
         className="w-full bg-[#0d1c33] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500/60 flex items-center justify-between transition-colors hover:border-white/25 disabled:opacity-40 disabled:cursor-not-allowed text-white"
       >
-        <span className={value === '' ? 'text-slate-500' : ''}>{value === '' ? 'Select a departure time' : selectedLabel}</span>
+        <span className={value === '' ? 'text-slate-500' : ''}>{value === '' ? 'Select departure time' : selectedLabel}</span>
         <span
           className={`material-symbols-outlined text-[18px] text-slate-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
           style={{ fontVariationSettings: "'wght' 300" }}
@@ -395,6 +408,7 @@ function TimeDropdown({
                 key={o.value}
                 type="button"
                 data-selected={o.value === value ? 'true' : undefined}
+                data-default-start={o.value === DEFAULT_CHECKOUT_START_TIME ? 'true' : undefined}
                 onClick={() => { onChange(o.value); setOpen(false) }}
                 className={`w-full px-3 py-2 text-sm text-left transition-colors ${
                   o.value === value
@@ -482,12 +496,6 @@ function DocModal({
   const [licenceNumber,      setLicenceNumber]       = useState(doc?.licence_number  ?? '')
   const [nightVfrRating,     setNightVfrRating]      = useState<boolean | null>(initialNightVfrRating ?? null)
   const [instrumentRating,   setInstrumentRating]    = useState<boolean | null>(initialInstrumentRating ?? null)
-  const [hasRedCard,         setHasRedCard]          = useState<boolean | null>(doc?.has_red_card ?? null)
-  const [redCardExpiry,      setRedCardExpiry]       = useState(
-    doc?.red_card_expiry_year && doc?.red_card_expiry_month
-      ? `${String(doc.red_card_expiry_year)}-${String(doc.red_card_expiry_month).padStart(2, '0')}`
-      : ''
-  )
   const [medicalClass,       setMedicalClass]        = useState(doc?.medical_class   ?? '')
   const [issueDate,          setIssueDate]           = useState(doc?.issue_date      ?? '')
   const [expiryDate,         setExpiryDate]          = useState(doc?.expiry_date     ?? '')
@@ -498,7 +506,7 @@ function DocModal({
   const [formError,    setFormError]    = useState<string | null>(null)
   const [dragOver,     setDragOver]     = useState(false)
 
-  useEffect(() => { setFormError(null) }, [licenceType, licenceNumber, nightVfrRating, instrumentRating, hasRedCard, redCardExpiry, medicalClass, issueDate, expiryDate, idType, documentNumber])
+  useEffect(() => { setFormError(null) }, [licenceType, licenceNumber, nightVfrRating, instrumentRating, medicalClass, issueDate, expiryDate, idType, documentNumber])
 
   function Pill({ value, active, onClick }: { value: string; active: boolean; onClick: () => void }) {
     return (
@@ -514,8 +522,6 @@ function DocModal({
     if (def.type === 'pilot_licence') {
       if (!licenceType)              return 'Please select a licence type.'
       if (instrumentRating === null) return 'Please confirm your Instrument Rating status.'
-      if (hasRedCard === null)       return 'Please confirm your Red Card status.'
-      if (hasRedCard && !redCardExpiry) return 'Please enter your Red Card expiry month and year.'
       if (!licenceNumber)            return 'Please enter your pilot licence number / ARN.'
     }
     if (def.type === 'medical_certificate') {
@@ -553,8 +559,6 @@ function DocModal({
         if (licenceType)               fd.append('licenceType',      licenceType)
         if (nightVfrRating !== null)   fd.append('nightVfrRating',   String(nightVfrRating))
         if (instrumentRating !== null) fd.append('instrumentRating', String(instrumentRating))
-        if (hasRedCard !== null)       fd.append('hasRedCard',       String(hasRedCard))
-        if (redCardExpiry)             fd.append('redCardExpiry',    redCardExpiry)
         if (licenceNumber)             fd.append('licenceNumber',    licenceNumber)
         if (medicalClass)              fd.append('medicalClass',     medicalClass)
         if (issueDate)                 fd.append('issueDate',        issueDate)
@@ -585,8 +589,8 @@ function DocModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-[#13243a] border border-[#4c6b8f] rounded-2xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[80] flex items-start justify-center p-4 pt-24 md:pt-28 bg-black/70 backdrop-blur-sm">
+      <div className="w-full max-w-md max-h-[calc(100vh-7.5rem)] bg-[#13243a] border border-[#4c6b8f] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
@@ -603,7 +607,7 @@ function DocModal({
         </div>
 
         {/* Body */}
-        <div className="px-5 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+        <div className="px-5 py-5 space-y-4 overflow-y-auto min-h-0">
 
           {/* Pilot Licence fields */}
           {def.type === 'pilot_licence' && (
@@ -633,36 +637,6 @@ function DocModal({
                     />
                   ))}
                 </div>
-              </div>
-
-              <div className="pt-1 border-t border-white/[0.06] space-y-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-300">
-                  Red Card <span className="text-red-300 font-semibold normal-case">Required</span>
-                </p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {([true, false] as const).map(val => (
-                    <Pill
-                      key={`red-${String(val)}`}
-                      value={val ? 'Yes' : 'No'}
-                      active={hasRedCard === val}
-                      onClick={() => {
-                        setHasRedCard(val)
-                        if (!val) setRedCardExpiry('')
-                      }}
-                    />
-                  ))}
-                </div>
-                {hasRedCard === true && (
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Red Card Expiry (Month/Year) <span className="text-red-300 font-semibold normal-case">Required</span></p>
-                    <input
-                      type="month"
-                      value={redCardExpiry}
-                      onChange={e => setRedCardExpiry(e.target.value)}
-                      className="w-full bg-white/[0.03] border border-white/20 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-400/60"
-                    />
-                  </div>
-                )}
               </div>
 
               <div className="space-y-1.5">
@@ -925,6 +899,9 @@ export default function CheckoutFlow({
   const [stepError, setStepError] = useState<string | null>(null)
   const [step2Error, setStep2Error] = useState<string | null>(null)
   const [hasAttemptedStep2Continue, setHasAttemptedStep2Continue] = useState(false)
+  const [hasRedCard, setHasRedCard] = useState<boolean | null>(null)
+  const [redCardExpiry, setRedCardExpiry] = useState('')
+  const [redCardSaving, setRedCardSaving] = useState(false)
 
   // Submission state
   const [submitError, setSubmitError]   = useState<string | null>(null)
@@ -969,6 +946,16 @@ export default function CheckoutFlow({
   }
 
   const nightVfrEvidenceDoc = pickBestDocumentForType(documents, 'night_vfr_evidence', today)
+
+  useEffect(() => {
+    const redCardValue = licenceDoc?.has_red_card ?? null
+    const expiryValue =
+      licenceDoc?.red_card_expiry_year && licenceDoc?.red_card_expiry_month
+        ? `${String(licenceDoc.red_card_expiry_year)}-${String(licenceDoc.red_card_expiry_month).padStart(2, '0')}-01`
+        : ''
+    setHasRedCard(redCardValue)
+    setRedCardExpiry(expiryValue)
+  }, [licenceDoc?.id, licenceDoc?.has_red_card, licenceDoc?.red_card_expiry_month, licenceDoc?.red_card_expiry_year])
 
   const allDocsUploaded = isDocOk(licenceDoc) && isDocOk(medicalDoc) && isDocOk(photoIdDoc)
   const nightVfrEvidenceOk = nightVfrRating !== true || isDocOk(nightVfrEvidenceDoc)
@@ -1038,14 +1025,6 @@ export default function CheckoutFlow({
     ? ALL_TIME_OPTIONS.filter(o => isWithinDayVfrWindow(o.value, date, 120))
     : ALL_TIME_OPTIONS
 
-  useEffect(() => {
-    if (!date || nightVfrRating === null) return
-    const hasCurrent = timeOptions.some(o => o.value === startTime)
-    if (hasCurrent) return
-    const fallback = timeOptions.find(o => o.value === DEFAULT_CHECKOUT_START_TIME)?.value ?? timeOptions[0]?.value ?? ''
-    if (fallback) setStartTime(fallback)
-  }, [date, nightVfrRating, startTime, timeOptions])
-
   // Inline error shown when a selected time is outside the allowed window.
   // This can still occur if the user drags the timeline slot (drag is clamped but guards
   // against edge cases), or if Night VFR was Yes when the time was picked and then
@@ -1070,7 +1049,7 @@ export default function CheckoutFlow({
     setStep('documents')
   }
 
-  function handleDocumentsNext() {
+  async function handleDocumentsNext() {
     setHasAttemptedStep2Continue(true)
     setStep2Error(null)
 
@@ -1091,6 +1070,30 @@ export default function CheckoutFlow({
     if (flightReviewError) {
       setStep2Error(flightReviewError)
       return
+    }
+
+    if (hasRedCard === null) {
+      setStep2Error('Please confirm whether you have a Red Card.')
+      return
+    }
+
+    if (hasRedCard && !redCardExpiry) {
+      setStep2Error('Please enter your Red Card expiry month and year.')
+      return
+    }
+
+    setRedCardSaving(true)
+    try {
+      await saveCheckoutRedCardDetails({
+        hasRedCard,
+        redCardExpiry: hasRedCard ? redCardExpiry.slice(0, 7) : null,
+      })
+    } catch (err) {
+      setStep2Error(err instanceof Error ? err.message : 'Could not save Red Card details.')
+      setRedCardSaving(false)
+      return
+    } finally {
+      setRedCardSaving(false)
     }
 
     setStep('review')
@@ -1382,6 +1385,8 @@ export default function CheckoutFlow({
                             {ALL_TIME_OPTIONS.find(o => o.value === endTime)?.label ?? endTime}
                           </p>
                           <p className="text-sm text-slate-400 mt-1">A 2-hour slot is reserved for scheduling.</p>
+                          <p className="text-[13px] text-slate-500 mt-2">Approximately 1 hour familiarisation with the aircraft and procedures.</p>
+                          <p className="text-[13px] text-slate-500 mt-1">Approximately 1 hour checkout flight.</p>
                         </div>
                       )}
                       <div className="rounded-xl border border-white/10 bg-[#0d1a2c]/70 p-4 md:p-5">
@@ -1587,12 +1592,74 @@ export default function CheckoutFlow({
             </div>
           </div>
 
-          {/* Row 3: Last flight review + notes */}
-          <div className="py-7">
+          {/* Row 3: Red Card */}
+          <div className="py-7 border-b border-white/[0.07]">
             <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-8">
               <div className="flex items-start gap-4 md:w-[42%]">
                 <div className="w-9 h-9 rounded-full border border-blue-500/60 bg-blue-600/[0.18] flex items-center justify-center flex-shrink-0 mt-0.5">
                   <span className="text-sm font-semibold text-blue-200">3</span>
+                </div>
+                <div>
+                  <p className="text-[17px] font-semibold text-slate-100">Red Card</p>
+                  <p className="text-[15px] text-slate-400 mt-1 leading-relaxed">Do you have a Red Card?</p>
+                </div>
+              </div>
+              <div className="md:flex-1 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {([true, false] as const).map((val) => (
+                    <button
+                      key={`checkout-red-card-${String(val)}`}
+                      type="button"
+                      onClick={() => {
+                        setHasRedCard(val)
+                        if (!val) setRedCardExpiry('')
+                        setStep2Error(null)
+                      }}
+                      className={`flex items-center gap-3.5 px-5 py-4 rounded-xl text-[15px] font-medium border transition-all text-left ${
+                        hasRedCard === val
+                          ? 'bg-blue-500/[0.18] border-blue-400/55 text-blue-100 shadow-[0_0_14px_rgba(59,130,246,0.12)]'
+                          : 'bg-[#0d1c33] border-white/[0.12] text-slate-300 hover:text-white hover:border-blue-500/40'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                        hasRedCard === val ? 'border-blue-400 bg-blue-500' : 'border-white/25'
+                      }`}>
+                        {hasRedCard === val && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                      {val ? 'Yes' : 'No'}
+                    </button>
+                  ))}
+                </div>
+
+                {hasRedCard === true && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-100 block">
+                      Red Card expiry date <span className="text-red-400 font-normal">Required</span>
+                    </label>
+                    <div className="sm:max-w-[360px]">
+                      <CalendarDateField
+                        value={redCardExpiry}
+                        onChange={(next) => {
+                          setRedCardExpiry(next)
+                          setStep2Error(null)
+                        }}
+                        minYear={new Date().getFullYear() - 5}
+                        maxYear={new Date().getFullYear() + 25}
+                        className="w-full bg-white/[0.03] border border-white/[0.08] focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5 text-left flex items-center justify-between"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Row 4: Last flight review + notes */}
+          <div className="py-7">
+            <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-8">
+              <div className="flex items-start gap-4 md:w-[42%]">
+                <div className="w-9 h-9 rounded-full border border-blue-500/60 bg-blue-600/[0.18] flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-sm font-semibold text-blue-200">4</span>
                 </div>
                 <div>
                   <p className="text-[17px] font-semibold text-slate-100">Last flight review</p>
@@ -1657,9 +1724,10 @@ export default function CheckoutFlow({
             <button
               onClick={handleDocumentsNext}
               data-testid="checkout-step2-continue"
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition-all"
+              disabled={redCardSaving}
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-sm font-semibold transition-all"
             >
-              Continue to Review
+              {redCardSaving ? 'Saving…' : 'Continue to Review'}
             </button>
           </div>
 
@@ -1994,7 +2062,7 @@ export default function CheckoutFlow({
           )}
 
       {termsModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="w-full max-w-4xl bg-[#13243a] border border-[#4c6b8f] rounded-2xl shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
               <h4 className="text-sm font-semibold text-white">Checkout Terms and Conditions</h4>
@@ -2022,31 +2090,38 @@ export default function CheckoutFlow({
               >
                 <div className="px-6 py-6 md:px-8 md:py-8">
                   <div className="max-w-3xl mx-auto space-y-8">
-                    <div className="pb-5 border-b border-white/10">
+                    <div className="pb-5 border-b border-white/10 space-y-3">
                       <p className="text-[10px] uppercase tracking-[0.24em] text-blue-200/80 font-bold">OZ Rent A Plane</p>
-                      <h5 className="text-2xl md:text-3xl font-serif text-white mt-2">Terms and Conditions</h5>
-                      <p className="text-sm text-slate-300 mt-3 leading-relaxed">{TERMS_INTRO}</p>
-                      <p className="text-xs text-slate-500 mt-3">Last updated: {TERMS_LAST_UPDATED}</p>
+                      <h5 className="text-2xl md:text-3xl font-serif text-white">{TERMS_MODAL_TITLE}</h5>
+                      <p className="text-sm text-slate-400">{TERMS_MODAL_SUBTITLE}</p>
+                      <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3">
+                        <p className="text-sm text-amber-100 leading-relaxed">{TERMS_NOTICE}</p>
+                      </div>
+                      <p className="text-xs text-slate-500">Version: {TERMS_LAST_UPDATED}</p>
                     </div>
                     {TERMS_SECTIONS.map((section) => (
-                      <section key={section.number} className="space-y-2">
+                      <section key={`${section.number}-${section.title}`} className="space-y-2">
                         <div className="flex items-baseline gap-3">
                           <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-200/50">{section.number}</span>
                           <h6 className="text-lg md:text-xl font-serif text-slate-100">{section.title}</h6>
                         </div>
-                        <p className="text-sm md:text-[15px] leading-7 text-slate-300 pl-6">{section.body}</p>
+                        <div className="space-y-2 pl-6">
+                          {section.blocks.map((block, idx) => (
+                            block.type === 'paragraph' ? (
+                              <p key={idx} className="text-sm md:text-[15px] leading-7 text-slate-300">{block.text}</p>
+                            ) : (
+                              <ul key={idx} className="list-disc list-outside ml-5 space-y-1 text-sm md:text-[15px] leading-7 text-slate-300">
+                                {block.items.map((item, itemIdx) => (
+                                  <li key={itemIdx}>{item}</li>
+                                ))}
+                              </ul>
+                            )
+                          ))}
+                        </div>
                       </section>
                     ))}
-                    <div className="pt-2 border-t border-white/10">
-                      <a
-                        href={activeCheckoutTerms.public_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs text-blue-300 hover:text-blue-200 underline underline-offset-2"
-                      >
-                        View source terms document
-                        <span className="material-symbols-outlined text-sm">open_in_new</span>
-                      </a>
+                    <div className="pt-4 border-t border-white/10">
+                      <p className="text-sm md:text-[15px] font-semibold text-slate-100">{TERMS_END_TEXT}</p>
                     </div>
                   </div>
                 </div>

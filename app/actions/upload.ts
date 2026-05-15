@@ -47,8 +47,7 @@ export async function uploadVerificationDocument(formData: FormData) {
     if (!licenceType)                throw new Error('Licence type is required for the Pilot Licence.')
     if (hasNightVfrRating === null)  throw new Error('Night VFR rating status is required for the Pilot Licence.')
     if (hasInstrumentRating === null) throw new Error('Instrument rating status is required for the Pilot Licence.')
-    if (hasRedCard === null)         throw new Error('Red Card status is required for the Pilot Licence.')
-    if (hasRedCard && (!redCardExpiryMonth || !redCardExpiryYear)) {
+    if (hasRedCard === true && (!redCardExpiryMonth || !redCardExpiryYear)) {
       throw new Error('Red Card expiry month and year are required when Red Card is set to Yes.')
     }
   }

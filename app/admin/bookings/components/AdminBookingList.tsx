@@ -6,6 +6,8 @@ import AdminPortalHero from '@/components/AdminPortalHero'
 import { TabLink } from '@/app/admin/components/AdminUi'
 
 type SearchParams = { status?: string }
+type SortKey = 'customer' | 'email' | 'aircraft' | 'scheduled' | 'status' | 'ref'
+type SortDir = 'asc' | 'desc'
 
 type BookingRow = {
   id: string
@@ -54,7 +56,7 @@ export default async function AdminBookingList({
   basePath,
   hideFilters,
 }: {
-  searchParams: SearchParams
+  searchParams: SearchParams & { sort?: string; dir?: string }
   bookingTypeFilter: 'checkout' | 'standard' | 'all'
   pageTitle: string
   pageSubtitle: string
@@ -69,6 +71,8 @@ export default async function AdminBookingList({
   if (profile?.role !== 'admin') redirect('/dashboard')
 
   const requestedFilter = searchParams.status ?? 'all'
+  const sort = (searchParams.sort as SortKey | undefined) ?? 'scheduled'
+  const dir = (searchParams.dir as SortDir | undefined) === 'asc' ? 'asc' : 'desc'
   const normalizeStatusFilter = (value: string) => {
     if (bookingTypeFilter !== 'checkout') return value
     const aliasMap: Record<string, string> = {
@@ -125,6 +129,35 @@ export default async function AdminBookingList({
     return new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime()
   })
 
+  const sortedRows = [...rows].sort((a, b) => {
+    const aircraftA = Array.isArray(a.aircraft) ? a.aircraft[0] : a.aircraft
+    const aircraftB = Array.isArray(b.aircraft) ? b.aircraft[0] : b.aircraft
+    const pa = profileMap.get(a.booking_owner_user_id)
+    const pb = profileMap.get(b.booking_owner_user_id)
+    const va: Record<SortKey, string | number> = {
+      customer: fullCustomerName(pa, a.pic_name).toLowerCase(),
+      email: (pa?.email ?? '').toLowerCase(),
+      aircraft: (aircraftA?.registration ?? '').toLowerCase(),
+      scheduled: new Date(a.scheduled_start).getTime(),
+      status: (STATUS_BADGE[a.status]?.label ?? a.status).toLowerCase(),
+      ref: (a.booking_reference ?? a.id).toLowerCase(),
+    }
+    const vb: Record<SortKey, string | number> = {
+      customer: fullCustomerName(pb, b.pic_name).toLowerCase(),
+      email: (pb?.email ?? '').toLowerCase(),
+      aircraft: (aircraftB?.registration ?? '').toLowerCase(),
+      scheduled: new Date(b.scheduled_start).getTime(),
+      status: (STATUS_BADGE[b.status]?.label ?? b.status).toLowerCase(),
+      ref: (b.booking_reference ?? b.id).toLowerCase(),
+    }
+    const cmp = va[sort] < vb[sort] ? -1 : va[sort] > vb[sort] ? 1 : 0
+    return dir === 'asc' ? cmp : -cmp
+  })
+
+  const nextDir = (key: SortKey): SortDir => (sort === key && dir === 'asc' ? 'desc' : 'asc')
+  const sortHref = (key: SortKey) => `${basePath}?status=${encodeURIComponent(requestedFilter)}&sort=${key}&dir=${nextDir(key)}`
+  const sortIcon = (key: SortKey) => (sort === key ? (dir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more')
+
   const checkoutTabs = [
     { label: 'New Requests', value: 'checkout_requested' },
     { label: 'Scheduled', value: 'checkout_confirmed' },
@@ -168,17 +201,17 @@ export default async function AdminBookingList({
               <table className="w-full text-sm">
                 <thead className="bg-[#111316] text-slate-400">
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium">Customer</th>
-                    <th className="px-4 py-3 text-left font-medium">Email</th>
-                    <th className="px-4 py-3 text-left font-medium">Aircraft</th>
-                    <th className="px-4 py-3 text-left font-medium">Scheduled</th>
-                    <th className="px-4 py-3 text-left font-medium">Status</th>
-                    <th className="px-4 py-3 text-left font-medium">Ref</th>
+                    <th className="px-4 py-3 text-left font-medium"><Link href={sortHref('customer')} className="inline-flex items-center gap-1.5">Customer<span className="material-symbols-outlined text-[14px]">{sortIcon('customer')}</span></Link></th>
+                    <th className="px-4 py-3 text-left font-medium"><Link href={sortHref('email')} className="inline-flex items-center gap-1.5">Email<span className="material-symbols-outlined text-[14px]">{sortIcon('email')}</span></Link></th>
+                    <th className="px-4 py-3 text-left font-medium"><Link href={sortHref('aircraft')} className="inline-flex items-center gap-1.5">Aircraft<span className="material-symbols-outlined text-[14px]">{sortIcon('aircraft')}</span></Link></th>
+                    <th className="px-4 py-3 text-left font-medium"><Link href={sortHref('scheduled')} className="inline-flex items-center gap-1.5">Scheduled<span className="material-symbols-outlined text-[14px]">{sortIcon('scheduled')}</span></Link></th>
+                    <th className="px-4 py-3 text-left font-medium"><Link href={sortHref('status')} className="inline-flex items-center gap-1.5">Status<span className="material-symbols-outlined text-[14px]">{sortIcon('status')}</span></Link></th>
+                    <th className="px-4 py-3 text-left font-medium"><Link href={sortHref('ref')} className="inline-flex items-center gap-1.5">Ref<span className="material-symbols-outlined text-[14px]">{sortIcon('ref')}</span></Link></th>
                     <th className="px-4 py-3 text-right font-medium">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
-                  {rows.map((booking) => {
+                  {sortedRows.map((booking) => {
                     const aircraft = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
                     const prof = profileMap.get(booking.booking_owner_user_id)
                     const customerName = fullCustomerName(prof, booking.pic_name)
@@ -202,7 +235,7 @@ export default async function AdminBookingList({
             </div>
 
             <div className="lg:hidden space-y-3">
-              {rows.map((booking) => {
+              {sortedRows.map((booking) => {
                 const aircraft = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
                 const prof = profileMap.get(booking.booking_owner_user_id)
                 const customerName = fullCustomerName(prof, booking.pic_name)

@@ -34,7 +34,7 @@ export default async function CheckoutPage() {
   const [{ data: documents }, { data: aircraft }, { data: checkoutBooking }] = await Promise.all([
     supabase
       .from('user_documents')
-      .select('id, document_type, status, expiry_date, uploaded_at, file_name')
+      .select('*')
       .eq('user_id', user.id),
     supabase
       .from('aircraft')

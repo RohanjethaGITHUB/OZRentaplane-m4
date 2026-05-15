@@ -43,6 +43,25 @@ export default function AdminCalendarClient({ events }: { events: CalEvent[] }) 
   const monthEnd = new Date(focusDate.getFullYear(), focusDate.getMonth() + 1, 0)
   const daysInMonth = monthEnd.getDate()
   const monthDays = Array.from({ length: daysInMonth }).map((_, i) => new Date(focusDate.getFullYear(), focusDate.getMonth(), i + 1))
+  const monthValue = `${focusDate.getFullYear()}-${String(focusDate.getMonth() + 1).padStart(2, '0')}`
+  const monthOptions = Array.from({ length: 25 }).map((_, i) => {
+    const offset = i - 12
+    const d = new Date(focusDate.getFullYear(), focusDate.getMonth() + offset, 1)
+    return {
+      value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+      label: d.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }),
+    }
+  })
+  const shiftMonth = (delta: number) => {
+    setFocusDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1))
+  }
+  const onMonthChange = (value: string) => {
+    const [yearStr, monthStr] = value.split('-')
+    const y = Number(yearStr)
+    const m = Number(monthStr)
+    if (!Number.isFinite(y) || !Number.isFinite(m)) return
+    setFocusDate(new Date(y, m - 1, 1))
+  }
 
   return (
     <div className="space-y-5">
@@ -53,6 +72,17 @@ export default function AdminCalendarClient({ events }: { events: CalEvent[] }) 
               {v[0].toUpperCase() + v.slice(1)}
             </button>
           ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => shiftMonth(-1)} className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-white/15 text-slate-200 hover:bg-white/10" aria-label="Previous month">
+            <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+          </button>
+          <select value={monthValue} onChange={(e) => onMonthChange(e.target.value)} className="h-9 rounded-lg border border-white/15 bg-[#111827] px-3 text-sm text-slate-100">
+            {monthOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+          <button onClick={() => shiftMonth(1)} className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-white/15 text-slate-200 hover:bg-white/10" aria-label="Next month">
+            <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+          </button>
         </div>
         <Link href="/admin/bookings/blocks/new" className="px-4 py-2 rounded-lg bg-white text-slate-900 text-sm font-medium">Block Time</Link>
       </div>

@@ -19,12 +19,48 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const adminName = profile.full_name ?? user.email?.split('@')[0] ?? 'Administrator'
 
-  // Fetch unread message count
-  const { count: unreadMessageCount } = await supabase
-    .from('verification_events')
-    .select('*', { count: 'exact', head: true })
-    .eq('actor_role', 'customer')
-    .is('admin_read_at', null)
+  const [
+    { count: unreadMessageCount },
+    { count: checkoutNewRequests },
+    { count: checkoutAwaitingOutcome },
+    { count: checkoutPaymentRequired },
+    { count: awaitingFlightRecord },
+    { count: postFlightReview },
+    { count: bookingPaymentPending },
+    { count: checkoutManualReview },
+    { count: bookingManualReview },
+    { count: cancellationPending },
+  ] = await Promise.all([
+    supabase
+      .from('verification_events')
+      .select('*', { count: 'exact', head: true })
+      .eq('actor_role', 'customer')
+      .is('admin_read_at', null)
+      .in('event_type', ['message', 'on_hold'])
+      .not('body', 'is', null),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_requested'),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_completed_under_review'),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_payment_required'),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'awaiting_flight_record'),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'pending_post_flight_review'),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'payment_pending'),
+    supabase.from('checkout_bank_transfer_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending_review'),
+    supabase.from('booking_bank_transfer_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending_review'),
+    supabase.from('booking_cancellation_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+  ])
+
+  const checkoutNewQueue = (checkoutNewRequests ?? 0)
+  const checkoutAwaitingOutcomeQueue = (checkoutAwaitingOutcome ?? 0)
+  const checkoutPaymentsQueue = (checkoutPaymentRequired ?? 0) + (checkoutManualReview ?? 0)
+  const checkoutActions = checkoutNewQueue + checkoutAwaitingOutcomeQueue + checkoutPaymentsQueue
+
+  const bookingAwaitingFlightQueue = awaitingFlightRecord ?? 0
+  const bookingPostFlightQueue = postFlightReview ?? 0
+  const bookingPaymentsQueue = (bookingPaymentPending ?? 0) + (bookingManualReview ?? 0)
+  const bookingCancellationsQueue = cancellationPending ?? 0
+  const bookingActions = bookingAwaitingFlightQueue + bookingPostFlightQueue + bookingPaymentsQueue + bookingCancellationsQueue
+  const messagesActions = unreadMessageCount ?? 0
+  const totalActions = checkoutActions + bookingActions + messagesActions
 
   return (
     <div className="admin-theme min-h-screen flex flex-col bg-[var(--admin-bg)] text-[var(--admin-text)] font-sans relative">
@@ -43,6 +79,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <AdminSidebar
           displayName={adminName}
           unreadMessageCount={unreadMessageCount ?? 0}
+          actionCounts={{
+            actions: totalActions,
+            checkouts: checkoutActions,
+            checkoutNewRequests: checkoutNewQueue,
+            checkoutAwaitingOutcome: checkoutAwaitingOutcomeQueue,
+            checkoutPayments: checkoutPaymentsQueue,
+            bookings: bookingActions,
+            awaitingFlightRecord: bookingAwaitingFlightQueue,
+            postFlightReview: bookingPostFlightQueue,
+            bookingPayments: bookingPaymentsQueue,
+            bookingCancellations: bookingCancellationsQueue,
+          }}
         />
         
         {/* Page content */}

@@ -16,6 +16,8 @@ import {
 type StatusFilter = 'all' | 'new_requests' | 'upcoming' | 'in_progress' | 'awaiting_outcome' | 'payment_required' | 'completed' | 'cancelled'
 type OutcomeFilter = 'all' | 'cleared_to_fly' | 'additional_checkout_required' | 'checkout_reschedule_required' | 'not_currently_eligible' | 'none'
 type PaymentFilter = 'all' | 'payment_required' | 'manual_review' | 'pending' | 'paid' | 'waived' | 'refunded' | 'cancelled' | 'no_record' | 'no_needed'
+type SortKey = 'customer' | 'submitted' | 'scheduled' | 'status' | 'outcome' | 'payment'
+type SortDir = 'asc' | 'desc'
 
 function getStatusFilter(v?: string): StatusFilter {
   const vals: StatusFilter[] = ['all', 'new_requests', 'upcoming', 'in_progress', 'awaiting_outcome', 'payment_required', 'completed', 'cancelled']
@@ -52,7 +54,7 @@ function fullName(p: { first_name: string | null; last_name: string | null; full
 export const metadata = { title: 'All Checkouts | Admin' }
 export const dynamic = 'force-dynamic'
 
-export default async function AllCheckoutsPage({ searchParams }: { searchParams: { status?: string; outcome?: string; payment?: string } }) {
+export default async function AllCheckoutsPage({ searchParams }: { searchParams: { status?: string; outcome?: string; payment?: string; sort?: string; dir?: string } }) {
   noStore()
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -61,6 +63,8 @@ export default async function AllCheckoutsPage({ searchParams }: { searchParams:
   const statusFilter = getStatusFilter(searchParams.status)
   const outcomeFilter = getOutcomeFilter(searchParams.outcome)
   const paymentFilter = getPaymentFilter(searchParams.payment)
+  const sort = (searchParams.sort as SortKey | undefined) ?? 'submitted'
+  const dir = (searchParams.dir as SortDir | undefined) === 'asc' ? 'asc' : 'desc'
 
   const { data: bookings } = await supabase
     .from('bookings')
@@ -189,6 +193,36 @@ export default async function AllCheckoutsPage({ searchParams }: { searchParams:
       if (a.stage === 'completed' || a.stage === 'cancelled') return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       return new Date(b.submitted).getTime() - new Date(a.submitted).getTime()
     })
+  const sortedRows = [...rows].sort((a, b) => {
+    const va: Record<SortKey, string | number> = {
+      customer: a.customer.toLowerCase(),
+      submitted: new Date(a.submitted).getTime(),
+      scheduled: new Date(a.scheduled ?? 0).getTime(),
+      status: a.statusLabel.toLowerCase(),
+      outcome: a.outcomeLabel.toLowerCase(),
+      payment: a.payment.toLowerCase(),
+    }
+    const vb: Record<SortKey, string | number> = {
+      customer: b.customer.toLowerCase(),
+      submitted: new Date(b.submitted).getTime(),
+      scheduled: new Date(b.scheduled ?? 0).getTime(),
+      status: b.statusLabel.toLowerCase(),
+      outcome: b.outcomeLabel.toLowerCase(),
+      payment: b.payment.toLowerCase(),
+    }
+    const cmp = va[sort] < vb[sort] ? -1 : va[sort] > vb[sort] ? 1 : 0
+    return dir === 'asc' ? cmp : -cmp
+  })
+  const sortHref = (key: SortKey) => {
+    const nextDir = sort === key && dir === 'asc' ? 'desc' : 'asc'
+    return `/admin/checkouts/all?status=${statusFilter}&outcome=${outcomeFilter}&payment=${paymentFilter}&sort=${key}&dir=${nextDir}`
+  }
+  const sortLabel = (label: string, key: SortKey) => (
+    <Link href={sortHref(key)} className="inline-flex items-center gap-1.5">
+      {label}
+      <span className="material-symbols-outlined text-[14px]">{sort === key ? (dir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more'}</span>
+    </Link>
+  )
 
   const tabs: Array<{ key: StatusFilter; label: string }> = [
     { key: 'all', label: 'All' },
@@ -238,9 +272,9 @@ export default async function AllCheckoutsPage({ searchParams }: { searchParams:
             <h2 className="text-[2rem] leading-none font-semibold text-[var(--admin-text)]">Checkout requests</h2>
             <p className="text-[1.02rem] text-[var(--admin-text-muted)] mt-2">Showing {tabs.find((t) => t.key === statusFilter)?.label ?? 'All'} ({rows.length})</p>
           </div>
-          <AdminDataTable columns={['Customer', 'Submitted', 'Scheduled', 'Status', 'Outcome', 'Payment', 'Action']}>
+          <AdminDataTable columns={[sortLabel('Customer', 'customer'), sortLabel('Submitted', 'submitted'), sortLabel('Scheduled', 'scheduled'), sortLabel('Status', 'status'), sortLabel('Outcome', 'outcome'), sortLabel('Payment', 'payment'), 'Action']}>
               {rows.length === 0 && <tr><td colSpan={7} className="px-5 py-12 text-center text-[var(--admin-text-muted)]">No checkout requests found for this filter.</td></tr>}
-              {rows.map((r, idx) => {
+              {sortedRows.map((r, idx) => {
                 const action = r.stage === 'new_requests' ? 'Review Request' : r.stage === 'awaiting_outcome' ? 'Record Outcome' : r.stage === 'payment_required' ? 'Review Payment' : r.stage === 'cancelled' || r.stage === 'completed' ? 'View Details' : 'View Checkout'
                 const pay = r.payment.toLowerCase()
                 const statusTone = r.stage === 'new_requests'

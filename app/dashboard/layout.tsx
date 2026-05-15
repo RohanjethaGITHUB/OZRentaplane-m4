@@ -42,7 +42,7 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
           <CustomerPortalSubNavSimple hideCheckout={isClearedToFly} />
         </div>
 
-        <main className="relative z-10 mx-auto w-full max-w-[1400px] px-4 pb-10 pt-4 md:px-8 md:pb-14 md:pt-4">
+        <main className="relative mx-auto w-full max-w-[1400px] px-4 pb-10 pt-4 md:px-8 md:pb-14 md:pt-4">
           <div className="space-y-6">{children}</div>
         </main>
       </div>
