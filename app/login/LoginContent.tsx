@@ -7,82 +7,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 
 type AuthMode = 'signin' | 'signup'
-type OAuthProvider = 'google'
 
 const EASE_PREMIUM = [0.25, 1, 0.35, 1] as const
 const TRANSITION = { duration: 1.4, ease: EASE_PREMIUM }
 
-function GoogleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="15" height="15" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-    </svg>
-  )
-}
-
-function SpinIcon() {
-  return (
-    <svg className="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="40" strokeDashoffset="30" />
-    </svg>
-  )
-}
-
-const PROVIDERS: { id: OAuthProvider; label: string; Icon: () => JSX.Element }[] = [
-  { id: 'google', label: 'Google', Icon: GoogleIcon },
-]
-
 const FIELD_LABEL_CLASS = 'block text-[10px] font-sans uppercase tracking-[0.2em] text-white/[0.72] mb-1.5 group-focus-within:text-oz-blue transition-colors'
 const FIELD_INPUT_CLASS = 'w-full bg-white/[0.09] border border-white/30 px-3.5 py-3.5 text-white placeholder:text-white/50 focus:ring-0 focus:border-oz-blue focus:bg-white/[0.13] transition-all outline-none font-sans rounded-xl'
-
-interface SocialButtonsProps {
-  context: 'signin' | 'signup'
-  oauthLoading: OAuthProvider | null
-  oauthError: string
-  disabled: boolean
-  unavailableProviders: Set<OAuthProvider>
-  onSignIn: (provider: OAuthProvider) => void
-}
-
-function SocialButtons({ context, oauthLoading, oauthError, disabled, unavailableProviders, onSignIn }: SocialButtonsProps) {
-  const availableProviders = PROVIDERS.filter(({ id }) => !unavailableProviders.has(id))
-  if (!availableProviders.length) return null
-
-  return (
-    <div className="space-y-3">
-      <div className="flex gap-2">
-        {availableProviders.map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => onSignIn(id)}
-            disabled={disabled}
-            aria-label={context === 'signin' ? `Continue with ${label}` : `Sign up with ${label}`}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-white/[0.12] border border-white/[0.34] hover:bg-white/[0.17] hover:border-oz-blue/50 transition-all duration-300 text-white/95 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {oauthLoading === id ? <SpinIcon /> : <Icon />}
-            <span className="text-[10px] font-sans uppercase tracking-[0.12em]">{context === 'signin' ? 'Continue with Google' : 'Sign up with Google'}</span>
-          </button>
-        ))}
-      </div>
-
-      {oauthError && <p className="text-red-400 text-[11px] font-sans font-light tracking-wide">{oauthError}</p>}
-    </div>
-  )
-}
-
-function EmailDivider({ text }: { text: string }) {
-  return (
-    <div className="flex items-center gap-3 pt-1">
-      <div className="flex-1 h-px bg-white/[0.26]" />
-      <span className="text-[10px] font-sans uppercase tracking-[0.2em] text-white/60 whitespace-nowrap">{text}</span>
-      <div className="flex-1 h-px bg-white/[0.26]" />
-    </div>
-  )
-}
 
 interface LoginContentProps {
   presentation?: 'page' | 'modal'
@@ -113,22 +43,13 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
   const [suSuccess, setSuSuccess] = useState(false)
 
   const [loading, setLoading] = useState(false)
-  const [oauthLoading, setOauthLoading] = useState<OAuthProvider | null>(null)
-  const [oauthError, setOauthError] = useState('')
-  const [unavailableProviders, setUnavailableProviders] = useState<Set<OAuthProvider>>(() => {
-    const rawProviders = process.env.NEXT_PUBLIC_AUTH_ENABLED_PROVIDERS
-    if (!rawProviders) return new Set()
-    const allowed = rawProviders.split(',').map((value) => value.trim().toLowerCase()) as OAuthProvider[]
-    return new Set(PROVIDERS.map((provider) => provider.id).filter((id) => !allowed.includes(id)))
-  })
 
-  const anyLoading = loading || !!oauthLoading
+  const anyLoading = loading
   const isModal = presentation === 'modal'
 
   function clearErrors() {
     setSiError('')
     setSuError('')
-    setOauthError('')
   }
 
   function setModeWithReset(nextMode: AuthMode) {
@@ -172,6 +93,10 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
       setSuError('Country code must be + followed by 1-4 digits (or digits only).')
       return
     }
+    if (!phoneNumber) {
+      setSuError('Phone number is required.')
+      return
+    }
     if (!PHONE_NUMBER_REGEX.test(phoneNumber)) {
       setSuError('Phone number can only contain digits.')
       return
@@ -188,7 +113,7 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
           first_name: firstName,
           last_name: lastName,
           phone_country_code: phoneCountryCode,
-          phone_number: phoneNumber || null,
+          phone_number: phoneNumber,
         },
       },
     })
@@ -197,28 +122,6 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
     if (error) setSuError(error.message)
     else if (data.session) router.push('/dashboard')
     else setSuSuccess(true)
-  }
-
-  async function handleOAuthSignIn(provider: OAuthProvider) {
-    if (unavailableProviders.has(provider)) return
-    clearErrors()
-    setOauthLoading(provider)
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    })
-    if (error) {
-      const message = error.message.toLowerCase()
-      if (
-        message.includes('unsupported provider') ||
-        message.includes('provider is not enabled') ||
-        message.includes('not enabled')
-      ) {
-        setUnavailableProviders((prev) => new Set(prev).add(provider))
-      }
-      setOauthError(error.message)
-      setOauthLoading(null)
-    }
   }
 
   useEffect(() => {
@@ -260,8 +163,6 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                     <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif text-white mb-4 leading-tight tracking-tight">Welcome Back, Pilot</h1>
                     <p className="text-white/[0.78] font-sans font-light mb-10 text-lg tracking-wide">Your aircraft is waiting. Please authenticate to access your dashboard.</p>
                     <form className="space-y-7" onSubmit={handleSignIn}>
-                      <SocialButtons context="signin" oauthLoading={oauthLoading} oauthError={oauthError} unavailableProviders={unavailableProviders} disabled={anyLoading} onSignIn={handleOAuthSignIn} />
-                      <EmailDivider text="or sign in with email" />
                       <div className="group relative">
                         <label className={FIELD_LABEL_CLASS}>Email Address</label>
                         <input type="email" placeholder="captain@ozrentaplane.com.au" value={siEmail} onChange={(e) => setSiEmail(e.target.value)} required className={FIELD_INPUT_CLASS} />
@@ -325,8 +226,6 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                     </div>
                   ) : (
                     <form className="space-y-7" onSubmit={handleSignUp}>
-                      <SocialButtons context="signup" oauthLoading={oauthLoading} oauthError={oauthError} unavailableProviders={unavailableProviders} disabled={anyLoading} onSignIn={handleOAuthSignIn} />
-                      <EmailDivider text="or create account with email" />
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
                         <div className="group relative">
                           <label className={FIELD_LABEL_CLASS}>First Name</label>
@@ -358,7 +257,7 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                           />
                         </div>
                         <div className="group relative">
-                          <label className={FIELD_LABEL_CLASS}>Phone Number (Optional)</label>
+                          <label className={FIELD_LABEL_CLASS}>Phone Number</label>
                           <input
                             type="tel"
                             placeholder="e.g. 412345678"
@@ -367,6 +266,7 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                               const value = e.target.value
                               if (/^\d*$/.test(value)) setSuPhoneNumber(value)
                             }}
+                            required
                             className={FIELD_INPUT_CLASS}
                           />
                         </div>
