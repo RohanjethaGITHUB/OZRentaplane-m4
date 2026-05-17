@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import ScreenshotMode from './ScreenshotMode'
+import ContentsquareTag from './components/ContentsquareTag'
 import { Suspense } from 'react'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.ozrentaplane.com'
@@ -111,6 +112,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Suspense fallback={null}>
           <ScreenshotMode />
         </Suspense>
+        <ContentsquareTag />
         {children}
       </body>
     </html>
