@@ -43,6 +43,7 @@ const STATUS_CFG: Record<string, {
   checkout_confirmed:              { label: 'Checkout Confirmed',        color: 'text-green-400',   bg: 'bg-green-500/10',   border: 'border-green-500/20',   icon: 'event_available'},
   checkout_completed_under_review: { label: 'Awaiting Outcome',          color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   icon: 'rate_review'    },
   checkout_payment_required:       { label: 'Payment Required',          color: 'text-orange-400',  bg: 'bg-orange-500/10',  border: 'border-orange-500/20',  icon: 'payments'       },
+  no_show:                         { label: 'No Show',                   color: 'text-rose-400',    bg: 'bg-rose-500/10',    border: 'border-rose-500/20',    icon: 'person_off'     },
 }
 
 // Pilot clearance status display — replaces the old verification-only label
@@ -166,7 +167,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   ] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, email, verification_status, pilot_clearance_status, pilot_arn, created_at')
+      .select('id, full_name, email, verification_status, pilot_clearance_status, pilot_arn, created_at, account_status, account_lock_reason')
       .eq('id', booking.booking_owner_user_id)
       .single(),
     supabase
@@ -623,6 +624,9 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 status={status as 'checkout_confirmed' | 'checkout_completed_under_review'}
                 airports={airports}
                 customerCreditCents={customerCreditCents}
+                customerId={booking.booking_owner_user_id}
+                scheduledStart={booking.scheduled_start}
+                noShowLocked={customer?.account_status === 'blocked' && customer?.account_lock_reason === 'checkout_no_show'}
               />
             </div>
           )}

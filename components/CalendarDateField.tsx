@@ -44,6 +44,7 @@ export default function CalendarDateField({
   disabled = false,
   error,
   className,
+  popoverZIndex = 1300,
 }: {
   label?: string
   required?: boolean
@@ -57,6 +58,7 @@ export default function CalendarDateField({
   disabled?: boolean
   error?: string
   className?: string
+  popoverZIndex?: number
 }) {
   const now = new Date()
   const initial = isoToDate(value) ?? now
@@ -177,8 +179,8 @@ export default function CalendarDateField({
       {open && mounted && createPortal(
         <div
           ref={popoverRef}
-          className="fixed z-[1000] max-w-[calc(100vw-1.5rem)] rounded-xl border border-white/12 bg-[#0b1322] shadow-[0_16px_32px_rgba(0,0,0,0.5)] p-3"
-          style={{ top: popoverStyle.top, left: popoverStyle.left, width: popoverStyle.width }}
+          className="fixed max-w-[calc(100vw-1.5rem)] rounded-xl border border-white/12 bg-[#0b1322] shadow-[0_16px_32px_rgba(0,0,0,0.5)] p-3"
+          style={{ top: popoverStyle.top, left: popoverStyle.left, width: popoverStyle.width, zIndex: popoverZIndex }}
         >
           <div className="grid grid-cols-2 gap-2 mb-3">
             <select

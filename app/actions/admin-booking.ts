@@ -538,7 +538,7 @@ export async function cancelBookingRequest(bookingId: string, reason: string) {
 
   const { error: updateErr } = await supabase
     .from('bookings')
-    .update({ status: 'cancelled', admin_notes: reason, updated_at: now })
+    .update({ status: 'cancelled', admin_notes: reason, checkout_lifecycle_status: 'cancelled_by_admin', updated_at: now })
     .eq('id', bookingId)
 
   if (updateErr) throw new Error('Failed to cancel booking.')
@@ -1466,6 +1466,101 @@ export async function cancelCheckoutBooking(bookingId: string, reason: string): 
 
 
   revalidatePath('/admin')
+  revalidatePath('/dashboard')
+}
+
+export async function markCheckoutNoShow(bookingId: string): Promise<void> {
+  const { supabase, adminId } = await requireAdmin()
+  const now = new Date().toISOString()
+
+  const { data: booking, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('status, booking_type, aircraft_id, booking_owner_user_id')
+    .eq('id', bookingId)
+    .single()
+  if (fetchErr || !booking) throw new Error('Booking not found.')
+  if (booking.booking_type !== 'checkout') throw new Error('VALIDATION: This booking is not a checkout booking.')
+  if (booking.status !== 'checkout_confirmed') {
+    throw new Error(`VALIDATION: No-show can only be recorded from 'checkout_confirmed'. Current: '${booking.status}'.`)
+  }
+
+  const { error: bookingErr } = await supabase
+    .from('bookings')
+    .update({ status: 'no_show', checkout_lifecycle_status: 'completed', updated_at: now })
+    .eq('id', bookingId)
+  if (bookingErr) throw new Error('Failed to mark booking as no-show.')
+
+  await supabase
+    .from('schedule_blocks')
+    .update({ status: 'cancelled' })
+    .eq('related_booking_id', bookingId)
+    .eq('status', 'active')
+
+  await supabase
+    .from('profiles')
+    .update({
+      account_status: 'blocked',
+      account_lock_reason: 'checkout_no_show',
+      account_locked_at: now,
+      account_locked_by_admin_id: adminId,
+      account_unlocked_at: null,
+      account_unlocked_by_admin_id: null,
+      updated_at: now,
+    })
+    .eq('id', booking.booking_owner_user_id)
+
+  await supabase.from('booking_status_history').insert({
+    booking_id: bookingId,
+    old_status: booking.status,
+    new_status: 'no_show',
+    changed_by_user_id: adminId,
+    note: 'Admin marked checkout booking as no-show. Customer account locked.',
+  })
+
+  await supabase.from('booking_audit_events').insert({
+    booking_id: bookingId,
+    aircraft_id: booking.aircraft_id,
+    actor_user_id: adminId,
+    actor_role: 'admin',
+    event_type: 'checkout_no_show',
+    event_summary: 'Admin marked checkout booking as no-show and locked customer account.',
+    new_value: { status: 'no_show', account_status: 'blocked', account_lock_reason: 'checkout_no_show' },
+  })
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings/checkout')
+  revalidatePath(`/admin/bookings/requests/${bookingId}`)
+  revalidatePath('/dashboard')
+}
+
+export async function unlockCheckoutNoShowLock(customerId: string): Promise<void> {
+  const { supabase, adminId } = await requireAdmin()
+  const now = new Date().toISOString()
+
+  const { data: profile, error: fetchErr } = await supabase
+    .from('profiles')
+    .select('id, account_status, account_lock_reason')
+    .eq('id', customerId)
+    .single()
+  if (fetchErr || !profile) throw new Error('Customer profile not found.')
+  if (profile.account_lock_reason !== 'checkout_no_show') {
+    throw new Error('VALIDATION: Customer is not locked for checkout no-show.')
+  }
+
+  await supabase
+    .from('profiles')
+    .update({
+      account_status: 'active',
+      account_lock_reason: null,
+      account_unlocked_at: now,
+      account_unlocked_by_admin_id: adminId,
+      updated_at: now,
+    })
+    .eq('id', customerId)
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/customers')
+  revalidatePath(`/admin/users/${customerId}`)
   revalidatePath('/dashboard')
 }
 

@@ -16,6 +16,7 @@ import { PAYMENT_CONFIG } from '@/lib/payments/config'
 import { markFlightReturned } from '@/app/actions/booking'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 import CustomerBookingActions from './CustomerBookingActions'
+import CheckoutChangeActions from '@/app/dashboard/checkout/CheckoutChangeActions'
 
 export const metadata = { title: 'Booking Details | Pilot Dashboard' }
 
@@ -780,7 +781,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
   const { data: booking } = await supabase
     .from('bookings')
     .select(`
-      id, aircraft_id, status, booking_type, scheduled_start, scheduled_end,
+      id, aircraft_id, status, booking_type, scheduled_start, scheduled_end, checkout_lifecycle_status,
       estimated_hours, estimated_amount,
       pic_name, pic_arn, customer_notes, admin_notes,
       booking_reference,
@@ -793,6 +794,20 @@ export default async function BookingDetailPage({ params }: PageProps) {
     .single()
 
   if (!booking) notFound()
+
+  const { data: latestRescheduleRequest } = await supabase
+    .from('checkout_change_requests')
+    .select('id, status, requested_scheduled_start, requested_scheduled_end, created_at')
+    .eq('checkout_request_id', booking.id)
+    .eq('request_type', 'reschedule')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const pendingRescheduleRequest =
+    latestRescheduleRequest?.status === 'pending'
+      ? latestRescheduleRequest
+      : null
 
   // ── Status history ─────────────────────────────────────────────────────────
   // Safe to use booking.id here because the ownership check above already ran.
@@ -1371,6 +1386,34 @@ export default async function BookingDetailPage({ params }: PageProps) {
                 departureSydney={departureSydney}
                 heroLayout
                 yellowPrimary
+              />
+            )}
+            {bookingType === 'checkout' && (
+              <CheckoutChangeActions
+                checkout={{
+                  id: booking.id,
+                  booking_type: bookingType,
+                  status,
+                  scheduled_start: booking.scheduled_start,
+                  checkout_lifecycle_status: (booking as { checkout_lifecycle_status?: string | null }).checkout_lifecycle_status ?? null,
+                }}
+                aircraftId={booking.aircraft_id}
+                pendingRescheduleRequest={pendingRescheduleRequest
+                  ? {
+                      id: pendingRescheduleRequest.id,
+                      status: pendingRescheduleRequest.status,
+                      requested_scheduled_start: pendingRescheduleRequest.requested_scheduled_start,
+                      requested_scheduled_end: pendingRescheduleRequest.requested_scheduled_end,
+                    }
+                  : null}
+                latestRescheduleRequest={latestRescheduleRequest
+                  ? {
+                      id: latestRescheduleRequest.id,
+                      status: latestRescheduleRequest.status,
+                      requested_scheduled_start: latestRescheduleRequest.requested_scheduled_start,
+                      requested_scheduled_end: latestRescheduleRequest.requested_scheduled_end,
+                    }
+                  : null}
               />
             )}
           </div>

@@ -17,7 +17,7 @@ type ActionRowData = {
   href: string
   priority: Priority
   blockerRank: number
-  ctaLabel: 'Review' | 'Open'
+  nextStep: string
   oldestAt: string | null
 }
 
@@ -52,12 +52,14 @@ function formatRelativeAge(timestamp: string | null) {
 
   if (diff < hour) {
     const mins = Math.max(1, Math.floor(diff / minute))
-    return `${mins}m ago`
+    return `${mins} minute${mins === 1 ? '' : 's'}`
   }
   if (diff < day) {
-    return `${Math.floor(diff / hour)}h ago`
+    const hours = Math.floor(diff / hour)
+    return `${hours} hour${hours === 1 ? '' : 's'}`
   }
-  return `${Math.floor(diff / day)}d ago`
+  const days = Math.floor(diff / day)
+  return `${days} day${days === 1 ? '' : 's'}`
 }
 
 function rankPriority(priority: Priority) {
@@ -105,40 +107,40 @@ function SummaryStrip({ items }: { items: SummaryItem[] }) {
 }
 
 function ActionRow({ row }: { row: ActionRowData }) {
+  const heading = `${row.count} ${row.title.toLowerCase()}`
+
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#0a1424]/90 p-3 sm:p-4">
-      <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4">
-        <div className="w-10 h-10 rounded-xl border border-white/10 bg-[#12213a] text-white text-2xl flex items-center justify-center shrink-0">
-          {row.count}
-        </div>
-
+    <Link
+      href={row.href}
+      className="group block rounded-2xl border border-white/10 bg-[#0a1424]/90 px-5 py-4 sm:px-6 sm:py-5 transition-all duration-200 hover:border-sky-300/35 hover:bg-[#0d1a2f]/95 hover:shadow-[0_10px_28px_rgba(2,8,22,0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+    >
+      <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <p className="text-white text-lg leading-tight">{row.title}</p>
-          <p className="text-slate-400 mt-1 text-sm">{row.description}</p>
+          <p className="text-[1.13rem] leading-tight font-semibold text-white">{heading}</p>
+          <p className="text-slate-300/90 mt-2 text-[0.97rem] leading-relaxed">{row.description}</p>
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-300">
+            <p className="inline-flex items-center gap-1.5">
+              <span className={`inline-block w-2 h-2 rounded-full ${priorityClass(row.priority)}`} />
+              <span className="text-slate-300">Urgency: <span className="text-slate-100">{priorityLabel(row.priority)}</span></span>
+            </p>
+            <p className="text-slate-300">Oldest waiting: <span className="text-slate-100">{formatRelativeAge(row.oldestAt)}</span></p>
+            <p className="text-slate-300">Next step: <span className="text-slate-100">{row.nextStep}</span></p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-slate-300 min-w-[132px]">
-          <span className={`w-2 h-2 rounded-full ${priorityClass(row.priority)}`} />
-          <span>{priorityLabel(row.priority)}</span>
+        <div className="pt-1 shrink-0 text-slate-400 group-hover:text-sky-200 transition-colors">
+          <span className="material-symbols-outlined text-[22px]">chevron_right</span>
         </div>
-
-        <p className="text-sm text-slate-400 min-w-[120px]">Oldest {formatRelativeAge(row.oldestAt)}</p>
-
-        <Link
-          href={row.href}
-          className="inline-flex items-center justify-center rounded-xl border border-sky-300/25 bg-sky-500/10 hover:bg-sky-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 text-slate-100 h-10 px-5 text-sm shrink-0"
-        >
-          {row.ctaLabel}
-        </Link>
       </div>
-    </div>
+    </Link>
   )
 }
 
-function EmptyActionState({ text }: { text: string }) {
+function EmptyActionState({ text, subtext }: { text: string; subtext?: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-7 text-center text-slate-300">
-      {text}
+    <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-7 text-center">
+      <p className="text-slate-200">{text}</p>
+      {subtext ? <p className="mt-2 text-sm text-slate-400">{subtext}</p> : null}
     </div>
   )
 }
@@ -162,6 +164,7 @@ function ActionGroupPanel({
   subtitle,
   rows,
   emptyText,
+  emptySubtext,
   footerNote,
   moreHref,
   moreLabel,
@@ -171,6 +174,7 @@ function ActionGroupPanel({
   subtitle: string
   rows: ActionRowData[]
   emptyText: string
+  emptySubtext?: string
   footerNote: string
   moreHref?: string
   moreLabel?: string
@@ -191,7 +195,7 @@ function ActionGroupPanel({
 
       <div className="mt-6 space-y-3">
         {visibleRows.length === 0 ? (
-          <EmptyActionState text={emptyText} />
+          <EmptyActionState text={emptyText} subtext={emptySubtext} />
         ) : (
           visibleRows.map((row) => <ActionRow key={row.key} row={row} />)
         )}
@@ -253,6 +257,9 @@ export default async function AdminActionsPage() {
     { count: checkoutPaymentsRequired },
     { count: manualCheckoutPaymentsReview },
     { count: checkoutIssues },
+    { count: checkoutReschedulePending },
+    { data: checkoutCancelRequestRows },
+    { data: checkoutLifecycleCancelledRows },
     { count: upcomingFlights },
     { count: awaitingFlightRecords },
     { count: postFlightReviewRequired },
@@ -266,6 +273,8 @@ export default async function AdminActionsPage() {
     oldestCheckoutPayments,
     oldestManualCheckoutPayments,
     oldestCheckoutIssues,
+    oldestCheckoutReschedulePending,
+    oldestCheckoutCancellations,
     oldestUpcomingFlights,
     oldestAwaitingRecords,
     oldestPostFlightReview,
@@ -283,6 +292,9 @@ export default async function AdminActionsPage() {
       .select('*', { count: 'exact', head: true })
       .eq('role', 'customer')
       .in('pilot_clearance_status', ['additional_checkout_required', 'checkout_reschedule_required', 'not_currently_eligible']),
+    supabase.from('checkout_change_requests').select('*', { count: 'exact', head: true }).eq('request_type', 'reschedule').eq('status', 'pending'),
+    supabase.from('checkout_change_requests').select('checkout_request_id, created_at').eq('request_type', 'cancel'),
+    supabase.from('bookings').select('id, updated_at').eq('booking_type', 'checkout').in('checkout_lifecycle_status', ['cancelled_by_customer', 'cancelled_by_admin']),
 
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').in('status', ['confirmed', 'ready_for_dispatch']).gte('scheduled_start', nowIso),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'awaiting_flight_record'),
@@ -335,6 +347,17 @@ export default async function AdminActionsPage() {
         },
       ],
     }),
+    getOldestTimestamp(supabase, {
+      table: 'checkout_change_requests',
+      filters: [
+        { type: 'eq', column: 'request_type', value: 'reschedule' },
+        { type: 'eq', column: 'status', value: 'pending' },
+      ],
+    }),
+    getOldestTimestamp(supabase, {
+      table: 'checkout_change_requests',
+      filters: [{ type: 'eq', column: 'request_type', value: 'cancel' }],
+    }),
 
     getOldestTimestamp(supabase, {
       table: 'bookings',
@@ -376,6 +399,31 @@ export default async function AdminActionsPage() {
   ])
 
   const checkoutRowsAll: ActionRowData[] = [
+    // Checkout cancellation awareness queue (visible records, non-actionable).
+    ...(() => {
+      const cancelledCheckoutIds = new Set<string>([
+        ...(checkoutCancelRequestRows ?? []).map((row) => row.checkout_request_id),
+        ...(checkoutLifecycleCancelledRows ?? []).map((row) => row.id),
+      ])
+      const lifecycleOldest = (checkoutLifecycleCancelledRows ?? [])
+        .map((row) => row.updated_at)
+        .filter((v): v is string => typeof v === 'string')
+        .sort()[0] ?? null
+      const oldest = oldestCheckoutCancellations
+        ? (lifecycleOldest ? (new Date(oldestCheckoutCancellations) <= new Date(lifecycleOldest) ? oldestCheckoutCancellations : lifecycleOldest) : oldestCheckoutCancellations)
+        : lifecycleOldest
+      return [{
+        key: 'checkout-cancellations',
+        title: 'Checkout cancellations',
+        description: 'Monitor cancelled checkout records from customers and admins.',
+        count: cancelledCheckoutIds.size,
+        href: '/admin/checkouts/cancelled',
+        priority: 'low' as const,
+        blockerRank: 2,
+        nextStep: 'Review cancellation history',
+        oldestAt: oldest,
+      }]
+    })(),
     {
       key: 'new-checkout-requests',
       title: 'New checkout requests',
@@ -384,7 +432,7 @@ export default async function AdminActionsPage() {
       href: '/admin/checkouts/new-requests',
       priority: 'high',
       blockerRank: 2,
-      ctaLabel: 'Review',
+      nextStep: 'Review and confirm',
       oldestAt: oldestNewCheckout,
     },
     {
@@ -395,7 +443,7 @@ export default async function AdminActionsPage() {
       href: '/admin/checkouts/awaiting-outcome',
       priority: 'medium',
       blockerRank: 1,
-      ctaLabel: 'Open',
+      nextStep: 'Record outcome',
       oldestAt: oldestAwaitingCheckout,
     },
     {
@@ -406,7 +454,7 @@ export default async function AdminActionsPage() {
       href: '/admin/checkouts/payments?tab=payment_required',
       priority: 'medium',
       blockerRank: 0,
-      ctaLabel: 'Review',
+      nextStep: 'Review payment',
       oldestAt: oldestCheckoutPayments,
     },
     {
@@ -417,7 +465,7 @@ export default async function AdminActionsPage() {
       href: '/admin/checkouts/payments?tab=manual_review',
       priority: 'medium',
       blockerRank: 0,
-      ctaLabel: 'Review',
+      nextStep: 'Approve or reject',
       oldestAt: oldestManualCheckoutPayments,
     },
     {
@@ -428,8 +476,19 @@ export default async function AdminActionsPage() {
       href: '/admin/customers',
       priority: 'low',
       blockerRank: 1,
-      ctaLabel: 'Open',
+      nextStep: 'Review customer issues',
       oldestAt: oldestCheckoutIssues,
+    },
+    {
+      key: 'checkout-cancel-reschedule',
+      title: 'Checkout reschedule requests',
+      description: 'Review pending customer checkout reschedule requests.',
+      count: checkoutReschedulePending ?? 0,
+      href: '/admin/checkouts/reschedule?tab=pending',
+      priority: 'medium',
+      blockerRank: 1,
+      nextStep: 'Approve or reject',
+      oldestAt: oldestCheckoutReschedulePending,
     },
     {
       key: 'upcoming-checkouts',
@@ -439,7 +498,7 @@ export default async function AdminActionsPage() {
       href: '/admin/checkouts/upcoming',
       priority: 'low',
       blockerRank: 3,
-      ctaLabel: 'Open',
+      nextStep: 'Review schedule readiness',
       oldestAt: oldestUpcomingCheckout,
     },
   ]
@@ -454,7 +513,7 @@ export default async function AdminActionsPage() {
       href: '/admin/bookings/upcoming-flights',
       priority: 'high',
       blockerRank: 3,
-      ctaLabel: 'Review',
+      nextStep: 'Review flight readiness',
       oldestAt: oldestUpcomingFlights,
     },
     {
@@ -465,7 +524,7 @@ export default async function AdminActionsPage() {
       href: '/admin/bookings/awaiting-flight-records',
       priority: 'medium',
       blockerRank: 1,
-      ctaLabel: 'Open',
+      nextStep: 'Check submitted records',
       oldestAt: oldestAwaitingRecords,
     },
     {
@@ -476,7 +535,7 @@ export default async function AdminActionsPage() {
       href: '/admin/bookings/post-flight-review',
       priority: 'medium',
       blockerRank: 0,
-      ctaLabel: 'Review',
+      nextStep: 'Review and complete',
       oldestAt: oldestPostFlightReview,
     },
     {
@@ -487,7 +546,7 @@ export default async function AdminActionsPage() {
       href: '/admin/bookings/payment-required',
       priority: 'medium',
       blockerRank: 0,
-      ctaLabel: 'Review',
+      nextStep: 'Review payment',
       oldestAt: oldestBookingPayments,
     },
     {
@@ -498,7 +557,7 @@ export default async function AdminActionsPage() {
       href: '/admin/bookings/payments',
       priority: 'medium',
       blockerRank: 0,
-      ctaLabel: 'Review',
+      nextStep: 'Approve or reject',
       oldestAt: oldestManualBookingPayments,
     },
     {
@@ -509,7 +568,7 @@ export default async function AdminActionsPage() {
       href: '/admin/bookings/cancellations',
       priority: 'low',
       blockerRank: 1,
-      ctaLabel: 'Open',
+      nextStep: 'Review cancellation',
       oldestAt: oldestCancellationRequests,
     },
   ]
@@ -609,7 +668,8 @@ export default async function AdminActionsPage() {
             title="Booking Actions"
             subtitle="Immediate booking workflow actions."
             rows={bookingRows}
-            emptyText="No booking actions at this time."
+            emptyText="No booking actions need attention right now."
+            emptySubtext="New flight records, payments, or booking issues will appear here."
             footerNote="No other booking actions at this time."
             moreHref="/admin/bookings"
             moreLabel="View all booking actions"

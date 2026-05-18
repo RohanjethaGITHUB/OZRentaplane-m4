@@ -5,6 +5,7 @@ import CustomerBookingShell from '../CustomerBookingShell'
 import BookingRequestForm from './BookingRequestForm'
 import type { User } from '@supabase/supabase-js'
 import type { Profile, UserDocument } from '@/lib/supabase/types'
+import { ADMIN_CONTACT_PHONE_DISPLAY, ADMIN_CONTACT_PHONE_TEL } from '@/lib/contact'
 
 export const metadata = { title: 'Book a Flight | Pilot Overview' }
 
@@ -133,6 +134,27 @@ export default async function NewBookingPage() {
 
   const typedProfile = profile as Profile | null
   const pilotClearanceStatus = typedProfile?.pilot_clearance_status ?? 'checkout_required'
+  const noShowLocked =
+    typedProfile?.account_status === 'blocked' &&
+    typedProfile?.account_lock_reason === 'checkout_no_show'
+
+  if (noShowLocked) {
+    return (
+      <LockedGate
+        user={user as User}
+        profile={typedProfile}
+        icon="person_off"
+        iconColor="text-rose-400"
+        colorCls="bg-rose-500/[0.08] border-rose-500/20"
+        heading="Account Locked Due To Checkout No-Show"
+        body={`Your account is currently locked because you were marked as a no-show for your checkout flight. Please contact OZ Rent A Plane to discuss your checkout status and unlock your account. Call ${ADMIN_CONTACT_PHONE_DISPLAY}.`}
+        primaryLabel="Message Team"
+        primaryHref="/dashboard/messages"
+        secondaryLabel="Call Team"
+        secondaryHref={`tel:${ADMIN_CONTACT_PHONE_TEL}`}
+      />
+    )
+  }
 
   // ── State A: No checkout request submitted ────────────────────────────────
   if (pilotClearanceStatus === 'checkout_required') {

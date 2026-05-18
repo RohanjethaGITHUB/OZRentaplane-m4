@@ -30,34 +30,26 @@ export async function getDocumentSignedUrl(docType: DocumentType): Promise<strin
 }
 
 export async function saveCheckoutRedCardDetails(input: {
-  hasRedCard: boolean
-  redCardExpiry: string | null
+  redCardExpiry: string
 }): Promise<void> {
   const supabase = await createClient()
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) throw new Error('Unauthorized')
 
-  const hasRedCard = input.hasRedCard
-  const redCardExpiry = input.redCardExpiry
-
-  if (hasRedCard && !redCardExpiry) {
-    throw new Error('Red Card expiry month and year are required when Red Card is set to Yes.')
-  }
-  if (!hasRedCard && redCardExpiry) {
-    throw new Error('Red Card expiry must be empty when Red Card is set to No.')
+  const redCardExpiry = input.redCardExpiry?.trim()
+  if (!redCardExpiry) {
+    throw new Error('Please enter your Red Card expiry date.')
   }
 
-  const redCardExpiryMonth = redCardExpiry ? Number(redCardExpiry.split('-')[1]) : null
-  const redCardExpiryYear = redCardExpiry ? Number(redCardExpiry.split('-')[0]) : null
+  const redCardExpiryMonth = Number(redCardExpiry.split('-')[1])
+  const redCardExpiryYear = Number(redCardExpiry.split('-')[0])
 
-  if (hasRedCard) {
-    if (!redCardExpiryMonth || redCardExpiryMonth < 1 || redCardExpiryMonth > 12) {
-      throw new Error('Invalid Red Card expiry month.')
-    }
-    if (!redCardExpiryYear || redCardExpiryYear < 1900 || redCardExpiryYear > 2100) {
-      throw new Error('Invalid Red Card expiry year.')
-    }
+  if (!redCardExpiryMonth || redCardExpiryMonth < 1 || redCardExpiryMonth > 12) {
+    throw new Error('Invalid Red Card expiry month.')
+  }
+  if (!redCardExpiryYear || redCardExpiryYear < 1900 || redCardExpiryYear > 2100) {
+    throw new Error('Invalid Red Card expiry year.')
   }
 
   const { data: pilotDoc, error: pilotDocErr } = await supabase
@@ -75,7 +67,7 @@ export async function saveCheckoutRedCardDetails(input: {
   const { error: updateErr } = await supabase
     .from('user_documents')
     .update({
-      has_red_card: hasRedCard,
+      has_red_card: true,
       red_card_expiry_month: redCardExpiryMonth,
       red_card_expiry_year: redCardExpiryYear,
     })

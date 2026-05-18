@@ -28,6 +28,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { count: postFlightReview },
     { count: bookingPaymentPending },
     { count: checkoutManualReview },
+    { count: checkoutReschedulePending },
+    { data: checkoutCancelRequestRows },
+    { data: checkoutLifecycleCancelledRows },
     { count: bookingManualReview },
     { count: cancellationPending },
   ] = await Promise.all([
@@ -45,6 +48,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'pending_post_flight_review'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'payment_pending'),
     supabase.from('checkout_bank_transfer_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending_review'),
+    supabase.from('checkout_change_requests').select('*', { count: 'exact', head: true }).eq('request_type', 'reschedule').eq('status', 'pending'),
+    supabase.from('checkout_change_requests').select('checkout_request_id').eq('request_type', 'cancel'),
+    supabase.from('bookings').select('id').eq('booking_type', 'checkout').in('checkout_lifecycle_status', ['cancelled_by_customer', 'cancelled_by_admin']),
     supabase.from('booking_bank_transfer_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending_review'),
     supabase.from('booking_cancellation_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
   ])
@@ -52,7 +58,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const checkoutNewQueue = (checkoutNewRequests ?? 0)
   const checkoutAwaitingOutcomeQueue = (checkoutAwaitingOutcome ?? 0)
   const checkoutPaymentsQueue = (checkoutPaymentRequired ?? 0) + (checkoutManualReview ?? 0)
-  const checkoutActions = checkoutNewQueue + checkoutAwaitingOutcomeQueue + checkoutPaymentsQueue
+  const checkoutRescheduleQueue = checkoutReschedulePending ?? 0
+  const cancelledCheckoutIds = new Set<string>([
+    ...(checkoutCancelRequestRows ?? []).map((r) => r.checkout_request_id),
+    ...(checkoutLifecycleCancelledRows ?? []).map((r) => r.id),
+  ])
+  const checkoutCancelledQueue = cancelledCheckoutIds.size
+  const checkoutActions = checkoutNewQueue + checkoutAwaitingOutcomeQueue + checkoutPaymentsQueue + checkoutRescheduleQueue + checkoutCancelledQueue
 
   const bookingAwaitingFlightQueue = awaitingFlightRecord ?? 0
   const bookingPostFlightQueue = postFlightReview ?? 0
@@ -85,6 +97,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             checkoutNewRequests: checkoutNewQueue,
             checkoutAwaitingOutcome: checkoutAwaitingOutcomeQueue,
             checkoutPayments: checkoutPaymentsQueue,
+            checkoutReschedule: checkoutRescheduleQueue,
+            checkoutCancelled: checkoutCancelledQueue,
             bookings: bookingActions,
             awaitingFlightRecord: bookingAwaitingFlightQueue,
             postFlightReview: bookingPostFlightQueue,

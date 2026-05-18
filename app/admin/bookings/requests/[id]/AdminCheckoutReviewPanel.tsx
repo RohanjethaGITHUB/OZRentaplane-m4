@@ -10,6 +10,7 @@ import {
 import { sendAdminChatMessage, markAdminChatRead, getSignedDocumentUrl } from '@/app/actions/admin'
 import { sydneyInputToUTC, formatSydTime } from '@/lib/utils/sydney-time'
 import { formatDate, formatDateTime } from '@/lib/formatDateTime'
+import CalendarDateField from '@/components/CalendarDateField'
 import type { VerificationEvent } from '@/lib/supabase/types'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -80,12 +81,6 @@ function toSydTime(utcISO: string): string {
   const h = d.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', hour12: false }).slice(-2)
   const m = d.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', minute: '2-digit' }).padStart(2, '0')
   return `${h}:${m}`
-}
-
-function minDateString(): string {
-  const d = new Date()
-  d.setDate(d.getDate() + 1)
-  return d.toISOString().split('T')[0]!
 }
 
 function isChatEvent(ev: VerificationEvent): boolean {
@@ -179,6 +174,78 @@ function DocRow({
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+function TimeDropdown({
+  value,
+  options,
+  onChange,
+}: {
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (v: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onOutside)
+    return () => document.removeEventListener('mousedown', onOutside)
+  }, [open])
+
+  useEffect(() => {
+    if (!open || !listRef.current) return
+    const selected = listRef.current.querySelector('[data-selected="true"]') as HTMLElement | null
+    selected?.scrollIntoView({ block: 'nearest' })
+  }, [open])
+
+  const selectedLabel = options.find(o => o.value === value)?.label ?? value
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full bg-[#0d1c33] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/60 transition-colors hover:border-white/25 flex items-center justify-between"
+      >
+        <span>{selectedLabel}</span>
+        <span
+          className={`material-symbols-outlined text-[16px] text-slate-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+          style={{ fontVariationSettings: "'wght' 300" }}
+        >
+          expand_more
+        </span>
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-[#0c1220] border border-white/10 rounded-lg shadow-2xl overflow-hidden">
+          <div ref={listRef} className="max-h-52 overflow-y-auto overscroll-contain">
+            {options.map(o => (
+              <button
+                key={o.value}
+                type="button"
+                data-selected={o.value === value ? 'true' : undefined}
+                onClick={() => { onChange(o.value); setOpen(false) }}
+                className={`w-full px-3 py-2 text-xs text-left transition-colors ${
+                  o.value === value
+                    ? 'bg-blue-500/20 text-blue-200 font-medium'
+                    : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -433,28 +500,24 @@ export default function AdminCheckoutReviewPanel({
             <p className="text-[11px] text-slate-500">
               Duration is fixed at 1 hour. Select the departure date and time.
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-[9px] font-bold uppercase tracking-widest text-slate-600 block">Date</label>
-                <input
-                  type="date"
+                <CalendarDateField
                   value={newDate}
-                  min={minDateString()}
-                  onChange={e => { setNewDate(e.target.value); setTimeError(null) }}
-                  className="w-full bg-[#0a0b0d] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40"
+                  onChange={(next) => { setNewDate(next); setTimeError(null) }}
+                  minYear={new Date().getFullYear() - 20}
+                  maxYear={new Date().getFullYear() + 20}
+                  className="w-full bg-[#0d1c33] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/60 text-left flex items-center justify-between"
                 />
               </div>
               <div className="space-y-1">
                 <label className="text-[9px] font-bold uppercase tracking-widest text-slate-600 block">Departure</label>
-                <select
+                <TimeDropdown
                   value={newStartTime}
-                  onChange={e => { setNewStartTime(e.target.value); setTimeError(null) }}
-                  className="w-full bg-[#0a0b0d] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/40"
-                >
-                  {ALL_TIME_OPTIONS.map(o => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
+                  options={ALL_TIME_OPTIONS}
+                  onChange={(next) => { setNewStartTime(next); setTimeError(null) }}
+                />
               </div>
             </div>
 

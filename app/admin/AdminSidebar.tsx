@@ -21,14 +21,14 @@ type BadgeKey =
   | 'checkoutNewRequests'
   | 'checkoutAwaitingOutcome'
   | 'checkoutPayments'
+  | 'checkoutReschedule'
+  | 'checkoutCancelled'
   | 'bookings'
   | 'awaitingFlightRecord'
   | 'postFlightReview'
   | 'bookingPayments'
   | 'bookingCancellations'
   | 'messagesUnread'
-
-const SEEN_STORAGE_KEY = 'admin_sidebar_seen_v1'
 
 const NAV_GROUPS: NavGroupType[] = [
   {
@@ -44,10 +44,8 @@ const NAV_GROUPS: NavGroupType[] = [
     badgeKey: 'checkouts',
     items: [
       { label: 'Overview', href: '/admin/checkouts' },
-      { label: 'New Requests', href: '/admin/checkouts/all?status=new_requests', badgeKey: 'checkoutNewRequests' },
-      { label: 'Awaiting Outcome', href: '/admin/checkouts/all?status=awaiting_outcome', badgeKey: 'checkoutAwaitingOutcome' },
       { label: 'All Checkouts', href: '/admin/checkouts/all' },
-      { label: 'Payments', href: '/admin/checkouts/payments', badgeKey: 'checkoutPayments' },
+      { label: 'Payment', href: '/admin/checkouts/payments?tab=paid', badgeKey: 'checkoutPayments' },
       { label: 'History', href: '/admin/checkouts/history' },
     ],
   },
@@ -118,37 +116,35 @@ export default function AdminSidebar({
   const router = useRouter()
   const supabase = createClient()
 
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    Checkouts: true,
-    Bookings: true,
-    Customers: true,
-    Aircraft: true,
-  })
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [seenCounts, setSeenCounts] = useState<Record<string, number>>({})
+
+  function deriveExpandedGroup(path: string | null): string | null {
+    for (const group of NAV_GROUPS) {
+      if (!group.items) continue
+      const inGroup = path === group.href || (path?.startsWith(group.href + '/') ?? false)
+      if (inGroup) return group.title
+    }
+    return null
+  }
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(SEEN_STORAGE_KEY)
-      if (!raw) return
-      const parsed = JSON.parse(raw) as Record<string, number>
-      setSeenCounts(parsed)
-    } catch {
-      setSeenCounts({})
-    }
-  }, [])
+    setExpandedGroup(deriveExpandedGroup(pathname))
+  }, [pathname])
 
   const rawCounts = useMemo(() => {
     const checkoutNewRequests = actionCounts.checkoutNewRequests ?? 0
     const checkoutAwaitingOutcome = actionCounts.checkoutAwaitingOutcome ?? 0
     const checkoutPayments = actionCounts.checkoutPayments ?? 0
+    const checkoutReschedule = actionCounts.checkoutReschedule ?? 0
+    const checkoutCancelled = actionCounts.checkoutCancelled ?? 0
 
     const awaitingFlightRecord = actionCounts.awaitingFlightRecord ?? 0
     const postFlightReview = actionCounts.postFlightReview ?? 0
     const bookingPayments = actionCounts.bookingPayments ?? 0
     const bookingCancellations = actionCounts.bookingCancellations ?? 0
 
-    const checkouts = checkoutNewRequests + checkoutAwaitingOutcome + checkoutPayments
+    const checkouts = checkoutNewRequests + checkoutAwaitingOutcome + checkoutPayments + checkoutReschedule + checkoutCancelled
     const bookings = awaitingFlightRecord + postFlightReview + bookingPayments + bookingCancellations
     const messagesUnread = unreadMessageCount
     const actions = checkouts + bookings + messagesUnread
@@ -157,6 +153,8 @@ export default function AdminSidebar({
       checkoutNewRequests,
       checkoutAwaitingOutcome,
       checkoutPayments,
+      checkoutReschedule,
+      checkoutCancelled,
       awaitingFlightRecord,
       postFlightReview,
       bookingPayments,
@@ -168,49 +166,7 @@ export default function AdminSidebar({
     } satisfies Record<BadgeKey, number>
   }, [actionCounts, unreadMessageCount])
 
-  const unseenCounts = useMemo(() => {
-    const seenValue = (key: BadgeKey) => seenCounts[key] ?? 0
-    const checkoutNewRequests = Math.max(0, rawCounts.checkoutNewRequests - seenValue('checkoutNewRequests'))
-    const checkoutAwaitingOutcome = Math.max(0, rawCounts.checkoutAwaitingOutcome - seenValue('checkoutAwaitingOutcome'))
-    const checkoutPayments = Math.max(0, rawCounts.checkoutPayments - seenValue('checkoutPayments'))
-    const awaitingFlightRecord = Math.max(0, rawCounts.awaitingFlightRecord - seenValue('awaitingFlightRecord'))
-    const postFlightReview = Math.max(0, rawCounts.postFlightReview - seenValue('postFlightReview'))
-    const bookingPayments = Math.max(0, rawCounts.bookingPayments - seenValue('bookingPayments'))
-    const bookingCancellations = Math.max(0, rawCounts.bookingCancellations - seenValue('bookingCancellations'))
-    const messagesUnread = Math.max(0, rawCounts.messagesUnread - seenValue('messagesUnread'))
-    const checkouts = checkoutNewRequests + checkoutAwaitingOutcome + checkoutPayments
-    const bookings = awaitingFlightRecord + postFlightReview + bookingPayments + bookingCancellations
-    const actions = checkouts + bookings + messagesUnread
-    return {
-      checkoutNewRequests,
-      checkoutAwaitingOutcome,
-      checkoutPayments,
-      awaitingFlightRecord,
-      postFlightReview,
-      bookingPayments,
-      bookingCancellations,
-      checkouts,
-      bookings,
-      messagesUnread,
-      actions,
-    } satisfies Record<BadgeKey, number>
-  }, [rawCounts, seenCounts])
-
-  useEffect(() => {
-    let changed = false
-    const newOpenState = { ...openGroups }
-
-    for (const group of NAV_GROUPS) {
-      if (!group.items) continue
-      const inGroup = pathname === group.href || (pathname?.startsWith(group.href + '/') ?? false)
-      if (inGroup && !newOpenState[group.title]) {
-        newOpenState[group.title] = true
-        changed = true
-      }
-    }
-
-    if (changed) setOpenGroups(newOpenState)
-  }, [pathname])
+  const counts = rawCounts
 
   useEffect(() => {
     setMobileMenuOpen(false)
@@ -242,7 +198,7 @@ export default function AdminSidebar({
   function toggleGroup(title: string, e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
-    setOpenGroups(prev => ({ ...prev, [title]: !prev[title] }))
+    setExpandedGroup((prev) => (prev === title ? null : title))
   }
 
   const initials = displayName
@@ -252,48 +208,7 @@ export default function AdminSidebar({
     .toUpperCase()
     .slice(0, 2)
 
-  function markSeen(key: BadgeKey) {
-    const current = rawCounts[key] ?? 0
-    setSeenCounts((prev) => {
-      const next = { ...prev, [key]: current }
-      try {
-        window.localStorage.setItem(SEEN_STORAGE_KEY, JSON.stringify(next))
-      } catch {
-        // ignore storage failures
-      }
-      return next
-    })
-  }
-
-  useEffect(() => {
-    let keyToMark: BadgeKey | null = null
-    const status = searchParams?.get('status') ?? null
-
-    if (pathname === '/admin/checkouts/new-requests' || (pathname === '/admin/checkouts/all' && status === 'new_requests')) {
-      keyToMark = 'checkoutNewRequests'
-    } else if (pathname === '/admin/checkouts/awaiting-outcome' || (pathname === '/admin/checkouts/all' && status === 'awaiting_outcome')) {
-      keyToMark = 'checkoutAwaitingOutcome'
-    } else if (pathname === '/admin/checkouts/payments') {
-      keyToMark = 'checkoutPayments'
-    } else if (pathname === '/admin/bookings/awaiting-flight-records') {
-      keyToMark = 'awaitingFlightRecord'
-    } else if (pathname === '/admin/bookings/post-flight-review') {
-      keyToMark = 'postFlightReview'
-    } else if (pathname === '/admin/bookings/payments' || pathname === '/admin/bookings/payment-required') {
-      keyToMark = 'bookingPayments'
-    } else if (pathname === '/admin/bookings/cancellations') {
-      keyToMark = 'bookingCancellations'
-    } else if (pathname === '/admin/messages') {
-      keyToMark = 'messagesUnread'
-    }
-
-    if (!keyToMark) return
-    const timer = window.setTimeout(() => {
-      markSeen(keyToMark as BadgeKey)
-    }, 2000)
-
-    return () => window.clearTimeout(timer)
-  }, [pathname, searchParams, rawCounts])
+  // Keep badges stable and server-driven: no client-side "seen" subtraction.
 
   return (
     <>
@@ -331,8 +246,8 @@ export default function AdminSidebar({
         <nav className="flex-1 overflow-y-auto px-4 pb-6 custom-scrollbar flex flex-col gap-2 text-base">
           {NAV_GROUPS.map(group => {
             const groupActive = isGroupActive(group)
-            const isOpen = openGroups[group.title]
-            const groupCount = group.badgeKey ? (unseenCounts[group.badgeKey as BadgeKey] ?? 0) : 0
+            const isOpen = expandedGroup === group.title
+            const groupCount = group.badgeKey ? (counts[group.badgeKey as BadgeKey] ?? 0) : 0
             const showBadge = groupCount > 0
             const badgeValue = groupCount
 
@@ -376,7 +291,7 @@ export default function AdminSidebar({
                       <div className="py-1" />
                       {group.items.map(item => {
                         const active = isItemActive(item.href)
-                        const itemCount = item.badgeKey ? (unseenCounts[item.badgeKey as BadgeKey] ?? 0) : 0
+                        const itemCount = item.badgeKey ? (counts[item.badgeKey as BadgeKey] ?? 0) : 0
                         return (
                           <Link
                             key={item.href}

@@ -7,6 +7,7 @@ import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 import DashboardHeroRunway from '@/components/customer/DashboardHeroRunway'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import { formatSydTime } from '@/lib/utils/sydney-time'
+import { ADMIN_CONTACT_PHONE_DISPLAY, ADMIN_CONTACT_PHONE_TEL } from '@/lib/contact'
 
 // ── Exported types ────────────────────────────────────────────────────────────
 
@@ -448,6 +449,9 @@ export default function DashboardContent({
   const firstName = firstNameFromProfile || displayName.split(' ')[0] || ''
 
   const clearanceStatus = (profile?.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
+  const noShowLocked =
+    profile?.account_status === 'blocked' &&
+    profile?.account_lock_reason === 'checkout_no_show'
   const checkoutPaymentDisplayState =
     clearanceStatus === 'checkout_payment_required'
       ? getCheckoutPaymentDisplayState(
@@ -484,6 +488,9 @@ export default function DashboardContent({
 
   // Main CTA
   const mainCtaHref =
+    noShowLocked
+      ? '/dashboard/messages'
+      :
     clearanceStatus === 'checkout_payment_required' && checkoutBookingId
       ? `/dashboard/bookings/${checkoutBookingId}`
       : clearanceStatus === 'cleared_to_fly' && mainBookingHeroState
@@ -493,6 +500,9 @@ export default function DashboardContent({
       : statusConfig.primaryCtaHref
 
   const mainCtaLabel =
+    noShowLocked
+      ? 'Contact Team'
+      :
     clearanceStatus === 'cleared_to_fly' && mainBookingHeroState?.mode === 'post_flight_required'
       ? 'Submit Post-Flight Records'
       : clearanceStatus === 'cleared_to_fly' && mainBookingHeroState?.mode === 'post_flight_under_review'
@@ -530,6 +540,22 @@ export default function DashboardContent({
 
   return (
     <div className="space-y-5">
+      {noShowLocked && (
+        <section className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4">
+          <p className="text-sm font-semibold text-rose-100">
+            Your account is currently locked because you were marked as a no-show for your checkout flight.
+          </p>
+          <p className="mt-1 text-sm text-rose-100/90">
+            Please contact OZ Rent A Plane to discuss your checkout status and unlock your account.
+          </p>
+          <p className="mt-2 text-sm text-white">
+            Call:{' '}
+            <a href={`tel:${ADMIN_CONTACT_PHONE_TEL}`} className="underline underline-offset-2">
+              {ADMIN_CONTACT_PHONE_DISPLAY}
+            </a>
+          </p>
+        </section>
+      )}
 
       {/* ─── SECTION 1: HERO CARD ────────────────────────────────────────────── */}
       <section

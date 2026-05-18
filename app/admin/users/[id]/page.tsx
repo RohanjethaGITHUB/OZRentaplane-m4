@@ -296,6 +296,14 @@ export default async function AdminUserPage({ params }: { params: { id: string }
                             {customerProfile.has_instrument_rating === true ? 'Yes' : customerProfile.has_instrument_rating === false ? 'No' : 'Not provided'}
                           </span>
                         </p>
+                        <p className="text-[10px] text-slate-400">
+                          Red Card Expiry:{' '}
+                          <span className={doc.red_card_expiry_month && doc.red_card_expiry_year ? 'text-green-400' : 'text-slate-600 italic'}>
+                            {doc.red_card_expiry_month && doc.red_card_expiry_year
+                              ? `${String(doc.red_card_expiry_month).padStart(2, '0')}/${doc.red_card_expiry_year}`
+                              : 'Not provided'}
+                          </span>
+                        </p>
                       </div>
                     )}
 

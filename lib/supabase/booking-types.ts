@@ -115,6 +115,14 @@ export type Booking = {
   eligibility_snapshot: Record<string, unknown> | null
   customer_notes:   string | null
   admin_notes:      string | null
+  checkout_lifecycle_status:
+    | 'requested'
+    | 'scheduled'
+    | 'reschedule_requested'
+    | 'cancelled_by_customer'
+    | 'cancelled_by_admin'
+    | 'completed'
+    | null
   last_flight_date: string | null   // YYYY-MM-DD — customer-reported last flight date
   created_at: string
   updated_at: string
@@ -542,6 +550,24 @@ export type CheckoutBookingResult = {
   bookingReference: string
   scheduledStart:   string
   scheduledEnd:     string
+}
+
+export type CheckoutChangeRequest = {
+  id: string
+  checkout_request_id: string
+  customer_id: string
+  request_type: 'cancel' | 'reschedule'
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled'
+  original_scheduled_start: string
+  original_scheduled_end: string
+  requested_scheduled_start: string | null
+  requested_scheduled_end: string | null
+  customer_note: string | null
+  admin_note: string | null
+  reviewed_by: string | null
+  reviewed_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 export type CheckoutOutcome =

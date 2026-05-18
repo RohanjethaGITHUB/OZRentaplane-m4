@@ -97,6 +97,7 @@ type BookingRow = {
   booking_reference: string | null
   status:            string
   booking_type:      string
+  checkout_lifecycle_status?: string | null
   scheduled_start:   string
   scheduled_end:     string
   estimated_hours:   number | null
@@ -112,9 +113,17 @@ type GateBannerProps = {
   clearanceStatus:        PilotClearanceStatus
   checkoutBooking:        BookingRow | null
   isAwaitingManualPayment?: boolean
+  hasPendingReschedule?: boolean
+  latestRescheduleStatus?: string | null
 }
 
-function ClearanceGateBanner({ clearanceStatus, checkoutBooking, isAwaitingManualPayment }: GateBannerProps) {
+function ClearanceGateBanner({
+  clearanceStatus,
+  checkoutBooking,
+  isAwaitingManualPayment,
+  hasPendingReschedule,
+  latestRescheduleStatus,
+}: GateBannerProps) {
   if (clearanceStatus === 'checkout_required') {
     return (
       <div className="border rounded-2xl p-8 text-center bg-blue-500/[0.06] border-blue-500/20 mb-8">
@@ -142,6 +151,21 @@ function ClearanceGateBanner({ clearanceStatus, checkoutBooking, isAwaitingManua
             <p className="text-slate-400 text-base leading-relaxed">
               Our team is reviewing your checkout request. We will contact you once it is confirmed or if another time is needed.
             </p>
+            {hasPendingReschedule && (
+              <p className="text-amber-300 text-sm mt-3">
+                Your reschedule request is waiting for admin review. Your current checkout time remains active.
+              </p>
+            )}
+            {latestRescheduleStatus === 'approved' && (
+              <p className="text-emerald-300 text-sm mt-3">
+                Your checkout flight has been rescheduled.
+              </p>
+            )}
+            {latestRescheduleStatus === 'rejected' && (
+              <p className="text-amber-300 text-sm mt-3">
+                Your reschedule request was not approved. Your original checkout time remains active.
+              </p>
+            )}
             {checkoutBooking && (
               <div className="mt-4 bg-white/[0.03] border border-white/[0.06] rounded-lg px-4 py-3 inline-flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
                 <span className="font-mono font-medium text-slate-400">{checkoutBooking.booking_reference}</span>
@@ -297,6 +321,7 @@ export default async function CustomerBookingsPage() {
     .from('bookings')
     .select(`
       id, booking_reference, status, booking_type,
+      checkout_lifecycle_status,
       scheduled_start, scheduled_end,
       estimated_hours, estimated_amount, pic_name, created_at,
       aircraft ( registration )
@@ -327,6 +352,21 @@ export default async function CustomerBookingsPage() {
     b.booking_type === 'checkout' &&
     ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required'].includes(b.status)
   ) ?? null
+
+  let hasPendingReschedule = false
+  let latestRescheduleStatus: string | null = null
+  if (checkoutBooking) {
+    const { data: rescheduleRows } = await supabase
+      .from('checkout_change_requests')
+      .select('status, request_type, created_at')
+      .eq('checkout_request_id', checkoutBooking.id)
+      .eq('request_type', 'reschedule')
+      .order('created_at', { ascending: false })
+      .limit(1)
+    const latest = (rescheduleRows?.[0] as { status?: string } | undefined) ?? null
+    latestRescheduleStatus = latest?.status ?? null
+    hasPendingReschedule = latestRescheduleStatus === 'pending'
+  }
 
   let isAwaitingManualPayment = false
   if (clearanceStatus === 'checkout_payment_required' && checkoutBooking) {
@@ -429,6 +469,8 @@ export default async function CustomerBookingsPage() {
             clearanceStatus={clearanceStatus}
             checkoutBooking={checkoutBooking}
             isAwaitingManualPayment={isAwaitingManualPayment}
+            hasPendingReschedule={hasPendingReschedule}
+            latestRescheduleStatus={latestRescheduleStatus}
           />
         )}
 

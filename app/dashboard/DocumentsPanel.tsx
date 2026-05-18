@@ -14,6 +14,7 @@ import { saveLastFlightDate } from '@/app/actions/verification'
 import { fmtDate } from '@/lib/utils/format'
 import { validateFlightReviewDate, getFlightReviewCutoff } from '@/lib/utils/flight-review'
 import CalendarDateField from '@/components/CalendarDateField'
+import ModalPortal from '@/components/ModalPortal'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -262,7 +263,8 @@ function UploadModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-start justify-center p-4 pt-24 md:pt-28 bg-black/60 backdrop-blur-sm">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[1000] flex items-start justify-center p-4 pt-24 md:pt-28 bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-md max-h-[calc(100vh-7.5rem)] bg-[#0c1220] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
 
         {/* Header */}
@@ -530,7 +532,8 @@ function UploadModal({
         </div>
 
       </div>
-    </div>
+      </div>
+    </ModalPortal>
   )
 }
 
@@ -690,11 +693,11 @@ function DocumentCard({
                     </span>
                     <span className="text-xs text-white/40 flex items-center gap-1">
                       Red Card:
-                      <span className={doc.has_red_card === true ? 'text-green-400' : doc.has_red_card === false ? 'text-white/60' : 'text-white/25 italic'}>
-                        {doc.has_red_card === true ? 'Yes' : doc.has_red_card === false ? 'No' : 'Not provided'}
+                      <span className={doc.red_card_expiry_month && doc.red_card_expiry_year ? 'text-green-400' : 'text-white/25 italic'}>
+                        {doc.red_card_expiry_month && doc.red_card_expiry_year ? 'Provided' : 'Not provided'}
                       </span>
                     </span>
-                    {doc.has_red_card === true && doc.red_card_expiry_month && doc.red_card_expiry_year && (
+                    {doc.red_card_expiry_month && doc.red_card_expiry_year && (
                       <span className="text-xs text-white/40">
                         Expiry: {String(doc.red_card_expiry_month).padStart(2, '0')}/{doc.red_card_expiry_year}
                       </span>

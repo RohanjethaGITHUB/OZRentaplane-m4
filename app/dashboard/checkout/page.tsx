@@ -7,6 +7,7 @@ import CheckoutFlow from './CheckoutFlow'
 import { deriveJourneyState } from '@/lib/customer-journey'
 import type { User } from '@supabase/supabase-js'
 import type { Profile, UserDocument } from '@/lib/supabase/types'
+import { ADMIN_CONTACT_PHONE_DISPLAY, ADMIN_CONTACT_PHONE_TEL } from '@/lib/contact'
 
 export const metadata = { title: 'Checkout Onboarding | Pilot Dashboard' }
 
@@ -78,10 +79,34 @@ export default async function CheckoutPage() {
 
   const typedProfile = profile as Profile | null
   const clearanceStatus = typedProfile?.pilot_clearance_status ?? 'checkout_required'
+  const noShowLocked =
+    typedProfile?.account_status === 'blocked' &&
+    typedProfile?.account_lock_reason === 'checkout_no_show'
 
   const TERMINAL_STATES = ['cleared_to_fly', 'not_currently_eligible']
   if (TERMINAL_STATES.includes(clearanceStatus)) {
     redirect('/dashboard')
+  }
+
+  if (noShowLocked) {
+    return (
+      <CustomerBookingShell user={user as User} profile={typedProfile}>
+        <section className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-5">
+          <p className="text-sm font-semibold text-rose-100">
+            Your account is currently locked because you were marked as a no-show for your checkout flight.
+          </p>
+          <p className="mt-2 text-sm text-rose-100/90">
+            Please contact OZ Rent A Plane to discuss your checkout status and unlock your account.
+          </p>
+          <p className="mt-2 text-sm text-white">
+            Call:{' '}
+            <a href={`tel:${ADMIN_CONTACT_PHONE_TEL}`} className="underline underline-offset-2">
+              {ADMIN_CONTACT_PHONE_DISPLAY}
+            </a>
+          </p>
+        </section>
+      </CustomerBookingShell>
+    )
   }
 
   const [{ data: documents, error: documentsErr }, { data: aircraft, error: aircraftErr }, { data: checkoutBooking, error: checkoutBookingErr }] = await Promise.all([
@@ -96,13 +121,24 @@ export default async function CheckoutPage() {
       .single(),
     supabase
       .from('bookings')
-      .select('id, status, created_at')
+      .select('id, status, booking_type, scheduled_start, scheduled_end, checkout_lifecycle_status, created_at')
       .eq('booking_owner_user_id', user.id)
       .eq('booking_type', 'checkout')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
   ])
+
+  const latestRescheduleRequest = checkoutBooking
+    ? (await supabase
+        .from('checkout_change_requests')
+        .select('id, status, requested_scheduled_start, requested_scheduled_end, created_at')
+        .eq('checkout_request_id', checkoutBooking.id)
+        .eq('request_type', 'reschedule')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()).data
+    : null
 
   let activeCheckoutTerms: ActiveCheckoutTerms | null = null
   let termsPrimaryErr: QueryErr | null = null
@@ -214,6 +250,28 @@ export default async function CheckoutPage() {
             initialNightVfrRating={typedProfile?.has_night_vfr_rating ?? null}
             initialInstrumentRating={typedProfile?.has_instrument_rating ?? null}
             activeCheckoutTerms={activeCheckoutTerms}
+            activeCheckoutBooking={
+              checkoutBooking
+                ? {
+                    id: checkoutBooking.id,
+                    status: checkoutBooking.status,
+                    booking_type: checkoutBooking.booking_type,
+                    scheduled_start: checkoutBooking.scheduled_start,
+                    scheduled_end: checkoutBooking.scheduled_end,
+                    checkout_lifecycle_status: checkoutBooking.checkout_lifecycle_status ?? null,
+                  }
+                : null
+            }
+            pendingRescheduleRequest={
+              latestRescheduleRequest
+                ? {
+                    id: latestRescheduleRequest.id,
+                    status: latestRescheduleRequest.status,
+                    requested_scheduled_start: latestRescheduleRequest.requested_scheduled_start,
+                    requested_scheduled_end: latestRescheduleRequest.requested_scheduled_end,
+                  }
+                : null
+            }
           />
         </section>
       </section>

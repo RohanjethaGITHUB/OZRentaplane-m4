@@ -33,6 +33,11 @@ export type Profile = {
   email: string | null
   role: Role
   account_status: AccountStatus           // active | blocked | archived
+  account_lock_reason: 'checkout_no_show' | null
+  account_locked_at: string | null
+  account_locked_by_admin_id: string | null
+  account_unlocked_at: string | null
+  account_unlocked_by_admin_id: string | null
   verification_status: VerificationStatus  // legacy; kept for verification_events history
   pilot_clearance_status: PilotClearanceStatus
   pilot_arn: string | null   // Aviation Reference Number — set after verification

@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
 import { notifyCheckoutRequestSubmitted } from '@/lib/booking/notifications'
 import { checkAircraftAvailability } from '@/lib/booking/availability'
+import { isNoShowLockedProfile } from '@/lib/checkout-policy'
 import { isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
 import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 import { sydneyInputToUTC } from '@/lib/utils/sydney-time'
@@ -21,13 +22,6 @@ function isCheckoutSelfServiceAllowed(startIsoUtc: string, now = new Date()): bo
   const startMs = new Date(startIsoUtc).getTime()
   if (Number.isNaN(startMs)) return false
   return now.getTime() < (startMs - TWELVE_HOURS_MS)
-}
-
-function isNoShowLockedProfile(profile: {
-  account_status?: string | null
-  account_lock_reason?: string | null
-}): boolean {
-  return profile.account_status === 'blocked' && profile.account_lock_reason === 'checkout_no_show'
 }
 
 // ─── Auth guard (no verification requirement) ─────────────────────────────────

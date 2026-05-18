@@ -6,6 +6,8 @@ import {
   cancelCheckoutBooking,
   markCheckoutFlightCompleted,
   markCheckoutOutcome,
+  markCheckoutNoShow,
+  unlockCheckoutNoShowLock,
 } from '@/app/actions/admin-booking'
 
 // checkout_requested is handled by AdminCheckoutReviewPanel (left column)
@@ -31,6 +33,9 @@ type Props = {
   status:              CheckoutStatus
   airports:            Airport[]
   customerCreditCents: number
+  customerId:          string
+  scheduledStart:      string
+  noShowLocked:        boolean
 }
 
 type OutcomeKey = 'cleared_to_fly' | 'additional_checkout_required' | 'checkout_reschedule_required' | 'not_currently_eligible'
@@ -84,7 +89,7 @@ function parseVdoReading(s: string): number {
   return n
 }
 
-export default function AdminCheckoutActions({ bookingId, status, airports, customerCreditCents }: Props) {
+export default function AdminCheckoutActions({ bookingId, status, airports, customerCreditCents, customerId, scheduledStart, noShowLocked }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError]             = useState<string | null>(null)
@@ -289,6 +294,7 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
   // ── checkout_confirmed ────────────────────────────────────────────────────
 
   if (status === 'checkout_confirmed') {
+    const startPassed = new Date(scheduledStart).getTime() <= Date.now()
     return (
       <div className="space-y-3">
         <button
@@ -310,6 +316,33 @@ export default function AdminCheckoutActions({ bookingId, status, airports, cust
           <span className="material-symbols-outlined text-[16px]">cancel</span>
           Cancel Checkout
         </button>
+        <button
+          onClick={() => {
+            const warning = startPassed
+              ? 'Mark this checkout as no-show and lock the customer account?'
+              : 'This checkout start time has not passed yet. Mark as no-show anyway and lock the customer account?'
+            if (!window.confirm(warning)) return
+            run(() => markCheckoutNoShow(bookingId))
+          }}
+          disabled={isPending}
+          className="w-full flex items-center justify-center gap-2 bg-transparent border border-amber-500/30 text-amber-300 hover:bg-amber-500/10 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-[16px]">person_off</span>
+          Mark No-Show
+        </button>
+        {noShowLocked && (
+          <button
+            onClick={() => {
+              if (!window.confirm('Unlock this customer account from checkout no-show lock?')) return
+              run(() => unlockCheckoutNoShowLock(customerId))
+            }}
+            disabled={isPending}
+            className="w-full flex items-center justify-center gap-2 bg-transparent border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-[16px]">lock_open</span>
+            Unlock No-Show Lock
+          </button>
+        )}
         {error && <p className="text-[10px] text-rose-400 leading-tight text-center">{error}</p>}
       </div>
     )

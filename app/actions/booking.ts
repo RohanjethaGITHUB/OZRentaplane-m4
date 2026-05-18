@@ -5,6 +5,7 @@ import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 import { generateReviewFlags } from '@/lib/booking/review-flags'
+import { isNoShowLockedProfile } from '@/lib/checkout-policy'
 import {
   notifyBookingSubmitted,
   notifyBookingCancelled,
@@ -33,12 +34,15 @@ async function requireClearedCustomer() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, account_status, pilot_clearance_status')
+    .select('role, account_status, pilot_clearance_status, account_lock_reason')
     .eq('id', user.id)
     .single()
 
   if (!profile) throw new Error('Profile not found')
   if (profile.role !== 'customer') throw new Error('Not a customer account')
+  if (isNoShowLockedProfile(profile)) {
+    throw new Error('ACCOUNT_BLOCKED: Your account is locked due to a checkout no-show. Please contact OZ Rent A Plane.')
+  }
   if (profile.account_status === 'blocked') {
     throw new Error('ACCOUNT_BLOCKED: Your account has been blocked. Please contact support.')
   }

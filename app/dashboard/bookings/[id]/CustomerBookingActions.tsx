@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { cancelBookingNow, requestLateCancellation, markFlightReturned } from '@/app/actions/booking'
+import ModalPortal from '@/components/ModalPortal'
 
 type Props = {
   bookingId:              string
@@ -120,7 +121,8 @@ export default function CustomerBookingActions({
 
       {/* ── Modals ──────────────────────────────────────────────────────── */}
       {activeModal && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+        <ModalPortal>
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
 
           {/* Backdrop */}
           <div
@@ -239,6 +241,7 @@ export default function CustomerBookingActions({
           )}
 
         </div>
+        </ModalPortal>
       )}
     </>
   )
