@@ -3,7 +3,9 @@
 import { useState, useEffect, useTransition, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { submitCheckoutRequest } from '@/app/actions/checkout'
+import {
+  submitCheckoutRequest,
+} from '@/app/actions/checkout'
 import {
   checkCustomerAvailability,
   getDayAvailability,
@@ -26,6 +28,8 @@ import {
   TERMS_SECTIONS,
 } from '@/lib/checkout-terms-content'
 import CalendarDateField from '@/components/CalendarDateField'
+import ModalPortal from '@/components/ModalPortal'
+import CheckoutChangeActions from './CheckoutChangeActions'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -56,6 +60,33 @@ type Props = {
     public_url: string
     content_hash: string | null
   }
+  activeCheckoutBooking: {
+    id: string
+    status: string
+    booking_type: string
+    scheduled_start: string
+    scheduled_end: string
+    checkout_lifecycle_status: string | null
+  } | null
+  pendingRescheduleRequest: {
+    id: string
+    status: string
+    requested_scheduled_start: string | null
+    requested_scheduled_end: string | null
+  } | null
+}
+
+function canModifyCheckoutUi(checkout: {
+  booking_type?: string | null
+  status?: string | null
+  scheduled_start?: string | null
+  checkout_lifecycle_status?: string | null
+}) {
+  if (!checkout || checkout.booking_type !== 'checkout') return false
+  if (!checkout.status || !['checkout_requested', 'checkout_confirmed'].includes(checkout.status)) return false
+  if (!checkout.scheduled_start || new Date(checkout.scheduled_start) <= new Date()) return false
+  if (['cancelled_by_customer', 'cancelled_by_admin', 'completed'].includes(checkout.checkout_lifecycle_status ?? '')) return false
+  return true
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -114,6 +145,41 @@ function addOneDay(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   const dt = new Date(Date.UTC(y!, m! - 1, d! + 1))
   return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
+}
+
+function mapCheckoutSubmitError(message: string): string {
+  const cleaned = message.replace(/^VALIDATION:\s*/i, '').replace(/^AVAILABILITY:\s*/i, '')
+  const lower = cleaned.toLowerCase()
+
+  if (lower.includes('last flight review date')) {
+    return 'Please enter your last flight review date before submitting your checkout request.'
+  }
+  if (lower.includes('night vfr')) {
+    return 'Please confirm your Night VFR rating status before submitting your checkout request.'
+  }
+  if (lower.includes('terms acceptance details were not submitted') || lower.includes('you must accept the checkout terms')) {
+    return 'Please review and accept the latest checkout terms before submitting.'
+  }
+  if (lower.includes('terms and conditions were updated')) {
+    return 'Please review and accept the latest checkout terms before submitting.'
+  }
+  if (lower.includes('no active checkout terms document')) {
+    return 'Checkout terms are temporarily unavailable. Please refresh and try again.'
+  }
+  if (
+    lower.includes('no longer available') ||
+    lower.includes('not available') ||
+    lower.includes('schedule block') ||
+    lower.includes('aircraft not found') ||
+    lower.includes('checkout flight time must be in the future')
+  ) {
+    return 'This checkout slot is no longer available. Please choose another date or time.'
+  }
+  if (lower.includes('current status does not allow submitting a checkout request') || lower.includes('already have an active checkout booking')) {
+    return 'You already have an active checkout request or your account is not currently eligible to submit a new one.'
+  }
+
+  return cleaned
 }
 
 // Converts "HH:MM" to total minutes from midnight.
@@ -426,6 +492,159 @@ function TimeDropdown({
   )
 }
 
+function CheckoutRescheduleModal({
+  aircraftId,
+  onClose,
+  onSubmit,
+  submitting,
+}: {
+  aircraftId: string
+  onClose: () => void
+  onSubmit: (date: string, time: string) => void
+  submitting: boolean
+}) {
+  const [date, setDate] = useState('')
+  const [startTime, setStartTime] = useState('')
+  const [daySlots, setDaySlots] = useState<SafeConflict[]>([])
+  const [avail, setAvail] = useState<AvailabilityState>({ status: 'idle' })
+  const [error, setError] = useState<string | null>(null)
+  const [nightVfrRating, setNightVfrRating] = useState<boolean | null>(null)
+
+  const endTime = (date && startTime) ? addTwoHours(startTime) : ''
+  const startDT = date && startTime ? `${date}T${startTime}` : ''
+  const endDT = date && endTime ? `${date}T${endTime}` : ''
+  const startUTC = startDT ? sydneyInputToUTC(startDT) : null
+  const endUTC = endDT ? sydneyInputToUTC(endDT) : null
+  const dayVfrWindow = (date && nightVfrRating === false) ? getDayVfrWindow(date) : null
+  const timeOptions = (date && nightVfrRating === false)
+    ? ALL_TIME_OPTIONS.filter(o => isWithinDayVfrWindow(o.value, date, 120))
+    : ALL_TIME_OPTIONS
+  const nightVfrTimeError =
+    nightVfrRating === false && startTime && date && !isWithinDayVfrWindow(startTime, date, 120)
+      ? 'Selected time is outside the Day VFR window for a 2-hour checkout.'
+      : null
+
+  useEffect(() => {
+    if (!date) { setDaySlots([]); return }
+    getDayAvailability(aircraftId, date)
+      .then(r => setDaySlots(r ?? []))
+      .catch(() => setDaySlots([]))
+  }, [date, aircraftId])
+
+  useEffect(() => {
+    if (!startUTC || !endUTC || new Date(endUTC) <= new Date(startUTC)) {
+      setAvail({ status: 'idle' }); return
+    }
+    if (new Date(startUTC) <= new Date()) {
+      setAvail({ status: 'unavailable', message: 'Please select a future checkout time.' })
+      return
+    }
+    setAvail({ status: 'checking' })
+    const t = setTimeout(() => {
+      checkCustomerAvailability(aircraftId, startUTC, endUTC)
+        .then(r => {
+          if (r.available) setAvail({ status: 'available' })
+          else setAvail({ status: 'unavailable', message: 'This time slot is not available.' })
+        })
+        .catch(() => setAvail({ status: 'idle' }))
+    }, 500)
+    return () => clearTimeout(t)
+  }, [startUTC, endUTC, aircraftId])
+
+  function handleSubmit() {
+    setError(null)
+    if (!date) return setError('Please select a date.')
+    if (nightVfrRating === null) return setError('Please confirm your Night VFR rating status.')
+    if (!startTime) return setError('Please select a departure time.')
+    if (nightVfrTimeError) return setError(nightVfrTimeError)
+    if (avail.status !== 'available') return setError('Please select an available time slot.')
+    onSubmit(date, startTime)
+  }
+
+  return (
+    <ModalPortal>
+      <div className="fixed inset-0 z-[1000] flex items-start justify-center p-4 pt-24 md:pt-28 bg-black/70 backdrop-blur-sm">
+      <div className="w-full max-w-3xl max-h-[calc(100vh-7.5rem)] bg-[#13243a] border border-[#4c6b8f] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-blue-200 font-bold">Checkout change request</p>
+            <h3 className="text-lg font-semibold text-white">Request checkout reschedule</h3>
+          </div>
+          <button onClick={onClose} className="text-white/30 hover:text-white/70 transition-colors">
+            <span className="material-symbols-outlined text-xl">close</span>
+          </button>
+        </div>
+        <div className="px-5 py-5 space-y-4 overflow-y-auto min-h-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-300 mb-2">Checkout date</p>
+              <CalendarDateField
+                value={date}
+                onChange={(next) => { setDate(next); setStartTime(''); setError(null) }}
+                minYear={new Date().getFullYear()}
+                maxYear={new Date().getFullYear() + 2}
+                minDate={minDateString()}
+                className="w-full h-11 bg-[#0b1a2f] border border-white/20 rounded-xl px-4 py-3 text-base text-white text-left flex items-center justify-between"
+              />
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-300 mb-2">Departure time</p>
+              <TimeDropdown value={startTime} options={timeOptions} onChange={(v) => { setStartTime(v); setError(null) }} />
+            </div>
+          </div>
+
+          {date && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {([true, false] as const).map(val => (
+                <button
+                  key={String(val)}
+                  type="button"
+                  onClick={() => setNightVfrRating(val)}
+                  className={`px-4 py-3 rounded-xl border text-left transition-all ${
+                    nightVfrRating === val
+                      ? 'bg-blue-500/[0.18] border-blue-400/55 text-blue-100'
+                      : 'bg-[#0d1c33] border-white/[0.12] text-slate-300'
+                  }`}
+                >
+                  {val ? 'Night VFR: Yes' : 'Night VFR: No (Day VFR only)'}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {date && (
+            <div className="rounded-xl border border-white/10 bg-[#0d1a2c]/70 p-4">
+              <AvailabilityTimeline
+                selectedDate={date}
+                daySlots={daySlots}
+                startDT={startDT}
+                endDT={endDT}
+                onTimeChange={(v) => setStartTime(v)}
+                dayVfrWindow={dayVfrWindow}
+              />
+            </div>
+          )}
+          {nightVfrTimeError && <p className="text-sm text-amber-300">{nightVfrTimeError}</p>}
+          {avail.status === 'checking' && <p className="text-sm text-slate-400">Checking availability…</p>}
+          {avail.status === 'unavailable' && <p className="text-sm text-red-300">{avail.message}</p>}
+          {error && <p className="text-sm text-red-300">{error}</p>}
+        </div>
+        <div className="px-5 py-4 border-t border-white/[0.06] flex items-center justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-300 border border-white/15 rounded-lg">Keep current time</button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="px-4 py-2 text-sm text-white rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40"
+          >
+            {submitting ? 'Sending…' : 'Send reschedule request'}
+          </button>
+        </div>
+      </div>
+      </div>
+    </ModalPortal>
+  )
+}
+
 // ── Document card + modal pattern ─────────────────────────────────────────────
 // Shows a clean status card for each document.
 // Upload/Replace opens a modal overlay with the required fields.
@@ -589,7 +808,8 @@ function DocModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-start justify-center p-4 pt-24 md:pt-28 bg-black/70 backdrop-blur-sm">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[1000] flex items-start justify-center p-4 pt-24 md:pt-28 bg-black/70 backdrop-blur-sm">
       <div className="w-full max-w-md max-h-[calc(100vh-7.5rem)] bg-[#13243a] border border-[#4c6b8f] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
 
         {/* Header */}
@@ -768,7 +988,8 @@ function DocModal({
         </div>
 
       </div>
-    </div>
+      </div>
+    </ModalPortal>
   )
 }
 
@@ -879,6 +1100,8 @@ export default function CheckoutFlow({
   initialNightVfrRating,
   initialInstrumentRating,
   activeCheckoutTerms,
+  activeCheckoutBooking,
+  pendingRescheduleRequest,
 }: Props) {
   const router = useRouter()
   const stepSectionRef = useRef<HTMLDivElement>(null)
@@ -899,7 +1122,6 @@ export default function CheckoutFlow({
   const [stepError, setStepError] = useState<string | null>(null)
   const [step2Error, setStep2Error] = useState<string | null>(null)
   const [hasAttemptedStep2Continue, setHasAttemptedStep2Continue] = useState(false)
-  const [hasRedCard, setHasRedCard] = useState<boolean | null>(null)
   const [redCardExpiry, setRedCardExpiry] = useState('')
   const [redCardSaving, setRedCardSaving] = useState(false)
 
@@ -916,12 +1138,19 @@ export default function CheckoutFlow({
 
   // Result state
   const [checkoutResult, setCheckoutResult] = useState<CheckoutBookingResult | null>(null)
+  const [activeBookingState, setActiveBookingState] = useState(activeCheckoutBooking)
+  const [pendingRescheduleState, setPendingRescheduleState] = useState(pendingRescheduleRequest)
 
   // Optional message to team
   const [teamMessage, setTeamMessage] = useState('')
 
   // Last flight date — pre-filled from profile so it stays in sync with Documents page
   const [lastFlightDate, setLastFlightDate] = useState(initialLastFlightDate)
+
+  useEffect(() => {
+    setActiveBookingState(activeCheckoutBooking)
+    setPendingRescheduleState(pendingRescheduleRequest)
+  }, [activeCheckoutBooking, pendingRescheduleRequest])
 
   useEffect(() => {
     if (prevStepRef.current !== step && step !== 'success') {
@@ -948,14 +1177,12 @@ export default function CheckoutFlow({
   const nightVfrEvidenceDoc = pickBestDocumentForType(documents, 'night_vfr_evidence', today)
 
   useEffect(() => {
-    const redCardValue = licenceDoc?.has_red_card ?? null
     const expiryValue =
       licenceDoc?.red_card_expiry_year && licenceDoc?.red_card_expiry_month
         ? `${String(licenceDoc.red_card_expiry_year)}-${String(licenceDoc.red_card_expiry_month).padStart(2, '0')}-01`
         : ''
-    setHasRedCard(redCardValue)
     setRedCardExpiry(expiryValue)
-  }, [licenceDoc?.id, licenceDoc?.has_red_card, licenceDoc?.red_card_expiry_month, licenceDoc?.red_card_expiry_year])
+  }, [licenceDoc?.id, licenceDoc?.red_card_expiry_month, licenceDoc?.red_card_expiry_year])
 
   const allDocsUploaded = isDocOk(licenceDoc) && isDocOk(medicalDoc) && isDocOk(photoIdDoc)
   const nightVfrEvidenceOk = nightVfrRating !== true || isDocOk(nightVfrEvidenceDoc)
@@ -1072,21 +1299,15 @@ export default function CheckoutFlow({
       return
     }
 
-    if (hasRedCard === null) {
-      setStep2Error('Please confirm whether you have a Red Card.')
-      return
-    }
-
-    if (hasRedCard && !redCardExpiry) {
-      setStep2Error('Please enter your Red Card expiry month and year.')
+    if (!redCardExpiry) {
+      setStep2Error('Please enter your Red Card expiry date.')
       return
     }
 
     setRedCardSaving(true)
     try {
       await saveCheckoutRedCardDetails({
-        hasRedCard,
-        redCardExpiry: hasRedCard ? redCardExpiry.slice(0, 7) : null,
+        redCardExpiry: redCardExpiry.slice(0, 7),
       })
     } catch (err) {
       setStep2Error(err instanceof Error ? err.message : 'Could not save Red Card details.')
@@ -1101,19 +1322,48 @@ export default function CheckoutFlow({
 
   useEffect(() => {
     if (!hasAttemptedStep2Continue) return
-    if (missingRequiredDocs.length === 0 && nightVfrEvidenceOk && !flightReviewError) {
+    if (missingRequiredDocs.length === 0 && nightVfrEvidenceOk && !flightReviewError && !!redCardExpiry) {
       setStep2Error(null)
     }
-  }, [hasAttemptedStep2Continue, missingRequiredDocs.length, nightVfrEvidenceOk, flightReviewError])
+  }, [hasAttemptedStep2Continue, missingRequiredDocs.length, nightVfrEvidenceOk, flightReviewError, redCardExpiry])
 
   function handleSubmit() {
     if (!startUTC) return
     setSubmitError(null)
     setTermsError(null)
+
+    if (nightVfrRating === null) {
+      setSubmitError('Please confirm your Night VFR rating status before submitting your checkout request.')
+      return
+    }
+    if (!lastFlightDate) {
+      setSubmitError('Please enter your last flight review date before submitting your checkout request.')
+      return
+    }
+    const lastFlightDateError = validateFlightReviewDate(lastFlightDate)
+    if (lastFlightDateError) {
+      setSubmitError(lastFlightDateError)
+      return
+    }
+    if (!activeCheckoutTerms?.id || !activeCheckoutTerms?.version || !activeCheckoutTerms?.content_hash) {
+      setTermsError('Please review and accept the latest checkout terms before submitting.')
+      return
+    }
     if (!termsAccepted) {
       setTermsError('Please read the Checkout Terms and Conditions and accept them before submitting.')
       return
     }
+
+    console.info('[checkout-submit-client]', {
+      has_last_flight_date: Boolean(lastFlightDate),
+      has_night_vfr: nightVfrRating,
+      has_terms_accepted: termsAccepted,
+      has_terms_id: Boolean(activeCheckoutTerms.id),
+      has_terms_version: Boolean(activeCheckoutTerms.version),
+      has_terms_hash: Boolean(activeCheckoutTerms.content_hash),
+      has_scheduled_start: Boolean(startUTC),
+    })
+
     startTransition(async () => {
       try {
         const result = await submitCheckoutRequest({
@@ -1135,13 +1385,12 @@ export default function CheckoutFlow({
         setStep('success')
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Submission failed. Please try again.'
-        const cleaned = msg.replace(/^VALIDATION: |^AVAILABILITY: /, '')
         const isValidation = msg.startsWith('VALIDATION:') || msg.startsWith('AVAILABILITY:')
-        setSubmitError(
-          isValidation || process.env.NODE_ENV !== 'production'
-            ? cleaned
-            : "We couldn't submit your checkout request. Please try again or contact support."
-        )
+        if (isValidation) {
+          setSubmitError(mapCheckoutSubmitError(msg))
+          return
+        }
+        setSubmitError("We couldn't submit your checkout request. Please try again or contact support.")
       }
     })
   }
@@ -1164,11 +1413,21 @@ export default function CheckoutFlow({
 
   const CARD = 'bg-[#1a2c45] border border-blue-900/40 rounded-2xl shadow-[0_8px_20px_rgba(3,10,25,0.18)]'
 
-  // ── "Already submitted" view ───────────────────────────────────────────────
-  // When the user lands on /dashboard/checkout with checkout_requested status
-  // (e.g. navigating back after the page revalidated), show a read-only
-  // confirmation instead of the checkout form.
-  if (pilotClearanceStatus === 'checkout_requested' && step !== 'success') {
+  // ── "Active checkout booking" view ─────────────────────────────────────────
+  if (
+    step !== 'success' &&
+    activeBookingState &&
+    ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required'].includes(activeBookingState.status)
+  ) {
+    const checkoutStartLabel = new Date(activeBookingState.scheduled_start).toLocaleString('en-AU', {
+      timeZone: 'Australia/Sydney',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    })
+    const checkoutEndLabel = new Date(activeBookingState.scheduled_end).toLocaleString('en-AU', {
+      timeZone: 'Australia/Sydney',
+      timeStyle: 'short',
+    })
     return (
       <div className="px-6 md:px-10 py-10 max-w-2xl mx-auto w-full">
         <Link
@@ -1183,17 +1442,28 @@ export default function CheckoutFlow({
             <span className="material-symbols-outlined text-3xl text-blue-400" style={{ fontVariationSettings: "'wght' 300" }}>pending_actions</span>
           </div>
           <div>
-          <h2 className="text-2xl font-semibold text-white mb-3">Checkout Request Submitted</h2>
-          <p className="text-sm text-slate-300 leading-relaxed max-w-md mx-auto">
-              Your checkout request has been submitted for review. Our team will review your selected time and documents. You will be notified once the request has been reviewed.
+            <h2 className="text-2xl font-semibold text-white mb-3">Checkout Flight Scheduled</h2>
+            <p className="text-sm text-slate-300 leading-relaxed max-w-md mx-auto">
+              Your checkout is currently scheduled for {checkoutStartLabel} to {checkoutEndLabel} (Australia/Sydney).
             </p>
+            {activeBookingState.checkout_lifecycle_status === 'cancelled_by_customer' && (
+              <p className="text-sm text-emerald-300 mt-4">Your checkout flight has been cancelled.</p>
+            )}
           </div>
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
-          >
-            Go to Overview
-          </button>
+          <div className="text-left">
+            <CheckoutChangeActions
+              checkout={{
+                id: activeBookingState.id,
+                booking_type: activeBookingState.booking_type,
+                status: activeBookingState.status,
+                scheduled_start: activeBookingState.scheduled_start,
+                checkout_lifecycle_status: activeBookingState.checkout_lifecycle_status ?? null,
+              }}
+              aircraftId={aircraftId}
+              pendingRescheduleRequest={pendingRescheduleState}
+              latestRescheduleRequest={pendingRescheduleState}
+            />
+          </div>
         </div>
       </div>
     )
@@ -1601,55 +1871,27 @@ export default function CheckoutFlow({
                 </div>
                 <div>
                   <p className="text-[17px] font-semibold text-slate-100">Red Card</p>
-                  <p className="text-[15px] text-slate-400 mt-1 leading-relaxed">Do you have a Red Card?</p>
+                  <p className="text-[15px] text-slate-400 mt-1 leading-relaxed">What is the expiry date of your Red Card?</p>
                 </div>
               </div>
               <div className="md:flex-1 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {([true, false] as const).map((val) => (
-                    <button
-                      key={`checkout-red-card-${String(val)}`}
-                      type="button"
-                      onClick={() => {
-                        setHasRedCard(val)
-                        if (!val) setRedCardExpiry('')
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-100 block">
+                    Red Card expiry date <span className="text-red-400 font-normal">Required</span>
+                  </label>
+                  <div className="sm:max-w-[360px]">
+                    <CalendarDateField
+                      value={redCardExpiry}
+                      onChange={(next) => {
+                        setRedCardExpiry(next)
                         setStep2Error(null)
                       }}
-                      className={`flex items-center gap-3.5 px-5 py-4 rounded-xl text-[15px] font-medium border transition-all text-left ${
-                        hasRedCard === val
-                          ? 'bg-blue-500/[0.18] border-blue-400/55 text-blue-100 shadow-[0_0_14px_rgba(59,130,246,0.12)]'
-                          : 'bg-[#0d1c33] border-white/[0.12] text-slate-300 hover:text-white hover:border-blue-500/40'
-                      }`}
-                    >
-                      <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                        hasRedCard === val ? 'border-blue-400 bg-blue-500' : 'border-white/25'
-                      }`}>
-                        {hasRedCard === val && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                      </span>
-                      {val ? 'Yes' : 'No'}
-                    </button>
-                  ))}
-                </div>
-
-                {hasRedCard === true && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-100 block">
-                      Red Card expiry date <span className="text-red-400 font-normal">Required</span>
-                    </label>
-                    <div className="sm:max-w-[360px]">
-                      <CalendarDateField
-                        value={redCardExpiry}
-                        onChange={(next) => {
-                          setRedCardExpiry(next)
-                          setStep2Error(null)
-                        }}
-                        minYear={new Date().getFullYear() - 5}
-                        maxYear={new Date().getFullYear() + 25}
-                        className="w-full bg-white/[0.03] border border-white/[0.08] focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5 text-left flex items-center justify-between"
-                      />
-                    </div>
+                      minYear={new Date().getFullYear() - 5}
+                      maxYear={new Date().getFullYear() + 25}
+                      className="w-full bg-white/[0.03] border border-white/[0.08] focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5 text-left flex items-center justify-between"
+                    />
                   </div>
-                )}
+                </div>
               </div>
             </div>
           </div>
@@ -1673,13 +1915,22 @@ export default function CheckoutFlow({
                   </label>
                   <CalendarDateField
                     value={lastFlightDate}
-                    onChange={setLastFlightDate}
+                    onChange={(next) => {
+                      setLastFlightDate(next)
+                      setStep2Error(null)
+                    }}
                     minYear={new Date().getFullYear() - 20}
                     maxYear={new Date().getFullYear()}
                     minDate={getFlightReviewCutoff()}
                     maxDate={new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })}
                     className="w-full bg-[#0d1c33] border border-white/10 rounded-lg px-3 py-3 text-base text-white focus:outline-none focus:border-blue-500/60 transition-colors text-left flex items-center justify-between"
                   />
+                  {hasAttemptedStep2Continue && !lastFlightDate && (
+                    <p className="text-sm text-red-300 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[12px]">error</span>
+                      Please enter your last flight review date.
+                    </p>
+                  )}
                   {lastFlightDate && validateFlightReviewDate(lastFlightDate) && (
                     <p className="text-sm text-red-300 flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[12px]">error</span>
@@ -2062,7 +2313,8 @@ export default function CheckoutFlow({
           )}
 
       {termsModalOpen && (
-        <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="w-full max-w-4xl bg-[#13243a] border border-[#4c6b8f] rounded-2xl shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
               <h4 className="text-sm font-semibold text-white">Checkout Terms and Conditions</h4>
@@ -2174,7 +2426,8 @@ export default function CheckoutFlow({
               </div>
             </div>
           </div>
-        </div>
+          </div>
+        </ModalPortal>
       )}
 
           {/* ── STEP 4: Success ───────────────────────────────────────────────── */}
