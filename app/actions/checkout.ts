@@ -6,12 +6,29 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
 import { notifyCheckoutRequestSubmitted } from '@/lib/booking/notifications'
+import { checkAircraftAvailability } from '@/lib/booking/availability'
 import { isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
 import { validateFlightReviewDate } from '@/lib/utils/flight-review'
+import { sydneyInputToUTC } from '@/lib/utils/sydney-time'
 import type {
   CreateCheckoutBookingInput,
   CheckoutBookingResult,
 } from '@/lib/supabase/booking-types'
+
+const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000
+
+function isCheckoutSelfServiceAllowed(startIsoUtc: string, now = new Date()): boolean {
+  const startMs = new Date(startIsoUtc).getTime()
+  if (Number.isNaN(startMs)) return false
+  return now.getTime() < (startMs - TWELVE_HOURS_MS)
+}
+
+function isNoShowLockedProfile(profile: {
+  account_status?: string | null
+  account_lock_reason?: string | null
+}): boolean {
+  return profile.account_status === 'blocked' && profile.account_lock_reason === 'checkout_no_show'
+}
 
 // ─── Auth guard (no verification requirement) ─────────────────────────────────
 // Checkout bookings are created before the user is verified.
@@ -656,4 +673,484 @@ export async function getMyCheckoutBooking() {
     .single()
 
   return data ?? null
+}
+
+export async function cancelCheckoutRequest(checkoutId: string): Promise<void> {
+  const { supabase, userId } = await requireCustomer()
+  const admin = createAdminClient()
+  const now = new Date().toISOString()
+
+  const { data: booking, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('id, status, booking_type, scheduled_start, scheduled_end, aircraft_id, checkout_lifecycle_status')
+    .eq('id', checkoutId)
+    .eq('booking_owner_user_id', userId)
+    .single()
+
+  if (fetchErr || !booking) throw new Error('Checkout request not found.')
+  if (!(await canModifyCheckout(booking))) {
+    throw new Error('VALIDATION: Self-service cancellation is only available when checkout is more than 12 hours away.')
+  }
+
+  const { error: changeErr } = await supabase.from('checkout_change_requests').insert({
+    checkout_request_id: booking.id,
+    customer_id: userId,
+    request_type: 'cancel',
+    status: 'approved',
+    original_scheduled_start: booking.scheduled_start,
+    original_scheduled_end: booking.scheduled_end,
+  })
+  if (changeErr) throw new Error(`Failed to record cancellation request: ${changeErr.message}`)
+
+  const { error: bookingErr } = await supabase
+    .from('bookings')
+    .update({
+      status: 'cancelled',
+      cancellation_category: 'customer',
+      cancellation_reason: 'Cancelled by customer before checkout start.',
+      checkout_lifecycle_status: 'cancelled_by_customer',
+      updated_at: now,
+    })
+    .eq('id', checkoutId)
+  if (bookingErr) throw new Error('Failed to cancel checkout request.')
+
+  const { error: blockErr } = await admin
+    .from('schedule_blocks')
+    .update({ status: 'cancelled' })
+    .eq('related_booking_id', checkoutId)
+    .eq('status', 'active')
+  if (blockErr) throw new Error('Failed to release checkout slot.')
+
+  await admin
+    .from('checkout_change_requests')
+    .update({
+      status: 'cancelled',
+      admin_note: 'Superseded by customer checkout cancellation.',
+      reviewed_by: userId,
+      reviewed_at: now,
+      updated_at: now,
+    })
+    .eq('checkout_request_id', checkoutId)
+    .eq('request_type', 'reschedule')
+    .eq('status', 'pending')
+
+  await supabase
+    .from('profiles')
+    .update({ pilot_clearance_status: 'checkout_required', updated_at: now })
+    .eq('id', userId)
+
+  await supabase.from('booking_status_history').insert({
+    booking_id: checkoutId,
+    old_status: booking.status,
+    new_status: 'cancelled',
+    changed_by_user_id: userId,
+    note: 'Checkout cancelled by customer before start time.',
+  })
+
+  await supabase.from('booking_audit_events').insert({
+    booking_id: checkoutId,
+    aircraft_id: booking.aircraft_id,
+    actor_user_id: userId,
+    actor_role: 'customer',
+    event_type: 'checkout_cancelled_by_customer',
+    event_summary: 'Customer cancelled checkout before start time.',
+    new_value: { status: 'cancelled', checkout_lifecycle_status: 'cancelled_by_customer' },
+  })
+
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard/checkout')
+  revalidatePath('/dashboard/bookings')
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings/checkout')
+  revalidatePath('/admin/checkouts/cancel-reschedule')
+  revalidatePath('/admin/checkouts/reschedule')
+  revalidatePath('/admin/checkouts/cancelled')
+}
+
+export async function requestCheckoutReschedule(
+  checkoutId: string,
+  newDate: string,
+  newTime: string,
+): Promise<void> {
+  const { supabase, userId } = await requireCustomer()
+  const requestedStartUtc = sydneyInputToUTC(`${newDate}T${newTime}`)
+  if (!requestedStartUtc) throw new Error('VALIDATION: Invalid requested checkout date/time.')
+  const requestedStart = new Date(requestedStartUtc)
+  if (requestedStart <= new Date()) throw new Error('VALIDATION: Requested checkout time must be in the future.')
+  const requestedEndUtc = new Date(requestedStart.getTime() + 2 * 60 * 60 * 1000).toISOString()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('has_night_vfr_rating')
+    .eq('id', userId)
+    .single()
+  if (profile?.has_night_vfr_rating !== true) {
+    const syd = getSydneyDateAndTime(requestedStartUtc)
+    if (!isWithinDayVfrWindow(syd.time, syd.date, 120)) {
+      throw new Error('VALIDATION: Requested checkout time is outside the allowed Day VFR window.')
+    }
+  }
+
+  const { data: booking, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('id, status, booking_type, scheduled_start, scheduled_end, aircraft_id, checkout_lifecycle_status')
+    .eq('id', checkoutId)
+    .eq('booking_owner_user_id', userId)
+    .single()
+
+  if (fetchErr || !booking) throw new Error('Checkout request not found.')
+  if (!(await canModifyCheckout(booking))) {
+    throw new Error('VALIDATION: Self-service reschedule is only available when checkout is more than 12 hours away.')
+  }
+
+  const { data: existingPending } = await supabase
+    .from('checkout_change_requests')
+    .select('id')
+    .eq('checkout_request_id', checkoutId)
+    .eq('request_type', 'reschedule')
+    .eq('status', 'pending')
+    .maybeSingle()
+  if (existingPending) throw new Error('VALIDATION: A reschedule request is already pending for this checkout.')
+
+  const { data: aircraft } = await supabase
+    .from('aircraft')
+    .select('default_preflight_buffer_minutes, default_postflight_buffer_minutes')
+    .eq('id', booking.aircraft_id)
+    .single()
+
+  const preBufMs = (aircraft?.default_preflight_buffer_minutes ?? 0) * 60_000
+  const postBufMs = (aircraft?.default_postflight_buffer_minutes ?? 0) * 60_000
+  const expandedStart = new Date(requestedStart.getTime() - preBufMs)
+  const expandedEnd = new Date(new Date(requestedEndUtc).getTime() + postBufMs)
+
+  const availability = await checkAircraftAvailability(
+    supabase,
+    booking.aircraft_id,
+    expandedStart,
+    expandedEnd,
+    { excludeBookingId: checkoutId },
+  )
+  if (!availability.available) {
+    throw new Error('AVAILABILITY: The requested checkout slot is no longer available.')
+  }
+
+  const { error: requestErr } = await supabase.from('checkout_change_requests').insert({
+    checkout_request_id: booking.id,
+    customer_id: userId,
+    request_type: 'reschedule',
+    status: 'pending',
+    original_scheduled_start: booking.scheduled_start,
+    original_scheduled_end: booking.scheduled_end,
+    requested_scheduled_start: requestedStartUtc,
+    requested_scheduled_end: requestedEndUtc,
+  })
+  if (requestErr) throw new Error(`Failed to submit reschedule request: ${requestErr.message}`)
+
+  await supabase
+    .from('bookings')
+    .update({ checkout_lifecycle_status: 'reschedule_requested', updated_at: new Date().toISOString() })
+    .eq('id', checkoutId)
+
+  await supabase.from('booking_status_history').insert({
+    booking_id: checkoutId,
+    old_status: booking.status,
+    new_status: booking.status,
+    changed_by_user_id: userId,
+    note: `Customer requested checkout reschedule to ${newDate} ${newTime} (Australia/Sydney).`,
+  })
+
+  await supabase.from('booking_audit_events').insert({
+    booking_id: checkoutId,
+    aircraft_id: booking.aircraft_id,
+    actor_user_id: userId,
+    actor_role: 'customer',
+    event_type: 'checkout_reschedule_requested',
+    event_summary: 'Customer requested checkout reschedule. Pending admin review.',
+    new_value: {
+      checkout_lifecycle_status: 'reschedule_requested',
+      requested_scheduled_start: requestedStartUtc,
+      requested_scheduled_end: requestedEndUtc,
+    },
+  })
+
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard/checkout')
+  revalidatePath('/dashboard/bookings')
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings/checkout')
+  revalidatePath('/admin/checkouts/cancel-reschedule')
+  revalidatePath('/admin/checkouts/reschedule')
+  revalidatePath('/admin/checkouts/cancelled')
+}
+
+export async function approveCheckoutReschedule(changeRequestId: string): Promise<void> {
+  const { adminId } = await requireAdmin()
+  const admin = createAdminClient()
+  const now = new Date().toISOString()
+
+  const { data: reqRow, error: reqErr } = await admin
+    .from('checkout_change_requests')
+    .select(`
+      id, checkout_request_id, customer_id, request_type, status,
+      original_scheduled_start, original_scheduled_end,
+      requested_scheduled_start, requested_scheduled_end,
+      bookings:checkout_request_id (
+        id, status, booking_type, aircraft_id, scheduled_start, scheduled_end, booking_owner_user_id, checkout_lifecycle_status
+      )
+    `)
+    .eq('id', changeRequestId)
+    .single()
+
+  if (reqErr || !reqRow) throw new Error('Reschedule request not found.')
+  if (reqRow.request_type !== 'reschedule' || reqRow.status !== 'pending') {
+    throw new Error('VALIDATION: Only pending reschedule requests can be approved.')
+  }
+
+  const booking = Array.isArray(reqRow.bookings) ? reqRow.bookings[0] : reqRow.bookings
+  if (!booking) throw new Error('Checkout booking not found for this request.')
+  if (!(await canModifyCheckout(booking))) {
+    throw new Error('VALIDATION: Checkout can no longer be modified.')
+  }
+  if (!reqRow.requested_scheduled_start || !reqRow.requested_scheduled_end) {
+    throw new Error('VALIDATION: Requested schedule is missing.')
+  }
+
+  const { data: ownerProfile } = await admin
+    .from('profiles')
+    .select('has_night_vfr_rating')
+    .eq('id', booking.booking_owner_user_id)
+    .single()
+  if (ownerProfile?.has_night_vfr_rating !== true) {
+    const syd = getSydneyDateAndTime(reqRow.requested_scheduled_start)
+    if (!isWithinDayVfrWindow(syd.time, syd.date, 120)) {
+      throw new Error('This requested slot is no longer valid for Day VFR. Please reject the request or contact the customer.')
+    }
+  }
+
+  const { data: aircraft } = await admin
+    .from('aircraft')
+    .select('default_preflight_buffer_minutes, default_postflight_buffer_minutes')
+    .eq('id', booking.aircraft_id)
+    .single()
+
+  const requestedStart = new Date(reqRow.requested_scheduled_start)
+  const requestedEnd = new Date(reqRow.requested_scheduled_end)
+  const preBufMs = (aircraft?.default_preflight_buffer_minutes ?? 0) * 60_000
+  const postBufMs = (aircraft?.default_postflight_buffer_minutes ?? 0) * 60_000
+  const expandedStart = new Date(requestedStart.getTime() - preBufMs)
+  const expandedEnd = new Date(requestedEnd.getTime() + postBufMs)
+
+  const availability = await checkAircraftAvailability(
+    admin,
+    booking.aircraft_id,
+    expandedStart,
+    expandedEnd,
+    { excludeBookingId: booking.id, includeInternalReasons: true },
+  )
+  if (!availability.available) {
+    throw new Error('This requested slot is no longer available. Please reject the request or contact the customer.')
+  }
+
+  const { data: releasedBlocks, error: releaseErr } = await admin
+    .from('schedule_blocks')
+    .update({ status: 'cancelled' })
+    .eq('related_booking_id', booking.id)
+    .eq('status', 'active')
+    .select('id')
+  if (releaseErr) throw new Error('Failed to release existing checkout slot.')
+  const releasedBlockIds = (releasedBlocks ?? []).map((b) => b.id)
+
+  const newBlocks = [
+    {
+      aircraft_id: booking.aircraft_id,
+      related_booking_id: booking.id,
+      block_type: 'customer_booking',
+      start_time: requestedStart.toISOString(),
+      end_time: requestedEnd.toISOString(),
+      public_label: 'Checkout Flight',
+      internal_reason: null,
+      created_by_user_id: adminId,
+      created_by_role: 'admin',
+      is_public_visible: true,
+      status: 'active',
+    },
+    {
+      aircraft_id: booking.aircraft_id,
+      related_booking_id: booking.id,
+      block_type: 'buffer',
+      start_time: expandedStart.toISOString(),
+      end_time: requestedStart.toISOString(),
+      public_label: null,
+      internal_reason: 'Pre-flight buffer (checkout reschedule approved)',
+      created_by_user_id: adminId,
+      created_by_role: 'admin',
+      is_public_visible: false,
+      status: 'active',
+    },
+    {
+      aircraft_id: booking.aircraft_id,
+      related_booking_id: booking.id,
+      block_type: 'buffer',
+      start_time: requestedEnd.toISOString(),
+      end_time: expandedEnd.toISOString(),
+      public_label: null,
+      internal_reason: 'Post-flight buffer (checkout reschedule approved)',
+      created_by_user_id: adminId,
+      created_by_role: 'admin',
+      is_public_visible: false,
+      status: 'active',
+    },
+  ]
+
+  const { error: blockInsertErr } = await admin.from('schedule_blocks').insert(newBlocks)
+  if (blockInsertErr) {
+    if (releasedBlockIds.length > 0) {
+      await admin
+        .from('schedule_blocks')
+        .update({ status: 'active' })
+        .in('id', releasedBlockIds)
+    }
+    throw new Error('Failed to reserve the approved checkout slot.')
+  }
+
+  const { error: bookingErr } = await admin
+    .from('bookings')
+    .update({
+      scheduled_start: requestedStart.toISOString(),
+      scheduled_end: requestedEnd.toISOString(),
+      checkout_lifecycle_status: 'scheduled',
+      updated_at: now,
+    })
+    .eq('id', booking.id)
+  if (bookingErr) {
+    if (releasedBlockIds.length > 0) {
+      await admin
+        .from('schedule_blocks')
+        .update({ status: 'active' })
+        .in('id', releasedBlockIds)
+    }
+    await admin
+      .from('schedule_blocks')
+      .update({ status: 'cancelled' })
+      .eq('related_booking_id', booking.id)
+      .eq('status', 'active')
+      .eq('internal_reason', 'Pre-flight buffer (checkout reschedule approved)')
+    await admin
+      .from('schedule_blocks')
+      .update({ status: 'cancelled' })
+      .eq('related_booking_id', booking.id)
+      .eq('status', 'active')
+      .eq('internal_reason', 'Post-flight buffer (checkout reschedule approved)')
+    await admin
+      .from('schedule_blocks')
+      .update({ status: 'cancelled' })
+      .eq('related_booking_id', booking.id)
+      .eq('status', 'active')
+      .eq('public_label', 'Checkout Flight')
+    throw new Error('Failed to update checkout schedule.')
+  }
+
+  const { error: decisionErr } = await admin
+    .from('checkout_change_requests')
+    .update({
+      status: 'approved',
+      reviewed_by: adminId,
+      reviewed_at: now,
+      updated_at: now,
+    })
+    .eq('id', changeRequestId)
+  if (decisionErr) throw new Error('Failed to mark reschedule request approved.')
+
+  await admin.from('booking_status_history').insert({
+    booking_id: booking.id,
+    old_status: booking.status,
+    new_status: booking.status,
+    changed_by_user_id: adminId,
+    note: 'Admin approved checkout reschedule request and updated checkout time.',
+  })
+
+  await admin.from('booking_audit_events').insert({
+    booking_id: booking.id,
+    aircraft_id: booking.aircraft_id,
+    actor_user_id: adminId,
+    actor_role: 'admin',
+    event_type: 'checkout_reschedule_approved',
+    event_summary: 'Admin approved checkout reschedule request.',
+    old_value: { scheduled_start: booking.scheduled_start, scheduled_end: booking.scheduled_end },
+    new_value: { scheduled_start: requestedStart.toISOString(), scheduled_end: requestedEnd.toISOString() },
+  })
+
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard/checkout')
+  revalidatePath('/dashboard/bookings')
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings/checkout')
+  revalidatePath('/admin/checkouts/cancel-reschedule')
+  revalidatePath('/admin/checkouts/reschedule')
+  revalidatePath('/admin/checkouts/cancelled')
+}
+
+export async function rejectCheckoutReschedule(changeRequestId: string): Promise<void> {
+  const { adminId } = await requireAdmin()
+  const admin = createAdminClient()
+  const now = new Date().toISOString()
+
+  const { data: reqRow, error: reqErr } = await admin
+    .from('checkout_change_requests')
+    .select(`
+      id, checkout_request_id, request_type, status,
+      bookings:checkout_request_id (id, status, aircraft_id, scheduled_start, scheduled_end, checkout_lifecycle_status)
+    `)
+    .eq('id', changeRequestId)
+    .single()
+
+  if (reqErr || !reqRow) throw new Error('Reschedule request not found.')
+  if (reqRow.request_type !== 'reschedule' || reqRow.status !== 'pending') {
+    throw new Error('VALIDATION: Only pending reschedule requests can be rejected.')
+  }
+  const booking = Array.isArray(reqRow.bookings) ? reqRow.bookings[0] : reqRow.bookings
+  if (!booking) throw new Error('Checkout booking not found for this request.')
+
+  const { error: reqUpdateErr } = await admin
+    .from('checkout_change_requests')
+    .update({
+      status: 'rejected',
+      reviewed_by: adminId,
+      reviewed_at: now,
+      updated_at: now,
+    })
+    .eq('id', changeRequestId)
+  if (reqUpdateErr) throw new Error('Failed to reject reschedule request.')
+
+  const lifecycle = deriveLifecycleFromBookingStatus(booking.status)
+  await admin
+    .from('bookings')
+    .update({ checkout_lifecycle_status: lifecycle, updated_at: now })
+    .eq('id', booking.id)
+
+  await admin.from('booking_status_history').insert({
+    booking_id: booking.id,
+    old_status: booking.status,
+    new_status: booking.status,
+    changed_by_user_id: adminId,
+    note: 'Admin rejected checkout reschedule request. Original checkout schedule remains unchanged.',
+  })
+
+  await admin.from('booking_audit_events').insert({
+    booking_id: booking.id,
+    aircraft_id: booking.aircraft_id,
+    actor_user_id: adminId,
+    actor_role: 'admin',
+    event_type: 'checkout_reschedule_rejected',
+    event_summary: 'Admin rejected checkout reschedule request.',
+    new_value: { checkout_lifecycle_status: lifecycle },
+  })
+
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard/checkout')
+  revalidatePath('/dashboard/bookings')
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings/checkout')
+  revalidatePath('/admin/checkouts/cancel-reschedule')
+  revalidatePath('/admin/checkouts/reschedule')
+  revalidatePath('/admin/checkouts/cancelled')
 }
