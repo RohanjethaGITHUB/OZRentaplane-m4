@@ -5,7 +5,7 @@ import DashboardContent from './DashboardContent'
 import type { FlightSnapshotBooking } from './DashboardContent'
 import type { Profile, UserDocument, VerificationEvent, PilotClearanceStatus } from '@/lib/supabase/types'
 import { isAwaitingFlightRecordDue } from '@/lib/booking/flight-record-status'
-import { evaluateBookingDocumentsReadiness, hasAcceptedCurrentTerms } from '@/lib/booking-readiness'
+import { evaluateBookingReadinessDecision, hasAcceptedCurrentTerms } from '@/lib/booking-readiness'
 import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
 
 type MainBookingHeroState = {
@@ -294,11 +294,6 @@ export default async function DashboardPage() {
           .limit(1)
           .maybeSingle()).data
 
-    const docItems = evaluateBookingDocumentsReadiness({
-      documents: (documents as UserDocument[]) || [],
-      hasNightVfrRating: (profile as Profile | null)?.has_night_vfr_rating ?? null,
-    })
-    const docsReady = docItems.every((item) => item.state === 'complete')
     const authoritativeActiveTermsRow = termsPrimary.data ?? (await admin
       .from('terms_documents')
       .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
@@ -312,12 +307,24 @@ export default async function DashboardPage() {
       activeTerms ? { id: activeTerms.id, version: activeTerms.version, content_hash: activeTerms.content_hash } : null,
       (authoritativeTermsAcceptance as { terms_document_id: string | null; terms_version: string | null; terms_content_hash: string | null; accepted_at: string | null } | null),
     )
+    const readiness = evaluateBookingReadinessDecision({
+      clearanceStatus,
+      hasHistoricalClearance: Boolean(authoritativeHistorical?.id),
+      hasPaidCheckoutInvoice: false,
+      documents: (documents as UserDocument[]) || [],
+      hasNightVfrRating: (profile as Profile | null)?.has_night_vfr_rating ?? null,
+      lastFlightDate: (profile as Profile | null)?.last_flight_date ?? null,
+      termsAccepted,
+    })
 
     bookingReadiness = {
-      show: !docsReady || !termsAccepted,
+      show: !readiness.bookingReady,
       hasHistoricalClearance: Boolean(authoritativeHistorical?.id),
-      docsReady,
-      termsAccepted,
+      docsReady: readiness.documentsComplete,
+      termsAccepted: readiness.currentTermsAccepted,
+      flightRecencyComplete: readiness.flightRecencyComplete,
+      hasAwaitingReview: readiness.documentsAwaitingReview.length > 0,
+      hasMissingOrExpired: readiness.missingDocuments.length > 0 || readiness.expiredDocuments.length > 0,
     }
   }
 

@@ -1,4 +1,5 @@
 import type { UserDocument } from '@/lib/supabase/types'
+import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 
 export type BookingReadinessState = 'complete' | 'missing' | 'needs_review' | 'expired'
 
@@ -7,6 +8,28 @@ export type BookingReadinessItem = {
   label: string
   state: BookingReadinessState
   detail: string
+}
+
+export type BookingClearanceSource = 'normal_checkout' | 'historical_checkout' | 'not_cleared'
+
+export type BookingReadinessDecision = {
+  clearanceStatus: string
+  clearanceSource: BookingClearanceSource
+  hasPaidCheckoutInvoice: boolean
+  checkoutInvoiceRequired: boolean
+  documentsRequired: BookingReadinessItem['key'][]
+  documentsComplete: boolean
+  documentStatuses: Record<BookingReadinessItem['key'], BookingReadinessState>
+  missingDocuments: BookingReadinessItem['key'][]
+  documentsAwaitingReview: BookingReadinessItem['key'][]
+  expiredDocuments: BookingReadinessItem['key'][]
+  flightRecencyRequired: boolean
+  flightRecencyDate: string | null
+  flightRecencyComplete: boolean
+  termsRequired: boolean
+  currentTermsAccepted: boolean
+  bookingReady: boolean
+  blockingReasons: string[]
 }
 
 type ActiveTermsLike = {
@@ -79,6 +102,76 @@ export function evaluateBookingDocumentsReadiness(input: {
   if (input.hasNightVfrRating === true) required.push('night_vfr_evidence')
 
   return required.map((type) => evaluateDocument(type, input.documents, todayIso))
+}
+
+export function evaluateBookingReadinessDecision(input: {
+  clearanceStatus: string
+  hasHistoricalClearance: boolean
+  hasPaidCheckoutInvoice: boolean
+  documents: UserDocument[]
+  hasNightVfrRating: boolean | null
+  lastFlightDate: string | null
+  termsAccepted: boolean
+}): BookingReadinessDecision {
+  const docItems = evaluateBookingDocumentsReadiness({
+    documents: input.documents,
+    hasNightVfrRating: input.hasNightVfrRating,
+  })
+  const docsRequired = docItems.map((item) => item.key)
+  const docsComplete = docItems.every((item) => item.state === 'complete')
+
+  const documentStatuses = docItems.reduce((acc, item) => {
+    acc[item.key] = item.state
+    return acc
+  }, {} as Record<BookingReadinessItem['key'], BookingReadinessState>)
+
+  const missingDocuments = docItems.filter((item) => item.state === 'missing').map((item) => item.key)
+  const documentsAwaitingReview = docItems
+    .filter((item) => item.state === 'needs_review')
+    .map((item) => item.key)
+  const expiredDocuments = docItems.filter((item) => item.state === 'expired').map((item) => item.key)
+
+  const flightRecencyRequired = true
+  const flightRecencyDate = input.lastFlightDate?.trim() ? input.lastFlightDate.trim() : null
+  const flightRecencyComplete = !flightRecencyRequired || !!flightRecencyDate && !validateFlightReviewDate(flightRecencyDate)
+  const termsRequired = true
+
+  const clearanceSource: BookingClearanceSource = input.hasHistoricalClearance
+    ? 'historical_checkout'
+    : input.hasPaidCheckoutInvoice
+      ? 'normal_checkout'
+      : 'not_cleared'
+  const checkoutInvoiceRequired = clearanceSource === 'normal_checkout'
+  const bookingReady = docsComplete && flightRecencyComplete && input.termsAccepted
+
+  const blockingReasons: string[] = []
+  if (!docsComplete) {
+    if (missingDocuments.length) blockingReasons.push('documents_missing')
+    if (expiredDocuments.length) blockingReasons.push('documents_expired')
+    if (documentsAwaitingReview.length) blockingReasons.push('documents_awaiting_review')
+  }
+  if (!flightRecencyComplete) blockingReasons.push('flight_recency_missing_or_invalid')
+  if (!input.termsAccepted) blockingReasons.push('terms_not_accepted')
+
+  return {
+    clearanceStatus: input.clearanceStatus,
+    clearanceSource,
+    hasPaidCheckoutInvoice: input.hasPaidCheckoutInvoice,
+    checkoutInvoiceRequired,
+    documentsRequired: docsRequired,
+    documentsComplete: docsComplete,
+    documentStatuses,
+    missingDocuments,
+    documentsAwaitingReview,
+    expiredDocuments,
+    flightRecencyRequired,
+    flightRecencyDate,
+    flightRecencyComplete,
+    termsRequired,
+    currentTermsAccepted: input.termsAccepted,
+    bookingReady,
+    blockingReasons,
+  }
 }
 
 export function hasAcceptedCurrentTerms(activeTerms: ActiveTermsLike, acceptance: AcceptanceLike | null): boolean {

@@ -9,7 +9,7 @@ import type { Profile, UserDocument } from '@/lib/supabase/types'
 import { ADMIN_CONTACT_PHONE_DISPLAY, ADMIN_CONTACT_PHONE_TEL } from '@/lib/contact'
 import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
 import { acceptCurrentBookingTermsFromReadiness } from '@/app/actions/booking-readiness'
-import { evaluateBookingDocumentsReadiness, hasAcceptedCurrentTerms } from '@/lib/booking-readiness'
+import { evaluateBookingDocumentsReadiness, evaluateBookingReadinessDecision, hasAcceptedCurrentTerms } from '@/lib/booking-readiness'
 
 export const metadata = { title: 'Book a Flight | Pilot Overview' }
 
@@ -102,6 +102,9 @@ function BookingReadinessGate({
   profile,
   hasHistoricalClearance,
   docItems,
+  missingDocumentsCount,
+  documentsAwaitingReviewCount,
+  flightRecencyComplete,
   termsAccepted,
   activeTerms,
 }: {
@@ -109,9 +112,15 @@ function BookingReadinessGate({
   profile: Profile | null
   hasHistoricalClearance: boolean
   docItems: ReturnType<typeof evaluateBookingDocumentsReadiness>
+  missingDocumentsCount: number
+  documentsAwaitingReviewCount: number
+  flightRecencyComplete: boolean
   termsAccepted: boolean
   activeTerms: ReturnType<typeof normalizeActiveCheckoutTerms>
 }) {
+  const hasActionableCustomerItems = missingDocumentsCount > 0 || !flightRecencyComplete || !termsAccepted
+  const awaitingAdminOnly = !hasActionableCustomerItems && documentsAwaitingReviewCount > 0
+
   return (
     <CustomerBookingShell user={user} profile={profile}>
       <div className="px-6 md:px-10 py-10 max-w-3xl mx-auto w-full" data-testid="booking-readiness-gate">
@@ -147,6 +156,13 @@ function BookingReadinessGate({
           </div>
 
           <div className="mt-4 rounded-xl border border-white/10 bg-[#0b1220]/70 p-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Pilot flight recency</p>
+            <p className={`mt-2 text-sm ${flightRecencyComplete ? 'text-emerald-200' : 'text-amber-200'}`}>
+              {flightRecencyComplete ? 'Flight recency date recorded.' : 'Flight recency date required.'}
+            </p>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-white/10 bg-[#0b1220]/70 p-4">
             <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Terms and conditions</p>
             <p className={`mt-2 text-sm ${termsAccepted ? 'text-emerald-200' : 'text-amber-200'}`}>
               {termsAccepted ? 'Accepted current version.' : 'Current version not accepted.'}
@@ -169,10 +185,19 @@ function BookingReadinessGate({
             ) : null}
           </div>
 
+          {awaitingAdminOnly ? (
+            <div className="mt-4 rounded-xl border border-blue-400/25 bg-blue-500/10 p-4">
+              <p className="text-sm text-blue-100">Documents submitted and awaiting admin review.</p>
+              <p className="mt-1 text-xs text-blue-200/80">OZ Rent A Plane will review your documents before booking is enabled.</p>
+            </div>
+          ) : null}
+
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/dashboard/documents" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-oz-blue hover:bg-blue-400 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors">
-              Complete required items
-            </Link>
+            {hasActionableCustomerItems ? (
+              <Link href="/dashboard/documents" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-oz-blue hover:bg-blue-400 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors">
+                Complete required items
+              </Link>
+            ) : null}
             <Link href="/dashboard" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 border border-white/20 hover:border-white/35 text-white/70 hover:text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors">
               Return to overview
             </Link>
@@ -412,8 +437,6 @@ export default async function NewBookingPage() {
       documents: (documents ?? []) as UserDocument[],
       hasNightVfrRating: typedProfile?.has_night_vfr_rating ?? null,
     })
-    const docsReady = docItems.every((item) => item.state === 'complete')
-
     const authoritativeActiveTermsRow = activeTermsPrimary.data ?? (await admin
       .from('terms_documents')
       .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
@@ -428,35 +451,32 @@ export default async function NewBookingPage() {
       activeTerms ? { id: activeTerms.id, version: activeTerms.version, content_hash: activeTerms.content_hash } : null,
       (authoritativeTermsAcceptance as { terms_document_id: string | null; terms_version: string | null; terms_content_hash: string | null; accepted_at: string | null } | null),
     )
-    const decision = {
-      customerId: user.id,
+    const decision = evaluateBookingReadinessDecision({
       clearanceStatus: pilotClearanceStatus,
-      clearanceSource: hasHistoricalClearance ? 'historical_checkout' : hasPaidInvoice ? 'normal_checkout' : 'not_cleared',
+      hasHistoricalClearance,
       hasPaidCheckoutInvoice: hasPaidInvoice,
-      checkoutInvoiceRequired: invoiceRequired,
-      documentsComplete: docsReady,
-      missingDocuments: docItems.filter((item) => item.state !== 'complete').map((item) => item.key),
-      currentTermsAccepted: termsAccepted,
-      bookingReady: docsReady && termsAccepted,
-      blockingReasons: [
-        ...(docsReady ? [] : ['documents_incomplete']),
-        ...(termsAccepted ? [] : ['terms_not_accepted']),
-      ],
-    } as const
+      documents: (documents ?? []) as UserDocument[],
+      hasNightVfrRating: typedProfile?.has_night_vfr_rating ?? null,
+      lastFlightDate: typedProfile?.last_flight_date ?? null,
+      termsAccepted,
+    })
     const shouldLogBookingEligibility =
       process.env.DEBUG_BOOKING_ELIGIBILITY === 'true' ||
       process.env.NODE_ENV !== 'production'
     if (shouldLogBookingEligibility) {
-      console.info('[booking-eligibility]', decision)
+      console.info('[booking-eligibility]', { customerId: user.id, ...decision })
     }
 
-    if (!docsReady || !termsAccepted) {
+    if (!decision.bookingReady) {
       return (
         <BookingReadinessGate
           user={user as User}
           profile={typedProfile}
           hasHistoricalClearance={hasHistoricalClearance}
           docItems={docItems}
+          missingDocumentsCount={decision.missingDocuments.length + decision.expiredDocuments.length}
+          documentsAwaitingReviewCount={decision.documentsAwaitingReview.length}
+          flightRecencyComplete={decision.flightRecencyComplete}
           termsAccepted={termsAccepted}
           activeTerms={activeTerms}
         />

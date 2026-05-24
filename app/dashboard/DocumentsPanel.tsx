@@ -879,7 +879,7 @@ export default function DocumentsPanel({ user: _user, documents, lastFlightDate,
               My Documents
             </h2>
             <p className="text-oz-muted font-sans font-light mt-2">
-              Manage the documents and flight recency details used for your checkout request. If anything needs updating, replace the document below.
+              Manage the documents and flight recency details used for booking readiness. If anything needs updating, replace the document below.
             </p>
           </div>
 
@@ -931,7 +931,7 @@ export default function DocumentsPanel({ user: _user, documents, lastFlightDate,
           <div className="space-y-2">
             <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
               When was your last flight review?
-              <span className="ml-1.5 text-red-400/80 font-normal normal-case">Required for checkout</span>
+              <span className="ml-1.5 text-red-400/80 font-normal normal-case">Required for booking readiness</span>
             </label>
             <div className="flex gap-3">
               <div className="flex-1">
@@ -960,10 +960,19 @@ export default function DocumentsPanel({ user: _user, documents, lastFlightDate,
           </div>
 
           {flightDateSaved && !flightDateError && (
-            <p className="mt-2 text-xs text-green-400 flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-              Flight review date saved.
-            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <p className="text-xs text-green-400 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                Flight review date saved.
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push('/dashboard/bookings/new')}
+                className="inline-flex items-center gap-2 rounded-full border border-oz-blue/40 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-oz-blue hover:bg-oz-blue/10"
+              >
+                Continue to booking
+              </button>
+            </div>
           )}
           {flightDateError && (
             <p className="mt-2 text-xs text-red-400 flex items-center gap-1.5">

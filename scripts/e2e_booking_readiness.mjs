@@ -25,21 +25,25 @@ const pw = 'TestPass!23456'
 const users = {
   admin: `admin-e2e-${ts}@example.com`,
   normal: `normal-checkout-e2e-${ts}@example.com`,
+  // Keep this pattern reserved for precheck-only disposable users so cleanup
+  // scripts include it in future sweeps.
+  precheck: `historical-precheck-${ts}@example.com`,
   histMissing: `historical-checkout-missing-compliance-${ts}@example.com`,
   histComplete: `historical-checkout-complete-compliance-${ts}@example.com`,
+  cancelledThenHistorical: `cancelled-then-historical-${ts}@example.com`,
   control: `optional-active-checkout-control-${ts}@example.com`,
 }
 
 const ids = {}
 
-async function createAuthUser(email, role = 'customer', clearance = 'checkout_required', fullName = 'Test User') {
+async function createAuthUser(email, role = 'customer', clearance = 'checkout_required', fullName = 'Test User', lastFlightDate = null) {
   const created = await admin.auth.admin.createUser({ email, password: pw, email_confirm: true, user_metadata: { full_name: fullName } })
   if (created.error) throw created.error
   const id = created.data.user.id
   ids[email] = id
   const { error: upErr } = await admin.from('profiles').upsert({
     id, email, role, full_name: fullName, pilot_clearance_status: clearance, account_status: 'active',
-    pilot_arn: '1234567', has_night_vfr_rating: false,
+    pilot_arn: '1234567', has_night_vfr_rating: false, last_flight_date: lastFlightDate,
   })
   if (upErr) throw upErr
   return id
@@ -146,9 +150,10 @@ async function q(name, email) {
   if (!termsRow) throw new Error('Active terms document not found')
 
   const adminId = await createAuthUser(users.admin, 'admin', 'checkout_required', 'E2E Admin')
-  const normalId = await createAuthUser(users.normal, 'customer', 'cleared_to_fly', 'Normal E2E')
+  const normalId = await createAuthUser(users.normal, 'customer', 'cleared_to_fly', 'Normal E2E', datePlusDays(-30))
   const histMissingId = await createAuthUser(users.histMissing, 'customer', 'cleared_to_fly', 'Hist Missing E2E')
-  const histCompleteId = await createAuthUser(users.histComplete, 'customer', 'cleared_to_fly', 'Hist Complete E2E')
+  const histCompleteId = await createAuthUser(users.histComplete, 'customer', 'cleared_to_fly', 'Hist Complete E2E', datePlusDays(-45))
+  const cancelledThenHistoricalId = await createAuthUser(users.cancelledThenHistorical, 'customer', 'cleared_to_fly', 'Cancelled Then Historical E2E', datePlusDays(-20))
   const controlId = await createAuthUser(users.control, 'customer', 'checkout_required', 'Control E2E')
 
   await seedDocs(normalId, 'approved')
@@ -215,6 +220,30 @@ async function q(name, email) {
   })
   await seedDocs(histCompleteId, 'approved')
   await seedTermsAcceptance(histCompleteId, termsRow)
+  await seedDocs(cancelledThenHistoricalId, 'uploaded')
+  await seedTermsAcceptance(cancelledThenHistoricalId, termsRow)
+  const { data: cancelledBooking, error: cancelledBkErr } = await admin.from('bookings').insert({
+    aircraft_id: aircraft.id,
+    booking_owner_user_id: cancelledThenHistoricalId,
+    scheduled_start: isoPlusDays(2),
+    scheduled_end: isoPlusDays(2 + (2 / 24)),
+    status: 'cancelled',
+    booking_type: 'checkout',
+    payment_status: 'not_started',
+    checkout_lifecycle_status: 'cancelled_by_admin',
+    booking_reference: `E2E-CXL-${ts}`,
+  }).select('id').single()
+  if (cancelledBkErr) throw cancelledBkErr
+  await admin.from('historical_checkout_completions').insert({
+    customer_id: cancelledThenHistoricalId,
+    checkout_date: datePlusDays(-5),
+    checkout_outcome: 'cleared_to_fly',
+    admin_notes: `Cancelled booking ${cancelledBooking.id} then historical completion`,
+    recorded_by_admin_id: adminId,
+    source: 'historical_admin',
+    is_active: true,
+    created_flight_log: false,
+  })
 
   await admin.from('bookings').insert({
     aircraft_id: aircraft.id,
@@ -241,6 +270,7 @@ async function q(name, email) {
     normal: await loginAndCheck(users.normal, 'booking_form'),
     histMissing: await loginAndCheck(users.histMissing, 'readiness_gate'),
     histComplete: await loginAndCheck(users.histComplete, 'booking_form'),
+    cancelledThenHistorical: await loginAndCheck(users.cancelledThenHistorical, 'readiness_gate'),
     control: await loginAndCheck(users.control, 'checkout_required_gate'),
     activeCheckoutWarning,
     activeCheckoutWarningError,
@@ -250,6 +280,7 @@ async function q(name, email) {
     normal: await q('normal', users.normal),
     histMissing: await q('histMissing', users.histMissing),
     histComplete: await q('histComplete', users.histComplete),
+    cancelledThenHistorical: await q('cancelledThenHistorical', users.cancelledThenHistorical),
     control: await q('control', users.control),
   }
 

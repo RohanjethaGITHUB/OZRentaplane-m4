@@ -46,6 +46,9 @@ export type BookingReadinessSummary = {
   hasHistoricalClearance: boolean
   docsReady: boolean
   termsAccepted: boolean
+  flightRecencyComplete: boolean
+  hasAwaitingReview: boolean
+  hasMissingOrExpired: boolean
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -590,7 +593,10 @@ export default function DashboardContent({
           ) : null}
           <div className="mt-3 flex flex-wrap gap-2">
             <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${bookingReadiness.docsReady ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'}`}>
-              Documents: {bookingReadiness.docsReady ? 'Complete' : 'Action required'}
+              Documents: {bookingReadiness.docsReady ? 'Complete' : bookingReadiness.hasAwaitingReview && !bookingReadiness.hasMissingOrExpired ? 'Awaiting admin review' : 'Action required'}
+            </span>
+            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${bookingReadiness.flightRecencyComplete ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'}`}>
+              Flight recency: {bookingReadiness.flightRecencyComplete ? 'Complete' : 'Missing'}
             </span>
             <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${bookingReadiness.termsAccepted ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'}`}>
               Terms: {bookingReadiness.termsAccepted ? 'Accepted current version' : 'Not accepted'}
