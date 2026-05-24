@@ -10,6 +10,7 @@ import { ADMIN_CONTACT_PHONE_DISPLAY, ADMIN_CONTACT_PHONE_TEL } from '@/lib/cont
 import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
 import { evaluateBookingDocumentsReadiness, evaluateBookingReadinessDecision, hasAcceptedCurrentTerms } from '@/lib/booking-readiness'
 import BookingReadinessInlinePanel from './BookingReadinessInlinePanel'
+import { hasManualCheckoutClearance } from '@/lib/checkout-clearance'
 
 export const metadata = { title: 'Book a Flight | Pilot Overview' }
 
@@ -325,9 +326,10 @@ export default async function NewBookingPage() {
           .maybeSingle()).data
 
     const hasHistoricalClearance = Boolean(authoritativeHistorical?.id)
+    const hasManualClearance = await hasManualCheckoutClearance(user.id)
     const hasPaidInvoice = Boolean(authoritativePaidInvoice?.id)
-    const invoiceRequired = !hasHistoricalClearance
-    const isClearancePathValid = hasHistoricalClearance || hasPaidInvoice
+    const invoiceRequired = !hasHistoricalClearance && !hasManualClearance
+    const isClearancePathValid = hasHistoricalClearance || hasManualClearance || hasPaidInvoice
 
     if (!isClearancePathValid && invoiceRequired) {
       return (
@@ -401,7 +403,9 @@ export default async function NewBookingPage() {
       console.info('[booking-eligibility]', { customerId: user.id, ...decision })
     }
 
-    if (!decision.bookingReady) {
+    const requiresPilotFileReadiness = !hasManualClearance
+
+    if (requiresPilotFileReadiness && !decision.bookingReady) {
       return (
         <BookingReadinessGate
           user={user as User}

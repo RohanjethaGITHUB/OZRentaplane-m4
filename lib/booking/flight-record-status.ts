@@ -53,11 +53,6 @@ export function deriveBookingStatusForFlightRecord(
 ): string {
   const status = booking.status ?? ''
   if (isAwaitingFlightRecordDue(booking, now)) return 'awaiting_flight_record'
-
-  if (status === 'awaiting_flight_record' || status === 'flight_record_overdue') {
-    return 'confirmed'
-  }
-
   return status
 }
 

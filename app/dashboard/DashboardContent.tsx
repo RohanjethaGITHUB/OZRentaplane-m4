@@ -63,7 +63,7 @@ type Props = {
   checkoutInvoice?: CheckoutInvoiceData | null
   activeBooking?: { id: string; status: string } | null
   mainBookingHeroState?: {
-    mode: 'post_flight_required' | 'post_flight_under_review' | 'upcoming_confirmed'
+    mode: 'post_flight_required' | 'post_flight_under_review' | 'upcoming_confirmed' | 'post_flight_payment_required' | 'post_flight_awaiting_payment_confirmation'
     bookingId: string
   } | null
   flightSnapshotBooking?: FlightSnapshotBooking | null
@@ -193,6 +193,10 @@ function getHeroStatusLine(
   mainBookingHeroState: Props['mainBookingHeroState'],
 ): string {
   if (clearanceStatus === 'cleared_to_fly' && mainBookingHeroState) {
+    if (mainBookingHeroState.mode === 'post_flight_awaiting_payment_confirmation')
+      return 'Your bank transfer proof has been submitted. The admin team will review and confirm your payment.'
+    if (mainBookingHeroState.mode === 'post_flight_payment_required')
+      return 'Your post-flight invoice is ready. Please complete payment to close this booking.'
     if (mainBookingHeroState.mode === 'post_flight_required')
       return 'Your flight is complete. Please submit your post-flight records.'
     if (mainBookingHeroState.mode === 'post_flight_under_review')
@@ -250,6 +254,29 @@ function getNextActionConfig(
 
   // ── cleared_to_fly overrides ──
   if (clearanceStatus === 'cleared_to_fly') {
+    if (mainBookingHeroState?.mode === 'post_flight_awaiting_payment_confirmation') {
+      return {
+        icon: 'account_balance',
+        iconColor: '#60a5fa',
+        tone: 'blue',
+        title: 'Awaiting payment confirmation',
+        body: "Your bank transfer proof has been submitted. We'll confirm it once it has been reviewed.",
+        ctaLabel: 'View booking details',
+        ctaHref: mainCtaHref,
+      }
+    }
+    if (mainBookingHeroState?.mode === 'post_flight_payment_required') {
+      return {
+        icon: 'payments',
+        iconColor: '#f59e0b',
+        tone: 'amber',
+        title: 'Payment required',
+        body: 'Your post-flight invoice is ready. Complete payment to finalise this flight.',
+        ctaLabel: 'View payment',
+        ctaHref: mainCtaHref,
+        secondaryLink: { label: 'View Booking Details', href: `/dashboard/bookings/${mainBookingHeroState.bookingId}` },
+      }
+    }
     if (mainBookingHeroState?.mode === 'post_flight_required') {
       return {
         icon: 'assignment',
@@ -496,14 +523,18 @@ export default function DashboardContent({
   // Status pill / CTA overrides for cleared_to_fly booking states
   const effectiveStatusPill =
     clearanceStatus === 'cleared_to_fly' && mainBookingHeroState
-      ? mainBookingHeroState.mode === 'post_flight_required' ? 'Post-Flight Records Due'
+      ? mainBookingHeroState.mode === 'post_flight_awaiting_payment_confirmation' ? 'Awaiting Payment Confirmation'
+        : mainBookingHeroState.mode === 'post_flight_payment_required' ? 'Payment Required'
+        : mainBookingHeroState.mode === 'post_flight_required' ? 'Post-Flight Records Due'
         : mainBookingHeroState.mode === 'post_flight_under_review' ? 'Records Submitted'
         : 'Booking Confirmed'
       : statusConfig.statusPill
 
   const effectiveTone: StatusTone =
     clearanceStatus === 'cleared_to_fly' && mainBookingHeroState
-      ? mainBookingHeroState.mode === 'post_flight_required' ? 'amber'
+      ? mainBookingHeroState.mode === 'post_flight_awaiting_payment_confirmation' ? 'blue'
+        : mainBookingHeroState.mode === 'post_flight_payment_required' ? 'amber'
+        : mainBookingHeroState.mode === 'post_flight_required' ? 'amber'
         : mainBookingHeroState.mode === 'post_flight_under_review' ? 'blue'
         : 'blue'
       : statusConfig.statusTone
@@ -529,7 +560,11 @@ export default function DashboardContent({
     isNoShowLocked
       ? 'Contact Team'
       :
-    clearanceStatus === 'cleared_to_fly' && mainBookingHeroState?.mode === 'post_flight_required'
+    clearanceStatus === 'cleared_to_fly' && mainBookingHeroState?.mode === 'post_flight_awaiting_payment_confirmation'
+      ? 'View Booking Details'
+      : clearanceStatus === 'cleared_to_fly' && mainBookingHeroState?.mode === 'post_flight_payment_required'
+      ? 'Pay Invoice'
+      : clearanceStatus === 'cleared_to_fly' && mainBookingHeroState?.mode === 'post_flight_required'
       ? 'Submit Post-Flight Records'
       : clearanceStatus === 'cleared_to_fly' && mainBookingHeroState?.mode === 'post_flight_under_review'
       ? 'View Booking'
@@ -559,9 +594,16 @@ export default function DashboardContent({
   )
 
   // ── Snapshot status ──
-  const snapshotStatus = flightSnapshotBooking
-    ? getSnapshotStatusDisplay(flightSnapshotBooking.status, flightSnapshotBooking.bookingType)
-    : null
+  const snapshotStatus = (() => {
+    if (!flightSnapshotBooking) return null
+    if (mainBookingHeroState?.mode === 'post_flight_awaiting_payment_confirmation') {
+      return { label: 'Awaiting Payment Confirmation', textColor: 'text-blue-300', dotColor: '#60a5fa' }
+    }
+    if (mainBookingHeroState?.mode === 'post_flight_payment_required') {
+      return { label: 'Payment Required', textColor: 'text-orange-300', dotColor: '#fb923c' }
+    }
+    return getSnapshotStatusDisplay(flightSnapshotBooking.status, flightSnapshotBooking.bookingType)
+  })()
 
   // ── Render ────────────────────────────────────────────────────────────────
 

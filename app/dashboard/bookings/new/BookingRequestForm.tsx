@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect, useTransition, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useTransition, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { createBooking } from '@/app/actions/booking'
 import {
   checkCustomerAvailability,
-  getDayAvailability,
   type SafeConflict,
   type AvailabilityCheckResult,
 } from '@/app/actions/customer-availability'
@@ -14,8 +13,8 @@ import {
   sydneyInputToUTC,
   formatSydTime,
 } from '@/lib/utils/sydney-time'
-import { validateFlightReviewDate, getFlightReviewCutoff } from '@/lib/utils/flight-review'
-import { formatDate, formatDateTime, formatDateLong } from '@/lib/formatDateTime'
+import { validateFlightReviewDate } from '@/lib/utils/flight-review'
+import { formatDate, formatDateTime } from '@/lib/formatDateTime'
 import CalendarDateField from '@/components/CalendarDateField'
 
 
@@ -30,8 +29,8 @@ type AvailabilityState =
 type SuccessState = {
   bookingId:        string
   bookingReference: string
-  bookingStatus:    string   // actual status returned by the RPC (e.g. 'confirmed', 'pending_confirmation')
-  startDT:          string   // Sydney-local "YYYY-MM-DDTHH:MM" for display
+  bookingStatus:    string
+  startDT:          string
   endDT:            string
   estimatedHours:   number | null
 }
@@ -51,9 +50,7 @@ type Props = {
   initialLastFlightDate:   string
 }
 
-// ── Time options (full day 12:00 AM – 11:45 PM, 15-min increments) ───────────
-// Covers the entire 24-hour window in Sydney local time.
-// Departure/return dropdowns are filtered dynamically based on context.
+// ── Time options (full day, 15-min increments) ────────────────────────────────
 
 const ALL_TIME_OPTIONS: TimeOption[] = (() => {
   const opts: TimeOption[] = []
@@ -70,12 +67,10 @@ const ALL_TIME_OPTIONS: TimeOption[] = (() => {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-/** Format a YYYY-MM-DD string for display as "22 Apr 2026". */
 function formatDateDisplay(dateStr: string): string {
   return formatDate(dateStr)
 }
 
-/** Format a combined "YYYY-MM-DDTHH:MM" Sydney-local value as AU-style string. */
 function formatInputAsAU(dtLocal: string): string {
   if (!dtLocal) return '—'
   const utc = sydneyInputToUTC(dtLocal)
@@ -83,7 +78,6 @@ function formatInputAsAU(dtLocal: string): string {
   return formatDateTime(utc)
 }
 
-/** Format fractional hours as "Xh Ym". */
 function formatDuration(hours: number): string {
   const h = Math.floor(hours)
   const m = Math.round((hours - h) * 60)
@@ -92,287 +86,13 @@ function formatDuration(hours: number): string {
 }
 
 
-// ── Availability Timeline ──────────────────────────────────────────────────────
-//
-// Interactive 24-hour timeline for the selected date.
-// The selected slot is draggable (move) and resizable (left/right handles).
-// Snaps to 30-minute intervals. Syncs with parent via onRangeChange callback.
-
-// Add one day to a YYYY-MM-DD string without relying on Date parsing assumptions.
-function addOneDay(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  const dt = new Date(Date.UTC(y!, m! - 1, d! + 1))
-  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
-}
-
-function AvailabilityTimeline({
-  selectedDate,
-  daySlots,
-  startDT,
-  endDT,
-  onRangeChange,
-}: {
-  selectedDate: string
-  daySlots: SafeConflict[]
-  startDT: string
-  endDT: string
-  onRangeChange?: (startTime: string, endTime: string) => void
-}) {
-  const barRef    = useRef<HTMLDivElement>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const dragRef   = useRef<{
-    type:          'move' | 'left' | 'right'
-    pointerStartX: number
-    initStart:     number   // minutes from midnight
-    initEnd:       number
-    barWidth:      number
-  } | null>(null)
-
-  const SNAP  = 15          // snap interval in minutes
-  const TOTAL = 24 * 60     // total minutes in a day
-
-  if (!selectedDate) return null
-
-  const opStartUTC = sydneyInputToUTC(`${selectedDate}T00:00`)
-  const opEndUTC   = sydneyInputToUTC(`${addOneDay(selectedDate)}T00:00`)
-  if (!opStartUTC || !opEndUTC) return null
-
-  const opStartMs = new Date(opStartUTC).getTime()
-  const opEndMs   = new Date(opEndUTC).getTime()
-  const totalMs   = opEndMs - opStartMs
-
-  function toPercent(isoUTC: string): number {
-    const t = new Date(isoUTC).getTime()
-    return Math.max(0, Math.min(100, ((t - opStartMs) / totalMs) * 100))
-  }
-
-  const selStartUTC = sydneyInputToUTC(startDT)
-  const selEndUTC   = sydneyInputToUTC(endDT)
-  const hasSelection = !!(selStartUTC && selEndUTC && new Date(selEndUTC) > new Date(selStartUTC))
-
-  const visibleSlots = daySlots.filter(s => {
-    const slotEnd   = new Date(s.end_time).getTime()
-    const slotStart = new Date(s.start_time).getTime()
-    return slotEnd > opStartMs && slotStart < opEndMs
-  })
-
-  // Extract minutes from midnight from a "YYYY-MM-DDTHH:MM" local string
-  function dtToMinutes(dt: string): number {
-    const t = (dt || '').split('T')[1] || '00:00'
-    const [hStr, mStr] = t.split(':')
-    return parseInt(hStr || '0', 10) * 60 + parseInt(mStr || '0', 10)
-  }
-
-  function minutesToHHMM(min: number): string {
-    const c = Math.max(0, Math.min(TOTAL - SNAP, min))
-    return `${String(Math.floor(c / 60)).padStart(2, '0')}:${String(c % 60).padStart(2, '0')}`
-  }
-
-  const selStartMin = startDT ? dtToMinutes(startDT) : 0
-  const selEndMin   = endDT   ? dtToMinutes(endDT)   : 0
-
-  const selLeft  = hasSelection ? toPercent(selStartUTC!) : 0
-  const selRight = hasSelection ? 100 - toPercent(selEndUTC!) : 0
-
-  // ── Drag handlers ──────────────────────────────────────────────────────────
-
-  function startDrag(e: React.PointerEvent<HTMLDivElement>, type: 'move' | 'left' | 'right') {
-    if (!hasSelection || !onRangeChange) return
-    e.preventDefault()
-    e.currentTarget.setPointerCapture(e.pointerId)
-    const bar = barRef.current
-    if (!bar) return
-    dragRef.current = {
-      type,
-      pointerStartX: e.clientX,
-      initStart:     selStartMin,
-      initEnd:       selEndMin,
-      barWidth:      bar.getBoundingClientRect().width,
-    }
-    setIsDragging(true)
-  }
-
-  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!dragRef.current || !onRangeChange) return
-    const { type, pointerStartX, initStart, initEnd, barWidth } = dragRef.current
-    const deltaMin = ((e.clientX - pointerStartX) / barWidth) * TOTAL
-    const dur      = initEnd - initStart
-    let newStart   = initStart
-    let newEnd     = initEnd
-
-    if (type === 'move') {
-      newStart = Math.round((initStart + deltaMin) / SNAP) * SNAP
-      newStart = Math.max(0, Math.min(TOTAL - dur, newStart))
-      newEnd   = newStart + dur
-    } else if (type === 'left') {
-      newStart = Math.round((initStart + deltaMin) / SNAP) * SNAP
-      newStart = Math.max(0, Math.min(initEnd - SNAP, newStart))
-    } else {
-      newEnd = Math.round((initEnd + deltaMin) / SNAP) * SNAP
-      newEnd = Math.max(initStart + SNAP, Math.min(TOTAL, newEnd))
-    }
-
-    onRangeChange(minutesToHHMM(newStart), minutesToHHMM(newEnd > TOTAL - SNAP ? TOTAL - SNAP : newEnd))
-  }
-
-  function handlePointerUp() {
-    dragRef.current = null
-    setIsDragging(false)
-  }
-
-  // ── Tick marks every 2 hours for full-day readability ─────────────────────
-  const majorTicks = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24]
-
-  function hourLabel(h: number): string {
-    if (h === 0 || h === 24) return '12am'
-    if (h === 12) return '12pm'
-    return h < 12 ? `${h}am` : `${h - 12}pm`
-  }
-
-  const canDrag = hasSelection && !!onRangeChange
-
-  return (
-    <div className="space-y-2 select-none">
-
-      {/* Tick labels above bar */}
-      <div className="relative h-4">
-        {majorTicks.map(h => (
-          <span
-            key={h}
-            className="absolute text-[9px] font-medium text-slate-600 -translate-x-1/2 leading-none"
-            style={{ left: `${(h / 24) * 100}%` }}
-          >
-            {hourLabel(h)}
-          </span>
-        ))}
-      </div>
-
-      {/* Timeline bar + interactive slot overlay */}
-      <div className="relative">
-
-        {/* Base bar — clipped for conflict/grid rendering */}
-        <div
-          ref={barRef}
-          className="relative h-14 bg-green-500/15 rounded-lg overflow-hidden border border-green-500/10"
-        >
-          {/* Subtle hour grid lines every 2 h */}
-          {[2,4,6,8,10,12,14,16,18,20,22].map(h => (
-            <div
-              key={h}
-              className="absolute top-0 bottom-0 w-px bg-white/[0.04]"
-              style={{ left: `${(h / 24) * 100}%` }}
-            />
-          ))}
-
-          {/* Booked / conflict slots */}
-          {visibleSlots.map((slot, i) => (
-            <div
-              key={i}
-              className="absolute top-0 bottom-0 bg-red-500/55"
-              style={{
-                left:  `${toPercent(slot.start_time)}%`,
-                right: `${100 - toPercent(slot.end_time)}%`,
-              }}
-              title={slot.label}
-            />
-          ))}
-        </div>
-
-        {/* Interactive selected slot — sits on top of the bar */}
-        {hasSelection && (
-          <div
-            className={`absolute top-[2px] bottom-[2px] ${canDrag ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
-            style={{ left: `${selLeft}%`, right: `${selRight}%` }}
-            onPointerDown={canDrag ? e => startDrag(e, 'move') : undefined}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-          >
-            <div className="h-full bg-blue-500/25 border-2 border-blue-400/75 rounded-lg flex items-center relative overflow-hidden">
-
-              {/* Left resize handle */}
-              <div
-                className={`absolute left-0 top-0 bottom-0 w-4 flex items-center justify-center gap-px flex-shrink-0 z-10 ${canDrag ? 'cursor-ew-resize' : ''}`}
-                onPointerDown={canDrag ? e => { e.stopPropagation(); startDrag(e, 'left') } : undefined}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-              >
-                <div className="w-px h-5 bg-blue-300/60 rounded-full" />
-                <div className="w-px h-5 bg-blue-300/60 rounded-full" />
-              </div>
-
-              {/* Time label — centered, hidden when slot is too narrow */}
-              <div className="flex-1 text-center px-5 min-w-0 overflow-hidden">
-                <span className="text-[9px] text-blue-200/90 font-mono whitespace-nowrap">
-                  {startDT.split('T')[1]}–{endDT.split('T')[1]}
-                </span>
-              </div>
-
-              {/* Right resize handle */}
-              <div
-                className={`absolute right-0 top-0 bottom-0 w-4 flex items-center justify-center gap-px flex-shrink-0 z-10 ${canDrag ? 'cursor-ew-resize' : ''}`}
-                onPointerDown={canDrag ? e => { e.stopPropagation(); startDrag(e, 'right') } : undefined}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-              >
-                <div className="w-px h-5 bg-blue-300/60 rounded-full" />
-                <div className="w-px h-5 bg-blue-300/60 rounded-full" />
-              </div>
-
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Drag hint / empty state */}
-      {canDrag ? (
-        <p className="text-[10px] text-slate-700 leading-relaxed">
-          Drag the block to move your slot · drag the edges to resize · snaps to 15 min
-        </p>
-      ) : !hasSelection ? (
-        <p className="text-[10px] text-slate-700">Select departure and return times above to see your slot.</p>
-      ) : null}
-
-      {/* Legend */}
-      <div className="flex flex-wrap gap-5 pt-1">
-        <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-widest text-slate-600">
-          <span className="w-2.5 h-2.5 rounded-sm bg-green-500/40 inline-block flex-shrink-0" />
-          Available
-        </span>
-        <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-widest text-slate-600">
-          <span className="w-2.5 h-2.5 rounded-sm bg-red-500/55 inline-block flex-shrink-0" />
-          Booked
-        </span>
-        {hasSelection && (
-          <span className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-widest text-slate-600">
-            <span className="w-2.5 h-2.5 rounded-sm border-2 border-blue-400/75 bg-blue-500/25 inline-block flex-shrink-0" />
-            Selected
-          </span>
-        )}
-      </div>
-    </div>
-  )
-}
-
-
 // ── Step indicator ─────────────────────────────────────────────────────────────
 
 function StepIndicator({ requirementsOk }: { requirementsOk: boolean }) {
   const steps = [
-    {
-      label: 'Requirements',
-      state: requirementsOk ? 'done' : 'warn',
-      num: 1,
-    },
-    {
-      label: 'Flight Time',
-      state: 'active',
-      num: 2,
-    },
-    {
-      label: 'Review & Submit',
-      state: 'upcoming',
-      num: 3,
-    },
+    { label: 'Requirements', state: requirementsOk ? 'done' : 'warn', num: 1 },
+    { label: 'Flight Time',  state: 'active',   num: 2 },
+    { label: 'Review & Submit', state: 'upcoming', num: 3 },
   ] as const
 
   return (
@@ -494,6 +214,93 @@ function TimeSelect({
   )
 }
 
+// ── Availability status ────────────────────────────────────────────────────────
+
+function AvailabilityStatus({
+  availability,
+  startDT,
+  endDT,
+  endIsBeforeStart,
+}: {
+  availability: AvailabilityState
+  startDT: string
+  endDT: string
+  endIsBeforeStart: boolean
+}) {
+  // Only show once the user has started entering times
+  if (!startDT) return null
+
+  if (availability.status === 'idle') {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3.5 bg-white/[0.025] border border-white/[0.05] rounded-xl">
+        <span className="material-symbols-outlined text-slate-600 text-base flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>
+          info
+        </span>
+        <p className="text-xs text-slate-500">
+          {!endDT || endIsBeforeStart
+            ? 'Select an estimated return time to check availability.'
+            : 'Select a departure and return time to check availability.'}
+        </p>
+      </div>
+    )
+  }
+
+  if (availability.status === 'checking') {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3.5 bg-white/[0.025] border border-white/[0.05] rounded-xl">
+        <span className="material-symbols-outlined text-blue-500 text-base animate-spin flex-shrink-0">progress_activity</span>
+        <p className="text-xs text-blue-400">Checking aircraft availability…</p>
+      </div>
+    )
+  }
+
+  if (availability.status === 'available') {
+    return (
+      <div className="flex items-center gap-3 bg-green-500/[0.07] border border-green-500/20 rounded-xl px-4 py-3.5">
+        <span
+          className="material-symbols-outlined text-green-400 text-base flex-shrink-0"
+          style={{ fontVariationSettings: "'FILL' 1" }}
+        >
+          check_circle
+        </span>
+        <p className="text-sm text-green-300 font-medium">Aircraft is available for the selected time.</p>
+      </div>
+    )
+  }
+
+  if (availability.status === 'unavailable') {
+    return (
+      <div className="bg-red-500/[0.07] border border-red-500/20 rounded-xl px-4 py-3.5 space-y-2.5">
+        <div className="flex items-start gap-3">
+          <span className="material-symbols-outlined text-red-400 text-base flex-shrink-0 mt-0.5">error</span>
+          <div>
+            <p className="text-sm text-red-300 font-medium">Selected time is unavailable.</p>
+            <p className="text-xs text-red-400/60 mt-1 leading-relaxed">
+              Try adjusting your departure or estimated return time.
+            </p>
+          </div>
+        </div>
+        {availability.conflicts.length > 0 && (
+          <div className="space-y-1.5 ml-7">
+            {availability.conflicts.map((c, i) => (
+              <div key={i} className="flex items-center gap-2 text-[11px]">
+                <span className="w-1 h-1 rounded-full bg-red-400 flex-shrink-0" />
+                <span className="text-red-300/70">{c.label}</span>
+                <span className="text-slate-500 font-mono ml-auto tabular-nums">
+                  {formatSydTime(c.start_time)}–{formatSydTime(c.end_time)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return null
+}
+
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function BookingRequestForm({
@@ -511,21 +318,21 @@ export default function BookingRequestForm({
   const [isSubmitting, startSubmit] = useTransition()
 
   // ── Split date/time state ─────────────────────────────────────────────────
-  const [startDate,       setStartDate]       = useState('')  // YYYY-MM-DD
-  const [startTime,       setStartTime]       = useState('')  // HH:MM
-  const [endDate,         setEndDate]         = useState('')
-  const [endTime,         setEndTime]         = useState('')
-  const [lastFlightDate,  setLastFlightDate]  = useState(initialLastFlightDate)
-  const [notes,           setNotes]           = useState('')
-  const [medical,         setMedical]         = useState(false)
-  const [submitError,     setSubmitError]     = useState<string | null>(null)
-  const [successState,    setSuccessState]    = useState<SuccessState | null>(null)
+  const [startDate,      setStartDate]      = useState('')
+  const [startTime,      setStartTime]      = useState('')
+  const [endDate,        setEndDate]        = useState('')
+  const [endTime,        setEndTime]        = useState('')
+  const [lastFlightDate, setLastFlightDate] = useState(initialLastFlightDate)
+  const [notes,          setNotes]          = useState('')
+  const [medical,        setMedical]        = useState(false)
+  const [submitError,    setSubmitError]    = useState<string | null>(null)
+  const [successState,   setSuccessState]   = useState<SuccessState | null>(null)
 
-  // Derived flight review date error (null = valid or empty)
+  // Flight review validation (silent — no UI for editing, value comes from profile)
   const flightReviewError = lastFlightDate ? validateFlightReviewDate(lastFlightDate) : null
   const flightReviewValid = !!lastFlightDate && !flightReviewError
 
-  // ── Derived combined datetime strings (used by all existing logic) ────────
+  // ── Derived combined datetime strings ─────────────────────────────────────
   const startDT = startDate && startTime ? `${startDate}T${startTime}` : ''
   const endDT   = endDate   && endTime   ? `${endDate}T${endTime}`     : ''
 
@@ -548,7 +355,6 @@ export default function BookingRequestForm({
   }, [startDate, minDate, minTimeToday])
 
   const endTimeOptions = useMemo(() => {
-    // Same day as departure → only times strictly after departure time
     if (endDate && startDate && endDate === startDate && startTime) {
       return ALL_TIME_OPTIONS.filter(o => o.value > startTime)
     }
@@ -559,11 +365,9 @@ export default function BookingRequestForm({
 
   function handleStartDateChange(date: string) {
     setStartDate(date)
-    // Clear start time if it's now before the minimum on today
     if (date === minDate && startTime && startTime < minTimeToday) {
       setStartTime('')
     }
-    // Clear end if it's now before the new start date
     if (endDate && date > endDate) {
       setEndDate('')
       setEndTime('')
@@ -572,7 +376,6 @@ export default function BookingRequestForm({
 
   function handleStartTimeChange(time: string) {
     setStartTime(time)
-    // Clear end time if same day and now invalid
     if (endDate && startDate && endDate === startDate && endTime && endTime <= time) {
       setEndTime('')
     }
@@ -580,7 +383,6 @@ export default function BookingRequestForm({
 
   function handleEndDateChange(date: string) {
     setEndDate(date)
-    // Clear end time if same day as start and current end time is invalid
     if (date === startDate && endTime && startTime && endTime <= startTime) {
       setEndTime('')
     }
@@ -631,36 +433,6 @@ export default function BookingRequestForm({
     return () => clearTimeout(timer)
   }, [startDT, endDT, runAvailabilityCheck])
 
-  // ── Day availability slots ────────────────────────────────────────────────
-  const selectedDate = startDate
-  const [daySlots, setDaySlots]               = useState<SafeConflict[]>([])
-  const [daySlotsLoading, setDaySlotsLoading] = useState(false)
-  const [daySlotsError, setDaySlotsError]     = useState(false)
-
-  useEffect(() => {
-    if (!selectedDate) {
-      setDaySlots([])
-      setDaySlotsError(false)
-      return
-    }
-    let active = true
-    setDaySlotsLoading(true)
-    setDaySlotsError(false)
-    getDayAvailability(aircraftId, selectedDate)
-      .then(slots => {
-        if (!active) return
-        setDaySlots(slots)
-        setDaySlotsLoading(false)
-      })
-      .catch(err => {
-        console.error('Failed to load day slots:', err)
-        if (!active) return
-        setDaySlotsError(true)
-        setDaySlotsLoading(false)
-      })
-    return () => { active = false }
-  }, [aircraftId, selectedDate])
-
   // ── Estimated duration ────────────────────────────────────────────────────
   const estimatedHours = useMemo(() => {
     const s = sydneyInputToUTC(startDT)
@@ -669,16 +441,6 @@ export default function BookingRequestForm({
     const mins = (new Date(e).getTime() - new Date(s).getTime()) / 60000
     return mins > 0 ? mins / 60 : null
   }, [startDT, endDT])
-
-  // ── Timeline → input sync ────────────────────────────────────────────────
-  function handleTimelineChange(newStartTime: string, newEndTime: string) {
-    setStartTime(newStartTime)
-    setEndTime(newEndTime)
-    // If end date was on a different day, bring it back to the selected date
-    if (startDate && endDate && endDate !== startDate) {
-      setEndDate(startDate)
-    }
-  }
 
   // ── Submit gate ───────────────────────────────────────────────────────────
   const endIsBeforeStart = !!(startDT && endDT && endDT <= startDT)
@@ -700,7 +462,7 @@ export default function BookingRequestForm({
     if (endIsBeforeStart) return 'Estimated return must be after departure.'
     if (availability.status === 'checking') return 'Checking availability…'
     if (availability.status === 'unavailable') return 'Selected time is unavailable.'
-    if (!lastFlightDate) return 'Please enter your last flight review date.'
+    if (!lastFlightDate) return 'Your flight review date is not on file. Please contact operations.'
     if (flightReviewError) return flightReviewError
     if (!medical) return 'Please complete the required confirmations.'
     return null
@@ -758,7 +520,6 @@ export default function BookingRequestForm({
     startSubmit(async () => {
       try {
         const result = await createBooking(input)
-
         setSuccessState({
           bookingId:        result.bookingId,
           bookingReference: result.bookingReference,
@@ -784,6 +545,7 @@ export default function BookingRequestForm({
   }
 
   const disabledReason = getDisabledReason()
+
   // ── Success state ─────────────────────────────────────────────────────────
 
   if (successState) {
@@ -793,7 +555,6 @@ export default function BookingRequestForm({
       <div className="min-h-[70vh] flex items-center justify-center px-6 py-20">
         <div className="max-w-lg w-full text-center">
 
-          {/* Status icon */}
           <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-8 ${
             isConfirmed
               ? 'bg-green-500/15 border border-green-500/20'
@@ -819,24 +580,18 @@ export default function BookingRequestForm({
               : 'Your request has been submitted and is awaiting review by our operations team.'}
           </p>
 
-          {/* Booking reference card */}
           <div className="bg-gradient-to-br from-[#0f1d38] to-[#080e1c] border-t border-white/[0.13] border-x border-b border-x-white/[0.06] border-b-white/[0.06] rounded-xl p-7 mb-6 relative overflow-hidden">
             <div
               className="absolute inset-0 rounded-xl pointer-events-none"
               style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.12) 0%, transparent 70%)' }}
             />
             <div className="relative">
-              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-blue-400/70 mb-3">
-                Booking Reference
-              </p>
-              <p className="text-3xl font-mono font-bold text-white tracking-[0.18em] mb-2">
-                {successState.bookingReference}
-              </p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-blue-400/70 mb-3">Booking Reference</p>
+              <p className="text-3xl font-mono font-bold text-white tracking-[0.18em] mb-2">{successState.bookingReference}</p>
               <p className="text-[11px] text-slate-600">Save this reference for your records</p>
             </div>
           </div>
 
-          {/* Status notice card — content differs by booking status */}
           {isConfirmed ? (
             <div className="bg-green-500/[0.07] border border-green-500/20 rounded-xl px-5 py-4 mb-6 flex items-start gap-3 text-left">
               <span className="material-symbols-outlined text-green-400 text-base flex-shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
@@ -859,7 +614,6 @@ export default function BookingRequestForm({
             </div>
           )}
 
-          {/* Flight summary */}
           {(successState.startDT || successState.estimatedHours != null) && (
             <div className="bg-[#080e1c] border border-white/[0.07] rounded-xl p-5 mb-8 text-left space-y-3">
               {successState.startDT && (
@@ -883,7 +637,6 @@ export default function BookingRequestForm({
             </div>
           )}
 
-          {/* CTAs */}
           <div className="flex flex-col sm:flex-row gap-3">
             <Link
               href={`/dashboard/bookings/${successState.bookingId}`}
@@ -915,25 +668,17 @@ export default function BookingRequestForm({
           COMPACT BOOKING HERO
       ══════════════════════════════════════════════════════════════════════ */}
       <section className="relative py-14 overflow-hidden">
-
-        {/* Deep navy gradient background */}
         <div className="absolute inset-0 bg-gradient-to-b from-[#0a1428] via-[#071020] to-[#060d18]" />
-
-        {/* Runway lines texture */}
         <div
           className="absolute inset-0 opacity-[0.15]"
           style={{
             backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(255,255,255,0.04) 40px, rgba(255,255,255,0.04) 41px)',
           }}
         />
-
-        {/* Radial aviation glow */}
         <div
           className="absolute inset-0"
           style={{ background: 'radial-gradient(ellipse at 50% 70%, rgba(59,130,246,0.13) 0%, transparent 65%)' }}
         />
-
-        {/* Aircraft silhouette ornament — right edge, very faint */}
         <div className="absolute right-0 top-1/2 -translate-y-1/2 opacity-[0.045] pointer-events-none select-none hidden lg:block pr-8">
           <span
             className="material-symbols-outlined"
@@ -942,24 +687,14 @@ export default function BookingRequestForm({
             flight_takeoff
           </span>
         </div>
-
-        {/* Bottom fade into page */}
         <div className="absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-[#060d18] to-transparent" />
-
-        {/* Hero content */}
         <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-2xl mx-auto">
-          <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-blue-400/70 mb-4">
-            Fleet Booking
-          </p>
-          <h1 className="text-4xl md:text-5xl font-serif tracking-tight text-white mb-3 leading-tight">
-            Book a Flight
-          </h1>
+          <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-blue-400/70 mb-4">Fleet Booking</p>
+          <h1 className="text-4xl md:text-5xl font-serif tracking-tight text-white mb-3 leading-tight">Book a Flight</h1>
           <p className="text-slate-400 text-base leading-relaxed mb-2">
             Choose your preferred time and submit your request for review.
           </p>
-          <p className="text-[11px] text-slate-600">
-            All times are shown in Sydney time (AEST/AEDT).
-          </p>
+          <p className="text-[11px] text-slate-600">All times are shown in Sydney time (AEST/AEDT).</p>
         </div>
       </section>
 
@@ -977,55 +712,41 @@ export default function BookingRequestForm({
       ══════════════════════════════════════════════════════════════════════ */}
       <div className="bg-[#070c19] border-b border-white/[0.05]">
         <div className="max-w-[1280px] mx-auto px-6 md:px-10 xl:px-12 py-5">
-          <div className="flex flex-wrap items-center gap-y-5 gap-x-0 xl:justify-between">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-5">
 
             {/* Pilot */}
-            <div className="flex flex-col min-w-[120px] flex-1 xl:flex-none">
-              <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-1">Pilot</span>
-              <span className={`text-sm font-semibold leading-snug ${!picName ? 'text-amber-300' : 'text-white'}`}>
-                {picName || (
-                  <span className="flex items-center gap-1 text-amber-300">
-                    <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 400" }}>warning</span>
-                    Missing
-                  </span>
-                )}
-              </span>
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-1.5 block">Pilot</span>
+              {picName ? (
+                <span className="text-sm font-semibold text-white leading-snug">{picName}</span>
+              ) : (
+                <span className="flex items-center gap-1 text-sm font-semibold text-amber-300 leading-snug">
+                  <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 400" }}>warning</span>
+                  Missing
+                </span>
+              )}
             </div>
-
-            <div className="w-px h-8 bg-white/[0.07] hidden xl:block flex-shrink-0" />
 
             {/* ARN */}
-            <div className="flex flex-col min-w-[120px] flex-1 xl:flex-none">
-              <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-1">ARN</span>
-              <span className={`text-sm font-semibold font-mono leading-snug ${!picArn ? 'text-amber-300' : 'text-white'}`}>
-                {picArn || (
-                  <span className="flex items-center gap-1 text-amber-300">
-                    <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 400" }}>warning</span>
-                    Missing
-                  </span>
-                )}
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-1.5 block">ARN</span>
+              {picArn ? (
+                <span className="text-sm font-semibold font-mono text-white leading-snug">{picArn}</span>
+              ) : (
+                <span className="flex items-center gap-1 text-sm font-semibold text-amber-300 leading-snug">
+                  <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 400" }}>warning</span>
+                  Missing
+                </span>
+              )}
+            </div>
+
+            {/* Aircraft — combined registration + type */}
+            <div className="col-span-2 sm:col-span-1">
+              <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-1.5 block">Aircraft</span>
+              <span className="text-sm font-semibold text-white leading-snug">
+                {[aircraftRegistration, aircraftType || 'Unavailable'].filter(Boolean).join(' ')}
               </span>
             </div>
-
-            <div className="w-px h-8 bg-white/[0.07] hidden xl:block flex-shrink-0" />
-
-            {/* Aircraft */}
-            <div className="flex flex-col min-w-[100px] flex-1 xl:flex-none">
-              <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-1">Aircraft</span>
-              <span className="text-sm font-semibold text-white uppercase leading-snug">{aircraftRegistration}</span>
-            </div>
-
-            <div className="w-px h-8 bg-white/[0.07] hidden xl:block flex-shrink-0" />
-
-            {/* Model */}
-            <div className="flex flex-col min-w-[100px] flex-1 xl:flex-none">
-              <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-1">Model</span>
-              <span className="text-sm font-semibold text-white leading-snug">{aircraftType || 'Unavailable'}</span>
-            </div>
-
-            <div className="w-px h-8 bg-white/[0.07] hidden xl:block flex-shrink-0" />
-
-            {/* Rate intentionally omitted from customer view */}
 
           </div>
         </div>
@@ -1036,7 +757,6 @@ export default function BookingRequestForm({
       ══════════════════════════════════════════════════════════════════════ */}
       <div className="max-w-[1280px] mx-auto px-6 md:px-10 xl:px-12 py-10 pb-24">
 
-        {/* Back link */}
         <div className="max-w-3xl mx-auto">
           <Link
             href="/dashboard/bookings"
@@ -1073,266 +793,122 @@ export default function BookingRequestForm({
               </div>
             )}
 
-              {/* ── Choose your flight time (primary card) ─────────────── */}
-              <section className="relative bg-gradient-to-br from-[#0f1d38] to-[#080e1c] border-t border-white/[0.13] border-x border-b border-x-white/[0.06] border-b-white/[0.06] rounded-xl p-8 md:p-10 shadow-[0_8px_60px_rgba(0,0,0,0.45)] overflow-hidden">
+            {/* ── Choose your flight time ────────────────────────────────── */}
+            <section className="relative bg-gradient-to-br from-[#0f1d38] to-[#080e1c] border-t border-white/[0.13] border-x border-b border-x-white/[0.06] border-b-white/[0.06] rounded-xl p-8 md:p-10 shadow-[0_8px_60px_rgba(0,0,0,0.45)] overflow-hidden">
 
-                {/* Blue left accent bar */}
-                <div className="absolute left-0 top-8 bottom-8 w-[3px] bg-blue-500/65 rounded-r-full" />
+              <div className="absolute left-0 top-8 bottom-8 w-[3px] bg-blue-500/65 rounded-r-full" />
+              <div
+                className="absolute inset-0 rounded-xl pointer-events-none"
+                style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(37,99,235,0.09) 0%, transparent 65%)' }}
+              />
 
-                {/* Soft blue interior glow */}
-                <div
-                  className="absolute inset-0 rounded-xl pointer-events-none"
-                  style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(37,99,235,0.09) 0%, transparent 65%)' }}
+              <div className="relative space-y-8">
+
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-serif text-white mb-2 leading-tight">
+                    Choose your flight time
+                  </h2>
+                  <p className="text-slate-400 text-sm leading-relaxed">
+                    Start by selecting your departure and estimated return time.
+                  </p>
+                </div>
+
+                {/* Departure */}
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-400/70 mb-3 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 400" }}>flight_takeoff</span>
+                    Departure
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600 mb-2">Date</label>
+                      <DateInput value={startDate} min={minDate} onChange={handleStartDateChange} />
+                      {startDate && (
+                        <p className="text-[11px] text-blue-400/50 mt-1.5">{formatDateDisplay(startDate)}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600 mb-2">Time</label>
+                      <TimeSelect
+                        value={startTime}
+                        options={startTimeOptions}
+                        disabled={!startDate}
+                        placeholder="Select time"
+                        onChange={handleStartTimeChange}
+                      />
+                    </div>
+                  </div>
+                  {startDT && (
+                    <p className="text-xs text-blue-400/70 mt-2 font-medium">{formatInputAsAU(startDT)}</p>
+                  )}
+                </div>
+
+                {/* Estimated return */}
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-400/70 mb-3 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 400" }}>flight_land</span>
+                    Estimated Return
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600 mb-2">Date</label>
+                      <DateInput
+                        value={endDate}
+                        min={startDate || minDate}
+                        disabled={!startDate}
+                        onChange={handleEndDateChange}
+                      />
+                      {endDate && (
+                        <p className="text-[11px] text-blue-400/50 mt-1.5">{formatDateDisplay(endDate)}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600 mb-2">Time</label>
+                      <TimeSelect
+                        value={endTime}
+                        options={endTimeOptions}
+                        disabled={!endDate}
+                        placeholder="Select time"
+                        onChange={setEndTime}
+                      />
+                      {endIsBeforeStart && (
+                        <p className="text-[11px] text-red-400 mt-1.5">Must be after departure</p>
+                      )}
+                    </div>
+                  </div>
+                  {endDT && !endIsBeforeStart && (
+                    <p className="text-xs text-blue-400/70 mt-2 font-medium">{formatInputAsAU(endDT)}</p>
+                  )}
+                </div>
+
+                {/* Availability status — inline, below return fields */}
+                <AvailabilityStatus
+                  availability={availability}
+                  startDT={startDT}
+                  endDT={endDT}
+                  endIsBeforeStart={endIsBeforeStart}
                 />
 
-                <div className="relative">
-                  <div className="mb-8">
-                    <h2 className="text-2xl md:text-3xl font-serif text-white mb-2 leading-tight">
-                      Choose your flight time
-                    </h2>
-                    <p className="text-slate-400 text-sm leading-relaxed">
-                      Start by selecting your departure and estimated return time.
-                    </p>
-                  </div>
-
-                  <div className="space-y-8">
-
-                    {/* Departure */}
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-400/70 mb-3 flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 400" }}>flight_takeoff</span>
-                        Departure
-                      </p>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600 mb-2">Date</label>
-                          <DateInput
-                            value={startDate}
-                            min={minDate}
-                            onChange={handleStartDateChange}
-                          />
-                          {startDate && (
-                            <p className="text-[11px] text-blue-400/50 mt-1.5">{formatDateDisplay(startDate)}</p>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600 mb-2">Time</label>
-                          <TimeSelect
-                            value={startTime}
-                            options={startTimeOptions}
-                            disabled={!startDate}
-                            placeholder="Select time"
-                            onChange={handleStartTimeChange}
-                          />
-                        </div>
-                      </div>
-                      {startDT && (
-                        <p className="text-xs text-blue-400/70 mt-2 font-medium">
-                          {formatInputAsAU(startDT)}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Estimated Return */}
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-400/70 mb-3 flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 400" }}>flight_land</span>
-                        Estimated Return
-                      </p>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600 mb-2">Date</label>
-                          <DateInput
-                            value={endDate}
-                            min={startDate || minDate}
-                            disabled={!startDate}
-                            onChange={handleEndDateChange}
-                          />
-                          {endDate && (
-                            <p className="text-[11px] text-blue-400/50 mt-1.5">{formatDateDisplay(endDate)}</p>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600 mb-2">Time</label>
-                          <TimeSelect
-                            value={endTime}
-                            options={endTimeOptions}
-                            disabled={!endDate}
-                            placeholder="Select time"
-                            onChange={setEndTime}
-                          />
-                          {endIsBeforeStart && (
-                            <p className="text-[11px] text-red-400 mt-1.5">Must be after departure</p>
-                          )}
-                        </div>
-                      </div>
-                      {endDT && !endIsBeforeStart && (
-                        <p className="text-xs text-blue-400/70 mt-2 font-medium">
-                          {formatInputAsAU(endDT)}
-                        </p>
-                      )}
-                    </div>
-
-                  </div>
-
-                  {/* Estimated duration chip */}
-                  {estimatedHours != null && estimatedHours > 0 && (
-                    <div className="mt-7 flex items-center gap-3 px-4 py-3 bg-blue-600/8 border border-blue-500/15 rounded-xl">
-                      <span className="material-symbols-outlined text-blue-500 text-base flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>timer</span>
-                      <span className="text-sm text-white">
-                        Estimated duration:{' '}
-                        <span className="text-blue-400 font-semibold">{formatDuration(estimatedHours)}</span>
-                      </span>
-                      <span className="text-[10px] text-slate-600 ml-auto hidden sm:block">Subject to actual meter time</span>
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              {/* ── Aircraft Availability ──────────────────────────────── */}
-              <section className="bg-[#080e1c] border border-white/[0.07] rounded-xl p-7 md:p-8">
-
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-300">
-                      Aircraft Availability
-                    </h3>
-                  </div>
-                  <div className="flex items-center gap-4 text-[10px] font-medium uppercase tracking-widest">
-                    <div className="flex items-center gap-1.5 text-slate-600">
-                      <span className="w-2 h-2 rounded-full bg-green-500/50 inline-block" />
-                      Available
-                    </div>
-                    <div className="flex items-center gap-1.5 text-slate-600">
-                      <span className="w-2 h-2 rounded-full bg-red-500/60 inline-block" />
-                      Booked
-                    </div>
-                    {startDT && endDT && !endIsBeforeStart && (
-                      <div className="flex items-center gap-1.5 text-slate-600">
-                        <span className="w-2 h-2 rounded-full bg-blue-500/70 inline-block" />
-                        Selected
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {selectedDate && (
-                  <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600 mb-4">
-                    {formatDateLong(selectedDate)}
-                  </p>
-                )}
-
-                {/* Availability status banner */}
-                {availability.status === 'idle' && (
-                  <div className="flex items-center gap-3 px-4 py-3.5 bg-white/[0.025] border border-white/[0.05] rounded-xl mb-6">
-                    <span className="material-symbols-outlined text-slate-600 text-base" style={{ fontVariationSettings: "'wght' 300" }}>info</span>
-                    <p className="text-xs text-slate-500">Select a departure and estimated return to check availability.</p>
-                  </div>
-                )}
-                {availability.status === 'checking' && (
-                  <div className="flex items-center gap-3 px-4 py-3.5 bg-white/[0.025] border border-white/[0.05] rounded-xl mb-6">
-                    <span className="material-symbols-outlined text-blue-500 text-base animate-spin">progress_activity</span>
-                    <p className="text-xs text-blue-400">Checking aircraft availability…</p>
-                  </div>
-                )}
-                {availability.status === 'available' && (
-                  <div className="flex items-start gap-3 bg-green-500/[0.07] border border-green-500/20 rounded-xl px-5 py-4 mb-6">
-                    <span className="material-symbols-outlined text-green-400 text-lg flex-shrink-0 mt-0.5">check_circle</span>
-                    <div>
-                      <p className="text-sm text-green-300 font-medium">Aircraft is available for the selected time.</p>
-                      <p className="text-[11px] text-green-400/50 mt-0.5">{availability.message}</p>
-                    </div>
-                  </div>
-                )}
-                {availability.status === 'unavailable' && (
-                  <div className="bg-red-500/[0.07] border border-red-500/20 rounded-xl px-5 py-4 space-y-3 mb-6">
-                    <div className="flex items-start gap-3">
-                      <span className="material-symbols-outlined text-red-400 text-lg flex-shrink-0 mt-0.5">error</span>
-                      <div>
-                        <p className="text-sm text-red-300 font-medium">Selected time is unavailable.</p>
-                        <p className="text-xs text-red-400/60 mt-1 leading-relaxed">
-                          This aircraft is already booked or under maintenance during part of this window. Try adjusting your departure or estimated return time.
-                        </p>
-                      </div>
-                    </div>
-                    {availability.conflicts.length > 0 && (
-                      <div className="space-y-1.5 ml-8">
-                        {availability.conflicts.map((c, i) => (
-                          <div key={i} className="flex items-center gap-2 text-[11px]">
-                            <span className="w-1 h-1 rounded-full bg-red-400 flex-shrink-0" />
-                            <span className="text-red-300/70">{c.label}</span>
-                            <span className="text-slate-500 font-mono ml-auto">
-                              {formatSydTime(c.start_time)}–{formatSydTime(c.end_time)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                {/* Estimated duration chip */}
+                {estimatedHours != null && estimatedHours > 0 && (
+                  <div className="flex items-center gap-3 px-4 py-3 bg-blue-600/8 border border-blue-500/15 rounded-xl">
+                    <span className="material-symbols-outlined text-blue-500 text-base flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>timer</span>
+                    <span className="text-sm text-white">
+                      Estimated duration:{' '}
+                      <span className="text-blue-400 font-semibold">{formatDuration(estimatedHours)}</span>
+                    </span>
+                    <span className="text-[10px] text-slate-600 ml-auto hidden sm:block">Subject to actual meter time</span>
                   </div>
                 )}
 
-                {/* Visual timeline */}
-                {!selectedDate ? (
-                  <div className="text-center py-8">
-                    <span className="material-symbols-outlined text-3xl text-slate-700 mb-2 block" style={{ fontVariationSettings: "'wght' 200" }}>calendar_month</span>
-                    <p className="text-xs text-slate-600">Select a departure date to view the day&apos;s availability.</p>
-                  </div>
-                ) : daySlotsLoading ? (
-                  <div className="text-center py-8">
-                    <span className="material-symbols-outlined text-2xl text-blue-500/40 mb-2 block animate-spin">progress_activity</span>
-                    <p className="text-xs text-slate-600">Loading availability…</p>
-                  </div>
-                ) : daySlotsError ? (
-                  <div className="text-center py-6">
-                    <span className="material-symbols-outlined text-2xl text-amber-400/50 mb-2 block">warning</span>
-                    <p className="text-xs text-amber-400/60">Unable to load availability. Try selecting the date again.</p>
-                  </div>
-                ) : (
-                  <AvailabilityTimeline
-                    selectedDate={selectedDate}
-                    daySlots={daySlots}
-                    startDT={startDT}
-                    endDT={endDT}
-                    onRangeChange={handleTimelineChange}
-                  />
-                )}
-              </section>
+              </div>
+            </section>
 
-              {/* ── Flight Review Date ─────────────────────────────────── */}
-              <section className="bg-[#080e1c] border border-white/[0.07] rounded-xl p-7 md:p-8 space-y-4">
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-300 mb-1">Flight Recency</h3>
-                  <p className="text-[11px] text-slate-600">Required. Must be within the last 2 years.</p>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600">
-                    When was your last flight review? <span className="text-red-400 font-normal normal-case ml-1">Required</span>
-                  </label>
-                  <DateInput
-                    value={lastFlightDate}
-                    min={getFlightReviewCutoff()}
-                    onChange={setLastFlightDate}
-                  />
-                  {lastFlightDate && (
-                    <p className="text-[11px] text-blue-400/50">{formatDateDisplay(lastFlightDate)}</p>
-                  )}
-                  {flightReviewError && (
-                    <p className="text-[11px] text-red-400 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[13px]">error</span>
-                      {flightReviewError}
-                    </p>
-                  )}
-                  {flightReviewValid && (
-                    <p className="text-[11px] text-green-400/70 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                      Flight review date confirmed.
-                    </p>
-                  )}
-                </div>
-              </section>
+            {/* ── Flight Notes, confirmation & submit ───────────────────── */}
+            <section className="bg-[#080e1c] border border-white/[0.07] rounded-xl p-7 md:p-8 space-y-6">
 
-              {/* ── Flight Notes ───────────────────────────────────────── */}
-              <section className="bg-[#080e1c] border border-white/[0.07] rounded-xl p-7 md:p-8">
+              {/* Notes */}
+              <div>
                 <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-300 mb-1.5">Flight Notes</h3>
                 <p className="text-[11px] text-slate-600 mb-4">Optional. Visible to the operations team only.</p>
                 <textarea
@@ -1342,27 +918,25 @@ export default function BookingRequestForm({
                   placeholder="Add any specific requests, route intentions, or passenger details here…"
                   className="w-full px-4 py-3.5 bg-[#05080f] border border-white/[0.07] focus:border-blue-500/50 focus:outline-none rounded-lg text-white text-sm placeholder:text-slate-700 transition-colors resize-none leading-relaxed"
                 />
-              </section>
+              </div>
 
-              {/* ── Submit area: checkboxes directly above CTA ─────────── */}
-              <section className="bg-[#080e1c] border border-white/[0.07] rounded-xl p-7 md:p-8 space-y-5">
+              <div className="border-t border-white/[0.06]" />
 
-                {/* Required confirmations */}
-                <div className="space-y-4">
-                  <label className="flex items-start gap-3.5 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={medical}
-                      onChange={e => setMedical(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 accent-blue-500 rounded cursor-pointer flex-shrink-0"
-                    />
-                    <span className="text-sm text-slate-500 group-hover:text-slate-300 transition-colors leading-relaxed">
-                      I confirm that I hold a valid medical certificate and will ensure it is carried during the flight.
-                    </span>
-                  </label>
-                </div>
+              {/* Confirmation + submit */}
+              <div className="space-y-5">
 
-                {/* Submit button */}
+                <label className="flex items-start gap-3.5 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={medical}
+                    onChange={e => setMedical(e.target.checked)}
+                    className="mt-0.5 w-5 h-5 accent-blue-500 rounded cursor-pointer flex-shrink-0"
+                  />
+                  <span className="text-sm text-slate-500 group-hover:text-slate-300 transition-colors leading-relaxed">
+                    I confirm that I hold a valid medical certificate and will ensure it is carried during the flight.
+                  </span>
+                </label>
+
                 <button
                   type="submit"
                   disabled={!canSubmit}
@@ -1387,9 +961,7 @@ export default function BookingRequestForm({
                 </button>
 
                 {disabledReason && !canSubmit && (
-                  <p className="text-[11px] text-slate-600 text-center leading-snug">
-                    {disabledReason}
-                  </p>
+                  <p className="text-[11px] text-slate-600 text-center leading-snug">{disabledReason}</p>
                 )}
 
                 {submitError && (
@@ -1399,12 +971,12 @@ export default function BookingRequestForm({
                   </div>
                 )}
 
-              </section>
+              </div>
+            </section>
 
-              {/* Ops note */}
-              <p className="text-[10px] font-serif italic text-center text-slate-600 px-3 leading-relaxed pb-6">
-                Booking requests are reviewed and confirmed by the operations team. You will be notified of the outcome.
-              </p>
+            <p className="text-[10px] font-serif italic text-center text-slate-600 px-3 leading-relaxed pb-6">
+              Booking requests are reviewed and confirmed by the operations team. You will be notified of the outcome.
+            </p>
 
           </div>
         </form>

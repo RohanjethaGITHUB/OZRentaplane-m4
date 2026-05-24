@@ -15,6 +15,7 @@ import { validateTotalOnlyReadings } from '@/lib/aircraft-readings'
 import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { evaluateBookingDocumentsReadiness, hasAcceptedCurrentTerms } from '@/lib/booking-readiness'
+import { hasManualCheckoutClearance } from '@/lib/checkout-clearance'
 import {
   notifyBookingSubmitted,
   notifyBookingCancelled,
@@ -132,8 +133,14 @@ async function requireClearedCustomer() {
         .maybeSingle()).data
 
   const hasClearancePath = Boolean(authoritativePaidInvoice?.id || authoritativeHistorical?.id)
-  if (!hasClearancePath) {
+  const hasManualClearance = await hasManualCheckoutClearance(user.id)
+  const effectiveClearancePath = hasClearancePath || hasManualClearance
+  if (!effectiveClearancePath) {
     throw new Error('READINESS_REQUIRED: Valid checkout clearance evidence is missing.')
+  }
+
+  if (hasManualClearance) {
+    return { supabase, userId: user.id }
   }
 
   const docItems = evaluateBookingDocumentsReadiness({
@@ -302,14 +309,12 @@ export async function markFlightReturned(bookingId: string): Promise<void> {
     throw new Error('VALIDATION: Flight Returned is only available for standard aircraft bookings.')
   }
 
+  if (booking.status === 'awaiting_flight_record') return
+
   const allowed = ['confirmed', 'ready_for_dispatch', 'dispatched']
   if (!allowed.includes(booking.status)) {
     throw new Error(`VALIDATION: Cannot mark flight returned for a booking with status "${booking.status}".`)
   }
-  if (new Date(booking.scheduled_end).getTime() > Date.now()) {
-    throw new Error('VALIDATION: Flight record is only available after the scheduled end time has passed.')
-  }
-
   const now = new Date().toISOString()
 
   await supabase
@@ -371,10 +376,6 @@ export async function submitFlightRecord(
       `VALIDATION: Cannot submit flight record for a booking with status "${booking.status}".`
     )
   }
-  if (new Date(booking.scheduled_end).getTime() > Date.now()) {
-    throw new Error('VALIDATION: Flight record can only be submitted after the scheduled end time has passed.')
-  }
-
   const scheduledHours =
     (new Date(booking.scheduled_end).getTime() - new Date(booking.scheduled_start).getTime()) /
     (1000 * 60 * 60)

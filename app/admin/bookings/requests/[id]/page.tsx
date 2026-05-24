@@ -469,6 +469,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               bookingId={booking.id}
               isVisible={isCheckoutRequested}
               aircraftLogs={aircraftLogs as import('./AdminManualCheckoutCompletion').Props['aircraftLogs']}
+              customerName={(customer as { full_name?: string | null } | null)?.full_name ?? null}
+              pilotArn={(customer as { pilot_arn?: string | null } | null)?.pilot_arn ?? null}
             />
           </div>
         </div>
@@ -732,17 +734,6 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         {/* ── Right column: actions, slot status, summary ───────────────────────── */}
         <div>
           <div className="sticky top-24 space-y-4">
-
-            {/* ── Standard booking billing panel ───────────────────────────── */}
-            {isStandardBillingPending && flightRecordRow && (
-              <AdminStandardBillingPanel
-                bookingId={booking.id}
-                airports={airports}
-                customerCreditCents={customerCreditCents}
-                initialFlightRecord={flightRecordRow}
-                startSuggestions={flightLogStartSuggestions}
-              />
-            )}
 
             {/* ── Standard booking: awaiting bank transfer confirmation ─────── */}
             {isStandardPaymentPending && standardBankTransferSubmissions.length === 0 && (
@@ -1026,6 +1017,20 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         </div>
 
       </div>
+
+      {/* ── Full-width Flight Billing (standard post-flight review) ─────────── */}
+      {isStandardBillingPending && flightRecordRow && (
+        <div className="mt-8">
+          <AdminStandardBillingPanel
+            bookingId={booking.id}
+            airports={airports}
+            customerCreditCents={customerCreditCents}
+            initialFlightRecord={flightRecordRow}
+            startSuggestions={flightLogStartSuggestions}
+          />
+        </div>
+      )}
+
     </div>
   )
 }

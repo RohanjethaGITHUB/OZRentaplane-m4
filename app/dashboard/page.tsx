@@ -7,9 +7,10 @@ import type { Profile, UserDocument, VerificationEvent, PilotClearanceStatus } f
 import { isAwaitingFlightRecordDue } from '@/lib/booking/flight-record-status'
 import { evaluateBookingReadinessDecision, hasAcceptedCurrentTerms } from '@/lib/booking-readiness'
 import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
+import { hasManualCheckoutClearance } from '@/lib/checkout-clearance'
 
 type MainBookingHeroState = {
-  mode: 'post_flight_required' | 'post_flight_under_review' | 'upcoming_confirmed'
+  mode: 'post_flight_required' | 'post_flight_under_review' | 'upcoming_confirmed' | 'post_flight_payment_required' | 'post_flight_awaiting_payment_confirmation'
   bookingId: string
 }
 
@@ -62,6 +63,7 @@ export default async function DashboardPage() {
     postFlightUnderReviewBookingResult,
     upcomingConfirmedBookingResult,
     checkoutSnapshotBookingResult,
+    postFlightPaymentRequiredBookingResult,
   ] = await Promise.all([
     supabase
       .from('user_documents')
@@ -128,6 +130,15 @@ export default async function DashboardPage() {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from('bookings')
+      .select('id, status, scheduled_start, scheduled_end, aircraft(registration)')
+      .eq('booking_owner_user_id', user.id)
+      .eq('booking_type', 'standard')
+      .eq('status', 'payment_pending')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   type BookingSnapshotRow = {
@@ -151,8 +162,35 @@ export default async function DashboardPage() {
   const postFlightUnderReviewBooking = (postFlightUnderReviewBookingResult.data as BookingSnapshotRow | null) ?? null
   const upcomingConfirmedBooking = (upcomingConfirmedBookingResult.data as BookingSnapshotRow | null) ?? null
   const checkoutSnapshotBooking = (checkoutSnapshotBookingResult.data as BookingSnapshotRow | null) ?? null
+  const postFlightPaymentRequiredBooking = (postFlightPaymentRequiredBookingResult.data as BookingSnapshotRow | null) ?? null
 
-  const standardSnapshotBooking = postFlightRequiredBooking ?? postFlightUnderReviewBooking ?? upcomingConfirmedBooking
+  // ── Post-flight bank transfer status ──────────────────────────────────────
+  // Detect whether the customer has submitted bank transfer proof for the
+  // post-flight invoice so the dashboard can show "Awaiting Payment Confirmation"
+  // instead of pushing them to pay again.
+  let postFlightBankTransferStatus: string | null = null
+  if (postFlightPaymentRequiredBooking) {
+    const { data: pfInvoiceRow } = await supabase
+      .from('booking_invoices')
+      .select('id')
+      .eq('booking_id', postFlightPaymentRequiredBooking.id)
+      .maybeSingle()
+    if (pfInvoiceRow?.id) {
+      const { data: pfBtSub } = await supabase
+        .from('booking_bank_transfer_submissions')
+        .select('status')
+        .eq('invoice_id', pfInvoiceRow.id)
+        .order('submitted_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      postFlightBankTransferStatus = (pfBtSub as { status: string } | null)?.status ?? null
+    }
+  }
+  const isPostFlightAwaitingBankTransfer =
+    postFlightBankTransferStatus === 'pending_review' ||
+    postFlightBankTransferStatus === 'approved'
+
+  const standardSnapshotBooking = postFlightPaymentRequiredBooking ?? postFlightRequiredBooking ?? postFlightUnderReviewBooking ?? upcomingConfirmedBooking
   const flightSnapshotBooking: FlightSnapshotBooking | null = standardSnapshotBooking
     ? {
         id: standardSnapshotBooking.id,
@@ -174,13 +212,20 @@ export default async function DashboardPage() {
     : null
 
   const mainBookingHeroState: MainBookingHeroState | null =
-    postFlightRequiredBooking
-      ? { mode: 'post_flight_required', bookingId: postFlightRequiredBooking.id }
-      : postFlightUnderReviewBooking
-        ? { mode: 'post_flight_under_review', bookingId: postFlightUnderReviewBooking.id }
-        : upcomingConfirmedBooking
-          ? { mode: 'upcoming_confirmed', bookingId: upcomingConfirmedBooking.id }
-          : null
+    postFlightPaymentRequiredBooking
+      ? {
+          mode: isPostFlightAwaitingBankTransfer
+            ? 'post_flight_awaiting_payment_confirmation'
+            : 'post_flight_payment_required',
+          bookingId: postFlightPaymentRequiredBooking.id,
+        }
+      : postFlightRequiredBooking
+        ? { mode: 'post_flight_required', bookingId: postFlightRequiredBooking.id }
+        : postFlightUnderReviewBooking
+          ? { mode: 'post_flight_under_review', bookingId: postFlightUnderReviewBooking.id }
+          : upcomingConfirmedBooking
+            ? { mode: 'upcoming_confirmed', bookingId: upcomingConfirmedBooking.id }
+            : null
 
   // Fetch invoice data only when we have a booking ID
   let checkoutInvoice: import('./DashboardContent').CheckoutInvoiceData | null = null
@@ -246,6 +291,11 @@ export default async function DashboardPage() {
   }
 
   if (clearanceStatus === 'cleared_to_fly') {
+    const hasManualClearance = await hasManualCheckoutClearance(user.id)
+
+    if (hasManualClearance) {
+      bookingReadiness = null
+    } else {
     const [{ data: historicalClearance }, termsPrimary, { data: latestTermsAcceptance }] = await Promise.all([
       supabase
         .from('historical_checkout_completions')
@@ -325,6 +375,7 @@ export default async function DashboardPage() {
       flightRecencyComplete: readiness.flightRecencyComplete,
       hasAwaitingReview: readiness.documentsAwaitingReview.length > 0,
       hasMissingOrExpired: readiness.missingDocuments.length > 0 || readiness.expiredDocuments.length > 0,
+    }
     }
   }
 
