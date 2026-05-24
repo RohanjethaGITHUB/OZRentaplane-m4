@@ -551,6 +551,27 @@ export type CheckoutBookingResult = {
   scheduledEnd:     string
 }
 
+export type CheckoutSubmitOutcomeType =
+  | 'success'
+  | 'auth'
+  | 'validation'
+  | 'availability'
+  | 'account_blocked'
+  | 'already_exists'
+  | 'error'
+
+export type CheckoutSubmitResult =
+  | ({
+      ok: true
+      type: 'success' | 'already_exists'
+      message: string
+    } & CheckoutBookingResult)
+  | {
+      ok: false
+      type: Exclude<CheckoutSubmitOutcomeType, 'success' | 'already_exists'>
+      message: string
+    }
+
 export type CheckoutChangeRequest = {
   id: string
   checkout_request_id: string

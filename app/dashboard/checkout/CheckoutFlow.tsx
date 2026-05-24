@@ -552,7 +552,7 @@ function CheckoutRescheduleModal({
     }
     setAvail({ status: 'checking' })
     const t = setTimeout(() => {
-      checkCustomerAvailability(aircraftId, startUTC, endUTC)
+      checkCustomerAvailability(aircraftId, startUTC, endUTC, 'checkout')
         .then(r => {
           if (r.available) setAvail({ status: 'available' })
           else setAvail({ status: 'unavailable', message: 'This time slot is not available.' })
@@ -1162,6 +1162,7 @@ export default function CheckoutFlow({
   const [docViewError, setDocViewError] = useState<string | null>(null)
   const [docViewLoadingType, setDocViewLoadingType] = useState<DocumentType | null>(null)
   const [isPending, startTransition]    = useTransition()
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [termsModalOpen, setTermsModalOpen] = useState(false)
   const [termsScrolledToEnd, setTermsScrolledToEnd] = useState(false)
@@ -1360,6 +1361,7 @@ export default function CheckoutFlow({
   }, [hasAttemptedStep2Continue, missingRequiredDocs.length, nightVfrEvidenceOk, flightReviewError, redCardExpiry])
 
   function handleSubmit() {
+    if (isSubmitting || isPending) return
     if (!startUTC) return
     setSubmitError(null)
     setTermsError(null)
@@ -1396,6 +1398,7 @@ export default function CheckoutFlow({
       has_scheduled_start: Boolean(startUTC),
     })
 
+    setIsSubmitting(true)
     startTransition(async () => {
       try {
         const result = await submitCheckoutRequest({
@@ -1413,26 +1416,35 @@ export default function CheckoutFlow({
           terms_content_hash:    activeCheckoutTerms.content_hash,
           // scheduled_end is computed server-side as start + 2 hours
         })
-        setCheckoutResult(result)
-        setStep('success')
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Submission failed. Please try again.'
-        const isValidation = msg.startsWith('VALIDATION:') || msg.startsWith('AVAILABILITY:')
-        const isAccountBlocked = msg.startsWith('ACCOUNT_BLOCKED:')
-        const isAuth = msg.startsWith('AUTH:')
-        if (isValidation) {
-          setSubmitError(mapCheckoutSubmitError(msg))
+
+        if (result.ok) {
+          setCheckoutResult({
+            bookingId: result.bookingId,
+            bookingReference: result.bookingReference,
+            scheduledStart: result.scheduledStart,
+            scheduledEnd: result.scheduledEnd,
+          })
+          setStep('success')
           return
         }
-        if (isAccountBlocked) {
-          setSubmitError(msg.replace(/^ACCOUNT_BLOCKED:\s*/i, ''))
+
+        if (result.type === 'validation') {
+          setSubmitError(mapCheckoutSubmitError(`VALIDATION: ${result.message}`))
           return
         }
-        if (isAuth) {
-          setSubmitError(msg.replace(/^AUTH:\s*/i, ''))
+        if (result.type === 'availability') {
+          setSubmitError(result.message)
           return
         }
+        if (result.type === 'account_blocked' || result.type === 'auth') {
+          setSubmitError(result.message)
+          return
+        }
+        setSubmitError(result.message || "We couldn't submit your checkout request. Please try again or contact support.")
+      } catch {
         setSubmitError("We couldn't submit your checkout request. Please try again or contact support.")
+      } finally {
+        setIsSubmitting(false)
       }
     })
   }
@@ -2281,6 +2293,7 @@ export default function CheckoutFlow({
               <div className="flex flex-col items-start md:items-end gap-2.5 flex-shrink-0">
                 <button
                   type="button"
+                  disabled={isSubmitting || isPending}
                   onClick={() => {
                     setTermsModalOpen(true)
                     if (termsAccepted) {
@@ -2291,7 +2304,7 @@ export default function CheckoutFlow({
                       setTermsModalChecked(false)
                     }
                   }}
-                  className="px-4 py-2.5 bg-white/[0.05] border border-white/[0.15] hover:border-blue-400/50 text-slate-200 hover:text-white rounded-xl text-sm font-semibold transition-all whitespace-nowrap"
+                  className="px-4 py-2.5 bg-white/[0.05] border border-white/[0.15] hover:border-blue-400/50 text-slate-200 hover:text-white rounded-xl text-sm font-semibold transition-all whitespace-nowrap disabled:opacity-50"
                 >
                   Open terms
                 </button>
@@ -2303,6 +2316,7 @@ export default function CheckoutFlow({
               <input
                 type="checkbox"
                 checked={termsAccepted}
+                disabled={isSubmitting || isPending}
                 onChange={(e) => {
                   if (e.target.checked) {
                     setTermsModalOpen(true)
@@ -2314,7 +2328,7 @@ export default function CheckoutFlow({
                   setTermsModalChecked(false)
                   setTermsScrolledToEnd(false)
                 }}
-                className="mt-0.5 h-4 w-4 accent-blue-500 cursor-pointer"
+                className="mt-0.5 h-4 w-4 accent-blue-500 cursor-pointer disabled:opacity-60"
               />
               <div className="space-y-1">
                 <span className={`text-sm ${termsAccepted ? 'text-green-200' : 'text-slate-200'}`}>
@@ -2337,7 +2351,7 @@ export default function CheckoutFlow({
           <div className="pt-7 mt-2 border-t border-white/[0.07] flex items-center justify-center gap-4">
             <button
               onClick={() => setStep('documents')}
-              disabled={isPending}
+              disabled={isPending || isSubmitting}
               className="w-[132px] h-12 border border-white/[0.15] hover:border-white/[0.30] text-slate-300 hover:text-white disabled:opacity-40 rounded-xl text-base font-semibold transition-all"
             >
               Back
@@ -2347,12 +2361,13 @@ export default function CheckoutFlow({
               data-testid="checkout-submit-request"
               disabled={
                 isPending ||
+                isSubmitting ||
                 (nightVfrRating === false && !!startTime && !!date && !isWithinDayVfrWindow(startTime, date, 120)) ||
                 !termsAccepted
               }
               className="w-[256px] h-12 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-base font-semibold transition-all shadow-[0_0_24px_rgba(37,99,235,0.35)]"
             >
-              {isPending ? 'Submitting…' : 'Submit Checkout Request'}
+              {(isPending || isSubmitting) ? 'Submitting…' : 'Submit Checkout Request'}
             </button>
           </div>
 

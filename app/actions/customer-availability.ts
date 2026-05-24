@@ -13,6 +13,8 @@ export type AvailabilityCheckResult =
   | { available: true;  message: string; debugError?: string }
   | { available: false; message: string; conflicts: SafeConflict[]; debugError?: string }
 
+type AvailabilityMode = 'default' | 'checkout'
+
 
 /**
  * Customer-safe live availability check for an exact time window.
@@ -26,6 +28,7 @@ export async function checkCustomerAvailability(
   aircraftId:     string,
   scheduledStart: string,   // ISO 8601 UTC
   scheduledEnd:   string,   // ISO 8601 UTC
+  mode: AvailabilityMode = 'default',
 ): Promise<AvailabilityCheckResult> {
   const supabase = await createClient()
 
@@ -41,13 +44,21 @@ export async function checkCustomerAvailability(
     return { available: false, message: 'Invalid time range.', conflicts: [] }
   }
 
-  // Query the exact requested window — no buffer expansion.
+  const queryStart = start
+  const queryEnd = end
+
+  const requestedStartSydney = start.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'medium' })
+  const requestedEndSydney = end.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'medium' })
+  const queryStartSydney = queryStart.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'medium' })
+  const queryEndSydney = queryEnd.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'medium' })
+
+  // Query requested window (or expanded checkout window).
   const { data, error } = await supabase.rpc(
     'get_customer_aircraft_calendar_blocks',
     {
       p_aircraft_id: aircraftId,
-      p_from:        start.toISOString(),
-      p_to:          end.toISOString(),
+      p_from:        queryStart.toISOString(),
+      p_to:          queryEnd.toISOString(),
     }
   )
 
@@ -63,6 +74,46 @@ export async function checkCustomerAvailability(
   }
 
   const blocks = (data as CustomerCalendarBlock[]) || []
+  const { data: blockingBookings } = await supabase
+    .from('bookings')
+    .select('id, status, booking_type, scheduled_start, scheduled_end, booking_owner_user_id')
+    .eq('aircraft_id', aircraftId)
+    .lt('scheduled_start', queryEnd.toISOString())
+    .gt('scheduled_end', queryStart.toISOString())
+    .order('scheduled_start', { ascending: true })
+
+  console.info('CHECKOUT_AVAILABILITY_STEP1', {
+    mode,
+    aircraft_id: aircraftId,
+    requested_start_utc: start.toISOString(),
+    requested_end_utc: end.toISOString(),
+    requested_start_sydney: requestedStartSydney,
+    requested_end_sydney: requestedEndSydney,
+    query_start_utc: queryStart.toISOString(),
+    query_end_utc: queryEnd.toISOString(),
+    query_start_sydney: queryStartSydney,
+    query_end_sydney: queryEndSydney,
+    preflight_buffer_minutes: 0,
+    postflight_buffer_minutes: 0,
+    blocking_bookings_found: blockingBookings?.length ?? 0,
+    blocking_schedule_blocks_found: blocks.length,
+    blocking_bookings: (blockingBookings ?? []).map((b) => ({
+      id: b.id,
+      status: b.status,
+      booking_type: b.booking_type,
+      start: b.scheduled_start,
+      end: b.scheduled_end,
+      owner_user_id: b.booking_owner_user_id,
+    })),
+    blocking_schedule_blocks: blocks.map((b) => ({
+      id: b.block_id,
+      type: b.block_type,
+      start_time: b.start_time,
+      end_time: b.end_time,
+      label: b.label,
+    })),
+    available: blocks.length === 0,
+  })
 
   if (blocks.length === 0) {
     return {

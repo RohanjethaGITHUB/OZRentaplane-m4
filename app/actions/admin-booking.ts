@@ -1332,6 +1332,14 @@ export async function markCheckoutOutcome(input: {
     updated_by: adminId,
   })
 
+  // Defensive cleanup: once checkout outcome is recorded, any active slot
+  // blocks for this checkout should be released.
+  await supabase
+    .from('schedule_blocks')
+    .update({ status: 'cancelled' })
+    .eq('related_booking_id', input.bookingId)
+    .eq('status', 'active')
+
   // ── Customer notification ──────────────────────────────────────────────────
   let notifTitle: string
   let notifBody: string

@@ -418,7 +418,7 @@ function CheckoutRescheduleModal({
     }
     setAvail({ status: 'checking' })
     const timer = setTimeout(() => {
-      checkCustomerAvailability(aircraftId, startUTC, endUTC)
+      checkCustomerAvailability(aircraftId, startUTC, endUTC, 'checkout')
         .then(r => {
           if (r.available) setAvail({ status: 'available' })
           else setAvail({ status: 'unavailable', message: 'This time slot is not available.' })

@@ -13,7 +13,7 @@ import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 import { sydneyInputToUTC } from '@/lib/utils/sydney-time'
 import type {
   CreateCheckoutBookingInput,
-  CheckoutBookingResult,
+  CheckoutSubmitResult,
 } from '@/lib/supabase/booking-types'
 
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000
@@ -120,7 +120,7 @@ export async function canModifyCheckout(checkout: {
 
 export async function submitCheckoutRequest(
   input: CreateCheckoutBookingInput,
-): Promise<CheckoutBookingResult> {
+): Promise<CheckoutSubmitResult> {
   const h = await headers()
   const requestHost = h.get('host') ?? 'unknown'
   const requestPath = h.get('x-matched-path') ?? '/dashboard/checkout'
@@ -145,16 +145,28 @@ export async function submitCheckoutRequest(
     const message = error instanceof Error ? error.message : 'Unknown auth error'
     const lower = message.toLowerCase()
     const isAuthError = lower.includes('unauthorized') || lower.includes('not authenticated') || lower.includes('invalid jwt')
+    const isAccountBlocked = message.startsWith('ACCOUNT_BLOCKED:')
     console.error(`[${routeName}] auth guard failed`, {
       host: requestHost,
       step: 'auth_guard',
       auth_user_exists: false,
       message,
     })
-    if (isAuthError) {
-      throw new Error('AUTH: Your session has expired. Please sign in again, then resubmit your checkout request.')
+    if (isAccountBlocked) {
+      return {
+        ok: false,
+        type: 'account_blocked',
+        message: message.replace(/^ACCOUNT_BLOCKED:\s*/i, ''),
+      }
     }
-    throw error
+    if (isAuthError) {
+      return {
+        ok: false,
+        type: 'auth',
+        message: 'Your session has expired. Please sign in again, then resubmit your checkout request.',
+      }
+    }
+    return { ok: false, type: 'error', message: 'We could not verify your session. Please try again.' }
   }
   const ACCEPTANCE_TEXT = 'I have read and accept the Checkout Terms and Conditions.'
   const profileRecord = profile as Record<string, unknown>
@@ -198,7 +210,7 @@ export async function submitCheckoutRequest(
       details: docsErr.details,
       hint: docsErr.hint,
     })
-    throw new Error('VALIDATION: Unable to verify your documents. Please try again.')
+    return { ok: false, type: 'validation', message: 'Unable to verify your documents. Please try again.' }
   }
 
   const today = new Date().toISOString().split('T')[0]!
@@ -272,22 +284,26 @@ export async function submitCheckoutRequest(
     missing.push('last flight review date')
   } else {
     const flightReviewErr = validateFlightReviewDate(input.last_flight_date)
-    if (flightReviewErr) throw new Error(`VALIDATION: ${flightReviewErr}`)
+    if (flightReviewErr) return { ok: false, type: 'validation', message: flightReviewErr }
   }
 
   // Night VFR: use the form selection (not just the stored profile value),
   // then verify against the profile to ensure evidence has been uploaded.
   if (input.has_night_vfr === null) {
-    throw new Error(
-      'VALIDATION: Please confirm your Night VFR rating status before submitting a checkout request.'
-    )
+    return {
+      ok: false,
+      type: 'validation',
+      message: 'Please confirm your Night VFR rating status before submitting a checkout request.',
+    }
   }
 
   // Instrument rating must be answered on the stored profile.
   if (profile.has_instrument_rating === null) {
-    throw new Error(
-      'VALIDATION: Please confirm your Instrument Rating status before submitting a checkout request.'
-    )
+    return {
+      ok: false,
+      type: 'validation',
+      message: 'Please confirm your Instrument Rating status before submitting a checkout request.',
+    }
   }
 
   // Night VFR gate: require at least one valid night_vfr_evidence document.
@@ -298,29 +314,31 @@ export async function submitCheckoutRequest(
       nightVfrEvidence.status !== 'rejected' &&
       !(nightVfrEvidence.expiry_date && nightVfrEvidence.expiry_date < today)
     if (!hasValidEvidence) {
-      throw new Error(
-        'VALIDATION: Please upload Night VFR before requesting a night checkout.'
-      )
+      return { ok: false, type: 'validation', message: 'Please upload Night VFR before requesting a night checkout.' }
     }
   }
 
   // Day VFR window check — only applied when Night VFR is not confirmed.
   if (input.has_night_vfr !== true) {
     if (!isWithinDayVfrWindow(input.scheduled_time_sydney, input.scheduled_date_sydney, 120)) {
-      throw new Error(
-        'VALIDATION: Checkout bookings reserve a 2-hour window and must fit within the allowed flight window.'
-      )
+      return {
+        ok: false,
+        type: 'validation',
+        message: 'Checkout bookings reserve a 2-hour window and must fit within the allowed flight window.',
+      }
     }
   }
 
   if (missing.length > 0) {
-    throw new Error(
-      `VALIDATION: Please complete the required information before submitting your checkout request. Missing: ${missing.join(', ')}.`
-    )
+    return {
+      ok: false,
+      type: 'validation',
+      message: `Please complete the required information before submitting your checkout request. Missing: ${missing.join(', ')}.`,
+    }
   }
 
   if (!input.terms_accepted) {
-    throw new Error('VALIDATION: You must accept the Checkout Terms and Conditions before submitting.')
+    return { ok: false, type: 'validation', message: 'You must accept the Checkout Terms and Conditions before submitting.' }
   }
 
   let activeTermsRow: Record<string, unknown> | null = null
@@ -374,32 +392,119 @@ export async function submitCheckoutRequest(
     terms_content_hash: normalizedTerms?.content_hash ?? null,
   })
   if (!normalizedTerms) {
-    throw new Error('VALIDATION: No active checkout terms document is available right now. Please try again.')
+    return { ok: false, type: 'validation', message: 'No active checkout terms document is available right now. Please try again.' }
   }
   const activeTermsId = normalizedTerms.id
   const activeTermsVersion = normalizedTerms.version
   const activeTermsUrl = normalizedTerms.public_url
   const activeTermsHash = normalizedTerms.content_hash
   if (!input.terms_document_id || !input.terms_version || !input.terms_content_hash) {
-    throw new Error('VALIDATION: Terms acceptance details were not submitted. Please review and accept terms again.')
+    return { ok: false, type: 'validation', message: 'Terms acceptance details were not submitted. Please review and accept terms again.' }
   }
   if (input.terms_document_id !== activeTermsId || input.terms_version !== activeTermsVersion) {
-    throw new Error('VALIDATION: Checkout Terms and Conditions were updated. Please review and accept the latest version.')
+    return { ok: false, type: 'validation', message: 'Checkout Terms and Conditions were updated. Please review and accept the latest version.' }
   }
   if (activeTermsHash && input.terms_content_hash !== activeTermsHash) {
-    throw new Error('VALIDATION: Checkout Terms and Conditions were updated. Please review and accept the latest version.')
+    return { ok: false, type: 'validation', message: 'Checkout Terms and Conditions were updated. Please review and accept the latest version.' }
   }
 
   // ── Time validation ────────────────────────────────────────────────────────
   const start = new Date(input.scheduled_start)
   if (isNaN(start.getTime())) {
-    throw new Error('VALIDATION: Invalid start time.')
+    return { ok: false, type: 'validation', message: 'Invalid start time.' }
   }
   if (start <= new Date()) {
-    throw new Error('VALIDATION: Checkout flight time must be in the future.')
+    return { ok: false, type: 'validation', message: 'Checkout flight time must be in the future.' }
   }
 
-  // p_scheduled_end is not passed — the RPC computes it as start + 1 hour
+  // Idempotent recovery: if this user already has this exact checkout slot, return it.
+  // This avoids duplicate submit races presenting as availability failures.
+  const { data: existingExact } = await supabase
+    .from('bookings')
+    .select('id, booking_reference, scheduled_start, scheduled_end')
+    .eq('booking_owner_user_id', userId)
+    .eq('booking_type', 'checkout')
+    .eq('aircraft_id', input.aircraft_id)
+    .eq('scheduled_start', input.scheduled_start)
+    .in('status', ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (existingExact) {
+    return {
+      ok: true,
+      type: 'already_exists',
+      message: 'Your checkout request has already been submitted.',
+      bookingId: existingExact.id,
+      bookingReference: existingExact.booking_reference,
+      scheduledStart: existingExact.scheduled_start,
+      scheduledEnd: existingExact.scheduled_end,
+    }
+  }
+
+  // p_scheduled_end is not passed — the RPC computes it as start + 2 hours
+  const requestedEnd = new Date(start.getTime() + 2 * 60 * 60 * 1000)
+
+  const [blockingBookingsRes, blockingBlocksRes] = await Promise.all([
+    supabase
+      .from('bookings')
+      .select('id, status, booking_type, scheduled_start, scheduled_end, aircraft_id, booking_owner_user_id')
+      .eq('aircraft_id', input.aircraft_id)
+      .lt('scheduled_start', requestedEnd.toISOString())
+      .gt('scheduled_end', start.toISOString())
+      .order('scheduled_start', { ascending: true }),
+    supabase
+      .from('schedule_blocks')
+      .select('id, related_booking_id, block_type, status, start_time, end_time, expires_at')
+      .eq('aircraft_id', input.aircraft_id)
+      .eq('status', 'active')
+      .lt('start_time', requestedEnd.toISOString())
+      .gt('end_time', start.toISOString())
+      .order('start_time', { ascending: true }),
+  ])
+
+  const nowIso = new Date().toISOString()
+  const blockingBlocks = (blockingBlocksRes.data ?? []).filter((b) => {
+    if (b.block_type !== 'temporary_hold') return true
+    if (!b.expires_at) return true
+    return b.expires_at > nowIso
+  })
+  console.info('CHECKOUT_AVAILABILITY_SUBMIT', {
+    host: requestHost,
+    aircraft_id: input.aircraft_id,
+    user_id: userId,
+    requested_start_utc: start.toISOString(),
+    requested_end_utc: requestedEnd.toISOString(),
+    requested_start_sydney: start.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'medium' }),
+    requested_end_sydney: requestedEnd.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'medium' }),
+    preflight_buffer_minutes: 0,
+    postflight_buffer_minutes: 0,
+    expanded_start_utc: start.toISOString(),
+    expanded_end_utc: requestedEnd.toISOString(),
+    expanded_start_sydney: start.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'medium' }),
+    expanded_end_sydney: requestedEnd.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'medium' }),
+    blocking_bookings_found: blockingBookingsRes.data?.length ?? 0,
+    blocking_schedule_blocks_found: blockingBlocks.length,
+    blocking_bookings: (blockingBookingsRes.data ?? []).map((b) => ({
+      id: b.id,
+      status: b.status,
+      booking_type: b.booking_type,
+      start: b.scheduled_start,
+      end: b.scheduled_end,
+      owner_user_id: b.booking_owner_user_id,
+    })),
+    blocking_schedule_blocks: blockingBlocks.map((b) => ({
+      id: b.id,
+      related_booking_id: b.related_booking_id,
+      block_type: b.block_type,
+      status: b.status,
+      start: b.start_time,
+      end: b.end_time,
+      expires_at: b.expires_at,
+    })),
+    available: blockingBlocks.length === 0,
+  })
+
   console.info(`[${routeName}] RPC create_checkout_booking_atomic started`, {
     host: requestHost,
     user_id: userId,
@@ -428,21 +533,53 @@ export async function submitCheckoutRequest(
     // Prefix known RPC messages that are missing VALIDATION:/AVAILABILITY: so the
     // client can route them to a user-friendly message instead of the generic fallback.
     if (lower.includes('already have an active checkout booking')) {
-      throw new Error(`VALIDATION: ${rawMsg}`)
+      const { data: activeExisting } = await supabase
+        .from('bookings')
+        .select('id, booking_reference, scheduled_start, scheduled_end')
+        .eq('booking_owner_user_id', userId)
+        .eq('booking_type', 'checkout')
+        .in('status', ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (activeExisting) {
+        return {
+          ok: true,
+          type: 'already_exists',
+          message: 'Your checkout request has already been submitted.',
+          bookingId: activeExisting.id,
+          bookingReference: activeExisting.booking_reference,
+          scheduledStart: activeExisting.scheduled_start,
+          scheduledEnd: activeExisting.scheduled_end,
+        }
+      }
+      return {
+        ok: false,
+        type: 'validation',
+        message: 'You already have an active checkout request or your account is not currently eligible to submit a new one.',
+      }
     }
     if (lower.includes('no longer available') || lower.includes('schedule block')) {
-      throw new Error(`AVAILABILITY: ${rawMsg}`)
+      return {
+        ok: false,
+        type: 'availability',
+        message: 'This checkout time is no longer available. Please go back and choose another time.',
+      }
     }
     if (lower.includes('checkout start time must be in the future')) {
-      throw new Error(`VALIDATION: ${rawMsg}`)
+      return { ok: false, type: 'validation', message: 'Checkout flight time must be in the future.' }
     }
     if (lower.includes('aircraft not found')) {
-      throw new Error(`VALIDATION: ${rawMsg}`)
+      return { ok: false, type: 'validation', message: 'Selected aircraft is not available. Please refresh and try again.' }
     }
     if (lower.includes('not authenticated') || lower.includes('unauthorized')) {
-      throw new Error('AUTH: Your session has expired. Please sign in again, then resubmit your checkout request.')
+      return {
+        ok: false,
+        type: 'auth',
+        message: 'Your session has expired. Please sign in again, then resubmit your checkout request.',
+      }
     }
-    throw new Error(rawMsg)
+    return { ok: false, type: 'error', message: rawMsg || 'Checkout submission failed.' }
   }
 
   const rpcRow = Array.isArray(data) ? data[0] : data
@@ -462,7 +599,11 @@ export async function submitCheckoutRequest(
       data,
       parsed: result,
     })
-    throw new Error('VALIDATION: Checkout request could not be created due to an invalid server response. Please try again.')
+    return {
+      ok: false,
+      type: 'validation',
+      message: 'Checkout request could not be created due to an invalid server response. Please try again.',
+    }
   }
 
   if (process.env.NODE_ENV !== 'production') {
@@ -600,15 +741,20 @@ export async function submitCheckoutRequest(
 
     if (process.env.NODE_ENV !== 'production') {
       if (isSchemaCacheError) {
-        throw new Error(
-          `Unable to record your terms acceptance. Schema cache mismatch for booking_terms_acceptances. Apply migration 059/061 and run: notify pgrst, 'reload schema'. DB error: ${termsErr.message}. Rollback: ${JSON.stringify(rollback)}`
-        )
+        return {
+          ok: false,
+          type: 'validation',
+          message: `Unable to record your terms acceptance. Schema cache mismatch for booking_terms_acceptances. Apply migration 059/061 and run: notify pgrst, 'reload schema'. DB error: ${termsErr.message}.`,
+        }
       }
-      throw new Error(
+      return {
+        ok: false,
+        type: 'validation',
+        message:
         `Unable to record your terms acceptance. DB error: ${termsErr.message}${termsErr.code ? ` (code ${termsErr.code})` : ''}. Rollback: ${JSON.stringify(rollback)}`
-      )
+      }
     }
-    throw new Error('VALIDATION: Unable to record your terms acceptance. Please try again.')
+    return { ok: false, type: 'validation', message: 'Unable to record your terms acceptance. Please try again.' }
   }
   console.info(`[${routeName}] terms acceptance insert success`, {
     host: requestHost,
@@ -700,6 +846,9 @@ export async function submitCheckoutRequest(
   })
 
   return {
+    ok: true,
+    type: 'success',
+    message: 'Checkout request submitted successfully.',
     bookingId,
     bookingReference: result.booking_reference,
     scheduledStart:   result.scheduled_start,
@@ -709,7 +858,11 @@ export async function submitCheckoutRequest(
     const err = error instanceof Error ? error : new Error('Unknown checkout submission error')
     const lower = err.message.toLowerCase()
     if (lower.includes('unauthorized') || lower.includes('not authenticated') || lower.includes('invalid jwt')) {
-      throw new Error('AUTH: Your session has expired. Please sign in again, then resubmit your checkout request.')
+      return {
+        ok: false,
+        type: 'auth',
+        message: 'Your session has expired. Please sign in again, then resubmit your checkout request.',
+      }
     }
     console.error(`[${routeName}] submit failed`, {
       host: requestHost,
@@ -719,7 +872,11 @@ export async function submitCheckoutRequest(
       message: err.message,
       stack: err.stack,
     })
-    throw err
+    return {
+      ok: false,
+      type: 'error',
+      message: "We couldn't submit your checkout request. Please try again or contact support.",
+    }
   }
 }
 
