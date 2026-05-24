@@ -931,7 +931,9 @@ export default function DocumentsPanel({ user: _user, documents, lastFlightDate,
           <div className="space-y-2">
             <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">
               When was your last flight review?
-              <span className="ml-1.5 text-red-400/80 font-normal normal-case">Required for booking readiness</span>
+              <span className={`ml-1.5 font-normal normal-case ${flightDate.trim() ? 'text-green-400/80' : 'text-red-400/80'}`}>
+                {flightDate.trim() ? 'Recorded for booking readiness' : 'Required for booking readiness'}
+              </span>
             </label>
             <div className="flex gap-3">
               <div className="flex-1">

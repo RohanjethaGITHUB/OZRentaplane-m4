@@ -198,6 +198,8 @@ export async function saveLastFlightDate(dateStr: string): Promise<void> {
 
   revalidatePath('/dashboard/documents')
   revalidatePath('/dashboard/checkout')
+  revalidatePath('/dashboard/bookings/new')
+  revalidatePath('/dashboard')
 }
 
 // ─── Save customer ARN ────────────────────────────────────────────────────────

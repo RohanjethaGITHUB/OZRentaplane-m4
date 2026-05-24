@@ -8,24 +8,10 @@ import type { User } from '@supabase/supabase-js'
 import type { Profile, UserDocument } from '@/lib/supabase/types'
 import { ADMIN_CONTACT_PHONE_DISPLAY, ADMIN_CONTACT_PHONE_TEL } from '@/lib/contact'
 import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
-import { acceptCurrentBookingTermsFromReadiness } from '@/app/actions/booking-readiness'
 import { evaluateBookingDocumentsReadiness, evaluateBookingReadinessDecision, hasAcceptedCurrentTerms } from '@/lib/booking-readiness'
+import BookingReadinessInlinePanel from './BookingReadinessInlinePanel'
 
 export const metadata = { title: 'Book a Flight | Pilot Overview' }
-
-function readinessTone(state: 'complete' | 'missing' | 'needs_review' | 'expired'): string {
-  if (state === 'complete') return 'text-emerald-200'
-  if (state === 'missing') return 'text-amber-200'
-  if (state === 'expired') return 'text-red-200'
-  return 'text-blue-200'
-}
-
-function readinessLabel(state: 'complete' | 'missing' | 'needs_review' | 'expired'): string {
-  if (state === 'complete') return 'Complete'
-  if (state === 'missing') return 'Missing'
-  if (state === 'expired') return 'Expired'
-  return 'Needs review'
-}
 
 // ── Shared locked gate shell ─────────────────────────────────────────────────
 
@@ -102,6 +88,8 @@ function BookingReadinessGate({
   profile,
   hasHistoricalClearance,
   docItems,
+  documents,
+  lastFlightDate,
   missingDocumentsCount,
   documentsAwaitingReviewCount,
   flightRecencyComplete,
@@ -112,15 +100,14 @@ function BookingReadinessGate({
   profile: Profile | null
   hasHistoricalClearance: boolean
   docItems: ReturnType<typeof evaluateBookingDocumentsReadiness>
+  documents: UserDocument[]
+  lastFlightDate: string | null
   missingDocumentsCount: number
   documentsAwaitingReviewCount: number
   flightRecencyComplete: boolean
   termsAccepted: boolean
   activeTerms: ReturnType<typeof normalizeActiveCheckoutTerms>
 }) {
-  const hasActionableCustomerItems = missingDocumentsCount > 0 || !flightRecencyComplete || !termsAccepted
-  const awaitingAdminOnly = !hasActionableCustomerItems && documentsAwaitingReviewCount > 0
-
   return (
     <CustomerBookingShell user={user} profile={profile}>
       <div className="px-6 md:px-10 py-10 max-w-3xl mx-auto w-full" data-testid="booking-readiness-gate">
@@ -138,70 +125,17 @@ function BookingReadinessGate({
             <p className="mt-2 text-xs text-blue-200/90">Checkout source: Historical/manual checkout completion.</p>
           ) : null}
 
-          <div className="mt-6 rounded-xl border border-white/10 bg-[#0b1220]/70 p-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Required documents</p>
-            <div className="mt-3 space-y-2">
-              {docItems.map((item) => (
-                <div key={item.key} className="flex items-start justify-between gap-4 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
-                  <div>
-                    <p className="text-sm text-white">{item.label}</p>
-                    <p className="text-xs text-slate-400">{item.detail}</p>
-                  </div>
-                  <span className={`text-xs font-semibold uppercase tracking-wide ${readinessTone(item.state)}`}>
-                    {readinessLabel(item.state)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-xl border border-white/10 bg-[#0b1220]/70 p-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Pilot flight recency</p>
-            <p className={`mt-2 text-sm ${flightRecencyComplete ? 'text-emerald-200' : 'text-amber-200'}`}>
-              {flightRecencyComplete ? 'Flight recency date recorded.' : 'Flight recency date required.'}
-            </p>
-          </div>
-
-          <div className="mt-4 rounded-xl border border-white/10 bg-[#0b1220]/70 p-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Terms and conditions</p>
-            <p className={`mt-2 text-sm ${termsAccepted ? 'text-emerald-200' : 'text-amber-200'}`}>
-              {termsAccepted ? 'Accepted current version.' : 'Current version not accepted.'}
-            </p>
-            {!termsAccepted && activeTerms ? (
-              <form action={acceptCurrentBookingTermsFromReadiness} className="mt-3 space-y-3">
-                <label className="flex items-start gap-2 text-sm text-slate-200">
-                  <input required type="checkbox" className="mt-0.5" />
-                  <span>I have read and accept the current booking terms and conditions (v{activeTerms.version}).</span>
-                </label>
-                <div className="flex flex-wrap gap-3">
-                  <Link href={activeTerms.public_url} target="_blank" className="inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white/80 hover:text-white hover:border-white/40">
-                    View terms
-                  </Link>
-                  <button type="submit" className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-blue-500">
-                    Accept current terms
-                  </button>
-                </div>
-              </form>
-            ) : null}
-          </div>
-
-          {awaitingAdminOnly ? (
-            <div className="mt-4 rounded-xl border border-blue-400/25 bg-blue-500/10 p-4">
-              <p className="text-sm text-blue-100">Documents submitted and awaiting admin review.</p>
-              <p className="mt-1 text-xs text-blue-200/80">OZ Rent A Plane will review your documents before booking is enabled.</p>
-            </div>
-          ) : null}
-
-          <div className="mt-6 flex flex-wrap gap-3">
-            {hasActionableCustomerItems ? (
-              <Link href="/dashboard/documents" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-oz-blue hover:bg-blue-400 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors">
-                Complete required items
-              </Link>
-            ) : null}
-            <Link href="/dashboard" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 border border-white/20 hover:border-white/35 text-white/70 hover:text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors">
-              Return to overview
-            </Link>
-          </div>
+          <BookingReadinessInlinePanel
+            docItems={docItems}
+            documents={documents}
+            lastFlightDate={lastFlightDate}
+            hasNightVfrRating={profile?.has_night_vfr_rating ?? null}
+            flightRecencyComplete={flightRecencyComplete}
+            termsAccepted={termsAccepted}
+            activeTerms={activeTerms}
+            documentsAwaitingReviewCount={documentsAwaitingReviewCount}
+            missingDocumentsCount={missingDocumentsCount}
+          />
         </div>
       </div>
     </CustomerBookingShell>
@@ -474,6 +408,8 @@ export default async function NewBookingPage() {
           profile={typedProfile}
           hasHistoricalClearance={hasHistoricalClearance}
           docItems={docItems}
+          documents={(documents ?? []) as UserDocument[]}
+          lastFlightDate={typedProfile?.last_flight_date ?? null}
           missingDocumentsCount={decision.missingDocuments.length + decision.expiredDocuments.length}
           documentsAwaitingReviewCount={decision.documentsAwaitingReview.length}
           flightRecencyComplete={decision.flightRecencyComplete}

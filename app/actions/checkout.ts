@@ -121,21 +121,57 @@ export async function canModifyCheckout(checkout: {
 export async function submitCheckoutRequest(
   input: CreateCheckoutBookingInput,
 ): Promise<CheckoutBookingResult> {
-  const { supabase, userId, profile } = await requireCustomer()
-  const ACCEPTANCE_TEXT = 'I have read and accept the Checkout Terms and Conditions.'
+  const h = await headers()
+  const requestHost = h.get('host') ?? 'unknown'
+  const requestPath = h.get('x-matched-path') ?? '/dashboard/checkout'
+  const requestMethod = h.get('x-http-method-override') ?? 'POST'
   const routeName = 'checkout-submit-debug'
+  console.info(`[${routeName}] request received`, {
+    host: requestHost,
+    path: requestPath,
+    method: requestMethod,
+    step: 'pre_auth_guard',
+  })
+
+  let supabase: Awaited<ReturnType<typeof createClient>>
+  let userId = ''
+  let profile: Awaited<ReturnType<typeof requireCustomer>>['profile']
+  try {
+    const authCtx = await requireCustomer()
+    supabase = authCtx.supabase
+    userId = authCtx.userId
+    profile = authCtx.profile
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown auth error'
+    const lower = message.toLowerCase()
+    const isAuthError = lower.includes('unauthorized') || lower.includes('not authenticated') || lower.includes('invalid jwt')
+    console.error(`[${routeName}] auth guard failed`, {
+      host: requestHost,
+      step: 'auth_guard',
+      auth_user_exists: false,
+      message,
+    })
+    if (isAuthError) {
+      throw new Error('AUTH: Your session has expired. Please sign in again, then resubmit your checkout request.')
+    }
+    throw error
+  }
+  const ACCEPTANCE_TEXT = 'I have read and accept the Checkout Terms and Conditions.'
   const profileRecord = profile as Record<string, unknown>
   const safeEmail = typeof profileRecord.email === 'string' ? profileRecord.email : null
   const safeAccountStatus = typeof profileRecord.account_status === 'string' ? profileRecord.account_status : null
   try {
     console.info(`[${routeName}] submit started`, {
+      host: requestHost,
       user_id: userId,
       email: safeEmail,
+      auth_user_exists: true,
       has_terms_payload: Boolean(input.terms_document_id && input.terms_version && input.terms_content_hash),
       has_last_flight_date: Boolean(input.last_flight_date),
       has_night_vfr: input.has_night_vfr,
     })
     console.info(`[${routeName}] auth/profile`, {
+      host: requestHost,
       user_id: userId,
       email: safeEmail,
       role: profile.role,
@@ -154,6 +190,7 @@ export async function submitCheckoutRequest(
 
   if (docsErr) {
     console.error(`[${routeName}] user_documents query failed`, {
+      host: requestHost,
       user_id: userId,
       email: safeEmail,
       code: docsErr.code,
@@ -170,6 +207,7 @@ export async function submitCheckoutRequest(
     if (!docsByType.has(d.document_type)) docsByType.set(d.document_type, d)
   }
   console.info(`[${routeName}] documents loaded`, {
+    host: requestHost,
     user_id: userId,
     email: safeEmail,
     count: docs?.length ?? 0,
@@ -327,6 +365,7 @@ export async function submitCheckoutRequest(
   }
   const normalizedTerms = normalizeActiveCheckoutTerms(activeTermsRow)
   console.info(`[${routeName}] active terms lookup`, {
+    host: requestHost,
     user_id: userId,
     email: safeEmail,
     found: Boolean(normalizedTerms),
@@ -362,6 +401,7 @@ export async function submitCheckoutRequest(
 
   // p_scheduled_end is not passed — the RPC computes it as start + 1 hour
   console.info(`[${routeName}] RPC create_checkout_booking_atomic started`, {
+    host: requestHost,
     user_id: userId,
     email: safeEmail,
     aircraft_id: input.aircraft_id,
@@ -375,6 +415,7 @@ export async function submitCheckoutRequest(
 
   if (error) {
     console.error(`[${routeName}] RPC create_checkout_booking_atomic failed`, {
+      host: requestHost,
       user_id: userId,
       email: safeEmail,
       code: error.code,
@@ -397,6 +438,9 @@ export async function submitCheckoutRequest(
     }
     if (lower.includes('aircraft not found')) {
       throw new Error(`VALIDATION: ${rawMsg}`)
+    }
+    if (lower.includes('not authenticated') || lower.includes('unauthorized')) {
+      throw new Error('AUTH: Your session has expired. Please sign in again, then resubmit your checkout request.')
     }
     throw new Error(rawMsg)
   }
@@ -431,7 +475,6 @@ export async function submitCheckoutRequest(
     )
   }
 
-  const h = await headers()
   const forwardedFor = h.get('x-forwarded-for')
   const acceptedIp =
     forwardedFor?.split(',')[0]?.trim() ||
@@ -455,6 +498,7 @@ export async function submitCheckoutRequest(
   }
 
   console.info(`[${routeName}] terms acceptance insert started`, {
+    host: requestHost,
     user_id: userId,
     email: safeEmail,
     booking_id: bookingId,
@@ -467,6 +511,7 @@ export async function submitCheckoutRequest(
     .insert(acceptancePayload)
   if (termsErr) {
     console.error(`[${routeName}] booking_terms_acceptances insert failed`, {
+      host: requestHost,
       message: termsErr.message,
       details: termsErr.details,
       hint: termsErr.hint,
@@ -496,6 +541,7 @@ export async function submitCheckoutRequest(
 
     try {
       console.info(`[${routeName}] rollback started`, {
+        host: requestHost,
         user_id: userId,
         email: safeEmail,
         booking_id: bookingId || null,
@@ -531,6 +577,7 @@ export async function submitCheckoutRequest(
         }
       }
       console.info(`[${routeName}] rollback result`, {
+        host: requestHost,
         user_id: userId,
         email: safeEmail,
         booking_id: bookingId || null,
@@ -539,6 +586,7 @@ export async function submitCheckoutRequest(
     } catch (rollbackErr) {
       rollback.error = rollbackErr instanceof Error ? rollbackErr.message : 'unknown rollback error'
       console.error(`[${routeName}] rollback failed after terms insert error`, {
+        host: requestHost,
         booking_id: bookingId || null,
         user_id: userId,
         email: safeEmail,
@@ -563,6 +611,7 @@ export async function submitCheckoutRequest(
     throw new Error('VALIDATION: Unable to record your terms acceptance. Please try again.')
   }
   console.info(`[${routeName}] terms acceptance insert success`, {
+    host: requestHost,
     user_id: userId,
     email: safeEmail,
     booking_id: bookingId,
@@ -582,9 +631,10 @@ export async function submitCheckoutRequest(
         .eq('id', userId),
     ])
     if (bookingUpdate.error || profileUpdate.error) {
-      console.error(`[${routeName}] last_flight_date update issue`, {
-        user_id: userId,
-        email: safeEmail,
+    console.error(`[${routeName}] last_flight_date update issue`, {
+      host: requestHost,
+      user_id: userId,
+      email: safeEmail,
         booking_update_error: bookingUpdate.error
           ? {
             code: bookingUpdate.error.code,
@@ -642,6 +692,7 @@ export async function submitCheckoutRequest(
   revalidatePath('/admin/checkouts/all')
 
   console.info(`[${routeName}] submit success`, {
+    host: requestHost,
     user_id: userId,
     email: safeEmail,
     booking_id: bookingId,
@@ -656,9 +707,15 @@ export async function submitCheckoutRequest(
   }
   } catch (error) {
     const err = error instanceof Error ? error : new Error('Unknown checkout submission error')
+    const lower = err.message.toLowerCase()
+    if (lower.includes('unauthorized') || lower.includes('not authenticated') || lower.includes('invalid jwt')) {
+      throw new Error('AUTH: Your session has expired. Please sign in again, then resubmit your checkout request.')
+    }
     console.error(`[${routeName}] submit failed`, {
+      host: requestHost,
       user_id: userId,
       email: safeEmail,
+      auth_user_exists: true,
       message: err.message,
       stack: err.stack,
     })

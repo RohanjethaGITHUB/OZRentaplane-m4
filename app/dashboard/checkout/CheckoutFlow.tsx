@@ -1419,12 +1419,17 @@ export default function CheckoutFlow({
         const msg = e instanceof Error ? e.message : 'Submission failed. Please try again.'
         const isValidation = msg.startsWith('VALIDATION:') || msg.startsWith('AVAILABILITY:')
         const isAccountBlocked = msg.startsWith('ACCOUNT_BLOCKED:')
+        const isAuth = msg.startsWith('AUTH:')
         if (isValidation) {
           setSubmitError(mapCheckoutSubmitError(msg))
           return
         }
         if (isAccountBlocked) {
           setSubmitError(msg.replace(/^ACCOUNT_BLOCKED:\s*/i, ''))
+          return
+        }
+        if (isAuth) {
+          setSubmitError(msg.replace(/^AUTH:\s*/i, ''))
           return
         }
         setSubmitError("We couldn't submit your checkout request. Please try again or contact support.")

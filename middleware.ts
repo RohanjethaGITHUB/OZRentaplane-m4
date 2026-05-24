@@ -2,6 +2,17 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  const hostHeader = request.headers.get('host') ?? ''
+  const host = hostHeader.split(':')[0]?.toLowerCase() ?? ''
+
+  // Canonical production host enforcement: apex -> www.
+  // This runs before auth/session refresh to avoid cross-domain cookie split.
+  if (host === 'ozrentaplane.com') {
+    const url = request.nextUrl.clone()
+    url.host = 'www.ozrentaplane.com'
+    return NextResponse.redirect(url, 308)
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(

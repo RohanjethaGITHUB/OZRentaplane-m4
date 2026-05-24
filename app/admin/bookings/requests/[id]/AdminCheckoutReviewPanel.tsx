@@ -8,7 +8,7 @@ import {
   adminUpdateCheckoutTime,
 } from '@/app/actions/admin-booking'
 import { sendAdminChatMessage, markAdminChatRead, getSignedDocumentUrl } from '@/app/actions/admin'
-import { sydneyInputToUTC, formatSydTime } from '@/lib/utils/sydney-time'
+import { sydneyInputToUTC } from '@/lib/utils/sydney-time'
 import { formatDate, formatDateTime } from '@/lib/formatDateTime'
 import CalendarDateField from '@/components/CalendarDateField'
 import type { VerificationEvent } from '@/lib/supabase/types'
@@ -303,6 +303,11 @@ export default function AdminCheckoutReviewPanel({
 
   async function handleSaveTime() {
     if (!newStartUTC) { setTimeError('Invalid date or time selection.'); return }
+    const now = new Date()
+    const sydToday = now.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
+    const sydNowHm = `${now.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', hour12: false }).slice(-2)}:${now.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', minute: '2-digit' }).padStart(2, '0')}`
+    if (newDate < sydToday) { setTimeError('Checkout date/time must be now or in the future.'); return }
+    if (newDate === sydToday && newStartTime < sydNowHm) { setTimeError('For today, choose a future time.'); return }
     setTimeUpdateStatus('saving')
     setTimeError(null)
     try {
@@ -318,6 +323,9 @@ export default function AdminCheckoutReviewPanel({
   }
 
   function handleConfirm() {
+    if (!window.confirm(`Confirm checkout request for ${formatDate(newStartUTC ?? scheduledStart)} at ${ALL_TIME_OPTIONS.find((o) => o.value === newStartTime)?.label ?? newStartTime} (Sydney time)?`)) {
+      return
+    }
     setActionError(null)
     startConfirmTransition(async () => {
       try {
@@ -331,6 +339,7 @@ export default function AdminCheckoutReviewPanel({
 
   function handleCancel() {
     if (!cancelReason.trim()) return
+    if (!window.confirm('Cancel this checkout request? The customer will be returned to checkout required / not scheduled state.')) return
     setActionError(null)
     startCancelTransition(async () => {
       try {
@@ -378,6 +387,12 @@ export default function AdminCheckoutReviewPanel({
   })
 
   const endTimeLabel = ALL_TIME_OPTIONS.find(o => o.value === newEndTime)?.label ?? newEndTime
+  const now = new Date()
+  const sydToday = now.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
+  const sydNowHm = `${now.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', hour12: false }).slice(-2)}:${now.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', minute: '2-digit' }).padStart(2, '0')}`
+  const timeOptions = newDate === sydToday
+    ? ALL_TIME_OPTIONS.filter((o) => o.value >= sydNowHm)
+    : ALL_TIME_OPTIONS
 
   return (
     <div className="space-y-6">
@@ -466,94 +481,7 @@ export default function AdminCheckoutReviewPanel({
 
       </div>
 
-      {/* ── 2. Edit checkout time ─────────────────────────────────────────────── */}
-      <div className="bg-white/5 border border-white/5 rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[10px] uppercase tracking-widest font-bold text-slate-500">
-            Adjust Checkout Time
-          </h2>
-          {!editingTime && (
-            <button
-              onClick={() => { setEditingTime(true); setTimeUpdateStatus('idle'); setTimeError(null) }}
-              className="text-[10px] font-bold uppercase tracking-widest text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-[12px]">edit</span>
-              Edit
-            </button>
-          )}
-        </div>
-
-        {!editingTime ? (
-          <div className="space-y-1">
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              The customer&apos;s requested time is shown above. If it doesn&apos;t work, click Edit to propose a different time, message the customer, then confirm once agreed.
-            </p>
-            {timeUpdateStatus === 'saved' && (
-              <p className="text-[10px] text-green-400 flex items-center gap-1">
-                <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                Time updated successfully.
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <p className="text-[11px] text-slate-500">
-              Duration is fixed at 1 hour. Select the departure date and time.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold uppercase tracking-widest text-slate-600 block">Date</label>
-                <CalendarDateField
-                  value={newDate}
-                  onChange={(next) => { setNewDate(next); setTimeError(null) }}
-                  minYear={new Date().getFullYear() - 20}
-                  maxYear={new Date().getFullYear() + 20}
-                  className="w-full bg-[#0d1c33] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/60 text-left flex items-center justify-between"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold uppercase tracking-widest text-slate-600 block">Departure</label>
-                <TimeDropdown
-                  value={newStartTime}
-                  options={ALL_TIME_OPTIONS}
-                  onChange={(next) => { setNewStartTime(next); setTimeError(null) }}
-                />
-              </div>
-            </div>
-
-            {/* Computed return */}
-            <div className="flex items-center justify-between bg-white/[0.03] border border-white/[0.05] rounded-lg px-3 py-2">
-              <span className="text-[10px] text-slate-500">Return (auto)</span>
-              <span className="text-[10px] text-white/70">{endTimeLabel} <span className="text-slate-600">(fixed 1 hour)</span></span>
-            </div>
-
-            {timeError && (
-              <p className="text-[10px] text-red-400 leading-relaxed">{timeError}</p>
-            )}
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => { setEditingTime(false); setTimeError(null) }}
-                disabled={timeUpdateStatus === 'saving'}
-                className="flex-1 px-3 py-2 rounded-lg text-[11px] font-medium bg-white/5 text-slate-300 hover:bg-white/10 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveTime}
-                disabled={timeUpdateStatus === 'saving' || !newStartUTC}
-                className="flex-1 px-3 py-2 rounded-lg text-[11px] font-medium bg-blue-700 hover:bg-blue-600 text-white transition-colors disabled:opacity-50"
-              >
-                {timeUpdateStatus === 'saving' ? 'Checking…' : 'Save New Time'}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── 3. Message thread ─────────────────────────────────────────────────── */}
+      {/* ── 2. Message thread ─────────────────────────────────────────────────── */}
       <div className="bg-white/5 border border-white/5 rounded-2xl p-6">
         <h2 className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-4">
           Customer Messages
@@ -601,7 +529,6 @@ export default function AdminCheckoutReviewPanel({
           </div>
         )}
 
-        {/* Compose */}
         <div className="bg-[#1e2023]/60 border border-blue-300/8 rounded-xl p-3 space-y-2">
           <textarea
             value={message}
@@ -630,11 +557,96 @@ export default function AdminCheckoutReviewPanel({
         </div>
       </div>
 
-      {/* ── 4. Confirm / Cancel actions ───────────────────────────────────────── */}
-      <div className="bg-[#111316] border border-[#a7c8ff]/10 rounded-2xl p-6 space-y-3">
-        <h2 className="text-[9px] uppercase tracking-widest font-bold text-[#a7c8ff]/50 mb-1">
-          Checkout Request Actions
-        </h2>
+      {/* ── 3. Edit checkout time ─────────────────────────────────────────────── */}
+      <div className="bg-white/5 border border-white/5 rounded-2xl p-6 space-y-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[10px] uppercase tracking-widest font-bold text-slate-500">
+            Adjust Checkout Time
+          </h2>
+          {!editingTime && (
+            <button
+              onClick={() => { setEditingTime(true); setTimeUpdateStatus('idle'); setTimeError(null) }}
+              className="text-[10px] font-bold uppercase tracking-widest text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[12px]">edit</span>
+              Edit
+            </button>
+          )}
+        </div>
+
+        {!editingTime ? (
+          <div className="space-y-1">
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              The customer&apos;s requested time is shown above. If it doesn&apos;t work, click Edit to propose a different time, message the customer, then confirm once agreed.
+            </p>
+            {timeUpdateStatus === 'saved' && (
+              <p className="text-[10px] text-green-400 flex items-center gap-1">
+                <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                Time updated successfully.
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-[11px] text-slate-500">
+              Duration is fixed at 1 hour. Select the departure date and time.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase tracking-widest text-slate-600 block">Date</label>
+                <CalendarDateField
+                  value={newDate}
+                  onChange={(next) => { setNewDate(next); setTimeError(null) }}
+                  minYear={new Date().getFullYear() - 20}
+                  maxYear={new Date().getFullYear() + 20}
+                  minDate={sydToday}
+                  className="w-full bg-[#0d1c33] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/60 text-left flex items-center justify-between"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase tracking-widest text-slate-600 block">Departure</label>
+                <TimeDropdown
+                  value={newStartTime}
+                  options={timeOptions}
+                  onChange={(next) => { setNewStartTime(next); setTimeError(null) }}
+                />
+              </div>
+            </div>
+
+            {/* Computed return */}
+            <div className="flex items-center justify-between bg-white/[0.03] border border-white/[0.05] rounded-lg px-3 py-2">
+              <span className="text-[10px] text-slate-500">Return (auto)</span>
+              <span className="text-[10px] text-white/70">{endTimeLabel} <span className="text-slate-600">(fixed 1 hour)</span></span>
+            </div>
+
+            {timeError && (
+              <p className="text-[10px] text-red-400 leading-relaxed">{timeError}</p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setEditingTime(false); setTimeError(null) }}
+                disabled={timeUpdateStatus === 'saving'}
+                className="flex-1 px-3 py-2 rounded-lg text-[11px] font-medium bg-white/5 text-slate-300 hover:bg-white/10 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveTime}
+                disabled={timeUpdateStatus === 'saving' || !newStartUTC}
+                className="flex-1 px-3 py-2 rounded-lg text-[11px] font-medium bg-blue-700 hover:bg-blue-600 text-white transition-colors disabled:opacity-50"
+              >
+                {timeUpdateStatus === 'saving' ? 'Checking…' : 'Save New Time'}
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="border-t border-white/10 pt-4">
+          <h2 className="text-[9px] uppercase tracking-widest font-bold text-[#a7c8ff]/50 mb-2">
+            Checkout Request Actions
+          </h2>
 
         {isCancelling ? (
           <div className="space-y-3">
@@ -667,29 +679,29 @@ export default function AdminCheckoutReviewPanel({
           </div>
         ) : (
           <>
-            <button
-              onClick={handleConfirm}
-              disabled={confirmPending}
-              className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
-            >
-              <span className="material-symbols-outlined text-[18px]">how_to_reg</span>
-              {confirmPending ? 'Confirming…' : 'Confirm Checkout Flight'}
-            </button>
-            <p className="text-[9px] text-slate-600 leading-relaxed text-center">
-              Confirms the time shown above. Customer will be notified.
-            </p>
-            <button
-              onClick={() => setIsCancelling(true)}
-              disabled={confirmPending}
-              className="w-full flex items-center justify-center gap-2 border border-rose-500/25 text-rose-400 hover:bg-rose-500/10 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
-            >
-              <span className="material-symbols-outlined text-[16px]">cancel</span>
-              Cancel Request
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleConfirm}
+                disabled={confirmPending}
+                className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[18px]">how_to_reg</span>
+                {confirmPending ? 'Confirming…' : 'Confirm Checkout'}
+              </button>
+              <button
+                onClick={() => setIsCancelling(true)}
+                disabled={confirmPending}
+                className="flex-1 flex items-center justify-center gap-2 border border-rose-500/25 text-rose-400 hover:bg-rose-500/10 px-4 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[16px]">cancel</span>
+                Cancel Checkout
+              </button>
+            </div>
           </>
         )}
 
         {actionError && <p className="text-[10px] text-rose-400 text-center leading-tight">{actionError}</p>}
+        </div>
       </div>
 
     </div>

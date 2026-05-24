@@ -15,11 +15,22 @@ export async function getDocumentSignedUrl(docType: DocumentType): Promise<strin
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) throw new Error('Unauthorized')
 
-  const storagePath = `${user.id}/${docType}`
+  const { data: latestDoc, error: docErr } = await supabase
+    .from('user_documents')
+    .select('storage_path')
+    .eq('user_id', user.id)
+    .eq('document_type', docType)
+    .order('uploaded_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (docErr || !latestDoc?.storage_path) {
+    throw new Error('Could not find a document to open.')
+  }
 
   const { data, error } = await supabase.storage
     .from('verification_documents')
-    .createSignedUrl(storagePath, 60)
+    .createSignedUrl(latestDoc.storage_path, 60)
 
   if (error || !data?.signedUrl) {
     console.error('[getDocumentSignedUrl]', error)

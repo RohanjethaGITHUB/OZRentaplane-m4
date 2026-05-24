@@ -6,6 +6,7 @@ import { formatSydTime } from '@/lib/utils/sydney-time'
 import AdminBookingActions from './AdminBookingActions'
 import AdminCheckoutActions from './AdminCheckoutActions'
 import AdminCheckoutReviewPanel from './AdminCheckoutReviewPanel'
+import AdminManualCheckoutCompletion from './AdminManualCheckoutCompletion'
 import AdminClarificationForm from './AdminClarificationForm'
 import AdminOperationalActions from './AdminOperationalActions'
 import AdminBankTransferPanel from './AdminBankTransferPanel'
@@ -150,6 +151,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const bookingType       = (booking as { booking_type?: string }).booking_type ?? 'standard'
   const isOutcomePending  = booking.status === 'checkout_completed_under_review'
   const isPaymentRequired = booking.status === 'checkout_payment_required'
+  const isCheckoutRequested = bookingType === 'checkout' && booking.status === 'checkout_requested'
   // Standard booking billing panel shown for pending_post_flight_review
   const isStandardBillingPending = bookingType === 'standard' && booking.status === 'pending_post_flight_review'
   // Standard booking payment pending — show bank transfer panel if applicable
@@ -167,6 +169,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     { data: airportRows },
     { data: creditRow },
     { data: flightRecordRow },
+    { data: aircraftLogsRaw },
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -215,10 +218,20 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     isStandardBillingPending
       ? supabase.from('flight_records').select('*').eq('booking_id', booking.id).order('submitted_at', { ascending: false }).limit(1).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
+    isCheckoutRequested
+      ? supabase
+          .from('aircraft_flight_logs')
+          .select('id, flight_date, pic_name, pic_arn, vdo_start, vdo_stop, vdo_total, tacho_start, tacho_stop, tacho_total, air_switch_start, air_switch_stop, air_switch_total, mr_start, mr_stop, mr_total, oil_added, oil_total, fuel_added, fuel_returned, source, review_status')
+          .eq('aircraft_id', booking.aircraft_id)
+          .order('flight_date', { ascending: false })
+          .order('log_number', { ascending: false })
+          .limit(50)
+      : Promise.resolve({ data: null, error: null }),
   ])
 
   const documents        = rawDocuments ?? []
   const messages         = rawMessages  ?? []
+  const aircraftLogs     = (aircraftLogsRaw ?? []) as Record<string, unknown>[]
 
   // Sort airports so Sydney Bankstown (YSBK) appears first, then alphabetically.
   const rawAirports = (airportRows ?? []) as { id: string; icao_code: string; name: string; default_landing_fee_cents: number }[]
@@ -391,11 +404,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
   // ── Checkout-specific state flags ────────────────────────────────────────────
   const isCheckout              = bookingType === 'checkout'
-  const isCheckoutRequested     = isCheckout && status === 'checkout_requested'
+  const isCheckoutRequestedStatus = isCheckout && status === 'checkout_requested'
   const isCheckoutConfirmed     = isCheckout && status === 'checkout_confirmed'
   const isCheckoutOutcomePending = isCheckout && status === 'checkout_completed_under_review'
   // Checkout bookings need their own action panel — not the standard one
-  const needsCheckoutActions    = isCheckoutRequested || isCheckoutConfirmed || isCheckoutOutcomePending
+  const needsCheckoutActions    = isCheckoutRequestedStatus || isCheckoutConfirmed || isCheckoutOutcomePending
 
   const activeOwnBlocks = ((ownBlocks ?? []) as ScheduleBlockRow[]).filter(b => b.status === 'active')
   const slotHeld        = activeOwnBlocks.length > 0
@@ -452,6 +465,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             <p className="text-[10px] text-slate-600 font-mono">
               Submitted {formatDateTime(booking.created_at)}
             </p>
+            <AdminManualCheckoutCompletion
+              bookingId={booking.id}
+              isVisible={isCheckoutRequested}
+              aircraftLogs={aircraftLogs as import('./AdminManualCheckoutCompletion').Props['aircraftLogs']}
+            />
           </div>
         </div>
       </header>
@@ -478,7 +496,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           )}
 
           {/* ── Checkout request review panel — shown for checkout_requested ─── */}
-          {isCheckoutRequested && (
+          {isCheckoutRequestedStatus && (
             <AdminCheckoutReviewPanel
               bookingId={booking.id}
               aircraftId={booking.aircraft_id}

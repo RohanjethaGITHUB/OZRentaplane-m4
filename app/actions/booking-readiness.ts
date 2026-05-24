@@ -9,7 +9,7 @@ import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
 export async function acceptCurrentBookingTermsFromReadiness() {
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) throw new Error('Unauthorized')
+  if (authError || !user) return { ok: false, error: 'You must be signed in to accept terms.' as const }
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -17,7 +17,7 @@ export async function acceptCurrentBookingTermsFromReadiness() {
     .eq('id', user.id)
     .single()
 
-  if (!profile || profile.role !== 'customer') throw new Error('Forbidden')
+  if (!profile || profile.role !== 'customer') return { ok: false, error: 'Only customer accounts can accept booking terms.' as const }
 
   let activeTerms: ReturnType<typeof normalizeActiveCheckoutTerms> = null
   const primary = await supabase
@@ -43,9 +43,7 @@ export async function acceptCurrentBookingTermsFromReadiness() {
     activeTerms = normalizeActiveCheckoutTerms((fallback.data as Record<string, unknown> | null) ?? null)
   }
 
-  if (!activeTerms) {
-    throw new Error('No active terms document is available right now.')
-  }
+  if (!activeTerms) return { ok: false, error: 'No active terms document is available right now.' as const }
 
   const { data: existing } = await supabase
     .from('booking_terms_acceptances')
@@ -67,27 +65,61 @@ export async function acceptCurrentBookingTermsFromReadiness() {
       null
     const userAgent = h.get('user-agent') ?? null
 
-    const { error: insertErr } = await supabase
+    const payload = {
+      booking_id: null,
+      checkout_request_id: null,
+      user_id: user.id,
+      terms_document_id: activeTerms.id,
+      terms_version: activeTerms.version,
+      terms_document_url: activeTerms.public_url,
+      terms_content_hash: activeTerms.content_hash,
+      acceptance_text: 'I have read and accept the booking terms and conditions.',
+      accepted_ip: acceptedIp,
+      user_agent: userAgent,
+      acceptance_context: 'booking_readiness',
+    }
+
+    // Use admin client: booking_terms_acceptances has RLS enabled with no direct INSERT
+    // policy for authenticated users — inserts are expected to go through privileged paths
+    // (SECURITY DEFINER functions for checkout flow, admin client for server actions).
+    // user_id is always sourced from server-side auth.getUser() above.
+    const adminForInsert = createAdminClient()
+    const { error: insertErr } = await adminForInsert
       .from('booking_terms_acceptances')
-      .insert({
-        booking_id: null,
-        checkout_request_id: null,
-        user_id: user.id,
-        terms_document_id: activeTerms.id,
-        terms_version: activeTerms.version,
-        terms_document_url: activeTerms.public_url,
-        terms_content_hash: activeTerms.content_hash,
-        acceptance_text: 'I have read and accept the booking terms and conditions.',
-        accepted_ip: acceptedIp,
-        user_agent: userAgent,
-        acceptance_context: 'booking_readiness',
-      })
+      .insert(payload)
 
     if (insertErr) {
-      throw new Error(insertErr.message)
+      console.error('[acceptCurrentBookingTermsFromReadiness] insert failed', insertErr)
+      return { ok: false, error: 'Could not save your terms acceptance right now. Please try again.' as const }
     }
   }
 
   revalidatePath('/dashboard')
+  revalidatePath('/dashboard/bookings/new')
+  return { ok: true as const }
+}
+
+export async function saveNightVfrRatingFromReadiness(input: { hasNightVfrRating: boolean }) {
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) throw new Error('Unauthorized')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile || profile.role !== 'customer') throw new Error('Forbidden')
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ has_night_vfr_rating: input.hasNightVfrRating })
+    .eq('id', user.id)
+
+  if (error) throw new Error('Could not save Night VFR rating.')
+
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard/documents')
   revalidatePath('/dashboard/bookings/new')
 }

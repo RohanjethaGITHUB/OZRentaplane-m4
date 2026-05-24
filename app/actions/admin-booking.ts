@@ -1642,7 +1642,7 @@ export async function adminUpdateCheckoutTime(
   newScheduledStart: string,   // ISO 8601 UTC
 ): Promise<{ newStart: string; newEnd: string }> {
   const { supabase, adminId } = await requireAdmin()
-  const now = new Date().toISOString()
+  const nowIso = new Date().toISOString()
 
   const { data: booking, error: fetchErr } = await supabase
     .from('bookings')
@@ -1658,7 +1658,22 @@ export async function adminUpdateCheckoutTime(
 
   const newStart = new Date(newScheduledStart)
   if (isNaN(newStart.getTime())) throw new Error('VALIDATION: Invalid start time.')
-  if (newStart <= new Date()) throw new Error('VALIDATION: Checkout flight time must be in the future.')
+
+  const now = new Date()
+  const fmtYmd = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
+  const fmtHm = (d: Date) =>
+    `${d.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', hour12: false }).slice(-2)}:${d.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', minute: '2-digit' }).padStart(2, '0')}`
+  const selectedSydDate = fmtYmd(newStart)
+  const nowSydDate = fmtYmd(now)
+  const selectedSydTime = fmtHm(newStart)
+  const nowSydTime = fmtHm(now)
+
+  if (selectedSydDate < nowSydDate) {
+    throw new Error('VALIDATION: Checkout date/time must be now or in the future.')
+  }
+  if (selectedSydDate === nowSydDate && selectedSydTime < nowSydTime) {
+    throw new Error('VALIDATION: For today, checkout time must be now or in the future.')
+  }
 
   const newEnd       = new Date(newStart.getTime() + 60 * 60 * 1000)
   const newStartISO  = newStart.toISOString()
@@ -1675,7 +1690,6 @@ export async function adminUpdateCheckoutTime(
   const expandedStart = new Date(newStart.getTime() - preBufMs).toISOString()
   const expandedEnd   = new Date(newEnd.getTime()   + postBufMs).toISOString()
 
-  // Check availability — exclude own blocks (will be replaced)
   const { data: overlapping } = await supabase
     .from('schedule_blocks')
     .select('id, block_type, expires_at, related_booking_id')
@@ -1695,14 +1709,35 @@ export async function adminUpdateCheckoutTime(
     throw new Error(`AVAILABILITY: The new time overlaps with ${conflicts.length} existing block(s). Please choose a different time.`)
   }
 
-  // Release old blocks
-  await supabase
+  // Cancel any existing active blocks. If active blocks exist and cancellation fails, abort — orphaned
+  // future blocks corrupt aircraft availability and cannot be silently ignored.
+  const { data: existingActiveBlocks, error: fetchBlocksErr } = await supabase
     .from('schedule_blocks')
-    .update({ status: 'cancelled' })
+    .select('id')
     .eq('related_booking_id', bookingId)
     .eq('status', 'active')
 
-  // Create new blocks
+  if (fetchBlocksErr) {
+    throw new Error('Cannot update checkout time: failed to check existing schedule blocks. Please retry.')
+  }
+
+  const hasActiveBlocks = (existingActiveBlocks?.length ?? 0) > 0
+
+  if (hasActiveBlocks) {
+    const { error: cancelBlocksErr } = await supabase
+      .from('schedule_blocks')
+      .update({ status: 'cancelled' })
+      .eq('related_booking_id', bookingId)
+      .eq('status', 'active')
+
+    if (cancelBlocksErr) {
+      throw new Error(
+        `Cannot update checkout time: ${existingActiveBlocks!.length} existing schedule block(s) could not be cancelled. ` +
+        `Proceeding would leave orphaned future availability blocks. Please retry or contact support. (${cancelBlocksErr.message})`
+      )
+    }
+  }
+
   const { error: insertErr } = await supabase
     .from('schedule_blocks')
     .insert([
@@ -1732,11 +1767,14 @@ export async function adminUpdateCheckoutTime(
       },
     ])
 
-  if (insertErr) throw new Error('Failed to create schedule blocks for updated time.')
+  if (insertErr) {
+    console.error('[adminUpdateCheckoutTime] Failed to insert schedule blocks:', insertErr)
+    throw new Error(`AVAILABILITY: Failed to create schedule blocks for the new time. ${insertErr.message}`)
+  }
 
   const { error: bookingErr } = await supabase
     .from('bookings')
-    .update({ scheduled_start: newStartISO, scheduled_end: newEndISO, updated_at: now })
+    .update({ scheduled_start: newStartISO, scheduled_end: newEndISO, updated_at: nowIso })
     .eq('id', bookingId)
 
   if (bookingErr) throw new Error('Failed to update booking times.')
@@ -1782,6 +1820,192 @@ export async function adminUpdateCheckoutTime(
   revalidatePath('/dashboard')
 
   return { newStart: newStartISO, newEnd: newEndISO }
+}
+
+type ManualCheckoutLogMode = 'skip' | 'existing' | 'create_new'
+
+type ManualCheckoutCompletionInput = {
+  bookingId: string
+  completionDate: string
+  outcome: 'cleared_to_fly'
+  logMode: ManualCheckoutLogMode
+  existingLogId?: string
+  newLog?: {
+    picName: string
+    picArn?: string | null
+    readings: AircraftReadings
+    notes?: string | null
+  }
+  adminNote?: string | null
+}
+
+export async function manuallyCompleteCheckout(input: ManualCheckoutCompletionInput): Promise<void> {
+  const { supabase, adminId } = await requireAdmin()
+  const now = new Date().toISOString()
+
+  if (!input.bookingId) throw new Error('VALIDATION: Checkout booking is required.')
+  if (!input.completionDate?.trim()) throw new Error('VALIDATION: Manual completion date is required.')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.completionDate)) throw new Error('VALIDATION: Completion date must be a valid date.')
+  if (input.outcome !== 'cleared_to_fly') throw new Error('VALIDATION: Manual completion outcome must be cleared_to_fly.')
+  if (!['skip', 'existing', 'create_new'].includes(input.logMode)) throw new Error('VALIDATION: Invalid aircraft log option.')
+
+  const { data: booking, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('id, status, booking_type, aircraft_id, booking_owner_user_id, scheduled_start, scheduled_end')
+    .eq('id', input.bookingId)
+    .single()
+  if (fetchErr || !booking) throw new Error('Checkout booking not found.')
+  if (booking.booking_type !== 'checkout') throw new Error('VALIDATION: This booking is not a checkout booking.')
+
+  const allowedStatuses = ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review']
+  if (!allowedStatuses.includes(booking.status)) {
+    throw new Error(`VALIDATION: Manual completion is not allowed from status '${booking.status}'.`)
+  }
+
+  let linkedLogId: string | null = null
+  let createdNewLog = false
+
+  if (input.logMode === 'existing') {
+    if (!input.existingLogId) throw new Error('VALIDATION: Existing aircraft log is required.')
+    const { data: existingLog, error: existingErr } = await supabase
+      .from('aircraft_flight_logs')
+      .select('id, aircraft_id')
+      .eq('id', input.existingLogId)
+      .maybeSingle()
+    if (existingErr || !existingLog) throw new Error('VALIDATION: Selected aircraft log was not found.')
+    if (existingLog.aircraft_id !== booking.aircraft_id) {
+      throw new Error('VALIDATION: Selected aircraft log belongs to a different aircraft.')
+    }
+    linkedLogId = existingLog.id
+  }
+
+  if (input.logMode === 'create_new') {
+    if (!input.newLog) throw new Error('VALIDATION: New aircraft log details are required.')
+    if (!input.newLog.picName?.trim()) throw new Error('VALIDATION: PIC name is required.')
+    validateAircraftReadings(input.newLog.readings)
+
+    const created = await upsertAircraftFlightLogRecord({
+      aircraft_id: booking.aircraft_id,
+      flight_date: input.completionDate,
+      pic_user_id: booking.booking_owner_user_id,
+      pic_name: input.newLog.picName.trim(),
+      pic_arn: input.newLog.picArn?.trim() || null,
+      readings: {
+        ...input.newLog.readings,
+        notes: input.newLog.notes?.trim() || input.newLog.readings.notes || null,
+      },
+      related_booking_id: booking.id,
+      source: 'checkout_completion',
+      review_status: 'admin_confirmed',
+      created_by: adminId,
+      updated_by: adminId,
+    })
+    linkedLogId = created.row.id
+    createdNewLog = true
+  }
+
+  if (input.logMode === 'existing' && linkedLogId) {
+    const { error: linkErr } = await supabase
+      .from('aircraft_flight_logs')
+      .update({ related_booking_id: booking.id, updated_by: adminId, updated_at: now })
+      .eq('id', linkedLogId)
+    if (linkErr) throw new Error(`Failed to link existing aircraft log. ${linkErr.message}`)
+  }
+
+  const { error: bookingUpdateErr } = await supabase
+    .from('bookings')
+    .update({
+      status: 'completed',
+      checkout_lifecycle_status: 'completed',
+      scheduled_start: `${input.completionDate}T00:00:00.000Z`,
+      scheduled_end: `${input.completionDate}T01:00:00.000Z`,
+      updated_at: now,
+      admin_notes: input.adminNote?.trim() || null,
+    })
+    .eq('id', booking.id)
+  if (bookingUpdateErr) throw new Error('Failed to manually complete checkout booking.')
+
+  await supabase
+    .from('schedule_blocks')
+    .update({ status: 'cancelled' })
+    .eq('related_booking_id', booking.id)
+    .eq('status', 'active')
+
+  const { error: profileErr } = await supabase
+    .from('profiles')
+    .update({ pilot_clearance_status: 'cleared_to_fly', updated_at: now })
+    .eq('id', booking.booking_owner_user_id)
+  if (profileErr) throw new Error('Failed to update customer clearance status.')
+
+  const modeSummary =
+    input.logMode === 'skip'
+      ? 'skipped aircraft log creation'
+      : input.logMode === 'existing'
+      ? `linked existing aircraft log ${linkedLogId}`
+      : `created and linked new aircraft log ${linkedLogId}`
+
+  await supabase.from('booking_status_history').insert({
+    booking_id: booking.id,
+    old_status: booking.status,
+    new_status: 'completed',
+    changed_by_user_id: adminId,
+    note: `Manual checkout completion submitted. completion_date=${input.completionDate}; outcome=cleared_to_fly; log_mode=${input.logMode}; ${modeSummary}.`,
+  })
+
+  await supabase.from('booking_audit_events').insert([
+    {
+      booking_id: booking.id,
+      aircraft_id: booking.aircraft_id,
+      actor_user_id: adminId,
+      actor_role: 'admin',
+      event_type: 'checkout_manual_completion_started',
+      event_summary: `Admin initiated manual checkout completion (${input.logMode}).`,
+      new_value: {
+        completion_date: input.completionDate,
+        outcome: 'cleared_to_fly',
+        log_mode: input.logMode,
+      },
+    },
+    {
+      booking_id: booking.id,
+      aircraft_id: booking.aircraft_id,
+      actor_user_id: adminId,
+      actor_role: 'admin',
+      event_type: 'checkout_manual_completion_submitted',
+      event_summary: `Checkout manually completed by admin: cleared_to_fly; ${modeSummary}.`,
+      new_value: {
+        completion_date: input.completionDate,
+        outcome: 'cleared_to_fly',
+        pilot_clearance_status: 'cleared_to_fly',
+        booking_status: 'completed',
+        log_mode: input.logMode,
+        linked_aircraft_log_id: linkedLogId,
+        created_new_log: createdNewLog,
+        invoice_created: false,
+        payment_required: false,
+      },
+    },
+  ])
+
+  await supabase.from('verification_events').insert({
+    user_id: booking.booking_owner_user_id,
+    actor_user_id: adminId,
+    actor_role: 'admin',
+    event_type: 'approved',
+    request_kind: 'booking_update',
+    request_id: booking.id,
+    title: 'Checkout manually completed',
+    body: 'Your checkout has been manually completed and you are now clear to fly.',
+    is_read: false,
+    email_status: 'skipped',
+  })
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings/checkout')
+  revalidatePath('/admin/bookings/payment-required')
+  revalidatePath(`/admin/bookings/requests/${booking.id}`)
+  revalidatePath('/admin/checkouts/payments')
+  revalidatePath('/dashboard')
 }
 
 // ─── Cancellation request review ──────────────────────────────────────────────

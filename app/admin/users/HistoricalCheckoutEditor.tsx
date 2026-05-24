@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation'
 import CalendarDateField from '@/components/CalendarDateField'
 import { getHistoricalCheckoutLogBaseline, recordHistoricalCheckoutCompletion } from '@/app/actions/historical-checkout'
 
+// Temporarily hidden: checkout completion should go through the normal checkout
+// request → outcome flow (admin checkouts area), not directly from the customer detail page.
+const SHOW_ADMIN_DIRECT_CHECKOUT_COMPLETE_ACTION = false
+
 type Outcome = 'cleared_to_fly' | 'additional_checkout_required' | 'not_currently_eligible'
 type LogMode = 'none' | 'link_existing' | 'create_new'
 type MeterKey = 'vdo' | 'tacho' | 'air_switch' | 'mr'
@@ -336,15 +340,15 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
               <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Historical Checkout</p>
               <p className="mt-1 text-sm text-slate-300">Record checkout completion without creating invoices, payments, or calendar bookings.</p>
             </div>
-            {actionButton}
+            {SHOW_ADMIN_DIRECT_CHECKOUT_COMPLETE_ACTION && actionButton}
           </div>
-          {disableAction ? (
+          {SHOW_ADMIN_DIRECT_CHECKOUT_COMPLETE_ACTION && disableAction ? (
             <p className="mt-2 text-xs text-amber-300/90">
               {props.historicalRecord ? 'A historical checkout record already exists for this customer.' : 'Customer is already cleared to fly.'}
             </p>
           ) : null}
         </div>
-      ) : renderMode === 'button_only' ? actionButton : null}
+      ) : renderMode === 'button_only' && SHOW_ADMIN_DIRECT_CHECKOUT_COMPLETE_ACTION ? actionButton : null}
 
       {props.historicalRecord ? (
         <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm text-emerald-100">

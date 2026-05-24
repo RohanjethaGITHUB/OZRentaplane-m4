@@ -4,7 +4,11 @@
       "Bash(wc -l public/seq-*/ezgif-frame-*)",
       "WebFetch(domain:reactbits.dev)",
       "WebFetch(domain:github.com)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(supabase --version)",
+      "Bash(E2E_BASE_URL=http://localhost:3000 node scripts/verify_terms_acceptance_flow.mjs)",
+      "Bash(npm run *)",
+      "Bash(npx supabase *)"
     ]
   }
 }
