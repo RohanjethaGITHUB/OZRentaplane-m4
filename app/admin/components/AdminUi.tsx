@@ -109,10 +109,10 @@ export function TabLink({ active, href, label }: { active: boolean; href: string
   )
 }
 
-export function ChartShell({ title, children }: { title: string; children: React.ReactNode }) {
+export function ChartShell({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-      <h3 className="text-base text-slate-200 mb-4">{title}</h3>
+      {title ? <h3 className="text-base text-slate-200 mb-4">{title}</h3> : null}
       {children}
     </div>
   )

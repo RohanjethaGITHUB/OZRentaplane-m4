@@ -204,6 +204,22 @@ export default function BookingPaymentCard({ bookingId, invoice, bankTransferSub
         </>
       ) : (
         <>
+          <div className="mb-5 rounded-xl border border-amber-500/30 bg-amber-500/[0.07] p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="material-symbols-outlined text-amber-400 text-[18px] flex-shrink-0">info</span>
+              <p className="text-xs font-bold uppercase tracking-widest text-amber-400">Manual bank transfer required</p>
+            </div>
+            <p className="text-sm text-slate-300 leading-relaxed mb-3">
+              Bank transfer is a manual payment method. Please transfer the exact amount shown below to the official OZ Rent A Plane bank account using the payment reference provided.
+            </p>
+            <p className="text-sm text-slate-300 leading-relaxed mb-3">
+              After completing the transfer, upload proof of payment — a bank receipt or screenshot showing the successful transfer.
+            </p>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              Our admin team will manually verify your payment and usually respond within <span className="text-amber-300 font-medium">2 to 24 hours</span> after your proof is submitted. Your clearance and aircraft booking access will be finalised only after payment has been verified.
+            </p>
+          </div>
+
           <div className="mb-6 p-4 rounded-xl bg-white/5 border border-white/10 text-sm space-y-4">
             <div>
               <p className="text-xs text-slate-400 mb-1">Transfer Amount (No Surcharge)</p>

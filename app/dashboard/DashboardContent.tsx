@@ -41,6 +41,13 @@ export type FlightSnapshotBooking = {
   aircraftRegistration: string | null
 }
 
+export type BookingReadinessSummary = {
+  show: boolean
+  hasHistoricalClearance: boolean
+  docsReady: boolean
+  termsAccepted: boolean
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 type Props = {
@@ -57,6 +64,7 @@ type Props = {
     bookingId: string
   } | null
   flightSnapshotBooking?: FlightSnapshotBooking | null
+  bookingReadiness?: BookingReadinessSummary | null
 }
 
 // ── Status config (clearance-level) ──────────────────────────────────────────
@@ -215,6 +223,7 @@ type NextActionConfig = {
 }
 
 function getNextActionConfig(
+  isNoShowLocked: boolean,
   clearanceStatus: PilotClearanceStatus,
   isAwaitingManualPayment: boolean,
   mainBookingHeroState: Props['mainBookingHeroState'],
@@ -223,6 +232,19 @@ function getNextActionConfig(
   checkoutBookingId: string | null,
   flightSnapshotBooking: FlightSnapshotBooking | null,
 ): NextActionConfig {
+  if (isNoShowLocked) {
+    return {
+      icon: 'lock',
+      iconColor: '#f87171',
+      tone: 'red',
+      title: 'Account locked after no-show',
+      body: 'Your checkout flight was marked as a no-show. Please contact the OZ Rent A Plane team to discuss your checkout status and unlock your account.',
+      ctaLabel: 'Contact Team',
+      ctaHref: '/dashboard/messages',
+      secondaryLink: { label: `Call ${ADMIN_CONTACT_PHONE_DISPLAY}`, href: `tel:${ADMIN_CONTACT_PHONE_TEL}` },
+    }
+  }
+
   // ── cleared_to_fly overrides ──
   if (clearanceStatus === 'cleared_to_fly') {
     if (mainBookingHeroState?.mode === 'post_flight_required') {
@@ -441,6 +463,7 @@ export default function DashboardContent({
   activeBooking,
   mainBookingHeroState,
   flightSnapshotBooking,
+  bookingReadiness,
 }: Props) {
   const router = useRouter()
 
@@ -449,7 +472,7 @@ export default function DashboardContent({
   const firstName = firstNameFromProfile || displayName.split(' ')[0] || ''
 
   const clearanceStatus = (profile?.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
-  const noShowLocked =
+  const isNoShowLocked =
     profile?.account_status === 'blocked' &&
     profile?.account_lock_reason === 'checkout_no_show'
   const checkoutPaymentDisplayState =
@@ -488,7 +511,7 @@ export default function DashboardContent({
 
   // Main CTA
   const mainCtaHref =
-    noShowLocked
+    isNoShowLocked
       ? '/dashboard/messages'
       :
     clearanceStatus === 'checkout_payment_required' && checkoutBookingId
@@ -500,7 +523,7 @@ export default function DashboardContent({
       : statusConfig.primaryCtaHref
 
   const mainCtaLabel =
-    noShowLocked
+    isNoShowLocked
       ? 'Contact Team'
       :
     clearanceStatus === 'cleared_to_fly' && mainBookingHeroState?.mode === 'post_flight_required'
@@ -522,6 +545,7 @@ export default function DashboardContent({
     : { label: 'View My Bookings', href: '/dashboard/bookings' }
 
   const nextAction = getNextActionConfig(
+    isNoShowLocked,
     clearanceStatus,
     isAwaitingManualPayment,
     mainBookingHeroState,
@@ -540,20 +564,44 @@ export default function DashboardContent({
 
   return (
     <div className="space-y-5">
-      {noShowLocked && (
-        <section className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4">
-          <p className="text-sm font-semibold text-rose-100">
+      {isNoShowLocked && (
+        <section className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 md:p-5">
+          <p className="text-base md:text-lg font-semibold text-rose-100 text-center">
             Your account is currently locked because you were marked as a no-show for your checkout flight.
           </p>
-          <p className="mt-1 text-sm text-rose-100/90">
+          <p className="mt-2 text-sm md:text-base text-rose-100/90 text-center">
             Please contact OZ Rent A Plane to discuss your checkout status and unlock your account.
           </p>
-          <p className="mt-2 text-sm text-white">
+          <p className="mt-2 text-sm md:text-base text-white text-center">
             Call:{' '}
             <a href={`tel:${ADMIN_CONTACT_PHONE_TEL}`} className="underline underline-offset-2">
               {ADMIN_CONTACT_PHONE_DISPLAY}
             </a>
           </p>
+        </section>
+      )}
+
+      {bookingReadiness?.show && (
+        <section className="rounded-2xl border border-blue-500/25 bg-blue-500/10 p-4 md:p-5">
+          <p className="text-base font-semibold text-white">Before your first booking</p>
+          <p className="mt-1 text-sm text-blue-100/90">Your checkout is complete. Please finish your pilot file before booking.</p>
+          {bookingReadiness.hasHistoricalClearance ? (
+            <p className="mt-1 text-xs text-blue-200/80">Checkout source: Historical/manual completion.</p>
+          ) : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${bookingReadiness.docsReady ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'}`}>
+              Documents: {bookingReadiness.docsReady ? 'Complete' : 'Action required'}
+            </span>
+            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${bookingReadiness.termsAccepted ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'}`}>
+              Terms: {bookingReadiness.termsAccepted ? 'Accepted current version' : 'Not accepted'}
+            </span>
+          </div>
+          <button
+            onClick={() => router.push('/dashboard/bookings/new')}
+            className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-white hover:bg-blue-500"
+          >
+            Complete pilot file
+          </button>
         </section>
       )}
 
@@ -775,7 +823,14 @@ export default function DashboardContent({
               </button>
               {nextAction.secondaryLink && (
                 <button
-                  onClick={() => router.push(nextAction.secondaryLink!.href)}
+                  onClick={() => {
+                    const href = nextAction.secondaryLink!.href
+                    if (href.startsWith('tel:')) {
+                      window.location.href = href
+                      return
+                    }
+                    router.push(href)
+                  }}
                   className="inline-flex items-center gap-0.5 text-[12px] text-white/40 hover:text-white/65 transition-colors py-3 px-1"
                 >
                   {nextAction.secondaryLink.label}

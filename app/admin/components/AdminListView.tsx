@@ -194,7 +194,7 @@ export function AdminDataTable({
   children: ReactNode
 }) {
   return (
-    <div className="overflow-x-auto overflow-y-hidden rounded-[var(--admin-radius-xl)] border border-[var(--admin-border)] bg-[var(--admin-card-bg)]">
+    <div className="overflow-x-auto overflow-y-visible rounded-[var(--admin-radius-xl)] border border-[var(--admin-border)] bg-[var(--admin-card-bg)]">
       <table className="w-full">
         <thead className="bg-[#141b29] text-[var(--admin-text-muted)]">
           <tr>

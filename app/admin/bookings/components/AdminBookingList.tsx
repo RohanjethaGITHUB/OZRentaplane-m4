@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { formatDateTime } from '@/lib/formatDateTime'
 import AdminPortalHero from '@/components/AdminPortalHero'
 import { TabLink } from '@/app/admin/components/AdminUi'
+import { deriveBookingStatusForFlightRecord, isAwaitingFlightRecordDue } from '@/lib/booking/flight-record-status'
 
 type SearchParams = { status?: string }
 type SortKey = 'customer' | 'email' | 'aircraft' | 'scheduled' | 'status' | 'ref'
@@ -21,6 +22,7 @@ type BookingRow = {
   estimated_amount: number | null
   booking_owner_user_id: string
   aircraft: { id: string; registration: string; aircraft_type: string } | { id: string; registration: string; aircraft_type: string }[] | null
+  flight_records?: { status: string | null; submitted_at: string | null }[] | null
 }
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
@@ -89,14 +91,24 @@ export default async function AdminBookingList({
     .select(`
       id, booking_reference, booking_type, created_at, scheduled_start, scheduled_end, status,
       pic_name, estimated_amount, booking_owner_user_id,
-      aircraft ( id, registration, aircraft_type )
+      aircraft ( id, registration, aircraft_type ),
+      flight_records ( status, submitted_at )
     `)
 
-  if (activeFilter !== 'all') query = query.eq('status', activeFilter)
+  if (activeFilter === 'awaiting_flight_record' && bookingTypeFilter !== 'checkout') {
+    query = query
+      .in('status', ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record', 'flight_record_overdue'])
+      .lte('scheduled_end', new Date().toISOString())
+  } else if (activeFilter !== 'all') {
+    query = query.eq('status', activeFilter)
+  }
   if (bookingTypeFilter !== 'all') query = query.eq('booking_type', bookingTypeFilter)
 
   const { data } = await query
-  const bookings = (data ?? []) as BookingRow[]
+  const fetchedBookings = (data ?? []) as BookingRow[]
+  const bookings = activeFilter === 'awaiting_flight_record' && bookingTypeFilter !== 'checkout'
+    ? fetchedBookings.filter((booking) => isAwaitingFlightRecordDue(booking))
+    : fetchedBookings
   if (bookingTypeFilter === 'checkout' && process.env.NODE_ENV !== 'production') {
     console.info('[admin-checkout-list] basePath=%s requestedFilter=%s normalizedFilter=%s resultCount=%d', basePath, requestedFilter, activeFilter, bookings.length)
   }
@@ -139,7 +151,7 @@ export default async function AdminBookingList({
       email: (pa?.email ?? '').toLowerCase(),
       aircraft: (aircraftA?.registration ?? '').toLowerCase(),
       scheduled: new Date(a.scheduled_start).getTime(),
-      status: (STATUS_BADGE[a.status]?.label ?? a.status).toLowerCase(),
+      status: (STATUS_BADGE[deriveBookingStatusForFlightRecord(a)]?.label ?? deriveBookingStatusForFlightRecord(a)).toLowerCase(),
       ref: (a.booking_reference ?? a.id).toLowerCase(),
     }
     const vb: Record<SortKey, string | number> = {
@@ -147,7 +159,7 @@ export default async function AdminBookingList({
       email: (pb?.email ?? '').toLowerCase(),
       aircraft: (aircraftB?.registration ?? '').toLowerCase(),
       scheduled: new Date(b.scheduled_start).getTime(),
-      status: (STATUS_BADGE[b.status]?.label ?? b.status).toLowerCase(),
+      status: (STATUS_BADGE[deriveBookingStatusForFlightRecord(b)]?.label ?? deriveBookingStatusForFlightRecord(b)).toLowerCase(),
       ref: (b.booking_reference ?? b.id).toLowerCase(),
     }
     const cmp = va[sort] < vb[sort] ? -1 : va[sort] > vb[sort] ? 1 : 0
@@ -216,7 +228,8 @@ export default async function AdminBookingList({
                     const prof = profileMap.get(booking.booking_owner_user_id)
                     const customerName = fullCustomerName(prof, booking.pic_name)
                     const email = prof?.email ?? '—'
-                    const badge = STATUS_BADGE[booking.status] ?? { label: booking.status.replace(/_/g, ' '), className: 'bg-white/5 text-slate-300 border-white/10' }
+                    const displayStatus = deriveBookingStatusForFlightRecord(booking)
+                    const badge = STATUS_BADGE[displayStatus] ?? { label: displayStatus.replace(/_/g, ' '), className: 'bg-white/5 text-slate-300 border-white/10' }
                     const actionLabel = basePath.includes('/awaiting-outcome') ? 'Record Outcome' : basePath.includes('/new-requests') ? 'Review' : 'View'
                     return (
                       <tr key={booking.id} className="text-slate-200 hover:bg-white/[0.03]">
@@ -240,7 +253,8 @@ export default async function AdminBookingList({
                 const prof = profileMap.get(booking.booking_owner_user_id)
                 const customerName = fullCustomerName(prof, booking.pic_name)
                 const email = prof?.email ?? '—'
-                const badge = STATUS_BADGE[booking.status] ?? { label: booking.status.replace(/_/g, ' '), className: 'bg-white/5 text-slate-300 border-white/10' }
+                const displayStatus = deriveBookingStatusForFlightRecord(booking)
+                const badge = STATUS_BADGE[displayStatus] ?? { label: displayStatus.replace(/_/g, ' '), className: 'bg-white/5 text-slate-300 border-white/10' }
                 return (
                   <Link key={booking.id} href={`/admin/bookings/requests/${booking.id}`} className="block rounded-2xl border border-white/10 bg-white/[0.02] p-4">
                     <div className="flex items-center justify-between gap-2">

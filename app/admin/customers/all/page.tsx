@@ -1,15 +1,13 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import AdminPortalHero from '@/components/AdminPortalHero'
-import { TabLink } from '@/app/admin/components/AdminUi'
+import CustomerDirectoryTable from './CustomerDirectoryTable'
+import { getCustomerDerivedStatus, getStatusFromQuery, hasActiveCheckoutBooking } from '@/app/admin/customers/customer-status'
+import { getAttentionAssessment } from '@/app/admin/customers/attention-reason'
 
 export const metadata = { title: 'Customer Directory | Admin' }
 
-type SortKey = 'customer' | 'clearance' | 'account' | 'updated'
-type SortDir = 'asc' | 'desc'
-
-export default async function AllCustomersPage({ searchParams }: { searchParams: { clearance?: string; account?: string; q?: string; sort?: string; dir?: string } }) {
+export default async function AllCustomersPage({ searchParams }: { searchParams: { status?: string } }) {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -18,96 +16,94 @@ export default async function AllCustomersPage({ searchParams }: { searchParams:
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
-  const sort = (searchParams.sort as SortKey | undefined) ?? 'updated'
-  const dir = (searchParams.dir as SortDir | undefined) === 'asc' ? 'asc' : 'desc'
-
-  let query = supabase
+  const [{ data: profiles }, { data: checkoutBookings }, { data: pendingRescheduleRows }, { data: pendingCancellationRows }, { data: userDocuments }] = await Promise.all([
+    supabase
     .from('profiles')
-    .select('id, full_name, email, pilot_clearance_status, account_status, updated_at', { count: 'exact' })
+    .select('id, full_name, email, pilot_clearance_status, account_status, updated_at')
     .eq('role', 'customer')
+    .order('updated_at', { ascending: false }),
+    supabase
+      .from('bookings')
+      .select('id, booking_owner_user_id, status, checkout_lifecycle_status')
+      .eq('booking_type', 'checkout')
+      .not('booking_owner_user_id', 'is', null),
+    supabase
+      .from('checkout_change_requests')
+      .select('created_at, original_scheduled_start, checkout_request_id, bookings!inner(booking_owner_user_id)')
+      .eq('request_type', 'reschedule')
+      .eq('status', 'pending'),
+    supabase
+      .from('booking_cancellation_requests')
+      .select('created_at, booking_start_time, booking_id, bookings!inner(booking_owner_user_id)')
+      .eq('status', 'pending'),
+    supabase
+      .from('user_documents')
+      .select('user_id, document_type, status, expiry_date, medical_class'),
+  ])
 
-  if (searchParams.clearance) query = query.eq('pilot_clearance_status', searchParams.clearance)
-  if (searchParams.account) query = query.eq('account_status', searchParams.account)
-  if (searchParams.q) query = query.ilike('full_name', `%${searchParams.q}%`)
-
-  const { data: profiles, count } = await query
-  const rows = [...(profiles ?? [])].sort((a, b) => {
-    const va: Record<SortKey, string | number> = {
-      customer: (a.full_name ?? '').toLowerCase(),
-      clearance: (a.pilot_clearance_status ?? '').toLowerCase(),
-      account: (a.account_status ?? '').toLowerCase(),
-      updated: new Date(a.updated_at).getTime(),
-    }
-    const vb: Record<SortKey, string | number> = {
-      customer: (b.full_name ?? '').toLowerCase(),
-      clearance: (b.pilot_clearance_status ?? '').toLowerCase(),
-      account: (b.account_status ?? '').toLowerCase(),
-      updated: new Date(b.updated_at).getTime(),
-    }
-    const cmp = va[sort] < vb[sort] ? -1 : va[sort] > vb[sort] ? 1 : 0
-    return dir === 'asc' ? cmp : -cmp
-  })
-  const sortHref = (key: SortKey) => {
-    const nextDir = sort === key && dir === 'asc' ? 'desc' : 'asc'
-    const qp = new URLSearchParams()
-    if (searchParams.clearance) qp.set('clearance', searchParams.clearance)
-    if (searchParams.account) qp.set('account', searchParams.account)
-    if (searchParams.q) qp.set('q', searchParams.q)
-    qp.set('sort', key)
-    qp.set('dir', nextDir)
-    return `/admin/customers/all?${qp.toString()}`
-  }
-  const sortLabel = (label: string, key: SortKey) => (
-    <Link href={sortHref(key)} className="inline-flex items-center gap-1">
-      {label}
-      <span className="material-symbols-outlined text-[14px]">{sort === key ? (dir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more'}</span>
-    </Link>
+  const usersWithActiveCheckoutRequests = new Set(
+    (checkoutBookings ?? [])
+      .filter((b) => hasActiveCheckoutBooking({ status: b.status as string | null, checkout_lifecycle_status: (b as any).checkout_lifecycle_status ?? null }))
+      .map((b) => b.booking_owner_user_id)
+      .filter(Boolean),
   )
+  const docsByUser = new Map<string, Array<{ user_id: string; document_type: string; status: string; expiry_date: string | null; medical_class?: string | null }>>()
+  for (const doc of userDocuments ?? []) {
+    const list = docsByUser.get(doc.user_id) ?? []
+    list.push(doc)
+    docsByUser.set(doc.user_id, list)
+  }
 
-  const clearanceTabs = [
-    { label: 'All', value: '' },
-    { label: 'Cleared', value: 'cleared_to_fly' },
-    { label: 'In checkout', value: 'checkout_requested' },
-    { label: 'Needs attention', value: 'additional_checkout_required' },
-  ]
+  const pendingCheckoutRescheduleByUser = new Map<string, { createdAt: string; originalStart: string | null }>()
+  for (const row of pendingRescheduleRows ?? []) {
+    const booking = Array.isArray(row.bookings) ? row.bookings[0] : row.bookings
+    const customerId = booking?.booking_owner_user_id
+    if (!customerId || pendingCheckoutRescheduleByUser.has(customerId)) continue
+    pendingCheckoutRescheduleByUser.set(customerId, { createdAt: row.created_at, originalStart: row.original_scheduled_start })
+  }
+
+  const pendingCancellationByUser = new Map<string, { createdAt: string; bookingStart: string | null }>()
+  for (const row of pendingCancellationRows ?? []) {
+    const booking = Array.isArray(row.bookings) ? row.bookings[0] : row.bookings
+    const customerId = booking?.booking_owner_user_id
+    if (!customerId || pendingCancellationByUser.has(customerId)) continue
+    pendingCancellationByUser.set(customerId, { createdAt: row.created_at, bookingStart: row.booking_start_time })
+  }
+
+  const activeStatus = getStatusFromQuery(searchParams.status)
+  const rows = (profiles ?? [])
+    .map((p) => {
+      const hasCheckoutRequest = usersWithActiveCheckoutRequests.has(p.id)
+      const attention = getAttentionAssessment({
+        profileId: p.id,
+        accountStatus: p.account_status,
+        pilotClearanceStatus: p.pilot_clearance_status,
+        hasCheckoutRequest,
+        documentsByUser: docsByUser,
+        pendingCheckoutRescheduleByUser,
+        pendingCancellationByUser,
+      })
+      const derivedStatus = getCustomerDerivedStatus({
+        accountStatus: p.account_status,
+        pilotClearanceStatus: p.pilot_clearance_status,
+        hasCheckoutRequest,
+      })
+      return {
+        id: p.id,
+        fullName: p.full_name || 'Unnamed customer',
+        email: p.email || 'No email',
+        updatedAt: p.updated_at,
+        lifecycleStatus: derivedStatus,
+        needsAttention: attention.hasIssue,
+        attentionReason: attention.hasIssue ? attention.reason : null,
+      }
+    })
 
   return (
     <>
       <AdminPortalHero eyebrow="Customers" title="Customer Directory" subtitle="Search and filter all customer accounts." />
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24 space-y-6">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 flex flex-wrap gap-2">
-          {clearanceTabs.map((tab) => (
-            <TabLink key={tab.label} active={(searchParams.clearance ?? '') === tab.value} href={tab.value ? `/admin/customers/all?clearance=${tab.value}` : '/admin/customers/all'} label={tab.label} />
-          ))}
-          <TabLink active={(searchParams.account ?? '') === 'blocked'} href="/admin/customers/all?account=blocked" label="Blocked" />
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="border-b border-white/10 text-sm text-slate-400">
-              <tr>
-                <th className="px-5 py-4">{sortLabel('Customer', 'customer')}</th>
-                <th className="px-5 py-4">{sortLabel('Clearance status', 'clearance')}</th>
-                <th className="px-5 py-4">{sortLabel('Account', 'account')}</th>
-                <th className="px-5 py-4">{sortLabel('Updated', 'updated')}</th>
-                <th className="px-5 py-4 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((p) => (
-                <tr key={p.id} className="border-b border-white/5">
-                  <td className="px-5 py-4"><p className="text-white text-base">{p.full_name || 'Unnamed customer'}</p><p className="text-sm text-slate-400">{p.email || 'No email'}</p></td>
-                  <td className="px-5 py-4"><span className="text-sm text-slate-200 capitalize">{(p.pilot_clearance_status || 'unknown').replace(/_/g, ' ')}</span></td>
-                  <td className="px-5 py-4"><span className="text-sm text-slate-300 capitalize">{(p.account_status || 'active').replace(/_/g, ' ')}</span></td>
-                  <td className="px-5 py-4 text-sm text-slate-400">{new Date(p.updated_at).toLocaleDateString('en-AU')}</td>
-                  <td className="px-5 py-4 text-right"><Link href={`/admin/users/${p.id}`} className="text-blue-200">View Customer</Link></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {(!profiles || profiles.length === 0) && <div className="p-8 text-slate-400">No customers found for this filter.</div>}
-        </div>
-        <p className="text-sm text-slate-400">Showing {rows.length} of {count ?? 0} customers.</p>
+        <CustomerDirectoryTable rows={rows} initialFilter={activeStatus} />
       </div>
     </>
   )

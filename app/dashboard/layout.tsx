@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Navbar from '@/components/Navbar'
 import CustomerPortalSubNavSimple from '@/components/customer/CustomerPortalSubNavSimple'
+import CustomerDashboardBackgroundOverlay from './CustomerDashboardBackgroundOverlay'
 import type { PilotClearanceStatus } from '@/lib/supabase/types'
 
 export default async function CustomerPortalLayout({ children }: { children: React.ReactNode }) {
@@ -32,11 +33,7 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
           backgroundRepeat: 'no-repeat',
         }}
       >
-        <div
-          className="pointer-events-none absolute inset-0 z-0"
-          style={{ background: 'linear-gradient(to bottom, rgba(2,10,22,0.45), rgba(2,10,22,0.35), rgba(2,10,22,0.48))' }}
-          aria-hidden="true"
-        />
+        <CustomerDashboardBackgroundOverlay />
 
         <div className="relative z-40 hidden md:flex sticky top-[84px] -mt-px justify-center bg-transparent px-4 pb-0 pt-0 md:px-8">
           <CustomerPortalSubNavSimple hideCheckout={isClearedToFly} />

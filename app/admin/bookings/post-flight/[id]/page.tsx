@@ -5,6 +5,7 @@ import RequestClarificationFormWrapper from './RequestClarificationFormWrapper'
 import AdminStandardBillingPanel from '@/app/admin/bookings/requests/[id]/AdminStandardBillingPanel'
 import { formatDateTime } from '@/lib/formatDateTime'
 import type { FlightRecordClarification, FlightRecordAttachment } from '@/lib/supabase/booking-types'
+import { getAircraftFlightLogStartSuggestions } from '@/lib/aircraft-flight-log'
 
 export const metadata = { title: 'Review Detail | Admin' }
 
@@ -120,11 +121,9 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
     customerCreditCents = (creditRow as { balance_cents?: number } | null)?.balance_cents ?? 0
   }
 
-  // ── Prefill values from flight record ─────────────────────────────────────
-  // VDO total is the primary billing meter; landings prefills the landing row.
-  const initialVdo      = record.vdo_total     != null ? Number(record.vdo_total)  : undefined
-  const initialLandings = record.landings       != null ? Number(record.landings)   : undefined
-  const initialNotes    = (record.customer_notes as string | null | undefined) ?? undefined
+  const flightLogStartSuggestions = record.aircraft_id
+    ? (await getAircraftFlightLogStartSuggestions(record.aircraft_id)).suggestedStarts
+    : { vdo_start: null, tacho_start: null, air_switch_start: null, mr_start: null }
 
   const canRequestClarification = ['pending_review', 'resubmitted', 'pending_post_flight_review'].includes(record.status)
   const awaitingCustomer         = record.status === 'needs_clarification'
@@ -279,6 +278,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
                   { label: 'Tacho',      start: record.tacho_start,      stop: record.tacho_stop,      total: record.tacho_total      },
                   { label: 'VDO',        start: record.vdo_start,        stop: record.vdo_stop,        total: record.vdo_total        },
                   { label: 'Air Switch', start: record.air_switch_start, stop: record.air_switch_stop, total: record.air_switch_total },
+                  { label: 'MR', start: record.mr_start,         stop: record.mr_stop,         total: record.mr_total         },
                 ].map(row => (
                   <tr key={row.label}>
                     <td className="px-6 py-4 font-medium text-slate-300">{row.label}</td>
@@ -355,7 +355,9 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
               <div className="space-y-3">
                 {[
                   { label: 'Oil Added',    val: record.oil_added   != null ? `${record.oil_added} qts`  : '—' },
-                  { label: 'Fuel Actual',  val: record.fuel_actual != null ? `${record.fuel_actual} L`  : '—' },
+                  { label: 'Oil Total',   val: record.oil_total  != null ? `${record.oil_total} qts` : '—' },
+                  { label: 'Fuel Added',   val: record.fuel_added  != null ? `${record.fuel_added} L`   : '—' },
+                  { label: 'Fuel Returned',  val: record.fuel_returned != null ? `${record.fuel_returned} L`  : '—' },
                   { label: 'Landings',     val: record.landings    ?? '—' },
                 ].map(({ label, val }) => (
                   <div key={label} className="flex justify-between border-b border-white/5 pb-2">
@@ -397,9 +399,8 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
                 bookingId={bookingId}
                 airports={airports}
                 customerCreditCents={customerCreditCents}
-                initialVdo={initialVdo}
-                initialLandings={initialLandings}
-                initialNotes={initialNotes}
+                initialFlightRecord={record}
+                startSuggestions={flightLogStartSuggestions}
                 redirectAfterSuccess="/admin/bookings/post-flight"
               />
             )}

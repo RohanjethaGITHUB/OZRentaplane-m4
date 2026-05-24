@@ -211,14 +211,15 @@ function WhyFlyWithUs() {
       ),
     },
     {
-      label: 'Instructor Provided',
-      sub: 'Available CFIs to support your training and endorsements.',
+      label: 'Wet Hire',
+      sub: 'Aircraft hire with fuel built into the hourly rate, giving you simpler and more predictable flying costs.',
       icon: (
         <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#D8DFEA" strokeWidth="1.55" aria-hidden="true">
-          <path d="M6.6 18v-1.3a3.2 3.2 0 0 1 3.2-3.2h4.4a3.2 3.2 0 0 1 3.2 3.2V18" />
-          <circle cx="12" cy="8.6" r="2.8" />
-          <path d="M5.4 6.2h4.2" stroke="#E0B13B" strokeWidth="1.9" strokeLinecap="round" />
-          <path d="M7.5 4.1v4.2" stroke="#E0B13B" strokeWidth="1.9" strokeLinecap="round" />
+          <path d="M8.2 20v-7.8a2.6 2.6 0 0 1 2.6-2.6h2.4a2.6 2.6 0 0 1 2.6 2.6V20" />
+          <path d="M8.2 12h7.6" />
+          <path d="M15.8 13.2h1.8l1.4 2.2V20" />
+          <path d="M10.4 6.8h3.2" stroke="#E0B13B" strokeWidth="1.9" strokeLinecap="round" />
+          <path d="M12 5.2v3.2" stroke="#E0B13B" strokeWidth="1.9" strokeLinecap="round" />
         </svg>
       ),
     },
@@ -354,25 +355,25 @@ function ClearanceAwaits() {
       <div className="relative z-10 mx-auto flex h-full w-full max-w-[720px] flex-col items-center justify-center text-center">
         <FadeUp duration={1.4} delay={0} viewportMargin="-80px">
           <h2 className="font-serif text-[2.2rem] md:text-[3.35rem] lg:text-[3.85rem] font-normal leading-[1.08] tracking-tight mb-4 md:mb-5" style={{ color: '#F4F6FA' }}>
-            Your clearance awaits.
+            Schedule Your Checkout Flight Now
           </h2>
         </FadeUp>
 
         <FadeUp duration={1.25} delay={0.3} viewportMargin="-80px">
           <p className="font-sans text-[16px] md:text-[18px] leading-[1.6] mb-8 md:mb-9 max-w-[620px]" style={{ color: '#D8DFEA' }}>
-            Join the next generation of pilots at OZ Rent A Plane.
+            Request your checkout flight, complete the review process, and get ready to fly with confidence from Bankstown.
           </p>
         </FadeUp>
 
         <FadeUp duration={1.1} delay={0.55} viewportMargin="-80px">
           <a
-            href="/login"
+            href="/checkout-process"
             className="inline-flex items-center gap-2.5 h-[48px] px-8 rounded-[4px] font-sans font-bold text-[13px] tracking-[0.08em] uppercase transition-colors duration-300 active:scale-95"
             style={{ background: '#E0B13B', color: '#061120' }}
             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F0C24A' }}
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#E0B13B' }}
           >
-            Create an account
+            Request Checkout
             <span aria-hidden="true">→</span>
           </a>
         </FadeUp>

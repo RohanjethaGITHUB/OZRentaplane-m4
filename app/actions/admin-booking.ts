@@ -19,6 +19,20 @@ import { sendEmail } from '@/lib/email/send-email'
 import { checkoutOutcomeEmail } from '@/lib/email/templates/checkout'
 import { paymentConfirmedEmail } from '@/lib/email/templates/payment'
 import {
+  type AircraftReadings,
+  type TotalOnlyReadings,
+  calculateAircraftReadingsTotals,
+  hasMaterialAircraftReadingChanges,
+  validateAircraftReadings,
+  validateTotalOnlyReadings,
+} from '@/lib/aircraft-readings'
+import {
+  getAircraftFlightLogByRelatedBooking,
+  getLastFinalizedLogStop,
+  buildReadingsFromTotals,
+  upsertAircraftFlightLogRecord,
+} from '@/lib/aircraft-flight-log'
+import {
   FLIGHT_RECORD_REVIEW_STATUSES,
   FLIGHT_RECORD_APPROVAL_STATUSES,
 } from '@/lib/booking/status-constants'
@@ -755,8 +769,20 @@ export async function adminMarkDispatched(bookingId: string) {
 }
 
 // dispatched → awaiting_flight_record
-// Aircraft returned. Customer must now submit their flight record.
+// Aircraft returned after scheduled_end. Customer must now submit their flight record.
 export async function adminMarkAircraftReturned(bookingId: string) {
+  const { supabase } = await requireAdmin()
+  const { data: booking, error } = await supabase
+    .from('bookings')
+    .select('scheduled_end')
+    .eq('id', bookingId)
+    .single()
+
+  if (error || !booking) throw new Error('Booking not found.')
+  if (new Date(booking.scheduled_end).getTime() > Date.now()) {
+    throw new Error('VALIDATION: Aircraft can only be marked returned after the scheduled end time has passed.')
+  }
+
   return adminTransition(
     bookingId,
     'dispatched',
@@ -1087,8 +1113,7 @@ export async function markCheckoutOutcome(input: {
   bookingId:            string
   outcome:              'cleared_to_fly' | 'additional_checkout_required' | 'checkout_reschedule_required' | 'not_currently_eligible'
   adminNote?:           string
-  // Payment path (required unless paymentWaived = true)
-  vdoReading?:          number   // VDO reading from paper sheet (billable hours, e.g. 1.4)
+  readings:             TotalOnlyReadings
   checkoutRatePerHour?: number   // admin-entered hourly rate in dollars (default 290)
   landingCharges?:      { airportId: string; landingCount: number }[]
   // Waiver path (non-cleared outcomes only)
@@ -1113,25 +1138,26 @@ export async function markCheckoutOutcome(input: {
     throw new Error('VALIDATION: Hourly rate must be a positive number.')
   }
 
-  // ── Front-end validation — payment path only ──────────────────────────────
+  validateTotalOnlyReadings(input.readings)
+  const vdoReading = input.readings.vdo_total
   if (!input.paymentWaived) {
-    if (input.vdoReading == null || isNaN(input.vdoReading)) {
-      throw new Error('VALIDATION: VDO reading is required.')
+    if (vdoReading == null || isNaN(vdoReading)) {
+      throw new Error('VALIDATION: VDO total is required.')
     }
-    if (input.vdoReading <= 0) {
-      throw new Error('VALIDATION: VDO reading must be greater than 0.')
+    if (vdoReading <= 0) {
+      throw new Error('VALIDATION: VDO total must be greater than 0.')
     }
-    if (input.vdoReading < 0.1) {
-      throw new Error(`VALIDATION: VDO reading (${input.vdoReading}h) is below minimum of 0.1h. Check the paper sheet.`)
+    if (vdoReading < 0.1) {
+      throw new Error(`VALIDATION: VDO total (${vdoReading}h) is below minimum of 0.1h. Check the readings.`)
     }
-    if (input.vdoReading > 5.0) {
-      throw new Error(`VALIDATION: VDO reading (${input.vdoReading}h) exceeds maximum of 5.0h. Check the paper sheet.`)
+    if (vdoReading > 5.0) {
+      throw new Error(`VALIDATION: VDO total (${vdoReading}h) exceeds maximum of 5.0h. Check the readings.`)
     }
   }
 
   const { data: booking, error: fetchErr } = await supabase
     .from('bookings')
-    .select('status, booking_type, aircraft_id, booking_owner_user_id, booking_reference')
+    .select('status, booking_type, aircraft_id, booking_owner_user_id, booking_reference, scheduled_start')
     .eq('id', input.bookingId)
     .single()
 
@@ -1194,7 +1220,7 @@ export async function markCheckoutOutcome(input: {
   const rpcPayload = {
     p_booking_id:                   input.bookingId,
     p_customer_id:                  booking.booking_owner_user_id,
-    p_vdo_reading:                  input.paymentWaived ? null : (input.vdoReading ?? null),
+    p_vdo_reading:                  input.paymentWaived ? null : vdoReading,
     p_checkout_outcome:             input.outcome,
     p_landing_charges:              landingChargesJson.length > 0 ? landingChargesJson : null,
     p_admin_notes:                  input.adminNote ?? null,
@@ -1269,10 +1295,41 @@ export async function markCheckoutOutcome(input: {
           outcome:                input.outcome,
           pilot_clearance_status: finalClearanceStatus,
           booking_status:         finalBookingStatus,
-          vdo_reading:            input.vdoReading ?? null,
+          vdo_reading:            vdoReading ?? null,
           landing_charges:        landingChargesJson,
           payment_waived:         false,
         },
+  })
+
+  const { data: customerProfile } = await supabase
+    .from('profiles')
+    .select('full_name, pilot_arn')
+    .eq('id', booking.booking_owner_user_id)
+    .single()
+
+  // Compute full start/stop readings from last finalized log + submitted totals
+  const checkoutBaseline = await getLastFinalizedLogStop(booking.aircraft_id)
+  const checkoutReadings = buildReadingsFromTotals(
+    {
+      ...input.readings,
+      notes:    input.readings.notes    ?? input.adminNote ?? null,
+      landings: input.readings.landings ?? landingChargesJson.reduce((sum, row) => sum + row.landing_count, 0),
+    },
+    checkoutBaseline,
+  )
+
+  await upsertAircraftFlightLogRecord({
+    aircraft_id: booking.aircraft_id,
+    flight_date: new Date(booking.scheduled_start).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }),
+    pic_user_id: booking.booking_owner_user_id,
+    pic_name: customerProfile?.full_name || 'Pilot',
+    pic_arn: customerProfile?.pilot_arn || null,
+    readings: checkoutReadings,
+    related_booking_id: input.bookingId,
+    source: 'checkout_completion',
+    review_status: 'admin_confirmed',
+    created_by: adminId,
+    updated_by: adminId,
   })
 
   // ── Customer notification ──────────────────────────────────────────────────
@@ -1430,7 +1487,7 @@ export async function cancelCheckoutBooking(bookingId: string, reason: string): 
 
   const { error: updateErr } = await supabase
     .from('bookings')
-    .update({ status: 'cancelled', admin_notes: reason, updated_at: now })
+    .update({ status: 'cancelled', checkout_lifecycle_status: 'cancelled_by_admin', admin_notes: reason, updated_at: now })
     .eq('id', bookingId)
 
   if (updateErr) throw new Error('Failed to cancel checkout booking.')
@@ -1460,7 +1517,7 @@ export async function cancelCheckoutBooking(bookingId: string, reason: string): 
     actor_role:    'admin',
     event_type:    'checkout_cancelled',
     event_summary: `Checkout booking cancelled. Reason: ${reason}`,
-    new_value:     { status: 'cancelled', reason, pilot_clearance_status: 'checkout_required' },
+    new_value:     { status: 'cancelled', checkout_lifecycle_status: 'cancelled_by_admin', reason, pilot_clearance_status: 'checkout_required' },
   })
 
 
@@ -1978,22 +2035,25 @@ export async function adminRejectStandardBankTransfer(
 
 // ─── Finalise standard booking invoice ────────────────────────────────────────
 export async function finaliseStandardBookingInvoice(input: {
-  bookingId:       string
-  vdoReading:      number
-  ratePerHour:     number
+  bookingId: string
+  ratePerHour: number
   landingCharges?: { airportId: string; landingCount: number }[]
-  adminNotes?:     string
+  adminNotes?: string
+  readings: AircraftReadings
 }): Promise<void> {
   const { supabase, adminId } = await requireAdmin()
 
-  if (input.vdoReading == null || isNaN(input.vdoReading) || input.vdoReading <= 0) {
-    throw new Error('VALIDATION: VDO reading must be greater than 0.')
+  validateAircraftReadings(input.readings)
+  const totals = calculateAircraftReadingsTotals(input.readings)
+  const vdoReading = totals.vdo_total
+  if (vdoReading == null || isNaN(vdoReading) || vdoReading <= 0) {
+    throw new Error('VALIDATION: VDO total must be greater than 0.')
   }
-  if (input.vdoReading < 0.1) {
-    throw new Error(`VALIDATION: VDO reading (${input.vdoReading}h) is below minimum of 0.1h.`)
+  if (vdoReading < 0.1) {
+    throw new Error(`VALIDATION: VDO total (${vdoReading}h) is below minimum of 0.1h.`)
   }
-  if (input.vdoReading > 24.0) {
-    throw new Error(`VALIDATION: VDO reading (${input.vdoReading}h) exceeds maximum of 24.0h.`)
+  if (vdoReading > 24.0) {
+    throw new Error(`VALIDATION: VDO total (${vdoReading}h) exceeds maximum of 24.0h.`)
   }
   if (!isFinite(input.ratePerHour) || input.ratePerHour <= 0) {
     throw new Error('VALIDATION: Hourly rate must be a positive number.')
@@ -2008,7 +2068,7 @@ export async function finaliseStandardBookingInvoice(input: {
 
   const { data: booking, error: fetchErr } = await supabase
     .from('bookings')
-    .select('status, booking_type, aircraft_id, booking_owner_user_id, booking_reference')
+    .select('status, booking_type, aircraft_id, booking_owner_user_id, booking_reference, scheduled_start, pic_name, pic_arn')
     .eq('id', input.bookingId)
     .single()
 
@@ -2020,6 +2080,42 @@ export async function finaliseStandardBookingInvoice(input: {
     throw new Error(`VALIDATION: Can only finalise billing from pending_post_flight_review. Current: '${booking.status}'.`)
   }
 
+  const { data: flightRecord, error: flightRecordErr } = await supabase
+    .from('flight_records')
+    .select('*')
+    .eq('booking_id', input.bookingId)
+    .order('submitted_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (flightRecordErr || !flightRecord) {
+    throw new Error('Flight record not found for this booking.')
+  }
+
+  const existingReadings = {
+    vdo_start: flightRecord.vdo_start ?? null,
+    vdo_stop: flightRecord.vdo_stop ?? null,
+    tacho_start: flightRecord.tacho_start ?? null,
+    tacho_stop: flightRecord.tacho_stop ?? null,
+    air_switch_start: flightRecord.air_switch_start ?? null,
+    air_switch_stop: flightRecord.air_switch_stop ?? null,
+    mr_start: flightRecord.mr_start ?? null,
+    mr_stop: flightRecord.mr_stop ?? null,
+    oil_added: flightRecord.oil_added ?? null,
+    oil_total: flightRecord.oil_total ?? null,
+    fuel_added: flightRecord.fuel_added ?? null,
+    fuel_returned: flightRecord.fuel_returned ?? null,
+    landings: flightRecord.landings ?? null,
+    notes: flightRecord.customer_notes ?? null,
+  }
+  const hasReadingChanges = hasMaterialAircraftReadingChanges(existingReadings, input.readings)
+
+  const { data: snapshotProfile } = await supabase
+    .from('profiles')
+    .select('full_name, pilot_arn')
+    .eq('id', booking.booking_owner_user_id)
+    .single()
+
   const rateCents = Math.round(input.ratePerHour * 100)
   const landingChargesJson = (input.landingCharges ?? [])
     .filter(lc => lc.airportId && lc.landingCount > 0)
@@ -2030,7 +2126,7 @@ export async function finaliseStandardBookingInvoice(input: {
     {
       p_booking_id:          input.bookingId,
       p_customer_id:         booking.booking_owner_user_id,
-      p_vdo_reading:         input.vdoReading,
+      p_vdo_reading:         vdoReading,
       p_rate_cents_per_hour: rateCents,
       p_landing_charges:     landingChargesJson.length > 0 ? landingChargesJson : null,
       p_admin_notes:         input.adminNotes ?? null,
@@ -2043,6 +2139,75 @@ export async function finaliseStandardBookingInvoice(input: {
   }
 
   const finalBookingStatus = rpcRows[0].out_final_booking_status as string
+
+  const now = new Date().toISOString()
+
+  const { error: flightRecordUpdateErr } = await supabase
+    .from('flight_records')
+    .update({
+      tacho_start: input.readings.tacho_start,
+      tacho_stop: input.readings.tacho_stop,
+      vdo_start: input.readings.vdo_start,
+      vdo_stop: input.readings.vdo_stop,
+      air_switch_start: input.readings.air_switch_start,
+      air_switch_stop: input.readings.air_switch_stop,
+      mr_start: input.readings.mr_start,
+      mr_stop: input.readings.mr_stop,
+      oil_added: input.readings.oil_added,
+      oil_total: input.readings.oil_total,
+      fuel_added: input.readings.fuel_added,
+      fuel_returned: input.readings.fuel_returned,
+      landings: input.readings.landings,
+      customer_notes: input.readings.notes,
+      status: hasReadingChanges ? 'approved_with_correction' : 'approved',
+      approved_by_user_id: adminId,
+      approved_at: now,
+      admin_notes: input.adminNotes ?? null,
+      correction_reason: hasReadingChanges ? 'Admin adjusted aircraft readings during billing finalisation.' : null,
+      updated_at: now,
+    })
+    .eq('id', flightRecord.id)
+
+  if (flightRecordUpdateErr) {
+    throw new Error('Failed to update the flight record with reviewed readings.')
+  }
+
+  // Recalculate start/stop for the aircraft log from the latest FINALIZED baseline
+  // at the moment of admin approval. This ensures chain continuity if another
+  // flight was approved between the customer's submission and this finalization.
+  // The admin-confirmed totals (stop - start from the form) are preserved exactly;
+  // only the chain anchor (start) is refreshed. flight_records keeps input.readings
+  // as the admin review audit document.
+  const approvalBaseline = await getLastFinalizedLogStop(booking.aircraft_id)
+  const adminTotals = calculateAircraftReadingsTotals(input.readings)
+  const refreshedReadings = buildReadingsFromTotals(
+    {
+      vdo_total:        adminTotals.vdo_total        ?? 0,
+      tacho_total:      adminTotals.tacho_total      ?? 0,
+      air_switch_total: adminTotals.air_switch_total ?? 0,
+      mr_total:         adminTotals.mr_total         ?? 0,
+      oil_added:        input.readings.oil_added,
+      oil_total:        input.readings.oil_total,
+      fuel_added:       input.readings.fuel_added,
+      fuel_returned:       input.readings.fuel_returned,
+      landings:         input.readings.landings,
+      notes:            input.readings.notes,
+    },
+    approvalBaseline,
+  )
+
+  await upsertAircraftFlightLogRecord({
+    aircraft_id: booking.aircraft_id,
+    flight_date: new Date(booking.scheduled_start).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }),
+    pic_user_id: booking.booking_owner_user_id,
+    pic_name: booking.pic_name || snapshotProfile?.full_name || 'Pilot',
+    pic_arn: booking.pic_arn || snapshotProfile?.pilot_arn || null,
+    readings: refreshedReadings,
+    related_booking_id: input.bookingId,
+    source: 'booking_customer_post_flight',
+    review_status: hasReadingChanges ? 'admin_adjusted' : 'admin_confirmed',
+    updated_by: adminId,
+  })
 
   await supabase.from('booking_status_history').insert({
     booking_id:         input.bookingId,
@@ -2060,12 +2225,13 @@ export async function finaliseStandardBookingInvoice(input: {
     actor_user_id: adminId,
     actor_role:    'admin',
     event_type:    'booking_invoice_finalised',
-    event_summary: `Admin finalised standard booking invoice. VDO: ${input.vdoReading}h @ $${input.ratePerHour}/hr. Final status: ${finalBookingStatus}.`,
+    event_summary: `Admin finalised standard booking invoice. VDO: ${vdoReading}h @ $${input.ratePerHour}/hr. Final status: ${finalBookingStatus}.`,
     new_value: {
-      vdo_reading:     input.vdoReading,
+      vdo_reading:     vdoReading,
       rate_per_hour:   input.ratePerHour,
       landing_charges: landingChargesJson,
       booking_status:  finalBookingStatus,
+      review_status:   hasReadingChanges ? 'admin_adjusted' : 'admin_confirmed',
     },
   })
 

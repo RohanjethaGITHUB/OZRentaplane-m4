@@ -1,55 +1,30 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import CustomerBookingShell from '../CustomerBookingShell'
 import BookingRequestForm from './BookingRequestForm'
 import type { User } from '@supabase/supabase-js'
 import type { Profile, UserDocument } from '@/lib/supabase/types'
 import { ADMIN_CONTACT_PHONE_DISPLAY, ADMIN_CONTACT_PHONE_TEL } from '@/lib/contact'
+import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
+import { acceptCurrentBookingTermsFromReadiness } from '@/app/actions/booking-readiness'
+import { evaluateBookingDocumentsReadiness, hasAcceptedCurrentTerms } from '@/lib/booking-readiness'
 
 export const metadata = { title: 'Book a Flight | Pilot Overview' }
 
-// ── Helper: check document validity ─────────────────────────────────────────
-type DocGateResult =
-  | { ok: true }
-  | { ok: false; reason: 'missing_licence' | 'missing_medical' | 'expired_licence' | 'expired_medical' | 'pending' | 'rejected' }
-
-function checkDocumentGate(documents: UserDocument[]): DocGateResult {
-  const today = new Date().toISOString().split('T')[0]
-
-  const licence = documents.find(d => d.document_type === 'pilot_licence')
-  const medical = documents.find(d => d.document_type === 'medical_certificate')
-
-  if (!licence) return { ok: false, reason: 'missing_licence' }
-  if (!medical) return { ok: false, reason: 'missing_medical' }
-
-  if (licence.status === 'rejected') return { ok: false, reason: 'rejected' }
-  if (medical.status === 'rejected') return { ok: false, reason: 'rejected' }
-
-  if (licence.expiry_date && licence.expiry_date < today) return { ok: false, reason: 'expired_licence' }
-  if (medical.expiry_date && medical.expiry_date < today) return { ok: false, reason: 'expired_medical' }
-
-  return { ok: true }
+function readinessTone(state: 'complete' | 'missing' | 'needs_review' | 'expired'): string {
+  if (state === 'complete') return 'text-emerald-200'
+  if (state === 'missing') return 'text-amber-200'
+  if (state === 'expired') return 'text-red-200'
+  return 'text-blue-200'
 }
 
-type GateReason = 'missing_licence' | 'missing_medical' | 'expired_licence' | 'expired_medical' | 'rejected' | 'pending'
-
-function gateMessage(reason: GateReason): { title: string; body: string } {
-  switch (reason) {
-    case 'missing_licence':
-      return { title: 'Pilot Licence Required', body: 'Upload your pilot licence to request a booking.' }
-    case 'missing_medical':
-      return { title: 'Medical Certificate Required', body: 'Upload your medical certificate to request a booking.' }
-    case 'expired_licence':
-      return { title: 'Pilot Licence Expired', body: 'Your pilot licence has expired. Please upload an updated document.' }
-    case 'expired_medical':
-      return { title: 'Medical Certificate Expired', body: 'Your medical certificate has expired. Please upload an updated document.' }
-    case 'rejected':
-      return { title: 'Document Issue', body: 'One or more documents was rejected. Please contact the operations team or re-upload.' }
-    case 'pending':
-    default:
-      return { title: 'Verification Pending', body: 'Your documents are under review. Booking access will be enabled once approved.' }
-  }
+function readinessLabel(state: 'complete' | 'missing' | 'needs_review' | 'expired'): string {
+  if (state === 'complete') return 'Complete'
+  if (state === 'missing') return 'Missing'
+  if (state === 'expired') return 'Expired'
+  return 'Needs review'
 }
 
 // ── Shared locked gate shell ─────────────────────────────────────────────────
@@ -66,6 +41,7 @@ function LockedGate({
   primaryHref,
   secondaryLabel,
   secondaryHref,
+  testId,
 }: {
   user:           User
   profile:        Profile | null
@@ -78,10 +54,11 @@ function LockedGate({
   primaryHref:    string
   secondaryLabel?: string
   secondaryHref?:  string
+  testId?: string
 }) {
   return (
     <CustomerBookingShell user={user} profile={profile}>
-      <div className="px-6 md:px-10 py-10 max-w-2xl mx-auto w-full">
+      <div className="px-6 md:px-10 py-10 max-w-2xl mx-auto w-full" data-testid={testId}>
         <Link
           href="/dashboard/bookings"
           className="inline-flex items-center gap-1 text-oz-blue hover:text-blue-300 text-sm mb-6 transition-colors"
@@ -113,6 +90,92 @@ function LockedGate({
                 {secondaryLabel}
               </Link>
             )}
+          </div>
+        </div>
+      </div>
+    </CustomerBookingShell>
+  )
+}
+
+function BookingReadinessGate({
+  user,
+  profile,
+  hasHistoricalClearance,
+  docItems,
+  termsAccepted,
+  activeTerms,
+}: {
+  user: User
+  profile: Profile | null
+  hasHistoricalClearance: boolean
+  docItems: ReturnType<typeof evaluateBookingDocumentsReadiness>
+  termsAccepted: boolean
+  activeTerms: ReturnType<typeof normalizeActiveCheckoutTerms>
+}) {
+  return (
+    <CustomerBookingShell user={user} profile={profile}>
+      <div className="px-6 md:px-10 py-10 max-w-3xl mx-auto w-full" data-testid="booking-readiness-gate">
+        <Link href="/dashboard/bookings" className="inline-flex items-center gap-1 text-oz-blue hover:text-blue-300 text-sm mb-6 transition-colors">
+          <span className="material-symbols-outlined text-base">arrow_back</span>
+          My Bookings
+        </Link>
+
+        <div className="rounded-[1.25rem] border border-blue-500/20 bg-blue-500/10 p-7 md:p-8">
+          <h2 className="text-2xl font-serif text-white">Complete your pilot file before booking</h2>
+          <p className="mt-3 text-sm text-oz-muted leading-relaxed">
+            Your checkout has already been marked as completed by the OZ Rent A Plane team. Before your first aircraft hire booking, we need to complete your pilot file.
+          </p>
+          {hasHistoricalClearance ? (
+            <p className="mt-2 text-xs text-blue-200/90">Checkout source: Historical/manual checkout completion.</p>
+          ) : null}
+
+          <div className="mt-6 rounded-xl border border-white/10 bg-[#0b1220]/70 p-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Required documents</p>
+            <div className="mt-3 space-y-2">
+              {docItems.map((item) => (
+                <div key={item.key} className="flex items-start justify-between gap-4 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
+                  <div>
+                    <p className="text-sm text-white">{item.label}</p>
+                    <p className="text-xs text-slate-400">{item.detail}</p>
+                  </div>
+                  <span className={`text-xs font-semibold uppercase tracking-wide ${readinessTone(item.state)}`}>
+                    {readinessLabel(item.state)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-white/10 bg-[#0b1220]/70 p-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Terms and conditions</p>
+            <p className={`mt-2 text-sm ${termsAccepted ? 'text-emerald-200' : 'text-amber-200'}`}>
+              {termsAccepted ? 'Accepted current version.' : 'Current version not accepted.'}
+            </p>
+            {!termsAccepted && activeTerms ? (
+              <form action={acceptCurrentBookingTermsFromReadiness} className="mt-3 space-y-3">
+                <label className="flex items-start gap-2 text-sm text-slate-200">
+                  <input required type="checkbox" className="mt-0.5" />
+                  <span>I have read and accept the current booking terms and conditions (v{activeTerms.version}).</span>
+                </label>
+                <div className="flex flex-wrap gap-3">
+                  <Link href={activeTerms.public_url} target="_blank" className="inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white/80 hover:text-white hover:border-white/40">
+                    View terms
+                  </Link>
+                  <button type="submit" className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-blue-500">
+                    Accept current terms
+                  </button>
+                </div>
+              </form>
+            ) : null}
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link href="/dashboard/documents" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-oz-blue hover:bg-blue-400 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors">
+              Complete required items
+            </Link>
+            <Link href="/dashboard" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 border border-white/20 hover:border-white/35 text-white/70 hover:text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors">
+              Return to overview
+            </Link>
           </div>
         </div>
       </div>
@@ -169,6 +232,7 @@ export default async function NewBookingPage() {
         body="Before you can book the aircraft, you need to submit a checkout flight request. Once your checkout flight has been completed, approved, and paid, you'll be able to make aircraft bookings."
         primaryLabel="Book Checkout Flight"
         primaryHref="/dashboard/checkout"
+        testId="checkout-required-gate"
       />
     )
   }
@@ -197,6 +261,7 @@ export default async function NewBookingPage() {
         primaryHref={`/dashboard/bookings/${unpaidCheckout.id}`}
         secondaryLabel="Go to Overview"
         secondaryHref="/dashboard"
+        testId="checkout-payment-required-gate"
       />
     )
   }
@@ -222,22 +287,90 @@ export default async function NewBookingPage() {
         primaryHref="/dashboard/bookings"
         secondaryLabel="Go to Overview"
         secondaryHref="/dashboard"
+        testId="checkout-in-progress-gate"
       />
     )
   }
 
   // ── State D: Cleared to fly — show the booking form ──────────────────────
   if (pilotClearanceStatus === 'cleared_to_fly') {
-    // Enforce paid checkout invoice
-    const { data: paidInvoice } = await supabase
-      .from('checkout_invoices')
-      .select('id')
-      .eq('customer_id', user.id)
-      .eq('status', 'paid')
-      .limit(1)
-      .maybeSingle()
+    const [{ data: paidInvoice }, { data: historicalClearance }, { data: documents }, activeTermsPrimary, { data: latestTermsAcceptance }] = await Promise.all([
+      supabase
+        .from('checkout_invoices')
+        .select('id')
+        .eq('customer_id', user.id)
+        .eq('status', 'paid')
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('historical_checkout_completions')
+        .select('id, checkout_outcome, is_active')
+        .eq('customer_id', user.id)
+        .eq('checkout_outcome', 'cleared_to_fly')
+        .eq('is_active', true)
+        .order('recorded_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('user_documents')
+        .select('*')
+        .eq('user_id', user.id),
+      supabase
+        .from('terms_documents')
+        .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
+        .eq('is_active', true)
+        .order('effective_from', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('booking_terms_acceptances')
+        .select('terms_document_id, terms_version, terms_content_hash, accepted_at')
+        .eq('user_id', user.id)
+        .order('accepted_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ])
 
-    if (!paidInvoice) {
+    const admin = createAdminClient()
+    const authoritativeHistorical = historicalClearance?.id
+      ? historicalClearance
+      : (await admin
+          .from('historical_checkout_completions')
+          .select('id, checkout_outcome, is_active')
+          .eq('customer_id', user.id)
+          .eq('checkout_outcome', 'cleared_to_fly')
+          .eq('is_active', true)
+          .order('recorded_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()).data
+
+    const authoritativePaidInvoice = paidInvoice?.id
+      ? paidInvoice
+      : (await admin
+          .from('checkout_invoices')
+          .select('id')
+          .eq('customer_id', user.id)
+          .eq('status', 'paid')
+          .limit(1)
+          .maybeSingle()).data
+
+    const authoritativeTermsAcceptance = latestTermsAcceptance?.accepted_at
+      ? latestTermsAcceptance
+      : (await admin
+          .from('booking_terms_acceptances')
+          .select('terms_document_id, terms_version, terms_content_hash, accepted_at')
+          .eq('user_id', user.id)
+          .order('accepted_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()).data
+
+    const hasHistoricalClearance = Boolean(authoritativeHistorical?.id)
+    const hasPaidInvoice = Boolean(authoritativePaidInvoice?.id)
+    const invoiceRequired = !hasHistoricalClearance
+    const isClearancePathValid = hasHistoricalClearance || hasPaidInvoice
+
+    if (!isClearancePathValid && invoiceRequired) {
       return (
         <LockedGate
           user={user as User}
@@ -246,19 +379,89 @@ export default async function NewBookingPage() {
           iconColor="text-red-400"
           colorCls="bg-red-500/10 border-red-500/20"
           heading="System Error: Missing Checkout Invoice"
-          body="Your profile is cleared to fly, but we could not find a paid checkout invoice on file. Standard booking access requires a fully paid checkout. Please contact the operations team to resolve this issue."
-          primaryLabel="Return to Overview"
-          primaryHref="/dashboard"
+          body="Your profile is cleared to fly, but we could not find a paid checkout invoice on file. Please contact the operations team to resolve this issue."
+          primaryLabel="Message Team"
+          primaryHref="/dashboard/messages"
+          secondaryLabel="Return to Overview"
+          secondaryHref="/dashboard"
+          testId="missing-checkout-invoice-error"
         />
       )
     }
 
-    const { data: documents } = await supabase
-      .from('user_documents')
-      .select('id, document_type, status, expiry_date, uploaded_at')
-      .eq('user_id', user.id)
+    if (!isClearancePathValid) {
+      return (
+        <LockedGate
+          user={user as User}
+          profile={typedProfile}
+          icon="error"
+          iconColor="text-red-400"
+          colorCls="bg-red-500/10 border-red-500/20"
+          heading="Booking access requires checkout clearance"
+          body="We could not verify a valid checkout completion path for your account. Please contact the operations team so we can resolve this quickly."
+          primaryLabel="Message Team"
+          primaryHref="/dashboard/messages"
+          secondaryLabel="Return to Overview"
+          secondaryHref="/dashboard"
+          testId="checkout-clearance-error-gate"
+        />
+      )
+    }
 
-    const docGate = checkDocumentGate((documents ?? []) as UserDocument[])
+    const docItems = evaluateBookingDocumentsReadiness({
+      documents: (documents ?? []) as UserDocument[],
+      hasNightVfrRating: typedProfile?.has_night_vfr_rating ?? null,
+    })
+    const docsReady = docItems.every((item) => item.state === 'complete')
+
+    const authoritativeActiveTermsRow = activeTermsPrimary.data ?? (await admin
+      .from('terms_documents')
+      .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
+      .eq('is_active', true)
+      .order('effective_from', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()).data
+
+    const activeTerms = normalizeActiveCheckoutTerms((authoritativeActiveTermsRow as Record<string, unknown> | null) ?? null)
+    const termsAccepted = hasAcceptedCurrentTerms(
+      activeTerms ? { id: activeTerms.id, version: activeTerms.version, content_hash: activeTerms.content_hash } : null,
+      (authoritativeTermsAcceptance as { terms_document_id: string | null; terms_version: string | null; terms_content_hash: string | null; accepted_at: string | null } | null),
+    )
+    const decision = {
+      customerId: user.id,
+      clearanceStatus: pilotClearanceStatus,
+      clearanceSource: hasHistoricalClearance ? 'historical_checkout' : hasPaidInvoice ? 'normal_checkout' : 'not_cleared',
+      hasPaidCheckoutInvoice: hasPaidInvoice,
+      checkoutInvoiceRequired: invoiceRequired,
+      documentsComplete: docsReady,
+      missingDocuments: docItems.filter((item) => item.state !== 'complete').map((item) => item.key),
+      currentTermsAccepted: termsAccepted,
+      bookingReady: docsReady && termsAccepted,
+      blockingReasons: [
+        ...(docsReady ? [] : ['documents_incomplete']),
+        ...(termsAccepted ? [] : ['terms_not_accepted']),
+      ],
+    } as const
+    const shouldLogBookingEligibility =
+      process.env.DEBUG_BOOKING_ELIGIBILITY === 'true' ||
+      process.env.NODE_ENV !== 'production'
+    if (shouldLogBookingEligibility) {
+      console.info('[booking-eligibility]', decision)
+    }
+
+    if (!docsReady || !termsAccepted) {
+      return (
+        <BookingReadinessGate
+          user={user as User}
+          profile={typedProfile}
+          hasHistoricalClearance={hasHistoricalClearance}
+          docItems={docItems}
+          termsAccepted={termsAccepted}
+          activeTerms={activeTerms}
+        />
+      )
+    }
 
     const { data: aircraft } = await supabase
       .from('aircraft')
@@ -278,12 +481,11 @@ export default async function NewBookingPage() {
       )
     }
 
-    const eligibilityBlocked = !typedProfile?.full_name || !typedProfile?.pilot_arn || !docGate.ok
+    const eligibilityBlocked = !typedProfile?.full_name || !typedProfile?.pilot_arn
 
     const eligibilityWarnings: string[] = []
     if (!typedProfile?.full_name) eligibilityWarnings.push('Your profile name is missing. Please update your profile.')
     if (!typedProfile?.pilot_arn) eligibilityWarnings.push('Your Aviation Reference Number has not been recorded. Please contact operations.')
-    if (!docGate.ok) eligibilityWarnings.push(gateMessage(docGate.reason).body)
 
     const BOOKING_HOURLY_RATE = 320
 
@@ -298,11 +500,11 @@ export default async function NewBookingPage() {
           picName={typedProfile?.full_name ?? null}
           picArn={typedProfile?.pilot_arn ?? null}
           eligibilityBlocked={eligibilityBlocked}
-        eligibilityWarnings={eligibilityWarnings}
-        initialLastFlightDate={typedProfile?.last_flight_date ?? ''}
-      />
-    </CustomerBookingShell>
-  )
+          eligibilityWarnings={eligibilityWarnings}
+          initialLastFlightDate={typedProfile?.last_flight_date ?? ''}
+        />
+      </CustomerBookingShell>
+    )
   }
 
   // ── Other statuses (additional checkout, reschedule, not eligible) ────────

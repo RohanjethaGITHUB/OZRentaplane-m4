@@ -38,7 +38,7 @@ function FaqItem({ item }: { item: FaqItemType }) {
   )
 }
 
-const HERO_CHIPS = ['Fuel Included', 'GST Included', '$25 Per Landing', 'Billed by VDO Hours']
+const HERO_CHIPS = ['Wet Hire', 'GST Included', '$25 Per Landing', 'Billed by VDO Hours']
 
 const PRICING_TIERS = [
   { tier: 'Less than 10 VDO hours', rate: '$330', highlight: false },
@@ -66,8 +66,8 @@ const MINIMUM_RULES = [
 const INCLUDED_CARDS = [
   {
     icon: 'local_gas_station',
-    title: 'Fuel Included',
-    copy: 'Wet hire rates mean fuel is covered in your hourly rate.',
+    title: 'Wet Hire',
+    copy: 'Fuel is built into your hourly rate for simpler, more predictable pricing.',
   },
   {
     icon: 'receipt',
@@ -90,14 +90,19 @@ const INCLUDED_CARDS = [
     copy: 'Final charges are reviewed after your flight record is submitted.',
   },
   {
-    icon: 'workspace_premium',
-    title: 'Premium Aircraft Access',
-    copy: 'Access a well-maintained aircraft through a clear booking process.',
+    icon: 'headphones',
+    title: 'Spare Headsets Included for Free',
+    copy: 'Additional headsets are available at no extra cost, making it easier to bring passengers along comfortably.',
   },
   {
     icon: 'garage',
     title: 'Easy hangar access',
     copy: 'Aircraft access is straightforward with sliding hangar doors and 24-hour hangar availability.',
+  },
+  {
+    icon: 'health_and_safety',
+    title: 'Life Vests Included at No Extra Cost',
+    copy: 'Life vests are provided for suitable flights at no extra charge, supporting safer planning for coastal or over-water routes.',
   },
 ]
 
@@ -113,8 +118,8 @@ const FAQ_ITEMS: FaqItemType[] = [
       'No. These are flexible hourly rate tiers. Your hourly rate depends on the total VDO hours flown for that booking.',
   },
   {
-    question: 'Is fuel included in the hourly rate?',
-    answer: 'Yes. Standard hire rates shown on this page include fuel.',
+    question: 'Is this Wet Hire pricing?',
+    answer: 'Yes. Standard hire rates on this page are Wet Hire rates.',
   },
   {
     question: 'Is GST included?',
@@ -169,7 +174,7 @@ export default function PricingPage() {
             </StaggerItem>
             <StaggerItem duration={1.05}>
               <p className="mb-10 max-w-lg font-sans text-base leading-relaxed text-[#C7D2E5]">
-                Simple hourly pricing based on VDO hours flown. Fuel and GST included. $25 per landing.
+                Simple hourly pricing based on VDO hours flown. Wet Hire and GST included. $25 per landing.
               </p>
             </StaggerItem>
           </StaggerContainer>
@@ -204,7 +209,7 @@ export default function PricingPage() {
               <div className="rounded-xl border border-white/12 bg-[#081B34]/70 p-4">
                 <p className="inline-flex items-center gap-2 font-sans text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-[#D7E2F6]">
                   <Icon name="verified" className="!text-[14px] text-[#E0B13B]" />
-                  Fuel Included · GST Included · $25 Per Landing
+                  Wet Hire · GST Included · $25 Per Landing
                 </p>
               </div>
               <div className="rounded-xl border border-white/12 bg-[#081B34]/70 p-4">
@@ -241,7 +246,7 @@ export default function PricingPage() {
                 </div>
               ))}
               <div className="flex flex-wrap justify-center gap-6 px-6 py-4 md:px-8">
-                {['Fuel Included', 'GST Included', '$25 Landing Fee'].map((tag) => (
+                {['Wet Hire', 'GST Included', '$25 Landing Fee'].map((tag) => (
                   <span
                     key={tag}
                     className="font-sans text-[0.64rem] font-semibold uppercase tracking-[0.14em] text-[#98ACCA]"
@@ -350,7 +355,7 @@ export default function PricingPage() {
         <FadeUp className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-12" duration={1.05} viewportMargin="-80px">
           <div className="lg:col-span-7">
             <p className="font-sans text-[0.67rem] font-semibold uppercase tracking-[0.2em] text-[#E0B13B]">What&apos;s Included</p>
-            <h2 className="mt-3 font-serif text-4xl text-[#F4F6FA] md:text-6xl">What&apos;s Included</h2>
+            <h2 className="mt-3 font-serif text-4xl text-[#F4F6FA] md:text-6xl">Everything Built Into Your Hire</h2>
             <p className="mt-4 max-w-2xl font-sans text-[0.95rem] leading-relaxed text-[#A6B2C6]">
               Everything you need for a seamless flight experience, with no hidden fees.
             </p>

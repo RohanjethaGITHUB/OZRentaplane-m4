@@ -247,11 +247,14 @@ export type FlightRecord = {
   air_switch_start: number | null
   air_switch_stop: number | null
   air_switch_total: number | null   // generated column
+  mr_start: number | null
+  mr_stop: number | null
+  mr_total: number | null
   add_to_mr: number | null
   oil_added: number | null
   oil_total: number | null
   fuel_added: number | null
-  fuel_actual: number | null
+  fuel_returned: number | null
   landings: number | null
   customer_notes: string | null
   admin_notes: string | null
@@ -426,17 +429,15 @@ export type SubmitFlightRecordInput = {
   date: string              // YYYY-MM-DD
   pic_name?: string | null
   pic_arn?: string | null
-  tacho_start?: number | null
-  tacho_stop?: number | null
-  vdo_start?: number | null
-  vdo_stop?: number | null
-  air_switch_start?: number | null
-  air_switch_stop?: number | null
-  add_to_mr?: number | null
+  // Customers submit totals only; backend computes start/stop from previous finalized log
+  vdo_total: number
+  tacho_total: number
+  air_switch_total: number
+  mr_total: number
   oil_added?: number | null
   oil_total?: number | null
   fuel_added?: number | null
-  fuel_actual?: number | null
+  fuel_returned?: number | null
   landings?: number | null
   landing_rows?: FlightRecordLandingRow[]
   customer_notes?: string | null
@@ -475,17 +476,15 @@ export type ApproveFlightRecordInput = {
 export type ResubmitFlightRecordInput = {
   flight_record_id: string
   booking_id: string
-  tacho_start?: number | null
-  tacho_stop?: number | null
-  vdo_start?: number | null
-  vdo_stop?: number | null
-  air_switch_start?: number | null
-  air_switch_stop?: number | null
-  add_to_mr?: number | null
+  // Customers resubmit totals only; backend recomputes start/stop from previous finalized log
+  vdo_total: number
+  tacho_total: number
+  air_switch_total: number
+  mr_total: number
   oil_added?: number | null
   oil_total?: number | null
   fuel_added?: number | null
-  fuel_actual?: number | null
+  fuel_returned?: number | null
   landings?: number | null
   customer_notes?: string | null
 }

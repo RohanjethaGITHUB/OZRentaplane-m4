@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import type { PilotClearanceStatus, AccountStatus } from '@/lib/supabase/types'
 import { CLEARANCE_ACTION } from './clearance-actions'
 
@@ -6,6 +7,7 @@ type Props = {
   clearanceStatus: PilotClearanceStatus
   accountStatus: AccountStatus
   latestCheckoutBookingId: string | null
+  historicalCheckoutAction?: ReactNode
 }
 
 // Visual style per urgency level
@@ -24,7 +26,7 @@ const STATUS_STYLE_OVERRIDE: Partial<Record<PilotClearanceStatus, typeof URGENCY
   checkout_payment_required: { cardBg: 'bg-orange-900/10', cardBorder: 'border-orange-500/20', iconColor: 'text-orange-400' },
 }
 
-export default function NextActionCard({ clearanceStatus, accountStatus, latestCheckoutBookingId }: Props) {
+export default function NextActionCard({ clearanceStatus, accountStatus, latestCheckoutBookingId, historicalCheckoutAction }: Props) {
   if (accountStatus === 'blocked') {
     return (
       <div className="backdrop-blur-xl border rounded-xl p-6 flex flex-col gap-4 bg-red-900/10 border-red-500/20">
@@ -86,6 +88,9 @@ export default function NextActionCard({ clearanceStatus, accountStatus, latestC
           })}
         </div>
       )}
+      {clearanceStatus === 'checkout_required' && historicalCheckoutAction ? (
+        <div className="mt-1">{historicalCheckoutAction}</div>
+      ) : null}
     </div>
   )
 }

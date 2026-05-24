@@ -3,6 +3,9 @@ import { redirect } from 'next/navigation'
 import { unstable_noStore as noStore } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import AdminPortalHero from '@/components/AdminPortalHero'
+import { getAllMaintenanceAlerts } from '@/app/actions/aircraft-maintenance'
+import type { MaintenanceAlert } from '@/app/actions/aircraft-maintenance'
+import { countAwaitingFlightRecords, getOldestAwaitingFlightRecordEnd } from '@/lib/booking/flight-record-status'
 
 export const metadata = { title: 'Actions | OZRentAPlane' }
 export const dynamic = 'force-dynamic'
@@ -261,7 +264,7 @@ export default async function AdminActionsPage() {
     { data: checkoutCancelRequestRows },
     { data: checkoutLifecycleCancelledRows },
     { count: upcomingFlights },
-    { count: awaitingFlightRecords },
+    { data: awaitingFlightRecordRows },
     { count: postFlightReviewRequired },
     { count: bookingPaymentsRequired },
     { count: manualBookingPaymentsReview },
@@ -276,7 +279,7 @@ export default async function AdminActionsPage() {
     oldestCheckoutReschedulePending,
     oldestCheckoutCancellations,
     oldestUpcomingFlights,
-    oldestAwaitingRecords,
+    ,
     oldestPostFlightReview,
     oldestBookingPayments,
     oldestManualBookingPayments,
@@ -297,7 +300,12 @@ export default async function AdminActionsPage() {
     supabase.from('bookings').select('id, updated_at').eq('booking_type', 'checkout').in('checkout_lifecycle_status', ['cancelled_by_customer', 'cancelled_by_admin']),
 
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').in('status', ['confirmed', 'ready_for_dispatch']).gte('scheduled_start', nowIso),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'awaiting_flight_record'),
+    supabase
+      .from('bookings')
+      .select('id, status, scheduled_end, flight_records(status, submitted_at)')
+      .eq('booking_type', 'standard')
+      .in('status', ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record', 'flight_record_overdue'])
+      .lte('scheduled_end', nowIso),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'pending_post_flight_review'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'payment_pending'),
     supabase.from('booking_bank_transfer_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending_review'),
@@ -367,13 +375,7 @@ export default async function AdminActionsPage() {
         { type: 'gte', column: 'scheduled_start', value: nowIso },
       ],
     }),
-    getOldestTimestamp(supabase, {
-      table: 'bookings',
-      filters: [
-        { type: 'eq', column: 'booking_type', value: 'standard' },
-        { type: 'eq', column: 'status', value: 'awaiting_flight_record' },
-      ],
-    }),
+    Promise.resolve(null),
     getOldestTimestamp(supabase, {
       table: 'bookings',
       filters: [
@@ -397,6 +399,9 @@ export default async function AdminActionsPage() {
       filters: [{ type: 'eq', column: 'status', value: 'pending' }],
     }),
   ])
+
+  const awaitingFlightRecords = countAwaitingFlightRecords(awaitingFlightRecordRows)
+  const oldestAwaitingRecords = getOldestAwaitingFlightRecordEnd(awaitingFlightRecordRows)
 
   const checkoutRowsAll: ActionRowData[] = [
     // Checkout cancellation awareness queue (visible records, non-actionable).
@@ -451,7 +456,7 @@ export default async function AdminActionsPage() {
       title: 'Checkout payments required',
       description: 'Follow up checkout bookings waiting for payment.',
       count: checkoutPaymentsRequired ?? 0,
-      href: '/admin/checkouts/payments?tab=payment_required',
+      href: '/admin/checkouts/all?status=payment_required',
       priority: 'medium',
       blockerRank: 0,
       nextStep: 'Review payment',
@@ -574,6 +579,9 @@ export default async function AdminActionsPage() {
   ]
   const bookingRows = bookingRowsAll.filter((row) => row.count > 0)
 
+  // Maintenance alerts — runs concurrently with other data already fetched
+  const maintenanceAlerts = await getAllMaintenanceAlerts().catch(() => [] as MaintenanceAlert[])
+
   const openActions = [...checkoutRows, ...bookingRows].reduce((sum, row) => sum + row.count, 0)
   const urgentCount = [...checkoutRows, ...bookingRows]
     .filter((row) => row.priority === 'high')
@@ -675,6 +683,65 @@ export default async function AdminActionsPage() {
             moreLabel="View all booking actions"
           />
         </section>
+
+        {/* Fleet Maintenance Reminders */}
+        {maintenanceAlerts.length > 0 && (
+          <section className="rounded-3xl border border-amber-500/20 bg-[#14100a]/75 shadow-[0_10px_44px_rgba(2,7,18,0.45)] p-5 sm:p-6">
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="w-14 h-14 rounded-full bg-amber-500/15 border border-amber-400/20 text-amber-300 flex items-center justify-center mb-4">
+                <span className="material-symbols-outlined text-2xl">build</span>
+              </div>
+              <h2 className="text-[2rem] leading-tight text-white font-semibold">Fleet Maintenance</h2>
+              <p className="mt-2 text-slate-400">One or more aircraft have upcoming or overdue maintenance.</p>
+            </div>
+            <div className="space-y-3">
+              {maintenanceAlerts.map((alert) => (
+                <Link
+                  key={alert.aircraft_id}
+                  href={`/admin/aircraft/${alert.aircraft_id}/maintenance`}
+                  className="group block rounded-2xl border border-white/10 bg-[#0a1424]/90 px-5 py-4 sm:px-6 sm:py-5 transition-all hover:border-amber-300/35 hover:bg-[#0d1a2f]/95"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[1.05rem] font-semibold text-white">{alert.aircraft_registration}</p>
+                      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+                        {alert.oil_change_status !== 'ok' && (
+                          <span className={`inline-flex items-center gap-1.5 ${alert.oil_change_status === 'overdue' ? 'text-red-300' : 'text-amber-300'}`}>
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${alert.oil_change_status === 'overdue' ? 'bg-red-400' : 'bg-amber-400'}`} />
+                            {alert.oil_change_status === 'overdue'
+                              ? `Oil change overdue${alert.oil_hours_remaining != null ? ` by ${Math.abs(alert.oil_hours_remaining).toFixed(1)} MR hours` : ''}`
+                              : `Oil change due soon${alert.oil_hours_remaining != null ? ` — ${alert.oil_hours_remaining.toFixed(1)} MR hours remaining` : ''}`
+                            }
+                          </span>
+                        )}
+                        {alert.maintenance_100hr_status !== 'ok' && (
+                          <span className={`inline-flex items-center gap-1.5 ${alert.maintenance_100hr_status === 'overdue' ? 'text-red-300' : 'text-amber-300'}`}>
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${alert.maintenance_100hr_status === 'overdue' ? 'bg-red-400' : 'bg-amber-400'}`} />
+                            {alert.maintenance_100hr_status === 'overdue'
+                              ? `100-hour maintenance overdue${alert.maintenance_hours_remaining != null ? ` by ${Math.abs(alert.maintenance_hours_remaining).toFixed(1)} MR hours` : ''}`
+                              : `100-hour maintenance due soon${alert.maintenance_hours_remaining != null ? ` — ${alert.maintenance_hours_remaining.toFixed(1)} MR hours remaining` : ''}`
+                            }
+                          </span>
+                        )}
+                      </div>
+                      {alert.current_mr != null && (
+                        <p className="mt-2 text-xs text-slate-500">Current MR: {alert.current_mr.toFixed(1)}</p>
+                      )}
+                    </div>
+                    <div className="pt-1 shrink-0 text-slate-400 group-hover:text-amber-200 transition-colors">
+                      <span className="material-symbols-outlined text-[22px]">chevron_right</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+            <div className="pt-4 text-center">
+              <Link href="/admin/aircraft/maintenance" className="text-sm text-amber-200/70 hover:text-amber-200">
+                View maintenance settings
+              </Link>
+            </div>
+          </section>
+        )}
       </div>
     </>
   )

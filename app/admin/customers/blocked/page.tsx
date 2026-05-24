@@ -2,8 +2,15 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import AdminPortalHero from '@/components/AdminPortalHero'
+import { AdminDataTable, AdminStatusBadge } from '@/app/admin/components/AdminListView'
 
 export const metadata = { title: 'Blocked Customers | Admin' }
+const DATE_FMT = new Intl.DateTimeFormat('en-AU', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  timeZone: 'Australia/Sydney',
+})
 
 export default async function BlockedCustomersPage() {
   const supabase = await createClient()
@@ -20,18 +27,31 @@ export default async function BlockedCustomersPage() {
   return (
     <>
       <AdminPortalHero eyebrow="Customers" title="Blocked Customers" subtitle="Operationally blocked customer accounts and review reasons." />
-      <div className="max-w-[1200px] mx-auto px-6 md:px-10 py-10 pb-24 space-y-3">
-        {(blocked ?? []).map((c) => (
-          <div key={c.id} className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-white text-base">{c.full_name || 'Unnamed customer'}</p>
-              <p className="text-sm text-slate-300">Date blocked: {new Date(c.updated_at).toLocaleDateString('en-AU')}</p>
-              <p className="text-sm text-rose-200">Reason: {c.admin_review_note || 'No reason recorded'}</p>
-            </div>
-            <Link href={`/admin/users/${c.id}`} className="text-blue-200">View Customer</Link>
-          </div>
-        ))}
-        {(!blocked || blocked.length === 0) && <div className="rounded-xl border border-white/10 bg-white/[0.02] p-8 text-slate-400">No blocked customers.</div>}
+      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24">
+        <AdminDataTable columns={['Customer', 'Status', 'Last updated']}>
+          {(!blocked || blocked.length === 0) ? (
+            <tr>
+              <td colSpan={3} className="px-5 py-12 text-center text-[var(--admin-text-muted)]">No blocked customers.</td>
+            </tr>
+          ) : (
+            blocked.map((c) => (
+              <tr key={c.id} className="border-t border-[var(--admin-divider)] hover:bg-[var(--admin-row-hover)] transition-colors">
+                <td className="px-5 py-[16px]">
+                  <Link href={`/admin/users/${c.id}`} className="block">
+                    <p className="text-lg leading-tight font-semibold text-[var(--admin-text)]">{c.full_name || 'Unnamed customer'}</p>
+                    <p className="mt-1 text-sm text-[var(--admin-text-muted)]">{c.admin_review_note || 'No reason recorded'}</p>
+                  </Link>
+                </td>
+                <td className="px-5 py-[16px]">
+                  <Link href={`/admin/users/${c.id}`} className="block"><AdminStatusBadge label="Blocked" tone="red" /></Link>
+                </td>
+                <td className="px-5 py-[16px] text-[14px] text-[var(--admin-text)]">
+                  <Link href={`/admin/users/${c.id}`} className="block">{DATE_FMT.format(new Date(c.updated_at))}</Link>
+                </td>
+              </tr>
+            ))
+          )}
+        </AdminDataTable>
       </div>
     </>
   )

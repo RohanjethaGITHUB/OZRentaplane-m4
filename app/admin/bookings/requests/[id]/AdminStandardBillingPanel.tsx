@@ -3,6 +3,15 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { finaliseStandardBookingInvoice } from '@/app/actions/admin-booking'
+import AircraftReadingsForm from '@/components/aircraft/AircraftReadingsForm'
+import {
+  calculateAircraftReadingsTotals,
+  numberInputValue,
+  type AircraftContinuityBaseline,
+  type AircraftReadingsFormValues,
+  validateAircraftReadings,
+} from '@/lib/aircraft-readings'
+import type { FlightRecord } from '@/lib/supabase/booking-types'
 
 type Airport = {
   id: string
@@ -12,47 +21,67 @@ type Airport = {
 }
 
 type LandingChargeRow = {
-  id:           number
-  airportId:    string
+  id: number
+  airportId: string
   landingCount: string
 }
 
 type Props = {
-  bookingId:              string
-  airports:              Airport[]
-  customerCreditCents:   number
-  initialVdo?:           number
-  initialLandings?:      number
-  initialNotes?:         string
+  bookingId: string
+  airports: Airport[]
+  customerCreditCents: number
+  initialFlightRecord: FlightRecord
+  startSuggestions: AircraftContinuityBaseline
   redirectAfterSuccess?: string
 }
 
 const LANDING_FEE_CENTS = 2500
-
 let rowIdCounter = 0
 
-function parseVdoReading(s: string): number {
-  const n = parseFloat(s)
-  if (isNaN(n) || n <= 0) return NaN
-  if (!/^\d+(\.\d)?$/.test(s.trim())) return NaN
-  return n
+function getInitialAirportId(airports: Airport[]) {
+  return airports.find((airport) => airport.icao_code === 'YSBK' || airport.name.toLowerCase().includes('bankstown'))?.id ?? ''
 }
 
-export default function AdminStandardBillingPanel({ bookingId, airports, customerCreditCents, initialVdo, initialLandings, initialNotes, redirectAfterSuccess }: Props) {
+function getNum(value: string): number | null {
+  if (!value.trim()) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+export default function AdminStandardBillingPanel({
+  bookingId,
+  airports,
+  customerCreditCents,
+  initialFlightRecord,
+  startSuggestions,
+  redirectAfterSuccess,
+}: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-
-  const initialAirportId = airports.find(a => a.icao_code === 'YSBK' || a.name.toLowerCase().includes('bankstown'))?.id ?? ''
-
-  const [vdoReading, setVdoReading] = useState(initialVdo != null ? initialVdo.toString() : '')
   const [hourlyRate, setHourlyRate] = useState('290')
-  const [adminNotes, setAdminNotes] = useState(initialNotes ?? '')
-  const [landingRows, setLandingRows] = useState<LandingChargeRow[]>(
-    initialLandings != null && initialLandings > 0
-      ? [{ id: ++rowIdCounter, airportId: initialAirportId, landingCount: initialLandings.toString() }]
+  const [adminNotes, setAdminNotes] = useState(initialFlightRecord.customer_notes ?? '')
+  const [landings, setLandings] = useState(numberInputValue(initialFlightRecord.landings))
+  const [readings, setReadings] = useState<AircraftReadingsFormValues>({
+    tacho_start: numberInputValue(initialFlightRecord.tacho_start),
+    tacho_stop: numberInputValue(initialFlightRecord.tacho_stop),
+    vdo_start: numberInputValue(initialFlightRecord.vdo_start),
+    vdo_stop: numberInputValue(initialFlightRecord.vdo_stop),
+    air_switch_start: numberInputValue(initialFlightRecord.air_switch_start),
+    air_switch_stop: numberInputValue(initialFlightRecord.air_switch_stop),
+    mr_start: numberInputValue(initialFlightRecord.mr_start),
+    mr_stop: numberInputValue(initialFlightRecord.mr_stop),
+    oil_added: numberInputValue(initialFlightRecord.oil_added),
+    oil_total: numberInputValue(initialFlightRecord.oil_total),
+    fuel_added: numberInputValue(initialFlightRecord.fuel_added),
+    fuel_returned: numberInputValue(initialFlightRecord.fuel_returned),
+  })
+  const [landingRows, setLandingRows] = useState<LandingChargeRow[]>(() => {
+    const initialAirportId = getInitialAirportId(airports)
+    return initialFlightRecord.landings != null && initialFlightRecord.landings > 0
+      ? [{ id: ++rowIdCounter, airportId: initialAirportId, landingCount: String(initialFlightRecord.landings) }]
       : [{ id: ++rowIdCounter, airportId: '', landingCount: '1' }]
-  )
+  })
 
   function run(fn: () => Promise<void>) {
     setError(null)
@@ -63,83 +92,102 @@ export default function AdminStandardBillingPanel({ bookingId, airports, custome
           router.push(redirectAfterSuccess)
         }
         router.refresh()
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Action failed. Please try again.'
-        setError(msg.replace(/^VALIDATION: /, ''))
+      } catch (actionError) {
+        const message = actionError instanceof Error ? actionError.message : 'Action failed. Please try again.'
+        setError(message.replace(/^VALIDATION: /, ''))
       }
     })
   }
 
-  // ── Parsed values ─────────────────────────────────────────────────────────
-  const hourlyRateNum   = parseFloat(hourlyRate)
-  const validHourlyRate = !isNaN(hourlyRateNum) && hourlyRateNum > 0
-  const hourlyRateCents = validHourlyRate ? Math.round(hourlyRateNum * 100) : 0
-
-  const vdoReadingNum   = parseVdoReading(vdoReading)
-  const validVdoReading = !isNaN(vdoReadingNum)
-  const vdoReadingValid = validVdoReading && vdoReadingNum >= 0.1 && vdoReadingNum <= 24.0
-
-  const vdoBaseCents = vdoReadingValid && validHourlyRate
-    ? Math.round(vdoReadingNum * hourlyRateCents)
-    : 0
-
-  const landingSubtotalCents = landingRows.reduce((sum, row) => {
-    const count = parseInt(row.landingCount, 10)
-    if (!row.airportId || isNaN(count) || count <= 0) return sum
-    return sum + LANDING_FEE_CENTS * count
-  }, 0)
-
-  const subtotalCents      = vdoBaseCents + landingSubtotalCents
-  const creditApplicable   = Math.min(customerCreditCents, subtotalCents)
-  const estimatedAmountDue = Math.max(subtotalCents - creditApplicable, 0)
-
-  const vdoErrorMsg = validVdoReading && !vdoReadingValid
-    ? vdoReadingNum < 0.1
-      ? `VDO reading (${vdoReadingNum}h) is below the 0.1h minimum — check the paper sheet`
-      : `VDO reading (${vdoReadingNum}h) exceeds the 24.0h maximum — check the paper sheet`
-    : null
-
-  const hasIncompleteLandingRows = landingRows.some(row => {
-    const count     = parseInt(row.landingCount, 10)
-    const hasAirport = !!row.airportId
-    const hasCount   = !isNaN(count) && count > 0
-    return (hasCount && !hasAirport) || (hasAirport && !hasCount)
-  })
-
-  const hasValidLandingRow = landingRows.some(row => {
-    const count = parseInt(row.landingCount, 10)
-    return !!row.airportId && !isNaN(count) && count > 0
-  })
-
-  const canSubmit =
-    vdoReadingValid &&
-    validHourlyRate &&
-    !hasIncompleteLandingRows &&
-    subtotalCents > 0
-
   function addLandingRow() {
-    setLandingRows(rows => [...rows, { id: ++rowIdCounter, airportId: '', landingCount: '1' }])
+    setLandingRows((current) => [...current, { id: ++rowIdCounter, airportId: '', landingCount: '1' }])
   }
 
   function removeLandingRow(id: number) {
-    setLandingRows(rows => rows.length > 1 ? rows.filter(r => r.id !== id) : rows)
+    setLandingRows((current) => current.length > 1 ? current.filter((row) => row.id !== id) : current)
   }
 
   function handleLandingChange(id: number, field: 'airportId' | 'landingCount', value: string) {
-    setLandingRows(rows => rows.map(r => r.id === id ? { ...r, [field]: value } : r))
+    setLandingRows((current) => current.map((row) => row.id === id ? { ...row, [field]: value } : row))
   }
 
+  const hourlyRateNum = Number(hourlyRate)
+  const validHourlyRate = Number.isFinite(hourlyRateNum) && hourlyRateNum > 0
+  const landingsNum = landings.trim() === '' ? null : Number(landings)
+
+  const normalisedReadings = {
+    vdo_start: getNum(readings.vdo_start),
+    vdo_stop: getNum(readings.vdo_stop),
+    tacho_start: getNum(readings.tacho_start),
+    tacho_stop: getNum(readings.tacho_stop),
+    air_switch_start: getNum(readings.air_switch_start),
+    air_switch_stop: getNum(readings.air_switch_stop),
+    mr_start: getNum(readings.mr_start),
+    mr_stop: getNum(readings.mr_stop),
+    oil_added: getNum(readings.oil_added),
+    oil_total: getNum(readings.oil_total),
+    fuel_added: getNum(readings.fuel_added),
+    fuel_returned: getNum(readings.fuel_returned),
+    landings: landingsNum,
+    notes: adminNotes.trim() || null,
+  }
+
+  let readingsError: string | null = null
+  try {
+    validateAircraftReadings(normalisedReadings)
+  } catch (validationError) {
+    readingsError = validationError instanceof Error ? validationError.message.replace(/^VALIDATION: /, '') : 'Invalid readings.'
+  }
+
+  const totals = readingsError ? null : calculateAircraftReadingsTotals(normalisedReadings)
+  const vdoReading = totals?.vdo_total ?? null
+  const landingRowErrors = landingRows.map((row) => {
+    const count = Number(row.landingCount)
+    const hasAirport = !!row.airportId
+    const hasCount = Number.isInteger(count) && count > 0
+    if (!hasAirport && !row.landingCount.trim()) return null
+    if (!hasAirport) return 'Airport is required.'
+    if (!hasCount) return 'Landing count must be at least 1.'
+    return null
+  })
+  const hasIncompleteLandingRows = landingRowErrors.some(Boolean)
+  const validLandingCharges = landingRows
+    .filter((row) => row.airportId && Number.isInteger(Number(row.landingCount)) && Number(row.landingCount) > 0)
+    .map((row) => ({ airportId: row.airportId, landingCount: Number(row.landingCount) }))
+  const landingSubtotalCents = validLandingCharges.reduce((sum, row) => sum + LANDING_FEE_CENTS * row.landingCount, 0)
+  const vdoBaseCents = validHourlyRate && vdoReading != null ? Math.round(vdoReading * Math.round(hourlyRateNum * 100)) : 0
+  const subtotalCents = vdoBaseCents + landingSubtotalCents
+  const creditApplicable = Math.min(customerCreditCents, subtotalCents)
+  const estimatedAmountDue = Math.max(subtotalCents - creditApplicable, 0)
+
   function handleSubmit() {
-    const validLandingCharges = landingRows
-      .filter(r => r.airportId && parseInt(r.landingCount, 10) > 0)
-      .map(r => ({ airportId: r.airportId, landingCount: parseInt(r.landingCount, 10) }))
+    if (readingsError) {
+      setError(readingsError)
+      return
+    }
+    if (!validHourlyRate) {
+      setError('Hourly rate must be a positive number.')
+      return
+    }
+    if (landingsNum != null && (!Number.isInteger(landingsNum) || landingsNum < 0)) {
+      setError('Landings must be a non-negative whole number.')
+      return
+    }
+    if (vdoReading == null || vdoReading <= 0) {
+      setError('Calculated VDO total must be greater than 0.')
+      return
+    }
+    if (hasIncompleteLandingRows) {
+      setError('Complete or remove incomplete landing rows before submitting.')
+      return
+    }
 
     run(() => finaliseStandardBookingInvoice({
       bookingId,
-      vdoReading:    vdoReadingNum,
-      ratePerHour:   hourlyRateNum,
+      ratePerHour: hourlyRateNum,
       landingCharges: validLandingCharges.length > 0 ? validLandingCharges : undefined,
-      adminNotes:    adminNotes.trim() || undefined,
+      adminNotes: adminNotes.trim() || undefined,
+      readings: normalisedReadings,
     }))
   }
 
@@ -150,65 +198,46 @@ export default function AdminStandardBillingPanel({ bookingId, airports, custome
           Flight Billing
         </h2>
         <p className="text-[10px] text-slate-600 leading-relaxed">
-          Enter the VDO reading from the paper sheet to generate a payment request for the customer.
+          Review and finalise the customer-submitted aircraft readings. The calculated VDO total becomes the billing source of truth.
         </p>
       </div>
 
-      {/* ── Hourly rate ────────────────────────────────────────────────────── */}
-      <div>
-        <label className="block text-[10px] font-medium text-slate-400 mb-1">
-          Hourly rate <span className="text-rose-400">*</span>
-        </label>
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 pointer-events-none">$</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min="0.01"
-              step="0.01"
-              value={hourlyRate}
-              onChange={e => setHourlyRate(e.target.value)}
-              placeholder="290.00"
-              className={`w-full bg-[#0a0b0d] border rounded-lg pl-6 pr-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-slate-500/50 ${
-                hourlyRate && !validHourlyRate ? 'border-rose-500/40' : 'border-white/10'
-              }`}
-              disabled={isPending}
-            />
-          </div>
-          <span className="text-[10px] text-slate-500 flex-shrink-0">/hr</span>
-        </div>
-        {hourlyRate && !validHourlyRate && (
-          <p className="text-[9px] text-rose-400/70 mt-0.5">Enter a positive dollar amount, e.g. 290</p>
-        )}
-      </div>
-
-      {/* ── VDO reading ────────────────────────────────────────────────────── */}
-      <div>
-        <label className="block text-[10px] font-medium text-slate-400 mb-1">
-          VDO reading <span className="text-rose-400">*</span>
-        </label>
-        <input
-          type="text"
-          inputMode="decimal"
-          value={vdoReading}
-          onChange={e => setVdoReading(e.target.value)}
-          placeholder="e.g. 1.4"
-          className={`w-full bg-[#0a0b0d] border rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-slate-500/50 ${
-            vdoReading && !validVdoReading ? 'border-rose-500/40' : 'border-white/10'
-          }`}
-          disabled={isPending}
+      <section>
+        <p className="text-[11px] font-bold uppercase tracking-widest text-[#a7c8ff]/70 mb-3">
+          Aircraft Readings
+        </p>
+        <AircraftReadingsForm
+          values={readings}
+          onChange={(field, value) => setReadings((current) => ({ ...current, [field]: value }))}
+          notes={adminNotes}
+          onNotesChange={setAdminNotes}
+          landings={landings}
+          onLandingsChange={setLandings}
+          startBaseline={startSuggestions}
+          showContinuityWarnings
+          compact
         />
-        <p className="text-[9px] text-slate-600 mt-0.5">
-          Enter the total billable hours from the aircraft paper sheet (one decimal place).
-        </p>
-        {vdoReading && !validVdoReading && (
-          <p className="text-[9px] text-rose-400/70 mt-0.5">Enter a positive value with one decimal place, e.g. 1.4</p>
-        )}
-        {vdoErrorMsg && <p className="text-[9px] text-rose-400/70 mt-0.5">{vdoErrorMsg}</p>}
+        {readingsError && <p className="mt-2 text-xs text-rose-400">{readingsError}</p>}
+      </section>
+
+      <div>
+        <label className="block text-[10px] font-medium text-slate-400 mb-1">
+          Hourly rate
+        </label>
+        <div className="relative max-w-[220px]">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">$</span>
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={hourlyRate}
+            onChange={(event) => setHourlyRate(event.target.value)}
+            className="w-full bg-[#0a0b0d] border border-white/10 rounded-lg pl-6 pr-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-slate-500/50"
+            disabled={isPending}
+          />
+        </div>
       </div>
 
-      {/* ── Airport landings ───────────────────────────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <div>
@@ -229,32 +258,24 @@ export default function AdminStandardBillingPanel({ bookingId, airports, custome
         </div>
 
         <div className="space-y-2">
-          {landingRows.map(row => {
-            const landingCount = parseInt(row.landingCount, 10)
-            const hasAirport   = !!row.airportId
-            const hasCount     = !isNaN(landingCount) && landingCount > 0
-            const rowError     = (hasCount && !hasAirport)
-              ? 'Select an airport'
-              : (hasAirport && !hasCount)
-                ? 'Enter a landing count ≥ 1'
-                : null
-            const rowTotal = hasAirport && hasCount ? LANDING_FEE_CENTS * landingCount : 0
+          {landingRows.map((row, index) => {
+            const rowError = landingRowErrors[index]
+            const count = Number(row.landingCount)
+            const rowTotal = row.airportId && Number.isInteger(count) && count > 0 ? LANDING_FEE_CENTS * count : 0
 
             return (
               <div key={row.id} className="space-y-0.5">
                 <div className="flex gap-2 items-start">
                   <select
                     value={row.airportId}
-                    onChange={e => handleLandingChange(row.id, 'airportId', e.target.value)}
+                    onChange={(event) => handleLandingChange(row.id, 'airportId', event.target.value)}
                     disabled={isPending}
-                    className={`flex-1 bg-[#0a0b0d] border rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-500/50 min-w-0 ${
-                      hasCount && !hasAirport ? 'border-rose-500/40' : 'border-white/10'
-                    }`}
+                    className="flex-1 bg-[#0a0b0d] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-500/50 min-w-0"
                   >
                     <option value="">Select airport…</option>
-                    {airports.map(a => (
-                      <option key={a.id} value={a.id}>
-                        {a.icao_code} — {a.name}
+                    {airports.map((airport) => (
+                      <option key={airport.id} value={airport.id}>
+                        {airport.icao_code} — {airport.name}
                       </option>
                     ))}
                   </select>
@@ -263,12 +284,9 @@ export default function AdminStandardBillingPanel({ bookingId, airports, custome
                     min="1"
                     step="1"
                     value={row.landingCount}
-                    onChange={e => handleLandingChange(row.id, 'landingCount', e.target.value)}
+                    onChange={(event) => handleLandingChange(row.id, 'landingCount', event.target.value)}
                     disabled={isPending}
-                    className={`w-14 bg-[#0a0b0d] border rounded-lg px-2 py-1.5 text-xs text-slate-200 text-center focus:outline-none focus:border-slate-500/50 ${
-                      hasAirport && !hasCount ? 'border-rose-500/40' : 'border-white/10'
-                    }`}
-                    title="Number of landings"
+                    className="w-14 bg-[#0a0b0d] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-slate-200 text-center focus:outline-none focus:border-slate-500/50"
                   />
                   <div className="w-16 text-right flex-shrink-0 py-1.5">
                     <span className="text-[10px] font-mono text-slate-400">
@@ -279,43 +297,26 @@ export default function AdminStandardBillingPanel({ bookingId, airports, custome
                     type="button"
                     onClick={() => removeLandingRow(row.id)}
                     disabled={isPending || landingRows.length <= 1}
-                    title={landingRows.length <= 1 ? 'At least one row is required' : 'Remove this row'}
-                    className="flex-shrink-0 p-1.5 text-slate-600 hover:text-rose-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="flex-shrink-0 p-1.5 text-slate-600 hover:text-rose-400 transition-colors disabled:opacity-30"
                   >
                     <span className="material-symbols-outlined text-[14px]">remove_circle</span>
                   </button>
                 </div>
-                {rowError && (
-                  <p className="text-[9px] text-rose-400/80 pl-1">{rowError} — or remove this row.</p>
-                )}
+                {rowError && <p className="text-[9px] text-rose-400/80 pl-1">{rowError}</p>}
               </div>
             )
           })}
-
-          {!hasValidLandingRow && !hasIncompleteLandingRows && (
-            <p className="text-[9px] text-slate-600/70 px-1">
-              No landing fees will be added. Add a row above if landings occurred at other airports.
-            </p>
-          )}
-          {hasIncompleteLandingRows && (
-            <p className="text-[9px] text-rose-400/80 px-1">
-              Complete or remove incomplete landing rows before submitting.
-            </p>
-          )}
         </div>
       </div>
 
-      {/* ── Invoice preview ────────────────────────────────────────────────── */}
-      {vdoReadingValid && validHourlyRate && (
+      {totals && validHourlyRate && (
         <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-slate-500">VDO reading</span>
-            <span className="text-[10px] font-mono text-slate-300">{vdoReadingNum.toFixed(1)} h</span>
+            <span className="text-[10px] text-slate-500">Calculated VDO total</span>
+            <span className="text-[10px] font-mono text-slate-300">{vdoReading?.toFixed(1) ?? '—'} h</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-slate-500">
-              Aircraft hire ({vdoReadingNum.toFixed(1)}h × ${hourlyRateNum.toFixed(2)})
-            </span>
+            <span className="text-[10px] text-slate-500">Aircraft hire</span>
             <span className="text-[10px] font-mono text-slate-300">${(vdoBaseCents / 100).toFixed(2)}</span>
           </div>
           {landingSubtotalCents > 0 && (
@@ -328,68 +329,33 @@ export default function AdminStandardBillingPanel({ bookingId, airports, custome
             <span className="text-[10px] font-medium text-slate-300">Invoice total</span>
             <span className="text-[11px] font-bold font-mono text-white">${(subtotalCents / 100).toFixed(2)}</span>
           </div>
-        </div>
-      )}
-
-      {/* ── Credit preview ─────────────────────────────────────────────────── */}
-      {vdoReadingValid && validHourlyRate && (
-        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-slate-500">Available customer credit</span>
-            <span className={`text-[10px] font-mono ${customerCreditCents > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
-              {customerCreditCents > 0 ? `$${(customerCreditCents / 100).toFixed(2)}` : '$0.00'}
+            <span className="text-[10px] text-slate-500">Credit applied</span>
+            <span className={`text-[10px] font-mono ${creditApplicable > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
+              ${((creditApplicable ?? 0) / 100).toFixed(2)}
             </span>
           </div>
-          {creditApplicable > 0 && (
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-slate-500">Credit will be applied</span>
-              <span className="text-[10px] font-mono text-emerald-400">−${(creditApplicable / 100).toFixed(2)}</span>
-            </div>
-          )}
-          <div className="border-t border-white/[0.06] pt-1.5 flex items-center justify-between">
+          <div className="flex items-center justify-between">
             <span className="text-[10px] font-medium text-slate-300">Estimated amount due</span>
-            <span className={`text-[11px] font-bold font-mono ${estimatedAmountDue > 0 ? 'text-amber-300' : 'text-emerald-400'}`}>
-              {estimatedAmountDue > 0 ? `$${(estimatedAmountDue / 100).toFixed(2)}` : 'Settled by credit'}
-            </span>
+            <span className="text-[11px] font-bold font-mono text-white">${(estimatedAmountDue / 100).toFixed(2)}</span>
           </div>
-          {estimatedAmountDue === 0 && customerCreditCents > 0 && (
-            <p className="text-[9px] text-emerald-400/70 leading-relaxed">
-              Credit covers the full invoice. Booking will be marked completed immediately.
-            </p>
-          )}
         </div>
       )}
-
-      {/* ── Admin notes ────────────────────────────────────────────────────── */}
-      <div>
-        <textarea
-          value={adminNotes}
-          onChange={e => setAdminNotes(e.target.value)}
-          rows={3}
-          placeholder="Optional internal note…"
-          className="w-full bg-[#0a0b0d] border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none resize-none"
-          disabled={isPending}
-        />
-      </div>
 
       {error && (
-        <div className="rounded-lg bg-rose-500/[0.08] border border-rose-500/20 px-3 py-2">
-          <p className="text-[10px] text-rose-400 leading-relaxed">{error}</p>
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">
+          {error}
         </div>
       )}
 
       <button
         type="button"
-        disabled={isPending || !canSubmit}
         onClick={handleSubmit}
-        className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+        disabled={isPending}
+        className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 text-white px-4 py-3 text-sm font-medium transition-colors disabled:opacity-50"
       >
-        <span className="material-symbols-outlined text-[18px]">receipt_long</span>
-        {isPending ? 'Sending Payment Request…' : 'Send Payment Request'}
+        {isPending ? 'Finalising…' : 'Finalise Flight Billing'}
       </button>
-      <p className="text-[9px] text-slate-600 text-center leading-relaxed">
-        This will finalise the invoice and notify the customer that payment is required.
-      </p>
     </div>
   )
 }

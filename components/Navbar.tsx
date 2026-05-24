@@ -242,7 +242,10 @@ export default function Navbar({
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="lg:hidden bg-mkt-main/98 backdrop-blur-xl border-t border-white/[0.08] px-6 py-5 flex flex-col gap-4">
+        <div
+          className="lg:hidden bg-mkt-main/98 backdrop-blur-xl border-t border-white/[0.08] px-6 pt-5 flex flex-col gap-4 overflow-y-auto"
+          style={{ maxHeight: 'calc(100dvh - 84px)', paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))' }}
+        >
           {/* Fleet expandable */}
           <div>
             <button

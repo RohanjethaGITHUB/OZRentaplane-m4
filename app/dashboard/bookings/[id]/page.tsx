@@ -17,6 +17,7 @@ import { markFlightReturned } from '@/app/actions/booking'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 import CustomerBookingActions from './CustomerBookingActions'
 import CheckoutChangeActions from '@/app/dashboard/checkout/CheckoutChangeActions'
+import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
 
 export const metadata = { title: 'Booking Details | Pilot Dashboard' }
 
@@ -787,7 +788,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
       booking_reference,
       subtotal_cents, advance_applied_cents, amount_due_cents, payment_status,
       created_at, updated_at,
-      aircraft ( registration, aircraft_type )
+      aircraft ( registration, aircraft_type ),
+      flight_records ( status, submitted_at )
     `)
     .eq('id', params.id)
     .eq('booking_owner_user_id', user.id)
@@ -820,7 +822,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
   const statusHistory = (rawHistory ?? []) as StatusHistoryRow[]
 
   const aircraft    = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
-  const status      = booking.status as string
+  const status      = deriveBookingStatusForFlightRecord(booking)
   const bookingType = (booking as { booking_type?: string }).booking_type ?? 'standard'
   const { data: termsAcceptanceRow } = await supabase
     .from('booking_terms_acceptances')
@@ -1115,19 +1117,6 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
   // ── Awaiting flight record — dedicated full-width layout ─────────────────────
   if (status === 'awaiting_flight_record') {
-    // Fetch last approved meter stops to pre-populate START column
-    const meterStarts: { tacho?: number | null; vdo?: number | null; air_switch?: number | null } = {}
-    const aircraftId = (booking as { aircraft_id?: string }).aircraft_id
-    if (aircraftId) {
-      const { data: lastStopRows } = await supabase
-        .rpc('get_aircraft_last_meter_stops', { p_aircraft_id: aircraftId })
-      for (const row of (lastStopRows ?? []) as Array<{ meter_type: string; stop_reading: number }>) {
-        if (row.meter_type === 'tacho')      meterStarts.tacho      = Number(row.stop_reading)
-        if (row.meter_type === 'vdo')        meterStarts.vdo        = Number(row.stop_reading)
-        if (row.meter_type === 'air_switch') meterStarts.air_switch = Number(row.stop_reading)
-      }
-    }
-
     const flightDate = new Date(booking.scheduled_start).toLocaleDateString('en-CA', {
       timeZone: 'Australia/Sydney',
     })
@@ -1280,7 +1269,6 @@ export default async function BookingDetailPage({ params }: PageProps) {
                   picName={booking.pic_name}
                   picArn={booking.pic_arn}
                   flightDate={flightDate}
-                  meterStarts={meterStarts}
                   airports={airports}
                 />
               </div>

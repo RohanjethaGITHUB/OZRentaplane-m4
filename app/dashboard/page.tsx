@@ -1,8 +1,12 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import DashboardContent from './DashboardContent'
 import type { FlightSnapshotBooking } from './DashboardContent'
 import type { Profile, UserDocument, VerificationEvent, PilotClearanceStatus } from '@/lib/supabase/types'
+import { isAwaitingFlightRecordDue } from '@/lib/booking/flight-record-status'
+import { evaluateBookingDocumentsReadiness, hasAcceptedCurrentTerms } from '@/lib/booking-readiness'
+import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
 
 type MainBookingHeroState = {
   mode: 'post_flight_required' | 'post_flight_under_review' | 'upcoming_confirmed'
@@ -89,13 +93,13 @@ export default async function DashboardPage() {
       .maybeSingle(),
     supabase
       .from('bookings')
-      .select('id, status, scheduled_start, scheduled_end, aircraft(registration)')
+      .select('id, status, scheduled_start, scheduled_end, aircraft(registration), flight_records(status, submitted_at)')
       .eq('booking_owner_user_id', user.id)
       .eq('booking_type', 'standard')
-      .in('status', ['awaiting_flight_record', 'flight_record_overdue'])
+      .in('status', ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record', 'flight_record_overdue'])
+      .lte('scheduled_end', nowIso)
       .order('scheduled_end', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .limit(10),
     supabase
       .from('bookings')
       .select('id, status, scheduled_start, scheduled_end, updated_at, aircraft(registration)')
@@ -132,6 +136,7 @@ export default async function DashboardPage() {
     scheduled_start?: string | null
     scheduled_end?: string | null
     aircraft?: { registration: string } | { registration: string }[] | null
+    flight_records?: { status: string | null; submitted_at: string | null }[] | null
   }
   function extractAircraftReg(aircraft: BookingSnapshotRow['aircraft']): string | null {
     if (!aircraft) return null
@@ -141,7 +146,8 @@ export default async function DashboardPage() {
 
   const checkoutBookingId = (checkoutBookingResult.data as { id: string } | null)?.id ?? null
   const activeBooking = (activeBookingResult.data as { id: string; status: string } | null) ?? null
-  const postFlightRequiredBooking = (postFlightRequiredBookingResult.data as BookingSnapshotRow | null) ?? null
+  const postFlightRequiredBooking = ((postFlightRequiredBookingResult.data as BookingSnapshotRow[] | null) ?? [])
+    .find((booking) => isAwaitingFlightRecordDue(booking)) ?? null
   const postFlightUnderReviewBooking = (postFlightUnderReviewBookingResult.data as BookingSnapshotRow | null) ?? null
   const upcomingConfirmedBooking = (upcomingConfirmedBookingResult.data as BookingSnapshotRow | null) ?? null
   const checkoutSnapshotBooking = (checkoutSnapshotBookingResult.data as BookingSnapshotRow | null) ?? null
@@ -178,6 +184,7 @@ export default async function DashboardPage() {
 
   // Fetch invoice data only when we have a booking ID
   let checkoutInvoice: import('./DashboardContent').CheckoutInvoiceData | null = null
+  let bookingReadiness: import('./DashboardContent').BookingReadinessSummary | null = null
 
   if (paymentPending && checkoutBookingId) {
     const [{ data: invoiceRow }, { data: landingRows }, { data: invoiceStatusRow }] = await Promise.all([
@@ -238,6 +245,82 @@ export default async function DashboardPage() {
     }
   }
 
+  if (clearanceStatus === 'cleared_to_fly') {
+    const [{ data: historicalClearance }, termsPrimary, { data: latestTermsAcceptance }] = await Promise.all([
+      supabase
+        .from('historical_checkout_completions')
+        .select('id')
+        .eq('customer_id', user.id)
+        .eq('checkout_outcome', 'cleared_to_fly')
+        .eq('is_active', true)
+        .order('recorded_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('terms_documents')
+        .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
+        .eq('is_active', true)
+        .order('effective_from', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('booking_terms_acceptances')
+        .select('terms_document_id, terms_version, terms_content_hash, accepted_at')
+        .eq('user_id', user.id)
+        .order('accepted_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ])
+    const admin = createAdminClient()
+    const authoritativeHistorical = historicalClearance?.id
+      ? historicalClearance
+      : (await admin
+          .from('historical_checkout_completions')
+          .select('id')
+          .eq('customer_id', user.id)
+          .eq('checkout_outcome', 'cleared_to_fly')
+          .eq('is_active', true)
+          .order('recorded_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()).data
+    const authoritativeTermsAcceptance = latestTermsAcceptance?.accepted_at
+      ? latestTermsAcceptance
+      : (await admin
+          .from('booking_terms_acceptances')
+          .select('terms_document_id, terms_version, terms_content_hash, accepted_at')
+          .eq('user_id', user.id)
+          .order('accepted_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()).data
+
+    const docItems = evaluateBookingDocumentsReadiness({
+      documents: (documents as UserDocument[]) || [],
+      hasNightVfrRating: (profile as Profile | null)?.has_night_vfr_rating ?? null,
+    })
+    const docsReady = docItems.every((item) => item.state === 'complete')
+    const authoritativeActiveTermsRow = termsPrimary.data ?? (await admin
+      .from('terms_documents')
+      .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
+      .eq('is_active', true)
+      .order('effective_from', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()).data
+    const activeTerms = normalizeActiveCheckoutTerms((authoritativeActiveTermsRow as Record<string, unknown> | null) ?? null)
+    const termsAccepted = hasAcceptedCurrentTerms(
+      activeTerms ? { id: activeTerms.id, version: activeTerms.version, content_hash: activeTerms.content_hash } : null,
+      (authoritativeTermsAcceptance as { terms_document_id: string | null; terms_version: string | null; terms_content_hash: string | null; accepted_at: string | null } | null),
+    )
+
+    bookingReadiness = {
+      show: !docsReady || !termsAccepted,
+      hasHistoricalClearance: Boolean(authoritativeHistorical?.id),
+      docsReady,
+      termsAccepted,
+    }
+  }
+
   return (
     <DashboardContent
       user={user}
@@ -250,6 +333,7 @@ export default async function DashboardPage() {
       activeBooking={activeBooking}
       mainBookingHeroState={mainBookingHeroState}
       flightSnapshotBooking={flightSnapshotBooking}
+      bookingReadiness={bookingReadiness}
     />
   )
 }

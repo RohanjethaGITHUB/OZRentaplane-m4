@@ -28,7 +28,7 @@ export default async function AdminPostFlightReviewsPage() {
       air_switch_total,
       add_to_mr,
       oil_added,
-      fuel_actual,
+      fuel_returned,
       landings,
       review_flags,
       submitted_at,

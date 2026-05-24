@@ -21,7 +21,7 @@ export default async function AdminBookingsOverviewPage() {
   ] = await Promise.all([
     supabase
       .from('bookings')
-      .select('id, status, scheduled_start, created_at, updated_at, payment_status')
+      .select('id, status, scheduled_start, scheduled_end, created_at, updated_at, payment_status, flight_records(status, submitted_at)')
       .eq('booking_type', 'standard')
       .order('created_at', { ascending: true }),
     supabase.from('booking_cancellation_requests').select('id, created_at'),

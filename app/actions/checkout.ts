@@ -382,7 +382,23 @@ export async function submitCheckoutRequest(
       details: error.details,
       hint: error.hint,
     })
-    throw new Error(error.message)
+    const rawMsg = error.message ?? ''
+    const lower = rawMsg.toLowerCase()
+    // Prefix known RPC messages that are missing VALIDATION:/AVAILABILITY: so the
+    // client can route them to a user-friendly message instead of the generic fallback.
+    if (lower.includes('already have an active checkout booking')) {
+      throw new Error(`VALIDATION: ${rawMsg}`)
+    }
+    if (lower.includes('no longer available') || lower.includes('schedule block')) {
+      throw new Error(`AVAILABILITY: ${rawMsg}`)
+    }
+    if (lower.includes('checkout start time must be in the future')) {
+      throw new Error(`VALIDATION: ${rawMsg}`)
+    }
+    if (lower.includes('aircraft not found')) {
+      throw new Error(`VALIDATION: ${rawMsg}`)
+    }
+    throw new Error(rawMsg)
   }
 
   const rpcRow = Array.isArray(data) ? data[0] : data
@@ -402,7 +418,7 @@ export async function submitCheckoutRequest(
       data,
       parsed: result,
     })
-    throw new Error('Checkout request could not be created due to an invalid server response. Please try again.')
+    throw new Error('VALIDATION: Checkout request could not be created due to an invalid server response. Please try again.')
   }
 
   if (process.env.NODE_ENV !== 'production') {
@@ -544,7 +560,7 @@ export async function submitCheckoutRequest(
         `Unable to record your terms acceptance. DB error: ${termsErr.message}${termsErr.code ? ` (code ${termsErr.code})` : ''}. Rollback: ${JSON.stringify(rollback)}`
       )
     }
-    throw new Error('Unable to record your terms acceptance. Please try again.')
+    throw new Error('VALIDATION: Unable to record your terms acceptance. Please try again.')
   }
   console.info(`[${routeName}] terms acceptance insert success`, {
     user_id: userId,

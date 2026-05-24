@@ -6,6 +6,7 @@ import type { Profile, PilotClearanceStatus } from '@/lib/supabase/types'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import { formatSydTime } from '@/lib/utils/sydney-time'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
+import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
 
 export const metadata = { title: 'My Bookings | OZRentAPlane' }
 
@@ -105,6 +106,7 @@ type BookingRow = {
   pic_name:          string | null
   created_at:        string
   aircraft:          { registration: string } | null
+  flight_records?:   { status: string | null; submitted_at: string | null }[] | null
 }
 
 // ── Clearance gate banners ────────────────────────────────────────────────────
@@ -324,12 +326,16 @@ export default async function CustomerBookingsPage() {
       checkout_lifecycle_status,
       scheduled_start, scheduled_end,
       estimated_hours, estimated_amount, pic_name, created_at,
-      aircraft ( registration )
+      aircraft ( registration ),
+      flight_records ( status, submitted_at )
     `)
     .eq('booking_owner_user_id', user.id)
     .order('scheduled_start', { ascending: false })
 
-  const rows             = (bookings ?? []) as unknown as BookingRow[]
+  const rows             = ((bookings ?? []) as unknown as BookingRow[]).map((booking) => ({
+    ...booking,
+    status: deriveBookingStatusForFlightRecord(booking),
+  }))
   const checkoutRequests = rows.filter(b => b.booking_type === 'checkout')
   const upcomingAircraft = rows.filter(b => b.booking_type !== 'checkout' && ACTIVE_STATUSES.includes(b.status))
   const completedFlights = rows.filter(b => b.booking_type !== 'checkout' && !ACTIVE_STATUSES.includes(b.status))

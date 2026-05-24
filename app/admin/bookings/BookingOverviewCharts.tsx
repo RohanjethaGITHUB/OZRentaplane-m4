@@ -4,14 +4,17 @@ import { useMemo, useState } from 'react'
 import { Bar, BarChart, Cell, LabelList, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis } from 'recharts'
 import { ChartShell, type TimeRangeValue } from '@/app/admin/components/AdminUi'
 import { ChartRangeControl, EmptyChartState, isInRange, ReadableTooltip } from '@/app/admin/components/ChartPrimitives'
+import { deriveBookingStatusForFlightRecord, isAwaitingFlightRecordDue } from '@/lib/booking/flight-record-status'
 
 type BookingRow = {
   id: string
   status: string
   scheduled_start: string | null
+  scheduled_end: string | null
   created_at: string
   updated_at: string
   payment_status: string | null
+  flight_records?: { status: string | null; submitted_at: string | null }[] | null
 }
 
 type CancellationRow = {
@@ -75,7 +78,7 @@ export default function BookingOverviewCharts({ bookings, cancellations, manualP
     const counts = new Map<string, number>()
     for (const b of bookings) {
       if (!isInRange(b.scheduled_start ?? b.created_at, statusRange)) continue
-      const label = labels[b.status]
+      const label = labels[deriveBookingStatusForFlightRecord(b)]
       if (!label) continue
       counts.set(label, (counts.get(label) ?? 0) + 1)
     }
@@ -93,7 +96,7 @@ export default function BookingOverviewCharts({ bookings, cancellations, manualP
   }, [bookings, manualPaymentReviewCount, paymentRange])
 
   const reviewBreakdown = useMemo(() => {
-    const awaitingRecord = bookings.filter((b) => b.status === 'awaiting_flight_record' && isInRange(b.updated_at, reviewRange)).length
+    const awaitingRecord = bookings.filter((b) => isAwaitingFlightRecordDue(b) && isInRange(b.scheduled_end, reviewRange)).length
     const reviewRequired = bookings.filter((b) => b.status === 'pending_post_flight_review' && isInRange(b.updated_at, reviewRange)).length
     const needsClarification = bookings.filter((b) => b.status === 'needs_clarification' && isInRange(b.updated_at, reviewRange)).length
     return [

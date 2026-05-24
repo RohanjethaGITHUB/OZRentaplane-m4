@@ -909,7 +909,7 @@ export default function BookingRequestForm({
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div>
+    <div data-testid="booking-form">
 
       {/* ══════════════════════════════════════════════════════════════════════
           COMPACT BOOKING HERO

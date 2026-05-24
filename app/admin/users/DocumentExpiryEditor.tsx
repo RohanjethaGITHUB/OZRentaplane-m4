@@ -17,7 +17,8 @@ export default function DocumentExpiryEditor({ documentId, customerId, initialEx
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const isRequiredForBooking = documentType === 'pilot_licence' || documentType === 'medical_certificate'
+  const requiresExpiryDate = documentType === 'medical_certificate'
+  const showsNotCollected = documentType === 'pilot_licence'
   
   // Calculate if expired
   let isExpired = false
@@ -35,7 +36,7 @@ export default function DocumentExpiryEditor({ documentId, customerId, initialEx
     }
   }
 
-  const isMissing = isRequiredForBooking && !initialExpiry
+  const isMissing = requiresExpiryDate && !initialExpiry
 
   async function handleSave() {
     setError('')
@@ -57,27 +58,30 @@ export default function DocumentExpiryEditor({ documentId, customerId, initialEx
   }
 
   // Formatting date
-  const displayExpiry = initialExpiry ? formatDate(initialExpiry) : 'None Set'
+  const displayExpiry = showsNotCollected ? 'Not collected' : initialExpiry ? formatDate(initialExpiry) : 'None set'
 
   if (!isEditing) {
     return (
       <div className="mt-4 pt-4 border-t border-white/5 relative z-10" onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-between items-end group cursor-pointer" onClick={() => setIsEditing(true)}>
+        <div className={`flex justify-between items-end group ${showsNotCollected ? '' : 'cursor-pointer'}`} onClick={() => { if (!showsNotCollected) setIsEditing(true) }}>
           <div className="text-[10px] text-slate-500">
             <p className="uppercase tracking-tighter flex items-center gap-1 group-hover:text-blue-300 transition-colors">
               Expiry Date
-              <span className="material-symbols-outlined text-[10px] opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontVariationSettings: "'wght' 300" }}>edit</span>
+              {!showsNotCollected ? (
+                <span className="material-symbols-outlined text-[10px] opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontVariationSettings: "'wght' 300" }}>edit</span>
+              ) : null}
             </p>
             <p className={`font-bold mt-0.5 ${
               isExpired ? 'text-red-400' 
               : isExpiringSoon ? 'text-amber-400'
               : isMissing ? 'text-amber-400 italic'
-              : 'text-blue-100'
+              : showsNotCollected ? 'text-slate-400 italic' : 'text-blue-100'
             }`}>
               {displayExpiry}
             </p>
           </div>
           <div className="flex flex-col items-end gap-1">
+            {showsNotCollected && <span className="px-1.5 py-0.5 bg-slate-500/10 border border-slate-500/20 text-slate-300 text-[9px] uppercase font-bold tracking-widest rounded">Not required</span>}
             {isExpired && <span className="px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400 text-[9px] uppercase font-bold tracking-widest rounded">Expired</span>}
             {isExpiringSoon && <span className="px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] uppercase font-bold tracking-widest rounded">Expiring Soon</span>}
             {isMissing && <span className="px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] uppercase font-bold tracking-widest rounded">Required</span>}

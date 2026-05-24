@@ -13,6 +13,8 @@ import AdminStandardBankTransferPanel from './AdminStandardBankTransferPanel'
 import AdminStandardBillingPanel from './AdminStandardBillingPanel'
 import AdminCancellationReviewCard from './AdminCancellationReviewCard'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
+import { getAircraftFlightLogStartSuggestions } from '@/lib/aircraft-flight-log'
+import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
 
 export const metadata = { title: 'Booking Detail | Admin' }
 
@@ -120,7 +122,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       booking_owner_user_id,
       pic_user_id,
       aircraft_id,
-      aircraft ( id, registration, aircraft_type, default_hourly_rate, default_preflight_buffer_minutes, default_postflight_buffer_minutes )
+      aircraft ( id, registration, aircraft_type, default_hourly_rate, default_preflight_buffer_minutes, default_postflight_buffer_minutes ),
+      flight_records ( status, submitted_at )
     `)
     .eq('id', params.id)
     .single()
@@ -210,7 +213,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       : Promise.resolve({ data: null, error: null }),
     // Flight record — fetched for standard billing panel
     isStandardBillingPending
-      ? supabase.from('flight_records').select('vdo_total, landings, customer_notes').eq('booking_id', booking.id).maybeSingle()
+      ? supabase.from('flight_records').select('*').eq('booking_id', booking.id).order('submitted_at', { ascending: false }).limit(1).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
   ])
 
@@ -228,9 +231,9 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   })
 
   const customerCreditCents = (creditRow as { balance_cents?: number } | null)?.balance_cents ?? 0
-  const initialVdo = (flightRecordRow as { vdo_total?: number } | null)?.vdo_total ?? undefined
-  const initialLandings = (flightRecordRow as { landings?: number } | null)?.landings ?? undefined
-  const initialNotes = (flightRecordRow as { customer_notes?: string } | null)?.customer_notes ?? undefined
+  const flightLogStartSuggestions = booking.aircraft_id
+    ? (await getAircraftFlightLogStartSuggestions(booking.aircraft_id)).suggestedStarts
+    : { vdo_start: null, tacho_start: null, air_switch_start: null, mr_start: null }
 
   // ── Bank transfer submissions (checkout) ─────────────────────────────────
   type BankTransferSub = {
@@ -317,7 +320,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     return true
   })
 
-  const status = booking.status as string
+  const status = deriveBookingStatusForFlightRecord(booking)
   // bookingType is already declared above (const bookingType = ...)
   const statusCfgBase = STATUS_CFG[status] ?? {
     label:  status.replace(/_/g, ' '),
@@ -713,14 +716,13 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           <div className="sticky top-24 space-y-4">
 
             {/* ── Standard booking billing panel ───────────────────────────── */}
-            {isStandardBillingPending && (
+            {isStandardBillingPending && flightRecordRow && (
               <AdminStandardBillingPanel
                 bookingId={booking.id}
                 airports={airports}
                 customerCreditCents={customerCreditCents}
-                initialVdo={initialVdo}
-                initialLandings={initialLandings}
-                initialNotes={initialNotes}
+                initialFlightRecord={flightRecordRow}
+                startSuggestions={flightLogStartSuggestions}
               />
             )}
 

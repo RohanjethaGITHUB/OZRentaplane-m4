@@ -1,26 +1,22 @@
-import AdminPortalHero from '@/components/AdminPortalHero'
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
 
-export const metadata = { title: 'Maintenance / Notes | Admin' }
+export default async function AircraftMaintenanceEntryPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
-export default function AircraftMaintenancePage() {
-  return (
-    <>
-      <AdminPortalHero
-        eyebrow="Aircraft Management"
-        title="Maintenance / Notes"
-        subtitle="Log and track maintenance events and operational notes for the fleet."
-      />
-      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24">
-        <div className="p-12 text-center text-slate-500 border border-white/5 rounded-2xl bg-white/5">
-          <span
-            className="material-symbols-outlined text-4xl mb-3 text-slate-600 block"
-            style={{ fontVariationSettings: "'wght' 200" }}
-          >
-            build
-          </span>
-          Maintenance log coming soon.
-        </div>
-      </div>
-    </>
-  )
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (!profile || profile.role !== 'admin') redirect('/dashboard')
+
+  const { data: aircraft } = await supabase
+    .from('aircraft')
+    .select('id')
+    .neq('status', 'inactive')
+    .order('registration', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (!aircraft?.id) redirect('/admin/aircraft')
+  redirect(`/admin/aircraft/${aircraft.id}/maintenance`)
 }

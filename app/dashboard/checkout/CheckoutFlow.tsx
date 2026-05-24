@@ -157,6 +157,9 @@ function mapCheckoutSubmitError(message: string): string {
   if (lower.includes('night vfr')) {
     return 'Please confirm your Night VFR rating status before submitting your checkout request.'
   }
+  if (lower.includes('instrument rating')) {
+    return 'Please confirm your Instrument Rating status before submitting your checkout request.'
+  }
   if (lower.includes('terms acceptance details were not submitted') || lower.includes('you must accept the checkout terms')) {
     return 'Please review and accept the latest checkout terms before submitting.'
   }
@@ -166,17 +169,25 @@ function mapCheckoutSubmitError(message: string): string {
   if (lower.includes('no active checkout terms document')) {
     return 'Checkout terms are temporarily unavailable. Please refresh and try again.'
   }
+  if (lower.includes('unable to record your terms acceptance')) {
+    return 'Your checkout request was created but we could not record your terms acceptance. Please contact support.'
+  }
   if (
     lower.includes('no longer available') ||
     lower.includes('not available') ||
     lower.includes('schedule block') ||
     lower.includes('aircraft not found') ||
-    lower.includes('checkout flight time must be in the future')
+    lower.includes('checkout flight time must be in the future') ||
+    lower.includes('checkout start time must be in the future') ||
+    lower.includes('invalid server response')
   ) {
     return 'This checkout slot is no longer available. Please choose another date or time.'
   }
   if (lower.includes('current status does not allow submitting a checkout request') || lower.includes('already have an active checkout booking')) {
-    return 'You already have an active checkout request or your account is not currently eligible to submit a new one.'
+    return 'You already have an active checkout request or your account is not currently eligible to submit a new one. Please contact support if you believe this is an error.'
+  }
+  if (lower.includes('unable to verify your documents')) {
+    return 'We could not verify your uploaded documents. Please try again, or contact support if the issue persists.'
   }
 
   return cleaned
@@ -698,6 +709,8 @@ function DocModal({
   doc,
   onClose,
   onSuccess,
+  onUploadStart,
+  onUploadEnd,
   initialNightVfrRating,
   initialInstrumentRating,
 }: {
@@ -705,6 +718,8 @@ function DocModal({
   doc:                     UserDocument | undefined
   onClose:                 () => void
   onSuccess:               () => void
+  onUploadStart?:          () => void
+  onUploadEnd?:            () => void
   initialNightVfrRating?:  boolean | null
   initialInstrumentRating?: boolean | null
 }) {
@@ -761,36 +776,41 @@ function DocModal({
     if (metaErr) { setFormError(metaErr); return }
 
     const results: { name: string; ok: boolean; msg?: string }[] = []
+    onUploadStart?.()
     setUploading(true)
-    for (const file of files) {
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        results.push({ name: file.name, ok: false, msg: 'Not PDF/JPG/PNG' })
-        continue
+    try {
+      for (const file of files) {
+        if (!ALLOWED_TYPES.includes(file.type)) {
+          results.push({ name: file.name, ok: false, msg: 'Not PDF/JPG/PNG' })
+          continue
+        }
+        if (file.size > MAX_DOC_SIZE) {
+          results.push({ name: file.name, ok: false, msg: 'Over 10 MB' })
+          continue
+        }
+        try {
+          const fd = new FormData()
+          fd.append('file',    file)
+          fd.append('docType', def.type)
+          if (licenceType)               fd.append('licenceType',      licenceType)
+          if (nightVfrRating !== null)   fd.append('nightVfrRating',   String(nightVfrRating))
+          if (instrumentRating !== null) fd.append('instrumentRating', String(instrumentRating))
+          if (licenceNumber)             fd.append('licenceNumber',    licenceNumber)
+          if (medicalClass)              fd.append('medicalClass',     medicalClass)
+          if (issueDate)                 fd.append('issueDate',        issueDate)
+          if (expiryDate)                fd.append('expiryDate',       expiryDate)
+          if (idType)                    fd.append('idType',           idType)
+          if (documentNumber)            fd.append('documentNumber',   documentNumber)
+          await uploadVerificationDocument(fd)
+          results.push({ name: file.name, ok: true })
+        } catch (err) {
+          results.push({ name: file.name, ok: false, msg: err instanceof Error ? err.message : 'Upload failed' })
+        }
       }
-      if (file.size > MAX_DOC_SIZE) {
-        results.push({ name: file.name, ok: false, msg: 'Over 10 MB' })
-        continue
-      }
-      try {
-        const fd = new FormData()
-        fd.append('file',    file)
-        fd.append('docType', def.type)
-        if (licenceType)               fd.append('licenceType',      licenceType)
-        if (nightVfrRating !== null)   fd.append('nightVfrRating',   String(nightVfrRating))
-        if (instrumentRating !== null) fd.append('instrumentRating', String(instrumentRating))
-        if (licenceNumber)             fd.append('licenceNumber',    licenceNumber)
-        if (medicalClass)              fd.append('medicalClass',     medicalClass)
-        if (issueDate)                 fd.append('issueDate',        issueDate)
-        if (expiryDate)                fd.append('expiryDate',       expiryDate)
-        if (idType)                    fd.append('idType',           idType)
-        if (documentNumber)            fd.append('documentNumber',   documentNumber)
-        await uploadVerificationDocument(fd)
-        results.push({ name: file.name, ok: true })
-      } catch (err) {
-        results.push({ name: file.name, ok: false, msg: err instanceof Error ? err.message : 'Upload failed' })
-      }
+    } finally {
+      setUploading(false)
+      onUploadEnd?.()
     }
-    setUploading(false)
     setFileResults(results)
     if (results.every(r => r.ok)) onSuccess()
   }
@@ -821,7 +841,7 @@ function DocModal({
               <p className="text-lg font-semibold text-white">{def.label}</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-white/30 hover:text-white/70 transition-colors">
+          <button onClick={onClose} disabled={uploading} className="text-white/30 hover:text-white/70 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
             <span className="material-symbols-outlined text-xl">close</span>
           </button>
         </div>
@@ -979,9 +999,13 @@ function DocModal({
 
         {/* Footer */}
         <div className="px-5 py-4 border-t border-white/[0.06] flex items-center gap-3">
-          <p className="text-sm text-slate-300 flex-1">You can upload multiple files at once, for example front and back of a document.</p>
-          <button onClick={onClose}
-            className="px-5 py-2 text-xs font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors"
+          <p className="text-sm text-slate-300 flex-1">
+            {uploading ? 'Upload in progress — please wait before closing.' : 'You can upload multiple files at once, for example front and back of a document.'}
+          </p>
+          <button
+            onClick={onClose}
+            disabled={uploading}
+            className="px-5 py-2 text-xs font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Close
           </button>
@@ -999,12 +1023,16 @@ function DocCard({
   def,
   doc,
   onUploaded,
+  onUploadStart,
+  onUploadEnd,
   initialNightVfrRating,
   initialInstrumentRating,
 }: {
   def:                     DocCardDef
   doc:                     UserDocument | undefined
   onUploaded:              () => void
+  onUploadStart?:          () => void
+  onUploadEnd?:            () => void
   initialNightVfrRating?:  boolean | null
   initialInstrumentRating?: boolean | null
 }) {
@@ -1023,6 +1051,8 @@ function DocCard({
           doc={doc}
           onClose={() => setModalOpen(false)}
           onSuccess={() => { setModalOpen(false); onUploaded() }}
+          onUploadStart={onUploadStart}
+          onUploadEnd={onUploadEnd}
           initialNightVfrRating={initialNightVfrRating}
           initialInstrumentRating={initialInstrumentRating}
         />
@@ -1124,6 +1154,8 @@ export default function CheckoutFlow({
   const [hasAttemptedStep2Continue, setHasAttemptedStep2Continue] = useState(false)
   const [redCardExpiry, setRedCardExpiry] = useState('')
   const [redCardSaving, setRedCardSaving] = useState(false)
+  const [docUploadCount, setDocUploadCount] = useState(0)
+  const anyDocUploading = docUploadCount > 0
 
   // Submission state
   const [submitError, setSubmitError]   = useState<string | null>(null)
@@ -1386,8 +1418,13 @@ export default function CheckoutFlow({
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Submission failed. Please try again.'
         const isValidation = msg.startsWith('VALIDATION:') || msg.startsWith('AVAILABILITY:')
+        const isAccountBlocked = msg.startsWith('ACCOUNT_BLOCKED:')
         if (isValidation) {
           setSubmitError(mapCheckoutSubmitError(msg))
+          return
+        }
+        if (isAccountBlocked) {
+          setSubmitError(msg.replace(/^ACCOUNT_BLOCKED:\s*/i, ''))
           return
         }
         setSubmitError("We couldn't submit your checkout request. Please try again or contact support.")
@@ -1785,6 +1822,8 @@ export default function CheckoutFlow({
                       setHasAttemptedStep2Continue(false)
                       router.refresh()
                     }}
+                    onUploadStart={() => setDocUploadCount(c => c + 1)}
+                    onUploadEnd={() => setDocUploadCount(c => Math.max(0, c - 1))}
                     initialNightVfrRating={def.type === 'pilot_licence' ? nightVfrRating : undefined}
                     initialInstrumentRating={def.type === 'pilot_licence' ? initialInstrumentRating : undefined}
                   />
@@ -1825,6 +1864,8 @@ export default function CheckoutFlow({
                         setHasAttemptedStep2Continue(false)
                         router.refresh()
                       }}
+                      onUploadStart={() => setDocUploadCount(c => c + 1)}
+                      onUploadEnd={() => setDocUploadCount(c => Math.max(0, c - 1))}
                     />
                     {!isDocOk(nightVfrEvidenceDoc) && (
                       <p className="text-sm text-amber-300 flex items-center gap-1.5">
@@ -1975,10 +2016,11 @@ export default function CheckoutFlow({
             <button
               onClick={handleDocumentsNext}
               data-testid="checkout-step2-continue"
-              disabled={redCardSaving}
+              disabled={anyDocUploading || redCardSaving}
+              aria-busy={anyDocUploading || redCardSaving}
               className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-sm font-semibold transition-all"
             >
-              {redCardSaving ? 'Saving…' : 'Continue to Review'}
+              {anyDocUploading ? 'Uploading…' : redCardSaving ? 'Saving…' : 'Continue to Review'}
             </button>
           </div>
 

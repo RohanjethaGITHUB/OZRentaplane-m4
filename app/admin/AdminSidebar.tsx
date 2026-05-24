@@ -86,6 +86,7 @@ const NAV_GROUPS: NavGroupType[] = [
     icon: 'airlines',
     items: [
       { label: 'Aircraft Overview', href: '/admin/aircraft' },
+      { label: 'Flight Log', href: '/admin/aircraft/flight-log' },
       { label: 'Availability & Blocks', href: '/admin/aircraft/availability' },
       { label: 'Maintenance / Squawks', href: '/admin/aircraft/maintenance' },
     ],

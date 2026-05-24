@@ -1,4 +1,5 @@
 import type { PilotClearanceStatus } from '@/lib/supabase/types'
+import { CHECKOUT_OUTCOME_ATTENTION_REASON, CHECKOUT_REQUEST_ATTENTION_REASON } from '@/app/admin/customers/attention-reason'
 
 export type ActionCta = {
   label: string
@@ -28,7 +29,7 @@ export const CLEARANCE_ACTION: Record<PilotClearanceStatus, ClearanceAction> = {
     urgency: 'high',
     icon: 'assignment_turned_in',
     title: 'Review Checkout Request',
-    description: 'Customer has submitted a checkout flight request. Review their documents and schedule the checkout flight.',
+    description: CHECKOUT_REQUEST_ATTENTION_REASON,
     ctas: [
       {
         label: 'Review Checkout Request',
@@ -61,7 +62,7 @@ export const CLEARANCE_ACTION: Record<PilotClearanceStatus, ClearanceAction> = {
     urgency: 'high',
     icon: 'rate_review',
     title: 'Review Checkout Outcome',
-    description: 'The customer has completed their checkout flight. Review the post-flight record and determine the clearance outcome.',
+    description: CHECKOUT_OUTCOME_ATTENTION_REASON,
     ctas: [
       {
         label: 'Review Checkout Outcome',

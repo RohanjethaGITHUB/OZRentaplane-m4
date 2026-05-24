@@ -7,6 +7,15 @@ import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 import { generateReviewFlags } from '@/lib/booking/review-flags'
 import { isNoShowLockedProfile } from '@/lib/checkout-policy'
 import {
+  getLastFinalizedLogStop,
+  buildReadingsFromTotals,
+  upsertAircraftFlightLogRecord,
+} from '@/lib/aircraft-flight-log'
+import { validateTotalOnlyReadings } from '@/lib/aircraft-readings'
+import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { evaluateBookingDocumentsReadiness, hasAcceptedCurrentTerms } from '@/lib/booking-readiness'
+import {
   notifyBookingSubmitted,
   notifyBookingCancelled,
   notifyCancellationRequested,
@@ -22,6 +31,7 @@ import type {
   ReviewFlag,
   FlightRecordLandingRow,
 } from '@/lib/supabase/booking-types'
+import type { UserDocument } from '@/lib/supabase/types'
 
 // ─── Auth guard ───────────────────────────────────────────────────────────────
 // Customers must be cleared for solo hire before creating standard bookings.
@@ -34,7 +44,7 @@ async function requireClearedCustomer() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, account_status, pilot_clearance_status, account_lock_reason')
+    .select('role, account_status, pilot_clearance_status, account_lock_reason, has_night_vfr_rating')
     .eq('id', user.id)
     .single()
 
@@ -48,6 +58,118 @@ async function requireClearedCustomer() {
   }
   if (profile.pilot_clearance_status !== 'cleared_to_fly') {
     throw new Error('CLEARANCE_REQUIRED: Solo hire bookings are only available to pilots cleared for solo flight.')
+  }
+
+  const [{ data: paidInvoice }, { data: historicalClearance }, { data: documents }, termsPrimary, { data: latestTermsAcceptance }] = await Promise.all([
+    supabase
+      .from('checkout_invoices')
+      .select('id')
+      .eq('customer_id', user.id)
+      .eq('status', 'paid')
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('historical_checkout_completions')
+      .select('id')
+      .eq('customer_id', user.id)
+      .eq('checkout_outcome', 'cleared_to_fly')
+      .eq('is_active', true)
+      .order('recorded_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('user_documents')
+      .select('*')
+      .eq('user_id', user.id),
+    supabase
+      .from('terms_documents')
+      .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
+      .eq('is_active', true)
+      .order('effective_from', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('booking_terms_acceptances')
+      .select('terms_document_id, terms_version, terms_content_hash, accepted_at')
+      .eq('user_id', user.id)
+      .order('accepted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  const admin = createAdminClient()
+  const authoritativeHistorical = historicalClearance?.id
+    ? historicalClearance
+    : (await admin
+        .from('historical_checkout_completions')
+        .select('id')
+        .eq('customer_id', user.id)
+        .eq('checkout_outcome', 'cleared_to_fly')
+        .eq('is_active', true)
+        .order('recorded_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()).data
+
+  const authoritativePaidInvoice = paidInvoice?.id
+    ? paidInvoice
+    : (await admin
+        .from('checkout_invoices')
+        .select('id')
+        .eq('customer_id', user.id)
+        .eq('status', 'paid')
+        .limit(1)
+        .maybeSingle()).data
+
+  const authoritativeTermsAcceptance = latestTermsAcceptance?.accepted_at
+    ? latestTermsAcceptance
+    : (await admin
+        .from('booking_terms_acceptances')
+        .select('terms_document_id, terms_version, terms_content_hash, accepted_at')
+        .eq('user_id', user.id)
+        .order('accepted_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()).data
+
+  const hasClearancePath = Boolean(authoritativePaidInvoice?.id || authoritativeHistorical?.id)
+  if (!hasClearancePath) {
+    throw new Error('READINESS_REQUIRED: Valid checkout clearance evidence is missing.')
+  }
+
+  const docItems = evaluateBookingDocumentsReadiness({
+    documents: (documents ?? []) as UserDocument[],
+    hasNightVfrRating: profile.has_night_vfr_rating ?? null,
+  })
+  if (docItems.some((item) => item.state !== 'complete')) {
+    throw new Error('READINESS_REQUIRED: Required pilot file documents are incomplete.')
+  }
+
+  const authoritativeActiveTermsRow = termsPrimary.data ?? (await admin
+    .from('terms_documents')
+    .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
+    .eq('is_active', true)
+    .order('effective_from', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()).data
+  let activeTerms = normalizeActiveCheckoutTerms((authoritativeActiveTermsRow as Record<string, unknown> | null) ?? null)
+  if (!activeTerms) {
+    const fallback = await admin
+      .from('terms_documents')
+      .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
+      .eq('is_active', true)
+      .order('effective_from', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    activeTerms = normalizeActiveCheckoutTerms((fallback.data as Record<string, unknown> | null) ?? null)
+  }
+  const termsAccepted = hasAcceptedCurrentTerms(
+    activeTerms ? { id: activeTerms.id, version: activeTerms.version, content_hash: activeTerms.content_hash } : null,
+    (authoritativeTermsAcceptance as { terms_document_id: string | null; terms_version: string | null; terms_content_hash: string | null; accepted_at: string | null } | null),
+  )
+  if (!termsAccepted) {
+    throw new Error('READINESS_REQUIRED: Current booking terms must be accepted before creating a booking.')
   }
 
   return { supabase, userId: user.id }
@@ -161,7 +283,8 @@ export async function createBooking(
 // ─── Mark flight returned ─────────────────────────────────────────────────────
 // Customer signals that they have landed and are back.
 // Transitions the booking from confirmed / ready_for_dispatch / dispatched
-// → awaiting_flight_record so the flight record form becomes available.
+// → awaiting_flight_record after scheduled_end has passed, so the flight
+// record form becomes available only post-flight.
 // Standard bookings only; checkout bookings use a separate flow.
 
 export async function markFlightReturned(bookingId: string): Promise<void> {
@@ -169,7 +292,7 @@ export async function markFlightReturned(bookingId: string): Promise<void> {
 
   const { data: booking } = await supabase
     .from('bookings')
-    .select('id, status, booking_type, aircraft_id, booking_reference, booking_owner_user_id')
+    .select('id, status, booking_type, aircraft_id, booking_reference, booking_owner_user_id, scheduled_end')
     .eq('id', bookingId)
     .eq('booking_owner_user_id', userId)
     .single()
@@ -182,6 +305,9 @@ export async function markFlightReturned(bookingId: string): Promise<void> {
   const allowed = ['confirmed', 'ready_for_dispatch', 'dispatched']
   if (!allowed.includes(booking.status)) {
     throw new Error(`VALIDATION: Cannot mark flight returned for a booking with status "${booking.status}".`)
+  }
+  if (new Date(booking.scheduled_end).getTime() > Date.now()) {
+    throw new Error('VALIDATION: Flight record is only available after the scheduled end time has passed.')
   }
 
   const now = new Date().toISOString()
@@ -230,7 +356,7 @@ export async function submitFlightRecord(
   // Verify booking ownership and status
   const { data: booking, error: bookingError } = await supabase
     .from('bookings')
-    .select('id, aircraft_id, booking_owner_user_id, scheduled_start, scheduled_end, status')
+    .select('id, aircraft_id, booking_owner_user_id, scheduled_start, scheduled_end, status, pic_name, pic_arn')
     .eq('id', input.booking_id)
     .eq('booking_owner_user_id', userId)
     .single()
@@ -245,77 +371,62 @@ export async function submitFlightRecord(
       `VALIDATION: Cannot submit flight record for a booking with status "${booking.status}".`
     )
   }
+  if (new Date(booking.scheduled_end).getTime() > Date.now()) {
+    throw new Error('VALIDATION: Flight record can only be submitted after the scheduled end time has passed.')
+  }
 
   const scheduledHours =
     (new Date(booking.scheduled_end).getTime() - new Date(booking.scheduled_start).getTime()) /
     (1000 * 60 * 60)
 
+  // Validate total-only input
+  validateTotalOnlyReadings({
+    vdo_total:        input.vdo_total,
+    tacho_total:      input.tacho_total,
+    air_switch_total: input.air_switch_total,
+    mr_total:         input.mr_total,
+    oil_added:        input.oil_added ?? null,
+    oil_total:        input.oil_total ?? null,
+    fuel_added:       input.fuel_added ?? null,
+    fuel_returned:    input.fuel_returned ?? null,
+    landings:         input.landings ?? null,
+    notes:            input.customer_notes ?? null,
+  })
+
+  // Compute start/stop from last finalized aircraft log
+  const baseline = await getLastFinalizedLogStop(booking.aircraft_id)
+  const readings = buildReadingsFromTotals(
+    {
+      vdo_total:        input.vdo_total,
+      tacho_total:      input.tacho_total,
+      air_switch_total: input.air_switch_total,
+      mr_total:         input.mr_total,
+      oil_added:        input.oil_added ?? null,
+      oil_total:        input.oil_total ?? null,
+      fuel_added:       input.fuel_added ?? null,
+      fuel_returned:    input.fuel_returned ?? null,
+      landings:         input.landings ?? null,
+      notes:            input.customer_notes ?? null,
+    },
+    baseline,
+  )
+
   const flags: ReviewFlag[] = generateReviewFlags({
-    tacho_start:      input.tacho_start,
-    tacho_stop:       input.tacho_stop,
-    vdo_start:        input.vdo_start,
-    vdo_stop:         input.vdo_stop,
-    air_switch_start: input.air_switch_start,
-    air_switch_stop:  input.air_switch_stop,
-    add_to_mr:        input.add_to_mr,
+    tacho_start:      readings.tacho_start,
+    tacho_stop:       readings.tacho_stop,
+    vdo_start:        readings.vdo_start,
+    vdo_stop:         readings.vdo_stop,
+    air_switch_start: readings.air_switch_start,
+    air_switch_stop:  readings.air_switch_stop,
     oil_added:        input.oil_added,
     fuel_added:       input.fuel_added,
     landings:         input.landings,
     scheduled_hours:  scheduledHours,
   })
 
-  // ── Start-reading mismatch check ──────────────────────────────────────────
-  // Compare submitted start readings against the last official approved stop
-  // readings.  Uses a security-definer function so the customer's auth context
-  // can call it without direct SELECT access to aircraft_meter_history.
-  //
-  // Flags:
-  //   error   — submitted start < last approved stop (meter went backwards)
-  //   warning — submitted start > last approved stop + 2 h (unexplained gap)
-
-  const { data: lastStopRows } = await supabase
-    .rpc('get_aircraft_last_meter_stops', { p_aircraft_id: booking.aircraft_id })
-
-  const lastStop: Record<string, number> = {}
-  for (const row of (lastStopRows ?? []) as Array<{ meter_type: string; stop_reading: number }>) {
-    lastStop[row.meter_type] = Number(row.stop_reading)
-  }
-
-  const MISMATCH_GAP_THRESHOLD = 2.0 // hours — warn if unexplained gap > 2 h
-
-  function checkStartMismatch(
-    meterLabel: string,
-    prefix: string,
-    submitted: number | null | undefined,
-  ) {
-    if (submitted == null) return
-    const lastApproved = lastStop[prefix]
-    if (lastApproved == null) return  // no history yet — first flight
-
-    if (submitted < lastApproved - 0.05) {
-      flags.push({
-        key: `${prefix}_start_before_last_approved`,
-        severity: 'error',
-        message: `${meterLabel} start reading (${submitted}) is less than the last approved stop reading (${lastApproved.toFixed(2)}). Possible data entry error or meter rollover.`,
-      })
-    } else if (submitted > lastApproved + MISMATCH_GAP_THRESHOLD) {
-      const gap = (submitted - lastApproved).toFixed(2)
-      flags.push({
-        key: `${prefix}_start_gap`,
-        severity: 'warning',
-        message: `${meterLabel} start reading (${submitted}) is ${gap} hours ahead of the last approved stop (${lastApproved.toFixed(2)}). Confirm no uncaptured flights occurred between sessions.`,
-      })
-    }
-  }
-
-  checkStartMismatch('Tacho',      'tacho',      input.tacho_start)
-  checkStartMismatch('VDO',        'vdo',        input.vdo_start)
-  checkStartMismatch('Air Switch', 'air_switch', input.air_switch_start)
-  // add_to_mr is a cumulative addition value (start is always 0) — no mismatch check
-
   const now = new Date().toISOString()
 
-  // Insert flight record
+  // Insert flight record with calculated start/stop (admin can review/correct in billing panel)
   const { data: flightRecord, error: frError } = await supabase
     .from('flight_records')
     .insert({
@@ -324,17 +435,18 @@ export async function submitFlightRecord(
       date:                    input.date,
       pic_name:                input.pic_name           ?? null,
       pic_arn:                 input.pic_arn            ?? null,
-      tacho_start:             input.tacho_start        ?? null,
-      tacho_stop:              input.tacho_stop         ?? null,
-      vdo_start:               input.vdo_start          ?? null,
-      vdo_stop:                input.vdo_stop           ?? null,
-      air_switch_start:        input.air_switch_start   ?? null,
-      air_switch_stop:         input.air_switch_stop    ?? null,
-      add_to_mr:               input.add_to_mr          ?? null,
+      tacho_start:             readings.tacho_start,
+      tacho_stop:              readings.tacho_stop,
+      vdo_start:               readings.vdo_start,
+      vdo_stop:                readings.vdo_stop,
+      air_switch_start:        readings.air_switch_start,
+      air_switch_stop:         readings.air_switch_stop,
+      mr_start:                readings.mr_start,
+      mr_stop:                 readings.mr_stop,
       oil_added:               input.oil_added          ?? null,
       oil_total:               input.oil_total          ?? null,
       fuel_added:              input.fuel_added         ?? null,
-      fuel_actual:             input.fuel_actual        ?? null,
+      fuel_returned:           input.fuel_returned      ?? null,
       landings:                input.landings           ?? null,
       customer_notes:          input.customer_notes     ?? null,
       declaration_accepted_at: input.declaration_accepted ? now : null,
@@ -352,6 +464,37 @@ export async function submitFlightRecord(
     console.error('[submitFlightRecord] Insert failed:', frError)
     throw new Error('Failed to submit flight record. Please try again.')
   }
+
+  const { data: snapshotProfile } = await supabase
+    .from('profiles')
+    .select('full_name, pilot_arn')
+    .eq('id', userId)
+    .single()
+
+  const ledgerPicName =
+    input.pic_name?.trim() ||
+    booking.pic_name ||
+    snapshotProfile?.full_name ||
+    'Pilot'
+  const ledgerPicArn =
+    input.pic_arn?.trim() ||
+    booking.pic_arn ||
+    snapshotProfile?.pilot_arn ||
+    null
+
+  await upsertAircraftFlightLogRecord({
+    aircraft_id: booking.aircraft_id,
+    flight_date: input.date,
+    pic_user_id: userId,
+    pic_name: ledgerPicName,
+    pic_arn: ledgerPicArn,
+    readings,
+    related_booking_id: input.booking_id,
+    source: 'booking_customer_post_flight',
+    review_status: 'pending_admin_review',
+    created_by: userId,
+    updated_by: userId,
+  })
 
   // Insert per-airport landing rows (mandatory for standard bookings)
   if (input.landing_rows && input.landing_rows.length > 0) {
@@ -510,7 +653,7 @@ export async function resubmitFlightRecord(
   // Ownership + status gate
   const { data: booking, error: bookingErr } = await supabase
     .from('bookings')
-    .select('id, aircraft_id, booking_owner_user_id, scheduled_start, scheduled_end, status, booking_reference')
+    .select('id, aircraft_id, booking_owner_user_id, scheduled_start, scheduled_end, status, booking_reference, pic_name, pic_arn')
     .eq('id', input.booking_id)
     .eq('booking_owner_user_id', userId)
     .single()
@@ -537,19 +680,50 @@ export async function resubmitFlightRecord(
     )
   }
 
-  // Re-generate review flags on the updated readings
+  // Validate total-only input
+  validateTotalOnlyReadings({
+    vdo_total:        input.vdo_total,
+    tacho_total:      input.tacho_total,
+    air_switch_total: input.air_switch_total,
+    mr_total:         input.mr_total,
+    oil_added:        input.oil_added ?? null,
+    oil_total:        input.oil_total ?? null,
+    fuel_added:       input.fuel_added ?? null,
+    fuel_returned:    input.fuel_returned ?? null,
+    landings:         input.landings ?? null,
+    notes:            input.customer_notes ?? null,
+  })
+
+  // Recompute start/stop from last finalized log
+  const baseline = await getLastFinalizedLogStop(booking.aircraft_id)
+  const readings = buildReadingsFromTotals(
+    {
+      vdo_total:        input.vdo_total,
+      tacho_total:      input.tacho_total,
+      air_switch_total: input.air_switch_total,
+      mr_total:         input.mr_total,
+      oil_added:        input.oil_added ?? null,
+      oil_total:        input.oil_total ?? null,
+      fuel_added:       input.fuel_added ?? null,
+      fuel_returned:    input.fuel_returned ?? null,
+      landings:         input.landings ?? null,
+      notes:            input.customer_notes ?? null,
+    },
+    baseline,
+  )
+
+  // Re-generate review flags on the recalculated readings
   const scheduledHours =
     (new Date(booking.scheduled_end).getTime() - new Date(booking.scheduled_start).getTime()) /
     (1000 * 60 * 60)
 
   const flags: ReviewFlag[] = generateReviewFlags({
-    tacho_start:      input.tacho_start,
-    tacho_stop:       input.tacho_stop,
-    vdo_start:        input.vdo_start,
-    vdo_stop:         input.vdo_stop,
-    air_switch_start: input.air_switch_start,
-    air_switch_stop:  input.air_switch_stop,
-    add_to_mr:        input.add_to_mr,
+    tacho_start:      readings.tacho_start,
+    tacho_stop:       readings.tacho_stop,
+    vdo_start:        readings.vdo_start,
+    vdo_stop:         readings.vdo_stop,
+    air_switch_start: readings.air_switch_start,
+    air_switch_stop:  readings.air_switch_stop,
     oil_added:        input.oil_added,
     fuel_added:       input.fuel_added,
     landings:         input.landings,
@@ -558,23 +732,23 @@ export async function resubmitFlightRecord(
 
   const now = new Date().toISOString()
 
-  // Update flight record — preserve existing fields not in input
   const { error: updateErr } = await supabase
     .from('flight_records')
     .update({
-      tacho_start:      input.tacho_start      ?? null,
-      tacho_stop:       input.tacho_stop       ?? null,
-      vdo_start:        input.vdo_start        ?? null,
-      vdo_stop:         input.vdo_stop         ?? null,
-      air_switch_start: input.air_switch_start ?? null,
-      air_switch_stop:  input.air_switch_stop  ?? null,
-      add_to_mr:        input.add_to_mr        ?? null,
-      oil_added:        input.oil_added        ?? null,
-      oil_total:        input.oil_total        ?? null,
-      fuel_added:       input.fuel_added       ?? null,
-      fuel_actual:      input.fuel_actual      ?? null,
-      landings:         input.landings         ?? null,
-      customer_notes:   input.customer_notes   ?? null,
+      tacho_start:      readings.tacho_start,
+      tacho_stop:       readings.tacho_stop,
+      vdo_start:        readings.vdo_start,
+      vdo_stop:         readings.vdo_stop,
+      air_switch_start: readings.air_switch_start,
+      air_switch_stop:  readings.air_switch_stop,
+      mr_start:         readings.mr_start,
+      mr_stop:          readings.mr_stop,
+      oil_added:        input.oil_added    ?? null,
+      oil_total:        input.oil_total    ?? null,
+      fuel_added:       input.fuel_added   ?? null,
+      fuel_returned:    input.fuel_returned ?? null,
+      landings:         input.landings     ?? null,
+      customer_notes:   input.customer_notes ?? null,
       status:           'resubmitted',
       review_flags:     flags.length > 0 ? flags : null,
       updated_at:       now,
@@ -582,6 +756,25 @@ export async function resubmitFlightRecord(
     .eq('id', input.flight_record_id)
 
   if (updateErr) throw new Error('Failed to update flight record.')
+
+  const { data: snapshotProfile } = await supabase
+    .from('profiles')
+    .select('full_name, pilot_arn')
+    .eq('id', userId)
+    .single()
+
+  await upsertAircraftFlightLogRecord({
+    aircraft_id: booking.aircraft_id,
+    flight_date: new Date(booking.scheduled_start).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }),
+    pic_user_id: userId,
+    pic_name: booking.pic_name || snapshotProfile?.full_name || 'Pilot',
+    pic_arn: booking.pic_arn || snapshotProfile?.pilot_arn || null,
+    readings,
+    related_booking_id: input.booking_id,
+    source: 'booking_customer_post_flight',
+    review_status: 'pending_admin_review',
+    updated_by: userId,
+  })
 
   // Mark the open clarification as resolved
   await supabase

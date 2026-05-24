@@ -63,9 +63,13 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
     clearErrors()
     setLoading(true)
     const { error } = await supabase.auth.signInWithPassword({ email: siEmail, password: siPassword })
-    setLoading(false)
-    if (error) setSiError(error.message)
-    else router.push('/dashboard')
+    if (error) {
+      setLoading(false)
+      setSiError(error.message)
+    } else {
+      // keep loading=true until navigation completes to prevent double-submit
+      router.push('/dashboard')
+    }
   }
 
   async function handleSignUp(e: React.FormEvent) {
@@ -117,11 +121,17 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
         },
       },
     })
-    setLoading(false)
 
-    if (error) setSuError(error.message)
-    else if (data.session) router.push('/dashboard')
-    else setSuSuccess(true)
+    if (error) {
+      setLoading(false)
+      setSuError(error.message)
+    } else if (data.session) {
+      // keep loading=true until navigation completes to prevent double-submit
+      router.push('/dashboard')
+    } else {
+      setLoading(false)
+      setSuSuccess(true)
+    }
   }
 
   useEffect(() => {
@@ -134,7 +144,7 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
       {!isModal && <div className="fixed bottom-0 left-0 w-[600px] h-[600px] bg-[#0F172A]/30 blur-[120px] -z-10 rounded-full pointer-events-none" />}
       {!isModal && <div className="fixed inset-0 opacity-[0.03] pointer-events-none z-50 mix-blend-overlay" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/carbon-fibre.png")' }} />}
 
-      <main className={`${isModal ? 'w-full max-w-[1220px] h-[min(calc(100vh-48px),880px)] min-h-0 rounded-[1.65rem]' : 'w-full max-w-[1300px] h-auto my-auto md:min-h-[700px] md:h-[calc(100vh-160px)] md:max-h-[900px] rounded-2xl md:rounded-[2rem]'} bg-[#0A101C]/80 backdrop-blur-2xl overflow-hidden flex flex-col md:flex-row relative shadow-[0_40px_100px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.1)] ring-1 ring-white/10`}>
+      <main className={`${isModal ? 'w-full max-w-[1220px] h-[min(calc(100dvh-24px),880px)] min-h-0 rounded-[1.65rem]' : 'w-full max-w-[1300px] h-auto my-auto md:min-h-[700px] md:h-[calc(100vh-160px)] md:max-h-[900px] rounded-2xl md:rounded-[2rem]'} bg-[#0A101C]/80 backdrop-blur-2xl overflow-hidden flex flex-col md:flex-row relative shadow-[0_40px_100px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.1)] ring-1 ring-white/10`}>
         {isModal && (
           <button
             type="button"
@@ -146,7 +156,7 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
             <span className="material-symbols-outlined block leading-none text-[18px]">close</span>
           </button>
         )}
-        <section className="relative flex-1 min-h-[400px] md:min-h-full overflow-hidden border-b md:border-b-0 md:border-r border-white/5">
+        <section className={`relative flex-1 ${isModal ? 'min-h-0' : 'min-h-[400px]'} md:min-h-full overflow-hidden border-b md:border-b-0 md:border-r border-white/5${mode === 'signup' && isModal ? ' hidden md:block' : ''}`}>
           <div className="absolute inset-0 z-0">
             <motion.div className="w-full h-full" initial={false} animate={{ scale: mode === 'signin' ? 1.06 : 1.09, filter: mode === 'signin' ? 'blur(12px) brightness(0.42) contrast(0.9) saturate(0.72)' : 'blur(15px) brightness(0.34) contrast(0.86) saturate(0.66)' }} transition={TRANSITION}>
               <Image src="/Cockpit-twilight.webp" alt="Cockpit at twilight" fill className="object-cover" priority />
@@ -155,21 +165,21 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
             <div className="absolute inset-0 bg-[#081224]/46 pointer-events-none" />
           </div>
 
-          <div className="relative z-10 w-full h-full p-8 md:p-14 lg:p-20 flex flex-col">
+          <div className={`relative z-10 w-full h-full flex flex-col ${isModal ? 'px-5 pt-14 pb-6 sm:p-8 md:p-14 lg:p-20' : 'p-8 md:p-14 lg:p-20'}`}>
             <div className="flex-1 flex flex-col justify-center">
               <AnimatePresence mode="popLayout" initial={false}>
                 {mode === 'signin' ? (
                   <motion.div key="signin-active" initial={{ opacity: 0, x: -30, filter: 'blur(10px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: 30, filter: 'blur(10px)' }} transition={TRANSITION} className="max-w-md w-full">
-                    <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif text-white mb-4 leading-tight tracking-tight">Welcome Back, Pilot</h1>
-                    <p className="text-white/[0.78] font-sans font-light mb-10 text-lg tracking-wide">Your aircraft is waiting. Please authenticate to access your dashboard.</p>
+                    <h1 className="text-[1.7rem] sm:text-4xl md:text-5xl lg:text-6xl font-serif text-white mb-3 md:mb-4 leading-tight tracking-tight">Welcome Back, Pilot</h1>
+                    <p className="text-white/[0.78] font-sans font-light mb-6 md:mb-10 text-base md:text-lg tracking-wide">Your aircraft is waiting. Please authenticate to access your dashboard.</p>
                     <form className="space-y-7" onSubmit={handleSignIn}>
                       <div className="group relative">
                         <label className={FIELD_LABEL_CLASS}>Email Address</label>
-                        <input type="email" placeholder="captain@ozrentaplane.com.au" value={siEmail} onChange={(e) => setSiEmail(e.target.value)} required className={FIELD_INPUT_CLASS} />
+                        <input type="email" placeholder="captain@ozrentaplane.com.au" value={siEmail} onChange={(e) => setSiEmail(e.target.value)} required disabled={loading} className={`${FIELD_INPUT_CLASS} disabled:opacity-60 disabled:cursor-not-allowed`} />
                       </div>
                       <div className="group relative">
                         <label className={FIELD_LABEL_CLASS}>Password</label>
-                        <input type="password" placeholder="••••••••" value={siPassword} onChange={(e) => setSiPassword(e.target.value)} required className={`${FIELD_INPUT_CLASS} font-mono`} />
+                        <input type="password" placeholder="••••••••" value={siPassword} onChange={(e) => setSiPassword(e.target.value)} required disabled={loading} className={`${FIELD_INPUT_CLASS} font-mono disabled:opacity-60 disabled:cursor-not-allowed`} />
                       </div>
                       {siError && <p className="text-red-400 text-[11px] font-sans font-light tracking-wide -mt-2">{siError}</p>}
                       <div className="pt-8 flex items-center justify-between">
@@ -199,7 +209,7 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
           </div>
         </section>
 
-        <section className="relative flex-1 min-h-[420px] md:min-h-full overflow-hidden">
+        <section className={`relative flex-1 ${isModal ? 'min-h-0' : 'min-h-[420px]'} md:min-h-full overflow-hidden${mode === 'signin' && isModal ? ' hidden md:block' : ''}`}>
           <div className="absolute inset-0 z-0">
             <motion.div className="w-full h-full" initial={false} animate={{ scale: mode === 'signup' ? 1.06 : 1.09, filter: mode === 'signup' ? 'blur(12px) brightness(0.42) contrast(0.9) saturate(0.74)' : 'blur(15px) brightness(0.34) contrast(0.86) saturate(0.66)' }} transition={TRANSITION}>
               <Image src="/Pilot&aircraftTwilight.webp" alt="Aircraft on tarmac at twilight" fill className="object-cover" priority />
@@ -208,14 +218,14 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
             <div className="absolute inset-0 bg-[#081224]/46 pointer-events-none" />
           </div>
 
-          <div className="relative z-10 w-full h-full min-h-0 p-8 md:p-14 lg:p-20 flex flex-col items-center justify-start overflow-y-auto">
+          <div className={`relative z-10 w-full h-full min-h-0 flex flex-col items-center justify-start overflow-y-auto overscroll-contain ${isModal ? 'px-5 pt-14 pb-6 sm:p-8 md:p-14 lg:p-20' : 'p-8 md:p-14 lg:p-20'}`}>
             <AnimatePresence mode="popLayout" initial={false}>
               {mode === 'signup' ? (
                 <motion.div key="signup-active" initial={{ opacity: 0, x: 30, filter: 'blur(10px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -30, filter: 'blur(10px)' }} transition={TRANSITION} className="w-full max-w-md mx-auto">
                   <div className="mb-10 text-center md:text-left">
                     <span className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-blue mb-3">New Aviator Registration</span>
-                    <h2 className="text-4xl md:text-6xl font-serif text-white mb-4 leading-tight tracking-tight">Create account</h2>
-                    <p className="text-white/[0.78] font-sans font-light text-lg">Join Sydney's premier aircraft rental platform for licensed aviation professionals.</p>
+                    <h2 className="text-[1.7rem] sm:text-4xl md:text-6xl font-serif text-white mb-3 md:mb-4 leading-tight tracking-tight">Create account</h2>
+                    <p className="text-white/[0.78] font-sans font-light text-base md:text-lg">Join Sydney's premier aircraft rental platform for licensed aviation professionals.</p>
                   </div>
 
                   {suSuccess ? (
@@ -229,17 +239,17 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
                         <div className="group relative">
                           <label className={FIELD_LABEL_CLASS}>First Name</label>
-                          <input type="text" placeholder="e.g. Julian" value={suFirstName} onChange={(e) => setSuFirstName(e.target.value)} required className={FIELD_INPUT_CLASS} />
+                          <input type="text" placeholder="e.g. Julian" value={suFirstName} onChange={(e) => setSuFirstName(e.target.value)} required disabled={loading} className={`${FIELD_INPUT_CLASS} disabled:opacity-60 disabled:cursor-not-allowed`} />
                         </div>
                         <div className="group relative">
                           <label className={FIELD_LABEL_CLASS}>Last Name</label>
-                          <input type="text" placeholder="e.g. Vance" value={suLastName} onChange={(e) => setSuLastName(e.target.value)} required className={FIELD_INPUT_CLASS} />
+                          <input type="text" placeholder="e.g. Vance" value={suLastName} onChange={(e) => setSuLastName(e.target.value)} required disabled={loading} className={`${FIELD_INPUT_CLASS} disabled:opacity-60 disabled:cursor-not-allowed`} />
                         </div>
                       </div>
 
                       <div className="group relative">
                         <label className={FIELD_LABEL_CLASS}>Email Address</label>
-                        <input type="email" placeholder="pilot@example.com" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} required className={FIELD_INPUT_CLASS} />
+                        <input type="email" placeholder="pilot@example.com" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} required disabled={loading} className={`${FIELD_INPUT_CLASS} disabled:opacity-60 disabled:cursor-not-allowed`} />
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-7">
@@ -253,7 +263,8 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                               const value = e.target.value
                               if (/^\+?\d{0,4}$/.test(value)) setSuPhoneCountryCode(value)
                             }}
-                            className={FIELD_INPUT_CLASS}
+                            disabled={loading}
+                            className={`${FIELD_INPUT_CLASS} disabled:opacity-60 disabled:cursor-not-allowed`}
                           />
                         </div>
                         <div className="group relative">
@@ -267,7 +278,8 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                               if (/^\d*$/.test(value)) setSuPhoneNumber(value)
                             }}
                             required
-                            className={FIELD_INPUT_CLASS}
+                            disabled={loading}
+                            className={`${FIELD_INPUT_CLASS} disabled:opacity-60 disabled:cursor-not-allowed`}
                           />
                         </div>
                       </div>
@@ -275,11 +287,11 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
                         <div className="group relative">
                           <label className={FIELD_LABEL_CLASS}>Password</label>
-                          <input type="password" placeholder="••••••••" value={suPassword} onChange={(e) => setSuPassword(e.target.value)} required className={`${FIELD_INPUT_CLASS} font-mono`} />
+                          <input type="password" placeholder="••••••••" value={suPassword} onChange={(e) => setSuPassword(e.target.value)} required disabled={loading} className={`${FIELD_INPUT_CLASS} font-mono disabled:opacity-60 disabled:cursor-not-allowed`} />
                         </div>
                         <div className="group relative">
                           <label className={FIELD_LABEL_CLASS}>Confirm Password</label>
-                          <input type="password" placeholder="••••••••" value={suConfirm} onChange={(e) => setSuConfirm(e.target.value)} required className={`${FIELD_INPUT_CLASS} font-mono`} />
+                          <input type="password" placeholder="••••••••" value={suConfirm} onChange={(e) => setSuConfirm(e.target.value)} required disabled={loading} className={`${FIELD_INPUT_CLASS} font-mono disabled:opacity-60 disabled:cursor-not-allowed`} />
                         </div>
                       </div>
 

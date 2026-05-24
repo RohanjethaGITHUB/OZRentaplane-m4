@@ -4,6 +4,7 @@ import { useState } from 'react'
 
 interface Props {
   title: string
+  description?: string
   defaultOpen?: boolean
   /** Short text shown on the right when the section is collapsed */
   summary?: string
@@ -19,6 +20,7 @@ interface Props {
  */
 export default function CollapsibleSection({
   title,
+  description,
   defaultOpen = false,
   summary,
   badge,
@@ -35,10 +37,21 @@ export default function CollapsibleSection({
         className="w-full flex items-center justify-between py-4 text-left hover:bg-white/[0.015] active:bg-white/[0.025] rounded-lg px-2 -mx-2 transition-colors duration-150"
         aria-expanded={open}
       >
-        <div className="flex items-center gap-3">
-          <h3 className="font-serif text-2xl tracking-tight text-[#e2e2e6] group-hover/section:text-blue-200 transition-colors duration-200">
-            {title}
-          </h3>
+        <div className="flex items-start gap-3">
+          <span
+            className={`material-symbols-outlined mt-1 text-xl text-slate-500 group-hover/section:text-slate-300 transition-all duration-200 ${open ? 'rotate-180' : 'rotate-0'}`}
+            style={{ fontVariationSettings: "'wght' 300" }}
+          >
+            expand_more
+          </span>
+          <div>
+            <h3 className="font-serif text-2xl tracking-tight text-[#e2e2e6] group-hover/section:text-blue-200 transition-colors duration-200">
+              {title}
+            </h3>
+            {description ? (
+              <p className="text-sm text-slate-500 mt-1">{description}</p>
+            ) : null}
+          </div>
 
           {badge !== undefined && badge > 0 && (
             <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-[10px] font-bold text-blue-300 tabular-nums">
@@ -54,12 +67,7 @@ export default function CollapsibleSection({
               {summary}
             </span>
           )}
-          <span
-            className={`material-symbols-outlined text-xl text-slate-500 group-hover/section:text-slate-300 transition-all duration-200 ${open ? 'rotate-180' : 'rotate-0'}`}
-            style={{ fontVariationSettings: "'wght' 300" }}
-          >
-            expand_more
-          </span>
+          <span className="text-[10px] uppercase tracking-widest text-slate-600 hidden md:block">{open ? 'Collapse' : 'Expand'}</span>
         </div>
       </button>
 

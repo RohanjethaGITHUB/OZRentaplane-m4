@@ -3,6 +3,7 @@ import type { PilotClearanceStatus, AccountStatus } from '@/lib/supabase/types'
 import { CLEARANCE_LABEL, CLEARANCE_BADGE } from '@/lib/pilot-status'
 import { formatDateTime } from '@/lib/formatDateTime'
 import { CLEARANCE_ACTION } from './clearance-actions'
+import UnblockCustomerButton from './UnblockCustomerButton'
 
 type Props = {
   clearanceStatus: PilotClearanceStatus
@@ -45,6 +46,7 @@ export default function CurrentActionSection({
   latestCheckoutBookingId,
   adminReviewNote,
   reviewedAt,
+  customerId,
 }: Props) {
   const action = CLEARANCE_ACTION[clearanceStatus]
   const clearanceLabel = CLEARANCE_LABEL[clearanceStatus]
@@ -112,6 +114,11 @@ export default function CurrentActionSection({
                 })}
               </div>
             )}
+            {isBlocked ? (
+              <div className="pt-2">
+                <UnblockCustomerButton customerId={customerId} />
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

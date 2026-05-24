@@ -65,12 +65,6 @@ export async function approveCustomer(customerId: string, reviewNotes: string) {
     throw new Error('Failed to approve customer')
   }
 
-  // Mark all documents approved
-  await supabase
-    .from('user_documents')
-    .update({ status: 'approved', review_notes: reviewNotes.trim() || null, reviewed_at: now })
-    .eq('user_id', customerId)
-
   // Insert customer-visible event
   const { data: event } = await supabase
     .from('verification_events')
@@ -500,13 +494,13 @@ export async function getAdminUnreadCount(): Promise<number> {
 
 export async function searchCustomers(
   query: string
-): Promise<Array<{ id: string; full_name: string | null; verification_status: string }>> {
+): Promise<Array<{ id: string; full_name: string | null; email: string | null; pilot_arn: string | null; verification_status: string }>> {
   if (!query.trim()) return []
   const { supabase } = await requireAdmin()
 
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, verification_status')
+    .select('id, full_name, email, pilot_arn, verification_status')
     .eq('role', 'customer')
     .ilike('full_name', `%${query.trim()}%`)
     .limit(8)
@@ -715,11 +709,17 @@ export async function updateAccountStatus(
   const { supabase, adminId } = await requireAdmin()
   const now = new Date().toISOString()
 
+  const { data: current } = await supabase
+    .from('profiles')
+    .select('account_status, full_name, admin_review_note')
+    .eq('id', customerId)
+    .single()
+
   const { error } = await supabase
     .from('profiles')
     .update({
       account_status:    status,
-      admin_review_note: reason?.trim() || null,
+      admin_review_note: reason === undefined ? (current?.admin_review_note ?? null) : (reason.trim() || null),
       reviewed_at:       now,
       reviewed_by:       adminId,
       updated_at:        now,
@@ -731,9 +731,38 @@ export async function updateAccountStatus(
     throw new Error('Failed to update account status.')
   }
 
+  const statusEventMap: Record<'active' | 'blocked' | 'archived', { title: string; body: string }> = {
+    active: {
+      title: 'Customer unblocked by admin',
+      body: 'An admin restored account access. Standard booking and checkout access now follows the customer’s current clearance and document status.',
+    },
+    blocked: {
+      title: 'Customer blocked by admin',
+      body: reason?.trim() || 'An admin blocked this account from further platform access.',
+    },
+    archived: {
+      title: 'Customer archived by admin',
+      body: reason?.trim() || 'An admin archived this customer account.',
+    },
+  }
+
+  if (current?.account_status !== status) {
+    await supabase.from('verification_events').insert({
+      user_id: customerId,
+      actor_user_id: adminId,
+      actor_role: 'admin',
+      event_type: 'message',
+      title: statusEventMap[status].title,
+      body: statusEventMap[status].body,
+      email_status: 'skipped',
+    })
+  }
+
   revalidatePath('/admin/customers')
   revalidatePath('/admin/customers/all')
+  revalidatePath('/admin/customers/blocked')
   revalidatePath(`/admin/users/${customerId}`)
+  revalidatePath('/admin')
   revalidatePath('/dashboard')
 }
 

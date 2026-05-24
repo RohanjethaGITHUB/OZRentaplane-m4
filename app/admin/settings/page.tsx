@@ -112,7 +112,7 @@ export default async function AdminSettingsPage() {
             <div className="space-y-4 pointer-events-none">
               <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">Consumables Enforced</h4>
               <label className="flex items-center gap-3"><input type="checkbox" disabled checked className="w-4 h-4 bg-black/50 border-white/20 rounded" /><span className="text-sm text-slate-300">Oil Tracking</span></label>
-              <label className="flex items-center gap-3"><input type="checkbox" disabled checked className="w-4 h-4 bg-black/50 border-white/20 rounded" /><span className="text-sm text-slate-300">Fuel Actual</span></label>
+              <label className="flex items-center gap-3"><input type="checkbox" disabled checked className="w-4 h-4 bg-black/50 border-white/20 rounded" /><span className="text-sm text-slate-300">Fuel Total</span></label>
             </div>
             <div className="space-y-4 pointer-events-none">
               <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">Data & Compliance</h4>

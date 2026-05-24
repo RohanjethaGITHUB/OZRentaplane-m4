@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import AdminSidebar from './AdminSidebar'
+import { countAwaitingFlightRecords } from '@/lib/booking/flight-record-status'
 
 // Server-side guard: only admins can access any /admin route.
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -24,7 +25,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { count: checkoutNewRequests },
     { count: checkoutAwaitingOutcome },
     { count: checkoutPaymentRequired },
-    { count: awaitingFlightRecord },
+    { data: awaitingFlightRecordRows },
     { count: postFlightReview },
     { count: bookingPaymentPending },
     { count: checkoutManualReview },
@@ -44,7 +45,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_requested'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_completed_under_review'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_payment_required'),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'awaiting_flight_record'),
+    supabase
+      .from('bookings')
+      .select('id, status, scheduled_end, flight_records(status, submitted_at)')
+      .eq('booking_type', 'standard')
+      .in('status', ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record', 'flight_record_overdue'])
+      .lte('scheduled_end', new Date().toISOString()),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'pending_post_flight_review'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'payment_pending'),
     supabase.from('checkout_bank_transfer_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending_review'),
@@ -66,7 +72,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const checkoutCancelledQueue = cancelledCheckoutIds.size
   const checkoutActions = checkoutNewQueue + checkoutAwaitingOutcomeQueue + checkoutPaymentsQueue + checkoutRescheduleQueue + checkoutCancelledQueue
 
-  const bookingAwaitingFlightQueue = awaitingFlightRecord ?? 0
+  const bookingAwaitingFlightQueue = countAwaitingFlightRecords(awaitingFlightRecordRows)
   const bookingPostFlightQueue = postFlightReview ?? 0
   const bookingPaymentsQueue = (bookingPaymentPending ?? 0) + (bookingManualReview ?? 0)
   const bookingCancellationsQueue = cancellationPending ?? 0
