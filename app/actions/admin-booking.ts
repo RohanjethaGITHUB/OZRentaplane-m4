@@ -36,6 +36,7 @@ import {
   FLIGHT_RECORD_REVIEW_STATUSES,
   FLIGHT_RECORD_APPROVAL_STATUSES,
 } from '@/lib/booking/status-constants'
+import { sydneyInputToUTC, todaySydneyDateKey } from '@/lib/utils/sydney-time'
 
 // ─── Admin guard ──────────────────────────────────────────────────────────────
 // Mirrors requireAdmin() in app/actions/admin.ts.
@@ -1648,9 +1649,12 @@ export async function unlockCheckoutNoShowLock(customerId: string): Promise<void
 export async function adminUpdateCheckoutTime(
   bookingId:         string,
   newScheduledStart: string,   // ISO 8601 UTC
+  selectedDate?:     string,   // YYYY-MM-DD in Sydney
+  selectedTime?:     string,   // HH:MM in Sydney
 ): Promise<{ newStart: string; newEnd: string }> {
   const { supabase, adminId } = await requireAdmin()
   const nowIso = new Date().toISOString()
+  const CHECKOUT_DURATION_MINUTES = 120
 
   const { data: booking, error: fetchErr } = await supabase
     .from('bookings')
@@ -1664,7 +1668,16 @@ export async function adminUpdateCheckoutTime(
     throw new Error(`VALIDATION: Checkout time can only be edited while status is 'checkout_requested'. Current: '${booking.status}'.`)
   }
 
-  const newStart = new Date(newScheduledStart)
+  const normalizedTime = selectedTime?.trim()
+  const safeSelectedTime = normalizedTime && /^\d{1,2}:\d{2}$/.test(normalizedTime)
+    ? `${normalizedTime.padStart(5, '0')}`
+    : normalizedTime
+  const derivedStartISO = selectedDate && safeSelectedTime
+    ? sydneyInputToUTC(`${selectedDate}T${safeSelectedTime}`)
+    : null
+
+  const effectiveStartISO = derivedStartISO ?? newScheduledStart
+  const newStart = new Date(effectiveStartISO)
   if (isNaN(newStart.getTime())) throw new Error('VALIDATION: Invalid start time.')
 
   const now = new Date()
@@ -1672,7 +1685,7 @@ export async function adminUpdateCheckoutTime(
   const fmtHm = (d: Date) =>
     `${d.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', hour12: false }).slice(-2)}:${d.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', minute: '2-digit' }).padStart(2, '0')}`
   const selectedSydDate = fmtYmd(newStart)
-  const nowSydDate = fmtYmd(now)
+  const nowSydDate = todaySydneyDateKey()
   const selectedSydTime = fmtHm(newStart)
   const nowSydTime = fmtHm(now)
 
@@ -1683,7 +1696,7 @@ export async function adminUpdateCheckoutTime(
     throw new Error('VALIDATION: For today, checkout time must be now or in the future.')
   }
 
-  const newEnd       = new Date(newStart.getTime() + 60 * 60 * 1000)
+  const newEnd       = new Date(newStart.getTime() + CHECKOUT_DURATION_MINUTES * 60 * 1000)
   const newStartISO  = newStart.toISOString()
   const newEndISO    = newEnd.toISOString()
 
@@ -1717,11 +1730,10 @@ export async function adminUpdateCheckoutTime(
     throw new Error(`AVAILABILITY: The new time overlaps with ${conflicts.length} existing block(s). Please choose a different time.`)
   }
 
-  // Cancel any existing active blocks. If active blocks exist and cancellation fails, abort — orphaned
-  // future blocks corrupt aircraft availability and cannot be silently ignored.
+  // Snapshot existing blocks. We replace only after new blocks are validated and inserted.
   const { data: existingActiveBlocks, error: fetchBlocksErr } = await supabase
     .from('schedule_blocks')
-    .select('id')
+    .select('id, start_time, end_time, block_type')
     .eq('related_booking_id', bookingId)
     .eq('status', 'active')
 
@@ -1729,55 +1741,136 @@ export async function adminUpdateCheckoutTime(
     throw new Error('Cannot update checkout time: failed to check existing schedule blocks. Please retry.')
   }
 
-  const hasActiveBlocks = (existingActiveBlocks?.length ?? 0) > 0
-
-  if (hasActiveBlocks) {
-    const { error: cancelBlocksErr } = await supabase
-      .from('schedule_blocks')
-      .update({ status: 'cancelled' })
-      .eq('related_booking_id', bookingId)
-      .eq('status', 'active')
-
-    if (cancelBlocksErr) {
-      throw new Error(
-        `Cannot update checkout time: ${existingActiveBlocks!.length} existing schedule block(s) could not be cancelled. ` +
-        `Proceeding would leave orphaned future availability blocks. Please retry or contact support. (${cancelBlocksErr.message})`
-      )
+  const newBlocks: Array<Record<string, unknown>> = []
+  const pushBlock = (params: {
+    blockType: 'customer_booking' | 'buffer'
+    startISO: string
+    endISO: string
+    publicLabel: string | null
+    internalReason: string | null
+    visible: boolean
+  }) => {
+    const blockStart = new Date(params.startISO)
+    const blockEnd = new Date(params.endISO)
+    if (
+      Number.isNaN(blockStart.getTime()) ||
+      Number.isNaN(blockEnd.getTime()) ||
+      blockEnd.getTime() <= blockStart.getTime()
+    ) {
+      console.error('[adminUpdateCheckoutTime] Invalid schedule block generated', {
+        checkoutId: bookingId,
+        bookingId,
+        aircraftId: booking.aircraft_id,
+        selectedDate: selectedDate ?? selectedSydDate,
+        selectedDepartureTime: selectedTime ?? selectedSydTime,
+        blockStart: params.startISO,
+        blockEnd: params.endISO,
+        durationMinutes: CHECKOUT_DURATION_MINUTES,
+        timezoneAssumptions: {
+          inputTimezone: 'Australia/Sydney',
+          storageTimezone: 'UTC (timestamptz)',
+          runtimeTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+      })
+      throw new Error('INVALID_SCHEDULE_BLOCK_TIME_ORDER')
     }
+
+    newBlocks.push({
+      aircraft_id: booking.aircraft_id,
+      related_booking_id: bookingId,
+      block_type: params.blockType,
+      start_time: params.startISO,
+      end_time: params.endISO,
+      public_label: params.publicLabel,
+      internal_reason: params.internalReason,
+      created_by_user_id: adminId,
+      created_by_role: 'admin',
+      is_public_visible: params.visible,
+      status: 'active',
+    })
+  }
+
+  pushBlock({
+    blockType: 'customer_booking',
+    startISO: newStartISO,
+    endISO: newEndISO,
+    publicLabel: 'Checkout Flight',
+    internalReason: null,
+    visible: true,
+  })
+  if (preBufMs > 0) {
+    pushBlock({
+      blockType: 'buffer',
+      startISO: expandedStart,
+      endISO: newStartISO,
+      publicLabel: null,
+      internalReason: 'Pre-flight buffer (checkout — admin updated)',
+      visible: false,
+    })
+  }
+  if (postBufMs > 0) {
+    pushBlock({
+      blockType: 'buffer',
+      startISO: newEndISO,
+      endISO: expandedEnd,
+      publicLabel: null,
+      internalReason: 'Post-flight buffer (checkout — admin updated)',
+      visible: false,
+    })
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.info('[adminUpdateCheckoutTime] Generated schedule block payload', {
+      checkout_request_id: bookingId,
+      booking_id: bookingId,
+      aircraft_id: booking.aircraft_id,
+      raw_selected_date: selectedDate ?? selectedSydDate,
+      raw_selected_departure_time: selectedTime ?? selectedSydTime,
+      computed_return_time: fmtHm(newEnd),
+      duration_minutes: CHECKOUT_DURATION_MINUTES,
+      timezone_assumptions: {
+        input_timezone: 'Australia/Sydney',
+        storage_timezone: 'UTC (timestamptz)',
+        runtime_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
+      blocks: newBlocks.map((b) => ({
+        block_type: b.block_type,
+        block_start_timestamp: b.start_time,
+        block_end_timestamp: b.end_time,
+      })),
+      existing_active_blocks: (existingActiveBlocks ?? []).map((b) => ({
+        id: b.id,
+        block_type: b.block_type,
+        start_time: b.start_time,
+        end_time: b.end_time,
+      })),
+    })
   }
 
   const { error: insertErr } = await supabase
     .from('schedule_blocks')
-    .insert([
-      {
-        aircraft_id: booking.aircraft_id, related_booking_id: bookingId,
-        block_type: 'customer_booking',
-        start_time: newStartISO, end_time: newEndISO,
-        public_label: 'Checkout Flight', internal_reason: null,
-        created_by_user_id: adminId, created_by_role: 'admin',
-        is_public_visible: true, status: 'active',
-      },
-      {
-        aircraft_id: booking.aircraft_id, related_booking_id: bookingId,
-        block_type: 'buffer',
-        start_time: expandedStart, end_time: newStartISO,
-        public_label: null, internal_reason: 'Pre-flight buffer (checkout — admin updated)',
-        created_by_user_id: adminId, created_by_role: 'admin',
-        is_public_visible: false, status: 'active',
-      },
-      {
-        aircraft_id: booking.aircraft_id, related_booking_id: bookingId,
-        block_type: 'buffer',
-        start_time: newEndISO, end_time: expandedEnd,
-        public_label: null, internal_reason: 'Post-flight buffer (checkout — admin updated)',
-        created_by_user_id: adminId, created_by_role: 'admin',
-        is_public_visible: false, status: 'active',
-      },
-    ])
+    .insert(newBlocks)
 
   if (insertErr) {
     console.error('[adminUpdateCheckoutTime] Failed to insert schedule blocks:', insertErr)
-    throw new Error(`AVAILABILITY: Failed to create schedule blocks for the new time. ${insertErr.message}`)
+    throw new Error('INVALID_SCHEDULE_BLOCK_TIME_ORDER')
+  }
+
+  const hasActiveBlocks = (existingActiveBlocks?.length ?? 0) > 0
+  if (hasActiveBlocks) {
+    const activeIds = existingActiveBlocks!.map((b) => b.id)
+    const { error: cancelBlocksErr } = await supabase
+      .from('schedule_blocks')
+      .update({ status: 'cancelled' })
+      .in('id', activeIds)
+      .eq('status', 'active')
+
+    if (cancelBlocksErr) {
+      console.error('[adminUpdateCheckoutTime] Failed to cancel old schedule blocks after insert:', cancelBlocksErr)
+      throw new Error(
+        'Could not finalize checkout time update because old schedule blocks could not be replaced safely. Please retry or contact support.',
+      )
+    }
   }
 
   const { error: bookingErr } = await supabase

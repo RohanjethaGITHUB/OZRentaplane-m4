@@ -64,10 +64,12 @@ const ALL_TIME_OPTIONS = (() => {
   return opts
 })()
 
-function addOneHour(timeStr: string): string {
+const CHECKOUT_DURATION_MINUTES = 120
+
+function addCheckoutDuration(timeStr: string): string {
   const [h, m] = timeStr.split(':').map(Number)
-  const totalMin = (h! * 60 + m!) + 60
-  const newH = Math.min(23, Math.floor(totalMin / 60))
+  const totalMin = (h! * 60 + m!) + CHECKOUT_DURATION_MINUTES
+  const newH = Math.floor((totalMin % (24 * 60)) / 60)
   const newM = totalMin % 60
   return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`
 }
@@ -265,7 +267,7 @@ export default function AdminCheckoutReviewPanel({
   const [editingTime, setEditingTime] = useState(false)
   const [newDate, setNewDate]         = useState(toSydDate(scheduledStart))
   const [newStartTime, setNewStartTime] = useState(toSydTime(scheduledStart))
-  const newEndTime  = addOneHour(newStartTime)
+  const newEndTime  = addCheckoutDuration(newStartTime)
   const newEndDT    = newDate && newEndTime   ? `${newDate}T${newEndTime}`   : ''
   const newEndUTC   = newEndDT ? sydneyInputToUTC(newEndDT) : null
   const newStartDT  = newDate && newStartTime ? `${newDate}T${newStartTime}` : ''
@@ -311,13 +313,17 @@ export default function AdminCheckoutReviewPanel({
     setTimeUpdateStatus('saving')
     setTimeError(null)
     try {
-      await adminUpdateCheckoutTime(bookingId, newStartUTC)
+      await adminUpdateCheckoutTime(bookingId, newStartUTC, newDate, newStartTime)
       setTimeUpdateStatus('saved')
       setEditingTime(false)
       router.refresh()
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to update time.'
-      setTimeError(msg.replace(/^VALIDATION: |^AVAILABILITY: /, ''))
+      if (msg.includes('INVALID_SCHEDULE_BLOCK_TIME_ORDER')) {
+        setTimeError('Could not update checkout time because the generated schedule block was invalid. Please try another time or contact support.')
+      } else {
+        setTimeError(msg.replace(/^VALIDATION: |^AVAILABILITY: /, ''))
+      }
       setTimeUpdateStatus('error')
     }
   }
@@ -589,7 +595,7 @@ export default function AdminCheckoutReviewPanel({
         ) : (
           <div className="space-y-4">
             <p className="text-[11px] text-slate-500">
-              Duration is fixed at 1 hour. Select the departure date and time.
+              Duration is fixed at 2 hours. Select the departure date and time.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -616,7 +622,7 @@ export default function AdminCheckoutReviewPanel({
             {/* Computed return */}
             <div className="flex items-center justify-between bg-white/[0.03] border border-white/[0.05] rounded-lg px-3 py-2">
               <span className="text-[10px] text-slate-500">Return (auto)</span>
-              <span className="text-[10px] text-white/70">{endTimeLabel} <span className="text-slate-600">(fixed 1 hour)</span></span>
+              <span className="text-[10px] text-white/70">{endTimeLabel} <span className="text-slate-600">(fixed 2 hours)</span></span>
             </div>
 
             {timeError && (
