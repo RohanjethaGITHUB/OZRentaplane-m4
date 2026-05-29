@@ -1,5 +1,6 @@
 import React from 'react'
 import { FadeUp, StaggerContainer, StaggerItem } from '@/components/MotionPresets'
+import PreFooterCTA from '@/components/marketing/PreFooterCTA'
 
 // ─── Tiny helper: Material Symbol icon ───────────────────────────────────────
 function Icon({ name, className = '' }: { name: string; className?: string }) {
@@ -8,10 +9,10 @@ function Icon({ name, className = '' }: { name: string; className?: string }) {
 
 export default function SafetyPage() {
   return (
-    <main className="bg-mkt-main text-[#d9e3f6] font-sans overflow-x-hidden">
+    <main className="bg-mkt-main text-deep-ink font-sans overflow-x-hidden">
 
       {/* ═══ Section 1: Hero ═══════════════════════════════════════════════════ */}
-      <section className="relative px-6 md:px-12 lg:px-20 overflow-hidden min-h-[500px] md:min-h-[750px] flex items-center">
+      <section className="hero-fade-to-main relative px-6 md:px-12 lg:px-20 overflow-hidden min-h-[500px] md:min-h-[750px] flex items-center">
         <div
           className="absolute inset-0 z-0 bg-cover bg-center opacity-75"
           style={{ backgroundImage: 'url("/CessnaHangar.webp")' }}
@@ -22,7 +23,7 @@ export default function SafetyPage() {
         <div className="relative z-10 max-w-7xl mx-auto w-full pt-16">
           <StaggerContainer className="max-w-xl" staggerDelay={0.25}>
             <StaggerItem duration={1.2}>
-              <p className="mb-4 font-sans text-[12px] font-semibold uppercase tracking-[0.14em] text-[#E0B13B]">Flight Safety</p>
+              <p className="mb-4 font-sans text-[12px] font-semibold uppercase tracking-[0.14em] text-runway-amber">Flight Safety</p>
             </StaggerItem>
             <StaggerItem duration={1.4}>
               <h1 className="font-serif text-5xl md:text-7xl font-normal leading-[1.05] tracking-tight mb-6 text-white">
@@ -31,7 +32,7 @@ export default function SafetyPage() {
               </h1>
             </StaggerItem>
             <StaggerItem duration={1.4}>
-              <p className="font-sans text-[1rem] leading-relaxed text-[#c4c6cf] mb-10 max-w-md">
+              <p className="font-sans text-[1rem] leading-relaxed text-white/80 mb-10 max-w-md">
                 Verified access and operational discipline aren&apos;t just protocols—they are the bedrock of our aviation ecosystem. We manage risk so you can manage the mission.
               </p>
             </StaggerItem>
@@ -41,77 +42,49 @@ export default function SafetyPage() {
       </section>
 
       {/* ═══ Section 2: Safety Philosophy ═════════════════════════════════════ */}
-      <section className="-mt-12 pt-12 pb-32 px-8 md:px-24 bg-mkt-main relative z-20">
-        <StaggerContainer className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-20" viewportMargin="-20%">
-          <div className="lg:col-span-5">
+      <section className="-mt-12 pt-12 pb-28 px-8 md:px-24 bg-mkt-main relative z-20">
+        <div className="mx-auto max-w-7xl">
+          <StaggerContainer className="mb-10" viewportMargin="-20%">
             <StaggerItem duration={1.4}>
-              <h2 className="font-serif font-normal text-4xl md:text-5xl text-[#F4F6FA] mb-6">Our Philosophy</h2>
-              <div className="h-[2px] w-[48px] bg-[#E0B13B] mb-6" />
+              <h2 className="font-serif font-normal text-4xl md:text-5xl text-deep-ink mb-4">Our Philosophy</h2>
+              <div className="h-[3px] w-[40px] bg-runway-amber mb-6" />
             </StaggerItem>
-            <StaggerItem duration={1.4}>
-              <p className="text-[#c4c6cf] text-lg font-sans leading-relaxed">
-                Aviation safety is a quiet, continuous process. It lives in the spaces between takeoff and landing, built upon a foundation of absolute transparency and relentless standardisation.
-              </p>
-            </StaggerItem>
-          </div>
-        </StaggerContainer>
-
-        <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" staggerDelay={0.3} viewportMargin="-25%">
-          {[
-            {
-              icon: 'verified_user',
-              title: 'Qualified pilots only',
-              body: 'Rigorous vetting ensures only those with proven proficiency handle our aircraft.',
-            },
-            {
-              icon: 'build_circle',
-              title: 'Maintained with care',
-              body: 'Aircraft are kept in premium condition by certified technicians beyond minimum requirements.',
-            },
-            {
-              icon: 'rule',
-              title: 'Clear operating standards',
-              body: 'Standardized SOPs remove ambiguity and ensure consistent flight deck outcomes.',
-            },
-            {
-              icon: 'schedule',
-              title: 'Safety before schedule',
-              body: 'We empower every pilot to make the conservative call, regardless of timing pressures.',
-            },
-          ].map(({ icon, title, body }) => (
-            <StaggerItem key={title} duration={1.4}>
-              <div
-                className="bg-mkt-lift border border-[rgba(151,177,215,0.14)] p-10 flex flex-col justify-between h-80 group hover:bg-[rgba(224,177,59,0.03)] hover:border-[rgba(224,177,59,0.35)] transition-all duration-500"
-              >
-                <span className="flex h-12 w-12 items-center justify-center rounded-full border border-[rgba(224,177,59,0.35)] bg-[rgba(8,27,52,0.32)]">
-                  <Icon name={icon} className="text-[#D8DFEA] !text-3xl group-hover:scale-110 transition-transform duration-500" />
-                </span>
-                <div>
-                  <h3 className="font-serif font-normal text-2xl text-[#d9e3f6] mb-3">{title}</h3>
-                  <p className="text-sm text-[#c4c6cf] leading-relaxed">{body}</p>
+          </StaggerContainer>
+          <StaggerContainer className="grid grid-cols-1 gap-0 md:grid-cols-2 xl:grid-cols-4" staggerDelay={0.2} viewportMargin="-25%">
+            {[
+              { icon: 'verified_user', title: 'Qualified pilots only', body: 'Rigorous vetting ensures only those with proven proficiency handle our aircraft.' },
+              { icon: 'build_circle', title: 'Maintained with care', body: 'Aircraft are kept in premium condition by certified technicians beyond minimum requirements.' },
+              { icon: 'rule', title: 'Clear operating standards', body: 'Standardized SOPs remove ambiguity and ensure consistent flight deck outcomes.' },
+              { icon: 'schedule', title: 'Safety before schedule', body: 'We empower every pilot to make the conservative call, regardless of timing pressures.' },
+            ].map(({ icon, title, body }, idx) => (
+              <StaggerItem key={title} duration={1.3}>
+                <div className={`h-full p-8 ${idx < 3 ? 'xl:border-r xl:border-open-ceiling' : ''} ${idx % 2 === 0 ? 'md:border-r md:border-open-ceiling xl:border-r' : ''}`}>
+                  <Icon name={icon} className="!text-[40px] text-runway-amber" />
+                  <h3 className="mt-3 font-sans text-[16px] font-semibold text-deep-ink">{title}</h3>
+                  <p className="mt-2 font-sans text-[13px] leading-[1.6] text-muted-ink">{body}</p>
                 </div>
-              </div>
-            </StaggerItem>
-          ))}
-        </StaggerContainer>
+              </StaggerItem>
+            ))}
+          </StaggerContainer>
+        </div>
       </section>
 
-      {/* ═══ Section 3: Pilot Approval Standards ══════════════════════════════ */}
-      <section className="py-32 px-8 md:px-24 bg-mkt-lift">
+      {/* ═══ Section 3: Pilot Approval ═══════════════════════════════════════ */}
+      <section className="py-24 px-8 md:px-24 bg-mkt-alt">
         <StaggerContainer className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8" viewportMargin="-20%">
           <div>
             <StaggerItem duration={1.4}>
-              <h2 className="font-serif font-normal text-4xl md:text-6xl text-[#d9e3f6] mb-4">Pilot Approval Standards</h2>
-              <div className="h-[2px] w-[52px] bg-[#E0B13B] mb-4" />
+              <h2 className="font-serif font-normal text-4xl md:text-6xl text-deep-ink mb-4">Pilot Approval Standards</h2>
+              <div className="h-[2px] w-[52px] bg-runway-amber mb-4" />
             </StaggerItem>
             <StaggerItem duration={1.4}>
-              <p className="text-[#c4c6cf] max-w-xl font-sans">The standard for flying an OZ aircraft is deliberate and uncompromising.</p>
+              <p className="text-muted-ink max-w-xl font-sans">The standard for flying an OZ aircraft is deliberate and uncompromising.</p>
             </StaggerItem>
           </div>
           <div className="h-px bg-[#44474e]/20 flex-grow hidden md:block mx-12 mb-6" />
         </StaggerContainer>
 
-        <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-1" staggerDelay={0.5} viewportMargin="-25%">
+        <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-1 pb-10 border-b-[1.5px] border-open-ceiling" staggerDelay={0.5} viewportMargin="-25%">
           {[
             {
               phase: 'Phase 01',
@@ -136,35 +109,24 @@ export default function SafetyPage() {
           ].map(({ phase, title, body }) => (
             <StaggerItem key={phase} duration={1.6}>
               <div className="bg-mkt-lift p-8 border-l-2 border-[rgba(224,177,59,0.35)] h-full">
-                <span className="text-xs font-sans uppercase tracking-[0.2em] text-[#E0B13B]/90 mb-6 block">{phase}</span>
-                <h4 className="font-serif font-normal text-2xl mb-4 text-[#d9e3f6]">{title}</h4>
-                <p className="text-sm text-[#c4c6cf] font-sans leading-relaxed">{body}</p>
+                <span className="text-xs font-sans uppercase tracking-[0.2em] text-runway-amber/90 mb-6 block">{phase}</span>
+                <h4 className="font-serif font-normal text-2xl mb-4 text-deep-ink">{title}</h4>
+                <p className="text-sm text-muted-ink font-sans leading-relaxed">{body}</p>
               </div>
             </StaggerItem>
           ))}
         </StaggerContainer>
       </section>
 
-      {/* ═══ Section 4: Maintenance Standards ════════════════════════════════ */}
-      <section className="py-0 grid grid-cols-1 lg:grid-cols-2 bg-mkt-main">
-        {/* Left: image */}
-        <FadeUp duration={2.4} viewportMargin="-20%" delay={0.1} className="relative min-h-[500px]">
-          <img
-            className="absolute inset-0 w-full h-full object-cover brightness-[0.84] saturate-[0.9] contrast-[0.94]"
-            src="/Close-upNose.webp"
-            alt="Aircraft maintenance close-up"
-          />
-          <div className="absolute inset-0 bg-[rgba(2,11,25,0.28)]" />
-          <div className="absolute inset-0 bg-[rgba(6,21,42,0.32)] mix-blend-multiply" />
-          <div className="absolute inset-0 bg-gradient-to-br from-[rgba(8,27,52,0.24)] via-transparent to-[rgba(8,27,52,0.2)]" />
-        </FadeUp>
-
-        {/* Right: content */}
-        <div className="flex items-center px-8 md:px-24 py-20 bg-mkt-lift">
-          <StaggerContainer staggerDelay={0.4} viewportMargin="-30%">
+      {/* ═══ Section 4: Maintenance Standards ═══════════════════════════════ */}
+      <section className="py-24 px-8 md:px-24">
+        <div className="relative overflow-hidden rounded-2xl">
+          <img className="absolute inset-0 h-full w-full object-cover" src="/Close-upNose.webp" alt="Aircraft maintenance close-up" />
+          <div className="absolute inset-0 bg-[rgba(13,27,62,0.72)]" />
+          <StaggerContainer staggerDelay={0.4} viewportMargin="-30%" className="relative z-10 rounded-2xl p-8 md:p-10">
             <StaggerItem duration={1.4}>
-              <h2 className="font-serif font-normal text-4xl md:text-5xl text-[#d9e3f6] mb-8">Maintenance Standards</h2>
-              <div className="h-[2px] w-[48px] bg-[#E0B13B] mb-8" />
+              <h2 className="font-serif font-normal text-4xl md:text-5xl text-white mb-8">Maintenance Standards</h2>
+              <div className="h-[2px] w-[48px] bg-runway-amber mb-8" />
             </StaggerItem>
             <div className="space-y-8">
               {[
@@ -186,12 +148,12 @@ export default function SafetyPage() {
               ].map(({ icon, title, body }) => (
                 <StaggerItem key={title} duration={1.4}>
                   <div className="flex gap-6">
-                    <span className="mt-1 flex h-9 w-9 items-center justify-center rounded-full border border-[rgba(224,177,59,0.35)] bg-[rgba(8,27,52,0.34)] shrink-0">
-                      <Icon name={icon} className="text-[#D8DFEA] !text-[19px]" />
+                    <span className="mt-1 flex h-4 w-4 items-center justify-center rounded-full bg-runway-amber shrink-0">
+                      <Icon name={icon} className="text-deep-ink !text-[12px]" />
                     </span>
                     <div>
-                      <h5 className="text-xl font-serif font-normal mb-2 text-[#d9e3f6]">{title}</h5>
-                      <p className="text-sm text-[#c4c6cf]">{body}</p>
+                      <h5 className="text-xl font-serif font-normal mb-2 text-white">{title}</h5>
+                      <p className="text-sm text-white/75">{body}</p>
                     </div>
                   </div>
                 </StaggerItem>
@@ -205,27 +167,27 @@ export default function SafetyPage() {
       <section className="py-32 px-8 md:px-24 bg-mkt-main">
         <StaggerContainer className="max-w-4xl mx-auto text-center mb-20" viewportMargin="-20%">
           <StaggerItem duration={1.4}>
-            <h2 className="font-serif font-normal text-4xl md:text-6xl mb-6 text-[#d9e3f6]">Operational Safeguards</h2>
-            <div className="mx-auto h-[2px] w-[48px] bg-[#E0B13B] mb-6" />
+            <h2 className="font-serif font-normal text-4xl md:text-6xl mb-6 text-deep-ink">Operational Safeguards</h2>
+            <div className="mx-auto h-[2px] w-[48px] bg-runway-amber mb-6" />
           </StaggerItem>
           <StaggerItem duration={1.4}>
-            <p className="text-[#c4c6cf] font-sans text-lg">We provide the structure; you provide the command.</p>
+            <p className="text-muted-ink font-sans text-lg">We provide the structure; you provide the command.</p>
           </StaggerItem>
         </StaggerContainer>
 
         <StaggerContainer className="space-y-4" staggerDelay={0.4} viewportMargin="-20%">
           <StaggerItem duration={1.4}>
             <div className="grid grid-cols-1 md:grid-cols-12 items-center bg-mkt-lift border border-[rgba(151,177,215,0.14)] hover:border-[rgba(224,177,59,0.35)] p-8 rounded-lg transition-colors">
-              <div className="md:col-span-1 text-[#aec7f7]">
+              <div className="md:col-span-1 text-clearsky">
                 <span className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(224,177,59,0.35)] bg-[rgba(8,27,52,0.3)]">
-                  <Icon name="shield" className="!text-xl text-[#D8DFEA]" />
+                  <Icon name="shield" className="!text-xl text-brand-blue" />
                 </span>
               </div>
               <div className="md:col-span-3">
-                <h4 className="font-serif font-normal text-xl text-[#d9e3f6]">Booking Controls</h4>
+                <h4 className="font-serif font-normal text-xl text-deep-ink">Booking Controls</h4>
               </div>
               <div className="md:col-span-8">
-                <p className="text-[#c4c6cf] text-sm font-sans">
+                <p className="text-muted-ink text-sm font-sans">
                   Automated logic cross-references pilot currency and aircraft status at the moment of booking, preventing illegal or unsafe pairings.
                 </p>
               </div>
@@ -234,16 +196,16 @@ export default function SafetyPage() {
 
           <StaggerItem duration={1.4}>
             <div className="grid grid-cols-1 md:grid-cols-12 items-center bg-mkt-lift border border-[rgba(151,177,215,0.14)] hover:border-[rgba(224,177,59,0.35)] p-8 rounded-lg transition-colors">
-              <div className="md:col-span-1 text-[#aec7f7]">
+              <div className="md:col-span-1 text-clearsky">
                 <span className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(224,177,59,0.35)] bg-[rgba(8,27,52,0.3)]">
-                  <Icon name="psychology" className="!text-xl text-[#D8DFEA]" />
+                  <Icon name="psychology" className="!text-xl text-brand-blue" />
                 </span>
               </div>
               <div className="md:col-span-3">
-                <h4 className="font-serif font-normal text-xl text-[#d9e3f6]">Decision Support</h4>
+                <h4 className="font-serif font-normal text-xl text-deep-ink">Decision Support</h4>
               </div>
               <div className="md:col-span-8">
-                <p className="text-[#c4c6cf] text-sm font-sans">
+                <p className="text-muted-ink text-sm font-sans">
                   Conservative decision-making is reinforced through integrated risk assessment tools provided to every member pilot.
                 </p>
               </div>
@@ -253,17 +215,17 @@ export default function SafetyPage() {
       </section>
 
       {/* ═══ Section 6: Pre-flight / Post-flight ══════════════════════════════ */}
-      <section className="py-32 px-8 md:px-24 bg-mkt-lift">
-        <StaggerContainer className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-[#44474e]/10" staggerDelay={0.4} viewportMargin="-20%">
+      <section className="py-32 px-8 md:px-24 bg-mkt-alt">
+        <StaggerContainer className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-0 items-stretch" staggerDelay={0.4} viewportMargin="-20%">
 
           {/* Pre-flight */}
           <StaggerItem duration={1.4}>
             <div className="bg-mkt-main p-12 md:p-20 h-full">
               <div className="flex items-center gap-4 mb-10">
-                <span className="w-12 h-12 rounded-full bg-[rgba(224,177,59,0.12)] border border-[rgba(224,177,59,0.35)] flex items-center justify-center text-[#E0B13B] font-bold font-sans">
+                <span className="w-12 h-12 rounded-full bg-[rgba(224,177,59,0.12)] border border-[rgba(224,177,59,0.35)] flex items-center justify-center text-runway-amber font-bold font-sans">
                   01
                 </span>
-                <h2 className="font-serif font-normal text-3xl md:text-4xl text-[#d9e3f6]">Pre-flight</h2>
+                <h2 className="font-serif font-normal text-3xl md:text-4xl text-deep-ink">Pre-flight</h2>
               </div>
               <ul className="space-y-6">
                 {[
@@ -273,22 +235,24 @@ export default function SafetyPage() {
                   'Weather briefing and alternate selection',
                 ].map(item => (
                   <li key={item} className="flex gap-4">
-                    <Icon name="check_circle" className="text-[#E0B13B] shrink-0" />
-                    <span className="text-[#c4c6cf]">{item}</span>
+                    <Icon name="check_circle" className="text-runway-amber shrink-0" />
+                    <span className="text-muted-ink">{item}</span>
                   </li>
                 ))}
               </ul>
             </div>
           </StaggerItem>
 
+          <div className="hidden lg:block w-px bg-open-ceiling self-stretch mx-4" />
+
           {/* Post-flight */}
           <StaggerItem duration={1.4}>
-            <div className="bg-mkt-main p-12 md:p-20 h-full">
+            <div className="bg-mkt-main p-12 md:p-20 h-full lg:border-l lg:border-open-ceiling">
               <div className="flex items-center gap-4 mb-10">
-                <span className="w-12 h-12 rounded-full bg-[rgba(224,177,59,0.12)] border border-[rgba(224,177,59,0.35)] flex items-center justify-center text-[#E0B13B] font-bold font-sans">
+                <span className="w-12 h-12 rounded-full bg-[rgba(224,177,59,0.12)] border border-[rgba(224,177,59,0.35)] flex items-center justify-center text-runway-amber font-bold font-sans">
                   02
                 </span>
-                <h2 className="font-serif font-normal text-3xl md:text-4xl text-[#d9e3f6]">Post-flight</h2>
+                <h2 className="font-serif font-normal text-3xl md:text-4xl text-deep-ink">Post-flight</h2>
               </div>
               <ul className="space-y-6">
                 {[
@@ -299,8 +263,8 @@ export default function SafetyPage() {
                   'Take all of your belongings.',
                 ].map(item => (
                   <li key={item} className="flex gap-4">
-                    <Icon name="radio_button_checked" className="text-[#E0B13B] shrink-0" />
-                    <span className="text-[#c4c6cf]">{item}</span>
+                    <Icon name="radio_button_checked" className="text-runway-amber shrink-0" />
+                    <span className="text-muted-ink">{item}</span>
                   </li>
                 ))}
               </ul>
@@ -322,16 +286,16 @@ export default function SafetyPage() {
 
         <StaggerContainer className="relative z-10 max-w-3xl" staggerDelay={0.5} viewportMargin="-25%">
           <StaggerItem duration={1.6}>
-            <h2 className="font-serif font-normal text-5xl md:text-7xl mb-8 text-[#d9e3f6]">The Go/No-Go Culture</h2>
-            <div className="mx-auto h-[2px] w-[48px] bg-[#E0B13B] mb-8" />
+            <h2 className="font-serif font-normal text-5xl md:text-7xl mb-8 text-white">The Go/No-Go Culture</h2>
+            <div className="mx-auto h-[2px] w-[48px] bg-runway-amber mb-8" />
           </StaggerItem>
           <StaggerItem duration={1.6}>
-            <p className="font-sans text-xl text-[#d9e3f6] mb-10 leading-relaxed italic">
+            <p className="font-sans text-xl text-white mb-10 leading-relaxed italic">
               &ldquo;A superior pilot uses their superior judgment to avoid situations which require the use of their superior skill.&rdquo;
             </p>
           </StaggerItem>
           <StaggerItem duration={1.6}>
-            <p className="text-[#c4c6cf] text-lg font-sans mb-12">
+            <p className="text-white/75 text-lg font-sans mb-12">
               OZ Rent A Plane maintains a strict zero-penalty rescheduling policy for weather-related cancellations. If the conditions don&apos;t look right, we support your decision to stay on the ground.
             </p>
           </StaggerItem>
@@ -344,19 +308,19 @@ export default function SafetyPage() {
 
           {/* Text */}
           <StaggerItem duration={1.6} className="flex-1 w-full">
-            <h2 className="font-serif font-normal text-4xl mb-8 text-[#d9e3f6]">Type Familiarisation</h2>
-            <div className="h-[2px] w-[48px] bg-[#E0B13B] mb-8" />
-            <p className="text-[#c4c6cf] text-lg mb-8 font-sans leading-relaxed">
+            <h2 className="font-serif font-normal text-4xl mb-8 text-deep-ink">Type Familiarisation</h2>
+            <div className="h-[2px] w-[48px] bg-runway-amber mb-8" />
+            <p className="text-muted-ink text-lg mb-8 font-sans leading-relaxed">
               Even for highly experienced pilots, every cockpit is a unique ecosystem. Our mandatory checkouts aren&apos;t just about &lsquo;flying the plane&rsquo;—they are about mastering the specific avionics, emergency procedures, and operational nuances of the OZ fleet.
             </p>
             <div className="grid grid-cols-2 gap-8">
               <div>
-                <h6 className="font-bold text-[#E0B13B] mb-2 uppercase text-xs tracking-widest font-sans">Typical Duration</h6>
-                <p className="font-serif font-normal text-2xl text-[#d9e3f6]">1.5 – 3 Hours</p>
+                <h6 className="font-bold text-runway-amber mb-2 uppercase text-xs tracking-widest font-sans">Typical Duration</h6>
+                <p className="font-serif font-normal text-2xl text-deep-ink">1.5 – 3 Hours</p>
               </div>
               <div>
-                <h6 className="font-bold text-[#E0B13B] mb-2 uppercase text-xs tracking-widest font-sans">Validity</h6>
-                <p className="font-serif font-normal text-2xl text-[#d9e3f6]">90 Days Recency</p>
+                <h6 className="font-bold text-runway-amber mb-2 uppercase text-xs tracking-widest font-sans">Validity</h6>
+                <p className="font-serif font-normal text-2xl text-deep-ink">90 Days Recency</p>
               </div>
             </div>
           </StaggerItem>
@@ -378,12 +342,12 @@ export default function SafetyPage() {
       </section>
 
       {/* ═══ Section 9: Safety FAQ ════════════════════════════════════════════ */}
-      <section className="py-32 px-8 md:px-24 bg-mkt-lift">
+      <section className="py-32 px-8 md:px-24 bg-mkt-alt">
         <div className="max-w-4xl mx-auto">
           <StaggerContainer className="mb-16 text-center" viewportMargin="-20%">
             <StaggerItem duration={1.4}>
-              <h2 className="font-serif font-normal text-4xl text-[#d9e3f6]">Safety Questions</h2>
-              <div className="mx-auto h-[2px] w-[48px] bg-[#E0B13B] mt-4" />
+              <h2 className="font-serif font-normal text-4xl text-deep-ink">Safety Questions</h2>
+              <div className="mx-auto h-[2px] w-[48px] bg-runway-amber mt-4" />
             </StaggerItem>
           </StaggerContainer>
 
@@ -392,10 +356,10 @@ export default function SafetyPage() {
             <StaggerItem duration={1.2}>
               <div className="bg-mkt-main p-8">
                 <div className="flex justify-between items-center cursor-pointer">
-                  <h4 className="font-serif font-normal text-xl text-[#d9e3f6]">How is aircraft maintenance tracked?</h4>
-                  <Icon name="expand_more" className="text-[#E0B13B]" />
+                  <h4 className="font-serif font-normal text-xl text-deep-ink">How is aircraft maintenance tracked?</h4>
+                  <Icon name="expand_more" className="text-runway-amber" />
                 </div>
-                <div className="mt-4 text-[#c4c6cf] text-sm leading-relaxed max-w-3xl">
+                <div className="mt-4 text-muted-ink text-sm leading-relaxed max-w-3xl">
                   We use a digital maintenance logbook accessible to all pilots during the pre-flight phase. This ensures you have a live view of the aircraft&apos;s airworthiness status and engine hours at all times.
                 </div>
               </div>
@@ -409,8 +373,8 @@ export default function SafetyPage() {
               <StaggerItem key={q} duration={1.2}>
                 <div className="bg-mkt-main p-8">
                   <div className="flex justify-between items-center cursor-pointer">
-                    <h4 className="font-serif font-normal text-xl text-[#d9e3f6]">{q}</h4>
-                    <Icon name="expand_more" className="text-[#E0B13B]" />
+                    <h4 className="font-serif font-normal text-xl text-deep-ink">{q}</h4>
+                    <Icon name="expand_more" className="text-runway-amber" />
                   </div>
                 </div>
               </StaggerItem>
@@ -419,41 +383,12 @@ export default function SafetyPage() {
         </div>
       </section>
 
-      {/* ═══ Section 10: Final CTA ════════════════════════════════════════════ */}
-      <section className="py-32 px-8 md:px-24 text-center bg-mkt-main" id="contact">
-        <div className="max-w-2xl mx-auto">
-          <StaggerContainer staggerDelay={0.3} viewportMargin="-25%">
-            <StaggerItem duration={1.4}>
-              <h2 className="font-serif font-normal text-4xl md:text-6xl mb-8 text-[#d9e3f6]">Ready to Apply for Access?</h2>
-              <div className="mx-auto h-[2px] w-[52px] bg-[#E0B13B] mb-8" />
-            </StaggerItem>
-            <StaggerItem duration={1.4}>
-              <p className="text-[#c4c6cf] text-lg mb-12 font-sans">
-                Join a community of disciplined aviators who value safety as much as the freedom of flight.
-              </p>
-            </StaggerItem>
-          </StaggerContainer>
-          
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mt-4">
-            <FadeUp delay={0.8} duration={1.4}>
-              <a
-                href="/pilotRequirements"
-                className="inline-block bg-[#E0B13B] text-[#061120] px-8 py-4 rounded-md border border-[#B8871E] font-sans font-bold uppercase tracking-widest text-sm transition-colors active:scale-95 hover:bg-[#F0C24A]"
-              >
-                View Pilot Requirements
-              </a>
-            </FadeUp>
-            <FadeUp delay={1.1} duration={1.4}>
-              <a
-                href="#contact"
-                className="inline-block bg-[#212b38] text-[#d9e3f6] px-8 py-4 rounded-md font-sans font-bold uppercase tracking-widest text-sm active:scale-95 transition-all"
-              >
-                Contact Support
-              </a>
-            </FadeUp>
-          </div>
-        </div>
-      </section>
+      <PreFooterCTA
+        heading="Ready to Apply for Access?"
+        subtext="Join a community of disciplined aviators who value safety above all else."
+        ctaLabel="View Pilot Requirements"
+        ctaHref="/pilotRequirements"
+      />
 
     </main>
   )

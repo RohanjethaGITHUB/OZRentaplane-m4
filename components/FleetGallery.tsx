@@ -8,7 +8,7 @@ import {
 import type { FleetGalleryImage } from '@/lib/fleetGalleryManifest'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
-const BASE     = '#061524'
+const BASE     = '#dce8f8'
 const EASE_OUT = [0.22, 1, 0.36, 1] as [number, number, number, number]
 
 // ─── Teaser collage: each card has explicit size + position ───────────────────
@@ -228,17 +228,17 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
           >
             {/* Subtle background abstract shapes / technical linework */}
             <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none opacity-80">
-               <div className="w-[800px] h-[800px] border border-white/[0.15] rounded-full absolute mix-blend-screen" />
-               <div className="w-[600px] h-[600px] border border-white/[0.12] rounded-full absolute mix-blend-screen" />
-               <div className="w-px h-full bg-white/[0.12] absolute" />
-               <div className="w-full h-px bg-white/[0.12] absolute" />
+               <div className="w-[800px] h-[800px] border border-brand-blue/20 rounded-full absolute" />
+               <div className="w-[600px] h-[600px] border border-brand-blue/15 rounded-full absolute" />
+               <div className="w-px h-full bg-brand-blue/12 absolute" />
+               <div className="w-full h-px bg-brand-blue/12 absolute" />
                
                {/* Faint technical corner brackets backing the collage area */}
                <div className="absolute w-[460px] h-[340px]">
-                 <div className="absolute top-0 left-0 w-8 h-8 border-t border-l border-white/[0.1]" />
-                 <div className="absolute top-0 right-0 w-8 h-8 border-t border-r border-white/[0.1]" />
-                 <div className="absolute bottom-0 left-0 w-8 h-8 border-b border-l border-white/[0.1]" />
-                 <div className="absolute bottom-0 right-0 w-8 h-8 border-b border-r border-white/[0.1]" />
+                 <div className="absolute top-0 left-0 w-8 h-8 border-t border-l border-brand-blue/12" />
+                 <div className="absolute top-0 right-0 w-8 h-8 border-t border-r border-brand-blue/12" />
+                 <div className="absolute bottom-0 left-0 w-8 h-8 border-b border-l border-brand-blue/12" />
+                 <div className="absolute bottom-0 right-0 w-8 h-8 border-b border-r border-brand-blue/12" />
                </div>
             </div>
 
@@ -349,16 +349,16 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
                       onClick={openExpanded}
                       className="mt-12 flex items-center justify-center gap-3 font-sans font-semibold text-xs tracking-[0.22em] uppercase px-7 py-3.5 rounded-xl w-fit mx-auto pointer-events-auto"
                       style={{
-                        background:     'rgba(174,199,247,0.07)',
-                        border:         '1px solid rgba(174,199,247,0.16)',
-                        color:          '#aec7f7',
+                        background:     '#1a4fd6',
+                        border:         '1px solid #1a4fd6',
+                        color:          '#ffffff',
                         backdropFilter: 'blur(10px)',
                       }}
                       initial={{ opacity: 0, y: 30 }}
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true, margin: '-20%' }}
                       transition={{ duration: 1.4, delay: 1.0, ease: EASE_OUT }}
-                      whileHover={{ background: 'rgba(174,199,247,0.12)', scale: 1.03 }}
+                      whileHover={{ background: '#1541b1', scale: 1.03 }}
                       whileTap={{ scale: 0.97 }}
                     >
                       Explore Gallery
@@ -384,14 +384,14 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
                 >
                   <p
                     className="font-sans font-semibold tracking-[0.44em] uppercase mb-4"
-                    style={{ fontSize: '0.58rem', color: 'rgba(174,199,247,0.52)' }}
+                    style={{ fontSize: '0.58rem', color: '#1a4fd6' }}
                   >
                     Fleet Gallery
                   </p>
 
                   <h2
-                    className="font-serif font-normal leading-[1.06] tracking-tight"
-                    style={{ fontSize: 'clamp(2.8rem, 5vw, 4.2rem)', color: '#d9e3f6' }}
+                    className="font-serif font-normal leading-[1.06] tracking-tight text-deep-ink"
+                    style={{ fontSize: 'clamp(2.8rem, 5vw, 4.2rem)' }}
                   >
                     Inside<br />the Aircraft
                   </h2>
@@ -407,12 +407,12 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
                 >
                   <div
                     className="md:ml-auto h-px mb-4 w-12"
-                    style={{ background: 'rgba(174,199,247,0.18)' }}
+                    style={{ background: 'rgba(26,79,214,0.25)' }}
                   />
 
                   <p
                     className="font-sans leading-relaxed"
-                    style={{ fontSize: '0.85rem', color: 'rgba(196,198,207,0.76)' }}
+                    style={{ fontSize: '0.85rem', color: '#4b6390' }}
                   >
                     {isEmpty
                       ? 'Gallery images will appear here once added to the fleet-gallery directory.'
@@ -463,13 +463,13 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
               <div className="select-none">
                 <p
                   className="font-sans font-semibold tracking-[0.44em] uppercase mb-2"
-                  style={{ fontSize: '0.55rem', color: 'rgba(174,199,247,0.40)' }}
+                  style={{ fontSize: '0.55rem', color: '#1a4fd6' }}
                 >
                   Fleet Gallery
                 </p>
                 <h2
-                  className="font-serif font-normal leading-none tracking-tight"
-                  style={{ fontSize: 'clamp(1.6rem, 2.8vw, 2.4rem)', color: '#d9e3f6' }}
+                  className="font-serif font-normal leading-none tracking-tight text-deep-ink"
+                  style={{ fontSize: 'clamp(1.6rem, 2.8vw, 2.4rem)' }}
                 >
                   Inside the Aircraft
                 </h2>

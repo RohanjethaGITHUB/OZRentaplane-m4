@@ -9,12 +9,14 @@ export default function ScreenshotMode() {
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    const enabled = searchParams?.get('screenshot') === '1'
+    const enabled = searchParams?.get('screenshotMode') === '1'
     const html = document.documentElement
-    const body = document.body
 
-    html.classList.toggle(CLASS_NAME, enabled)
-    body.classList.toggle(CLASS_NAME, enabled)
+    if (enabled) {
+      html.setAttribute('data-screenshot-mode', 'true')
+    } else {
+      html.removeAttribute('data-screenshot-mode')
+    }
   }, [searchParams])
 
   return null

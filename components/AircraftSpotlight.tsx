@@ -71,8 +71,8 @@ function MetricChip({ value, unit, label, align = 'left' }: ChipProps) {
           {value}
         </span>
         <span
-          className="font-sans font-semibold leading-none"
-          style={{ fontSize: '0.62rem', color: '#aec7f7' }}
+          className="font-sans font-semibold leading-none text-clearsky"
+          style={{ fontSize: '0.62rem' }}
         >
           {unit}
         </span>
@@ -90,9 +90,11 @@ function MetricChip({ value, unit, label, align = 'left' }: ChipProps) {
 // ─── Main component ───────────────────────────────────────────────────────────
 type AircraftSpotlightProps = {
   showHeading?: boolean
+  baseColor?: string
+  headerBlock?: React.ReactNode
 }
 
-export default function AircraftSpotlight({ showHeading = true }: AircraftSpotlightProps) {
+export default function AircraftSpotlight({ showHeading = true, baseColor = BASE, headerBlock }: AircraftSpotlightProps) {
   const sectionRef = useRef<HTMLElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const isInView = useInView(sectionRef, { once: true, margin: '-25% 0px' })
@@ -144,7 +146,7 @@ export default function AircraftSpotlight({ showHeading = true }: AircraftSpotli
     <section
       ref={sectionRef}
       className="relative w-full py-28 md:py-36 px-4 sm:px-6 lg:px-8 overflow-hidden"
-      style={{ background: BASE }}
+      style={{ background: baseColor }}
     >
       {/* Section-level ambient lift */}
       <div
@@ -157,6 +159,7 @@ export default function AircraftSpotlight({ showHeading = true }: AircraftSpotli
       />
 
       <div className="relative z-10 max-w-6xl mx-auto">
+        {headerBlock ? <div className="mb-10 md:mb-12">{headerBlock}</div> : null}
 
         {/* ── Heading block ─────────────────────────────────────────────────── */}
         {showHeading ? (
@@ -222,13 +225,13 @@ export default function AircraftSpotlight({ showHeading = true }: AircraftSpotli
             <div
               aria-hidden="true"
               className="absolute inset-0 pointer-events-none"
-              style={{ opacity: 0.28 }}
+              style={{ opacity: 0.35 }}
             >
               <CubeGrid
                 gridSize={11}
                 maxAngle={25}
                 radius={4}
-                faceColor="#0c1e35"
+                faceColor="#17375d"
                 borderColor="rgba(174,199,247,0.07)"
                 gapPercent={3}
                 speed={0.012}

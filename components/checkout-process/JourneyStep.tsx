@@ -141,8 +141,7 @@ export default function JourneyStep({
           }}
         >
           <span
-            className="block text-[10px] font-bold tracking-[0.28em] uppercase mb-3 font-sans"
-            style={{ color: '#aec7f7' }}
+            className="block text-[10px] font-bold tracking-[0.28em] uppercase mb-3 font-sans text-clearsky"
           >
             {waypointLabel}
           </span>
@@ -316,8 +315,8 @@ export function VerificationCard() {
       </div>
       <div className="flex items-center gap-2" style={{ color: '#94a3b8' }}>
         <span
-          className="material-symbols-outlined"
-          style={{ color: '#aec7f7', fontSize: '14px' }}
+          className="material-symbols-outlined text-clearsky"
+          style={{ fontSize: '14px' }}
         >
           schedule
         </span>
@@ -349,8 +348,8 @@ export function ConfirmationGrid() {
           }}
         >
           <span
-            className="material-symbols-outlined shrink-0"
-            style={{ color: '#aec7f7', fontSize: '17px' }}
+            className="material-symbols-outlined shrink-0 text-clearsky"
+            style={{ fontSize: '17px' }}
           >
             {item.icon}
           </span>
@@ -378,8 +377,7 @@ export function FlyCard() {
       }}
     >
       <div
-        className="font-serif text-[2.5rem] lg:text-[3rem] italic leading-none mb-0.5"
-        style={{ color: '#aec7f7' }}
+        className="font-serif text-[2.5rem] lg:text-[3rem] italic leading-none mb-0.5 text-clearsky"
       >
         Ready.
       </div>
@@ -401,16 +399,15 @@ export function FlyCard() {
           style={{ background: 'rgba(174,199,247,0.1)' }}
         >
           <span
-            className="material-symbols-outlined"
-            style={{ color: '#aec7f7', fontSize: '16px' }}
+            className="material-symbols-outlined text-clearsky"
+            style={{ fontSize: '16px' }}
           >
             receipt_long
           </span>
         </div>
         <div>
           <div
-            className="text-[9px] font-bold uppercase tracking-[0.3em] mb-0.5"
-            style={{ color: '#aec7f7' }}
+            className="text-[9px] font-bold uppercase tracking-[0.3em] mb-0.5 text-clearsky"
           >
             Post-Flight Ops
           </div>

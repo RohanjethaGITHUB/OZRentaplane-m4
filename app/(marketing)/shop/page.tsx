@@ -173,7 +173,7 @@ function ProductImageArea({
       </svg>
       <Icon
         name={icon}
-        className="text-[#aec7f7] relative z-10"
+        className="text-clearsky relative z-10"
         style={{ fontSize: '3rem', opacity: 0.25 }}
       />
     </div>
@@ -187,7 +187,7 @@ function ProductCard({ product }: { product: Product }) {
       hoverY={-6}
       hoverScale={1.01}
       duration={0.45}
-      className="group bg-mkt-lift border border-white/[0.07] rounded-xl overflow-hidden flex flex-col h-full shadow-lg hover:border-[#aec7f7]/20 hover:shadow-2xl hover:shadow-[#aec7f7]/[0.04] transition-colors duration-500"
+      className="group bg-mkt-lift border border-white/[0.07] rounded-xl overflow-hidden flex flex-col h-full shadow-lg hover:border-clearsky/20 hover:shadow-2xl hover:shadow-clearsky/[0.04] transition-colors duration-500"
     >
       {/* Image area */}
       <div className="relative h-44 flex-shrink-0">
@@ -198,7 +198,7 @@ function ProductCard({ product }: { product: Product }) {
           imageStyle={product.imageStyle}
         />
         <div className="absolute top-3 left-3">
-          <span className="bg-[#0d2040]/80 backdrop-blur-sm text-[#aec7f7] text-[0.62rem] font-sans font-bold uppercase tracking-wider px-3 py-1 rounded-full border border-[#aec7f7]/20">
+          <span className="bg-[#0d2040]/80 backdrop-blur-sm text-clearsky text-[0.62rem] font-sans font-bold uppercase tracking-wider px-3 py-1 rounded-full border border-clearsky/20">
             {product.category}
           </span>
         </div>
@@ -206,16 +206,16 @@ function ProductCard({ product }: { product: Product }) {
 
       {/* Card body */}
       <div className="p-5 flex flex-col flex-1">
-        <h3 className="font-sans font-semibold text-[#d9e3f6] mb-2 leading-snug text-[0.95rem]">
+        <h3 className="font-sans font-semibold text-pale-sky mb-2 leading-snug text-[0.95rem]">
           {product.name}
         </h3>
-        <p className="text-[#8e9098] font-sans text-[0.8rem] leading-relaxed mb-4 flex-1">
+        <p className="text-smoke font-sans text-[0.8rem] leading-relaxed mb-4 flex-1">
           {product.description}
         </p>
 
         {/* Price */}
         <div className="mb-3">
-          <span className="font-sans text-[1.6rem] font-light text-[#aec7f7] tracking-tight">
+          <span className="font-sans text-[1.6rem] font-light text-clearsky tracking-tight">
             {product.price}
           </span>
         </div>
@@ -234,7 +234,7 @@ function ProductCard({ product }: { product: Product }) {
         {product.buttonType === 'buy' && (
           <a
             href="#"
-            className="w-full text-center bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] rounded-md font-sans font-bold tracking-widest uppercase text-[0.68rem] px-5 py-3 shadow-lg shadow-[#aec7f7]/10 transition-all active:scale-95 hover:brightness-110"
+            className="w-full text-center bg-gradient-to-r from-clearsky to-panel-deep text-ink-deep rounded-md font-sans font-bold tracking-widest uppercase text-[0.68rem] px-5 py-3 shadow-lg shadow-clearsky/10 transition-all active:scale-95 hover:brightness-110"
           >
             Buy Now
           </a>
@@ -242,7 +242,7 @@ function ProductCard({ product }: { product: Product }) {
         {product.buttonType === 'enquire' && (
           <a
             href="mailto:ops@ozrentaplane.com.au?subject=Shop%20enquiry"
-            className="w-full text-center border border-[#aec7f7]/35 text-[#aec7f7] rounded-md font-sans font-bold tracking-widest uppercase text-[0.68rem] px-5 py-3 hover:bg-[#aec7f7]/5 transition-colors"
+            className="w-full text-center border border-clearsky/35 text-clearsky rounded-md font-sans font-bold tracking-widest uppercase text-[0.68rem] px-5 py-3 hover:bg-clearsky/5 transition-colors"
           >
             Enquire
           </a>
@@ -270,16 +270,16 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
         onClick={() => setOpen(!open)}
         aria-expanded={open}
       >
-        <span className="font-sans font-semibold text-[#d9e3f6] text-sm leading-snug pr-4">
+        <span className="font-sans font-semibold text-pale-sky text-sm leading-snug pr-4">
           {question}
         </span>
         <Icon
           name={open ? 'expand_less' : 'expand_more'}
-          className="text-[#aec7f7] flex-shrink-0 transition-transform duration-200"
+          className="text-clearsky flex-shrink-0 transition-transform duration-200"
         />
       </button>
       {open && (
-        <div className="px-6 pb-5 text-[0.83rem] text-[#8e9098] leading-relaxed font-sans">
+        <div className="px-6 pb-5 text-[0.83rem] text-smoke leading-relaxed font-sans">
           {answer}
         </div>
       )}
@@ -297,7 +297,7 @@ export default function ShopPage() {
       : PRODUCTS.filter((p) => p.category === activeCategory)
 
   return (
-    <main className="bg-mkt-main text-[#d9e3f6] overflow-x-hidden">
+    <main className="bg-mkt-main text-pale-sky overflow-x-hidden">
 
       {/* ── 1. Hero ─────────────────────────────────────────────────────────── */}
       <section className="relative px-6 md:px-12 lg:px-20 overflow-hidden min-h-[500px] md:min-h-[750px] flex items-center">
@@ -320,7 +320,7 @@ export default function ShopPage() {
               </h1>
             </StaggerItem>
             <StaggerItem duration={1.4}>
-              <p className="font-sans text-[1rem] leading-relaxed text-[#c4c6cf] mb-10 max-w-md">
+              <p className="font-sans text-[1rem] leading-relaxed text-cloud-muted mb-10 max-w-md">
                 Printed checklists, cockpit-ready resources, and simple branded
                 gear for pilots, students, and flying enthusiasts.
               </p>
@@ -331,7 +331,7 @@ export default function ShopPage() {
             <FadeUp delay={1.2} duration={1.4}>
               <a
                 href="#products"
-                className="inline-block bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] rounded-md font-sans font-bold tracking-widest uppercase text-[0.8rem] px-8 py-4 shadow-2xl shadow-[#aec7f7]/20 transition-all active:scale-95 hover:brightness-110"
+                className="inline-block bg-gradient-to-r from-clearsky to-panel-deep text-ink-deep rounded-md font-sans font-bold tracking-widest uppercase text-[0.8rem] px-8 py-4 shadow-2xl shadow-clearsky/20 transition-all active:scale-95 hover:brightness-110"
               >
                 Browse Products
               </a>
@@ -339,7 +339,7 @@ export default function ShopPage() {
             <FadeUp delay={1.5} duration={1.4}>
               <a
                 href="/resources"
-                className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded border border-white/[0.14] text-[#c4c6cf] hover:bg-white/5 transition-colors"
+                className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded border border-white/[0.14] text-cloud-muted hover:bg-white/5 transition-colors"
               >
                 View Pilot Resources
               </a>
@@ -358,8 +358,8 @@ export default function ShopPage() {
                 onClick={() => setActiveCategory(cat)}
                 className={`font-sans text-[0.72rem] font-semibold tracking-wider uppercase px-5 py-2 rounded-full border transition-all duration-200 ${
                   activeCategory === cat
-                    ? 'bg-[#aec7f7] text-[#0a1929] border-[#aec7f7]'
-                    : 'border-white/[0.08] text-[#8e9098] hover:border-[#aec7f7]/30 hover:text-[#c4c6cf]'
+                    ? 'bg-clearsky text-[#0a1929] border-clearsky'
+                    : 'border-white/[0.08] text-smoke hover:border-clearsky/30 hover:text-cloud-muted'
                 }`}
               >
                 {cat}
@@ -399,10 +399,10 @@ export default function ShopPage() {
           {/* Left: title + copy + link */}
           <FadeUp className="lg:col-span-5 space-y-8">
             <div>
-              <h2 className="font-serif text-4xl md:text-5xl font-normal tracking-tight text-[#aec7f7] leading-tight mb-6">
+              <h2 className="font-serif text-4xl md:text-5xl font-normal tracking-tight text-clearsky leading-tight mb-6">
                 Printed Aircraft<br />Documents
               </h2>
-              <p className="font-sans text-[#8e9098] text-[0.95rem] leading-relaxed max-w-lg">
+              <p className="font-sans text-smoke text-[0.95rem] leading-relaxed max-w-lg">
                 Some resources are available as downloadable files in the Resources
                 section. Printed versions can be purchased for pilots who prefer
                 cockpit-ready laminated copies.
@@ -410,14 +410,14 @@ export default function ShopPage() {
             </div>
             <a
               href="/resources"
-              className="inline-flex items-center gap-2 text-[#aec7f7] hover:text-white transition-colors group"
+              className="inline-flex items-center gap-2 text-clearsky hover:text-white transition-colors group"
             >
               <span className="font-sans text-[0.75rem] font-bold uppercase tracking-widest">
                 View digital resources
               </span>
               <Icon
                 name="arrow_forward"
-                className="text-[#aec7f7] group-hover:translate-x-1 transition-transform"
+                className="text-clearsky group-hover:translate-x-1 transition-transform"
                 style={{ fontSize: '1rem' }}
               />
             </a>
@@ -447,18 +447,18 @@ export default function ShopPage() {
                 <HoverEmphasize hoverY={-4} hoverScale={1.01} duration={0.4}
                   className="h-full"
                 >
-                  <div className="relative bg-mkt-lift rounded-xl p-6 overflow-hidden border border-white/[0.07] hover:border-[#aec7f7]/20 transition-colors duration-500 h-full"
+                  <div className="relative bg-mkt-lift rounded-xl p-6 overflow-hidden border border-white/[0.07] hover:border-clearsky/20 transition-colors duration-500 h-full"
                     style={{ background: 'linear-gradient(135deg, rgba(174,199,247,0.05) 0%, #0d1e30 100%)' }}
                   >
                     {/* Red emergency-checklist accent strip */}
                     <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-red-500/60 to-transparent rounded-t-xl" />
                     <div className="flex justify-between items-start mb-4">
-                      <Icon name="menu_book" className="text-[#aec7f7]" style={{ fontSize: '1.5rem' }} />
-                      <span className="bg-[#aec7f7]/10 text-[#aec7f7] text-[0.6rem] font-sans font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border border-[#aec7f7]/20">
+                      <Icon name="menu_book" className="text-clearsky" style={{ fontSize: '1.5rem' }} />
+                      <span className="bg-clearsky/10 text-clearsky text-[0.6rem] font-sans font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border border-clearsky/20">
                         Available
                       </span>
                     </div>
-                    <h3 className="font-serif text-[1.1rem] font-normal text-[#d9e3f6] mb-1.5">
+                    <h3 className="font-serif text-[1.1rem] font-normal text-pale-sky mb-1.5">
                       Cessna 172N Checklist
                     </h3>
                     <p className="font-sans text-[0.78rem] text-[#64748b]">Laminated cockpit-ready copy</p>
@@ -471,16 +471,16 @@ export default function ShopPage() {
                 <HoverEmphasize hoverY={-4} hoverScale={1.01} duration={0.4}
                   className="h-full"
                 >
-                  <div className="relative bg-mkt-lift rounded-xl p-6 overflow-hidden border border-white/[0.07] hover:border-[#aec7f7]/10 transition-colors duration-500 h-full"
+                  <div className="relative bg-mkt-lift rounded-xl p-6 overflow-hidden border border-white/[0.07] hover:border-clearsky/10 transition-colors duration-500 h-full"
                     style={{ background: 'linear-gradient(135deg, rgba(174,199,247,0.05) 0%, #0d1e30 100%)' }}
                   >
                     <div className="flex justify-between items-start mb-4">
-                      <Icon name="library_books" className="text-[#608bca]" style={{ fontSize: '1.5rem' }} />
+                      <Icon name="library_books" className="text-haze-blue" style={{ fontSize: '1.5rem' }} />
                       <span className="bg-white/[0.05] text-[#64748b] text-[0.6rem] font-sans font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border border-white/[0.08]">
                         Coming Soon
                       </span>
                     </div>
-                    <h3 className="font-serif text-[1.1rem] font-normal text-[#d9e3f6] mb-1.5">
+                    <h3 className="font-serif text-[1.1rem] font-normal text-pale-sky mb-1.5">
                       POH Reference Pack
                     </h3>
                     <p className="font-sans text-[0.78rem] text-[#64748b]">Aircraft reference pack</p>
@@ -491,16 +491,16 @@ export default function ShopPage() {
               {/* Weight & Balance Sheet — Coming Soon, full width */}
               <StaggerItem duration={1.0} className="md:col-span-2">
                 <HoverEmphasize hoverY={-4} hoverScale={1.005} duration={0.4}>
-                  <div className="relative bg-mkt-lift rounded-xl p-6 overflow-hidden border border-white/[0.07] hover:border-[#aec7f7]/10 transition-colors duration-500"
+                  <div className="relative bg-mkt-lift rounded-xl p-6 overflow-hidden border border-white/[0.07] hover:border-clearsky/10 transition-colors duration-500"
                     style={{ background: 'linear-gradient(135deg, rgba(174,199,247,0.05) 0%, #0d1e30 100%)' }}
                   >
                     <div className="flex justify-between items-start mb-4">
-                      <Icon name="balance" className="text-[#608bca]" style={{ fontSize: '1.5rem' }} />
+                      <Icon name="balance" className="text-haze-blue" style={{ fontSize: '1.5rem' }} />
                       <span className="bg-white/[0.05] text-[#64748b] text-[0.6rem] font-sans font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border border-white/[0.08]">
                         Coming Soon
                       </span>
                     </div>
-                    <h3 className="font-serif text-[1.1rem] font-normal text-[#d9e3f6] mb-1.5">
+                    <h3 className="font-serif text-[1.1rem] font-normal text-pale-sky mb-1.5">
                       Weight &amp; Balance Sheet
                     </h3>
                     <p className="font-sans text-[0.78rem] text-[#64748b]">Printed planning reference</p>
@@ -520,14 +520,14 @@ export default function ShopPage() {
             <div className="bg-mkt-lift rounded-xl p-8 md:p-14 relative overflow-hidden border border-white/[0.06]">
 
               {/* Subtle primary glow */}
-              <div className="absolute inset-0 bg-gradient-to-br from-[#aec7f7]/[0.04] to-transparent pointer-events-none rounded-xl" />
+              <div className="absolute inset-0 bg-gradient-to-br from-clearsky/[0.04] to-transparent pointer-events-none rounded-xl" />
 
               {/* Header */}
               <div className="max-w-2xl mb-14 relative z-10">
-                <h2 className="font-serif text-3xl md:text-4xl font-normal text-[#d9e3f6] mb-4">
+                <h2 className="font-serif text-3xl md:text-4xl font-normal text-pale-sky mb-4">
                   Pickup during aircraft handover
                 </h2>
-                <p className="font-sans text-[#8e9098] text-[0.95rem] leading-relaxed">
+                <p className="font-sans text-smoke text-[0.95rem] leading-relaxed">
                   Selected items can be collected when you arrive for your aircraft
                   booking. Smaller items can also be posted where available.
                 </p>
@@ -537,7 +537,7 @@ export default function ShopPage() {
               <div className="relative z-10">
                 {/* Connecting line — desktop */}
                 <div className="hidden md:block absolute top-6 left-6 right-6 h-px bg-white/[0.08]" />
-                <div className="hidden md:block absolute top-6 left-6 w-[55%] h-px bg-gradient-to-r from-[#aec7f7]/40 to-transparent" />
+                <div className="hidden md:block absolute top-6 left-6 w-[55%] h-px bg-gradient-to-r from-clearsky/40 to-transparent" />
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-0">
 
@@ -550,18 +550,18 @@ export default function ShopPage() {
                       <div
                         className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 relative z-10 border transition-all duration-500 ${
                           step.active
-                            ? 'bg-[#162a48] border-[#aec7f7]/30 shadow-[0_0_18px_rgba(174,199,247,0.15)]'
+                            ? 'bg-instrument-surround border-clearsky/30 shadow-[0_0_18px_rgba(174,199,247,0.15)]'
                             : 'bg-mkt-lift border-white/[0.08]'
                         }`}
                       >
                         <Icon
                           name={step.icon}
-                          className={step.active ? 'text-[#aec7f7]' : 'text-[#4a5568]'}
+                          className={step.active ? 'text-clearsky' : 'text-[#4a5568]'}
                           style={{ fontSize: '1.2rem' }}
                         />
                       </div>
                       <div>
-                        <h4 className="font-serif text-[1rem] font-normal text-[#d9e3f6] mb-0.5">{step.label}</h4>
+                        <h4 className="font-serif text-[1rem] font-normal text-pale-sky mb-0.5">{step.label}</h4>
                         <p className="font-sans text-[0.78rem] text-[#64748b]">{step.sub}</p>
                       </div>
                     </div>
@@ -572,15 +572,15 @@ export default function ShopPage() {
 
               {/* Option chips */}
               <div className="flex flex-wrap gap-3 mt-12 relative z-10">
-                <div className="bg-[#1e3450] text-[#aec7f7] px-4 py-2 rounded-full font-sans text-[0.78rem] font-semibold flex items-center gap-2">
+                <div className="bg-horizon-border text-clearsky px-4 py-2 rounded-full font-sans text-[0.78rem] font-semibold flex items-center gap-2">
                   <Icon name="local_mall" style={{ fontSize: '1rem' }} />
                   Pickup available
                 </div>
-                <div className="border border-white/[0.08] text-[#8e9098] px-4 py-2 rounded-full font-sans text-[0.78rem] flex items-center gap-2">
+                <div className="border border-white/[0.08] text-smoke px-4 py-2 rounded-full font-sans text-[0.78rem] flex items-center gap-2">
                   <Icon name="local_shipping" style={{ fontSize: '1rem' }} />
                   Postage options
                 </div>
-                <div className="border border-white/[0.08] text-[#8e9098] px-4 py-2 rounded-full font-sans text-[0.78rem] flex items-center gap-2">
+                <div className="border border-white/[0.08] text-smoke px-4 py-2 rounded-full font-sans text-[0.78rem] flex items-center gap-2">
                   <Icon name="cloud_download" style={{ fontSize: '1rem' }} />
                   Digital resources separate
                 </div>
@@ -610,12 +610,12 @@ export default function ShopPage() {
           <div className="order-1 lg:order-2 space-y-10">
             <StaggerContainer staggerDelay={0.2}>
               <StaggerItem duration={1.4}>
-                <h2 className="font-serif text-3xl md:text-4xl font-normal text-[#d9e3f6] mb-5">
+                <h2 className="font-serif text-3xl md:text-4xl font-normal text-pale-sky mb-5">
                   Simple gear for pilots<br />and supporters
                 </h2>
               </StaggerItem>
               <StaggerItem duration={1.4}>
-                <p className="font-sans text-[#8e9098] text-[0.95rem] leading-relaxed">
+                <p className="font-sans text-smoke text-[0.95rem] leading-relaxed">
                   A small range of clean, practical OZRentAPlane gear for pilots,
                   students, and aviation supporters.
                 </p>
@@ -631,17 +631,17 @@ export default function ShopPage() {
               ].map((item, i) => (
                 <StaggerItem key={i} duration={1.0}>
                   <HoverEmphasize hoverY={-4} hoverScale={1.02} duration={0.4}
-                    className="bg-[#0e1f33] rounded-xl p-6 hover:bg-[#122438] transition-colors duration-300 h-full"
+                    className="bg-mkt-lift rounded-xl p-6 hover:bg-cloud-hover transition-colors duration-300 h-full"
                   >
                     <Icon
                       name={item.icon}
-                      className={`mb-4 ${item.available ? 'text-[#aec7f7]' : 'text-[#3a4f68]'}`}
+                      className={`mb-4 ${item.available ? 'text-clearsky' : 'text-[#3a4f68]'}`}
                       style={{ fontSize: '1.75rem' }}
                     />
-                    <h4 className="font-serif text-[1rem] font-normal text-[#d9e3f6] mb-1">
+                    <h4 className="font-serif text-[1rem] font-normal text-pale-sky mb-1">
                       {item.name}
                     </h4>
-                    <span className={`font-sans text-[0.72rem] ${item.available ? 'text-[#aec7f7]' : 'text-[#4a5568]'}`}>
+                    <span className={`font-sans text-[0.72rem] ${item.available ? 'text-clearsky' : 'text-[#4a5568]'}`}>
                       {item.note}
                     </span>
                   </HoverEmphasize>
@@ -668,23 +668,23 @@ export default function ShopPage() {
                 }}
               />
               {/* Left glow */}
-              <div className="absolute top-0 left-0 w-1/3 h-full bg-gradient-to-r from-[#aec7f7]/[0.04] to-transparent pointer-events-none" />
+              <div className="absolute top-0 left-0 w-1/3 h-full bg-gradient-to-r from-clearsky/[0.04] to-transparent pointer-events-none" />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10 p-8 md:p-12 relative z-10">
 
                 {/* Left */}
                 <div className="space-y-6">
-                  <h2 className="font-serif text-3xl font-normal text-[#aec7f7]">
+                  <h2 className="font-serif text-3xl font-normal text-clearsky">
                     More items coming soon
                   </h2>
-                  <p className="font-sans text-[#8e9098] text-[0.9rem] leading-relaxed">
+                  <p className="font-sans text-smoke text-[0.9rem] leading-relaxed">
                     We are starting with practical pilot resources and a small range
                     of branded gear. More cockpit tools, apparel, and aviation
                     accessories will be added over time.
                   </p>
                   <a
                     href="mailto:ops@ozrentaplane.com.au?subject=Shop%20item%20suggestion"
-                    className="inline-block bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] rounded-full font-sans font-bold tracking-widest uppercase text-[0.72rem] px-6 py-3 shadow-lg shadow-[#aec7f7]/10 transition-all active:scale-95 hover:brightness-110"
+                    className="inline-block bg-gradient-to-r from-clearsky to-panel-deep text-ink-deep rounded-full font-sans font-bold tracking-widest uppercase text-[0.72rem] px-6 py-3 shadow-lg shadow-clearsky/10 transition-all active:scale-95 hover:brightness-110"
                   >
                     Suggest an item
                   </a>
@@ -699,7 +699,7 @@ export default function ShopPage() {
                       { icon: 'headphones', label: 'Aircraft accessories' },
                       { icon: 'redeem',     label: 'Gift items'        },
                     ].map((item, i) => (
-                      <li key={i} className="flex items-center gap-4 text-[#d9e3f6] py-4">
+                      <li key={i} className="flex items-center gap-4 text-pale-sky py-4">
                         <Icon name={item.icon} className="text-[#4a5568]" style={{ fontSize: '1.25rem' }} />
                         <span className="font-sans text-[0.9rem]">{item.label}</span>
                       </li>
@@ -719,10 +719,10 @@ export default function ShopPage() {
 
           {/* Left: sticky label */}
           <FadeUp className="lg:col-span-4 lg:sticky lg:top-12">
-            <h2 className="font-serif text-3xl md:text-4xl font-normal text-[#d9e3f6] mb-4">
+            <h2 className="font-serif text-3xl md:text-4xl font-normal text-pale-sky mb-4">
               Shop FAQ
             </h2>
-            <p className="font-sans text-[#8e9098] text-[0.88rem] leading-relaxed">
+            <p className="font-sans text-smoke text-[0.88rem] leading-relaxed">
               Common questions about pickup, postage, and aircraft-specific resources.
             </p>
           </FadeUp>

@@ -82,16 +82,17 @@ export default function Navbar({
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isAuthPage
         ? 'bg-transparent border-b border-white/5 backdrop-blur-md opacity-40 hover:opacity-100'
-        : 'bg-mkt-main'
+        : 'bg-deep-ink'
         }`}
     >
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 h-[84px] flex items-center justify-between gap-8">
         {/* Logo */}
-        <a href="/" className="shrink-0 flex items-center select-none">
+        <a href="/" className="shrink-0 flex items-center select-none bg-transparent">
           <img
-            src="/OZRentAPlanelogo.png"
+            src="/Logo/ozrentaplane-transparent-bg.png"
             alt="OZRentAPlane logo"
-            className="h-[64px] w-auto object-contain scale-[2.5] origin-left"
+            className="h-12 w-auto object-contain bg-transparent"
+            style={{ background: 'transparent', objectFit: 'contain' }}
           />
         </a>
 
@@ -101,7 +102,7 @@ export default function Navbar({
           <div className="relative group">
             <button
               className={`whitespace-nowrap font-sans text-[13.5px] font-medium transition-colors duration-200 flex items-center gap-1 ${isFleetActive
-                ? 'text-white border-b border-oz-blue pb-0.5'
+                ? 'text-white border-b border-runway-amber pb-0.5'
                 : 'text-white/70 hover:text-white'
                 }`}
               aria-haspopup="true"
@@ -162,7 +163,6 @@ export default function Navbar({
 
           {NAV_LINKS.map((link) => {
             const isActive = pathname === link.href
-            const isCheckoutProcess = link.href === '/checkout-process'
 
             if (link.disabled) {
               return (
@@ -186,10 +186,9 @@ export default function Navbar({
                 key={link.label}
                 href={link.href}
                 className={`whitespace-nowrap font-sans text-[13.5px] font-medium transition-colors duration-200 ${isActive
-                  ? 'text-white pb-0.5'
+                  ? 'text-white border-b border-runway-amber pb-0.5'
                   : 'text-white/70 hover:text-white'
                   }`}
-                style={isActive ? { borderBottom: `1px solid ${isCheckoutProcess ? '#E0B13B' : 'rgb(59, 130, 246)'}` } : undefined}
               >
                 {link.label}
               </a>
@@ -243,7 +242,7 @@ export default function Navbar({
       {/* Mobile menu */}
       {menuOpen && (
         <div
-          className="lg:hidden bg-mkt-main/98 backdrop-blur-xl border-t border-white/[0.08] px-6 pt-5 flex flex-col gap-4 overflow-y-auto"
+          className="lg:hidden bg-deep-ink/98 backdrop-blur-xl border-t border-white/[0.08] px-6 pt-5 flex flex-col gap-4 overflow-y-auto"
           style={{ maxHeight: 'calc(100dvh - 84px)', paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))' }}
         >
           {/* Fleet expandable */}

@@ -126,7 +126,7 @@ export default function CustomerPortalTopNav({ displayName, notificationCount, r
         {/* Logo */}
         <Link href="/dashboard" className="shrink-0 flex items-center select-none">
           <img
-            src="/OZRentAPlanelogo.png"
+            src="/Logo/ozrentaplane-transparent-bg.png"
             alt="OZRentAPlane"
             className="h-[52px] w-auto object-contain scale-[2.5] origin-left"
           />

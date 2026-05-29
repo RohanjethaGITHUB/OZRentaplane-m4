@@ -18,7 +18,14 @@ const MEMBER_TYPES = [
 
 export default function WhoItsFor() {
   return (
-    <section id="who-its-for" className="bg-oz-navy py-28 lg:py-36">
+    <section id="who-its-for" className="bg-mkt-main py-28 lg:py-36 relative overflow-hidden">
+      {/* Cloud wisps — upper corners */}
+      <div aria-hidden="true" className="pointer-events-none absolute z-0" style={{ top: '-50px', left: '-60px', width: '260px', height: '170px', borderRadius: '50%', background: 'rgba(220,235,255,0.9)', filter: 'blur(68px)', opacity: 0.07 }} />
+      <div aria-hidden="true" className="pointer-events-none absolute z-0" style={{ top: '-35px', right: '-45px', width: '220px', height: '150px', borderRadius: '50%', background: 'rgba(240,248,255,0.9)', filter: 'blur(60px)', opacity: 0.07 }} />
+      {/* Horizon line */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 z-0" style={{ top: '60%', height: '1px', background: 'linear-gradient(90deg, transparent 0%, rgba(26,79,214,0.07) 15%, rgba(26,79,214,0.07) 85%, transparent 100%)' }} />
+      {/* Edge vignette */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0" style={{ background: 'radial-gradient(ellipse 100% 90% at 50% 50%, transparent 45%, rgba(15,30,55,0.07) 100%)' }} />
       <div className="max-w-7xl mx-auto px-6 lg:px-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-start">
           {/* Left column */}
@@ -50,7 +57,7 @@ export default function WhoItsFor() {
             {MEMBER_TYPES.map((type) => (
               <div
                 key={type.title}
-                className="bg-oz-panel border border-oz-high/50 rounded-lg p-8 flex gap-6 group hover:border-oz-blue/20 transition-colors duration-300"
+                className="bg-mkt-lift border border-mkt-subtle rounded-lg p-8 flex gap-6 group hover:border-oz-blue/20 transition-colors duration-300 shadow-[0_4px_20px_rgba(15,40,90,0.09),inset_0_2px_0_rgba(100,149,237,0.26)]"
               >
                 <span className="text-3xl shrink-0 mt-0.5">{type.icon}</span>
                 <div>

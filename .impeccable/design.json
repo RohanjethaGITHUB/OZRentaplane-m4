@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-28T00:00:00.000Z",
+  "title": "Design System: OZRentAPlane",
+  "extensions": {
+    "colorMeta": {
+      "midnight-apron":      { "role": "primary",   "displayName": "Midnight Apron",      "canonical": "#00132f", "tonalRamp": ["#000814","#000e25","#00132f","#051b39","#0a1f3d","#162a48","#223554","#2e4268"] },
+      "clearsky":            { "role": "primary",   "displayName": "Clear-Sky Blue",       "canonical": "#a7c8ff", "tonalRamp": ["#1a3a6b","#2a5299","#3b6dbf","#5589d4","#7aaae8","#a7c8ff","#c4dbff","#e0eeff"] },
+      "runway-amber":        { "role": "tertiary",  "displayName": "Runway Amber",         "canonical": "#f59e0b", "tonalRamp": ["#7c4e05","#a36509","#cc810d","#f59e0b","#fbbf24","#fcd34d","#fde68a","#fef3c7"] },
+      "open-ceiling":        { "role": "neutral",   "displayName": "Open Ceiling",         "canonical": "#dce8f8", "tonalRamp": ["#bdd2f0","#c8daf5","#d4e3f7","#dce8f8","#e5eefb","#edf4fc","#f4f8fe","#ffffff"] },
+      "sky-text":            { "role": "neutral",   "displayName": "Sky Text",             "canonical": "#d6e3ff", "tonalRamp": ["#8eaae8","#a0b8ed","#b3c8f3","#c4d6f8","#d6e3ff","#e3ecff","#edf3ff","#f5f8ff"] },
+      "deep-ink":            { "role": "neutral",   "displayName": "Deep Ink",             "canonical": "#0d1b3e", "tonalRamp": ["#060d1e","#0d1b3e","#162a5c","#1f3a7a","#2a4e99","#4068b8","#6085cc","#90aadd"] },
+      "haze-blue":           { "role": "secondary", "displayName": "Haze Blue",            "canonical": "#608bca", "tonalRamp": ["#2a4878","#3a5e9a","#4e76b8","#608bca","#7ba2d8","#9ab8e5","#bed0f0","#dce8f8"] },
+      "cloud-muted":         { "role": "neutral",   "displayName": "Cloud Muted",          "canonical": "#c4c6ce", "tonalRamp": ["#72757f","#8b8e97","#a2a5ae","#b5b7bf","#c4c6ce","#d3d5dc","#e0e2e8","#eeeff3"] },
+      "nav-blue":            { "role": "secondary", "displayName": "Nav Blue",             "canonical": "#2563eb", "tonalRamp": ["#0f2e8a","#1540b0","#1a52d4","#2563eb","#3b76f5","#6699ff","#99bbff","#cce0ff"] }
+    },
+    "typographyMeta": {
+      "display":  { "displayName": "Display",  "purpose": "Hero h1 only. Marketing hero scroll sequence." },
+      "headline": { "displayName": "Headline", "purpose": "Section h2 on both light and dark surfaces." },
+      "title":    { "displayName": "Title",    "purpose": "Card headings, panel titles, sidebar sections." },
+      "body":     { "displayName": "Body",     "purpose": "Paragraph copy on both surfaces. Max 65ch." },
+      "label":    { "displayName": "Label",    "purpose": "Button text, chip text, status badges — always uppercase 0.15em tracking." }
+    },
+    "shadows": [
+      { "name": "ambient-glow",   "value": "0 0 0 1px rgba(167,200,255,0.09), 0 0 22px 3px rgba(167,200,255,0.05)",  "purpose": "Resting state on interactive dark-surface cards." },
+      { "name": "active-glow",    "value": "0 0 0 1px rgba(167,200,255,0.20), 0 0 36px 8px rgba(167,200,255,0.10)", "purpose": "Hover/focus amplification of ambient-glow." },
+      { "name": "deep-drop",      "value": "0 24px 64px -16px rgba(0,0,0,0.52)",                                    "purpose": "Structural shadow for dark overlays, dropdowns, dark cards on light surface." },
+      { "name": "modal-anchor",   "value": "0 40px 100px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.10)",   "purpose": "Login modal and full-screen dialogs. Inset edge for glass thickness." },
+      { "name": "admin-panel",    "value": "0 14px 30px rgba(3,8,16,0.38)",                                         "purpose": "Admin/portal panel cards." },
+      { "name": "nav-cta-glow",   "value": "0 0 15px rgba(37,99,235,0.4)",                                          "purpose": "Nav CTA button glow on hover." }
+    ],
+    "motion": [
+      { "name": "ease-standard",  "value": "cubic-bezier(0.4, 0, 0.2, 1)",   "purpose": "Default Framer Motion easing for state transitions in portal/booking." },
+      { "name": "ease-out",       "value": "cubic-bezier(0, 0, 0.2, 1)",      "purpose": "Exits and fade-outs." },
+      { "name": "ease-in",        "value": "cubic-bezier(0.4, 0, 1, 1)",      "purpose": "Entrances (marketing only)." },
+      { "name": "duration-fast",  "value": "150ms",                            "purpose": "Hover state micro-transitions (color shift, opacity)." },
+      { "name": "duration-std",   "value": "300ms",                            "purpose": "Standard component transitions (panel slides, card reveals)." },
+      { "name": "duration-slow",  "value": "600ms",                            "purpose": "Marketing entrance animations (FadeUp, StaggerContainer)." }
+    ],
+    "breakpoints": [
+      { "name": "sm",  "value": "640px"  },
+      { "name": "md",  "value": "768px"  },
+      { "name": "lg",  "value": "1024px" },
+      { "name": "xl",  "value": "1280px" },
+      { "name": "2xl", "value": "1400px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary CTA Button (Marketing)",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The primary booking action on marketing pages. Amber on navy. One per screen — its rarity is its signal.",
+      "html": "<button class=\"ds-btn-primary\">BOOK NOW</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; background-color: #f59e0b; color: #0d1b3e; padding: 16px 32px; border-radius: 8px; border: none; font-family: 'Manrope', system-ui, sans-serif; font-size: 0.625rem; font-weight: 700; line-height: 1.2; letter-spacing: 0.15em; text-transform: uppercase; cursor: pointer; transition: background-color 0.2s ease, transform 0.2s ease; } .ds-btn-primary:hover { background-color: #fbbf24; } .ds-btn-primary:focus-visible { outline: 2px solid #a7c8ff; outline-offset: 3px; } .ds-btn-primary:active { transform: scale(0.98); }"
+    },
+    {
+      "name": "Nav CTA Button",
+      "kind": "button",
+      "refersTo": "button-nav-cta",
+      "description": "Pill-shaped button in the navigation bar for log-in / book actions.",
+      "html": "<button class=\"ds-btn-nav\">LOG IN</button>",
+      "css": ".ds-btn-nav { display: inline-flex; align-items: center; justify-content: center; background-color: #2563eb; color: #ffffff; padding: 8px 20px; border-radius: 9999px; border: none; font-family: 'Manrope', system-ui, sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: background-color 0.2s ease, box-shadow 0.2s ease; white-space: nowrap; } .ds-btn-nav:hover { background-color: #3b82f6; box-shadow: 0 0 15px rgba(37,99,235,0.4); } .ds-btn-nav:focus-visible { outline: 2px solid #a7c8ff; outline-offset: 3px; }"
+    },
+    {
+      "name": "Auth Submit Button",
+      "kind": "button",
+      "refersTo": "button-auth",
+      "description": "Gradient pill submit button in login and signup forms on the dark surface.",
+      "html": "<button class=\"ds-btn-auth\">SIGN IN</button>",
+      "css": ".ds-btn-auth { display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #a7c8ff, #608bca); color: #00132f; padding: 14px 32px; border-radius: 9999px; border: none; font-family: 'Manrope', system-ui, sans-serif; font-size: 0.625rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; cursor: pointer; box-shadow: 0 4px 16px rgba(167,200,255,0.15); transition: box-shadow 0.3s ease, transform 0.3s ease; } .ds-btn-auth:hover { box-shadow: 0 4px 24px rgba(167,200,255,0.25); transform: scale(1.02); } .ds-btn-auth:focus-visible { outline: 2px solid #a7c8ff; outline-offset: 3px; } .ds-btn-auth:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Low-emphasis pill button for secondary actions on dark surfaces.",
+      "html": "<button class=\"ds-btn-ghost\">LEARN MORE</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; background-color: rgba(167,200,255,0.10); color: #a7c8ff; padding: 12px 24px; border-radius: 9999px; border: 1px solid rgba(167,200,255,0.40); font-family: 'Manrope', system-ui, sans-serif; font-size: 0.625rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; cursor: pointer; transition: background-color 0.3s ease, color 0.3s ease; } .ds-btn-ghost:hover { background-color: rgba(167,200,255,0.16); color: #d3e4ff; } .ds-btn-ghost:focus-visible { outline: 2px solid #a7c8ff; outline-offset: 3px; }"
+    },
+    {
+      "name": "Light Marketing Card",
+      "kind": "card",
+      "refersTo": "card-light",
+      "description": "Standard content card on the blue-white marketing surface. Lifts via white-on-dce8f8 contrast.",
+      "html": "<div class=\"ds-card-light\"><p class=\"ds-card-title\">Card Title</p><p class=\"ds-card-body\">Card body content goes here. Describe the value clearly.</p></div>",
+      "css": ".ds-card-light { background-color: #ffffff; border: 1px solid #dbeafe; border-radius: 12px; padding: 32px; transition: border-color 0.3s ease; } .ds-card-light:hover { border-color: rgba(167,200,255,0.30); } .ds-card-title { font-family: 'Manrope', system-ui, sans-serif; font-size: 1.0625rem; font-weight: 700; color: #0d1b3e; margin: 0 0 8px 0; } .ds-card-body { font-family: 'Manrope', system-ui, sans-serif; font-size: 0.9375rem; font-weight: 400; color: #0d1b3e; line-height: 1.6; margin: 0; opacity: 0.75; }"
+    },
+    {
+      "name": "Dark Product Card",
+      "kind": "card",
+      "refersTo": "card-dark",
+      "description": "Standard content card on the navy product surface. Tonal lift via ops-panel background.",
+      "html": "<div class=\"ds-card-dark\"><p class=\"ds-card-dark-title\">Panel Title</p><p class=\"ds-card-dark-body\">Panel content goes here.</p></div>",
+      "css": ".ds-card-dark { background-color: #0a1f3d; border: 1px solid rgba(255,255,255,0.10); border-radius: 16px; padding: 24px; box-shadow: 0 0 0 1px rgba(167,200,255,0.09), 0 0 22px 3px rgba(167,200,255,0.05); transition: box-shadow 0.3s ease, background-color 0.2s ease; } .ds-card-dark:hover { background-color: #162a48; box-shadow: 0 0 0 1px rgba(167,200,255,0.20), 0 0 36px 8px rgba(167,200,255,0.10); } .ds-card-dark-title { font-family: 'Manrope', system-ui, sans-serif; font-size: 1.0625rem; font-weight: 700; color: #d6e3ff; margin: 0 0 8px 0; } .ds-card-dark-body { font-family: 'Manrope', system-ui, sans-serif; font-size: 0.9375rem; font-weight: 400; color: #c4c6ce; line-height: 1.6; margin: 0; }"
+    },
+    {
+      "name": "Dark Surface Text Input",
+      "kind": "input",
+      "refersTo": "input-dark",
+      "description": "Form field on dark surfaces (login, signup, booking forms). Borderless at rest; border appears on focus.",
+      "html": "<div class=\"ds-input-wrap\"><label class=\"ds-input-label\">EMAIL ADDRESS</label><input class=\"ds-input\" type=\"email\" placeholder=\"captain@ozrentaplane.com.au\" /></div>",
+      "css": ".ds-input-wrap { display: flex; flex-direction: column; gap: 6px; } .ds-input-label { font-family: 'Manrope', system-ui, sans-serif; font-size: 0.625rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(255,255,255,0.60); } .ds-input { width: 100%; background-color: rgba(255,255,255,0.09); border: 1px solid rgba(255,255,255,0.30); border-radius: 16px; padding: 14px; font-family: 'Manrope', system-ui, sans-serif; font-size: 0.9375rem; font-weight: 400; color: #ffffff; outline: none; transition: border-color 0.2s ease, background-color 0.2s ease; box-sizing: border-box; } .ds-input::placeholder { color: rgba(255,255,255,0.50); } .ds-input:focus { border-color: #a7c8ff; background-color: rgba(255,255,255,0.13); } .ds-input:disabled { opacity: 0.60; cursor: not-allowed; }"
+    },
+    {
+      "name": "Navigation Bar",
+      "kind": "nav",
+      "refersTo": "button-nav-cta",
+      "description": "The marketing site top navigation. Backdrop-blurred, 84px tall, dark navy. Nav links are 13.5px Manrope medium.",
+      "html": "<nav class=\"ds-navbar\"><div class=\"ds-navbar-inner\"><a class=\"ds-navbar-logo\" href=\"/\">OZ Rent A Plane</a><div class=\"ds-navbar-links\"><a class=\"ds-navbar-link\" href=\"/checkout-process\">Checkout Process</a><a class=\"ds-navbar-link\" href=\"/safety\">Safety</a><a class=\"ds-navbar-link\" href=\"/pricing\">Pricing</a></div><button class=\"ds-btn-nav\">LOG IN</button></div></nav>",
+      "css": ".ds-navbar { width: 100%; background-color: rgba(13,27,62,0.98); backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255,255,255,0.08); } .ds-navbar-inner { max-width: 1400px; margin: 0 auto; padding: 0 40px; height: 84px; display: flex; align-items: center; justify-content: space-between; gap: 32px; } .ds-navbar-logo { font-family: 'Manrope', system-ui, sans-serif; font-size: 15px; font-weight: 700; color: #ffffff; text-decoration: none; } .ds-navbar-links { display: flex; align-items: center; gap: 28px; } .ds-navbar-link { font-family: 'Manrope', system-ui, sans-serif; font-size: 13.5px; font-weight: 500; color: rgba(255,255,255,0.75); text-decoration: none; transition: color 0.2s ease; white-space: nowrap; } .ds-navbar-link:hover { color: #ffffff; } .ds-btn-nav { display: inline-flex; align-items: center; justify-content: center; background-color: #2563eb; color: #ffffff; padding: 8px 20px; border-radius: 9999px; border: none; font-family: 'Manrope', system-ui, sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: background-color 0.2s ease, box-shadow 0.2s ease; white-space: nowrap; } .ds-btn-nav:hover { background-color: #3b82f6; box-shadow: 0 0 15px rgba(37,99,235,0.4); }"
+    },
+    {
+      "name": "Status Chip / Badge",
+      "kind": "chip",
+      "description": "Pill-shaped label for pricing tiers, booking statuses, and spec labels.",
+      "html": "<span class=\"ds-chip ds-chip--amber\"><span class=\"ds-chip-dot\"></span>FEATURED</span><span class=\"ds-chip ds-chip--blue\">ACTIVE</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 9999px; font-family: 'Manrope', system-ui, sans-serif; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; border: 1px solid; } .ds-chip--amber { background-color: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.28); color: #0d1b3e; } .ds-chip--blue { background-color: rgba(167,200,255,0.10); border-color: rgba(167,200,255,0.30); color: #a7c8ff; } .ds-chip-dot { width: 6px; height: 6px; border-radius: 50%; background-color: #f59e0b; flex-shrink: 0; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Cleared for Departure Brief",
+    "overview": "This system is a pre-flight briefing made visual: everything the pilot needs to know, nothing that doesn't belong. The design's job is confidence, not excitement. Every element earns its place the way a checklist item earns its place — by being necessary.\n\nThe system operates across two surfaces. The dark surface (marketing hero, customer portal) is the cockpit: deep navy panels layered in ascending lightness, instruments lit in cool-sky blue, no ambient noise. The light surface (marketing content sections) is the operations documentation: a blue-white ground with navy ink and precise borders — legible, structured, trusted.\n\nThe amber note (#f59e0b) is the one warm element in an otherwise cool system. It appears only on the primary booking CTA and footer hover. Its rarity is its meaning: when amber appears, something actionable is there.\n\nThis system explicitly rejects: legacy flight school websites (clip-art planes, 2010-era layouts, stock photo overload), and generic SaaS landing pages (gradient hero blobs, floating card shadows, Lottie animations, Inter-font-everything).",
+    "keyCharacteristics": [
+      "Two-surface logic: dark cockpit (navy) and light documentation (blue-white)",
+      "Typography pairing: Newsreader serif for display authority, Manrope sans for operational clarity",
+      "One signal color (runway amber) — used sparingly on primary CTAs only",
+      "Depth via tonal layering (6-step navy scale) over hard shadows",
+      "Labels are always uppercase, widely tracked, small — aviation-instrument scale",
+      "The booking system and portal are the brand: design both surfaces to the same standard"
+    ],
+    "rules": [
+      { "name": "The Amber Scarcity Rule",    "body": "Runway amber (#f59e0b) appears on at most one element per screen. It is a signal, not a theme color. Never use it for decorative highlights, section accents, or icon fills.", "section": "colors" },
+      { "name": "The One-Palette Rule",        "body": "Both surfaces draw from the same color family (navy-blue). Deep Ink (#0d1b3e) is Midnight Apron with the contrast flipped. The light surface is not a separate brand.", "section": "colors" },
+      { "name": "The Uppercase Label Rule",    "body": "Any text that labels an action, status, or specification field is uppercase Manrope with at least 0.14em tracking. Never write a CTA in title case using a serif.", "section": "typography" },
+      { "name": "The Serif-for-Authority Rule","body": "Newsreader is used only for Display and Headline levels. Do not use it for body, labels, navigation, or form elements.", "section": "typography" },
+      { "name": "The Tonal-First Rule",        "body": "Add a tonal step before adding a shadow. If depth can be expressed by moving a panel from ops-panel to instrument-surround, do that. Shadows amplify; they don't replace structure.", "section": "elevation" },
+      { "name": "The Glow-Not-Drop Rule",      "body": "On dark surfaces, elevation reads as a blue atmospheric glow, not a downward-cast shadow. Hard shadows on dark navy backgrounds feel wrong.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use Runway Amber (#f59e0b) exclusively for the primary booking/pricing CTA — one instance per screen",
+      "Do express depth on dark surfaces by stepping up the navy tonal ramp before reaching for a shadow",
+      "Do write all button labels, chip labels, and spec-table headers in uppercase Manrope with at least 0.14em tracking",
+      "Do use Newsreader only for Display (hero h1) and Headline (section h2) levels",
+      "Do pair the dot-grid overlay with the open-ceiling background on all marketing content zones",
+      "Do apply the ambient blue glow on dark-surface interactive cards at rest, and amplify on hover",
+      "Do keep GSAP scroll choreography to the marketing hero only; portal and booking flow use state transitions only",
+      "Do anchor every italic serif usage to a meaningful phrase within a display heading"
+    ],
+    "donts": [
+      "Don't use clip-art aircraft illustrations, stock photo montages, or 2010-era layout conventions",
+      "Don't use gradient hero blobs, floating card shadows on colored backgrounds, Lottie animations, or the SaaS startup aesthetic",
+      "Don't apply Runway Amber as a decorative accent, icon fill, or hover highlight outside of primary CTAs and footer links",
+      "Don't introduce hard box-shadow on dark-surface cards where a tonal step-up would achieve the same depth",
+      "Don't write CTA text in title case or sentence case — booking actions are always uppercase label type",
+      "Don't use Newsreader for navigation, form labels, body copy, or any text under 18px",
+      "Don't show pricing or eligibility behind a contact-for-rates gate — transparent pricing is a brand promise",
+      "Don't add choreographed motion to the customer portal or booking flow",
+      "Don't use more than two typefaces in this system",
+      "Don't introduce purple, teal, orange, or any hue outside the navy-to-sky-blue axis as an accent"
+    ]
+  }
+}

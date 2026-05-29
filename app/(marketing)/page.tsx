@@ -26,7 +26,7 @@ export default function Home() {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.ozrentaplane.com'
   
   return (
-    <main>
+    <main className="bg-deep-ink">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -50,7 +50,7 @@ export default function Home() {
           })
         }}
       />
-      <div className="relative">
+      <div className="relative bg-deep-ink">
         <HomeHeroScrollSequence />
         <div
           className="pointer-events-none absolute inset-x-0 bottom-0 h-[120px] md:h-[170px]"

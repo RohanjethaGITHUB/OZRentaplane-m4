@@ -49,10 +49,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const screenshotModeBootScript = `
     (function () {
       try {
-        var enabled = new URLSearchParams(window.location.search).get('screenshot') === '1';
+        var enabled = new URLSearchParams(window.location.search).get('screenshotMode') === '1';
         if (enabled) {
-          document.documentElement.classList.add('screenshot-mode');
-          if (document.body) document.body.classList.add('screenshot-mode');
+          document.documentElement.setAttribute('data-screenshot-mode', 'true');
         }
       } catch (_) {}
     })();
@@ -85,7 +84,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   "url": siteUrl,
                   "logo": {
                     "@type": "ImageObject",
-                    "url": `${siteUrl}/OZRentAPlanelogo.png`
+                    "url": `${siteUrl}/Logo/ozrentaplane-transparent-bg.png`
                   },
                   "description": "A modern aircraft rental platform for licensed pilots.",
                   "contactPoint": {
@@ -108,7 +107,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           }}
         />
       </head>
-      <body className="bg-[#06101f] text-slate-100">
+      <body className="bg-mkt-main text-[#0d1b3e]">
         <Suspense fallback={null}>
           <ScreenshotMode />
         </Suspense>

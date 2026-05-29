@@ -9,7 +9,8 @@ import { createClient } from '@/lib/supabase/client'
 type AuthMode = 'signin' | 'signup'
 
 const EASE_PREMIUM = [0.25, 1, 0.35, 1] as const
-const TRANSITION = { duration: 1.4, ease: EASE_PREMIUM }
+const isScreenshotMode = typeof window !== 'undefined' && window.location.search.includes('screenshotMode=1')
+const TRANSITION = { duration: isScreenshotMode ? 0 : 1.4, ease: EASE_PREMIUM }
 
 const FIELD_LABEL_CLASS = 'block text-[10px] font-sans uppercase tracking-[0.2em] text-white/[0.72] mb-1.5 group-focus-within:text-oz-blue transition-colors'
 const FIELD_INPUT_CLASS = 'w-full bg-white/[0.09] border border-white/30 px-3.5 py-3.5 text-white placeholder:text-white/50 focus:ring-0 focus:border-oz-blue focus:bg-white/[0.13] transition-all outline-none font-sans rounded-xl'
@@ -158,7 +159,7 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
         )}
         <section className={`relative flex-1 ${isModal ? 'min-h-0' : 'min-h-[400px]'} md:min-h-full overflow-hidden border-b md:border-b-0 md:border-r border-white/5${mode === 'signup' && isModal ? ' hidden md:block' : ''}`}>
           <div className="absolute inset-0 z-0">
-            <motion.div className="w-full h-full" initial={false} animate={{ scale: mode === 'signin' ? 1.06 : 1.09, filter: mode === 'signin' ? 'blur(12px) brightness(0.42) contrast(0.9) saturate(0.72)' : 'blur(15px) brightness(0.34) contrast(0.86) saturate(0.66)' }} transition={TRANSITION}>
+            <motion.div className="w-full h-full" initial={isScreenshotMode ? false : undefined} animate={{ scale: mode === 'signin' ? 1.06 : 1.09, filter: mode === 'signin' ? 'blur(12px) brightness(0.42) contrast(0.9) saturate(0.72)' : 'blur(15px) brightness(0.34) contrast(0.86) saturate(0.66)' }} transition={TRANSITION}>
               <Image src="/Cockpit-twilight.webp" alt="Cockpit at twilight" fill className="object-cover" priority />
             </motion.div>
             <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-[#040a15]/94 via-[#071225]/90 to-[#0a1730]/84 pointer-events-none" />
@@ -167,9 +168,9 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
 
           <div className={`relative z-10 w-full h-full flex flex-col ${isModal ? 'px-5 pt-14 pb-6 sm:p-8 md:p-14 lg:p-20' : 'p-8 md:p-14 lg:p-20'}`}>
             <div className="flex-1 flex flex-col justify-center">
-              <AnimatePresence mode="popLayout" initial={false}>
+              <AnimatePresence mode="popLayout" initial={isScreenshotMode ? false : undefined}>
                 {mode === 'signin' ? (
-                  <motion.div key="signin-active" initial={{ opacity: 0, x: -30, filter: 'blur(10px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: 30, filter: 'blur(10px)' }} transition={TRANSITION} className="max-w-md w-full">
+                  <motion.div key="signin-active" initial={isScreenshotMode ? false : { opacity: 0, x: -30, filter: 'blur(10px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: 30, filter: 'blur(10px)' }} transition={TRANSITION} className="max-w-md w-full">
                     <h1 className="text-[1.7rem] sm:text-4xl md:text-5xl lg:text-6xl font-serif text-white mb-3 md:mb-4 leading-tight tracking-tight">Welcome Back, Pilot</h1>
                     <p className="text-white/[0.78] font-sans font-light mb-6 md:mb-10 text-base md:text-lg tracking-wide">Your aircraft is waiting. Please authenticate to access your dashboard.</p>
                     <form className="space-y-7" onSubmit={handleSignIn}>
@@ -194,7 +195,7 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                     </form>
                   </motion.div>
                 ) : (
-                  <motion.div key="signin-inactive" initial={{ opacity: 0, x: -20, filter: 'blur(12px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -20, filter: 'blur(12px)' }} transition={TRANSITION} className="max-w-md w-full my-auto relative flex justify-center">
+                  <motion.div key="signin-inactive" initial={isScreenshotMode ? false : { opacity: 0, x: -20, filter: 'blur(12px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -20, filter: 'blur(12px)' }} transition={TRANSITION} className="max-w-md w-full my-auto relative flex justify-center">
                     <div className="absolute -z-10 left-1/2 top-1/2 h-56 w-56 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#7ca6e8]/20 blur-[78px]" />
                     <div className="w-full max-w-[430px] rounded-[24px] border border-white/[0.12] bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-transparent px-7 py-8 md:px-9 md:py-10 shadow-[0_12px_48px_rgba(8,16,30,0.45)] flex flex-col items-center text-center">
                       <span className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-blue/70 mb-3">Existing Pilots</span>
@@ -211,7 +212,7 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
 
         <section className={`relative flex-1 ${isModal ? 'min-h-0' : 'min-h-[420px]'} md:min-h-full overflow-hidden${mode === 'signin' && isModal ? ' hidden md:block' : ''}`}>
           <div className="absolute inset-0 z-0">
-            <motion.div className="w-full h-full" initial={false} animate={{ scale: mode === 'signup' ? 1.06 : 1.09, filter: mode === 'signup' ? 'blur(12px) brightness(0.42) contrast(0.9) saturate(0.74)' : 'blur(15px) brightness(0.34) contrast(0.86) saturate(0.66)' }} transition={TRANSITION}>
+            <motion.div className="w-full h-full" initial={isScreenshotMode ? false : undefined} animate={{ scale: mode === 'signup' ? 1.06 : 1.09, filter: mode === 'signup' ? 'blur(12px) brightness(0.42) contrast(0.9) saturate(0.74)' : 'blur(15px) brightness(0.34) contrast(0.86) saturate(0.66)' }} transition={TRANSITION}>
               <Image src="/Pilot&aircraftTwilight.webp" alt="Aircraft on tarmac at twilight" fill className="object-cover" priority />
             </motion.div>
             <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-l from-[#040a15]/94 via-[#071225]/90 to-[#0a1730]/84 pointer-events-none" />
@@ -219,9 +220,9 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
           </div>
 
           <div className={`relative z-10 w-full h-full min-h-0 flex flex-col items-center justify-start overflow-y-auto overscroll-contain ${isModal ? 'px-5 pt-14 pb-6 sm:p-8 md:p-14 lg:p-20' : 'p-8 md:p-14 lg:p-20'}`}>
-            <AnimatePresence mode="popLayout" initial={false}>
+            <AnimatePresence mode="popLayout" initial={isScreenshotMode ? false : undefined}>
               {mode === 'signup' ? (
-                <motion.div key="signup-active" initial={{ opacity: 0, x: 30, filter: 'blur(10px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -30, filter: 'blur(10px)' }} transition={TRANSITION} className="w-full max-w-md mx-auto">
+                <motion.div key="signup-active" initial={isScreenshotMode ? false : { opacity: 0, x: 30, filter: 'blur(10px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -30, filter: 'blur(10px)' }} transition={TRANSITION} className="w-full max-w-md mx-auto">
                   <div className="mb-10 text-center md:text-left">
                     <span className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-blue mb-3">New Aviator Registration</span>
                     <h2 className="text-[1.7rem] sm:text-4xl md:text-6xl font-serif text-white mb-3 md:mb-4 leading-tight tracking-tight">Create account</h2>
@@ -311,7 +312,7 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                   )}
                 </motion.div>
               ) : (
-                <motion.div key="signup-inactive" initial={{ opacity: 0, x: 20, filter: 'blur(12px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: 20, filter: 'blur(12px)' }} transition={TRANSITION} className="max-w-md w-full flex justify-center my-auto relative">
+                <motion.div key="signup-inactive" initial={isScreenshotMode ? false : { opacity: 0, x: 20, filter: 'blur(12px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: 20, filter: 'blur(12px)' }} transition={TRANSITION} className="max-w-md w-full flex justify-center my-auto relative">
                   <div className="absolute -z-10 left-1/2 top-1/2 h-[240px] w-[240px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#6d8fbf]/18 blur-[80px]" />
                   <div className="w-full max-w-[430px] rounded-[26px] border border-white/[0.12] bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-transparent px-7 py-8 md:px-9 md:py-10 shadow-[0_12px_48px_rgba(8,16,30,0.45)] flex flex-col items-center text-center">
                     <div className="w-16 h-16 rounded-full bg-white/[0.08] border border-white/[0.16] flex items-center justify-center mb-6 shadow-[0_0_35px_rgba(154,187,235,0.18)]"><span className="material-symbols-outlined text-white/[0.70] text-2xl">flight_takeoff</span></div>

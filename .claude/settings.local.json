@@ -8,7 +8,14 @@
       "Bash(supabase --version)",
       "Bash(E2E_BASE_URL=http://localhost:3000 node scripts/verify_terms_acceptance_flow.mjs)",
       "Bash(npm run *)",
-      "Bash(npx supabase *)"
+      "Bash(npx supabase *)",
+      "Bash(node /Users/rohanjetha/Documents/OZ/M2/OZRentaplane-m4/.claude/commands/impeccable/scripts/load-context.mjs)",
+      "Bash(perl -pe 's/hover:text-\\\\[#E0B13B\\\\]/hover:text-ember-gold/g' /Users/rohanjetha/Documents/OZ/M2/OZRentaplane-m4/components/Footer.tsx)",
+      "Bash(perl -i -pe 's/hover:text-\\\\[#E0B13B\\\\]/hover:text-ember-gold/g' /Users/rohanjetha/Documents/OZ/M2/OZRentaplane-m4/components/Footer.tsx)",
+      "Bash(grep -oh 'bg-\\\\[#[0-9a-fA-F]\\\\{3,8\\\\}\\\\]\\\\|text-\\\\[#[0-9a-fA-F]\\\\{3,8\\\\}\\\\]\\\\|border-\\\\[#[0-9a-fA-F]\\\\{3,8\\\\}\\\\]' '/Users/rohanjetha/Documents/OZ/M2/OZRentaplane-m4/app/\\(marketing\\)/pricing/page.tsx')",
+      "Bash(perl -i -pe 's/focus:ring-\\\\[#1a4fd6\\\\]\\\\/20/focus:ring-brand-blue\\\\/20/g' app/\\\\\\(marketing\\\\\\)/contact-us/page.tsx)",
+      "Bash(perl -i -pe ' *)",
+      "Bash(node .claude/commands/impeccable/scripts/load-context.mjs)"
     ]
   }
 }

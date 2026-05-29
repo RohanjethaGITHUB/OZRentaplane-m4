@@ -1,6 +1,6 @@
 export default function FleetSection() {
   return (
-    <section id="fleet" className="bg-oz-navy py-28 lg:py-36">
+    <section id="fleet" className="bg-mkt-main py-28 lg:py-36">
       <div className="max-w-7xl mx-auto px-6 lg:px-10">
         {/* Header */}
         <div className="mb-20 max-w-2xl">
@@ -20,9 +20,9 @@ export default function FleetSection() {
         {/* Aircraft card */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Main card */}
-          <div className="lg:col-span-8 bg-oz-mid rounded-lg overflow-hidden border border-oz-high/50 group">
+          <div className="lg:col-span-8 bg-mkt-lift rounded-lg overflow-hidden border border-mkt-subtle group shadow-[0_4px_20px_rgba(15,40,90,0.09)]">
             {/* Placeholder image area */}
-            <div className="h-72 bg-oz-panel flex items-center justify-center relative overflow-hidden">
+            <div className="h-72 bg-mkt-lift flex items-center justify-center relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-oz-high/30 to-oz-deep/80" />
               <div className="relative text-center">
                 <p className="font-serif text-6xl font-black text-oz-blue/20">C172</p>
@@ -61,7 +61,7 @@ export default function FleetSection() {
           {/* Side cards */}
           <div className="lg:col-span-4 flex flex-col gap-6">
             {/* Rate card */}
-            <div className="bg-oz-panel border border-oz-high/50 rounded-lg p-8 flex flex-col gap-4">
+            <div className="bg-mkt-lift border border-mkt-subtle rounded-lg p-8 flex flex-col gap-4 shadow-[0_4px_20px_rgba(15,40,90,0.09)]">
               <p className="font-sans text-xs font-bold tracking-widest uppercase text-oz-blue/60">Hourly Rate</p>
               <div>
                 <span className="font-serif text-4xl font-black text-oz-blue">$TBD</span>
@@ -76,7 +76,7 @@ export default function FleetSection() {
             </div>
 
             {/* Expanding fleet card */}
-            <div className="bg-oz-high/30 border border-oz-high/50 rounded-lg p-8 flex flex-col gap-3 relative overflow-hidden">
+            <div className="bg-mkt-lift border border-mkt-subtle rounded-lg p-8 flex flex-col gap-3 relative overflow-hidden shadow-[0_4px_20px_rgba(15,40,90,0.09)]">
               <div className="absolute top-0 right-0 w-24 h-24 bg-oz-blue/5 rounded-full blur-3xl" />
               <p className="font-sans text-xs font-bold tracking-widest uppercase text-oz-blue/60">Coming Soon</p>
               <h4 className="font-serif text-xl font-bold text-oz-text">Fleet Expansion</h4>

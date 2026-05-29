@@ -98,10 +98,9 @@ export default function RouteSpine({ containerRef }: RouteSpineProps) {
           rotate(135deg) brings it to face straight down (south).
         */}
         <span
-          className="material-symbols-outlined"
+          className="material-symbols-outlined text-clearsky"
           style={{
             fontSize: '15px',
-            color: '#aec7f7',
             fontVariationSettings: "'FILL' 1",
             display: 'block',
             transform: 'rotate(135deg)',

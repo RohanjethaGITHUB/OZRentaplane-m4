@@ -1,17 +1,28 @@
 import React from 'react'
 import AircraftSpotlight from '@/components/AircraftSpotlight'
 import FleetGallery from '@/components/FleetGallery'
+import PreFooterCTA from '@/components/marketing/PreFooterCTA'
 import { fleetGalleryManifest } from '@/lib/fleetGalleryManifest'
 import { FadeUp, StaggerContainer, StaggerItem, HoverEmphasize } from '@/components/MotionPresets'
 
 export default function Cessna172nPage() {
   const images = fleetGalleryManifest
   return (
-    <main className="min-h-screen bg-mkt-main text-[#d9e3f6]">
+    <main className="min-h-screen bg-mkt-main text-deep-ink">
       {/* ─────────────────────────────────────────────────────────────
           2. Aircraft Spotlight Section
       ──────────────────────────────────────────────────────────────*/}
-      <AircraftSpotlight showHeading={false} />
+      <AircraftSpotlight
+        showHeading={false}
+        baseColor="#0d2040"
+        headerBlock={(
+          <div className="border-b border-white/[0.08] px-2 pb-6 pt-2 md:px-4 md:pt-4">
+            <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-runway-amber">CESSNA 172N — PRIMARY FLEET</p>
+            <h1 className="mt-3 font-serif text-4xl font-normal text-white md:text-5xl">Cessna 172 Skyhawk</h1>
+            <p className="mt-2 font-sans text-sm text-white/60">VH-KZG · Bankstown Aerodrome</p>
+          </div>
+        )}
+      />
 
       {/* ─────────────────────────────────────────────────────────────
           3. Fleet Gallery Section
@@ -21,11 +32,12 @@ export default function Cessna172nPage() {
       {/* ─────────────────────────────────────────────────────────────
           7. Perfectly Suited For Section (Use Cases)
       ──────────────────────────────────────────────────────────────*/}
-      <section className="relative py-32 bg-mkt-main">
+      <section className="relative py-32 bg-mkt-alt">
         <div className="px-6 md:px-12 lg:px-20 max-w-7xl mx-auto">
 
           <FadeUp className="max-w-2xl mb-24 relative">
-            <h2 className="font-serif text-5xl md:text-6xl italic font-normal tracking-tight text-[#d9e3f6] mb-6">
+            <p className="mb-4 font-sans text-[11px] font-semibold uppercase tracking-[0.1em] text-brand-blue">FLEET PROFILES</p>
+            <h2 className="font-serif text-5xl md:text-6xl italic font-normal tracking-tight text-deep-ink mb-6">
               Perfectly Suited For...
             </h2>
             <p className="font-sans text-[1rem] leading-relaxed text-[#94a3b8] max-w-md">
@@ -48,7 +60,7 @@ export default function Cessna172nPage() {
                     decoding="async"
                   />
                 </picture>
-                <div className="absolute inset-0 bg-gradient-to-t from-[#040810] via-[#040810]/40 to-transparent" />
+                <div className="absolute inset-0 bg-black/35" />
                 <div className="absolute bottom-0 left-0 right-0 p-8">
                   <h3 className="font-serif text-2xl md:text-3xl text-white mb-3 tracking-wide text-shadow-sm">
                     Scenic Coastal Tours
@@ -72,7 +84,7 @@ export default function Cessna172nPage() {
                     decoding="async"
                   />
                 </picture>
-                <div className="absolute inset-0 bg-gradient-to-t from-[#040810] via-[#040810]/40 to-transparent" />
+                <div className="absolute inset-0 bg-black/35" />
                 <div className="absolute bottom-0 left-0 right-0 p-8">
                   <h3 className="font-serif text-2xl md:text-3xl text-white mb-3 tracking-wide text-shadow-sm">
                     Proficiency Flying
@@ -96,7 +108,7 @@ export default function Cessna172nPage() {
                     decoding="async"
                   />
                 </picture>
-                <div className="absolute inset-0 bg-gradient-to-t from-[#040810] via-[#040810]/40 to-transparent" />
+                <div className="absolute inset-0 bg-black/35" />
                 <div className="absolute bottom-0 left-0 right-0 p-8">
                   <h3 className="font-serif text-2xl md:text-3xl text-white mb-3 tracking-wide text-shadow-sm">
                     Hour Building
@@ -118,7 +130,7 @@ export default function Cessna172nPage() {
                   loading="lazy"
                   decoding="async"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#040810] via-[#040810]/40 to-transparent" />
+                <div className="absolute inset-0 bg-black/35" />
                 <div className="absolute bottom-0 left-0 right-0 p-8">
                   <h3 className="font-serif text-2xl md:text-3xl text-white mb-3 tracking-wide text-shadow-sm">
                     $100 burger
@@ -134,36 +146,12 @@ export default function Cessna172nPage() {
         </div>
       </section>
 
-      {/* ─────────────────────────────────────────────────────────────
-          8. Final CTA Section
-      ──────────────────────────────────────────────────────────────*/}
-      <section className="relative pt-24 pb-32 border-t border-white/5 text-center flex items-center justify-center min-h-[500px]">
-        <img
-          src="/TwilightFlight.jpg?v=safari-test-1"
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 z-0 h-full w-full object-cover"
-        />
-        <div
-          className="absolute inset-0 z-[1]"
-          style={{ background: 'rgba(7, 17, 29, 0.58)' }}
-        />
-
-        <FadeUp delay={0.2} duration={2.0} viewportMargin="-25%" className="relative z-10 px-6 md:px-12 lg:px-20 max-w-2xl mx-auto w-full">
-          <p className="font-sans font-semibold uppercase tracking-[0.25em] text-[0.65rem] text-[#64748b] mb-4 text-shadow-sm">
-            Start your journey
-          </p>
-          <h2 className="font-serif text-4xl md:text-5xl font-normal tracking-tight text-[#d9e3f6] mb-12 drop-shadow-md">
-            Request a checkout flight
-          </h2>
-          <a
-            href="/login"
-            className="inline-block font-sans font-bold text-[0.8rem] tracking-widest uppercase px-10 py-5 rounded bg-[#aec7f7] text-[#001b3d] hover:bg-[#dbeafe] transition-colors shadow-2xl"
-          >
-            Request checkout flight
-          </a>
-        </FadeUp>
-      </section>
+      <PreFooterCTA
+        heading="Request a Checkout Flight"
+        subtext="Get approved to fly VH-KZG from Bankstown Aerodrome."
+        ctaLabel="Request Checkout Flight"
+        ctaHref="/checkout-process"
+      />
 
     </main>
   )

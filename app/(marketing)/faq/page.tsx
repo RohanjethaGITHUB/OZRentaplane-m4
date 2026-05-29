@@ -137,26 +137,24 @@ function AccordionItem({ item, defaultOpen = false }: { item: FaqItem; defaultOp
     <div
       className="overflow-hidden transition-all duration-300"
       style={{
-        background: '#0B2035',
+        background: '#f9fcff',
         borderRadius: '6px',
       }}
     >
       <button
         className="w-full flex items-center justify-between p-7 text-left transition-colors duration-200"
-        style={{ background: open ? '#0B2035' : 'transparent' }}
+        style={{ background: open ? '#f4f8ff' : 'transparent' }}
         onClick={() => setOpen(!open)}
         aria-expanded={open}
       >
         <span
-          className="font-sans font-medium text-[1rem] md:text-[1.05rem] pr-6"
-          style={{ color: '#d9e3f6' }}
+          className="font-sans font-medium text-[1rem] md:text-[1.05rem] pr-6 text-deep-ink"
         >
           {item.q}
         </span>
         <span
-          className="material-symbols-outlined shrink-0 transition-transform duration-300"
+          className="material-symbols-outlined shrink-0 transition-transform duration-300 text-clearsky"
           style={{
-            color: '#aec7f7',
             fontSize: '20px',
             transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
           }}
@@ -282,7 +280,7 @@ export default function FaqPage() {
 
   return (
     <main
-      className="bg-mkt-main text-[#d9e3f6] font-sans overflow-x-hidden"
+      className="bg-mkt-main text-pale-sky font-sans overflow-x-hidden"
       style={{ paddingTop: '62px' }}
     >
 
@@ -306,7 +304,7 @@ export default function FaqPage() {
               </h1>
             </StaggerItem>
             <StaggerItem duration={1.4}>
-              <p className="font-sans text-[1rem] leading-relaxed text-[#c4c6cf] mb-10 max-w-md">
+              <p className="font-sans text-[1rem] leading-relaxed text-cloud-muted mb-10 max-w-md">
                 Preparation is the cornerstone of exceptional aviation. From pilot
                 eligibility to advanced safety protocols, we have curated the
                 essential knowledge for your journey with OZRentAPlane.
@@ -317,13 +315,13 @@ export default function FaqPage() {
             <div className="flex flex-wrap items-center gap-4">
               <a
                 href="/pilotRequirements"
-                className="inline-block bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] rounded-md font-sans font-bold tracking-widest uppercase text-[0.8rem] px-8 py-4 shadow-2xl shadow-[#aec7f7]/20 transition-all active:scale-95 hover:brightness-110"
+                className="inline-block bg-gradient-to-r from-clearsky to-panel-deep text-ink-deep rounded-md font-sans font-bold tracking-widest uppercase text-[0.8rem] px-8 py-4 shadow-2xl shadow-clearsky/20 transition-all active:scale-95 hover:brightness-110"
               >
                 Pilot Requirements
               </a>
               <a
                 href="#booking"
-                className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded border border-white/[0.14] text-[#c4c6cf] hover:bg-white/5 transition-colors"
+                className="font-sans font-bold text-[0.8rem] tracking-widest uppercase px-8 py-4 rounded border border-white/[0.14] text-cloud-muted hover:bg-white/5 transition-colors"
               >
                 Book a Flight
               </a>
@@ -349,8 +347,7 @@ export default function FaqPage() {
           {/* ── Section heading — centred ──────────────────────── */}
           <div className="text-center mb-10 shrink-0">
             <span
-              className="block font-sans font-bold text-[10px] tracking-[0.3em] uppercase mb-4"
-              style={{ color: '#aec7f7' }}
+              className="block font-sans font-bold text-[10px] tracking-[0.3em] uppercase mb-4 text-clearsky"
             >
               Pilot Briefing
             </span>
@@ -496,7 +493,7 @@ export default function FaqPage() {
             {/* Right — checklist */}
             <div
               className="p-10 md:p-16 flex flex-col justify-center"
-              style={{ background: '#0B2035' }}
+              style={{ background: '#ffffff' }}
             >
               <h2
                 className="font-serif text-[2rem] md:text-[2.4rem] leading-tight mb-10"
@@ -504,7 +501,7 @@ export default function FaqPage() {
               >
                 The Essential{' '}
                 <br />
-                <span className="italic" style={{ color: '#aec7f7' }}>
+                <span className="italic text-clearsky">
                   Pre-Flight Checklist
                 </span>
               </h2>
@@ -529,8 +526,8 @@ export default function FaqPage() {
                 ].map((step) => (
                   <li key={step.n} className="flex gap-5">
                     <span
-                      className="font-sans font-bold text-[0.85rem] shrink-0"
-                      style={{ color: '#aec7f7', minWidth: '24px', paddingTop: '2px' }}
+                      className="font-sans font-bold text-[0.85rem] shrink-0 text-clearsky"
+                      style={{ minWidth: '24px', paddingTop: '2px' }}
                     >
                       {step.n}
                     </span>
@@ -577,7 +574,7 @@ export default function FaqPage() {
           >
             Still need help{' '}
             <br />
-            <span className="italic" style={{ color: '#aec7f7' }}>
+            <span className="italic text-clearsky">
               before you fly?
             </span>
           </h2>

@@ -813,8 +813,7 @@ export default function AirshowPage() {
           PERFECT FOR SECTION
       ════════════════════════════════════════════════════════════════════ */}
       <section
-        className="py-14 md:py-[68px]"
-        style={{ background: '#031321' }}
+        className="py-14 md:py-[68px] bg-mkt-main"
       >
         <div className="mx-auto max-w-[1280px] px-5 md:px-8">
           {/* Gold-bordered container card */}

@@ -19,8 +19,12 @@ const SAFETY_PILLARS = [
 
 export default function Safety() {
   return (
-    <section id="safety" className="bg-oz-deep py-28 lg:py-36 relative overflow-hidden">
+    <section id="safety" className="bg-mkt-main py-28 lg:py-36 relative overflow-hidden">
       <div className="absolute bottom-0 right-1/4 w-[500px] h-[300px] bg-oz-blue/3 rounded-full blur-[100px] pointer-events-none" />
+      {/* Horizon line */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 z-0" style={{ top: '60%', height: '1px', background: 'linear-gradient(90deg, transparent 0%, rgba(26,79,214,0.07) 15%, rgba(26,79,214,0.07) 85%, transparent 100%)' }} />
+      {/* Edge vignette */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0" style={{ background: 'radial-gradient(ellipse 100% 90% at 50% 50%, transparent 45%, rgba(15,30,55,0.07) 100%)' }} />
 
       <div className="max-w-7xl mx-auto px-6 lg:px-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">

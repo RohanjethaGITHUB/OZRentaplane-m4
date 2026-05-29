@@ -88,18 +88,18 @@ export default function RunwaySpine({ containerRef }: RunwaySpineProps) {
           className="absolute inset-y-0 left-1/2 -translate-x-1/2"
           style={{
             width: '48px',
-            background: 'linear-gradient(to bottom, #16202e 0%, #0f172a 50%, #16202e 100%)',
-            borderLeft: '1px solid rgba(174,199,247,0.2)',
-            borderRight: '1px solid rgba(174,199,247,0.2)',
-            boxShadow: 'inset 0 0 10px rgba(0,0,0,0.5)',
+            background: 'linear-gradient(to bottom, #2d5a8e 0%, #254d79 50%, #2d5a8e 100%)',
+            borderLeft: '1px solid rgba(255,255,255,0.6)',
+            borderRight: '1px solid rgba(255,255,255,0.6)',
+            boxShadow: 'inset 0 0 10px rgba(9,20,36,0.45)',
           }}
         >
           {/* Top Threshold Markings */}
           <div className="absolute top-0 w-full flex justify-center gap-[3px] pt-4 opacity-50">
-            <div className="w-1 h-8 bg-white"></div>
-            <div className="w-1 h-8 bg-white"></div>
-            <div className="w-1 h-8 bg-white"></div>
-            <div className="w-1 h-8 bg-white"></div>
+            <div className="w-1 h-8 bg-white/90"></div>
+            <div className="w-1 h-8 bg-white/90"></div>
+            <div className="w-1 h-8 bg-white/90"></div>
+            <div className="w-1 h-8 bg-white/90"></div>
           </div>
 
           {/* Runway Centerline */}
@@ -107,7 +107,8 @@ export default function RunwaySpine({ containerRef }: RunwaySpineProps) {
             <div
               className="w-[2px] h-full"
               style={{
-                background: 'repeating-linear-gradient(to bottom, #ffffff 0, #ffffff 16px, transparent 16px, transparent 32px)',
+                background: 'repeating-linear-gradient(to bottom, rgba(255,255,255,0.9) 0, rgba(255,255,255,0.9) 16px, transparent 16px, transparent 32px)',
+                opacity: 0.9,
               }}
             />
           </div>
@@ -116,8 +117,8 @@ export default function RunwaySpine({ containerRef }: RunwaySpineProps) {
           <div
             className="absolute left-0 inset-y-0 w-[4px] h-full opacity-90"
             style={{
-              background: 'repeating-linear-gradient(to bottom, #818cf8 0, #818cf8 4px, transparent 4px, transparent 40px)',
-              filter: 'drop-shadow(0 0 6px #818cf8)',
+              background: 'repeating-linear-gradient(to bottom, #f59e0b 0, #f59e0b 4px, transparent 4px, transparent 40px)',
+              filter: 'drop-shadow(0 0 6px #f59e0b)',
             }}
           />
 
@@ -125,17 +126,17 @@ export default function RunwaySpine({ containerRef }: RunwaySpineProps) {
           <div
             className="absolute right-0 inset-y-0 w-[4px] h-full opacity-90"
             style={{
-              background: 'repeating-linear-gradient(to bottom, #818cf8 0, #818cf8 4px, transparent 4px, transparent 40px)',
-              filter: 'drop-shadow(0 0 6px #818cf8)',
+              background: 'repeating-linear-gradient(to bottom, #f59e0b 0, #f59e0b 4px, transparent 4px, transparent 40px)',
+              filter: 'drop-shadow(0 0 6px #f59e0b)',
             }}
           />
 
           {/* Bottom Threshold Markings */}
           <div className="absolute bottom-0 w-full flex justify-center gap-[3px] pb-4 opacity-50">
-            <div className="w-1 h-8 bg-white"></div>
-            <div className="w-1 h-8 bg-white"></div>
-            <div className="w-1 h-8 bg-white"></div>
-            <div className="w-1 h-8 bg-white"></div>
+            <div className="w-1 h-8 bg-white/90"></div>
+            <div className="w-1 h-8 bg-white/90"></div>
+            <div className="w-1 h-8 bg-white/90"></div>
+            <div className="w-1 h-8 bg-white/90"></div>
           </div>
 
           {/* Illuminated completed path */}
@@ -192,12 +193,12 @@ export default function RunwaySpine({ containerRef }: RunwaySpineProps) {
 
             {/* Plane icon */}
             <span
-              className="material-symbols-outlined relative z-10 block leading-none"
+              className="material-symbols-outlined relative z-10 block leading-none text-clearsky"
               style={{
                 fontSize: '19px',
-                color: '#aec7f7',
                 fontVariationSettings: "'FILL' 1",
                 textShadow: '0 0 8px rgba(224,177,59,0.26)',
+                filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.5))',
               }}
             >
               flight
@@ -213,11 +214,10 @@ export default function RunwaySpine({ containerRef }: RunwaySpineProps) {
                 }}
               >
                 <span
-                  className="material-symbols-outlined block leading-none"
+                  className="material-symbols-outlined block leading-none text-clearsky"
                   style={{
                     fontSize: '19px',
                     fontVariationSettings: "'FILL' 1",
-                    color: '#aec7f7',
                   }}
                 >
                   flight
@@ -236,11 +236,10 @@ export default function RunwaySpine({ containerRef }: RunwaySpineProps) {
                 }}
               >
                 <span
-                  className="material-symbols-outlined block leading-none"
+                  className="material-symbols-outlined block leading-none text-clearsky"
                   style={{
                     fontSize: '19px',
                     fontVariationSettings: "'FILL' 1",
-                    color: '#aec7f7',
                   }}
                 >
                   flight

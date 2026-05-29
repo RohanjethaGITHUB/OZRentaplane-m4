@@ -717,8 +717,8 @@ export default function HomeHeroScrollSequence() {
   }, [])
 
   return (
-    <section ref={sectionRef} className="relative" style={{ height: `${SCROLL_HEIGHT_VH}vh` }} data-motion-mode={motionMode}>
-      <div className="sticky top-0 overflow-hidden min-h-screen min-h-[100svh] min-h-[100dvh]">
+    <section ref={sectionRef} className="relative bg-deep-ink" style={{ height: `${SCROLL_HEIGHT_VH}vh` }} data-motion-mode={motionMode}>
+      <div className="sticky top-0 overflow-hidden min-h-screen min-h-[100svh] min-h-[100dvh] bg-deep-ink">
         <img
           ref={imgRef}
           src={frameZero}
@@ -801,11 +801,15 @@ export default function HomeHeroScrollSequence() {
               </p>
               <a
                 href="/pilotRequirements"
-                className="inline-block whitespace-nowrap rounded-md bg-gradient-to-r from-[#aec7f7] to-[#1b365d] text-[#143057] font-sans font-bold tracking-widest uppercase text-[0.8rem] px-8 py-4 shadow-2xl shadow-[#aec7f7]/20 transition-all active:scale-95 hover:brightness-110"
+                className="inline-block whitespace-nowrap rounded-md bg-gradient-to-r from-clearsky to-panel-deep text-ink-deep font-sans font-bold tracking-widest uppercase text-[0.8rem] px-8 py-4 shadow-2xl shadow-clearsky/20 transition-all active:scale-95 hover:brightness-110"
               >
                 SCHEDULE YOUR CHECKOUT FLIGHT
               </a>
             </div>
+          </div>
+          <div className={`pointer-events-none absolute bottom-8 left-1/2 z-20 -translate-x-1/2 text-center transition-opacity duration-500 ${sceneHeadings[sceneIndex]?.showCta ? 'opacity-100' : 'opacity-0'}`}>
+            <p className="font-sans text-[10px] uppercase tracking-[0.2em] text-white/70">Scroll</p>
+            <span className="material-symbols-outlined mt-1 text-white/80 animate-bounce">keyboard_arrow_down</span>
           </div>
         </div>
 

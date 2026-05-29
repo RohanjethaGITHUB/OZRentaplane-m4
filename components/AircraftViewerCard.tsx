@@ -164,7 +164,7 @@ function ViewTabs({ active, onChange }: { active: ViewTab; onChange: (t: ViewTab
             role="tab"
             aria-selected={isActive}
             onClick={() => onChange(id)}
-            className="relative px-5 py-[7px] rounded-full font-sans font-semibold tracking-[0.15em] uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#aec7f7]/40 transition-colors duration-300"
+            className="relative px-5 py-[7px] rounded-full font-sans font-semibold tracking-[0.15em] uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-clearsky/40 transition-colors duration-300"
             style={{ fontSize: '0.57rem' }}
           >
             {/* Active pill — layoutId animates smoothly between tabs */}

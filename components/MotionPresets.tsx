@@ -6,6 +6,8 @@ import { motion } from 'framer-motion'
 // Unified physics for a premium, cinematic feel
 const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1] // Custom ease matching premium Apple/editorial styles
 
+const isScreenshotMode = typeof window !== 'undefined' && window.location.search.includes('screenshotMode=1')
+
 type WrapperProps = {
   children: React.ReactNode
   className?: string
@@ -26,13 +28,13 @@ export function FadeUp({ children, className = '', delay = 0, duration = 0.85, v
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0, y: 16 }}
+      initial={isScreenshotMode ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: viewportMargin as any }}
       transition={{ 
-        duration, 
+        duration: isScreenshotMode ? 0 : duration, 
         ease: EASE_OUT,
-        delay,
+        delay: isScreenshotMode ? 0 : delay,
       }}
     >
       {children}
@@ -49,13 +51,13 @@ export function StaggerContainer({ children, className = '', staggerDelay = 0.14
   return (
     <motion.div
       className={className}
-      initial="hidden"
+      initial={isScreenshotMode ? "visible" : "hidden"}
       whileInView="visible"
       viewport={{ once: true, margin: viewportMargin as any }}
       variants={{
         visible: {
           transition: {
-            staggerChildren: staggerDelay, // Subtle delay between children reveals
+            staggerChildren: isScreenshotMode ? 0 : staggerDelay, // Subtle delay between children reveals
           },
         },
       }}
@@ -79,7 +81,7 @@ export function StaggerItem({ children, className = '', duration = 0.75 }: Wrapp
           opacity: 1, 
           y: 0, 
           transition: { 
-            duration, 
+            duration: isScreenshotMode ? 0 : duration, 
             ease: EASE_OUT 
           } 
         },
@@ -99,11 +101,11 @@ export function HoverEmphasize({ children, className = '', hoverY = -4, hoverSca
     <motion.div
       className={className}
       whileHover={{ 
-        y: hoverY,
-        scale: hoverScale,
-        transition: { duration, ease: EASE_OUT }
+        y: isScreenshotMode ? 0 : hoverY,
+        scale: isScreenshotMode ? 1 : hoverScale,
+        transition: { duration: isScreenshotMode ? 0 : duration, ease: EASE_OUT }
       }}
-      whileTap={{ scale: 0.99 }}
+      whileTap={{ scale: isScreenshotMode ? 1 : 0.99 }}
     >
       {children}
     </motion.div>
