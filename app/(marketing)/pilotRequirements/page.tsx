@@ -33,7 +33,7 @@ export default function PilotRequirementsPage() {
           <div className="flex flex-wrap items-center gap-4 mt-6">
             <FadeUp delay={1.2} duration={1.4}>
               <a
-                href="#"
+                href="/login"
                 className="inline-block bg-gradient-to-r from-clearsky to-panel-deep text-ink-deep rounded-md font-sans font-bold tracking-widest uppercase text-[0.8rem] px-8 py-4 shadow-2xl shadow-clearsky/20 transition-all active:scale-95 hover:brightness-110"
               >
                 Start Approval

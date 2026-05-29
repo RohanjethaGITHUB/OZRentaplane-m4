@@ -6,6 +6,7 @@ import {
   useMotionValue, useDragControls,
 } from 'framer-motion'
 import type { FleetGalleryImage } from '@/lib/fleetGalleryManifest'
+import AtmoClouds from '@/components/AtmoClouds'
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const BASE     = '#dce8f8'
@@ -209,9 +210,15 @@ export default function FleetGallery({ images }: FleetGalleryProps) {
   // ────────────────────────────────────────────────────────────────────────────
   return (
     <section
-      className="relative w-full"
+      className="relative w-full overflow-hidden"
       style={{ background: BASE, overflow: 'hidden' }}
     >
+      <AtmoClouds shapes={['A', 'D']} />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 z-0"
+        style={{ top: '60%', height: '1px', background: 'linear-gradient(90deg, transparent 0%, rgba(26,79,214,0.10) 15%, rgba(26,79,214,0.10) 85%, transparent 100%)' }}
+      />
 
       {/* ═══════════════════════════════════════════════════════════════
           TEASER STATE

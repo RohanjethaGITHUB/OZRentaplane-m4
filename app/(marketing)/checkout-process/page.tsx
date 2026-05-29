@@ -6,6 +6,7 @@ import PreFooterCTA from '@/components/marketing/PreFooterCTA'
 import { CloudBackground } from '@/components/marketing/CloudBackground'
 import RunwaySpine from '@/components/checkout-process/RunwaySpine'
 import { createClient } from '@/lib/supabase/client'
+import AtmoClouds from '@/components/AtmoClouds'
 
 /* ─── Icon ────────────────────────────────────────────────────────────────── */
 function Icon({ name, className = '', fill = false }: { name: string; className?: string; fill?: boolean }) {
@@ -144,8 +145,16 @@ export default function CheckoutProcessPage() {
       {/* ══════════════════════════════════════════════════════════════
           4. Timeline
       ══════════════════════════════════════════════════════════════ */}
-      <section className="-mt-12 pt-12 pb-32 bg-mkt-main relative z-20">
+      <section className="-mt-12 pt-12 pb-32 bg-mkt-main relative z-20 overflow-visible">
         <CloudBackground />
+        <AtmoClouds shapes={['A', 'C']} topOffset="4%" extraDarkCloud />
+        <AtmoClouds shapes={['D', 'B']} topOffset="42%" />
+        <AtmoClouds shapes={['E', 'C']} topOffset="72%" />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 z-0"
+          style={{ top: '50%', height: '1px', background: 'linear-gradient(90deg, transparent 0%, rgba(26,79,214,0.10) 15%, rgba(26,79,214,0.10) 85%, transparent 100%)' }}
+        />
         <div className="relative z-10 max-w-6xl mx-auto px-6 md:px-12">
           {/* Compact Timeline Header */}
           <StaggerContainer className="mb-16 text-center" staggerDelay={0.2} viewportMargin="-15%">
@@ -331,7 +340,7 @@ export default function CheckoutProcessPage() {
         heading="Ready to Request Your Checkout Flight?"
         subtext="Submit your details and our team will confirm your first flight time."
         ctaLabel="Request Checkout Flight"
-        ctaHref="/pilotRequirements"
+        ctaHref="/login"
       />
 
     </main>

@@ -1,6 +1,7 @@
 import React from 'react'
 import { FadeUp, StaggerContainer, StaggerItem } from '@/components/MotionPresets'
 import PreFooterCTA from '@/components/marketing/PreFooterCTA'
+import AtmoClouds from '@/components/AtmoClouds'
 
 // ─── Tiny helper: Material Symbol icon ───────────────────────────────────────
 function Icon({ name, className = '' }: { name: string; className?: string }) {
@@ -42,8 +43,14 @@ export default function SafetyPage() {
       </section>
 
       {/* ═══ Section 2: Safety Philosophy ═════════════════════════════════════ */}
-      <section className="-mt-12 pt-12 pb-28 px-8 md:px-24 bg-mkt-main relative z-20">
-        <div className="mx-auto max-w-7xl">
+      <section className="-mt-12 pt-12 pb-28 px-8 md:px-24 bg-mkt-main relative z-20 overflow-hidden">
+        <AtmoClouds shapes={['A', 'D']} extraDarkCloud />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 z-0"
+          style={{ top: '60%', height: '1px', background: 'linear-gradient(90deg, transparent 0%, rgba(26,79,214,0.10) 15%, rgba(26,79,214,0.10) 85%, transparent 100%)' }}
+        />
+        <div className="relative z-10 mx-auto max-w-7xl">
           <StaggerContainer className="mb-10" viewportMargin="-20%">
             <StaggerItem duration={1.4}>
               <h2 className="font-serif font-normal text-4xl md:text-5xl text-deep-ink mb-4">Our Philosophy</h2>
@@ -70,7 +77,13 @@ export default function SafetyPage() {
       </section>
 
       {/* ═══ Section 3: Pilot Approval ═══════════════════════════════════════ */}
-      <section className="py-24 px-8 md:px-24 bg-mkt-alt">
+      <section className="relative overflow-hidden py-24 px-8 md:px-24 bg-mkt-alt">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 z-0"
+          style={{ top: '55%', height: '1px', background: 'linear-gradient(90deg, transparent 0%, rgba(26,79,214,0.10) 15%, rgba(26,79,214,0.10) 85%, transparent 100%)' }}
+        />
+        <div className="relative z-10">
         <StaggerContainer className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8" viewportMargin="-20%">
           <div>
             <StaggerItem duration={1.4}>
@@ -116,6 +129,7 @@ export default function SafetyPage() {
             </StaggerItem>
           ))}
         </StaggerContainer>
+        </div>
       </section>
 
       {/* ═══ Section 4: Maintenance Standards ═══════════════════════════════ */}
@@ -164,7 +178,9 @@ export default function SafetyPage() {
       </section>
 
       {/* ═══ Section 5: Operational Safeguards ════════════════════════════════ */}
-      <section className="py-32 px-8 md:px-24 bg-mkt-main">
+      <section className="relative overflow-hidden py-32 px-8 md:px-24 bg-mkt-main">
+        <AtmoClouds shapes={['C']} />
+        <div className="relative z-10">
         <StaggerContainer className="max-w-4xl mx-auto text-center mb-20" viewportMargin="-20%">
           <StaggerItem duration={1.4}>
             <h2 className="font-serif font-normal text-4xl md:text-6xl mb-6 text-deep-ink">Operational Safeguards</h2>
@@ -212,6 +228,7 @@ export default function SafetyPage() {
             </div>
           </StaggerItem>
         </StaggerContainer>
+        </div>
       </section>
 
       {/* ═══ Section 6: Pre-flight / Post-flight ══════════════════════════════ */}
@@ -303,7 +320,14 @@ export default function SafetyPage() {
       </section>
 
       {/* ═══ Section 8: Type Familiarisation ══════════════════════════════════ */}
-      <section className="py-32 px-8 md:px-24 bg-mkt-main">
+      <section className="relative overflow-hidden py-32 px-8 md:px-24 bg-mkt-main">
+        <AtmoClouds direction="rtl" shapes={['B', 'E']} />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 z-0"
+          style={{ top: '60%', height: '1px', background: 'linear-gradient(90deg, transparent 0%, rgba(26,79,214,0.10) 15%, rgba(26,79,214,0.10) 85%, transparent 100%)' }}
+        />
+        <div className="relative z-10">
         <StaggerContainer className="bg-mkt-lift border border-[rgba(151,177,215,0.14)] p-12 md:p-24 rounded-lg flex flex-col md:flex-row gap-16 items-center" viewportMargin="-25%">
 
           {/* Text */}
@@ -339,11 +363,17 @@ export default function SafetyPage() {
             </div>
           </StaggerItem>
         </StaggerContainer>
+        </div>
       </section>
 
       {/* ═══ Section 9: Safety FAQ ════════════════════════════════════════════ */}
-      <section className="py-32 px-8 md:px-24 bg-mkt-alt">
-        <div className="max-w-4xl mx-auto">
+      <section className="relative overflow-hidden py-32 px-8 md:px-24 bg-mkt-alt">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-0"
+          style={{ background: 'radial-gradient(ellipse 100% 90% at 50% 50%, transparent 45%, rgba(15,30,55,0.06) 100%)' }}
+        />
+        <div className="relative z-10 max-w-4xl mx-auto">
           <StaggerContainer className="mb-16 text-center" viewportMargin="-20%">
             <StaggerItem duration={1.4}>
               <h2 className="font-serif font-normal text-4xl text-deep-ink">Safety Questions</h2>
@@ -387,7 +417,7 @@ export default function SafetyPage() {
         heading="Ready to Apply for Access?"
         subtext="Join a community of disciplined aviators who value safety above all else."
         ctaLabel="View Pilot Requirements"
-        ctaHref="/pilotRequirements"
+        ctaHref="/login"
       />
 
     </main>

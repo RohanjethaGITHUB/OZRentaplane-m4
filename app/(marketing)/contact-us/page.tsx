@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import PreFooterCTA from '@/components/marketing/PreFooterCTA'
+import AtmoClouds from '@/components/AtmoClouds'
 
 export const metadata: Metadata = {
   title: 'Contact Us | OZ Rent A Plane',
@@ -45,8 +46,9 @@ export default function ContactPage() {
         </div>
       </section>
 
-      <section id="inquiry-form" className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 bg-mkt-main px-6 py-10 md:px-12 lg:grid-cols-12 lg:gap-7 lg:px-20 lg:py-14">
-        <div className="lg:col-span-8">
+      <section id="inquiry-form" className="relative mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 overflow-hidden bg-mkt-main px-6 py-10 md:px-12 lg:grid-cols-12 lg:gap-7 lg:px-20 lg:py-14">
+        <AtmoClouds shapes={['B', 'E']} />
+        <div className="relative z-10 lg:col-span-8">
           <div className="rounded-lg border border-mkt-subtle bg-mkt-lift p-5 shadow-[0_20px_40px_rgba(13,27,62,0.08)] md:p-7">
             <h2 className="mb-5 flex items-center gap-2 font-serif text-3xl text-deep-ink md:text-[2rem]">
               <Icon name="flight_takeoff" className="!text-[24px] text-brand-blue" />
@@ -110,7 +112,7 @@ export default function ContactPage() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-4 lg:col-span-4">
+        <div className="relative z-10 flex flex-col gap-4 lg:col-span-4">
           <div className="rounded-lg border border-mkt-subtle bg-mkt-lift p-4">
             <div className="flex items-start gap-3">
               <div className="rounded bg-[#2a3d59]/58 p-2">
@@ -139,8 +141,13 @@ export default function ContactPage() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl bg-mkt-alt px-6 pb-12 pt-2 md:px-12 lg:px-20 lg:pb-16">
-        <div className="grid w-full grid-cols-1 gap-6 rounded-xl border border-mkt-subtle bg-mkt-lift p-6 shadow-[0_20px_40px_rgba(13,27,62,0.08)] md:grid-cols-12 md:items-center md:gap-8 md:p-8">
+      <section className="relative mx-auto w-full max-w-6xl overflow-hidden bg-mkt-alt px-6 pb-12 pt-2 md:px-12 lg:px-20 lg:pb-16">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 z-0"
+          style={{ top: '60%', height: '1px', background: 'linear-gradient(90deg, transparent 0%, rgba(26,79,214,0.10) 15%, rgba(26,79,214,0.10) 85%, transparent 100%)' }}
+        />
+        <div className="relative z-10 grid w-full grid-cols-1 gap-6 rounded-xl border border-mkt-subtle bg-mkt-lift p-6 shadow-[0_20px_40px_rgba(13,27,62,0.08)] md:grid-cols-12 md:items-center md:gap-8 md:p-8">
           <div className="md:col-span-7">
             <div className="mb-4 inline-flex items-center gap-2 rounded-sm border border-mkt-subtle bg-horizon-border px-3 py-1.5">
               <Icon name="location_on" className="text-brand-blue" />
@@ -190,7 +197,7 @@ export default function ContactPage() {
         heading="Still Have Questions?"
         subtext="Our operations team is available 0600–2000 AEST and aims to respond within 2 hours."
         ctaLabel="Send an Inquiry"
-        ctaHref="#inquiry-form"
+        ctaHref="/login"
       />
     </main>
   )

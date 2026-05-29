@@ -233,7 +233,7 @@ function ProductCard({ product }: { product: Product }) {
         {/* CTA */}
         {product.buttonType === 'buy' && (
           <a
-            href="#"
+            href="/login"
             className="w-full text-center bg-gradient-to-r from-clearsky to-panel-deep text-ink-deep rounded-md font-sans font-bold tracking-widest uppercase text-[0.68rem] px-5 py-3 shadow-lg shadow-clearsky/10 transition-all active:scale-95 hover:brightness-110"
           >
             Buy Now

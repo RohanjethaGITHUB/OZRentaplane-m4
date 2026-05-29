@@ -2,6 +2,7 @@
 import React from 'react'
 import { FadeUp, StaggerContainer, StaggerItem, HoverEmphasize } from '@/components/MotionPresets'
 import PreFooterCTA from '@/components/marketing/PreFooterCTA'
+import AtmoClouds from '@/components/AtmoClouds'
 
 
 // ── Section 1: Aircraft Showcase ──────────────────────────────────────────────
@@ -10,131 +11,90 @@ function AircraftShowcase() {
 
   const specs = [
     {
-      label: 'Aircraft Rego',
+      label: 'Rego',
       value: 'VH-KZG',
-      sub: 'Cessna 172N',
-      icon: <path d="M9 7h6M9 12h6M9 17h6M5 7h.01M5 12h.01M5 17h.01" />,
     },
     {
       label: 'Seating',
       value: '04',
-      sub: 'Seats',
-      icon: <path d="M7 18v-2a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v2M9 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm6 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />,
     },
     {
-      label: 'Fuel Capacity',
-      value: '54 gallons',
-      sub: '(50 usable)',
-      icon: <path d="M8 20h8M9 20V9.8a2.8 2.8 0 0 1 2.8-2.8h.4A2.8 2.8 0 0 1 15 9.8V20m0-9h2l1.5 2.5V20" />,
+      label: 'Fuel',
+      value: '54 gal',
     },
     {
-      label: 'Empty Weight',
+      label: 'Weight',
       value: '690 kg',
-      sub: 'typical empty weight',
-      icon: <path d="M12 6v6m-4 4h8M6 10h12l-1.5 9h-9z" />,
     },
     {
       label: 'Useful Load',
       value: '1,088 lb',
-      sub: 'approx. 493 kg',
-      icon: <path d="M12 8v5l3 2m5-3a8 8 0 1 1-16 0 8 8 0 0 1 16 0z" />,
     },
     {
       label: 'Cruise Speed',
-      value: '124 knots TAS',
-      sub: '',
-      icon: <path d="M4 16c2.5-2 5.5-3 8-3s5.5 1 8 3M12 6l2.5 5H9.5L12 6z" />,
+      value: '124 KTAS',
     },
   ]
 
   return (
-    <section className="relative overflow-hidden bg-mkt-alt px-6 pt-20 pb-16 md:px-12 md:pt-24 md:pb-[68px] lg:px-20 lg:pt-24 lg:pb-[72px]">
+    <section
+      className="relative overflow-hidden px-6 py-20 md:px-10 md:py-24 lg:px-14 lg:py-28"
+      style={{
+        background:
+          'linear-gradient(to bottom, #00132f 0%, #051b39 25%, #0a2d5e 55%, #c8dff5 85%, #dce8f8 100%)',
+      }}
+    >
       <div
         className="pointer-events-none absolute inset-0 z-0"
-        style={{ background: 'radial-gradient(circle at 38% 28%, rgba(26,79,214,0.12), transparent 42%)' }}
+        style={{ background: 'radial-gradient(circle at 28% 38%, rgba(26,79,214,0.24), transparent 48%)' }}
       />
-      {/* Heading indicator watermark — compass rose ghost */}
-      <svg
-        aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-0"
-        width="640" height="640" viewBox="0 0 540 540" fill="none"
-        style={{ opacity: 0.12 }}
-      >
-        <circle cx="270" cy="270" r="258" stroke="#0d1b3e" strokeWidth="1.5" />
-        <circle cx="270" cy="270" r="188" stroke="#0d1b3e" strokeWidth="0.75" />
-        <circle cx="270" cy="270" r="5" stroke="#0d1b3e" strokeWidth="1.5" />
-        <line x1="270" y1="12" x2="270" y2="528" stroke="#0d1b3e" strokeWidth="0.5" />
-        <line x1="12" y1="270" x2="528" y2="270" stroke="#0d1b3e" strokeWidth="0.5" />
-        <line x1="88" y1="88" x2="452" y2="452" stroke="#0d1b3e" strokeWidth="0.35" />
-        <line x1="452" y1="88" x2="88" y2="452" stroke="#0d1b3e" strokeWidth="0.35" />
-        {Array.from({ length: 72 }, (_, i) => {
-          const angle = (i * 5 - 90) * (Math.PI / 180)
-          const isCardinal = i % 18 === 0
-          const isMajor = i % 6 === 0
-          const outerR = 258
-          const innerR = isCardinal ? 225 : isMajor ? 240 : 250
-          const x1 = 270 + outerR * Math.cos(angle)
-          const y1 = 270 + outerR * Math.sin(angle)
-          const x2 = 270 + innerR * Math.cos(angle)
-          const y2 = 270 + innerR * Math.sin(angle)
-          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#0d1b3e" strokeWidth={isCardinal ? 2.5 : isMajor ? 1.75 : 1} />
-        })}
-      </svg>
-      {/* Cloud wisps — upper corners */}
-      <div aria-hidden="true" className="pointer-events-none absolute z-0" style={{ top: '-50px', left: '-70px', width: '440px', height: '240px', borderRadius: '50%', background: 'rgba(220,235,255,0.9)', filter: 'blur(72px)', opacity: 0.18 }} />
-      <div aria-hidden="true" className="pointer-events-none absolute z-0" style={{ top: '-30px', right: '-50px', width: '400px', height: '220px', borderRadius: '50%', background: 'rgba(240,248,255,0.9)', filter: 'blur(60px)', opacity: 0.18 }} />
-      {/* Cloud wisps — mid section */}
-      <div aria-hidden="true" className="pointer-events-none absolute z-0" style={{ top: '45%', left: '20%', width: '420px', height: '200px', borderRadius: '50%', background: 'rgba(210,230,255,0.85)', filter: 'blur(80px)', opacity: 0.12 }} />
-      <div aria-hidden="true" className="pointer-events-none absolute z-0" style={{ top: '45%', left: '65%', width: '400px', height: '190px', borderRadius: '50%', background: 'rgba(230,242,255,0.85)', filter: 'blur(75px)', opacity: 0.12 }} />
-      {/* Horizon line — faint altitude suggestion */}
+      <AtmoClouds shapes={['E']} topOffset="2%" />
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 z-0" style={{ top: '60%', height: '1px', background: 'linear-gradient(90deg, transparent 0%, rgba(26,79,214,0.18) 15%, rgba(26,79,214,0.18) 85%, transparent 100%)' }} />
-      {/* Edge vignette */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0" style={{ background: 'radial-gradient(ellipse 100% 90% at 50% 50%, transparent 45%, rgba(15,30,55,0.07) 100%)' }} />
-      <div className="relative z-10 max-w-[1220px] mx-auto grid grid-cols-1 lg:grid-cols-[45%_55%] gap-8 lg:gap-12 items-center">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0" style={{ background: 'radial-gradient(ellipse 100% 90% at 50% 50%, transparent 45%, rgba(0,8,20,0.5) 100%)' }} />
+
+      <div className="relative z-10 mx-auto grid w-full max-w-[1400px] grid-cols-1 gap-10 lg:grid-cols-[1fr_1fr] lg:gap-14">
         <FadeUp duration={1.1} delay={0.06} viewportMargin="-100px">
-          <div className="h-full max-h-[400px] min-h-[300px] overflow-hidden rounded-2xl">
-            <img src={aircraftImage.src} alt={aircraftImage.alt} className="h-full w-full object-cover object-center" />
+          <div className="group relative overflow-hidden rounded-xl border border-white/10 bg-[#0a1f3d] shadow-[0_24px_64px_-16px_rgba(0,0,0,0.52)] transition-shadow duration-300 hover:shadow-[0_0_0_1px_rgba(167,200,255,0.20),0_0_36px_8px_rgba(167,200,255,0.10)]">
+            <div className="aspect-[4/3] overflow-hidden">
+              <img
+                src={aircraftImage.src}
+                alt={aircraftImage.alt}
+                className="h-full w-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.02]"
+              />
+            </div>
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#00132f]/28 via-transparent to-transparent" />
           </div>
         </FadeUp>
 
-        <StaggerContainer className="pt-0.5 md:pt-1.5 lg:pt-0.5" staggerDelay={0.16} viewportMargin="-100px">
+        <StaggerContainer className="pt-1 md:pt-2" staggerDelay={0.16} viewportMargin="-100px">
           <StaggerItem duration={1.1}>
-            <p className="font-sans uppercase tracking-[0.1em] text-[11px] font-semibold mb-2.5 text-brand-blue">FEATURED AIRCRAFT</p>
+            <p className="mb-3 font-sans text-[10px] font-bold uppercase tracking-[0.15em] text-clearsky">Featured Aircraft</p>
           </StaggerItem>
           <StaggerItem duration={1.2}>
-            <h2 className="font-serif text-[2.1rem] md:text-[2.6rem] lg:text-[3rem] leading-[1.04] tracking-tight text-deep-ink">Cessna 172N</h2>
-            <div className="mt-5 mb-6 h-[2px] w-[56px] bg-brand-blue/30" />
-          </StaggerItem>
-          <StaggerItem duration={1.1}>
-            <p className="text-[15px] md:text-[16px] leading-[1.58] text-muted-ink max-w-[500px]">
-              The world&apos;s most trusted training aircraft. Reliable, efficient, and perfect for building your flight hours.
-            </p>
+            <h2 className="font-serif text-[2.15rem] leading-[1.04] tracking-[0.015em] text-white md:text-[2.8rem] lg:text-[3.2rem]">Cessna 172N</h2>
+            <div className="mb-7 mt-5 h-[2px] w-24 bg-runway-amber/90" />
           </StaggerItem>
 
           <StaggerItem duration={1.1}>
-            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-x-8 md:gap-x-9 gap-y-5 md:gap-y-6">
+            <div className="grid grid-cols-2 gap-3 md:gap-4">
               {specs.map((spec) => (
-                <div key={spec.label}>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.08em] text-muted-ink leading-[1.35]">{spec.label}</p>
-                    <p className="font-sans font-bold text-[20px] md:text-[22px] leading-[1.2] mt-0.5 text-deep-ink">{spec.value}</p>
-                    {spec.sub ? <p className="text-[12px] md:text-[13px] text-muted-ink leading-[1.32] mt-0.5">{spec.sub}</p> : null}
-                  </div>
+                <div
+                  key={spec.label}
+                  className="rounded-xl border border-white/10 bg-[#0a1f3d]/95 p-4 md:p-5"
+                >
+                  <p className="font-sans text-[10px] font-bold uppercase tracking-[0.15em] text-cloud-muted/80">{spec.label}</p>
+                  <p className="mt-2 font-serif text-[1.45rem] leading-[1.08] text-white md:text-[1.7rem]">{spec.value}</p>
                 </div>
               ))}
             </div>
           </StaggerItem>
 
           <StaggerItem duration={1.1}>
-            <p className="mt-5 text-[12px] md:text-[13px] leading-relaxed text-muted-ink max-w-[500px]">
-              Performance figures are typical. Maximum takeoff weight is approximately 2,400 lb. Full specifications are available before hire.
-            </p>
             <a
               href="/cessna-172"
-              className="mt-4 inline-flex h-[44px] items-center gap-2.5 rounded-md bg-runway-amber px-5 text-[11px] uppercase tracking-[0.14em] text-deep-ink transition-colors hover:bg-[#d97706] focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-runway-amber focus-visible:outline-offset-2"
+              className="mt-7 inline-flex items-center rounded-md bg-runway-amber px-7 py-3.5 font-sans text-[10px] font-bold uppercase tracking-[0.15em] text-deep-ink transition-colors hover:bg-runway-amber-hot focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-runway-amber focus-visible:outline-offset-2"
             >
-              View full specifications
-              <span aria-hidden="true">→</span>
+              View Full Specifications &rarr;
             </a>
           </StaggerItem>
         </StaggerContainer>
@@ -152,7 +112,7 @@ function FlightManifest() {
   ]
 
   return (
-    <section className="relative bg-mkt-main py-16 md:py-[68px] lg:py-[72px]">
+    <section className="relative overflow-hidden bg-mkt-main py-16 md:py-[68px] lg:py-[72px]">
       <div
         className="pointer-events-none absolute inset-0 z-0"
         style={{
@@ -172,7 +132,13 @@ function FlightManifest() {
           strokeWidth="3"
         />
       </svg>
-      <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-20">
+      <AtmoClouds shapes={['A', 'C']} />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 z-0"
+        style={{ top: '65%', height: '1px', background: 'linear-gradient(90deg, transparent 0%, rgba(26,79,214,0.12) 15%, rgba(26,79,214,0.12) 85%, transparent 100%)' }}
+      />
+      <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-12 lg:px-20">
 
         {/* Section heading */}
         <StaggerContainer className="text-center mb-16 md:mb-20" staggerDelay={0.2} viewportMargin="-80px">
@@ -300,12 +266,7 @@ function WhyFlyWithUs() {
             'radial-gradient(ellipse at 80% 50%, rgba(26,79,214,0.08) 0%, transparent 60%), radial-gradient(circle at 50% 30%, rgba(26,79,214,0.12), transparent 48%), radial-gradient(ellipse 90% 60% at 50% 55%, rgba(174,199,247,0.055) 0%, transparent 70%)',
         }}
       />
-      {/* Cloud wisps — upper corners */}
-      <div aria-hidden="true" className="pointer-events-none absolute z-0" style={{ top: '-60px', right: '-60px', width: '420px', height: '220px', borderRadius: '50%', background: 'rgba(215,232,255,0.9)', filter: 'blur(70px)', opacity: 0.18 }} />
-      <div aria-hidden="true" className="pointer-events-none absolute z-0" style={{ top: '-40px', left: '-50px', width: '400px', height: '200px', borderRadius: '50%', background: 'rgba(240,248,255,0.9)', filter: 'blur(65px)', opacity: 0.18 }} />
-      {/* Cloud wisps — mid section */}
-      <div aria-hidden="true" className="pointer-events-none absolute z-0" style={{ top: '45%', left: '20%', width: '420px', height: '200px', borderRadius: '50%', background: 'rgba(210,230,255,0.85)', filter: 'blur(80px)', opacity: 0.12 }} />
-      <div aria-hidden="true" className="pointer-events-none absolute z-0" style={{ top: '45%', left: '65%', width: '380px', height: '190px', borderRadius: '50%', background: 'rgba(225,240,255,0.85)', filter: 'blur(75px)', opacity: 0.12 }} />
+      <AtmoClouds direction="rtl" shapes={['B', 'D']} />
       {/* Horizon line */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 z-0" style={{ top: '60%', height: '1px', background: 'linear-gradient(90deg, transparent 0%, rgba(26,79,214,0.18) 15%, rgba(26,79,214,0.18) 85%, transparent 100%)' }} />
       {/* Edge vignette */}

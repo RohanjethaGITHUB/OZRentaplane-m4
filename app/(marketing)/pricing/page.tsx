@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { FadeUp, StaggerContainer, StaggerItem } from '@/components/MotionPresets'
 import PreFooterCTA from '@/components/marketing/PreFooterCTA'
+import AtmoClouds from '@/components/AtmoClouds'
 
 type FaqItemType = {
   question: string
@@ -196,7 +197,8 @@ export default function PricingPage() {
       </section>
 
       <section className="relative bg-mkt-main pb-24 pt-6 md:pt-12">
-        <FadeUp className="mx-auto max-w-6xl px-6 md:px-12" duration={1.05} viewportMargin="-80px">
+        <AtmoClouds shapes={['A', 'C']} extraDarkCloud />
+        <FadeUp className="relative z-10 mx-auto max-w-6xl px-6 md:px-12" duration={1.05} viewportMargin="-80px">
           <div className="mb-8">
             <p className="mb-3 font-sans text-[12px] font-semibold uppercase tracking-[0.08em] text-brand-blue">Hourly Rate Ladder</p>
             <h2 className="font-serif text-4xl leading-tight text-deep-ink">How Standard Aircraft Hire Pricing Works</h2>
@@ -263,7 +265,17 @@ export default function PricingPage() {
       </section>
 
       <section className="relative bg-mkt-alt px-6 py-24 md:px-12 lg:px-20">
-        <FadeUp className="mx-auto max-w-6xl" duration={1.05} viewportMargin="-80px">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 z-0"
+          style={{ top: '50%', height: '1px', background: 'linear-gradient(90deg, transparent 0%, rgba(26,79,214,0.10) 15%, rgba(26,79,214,0.10) 85%, transparent 100%)' }}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-0"
+          style={{ background: 'radial-gradient(ellipse 100% 90% at 50% 50%, transparent 45%, rgba(15,30,55,0.06) 100%)' }}
+        />
+        <FadeUp className="relative z-10 mx-auto max-w-6xl" duration={1.05} viewportMargin="-80px">
           <p className="text-center font-sans text-[0.67rem] font-semibold uppercase tracking-[0.2em] text-runway-amber">Seamless Billing Workflow</p>
           <h2 className="mt-3 text-center font-serif text-4xl text-deep-ink md:text-6xl">Seamless Billing Workflow</h2>
 
@@ -354,7 +366,8 @@ export default function PricingPage() {
       </section>
 
       <section className="relative bg-mkt-main px-6 py-24 md:px-12 lg:px-20">
-        <FadeUp className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-12" duration={1.05} viewportMargin="-80px">
+        <AtmoClouds direction="rtl" shapes={['D', 'E']} />
+        <FadeUp className="relative z-10 mx-auto grid max-w-6xl gap-10 lg:grid-cols-12" duration={1.05} viewportMargin="-80px">
           <div className="lg:col-span-7">
             <p className="font-sans text-[0.67rem] font-semibold uppercase tracking-[0.2em] text-runway-amber">What&apos;s Included</p>
             <h2 className="mt-3 font-serif text-4xl text-deep-ink md:text-6xl">Everything Built Into Your Hire</h2>
@@ -394,7 +407,11 @@ export default function PricingPage() {
       </section>
 
       <section className="relative bg-mkt-alt px-6 py-20 md:px-12 lg:px-20">
-        <div className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:radial-gradient(circle,#89a5d4_1px,transparent_1px)] [background-size:20px_20px]" />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-0"
+          style={{ background: 'radial-gradient(ellipse 100% 90% at 50% 50%, transparent 45%, rgba(15,30,55,0.06) 100%)' }}
+        />
         <FadeUp className="relative mx-auto max-w-5xl" duration={1.05} viewportMargin="-80px">
           <p className="text-center font-sans text-[0.67rem] font-semibold uppercase tracking-[0.2em] text-runway-amber">Frequently Asked Questions</p>
           <h2 className="mt-3 text-center font-serif text-4xl text-deep-ink md:text-6xl">Frequently Asked Questions</h2>
@@ -410,7 +427,7 @@ export default function PricingPage() {
         heading="Ready to Fly?"
         subtext="Get approved and start booking with transparent, competitive aircraft hire pricing."
         ctaLabel="Get Approved"
-        ctaHref="/pilotRequirements"
+        ctaHref="/login"
       />
     </main>
   )

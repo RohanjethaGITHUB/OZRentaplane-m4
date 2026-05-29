@@ -1,4 +1,5 @@
 import PreFooterCTA from '@/components/marketing/PreFooterCTA'
+import AtmoClouds from '@/components/AtmoClouds'
 
 export default function ResourcesPage() {
   return (
@@ -28,8 +29,25 @@ export default function ResourcesPage() {
       </section>
 
       {/* Documents */}
-      <section className="bg-mkt-main px-6 py-10 md:px-12 md:py-12 lg:px-20">
-        <div className="max-w-5xl mx-auto">
+      <section className="relative overflow-hidden bg-mkt-main px-6 py-10 md:px-12 md:py-12 lg:px-20">
+        <AtmoClouds shapes={['B']} />
+        <svg
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2"
+          width="600"
+          height="600"
+          viewBox="0 0 540 540"
+          fill="none"
+          style={{ opacity: 0.05 }}
+        >
+          <circle cx="270" cy="270" r="258" stroke="#0d1b3e" strokeWidth="1.5" />
+          <circle cx="270" cy="270" r="188" stroke="#0d1b3e" strokeWidth="0.75" />
+          <line x1="270" y1="12" x2="270" y2="528" stroke="#0d1b3e" strokeWidth="0.5" />
+          <line x1="12" y1="270" x2="528" y2="270" stroke="#0d1b3e" strokeWidth="0.5" />
+          <line x1="88" y1="88" x2="452" y2="452" stroke="#0d1b3e" strokeWidth="0.35" />
+          <line x1="452" y1="88" x2="88" y2="452" stroke="#0d1b3e" strokeWidth="0.35" />
+        </svg>
+        <div className="relative z-10 max-w-5xl mx-auto">
           <p className="font-sans text-xs font-semibold tracking-[0.22em] uppercase text-brand-blue/65 mb-3">
             Resources
           </p>

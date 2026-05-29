@@ -80,20 +80,57 @@ export default function Navbar({
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isAuthPage
-        ? 'bg-transparent border-b border-white/5 backdrop-blur-md opacity-40 hover:opacity-100'
-        : 'bg-deep-ink'
-        }`}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isAuthPage ? 'opacity-40 hover:opacity-100' : ''}`}
+      style={{
+        backgroundColor: 'rgba(22, 48, 92, 0.95)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(167, 200, 255, 0.15)',
+      }}
     >
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 h-[84px] flex items-center justify-between gap-8">
         {/* Logo */}
-        <a href="/" className="shrink-0 flex items-center select-none bg-transparent">
+        <a
+          href="/"
+          className="shrink-0 flex items-center gap-3 select-none"
+          style={{
+            borderLeft: '3px solid rgba(245, 158, 11, 0.6)',
+            paddingLeft: '12px',
+          }}
+        >
           <img
             src="/Logo/ozrentaplane-transparent-bg.png"
             alt="OZRentAPlane logo"
-            className="h-12 w-auto object-contain bg-transparent"
-            style={{ background: 'transparent', objectFit: 'contain' }}
+            className="block h-16 w-auto object-contain bg-transparent"
+            style={{
+              filter: 'drop-shadow(0 0 8px rgba(167,200,255,0.45)) drop-shadow(0 0 3px rgba(167,200,255,0.3))',
+            }}
           />
+          <div className="flex flex-col justify-center leading-none">
+            <span
+              style={{
+                fontFamily: 'Manrope, system-ui, sans-serif',
+                fontSize: '20px',
+                fontWeight: 800,
+                letterSpacing: '0.08em',
+                color: '#f59e0b',
+              }}
+            >
+              OZ
+            </span>
+            <span
+              style={{
+                fontFamily: 'Manrope, system-ui, sans-serif',
+                fontSize: '13px',
+                fontWeight: 600,
+                letterSpacing: '0.12em',
+                color: 'rgba(167,200,255,0.85)',
+                textTransform: 'uppercase',
+              }}
+            >
+              Rent A Plane
+            </span>
+          </div>
         </a>
 
         {/* Desktop links */}
@@ -101,9 +138,9 @@ export default function Navbar({
           {/* Fleet dropdown — pure CSS group-hover, no JS state on desktop */}
           <div className="relative group">
             <button
-              className={`whitespace-nowrap font-sans text-[13.5px] font-medium transition-colors duration-200 flex items-center gap-1 ${isFleetActive
-                ? 'text-white border-b border-runway-amber pb-0.5'
-                : 'text-white/70 hover:text-white'
+              className={`whitespace-nowrap font-sans text-[14.5px] font-medium transition-colors duration-150 flex items-center gap-1 ${isFleetActive
+                ? 'text-runway-amber'
+                : 'text-white/75 hover:text-white'
                 }`}
               aria-haspopup="true"
               tabIndex={0}
@@ -185,9 +222,9 @@ export default function Navbar({
               <a
                 key={link.label}
                 href={link.href}
-                className={`whitespace-nowrap font-sans text-[13.5px] font-medium transition-colors duration-200 ${isActive
-                  ? 'text-white border-b border-runway-amber pb-0.5'
-                  : 'text-white/70 hover:text-white'
+                className={`whitespace-nowrap font-sans text-[14.5px] font-medium transition-colors duration-150 ${isActive
+                  ? 'text-runway-amber'
+                  : 'text-white/75 hover:text-white'
                   }`}
               >
                 {link.label}

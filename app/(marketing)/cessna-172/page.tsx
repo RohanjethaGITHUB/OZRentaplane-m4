@@ -4,6 +4,64 @@ import FleetGallery from '@/components/FleetGallery'
 import PreFooterCTA from '@/components/marketing/PreFooterCTA'
 import { fleetGalleryManifest } from '@/lib/fleetGalleryManifest'
 import { FadeUp, StaggerContainer, StaggerItem, HoverEmphasize } from '@/components/MotionPresets'
+import AtmoClouds from '@/components/AtmoClouds'
+
+function OrganicFlightOverlay() {
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-[5] overflow-hidden">
+      {/* Plane 1 contrail */}
+      <div
+        className="cessna-contrail cessna-contrail-1 absolute left-0 top-0 h-[2px] w-[80px] origin-right"
+        style={{
+          background: 'linear-gradient(to left, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 100%)',
+          animation: 'cessnaPlaneOrbitCW 45s linear infinite',
+          animationDelay: '-0.3s',
+        }}
+      />
+      {/* Plane 1 */}
+      <div
+        className="cessna-plane cessna-plane-1 absolute left-0 top-0"
+        style={{ opacity: 0.14, animation: 'cessnaPlaneOrbitCW 45s linear infinite' }}
+      >
+        <svg viewBox="0 0 200 200" width="96" height="96">
+          <path
+            d="M20 110 L96 98 L136 36 L152 40 L126 96 L182 90 L188 106 L126 116 L134 158 L118 166 L96 120 L30 130 Z"
+            fill="rgba(13,27,62,0.32)"
+            stroke="rgba(13,27,62,0.2)"
+            strokeWidth="1.2"
+          />
+        </svg>
+      </div>
+
+      {/* Plane 2 contrail */}
+      <div
+        className="cessna-contrail cessna-contrail-2 absolute left-0 top-0 h-[2px] w-[80px] origin-right"
+        style={{
+          background: 'linear-gradient(to left, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 100%)',
+          animation: 'cessnaPlaneOrbitCCW 62s linear infinite',
+          animationDelay: '-0.3s',
+        }}
+      />
+      {/* Plane 2 */}
+      <div
+        className="cessna-plane cessna-plane-2 absolute left-0 top-0"
+        style={{ opacity: 0.09, animation: 'cessnaPlaneOrbitCCW 62s linear infinite' }}
+      >
+        <div style={{ transform: 'scale(0.6)', transformOrigin: 'center' }}>
+          <svg viewBox="0 0 200 200" width="96" height="96">
+            <path
+              d="M20 110 L96 98 L136 36 L152 40 L126 96 L182 90 L188 106 L126 116 L134 158 L118 166 L96 120 L30 130 Z"
+              fill="rgba(13,27,62,0.28)"
+              stroke="rgba(13,27,62,0.18)"
+              strokeWidth="1.1"
+            />
+          </svg>
+        </div>
+      </div>
+
+    </div>
+  )
+}
 
 export default function Cessna172nPage() {
   const images = fleetGalleryManifest
@@ -32,8 +90,14 @@ export default function Cessna172nPage() {
       {/* ─────────────────────────────────────────────────────────────
           7. Perfectly Suited For Section (Use Cases)
       ──────────────────────────────────────────────────────────────*/}
-      <section className="relative py-32 bg-mkt-alt">
-        <div className="px-6 md:px-12 lg:px-20 max-w-7xl mx-auto">
+      <section className="relative overflow-hidden py-32 bg-mkt-main">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:radial-gradient(circle_at_20%_30%,#8ca8d6_1px,transparent_1px),radial-gradient(circle_at_80%_60%,#8ca8d6_1px,transparent_1px)] [background-size:34px_34px,46px_46px]"
+        />
+        <AtmoClouds shapes={['C']} />
+        <OrganicFlightOverlay />
+        <div className="relative z-10 px-6 md:px-12 lg:px-20 max-w-7xl mx-auto">
 
           <FadeUp className="max-w-2xl mb-24 relative">
             <p className="mb-4 font-sans text-[11px] font-semibold uppercase tracking-[0.1em] text-brand-blue">FLEET PROFILES</p>
@@ -150,7 +214,7 @@ export default function Cessna172nPage() {
         heading="Request a Checkout Flight"
         subtext="Get approved to fly VH-KZG from Bankstown Aerodrome."
         ctaLabel="Request Checkout Flight"
-        ctaHref="/checkout-process"
+        ctaHref="/login"
       />
 
     </main>
