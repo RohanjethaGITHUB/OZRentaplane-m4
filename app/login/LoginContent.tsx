@@ -80,25 +80,28 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
     setForgotEmail(siEmail.trim())
   }
 
-  async function handleForgotPasswordSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+  async function handleForgotPasswordSubmit(e?: React.FormEvent<HTMLFormElement>) {
+    e?.preventDefault()
+    const email = forgotEmail.trim()
+    console.log('forgot password handler called', email)
+
     setForgotError('')
     setForgotSuccess('')
 
-    const email = forgotEmail.trim()
     if (!email) {
       setForgotError('Email address is required.')
       return
     }
 
     setForgotLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/update-password`,
     })
     setForgotLoading(false)
+    console.log('resetPasswordForEmail result', { data, error })
 
     if (error) {
-      setForgotError(error.message)
+      setForgotError(error.message || 'Unable to send the password reset email.')
       return
     }
 
@@ -240,57 +243,61 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                         </button>
                       </div>
 
-                      {forgotPasswordOpen ? (
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5 space-y-4">
-                          <div>
-                            <p className="text-sm font-medium text-white">Reset your password</p>
-                            <p className="mt-1 text-xs leading-relaxed text-white/65">
-                              We’ll send a password reset link to your email address.
-                            </p>
-                          </div>
-
-                          <form className="space-y-4" onSubmit={handleForgotPasswordSubmit}>
-                            <label className="block">
-                              <span className={FIELD_LABEL_CLASS}>Email Address</span>
-                              <input
-                                type="email"
-                                value={forgotEmail}
-                                onChange={(e) => setForgotEmail(e.target.value)}
-                                placeholder="pilot@example.com"
-                                required
-                                disabled={forgotLoading}
-                                className={`${FIELD_INPUT_CLASS} disabled:opacity-60 disabled:cursor-not-allowed`}
-                              />
-                            </label>
-
-                            {forgotError ? <p className="text-red-300 text-[11px] font-sans font-light tracking-wide">{forgotError}</p> : null}
-                            {forgotSuccess ? <p className="text-emerald-300 text-[11px] font-sans font-light tracking-wide">{forgotSuccess}</p> : null}
-
-                            <div className="flex items-center justify-between gap-3">
-                              <button
-                                type="submit"
-                                disabled={forgotLoading}
-                                className="bg-white text-oz-deep px-5 py-3 rounded-full font-sans text-[10px] uppercase tracking-[0.15em] font-bold hover:bg-white/95 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                {forgotLoading ? 'Sending...' : 'Send reset link'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={clearForgotPasswordState}
-                                className="text-[10px] font-sans uppercase tracking-[0.1em] text-white/55 hover:text-white transition-colors"
-                              >
-                                Back to sign in
-                              </button>
-                            </div>
-                          </form>
-                        </div>
-                      ) : null}
-
                       <div className="pt-6 mt-2 border-t border-white/5 flex items-center justify-between">
                         <span className="text-white/[0.72] text-xs font-sans font-light">New pilot?</span>
                         <button type="button" onClick={() => setModeWithReset('signup')} className="text-[10px] font-sans uppercase tracking-[0.15em] text-oz-blue hover:text-white transition-colors">Create account</button>
                       </div>
                     </form>
+
+                    {forgotPasswordOpen ? (
+                      <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5 space-y-4">
+                        <div>
+                          <p className="text-sm font-medium text-white">Reset your password</p>
+                          <p className="mt-1 text-xs leading-relaxed text-white/65">
+                            We’ll send a password reset link to your email address.
+                          </p>
+                        </div>
+
+                        <div className="space-y-4">
+                          <label className="block">
+                            <span className={FIELD_LABEL_CLASS}>Email Address</span>
+                            <input
+                              type="email"
+                              value={forgotEmail}
+                              onChange={(e) => setForgotEmail(e.target.value)}
+                              placeholder="pilot@example.com"
+                              required
+                              disabled={forgotLoading}
+                              className={`${FIELD_INPUT_CLASS} disabled:opacity-60 disabled:cursor-not-allowed`}
+                            />
+                          </label>
+
+                          {forgotError ? <p className="text-red-300 text-[11px] font-sans font-light tracking-wide">{forgotError}</p> : null}
+                          {forgotSuccess ? <p className="text-emerald-300 text-[11px] font-sans font-light tracking-wide">{forgotSuccess}</p> : null}
+
+                          <div className="flex items-center justify-between gap-3">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                void handleForgotPasswordSubmit()
+                              }}
+                              disabled={forgotLoading}
+                              className="bg-white text-oz-deep px-5 py-3 rounded-full font-sans text-[10px] uppercase tracking-[0.15em] font-bold hover:bg-white/95 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {forgotLoading ? 'Sending...' : 'Send reset link'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={clearForgotPasswordState}
+                              className="text-[10px] font-sans uppercase tracking-[0.1em] text-white/55 hover:text-white transition-colors"
+                            >
+                              Back to sign in
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                   </motion.div>
                 ) : (
                   <motion.div key="signin-inactive" initial={isScreenshotMode ? false : { opacity: 0, x: -20, filter: 'blur(12px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -20, filter: 'blur(12px)' }} transition={TRANSITION} className="max-w-md w-full my-auto relative flex justify-center">
