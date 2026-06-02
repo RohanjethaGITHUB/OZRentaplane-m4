@@ -29,7 +29,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[90] p-3 sm:p-4 md:p-6">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-3 sm:p-4 md:p-6">
       <button
         type="button"
         aria-label="Close authentication modal"
@@ -38,7 +38,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
         }}
         className="absolute inset-0 bg-[#03070f]/72 backdrop-blur-md"
       />
-      <div className="relative z-10 h-full w-full flex items-center justify-center">
+      <div className="relative z-10 w-full flex items-center justify-center">
         <LoginContent presentation="modal" onRequestClose={onClose} onBusyChange={setBusy} />
       </div>
     </div>
