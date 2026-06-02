@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OZ Rent A Plane — Admin Capabilities Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy: #0C2340;
+    --navy-mid: #1a3a5c;
+    --blue: #1668C5;
+    --blue-light: #E8F1FB;
+    --blue-mid: #3B82C4;
+    --amber: #B45309;
+    --amber-bg: #FFFBEB;
+    --amber-border: #FCD34D;
+    --purple: #6D28D9;
+    --purple-bg: #F5F3FF;
+    --purple-border: #C4B5FD;
+    --green: #065F46;
+    --green-bg: #ECFDF5;
+    --green-border: #6EE7B7;
+    --red: #991B1B;
+    --red-bg: #FEF2F2;
+    --red-border: #FCA5A5;
+    --gray-50: #F9FAFB;
+    --gray-100: #F3F4F6;
+    --gray-200: #E5E7EB;
+    --gray-400: #9CA3AF;
+    --gray-600: #4B5563;
+    --gray-700: #374151;
+    --gray-900: #111827;
+    --text: #1F2937;
+    --muted: #6B7280;
+    --border: #E5E7EB;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--text);
+    background: var(--gray-50);
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .site-header {
+    background: var(--navy);
+    color: white;
+    padding: 48px 24px 40px;
+  }
+  .header-inner {
+    max-width: 920px;
+    margin: 0 auto;
+  }
+  .header-eyebrow {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 12px;
+  }
+  .header-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 34px;
+    font-weight: 600;
+    color: white;
+    line-height: 1.2;
+    margin-bottom: 10px;
+  }
+  .header-subtitle {
+    font-size: 15px;
+    color: rgba(255,255,255,0.65);
+    font-weight: 300;
+    max-width: 560px;
+  }
+  .header-meta {
+    margin-top: 24px;
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .header-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .header-stat-num {
+    font-size: 22px;
+    font-weight: 600;
+    color: white;
+  }
+  .header-stat-label {
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+    font-weight: 400;
+  }
+  .header-divider {
+    width: 1px;
+    background: rgba(255,255,255,0.15);
+    align-self: stretch;
+  }
+
+  /* ── Nav ── */
+  .nav-wrap {
+    background: white;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .nav-inner {
+    max-width: 920px;
+    margin: 0 auto;
+    display: flex;
+    gap: 0;
+    padding: 0 24px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .nav-inner::-webkit-scrollbar { display: none; }
+  .nav-btn {
+    padding: 14px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--muted);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: -1px;
+  }
+  .nav-btn:hover { color: var(--navy); }
+  .nav-btn.active {
+    color: var(--navy);
+    border-bottom-color: var(--blue);
+  }
+
+  /* ── Content ── */
+  .content-wrap {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* ── Typography ── */
+  .section-heading {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 6px;
+  }
+  .section-desc {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 28px;
+    max-width: 640px;
+  }
+  h3 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 32px 0 12px;
+  }
+  h3:first-of-type { margin-top: 0; }
+  p { font-size: 14px; color: var(--gray-700); line-height: 1.7; margin-bottom: 10px; }
+  p:last-child { margin-bottom: 0; }
+  ul { padding-left: 18px; margin-bottom: 10px; }
+  li { font-size: 14px; color: var(--gray-700); line-height: 1.7; margin-bottom: 3px; }
+
+  /* ── Cards ── */
+  .card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    margin-bottom: 12px;
+  }
+  .card-blue  { border-left: 3px solid var(--blue);   background: white; }
+  .card-amber { border-left: 3px solid var(--amber-border); background: white; }
+  .card-purple{ border-left: 3px solid var(--purple-border); background: white; }
+  .card-green { border-left: 3px solid var(--green-border); background: white; }
+  .card-red   { border-left: 3px solid var(--red-border); background: white; }
+  .card-dashed { border-style: dashed; background: var(--gray-50); }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 20px;
+    letter-spacing: 0.03em;
+  }
+  .badge-new    { background: var(--red-bg);    color: var(--red); }
+  .badge-restore{ background: var(--purple-bg); color: var(--purple); }
+  .badge-fix    { background: var(--amber-bg);  color: var(--amber); }
+  .badge-done   { background: var(--green-bg);  color: var(--green); }
+  .badge-check  { background: #FFF3CD; color: #92400E; }
+  .badge-phase  { background: var(--blue-light); color: var(--blue); }
+
+  /* ── Overview ── */
+  .principle-box {
+    background: var(--navy);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    margin: 28px 0;
+    color: white;
+  }
+  .principle-box .principle-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 17px;
+    font-weight: 600;
+    color: white;
+    margin-bottom: 10px;
+  }
+  .principle-box p { color: rgba(255,255,255,0.75); font-size: 14px; }
+  .principle-box .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .principle-col-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.45);
+    margin-bottom: 8px;
+  }
+  .principle-col li {
+    font-size: 13px;
+    color: rgba(255,255,255,0.75);
+    line-height: 1.6;
+    margin-bottom: 4px;
+  }
+  .tick { color: #34D399; }
+  .cross { color: rgba(255,255,255,0.35); }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin: 24px 0;
+  }
+  .stat-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    text-align: center;
+  }
+  .stat-card-num {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--navy);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .stat-card-label {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ── Capabilities table ── */
+  .cap-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .cap-table th {
+    text-align: left;
+    padding: 9px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--gray-100);
+    border-bottom: 1px solid var(--border);
+  }
+  .cap-table th:nth-child(2),
+  .cap-table th:nth-child(3),
+  .cap-table th:nth-child(4) { text-align: center; width: 100px; }
+  .cap-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--gray-700);
+    line-height: 1.4;
+    vertical-align: middle;
+  }
+  .cap-table td:first-child { font-weight: 500; color: var(--gray-900); }
+  .cap-table td:nth-child(2),
+  .cap-table td:nth-child(3),
+  .cap-table td:nth-child(4) { text-align: center; }
+  .cap-table tr:last-child td { border-bottom: none; }
+  .cap-table tr:hover td { background: var(--gray-50); }
+  .cap-table .group-row td {
+    background: var(--gray-100);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 7px 12px;
+  }
+  .table-wrap {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .icon-yes  { font-size: 16px; }
+  .icon-no   { font-size: 16px; color: var(--gray-400); }
+  .icon-new  { font-size: 11px; font-weight: 600; color: var(--blue); background: var(--blue-light); padding: 2px 7px; border-radius: 20px; white-space: nowrap; }
+  .icon-restore { font-size: 11px; font-weight: 600; color: var(--purple); background: var(--purple-bg); padding: 2px 7px; border-radius: 20px; white-space: nowrap; }
+
+  /* ── Work items ── */
+  .item-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .item-num {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--navy);
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-right: 10px;
+    margin-top: 1px;
+  }
+  .item-title-row { display: flex; align-items: flex-start; }
+  .item-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--navy);
+    line-height: 1.3;
+  }
+
+  /* ── Phases ── */
+  .phase-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    margin-bottom: 12px;
+    position: relative;
+  }
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .phase-circle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--navy);
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+  .phase-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--navy);
+  }
+  .phase-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+  }
+  .phase-tag {
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--gray-600);
+    background: var(--gray-50);
+  }
+  .phase-dep {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .phase-dep::before {
+    content: '→';
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .investigate-card {
+    background: #FFFBEB;
+    border: 1px dashed var(--amber-border);
+    border-radius: var(--radius);
+    padding: 18px 22px;
+    margin-top: 8px;
+  }
+  .investigate-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--amber);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .investigate-title::before { content: '⚑'; font-size: 14px; }
+
+  /* ── Footer ── */
+  .doc-footer {
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .doc-footer p { font-size: 12px; color: var(--muted); margin: 0; }
+
+  @media (max-width: 600px) {
+    .header-title { font-size: 26px; }
+    .principle-box .two-col { grid-template-columns: 1fr; }
+    .stat-grid { grid-template-columns: 1fr 1fr; }
+    .cap-table th:nth-child(4), .cap-table td:nth-child(4) { display: none; }
+    .item-header { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="site-header">
+  <div class="header-inner">
+    <div class="header-eyebrow">OZ Rent A Plane · Internal planning document</div>
+    <div class="header-title">Admin Capabilities Plan</div>
+    <div class="header-subtitle">A plan to give admin staff full operational control over the customer journey — from registration through to flight completion.</div>
+    <div class="header-meta">
+      <div class="header-stat">
+        <div class="header-stat-num">6</div>
+        <div class="header-stat-label">Work items</div>
+      </div>
+      <div class="header-divider"></div>
+      <div class="header-stat">
+        <div class="header-stat-num">5</div>
+        <div class="header-stat-label">Delivery phases</div>
+      </div>
+      <div class="header-divider"></div>
+      <div class="header-stat">
+        <div class="header-stat-num">4</div>
+        <div class="header-stat-label">New capabilities</div>
+      </div>
+      <div class="header-divider"></div>
+      <div class="header-stat">
+        <div class="header-stat-num">1</div>
+        <div class="header-stat-label">Restoration</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Nav -->
+<div class="nav-wrap">
+  <div class="nav-inner">
+    <button class="nav-btn active" onclick="show('overview', this)">Overview</button>
+    <button class="nav-btn" onclick="show('capabilities', this)">Who does what</button>
+    <button class="nav-btn" onclick="show('items', this)">What we're building</button>
+    <button class="nav-btn" onclick="show('phases', this)">Delivery plan</button>
+  </div>
+</div>
+
+<!-- Content -->
+<div class="content-wrap">
+
+  <!-- OVERVIEW -->
+  <div id="overview" class="section active">
+    <div class="section-heading">Why this plan exists</div>
+    <p class="section-desc">The platform as built has a gap between what admins can do and what the business actually needs them to do.</p>
+
+    <p>Right now, every meaningful action in the platform — registering, uploading documents, booking a flight, submitting readings, paying an invoice — was designed with the <strong>customer as the sole initiator</strong>. Admin staff can only <em>respond</em>: reviewing what a customer submitted, approving or rejecting it, then waiting for the next customer action.</p>
+    <p>In practice, this creates friction. Customers often need to be onboarded by staff directly. Some pay in person. Some don't submit flight readings on time. In each of these cases, the current system has no path for admin to step in and handle it — forcing workarounds or leaving records in an incomplete state.</p>
+    <p>This plan closes that gap. After it is delivered, an admin can handle the <em>entire customer journey</em> from their side of the platform, without requiring any action from the customer.</p>
+
+    <div class="principle-box">
+      <div class="principle-title">The guiding principle</div>
+      <p>Admin is a superuser who can act on behalf of any customer — but only for <em>operational</em> actions. A customer's identity remains their own: their password, and their documents. Everything else, admin can do for them.</p>
+      <div class="two-col">
+        <div>
+          <div class="principle-col-label">Admin can do for a customer</div>
+          <ul class="principle-col">
+            <li><span class="tick">✓</span> &nbsp;Register their account</li>
+            <li><span class="tick">✓</span> &nbsp;Review and approve their documents</li>
+            <li><span class="tick">✓</span> &nbsp;Schedule their checkout flight</li>
+            <li><span class="tick">✓</span> &nbsp;Create their rental bookings</li>
+            <li><span class="tick">✓</span> &nbsp;Record in-person payments</li>
+            <li><span class="tick">✓</span> &nbsp;Submit post-flight readings</li>
+            <li><span class="tick">✓</span> &nbsp;Cancel or reschedule bookings</li>
+          </ul>
+        </div>
+        <div>
+          <div class="principle-col-label">Admin cannot do for a customer</div>
+          <ul class="principle-col">
+            <li><span class="cross">–</span> &nbsp;Upload their documents</li>
+            <li><span class="cross">–</span> &nbsp;Pay their Stripe invoices</li>
+            <li><span class="cross">–</span> &nbsp;Change their password (after initial setup)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-card-num" style="color: #991B1B;">4</div>
+        <div class="stat-card-label">New admin capabilities to build</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-num" style="color: #6D28D9;">1</div>
+        <div class="stat-card-label">Existing capability to restore</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-num" style="color: #B45309;">1</div>
+        <div class="stat-card-label">Existing fix to verify and complete</div>
+      </div>
+    </div>
+
+    <div class="card card-blue">
+      <p style="color: var(--navy); font-weight: 500; margin-bottom: 6px;">What changes for customers</p>
+      <p>Nothing changes for customers who use the platform themselves — their existing journey is untouched. They can still register, upload their own documents, book flights, pay via Stripe, and submit readings as they do today. The difference is that admin can now do all of those things <em>for</em> them when needed.</p>
+    </div>
+  </div>
+
+  <!-- WHO DOES WHAT -->
+  <div id="capabilities" class="section">
+    <div class="section-heading">Who does what</div>
+    <p class="section-desc">A complete map of every action in the platform — what customers do, what admins can do today, and what admins will be able to do after this plan is delivered.</p>
+
+    <h3>Account &amp; identity</h3>
+    <div class="table-wrap">
+      <table class="cap-table">
+        <thead>
+          <tr>
+            <th>Action</th>
+            <th>Customer</th>
+            <th>Admin today</th>
+            <th>Admin after plan</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Register a new account</td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-no">–</span></td>
+            <td><span class="icon-new">New ↑</span></td>
+          </tr>
+          <tr>
+            <td>Set initial password (on account creation)</td>
+            <td><span class="icon-no">–</span></td>
+            <td><span class="icon-no">–</span></td>
+            <td><span class="icon-new">New ↑</span></td>
+          </tr>
+          <tr>
+            <td>Reset own password</td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-no">–</span></td>
+            <td><span class="icon-no">–</span></td>
+          </tr>
+          <tr>
+            <td>Block or unblock an account</td>
+            <td><span class="icon-no">–</span></td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-yes">✓</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Documents</h3>
+    <div class="table-wrap">
+      <table class="cap-table">
+        <thead>
+          <tr>
+            <th>Action</th>
+            <th>Customer</th>
+            <th>Admin today</th>
+            <th>Admin after plan</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Upload documents (all types)</td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-no">–</span></td>
+            <td><span class="icon-no">–</span></td>
+          </tr>
+          <tr>
+            <td>View customer documents</td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-yes">✓</span></td>
+          </tr>
+          <tr>
+            <td>Approve a document</td>
+            <td><span class="icon-no">–</span></td>
+            <td style="color: #B45309; font-size: 12px;">Removed previously</td>
+            <td><span class="icon-restore">Restored ↑</span></td>
+          </tr>
+          <tr>
+            <td>Reject a document</td>
+            <td><span class="icon-no">–</span></td>
+            <td style="color: #B45309; font-size: 12px;">Removed previously</td>
+            <td><span class="icon-restore">Restored ↑</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size: 13px; color: var(--muted); margin-top: -8px; margin-bottom: 20px;">When a document is rejected, the customer is notified and cannot book any flights until their documents are re-approved by admin.</p>
+
+    <h3>Checkout flight</h3>
+    <div class="table-wrap">
+      <table class="cap-table">
+        <thead>
+          <tr>
+            <th>Action</th>
+            <th>Customer</th>
+            <th>Admin today</th>
+            <th>Admin after plan</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Schedule a checkout flight</td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-no">–</span></td>
+            <td><span class="icon-new">New ↑</span></td>
+          </tr>
+          <tr>
+            <td>Reschedule or cancel a checkout</td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-yes">✓</span></td>
+          </tr>
+          <tr>
+            <td>Confirm or reject a checkout request</td>
+            <td><span class="icon-no">–</span></td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-yes">✓</span></td>
+          </tr>
+          <tr>
+            <td>Set checkout outcome (cleared / not cleared)</td>
+            <td><span class="icon-no">–</span></td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-yes">✓</span></td>
+          </tr>
+          <tr>
+            <td>Pay checkout invoice (Stripe)</td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-no">–</span></td>
+            <td><span class="icon-no">–</span></td>
+          </tr>
+          <tr>
+            <td>Record in-person payment (cash / card / transfer)</td>
+            <td><span class="icon-no">–</span></td>
+            <td style="color: #B45309; font-size: 12px;">Partial — may not fully close</td>
+            <td><span class="icon-new">Fixed ↑</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Standard rental booking</h3>
+    <div class="table-wrap">
+      <table class="cap-table">
+        <thead>
+          <tr>
+            <th>Action</th>
+            <th>Customer</th>
+            <th>Admin today</th>
+            <th>Admin after plan</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Create a rental booking</td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-no">–</span></td>
+            <td><span class="icon-new">New ↑</span></td>
+          </tr>
+          <tr>
+            <td>Confirm or reject a booking request</td>
+            <td><span class="icon-no">–</span></td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-yes">✓</span></td>
+          </tr>
+          <tr>
+            <td>Cancel a booking</td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-yes">✓</span></td>
+          </tr>
+          <tr>
+            <td>Reschedule a booking</td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-yes">✓</span></td>
+          </tr>
+          <tr>
+            <td>Pay booking invoice (Stripe)</td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-no">–</span></td>
+            <td><span class="icon-no">–</span></td>
+          </tr>
+          <tr>
+            <td>Record in-person payment (cash / card / transfer)</td>
+            <td><span class="icon-no">–</span></td>
+            <td style="color: #B45309; font-size: 12px;">Partial — may not fully close</td>
+            <td><span class="icon-new">Fixed ↑</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Post-flight</h3>
+    <div class="table-wrap">
+      <table class="cap-table">
+        <thead>
+          <tr>
+            <th>Action</th>
+            <th>Customer</th>
+            <th>Admin today</th>
+            <th>Admin after plan</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Submit post-flight meter readings</td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-no">–</span></td>
+            <td><span class="icon-new">New ↑</span></td>
+          </tr>
+          <tr>
+            <td>Review and approve flight readings</td>
+            <td><span class="icon-no">–</span></td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-yes">✓</span></td>
+          </tr>
+          <tr>
+            <td>Issue a credit or refund</td>
+            <td><span class="icon-no">–</span></td>
+            <td><span class="icon-yes">✓</span></td>
+            <td><span class="icon-yes">✓</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- WORK ITEMS -->
+  <div id="items" class="section">
+    <div class="section-heading">What we're building</div>
+    <p class="section-desc">Six work items in total. Described here in plain terms — the technical specifications are held separately.</p>
+
+    <div class="card card-red">
+      <div class="item-header">
+        <div class="item-title-row">
+          <span class="item-num">1</span>
+          <span class="item-title">Admin-registered customer accounts</span>
+        </div>
+        <span class="badge badge-new">New</span>
+      </div>
+      <p>Currently, the only way a customer account gets created is for the customer to register themselves via the login page. This means if a customer comes in, calls, or needs to be onboarded directly by staff, there is no admin path.</p>
+      <p>After this is built, admin staff can create a customer account directly from the admin panel — entering their name, email address, and contact details. The system will create the account automatically, generate a temporary password, and send the customer a welcome email with login instructions. When the customer logs in for the first time, they will be prompted to set their own password. From that point, their credentials are entirely their own — admin does not have access to them.</p>
+    </div>
+
+    <div class="card card-purple">
+      <div class="item-header">
+        <div class="item-title-row">
+          <span class="item-num" style="background: var(--purple);">2</span>
+          <span class="item-title">Document review and approval — restored</span>
+        </div>
+        <span class="badge badge-restore">Restoration</span>
+      </div>
+      <p>Admin staff previously had the ability to review customer documents, mark them as approved or rejected, and send feedback. This capability was removed at some point during the project and needs to be restored.</p>
+      <p>Once restored, admin can view all uploaded documents for each customer, approve each one, or reject any document with a note explaining what needs to be corrected. When a document is rejected, the customer receives a notification and — importantly — is blocked from scheduling any checkout flight or rental booking until all their documents have been re-approved by admin. This is a hard gate, not just a notification.</p>
+      <p>The underlying data structure for this feature is still in place; this is a restoration of the interface and the approval logic, not a build from scratch.</p>
+    </div>
+
+    <div class="card card-red">
+      <div class="item-header">
+        <div class="item-title-row">
+          <span class="item-num">3</span>
+          <span class="item-title">Admin-scheduled checkout flights</span>
+        </div>
+        <span class="badge badge-new">New</span>
+      </div>
+      <p>Today, once a customer account is created and documents are uploaded, the customer must log into their portal and navigate the booking flow themselves to request a checkout flight. Admin cannot do this step for them.</p>
+      <p>After this is built, admin can schedule a checkout flight on behalf of any customer directly from the admin panel — selecting the aircraft, date, and time. The booking will appear in the customer's portal as if they had booked it themselves, with a small indicator noting it was created by staff. The checkout then proceeds through the normal review and confirmation workflow.</p>
+    </div>
+
+    <div class="card card-red">
+      <div class="item-header">
+        <div class="item-title-row">
+          <span class="item-num">4</span>
+          <span class="item-title">Admin-created rental bookings</span>
+        </div>
+        <span class="badge badge-new">New</span>
+      </div>
+      <p>For customers who have completed their checkout and are cleared to fly, admin will be able to create rental bookings on their behalf — without the customer needing to use the portal at all. This is particularly useful for customers who book by phone, walk in, or prefer a more hands-on service experience.</p>
+      <p>As with checkout bookings, these will appear in the customer's portal and proceed through the standard confirmation and post-flight workflow.</p>
+    </div>
+
+    <div class="card card-amber">
+      <div class="item-header">
+        <div class="item-title-row">
+          <span class="item-num" style="background: var(--amber);">5</span>
+          <span class="item-title">In-person payment recording</span>
+        </div>
+        <span class="badge badge-fix">Fix &amp; verify</span>
+      </div>
+      <p>When a customer pays in person — cash, card tap, or bank transfer — admin needs to record that payment and have the booking properly reflect its paid status. The system currently has some capability here for bank transfers, but it is not reliably closing the full booking and invoice record. This leaves bookings in a partially-paid limbo that requires manual intervention.</p>
+      <p>This work item audits the current payment recording path, fixes any gaps, and expands it to clearly cover all in-person payment methods: cash, in-person card, and bank transfer. Admin will have a clear, consolidated panel to record the payment, enter the amount received, add a note, and confirm — after which the booking is fully closed in the system without any Stripe involvement required.</p>
+    </div>
+
+    <div class="card card-red">
+      <div class="item-header">
+        <div class="item-title-row">
+          <span class="item-num">6</span>
+          <span class="item-title">Admin-submitted post-flight readings</span>
+        </div>
+        <span class="badge badge-new">New</span>
+      </div>
+      <p>After every flight, customers are required to submit their meter readings — fuel, oil, tacho, and any other relevant instrument readings. If a customer forgets, is delayed, or submits readings verbally or on paper, admin currently has no way to enter those readings into the system directly. This leaves the booking in an incomplete state until the customer logs in.</p>
+      <p>This work item adds the ability for admin to enter flight readings on behalf of a customer — accessible from the booking detail view in the admin panel when a booking is awaiting or overdue for readings.</p>
+    </div>
+  </div>
+
+  <!-- PHASES -->
+  <div id="phases" class="section">
+    <div class="section-heading">Delivery plan</div>
+    <p class="section-desc">Five phases, each independently shippable. The order reflects both operational urgency and technical dependency — some items need to be in place before others can be built on top of them.</p>
+
+    <div class="phase-card">
+      <div class="phase-header">
+        <div class="phase-circle">1</div>
+        <div>
+          <div class="phase-title">Customer account creation</div>
+        </div>
+      </div>
+      <p>Admin staff gain the ability to register new customers directly from the admin panel, including setting a temporary password and triggering a welcome email. This is the most foundational item — it is the entry point for the entire admin-managed customer journey.</p>
+      <div class="phase-items">
+        <span class="phase-tag">Work item 1 — account creation</span>
+      </div>
+    </div>
+
+    <div class="phase-card">
+      <div class="phase-header">
+        <div class="phase-circle">2</div>
+        <div>
+          <div class="phase-title">Document review restored &amp; in-person payments fixed</div>
+        </div>
+      </div>
+      <p>Two items that can be delivered in parallel. Document approval is a restoration of an existing capability — the underlying data is intact, making it relatively quick to restore. The in-person payment fix addresses current operational pain with customers who pay manually and have bookings stuck in an incomplete state.</p>
+      <div class="phase-items">
+        <span class="phase-tag">Work item 2 — document approval</span>
+        <span class="phase-tag">Work item 5 — in-person payments</span>
+      </div>
+      <div class="phase-dep">Can be delivered in parallel with Phase 1 if resourcing allows.</div>
+    </div>
+
+    <div class="phase-card">
+      <div class="phase-header">
+        <div class="phase-circle">3</div>
+        <div>
+          <div class="phase-title">Admin-created checkout bookings</div>
+        </div>
+      </div>
+      <p>Once customers can be created by admin and their documents can be managed by admin, the logical next step is admin being able to schedule the checkout flight directly. This is the most technically involved item in the plan, as it requires building the foundational pattern that all subsequent "admin acts on behalf of customer" features will use.</p>
+      <div class="phase-items">
+        <span class="phase-tag">Work item 3 — checkout booking proxy</span>
+      </div>
+      <div class="phase-dep">Depends on Phase 1 (customer must exist) and Phase 2 (document approval must be working).</div>
+    </div>
+
+    <div class="phase-card">
+      <div class="phase-header">
+        <div class="phase-circle">4</div>
+        <div>
+          <div class="phase-title">Admin-created rental bookings</div>
+        </div>
+      </div>
+      <p>With the foundational proxy pattern established in Phase 3, this item reuses that same approach for standard rental bookings. Admin can create bookings for any cleared customer from the admin panel.</p>
+      <div class="phase-items">
+        <span class="phase-tag">Work item 4 — standard booking proxy</span>
+      </div>
+      <div class="phase-dep">Depends on Phase 3 — uses the same technical pattern.</div>
+    </div>
+
+    <div class="phase-card">
+      <div class="phase-header">
+        <div class="phase-circle">5</div>
+        <div>
+          <div class="phase-title">Post-flight readings proxy</div>
+        </div>
+      </div>
+      <p>The final item — lowest operational urgency as customers generally submit their own readings. This closes the last remaining gap in the admin journey, allowing staff to enter readings on behalf of customers when a booking is awaiting or overdue.</p>
+      <div class="phase-items">
+        <span class="phase-tag">Work item 6 — post-flight readings</span>
+      </div>
+      <div class="phase-dep">Depends on Phase 3 — booking must exist before readings can be submitted.</div>
+    </div>
+
+    <div class="investigate-card">
+      <div class="investigate-title">Alongside: Verify customer reschedule &amp; cancel</div>
+      <p style="font-size: 13px; color: #92400E; margin: 0;">The platform has a reschedule and cancellation request feature for customers. Before delivery begins, we should verify this is working correctly for both customers and admins — including that cancellations properly release the booking slot and that the 12-hour notice window is being enforced. This is a verification exercise, not a build.</p>
+    </div>
+
+    <div class="doc-footer">
+      <p>OZ Rent A Plane · Admin Capabilities Plan · Prepared June 2026</p>
+      <p>Internal planning document — for stakeholder review</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function show(id, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
