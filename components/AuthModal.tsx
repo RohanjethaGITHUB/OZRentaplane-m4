@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import LoginContent from '@/app/login/LoginContent'
+import ModalPortal from './ModalPortal'
 
 interface AuthModalProps {
   open: boolean
@@ -19,28 +20,28 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
     }
 
     window.addEventListener('keydown', onKeyDown)
-    document.body.style.overflow = 'hidden'
     return () => {
       window.removeEventListener('keydown', onKeyDown)
-      document.body.style.overflow = ''
     }
   }, [busy, onClose, open])
 
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-3 sm:p-4 md:p-6">
-      <button
-        type="button"
-        aria-label="Close authentication modal"
-        onClick={() => {
-          if (!busy) onClose()
-        }}
-        className="absolute inset-0 bg-[#03070f]/72 backdrop-blur-md"
-      />
-      <div className="relative z-10 w-full flex items-center justify-center">
-        <LoginContent presentation="modal" onRequestClose={onClose} onBusyChange={setBusy} />
+    <ModalPortal>
+      <div className="fixed inset-0 z-[90] flex items-center justify-center p-3 sm:p-4 md:p-6">
+        <button
+          type="button"
+          aria-label="Close authentication modal"
+          onClick={() => {
+            if (!busy) onClose()
+          }}
+          className="absolute inset-0 bg-[#03070f]/72 backdrop-blur-md"
+        />
+        <div className="relative z-10 w-full flex items-center justify-center">
+          <LoginContent presentation="modal" onRequestClose={onClose} onBusyChange={setBusy} />
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   )
 }
