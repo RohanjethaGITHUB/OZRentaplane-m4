@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { approveCustomer, rejectCustomer, placeCustomerOnHold } from '@/app/actions/admin'
+import { updateDocumentStatus } from '@/app/actions/verification'
 import { formatDateTime } from '@/lib/formatDateTime'
-import type { RequestKind } from '@/lib/supabase/types'
+import type { RequestKind, UserDocument } from '@/lib/supabase/types'
 
 type DecisionAction = 'approve' | 'hold' | 'reject'
 
@@ -424,6 +425,155 @@ export default function VerdictPanel({
           </button>
         </div>
 
+      </div>
+    </section>
+  )
+}
+
+export function DocumentReviewPanel({
+  customerId,
+  documents,
+}: {
+  customerId: string
+  documents: UserDocument[]
+}) {
+  const router = useRouter()
+  const [loadingDocId, setLoadingDocId] = useState<string | null>(null)
+  const [rejectingDocId, setRejectingDocId] = useState<string | null>(null)
+  const [noteByDocId, setNoteByDocId] = useState<Record<string, string>>({})
+  const [errorByDocId, setErrorByDocId] = useState<Record<string, string>>({})
+
+  async function handleApprove(docId: string) {
+    setLoadingDocId(docId)
+    setErrorByDocId((prev) => ({ ...prev, [docId]: '' }))
+    try {
+      const result = await updateDocumentStatus({
+        documentId: docId,
+        userId: customerId,
+        status: 'approved',
+      })
+      if (!result.success) {
+        setErrorByDocId((prev) => ({ ...prev, [docId]: result.error }))
+        return
+      }
+      router.refresh()
+    } finally {
+      setLoadingDocId(null)
+    }
+  }
+
+  async function handleReject(docId: string) {
+    const note = (noteByDocId[docId] ?? '').trim()
+    if (!note) {
+      setErrorByDocId((prev) => ({ ...prev, [docId]: 'Review note is required for rejection.' }))
+      return
+    }
+
+    setLoadingDocId(docId)
+    setErrorByDocId((prev) => ({ ...prev, [docId]: '' }))
+    try {
+      const result = await updateDocumentStatus({
+        documentId: docId,
+        userId: customerId,
+        status: 'rejected',
+        reviewNotes: note,
+      })
+      if (!result.success) {
+        setErrorByDocId((prev) => ({ ...prev, [docId]: result.error }))
+        return
+      }
+      setRejectingDocId(null)
+      setNoteByDocId((prev) => ({ ...prev, [docId]: '' }))
+      router.refresh()
+    } finally {
+      setLoadingDocId(null)
+    }
+  }
+
+  const getBadge = (status: string) => {
+    if (status === 'approved') return 'bg-green-500/10 border-green-400/30 text-green-300'
+    if (status === 'rejected') return 'bg-red-500/10 border-red-400/30 text-red-300'
+    return 'bg-slate-500/10 border-slate-400/30 text-[#4b6390]'
+  }
+
+  return (
+    <section className=" border border-blue-300/10 bg-white p-7 rounded-3xl">
+      <h3 className="font-serif text-2xl tracking-tight text-[#152d5a]">Document Review</h3>
+      <p className="text-[13px] text-[#4b6390] mt-2">Approve documents that are valid, or reject with a required note.</p>
+
+      <div className="mt-6 space-y-3">
+        {documents.length === 0 ? (
+          <div className="rounded-xl border border-[#152d5a]/10 bg-[#152d5a]/[0.02] px-4 py-5 text-[14px] text-[#4b6390]">
+            No documents uploaded yet.
+          </div>
+        ) : (
+          documents.map((doc) => {
+            const isLoading = loadingDocId === doc.id
+            const showRejectBox = rejectingDocId === doc.id
+            const note = noteByDocId[doc.id] ?? ''
+            const error = errorByDocId[doc.id] ?? ''
+            const label = doc.document_type.replace(/_/g, ' ')
+
+            return (
+              <div key={doc.id} className="rounded-xl border border-[#152d5a]/10 bg-[#152d5a]/[0.02] p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-[14px] font-semibold text-[#152d5a]">{label}</p>
+                    <p className="text-[13px] text-[#4b6390] mt-1">
+                      Uploaded {doc.uploaded_at ? formatDateTime(doc.uploaded_at) : '—'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[13px] font-medium ${getBadge(doc.status)}`}>
+                      {doc.status === 'approved' ? 'Approved' : doc.status === 'rejected' ? 'Rejected' : 'Uploaded'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleApprove(doc.id)}
+                      disabled={isLoading}
+                      className="rounded-lg border border-green-400/30 bg-green-500/10 px-3 py-1.5 text-[13px] font-semibold uppercase tracking-wide text-green-300 hover:bg-green-500/20 disabled:opacity-50"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRejectingDocId(showRejectBox ? null : doc.id)
+                        setErrorByDocId((prev) => ({ ...prev, [doc.id]: '' }))
+                      }}
+                      disabled={isLoading}
+                      className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-1.5 text-[13px] font-semibold uppercase tracking-wide text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+
+                {showRejectBox ? (
+                  <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-start">
+                    <input
+                      type="text"
+                      value={note}
+                      onChange={(e) => setNoteByDocId((prev) => ({ ...prev, [doc.id]: e.target.value }))}
+                      placeholder="Required rejection note"
+                      className="h-10 flex-1 rounded-lg border border-red-400/20 bg-[#f8f9fb] px-3 text-[14px] text-[#152d5a] placeholder:text-[#4b6390] focus:outline-none focus:border-red-400/40"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleReject(doc.id)}
+                      disabled={isLoading}
+                      className="h-10 rounded-lg border border-red-400/40 bg-red-500/10 px-3.5 text-[13px] font-semibold uppercase tracking-wide text-red-200 hover:bg-red-500/20 disabled:opacity-50"
+                    >
+                      Confirm reject
+                    </button>
+                  </div>
+                ) : null}
+
+                {error ? <p className="mt-2 text-[13px] text-red-300">{error}</p> : null}
+              </div>
+            )
+          })
+        )}
       </div>
     </section>
   )
