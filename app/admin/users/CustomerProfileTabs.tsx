@@ -1,14 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import type { ReactNode } from 'react'
+import Link from 'next/link'
 import type { AccountStatus, PilotClearanceStatus, UserDocument, VerificationEvent } from '@/lib/supabase/types'
-import NextActionCard from './NextActionCard'
-import CurrentActionSection from './CurrentActionSection'
 import CheckoutActivitySection from './CheckoutActivitySection'
 import HistoricalCheckoutEditor from './HistoricalCheckoutEditor'
 import AdminChatPanel from './AdminChatPanel'
 import PilotMetadataEditor from './PilotMetadataEditor'
+import UnblockCustomerButton from './UnblockCustomerButton'
+import { CLEARANCE_ACTION } from './clearance-actions'
 import { DocumentReviewCards } from './VerdictPanel'
 
 type TimelineEvent = {
@@ -151,14 +151,6 @@ type Props = {
 
 const REQUIRED_DOC_TYPES: UserDocument['document_type'][] = ['pilot_licence', 'medical_certificate', 'photo_id']
 
-const TONE_COLOUR: Record<TimelineEvent['tone'], string> = {
-  slate: '#9ca3af',
-  blue: '#42a5f5',
-  amber: '#ffa726',
-  red: '#ef5350',
-  green: '#2e7d32',
-}
-
 function prettyStatus(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
@@ -183,6 +175,52 @@ function accountBadge(status: AccountStatus): { label: string; bg: string; text:
   if (status === 'active') return { label: 'Active', bg: 'rgba(255,255,255,.12)', text: 'rgba(255,255,255,.75)' }
   if (status === 'blocked') return { label: 'Blocked', bg: 'rgba(239,68,68,.35)', text: '#fca5a5' }
   return { label: prettyStatus(status), bg: 'rgba(255,255,255,.12)', text: 'rgba(255,255,255,.6)' }
+}
+
+function getStatusTone(clearanceStatus: PilotClearanceStatus, accountStatus: AccountStatus): 'green' | 'amber' | 'red' | 'blue' {
+  if (accountStatus === 'blocked' || clearanceStatus === 'not_currently_eligible') return 'red'
+  if (clearanceStatus === 'cleared_to_fly') return 'green'
+  if (
+    clearanceStatus === 'checkout_required' ||
+    clearanceStatus === 'checkout_requested' ||
+    clearanceStatus === 'checkout_payment_required' ||
+    clearanceStatus === 'checkout_completed_under_review' ||
+    clearanceStatus === 'additional_checkout_required' ||
+    clearanceStatus === 'checkout_reschedule_required'
+  ) {
+    return 'amber'
+  }
+  return 'blue'
+}
+
+function getStatusBadgeClass(tone: 'green' | 'amber' | 'red' | 'blue'): string {
+  if (tone === 'green') return 'bg-green-50 border-green-200 text-green-700'
+  if (tone === 'amber') return 'bg-amber-50 border-amber-200 text-amber-700'
+  if (tone === 'red') return 'bg-red-50 border-red-200 text-red-700'
+  return 'bg-blue-50 border-blue-200 text-blue-700'
+}
+
+function trimTimelineLabel(title: string): string {
+  const cleaned = title.trim()
+  if (cleaned.length <= 15) return cleaned
+  return `${cleaned.slice(0, 15).trimEnd()}…`
+}
+
+function getCurrentStatusText(clearanceStatus: PilotClearanceStatus, accountStatus: AccountStatus): { label: string; description: string; tone: 'green' | 'amber' | 'red' | 'blue' } {
+  if (accountStatus === 'blocked') {
+    return {
+      label: 'Blocked',
+      description: 'This account has been blocked. The customer cannot create new bookings or access the platform until unblocked.',
+      tone: 'red',
+    }
+  }
+
+  const action = CLEARANCE_ACTION[clearanceStatus]
+  return {
+    label: prettyStatus(clearanceStatus),
+    description: action.description,
+    tone: getStatusTone(clearanceStatus, accountStatus),
+  }
 }
 
 export default function CustomerProfileTabs({
@@ -235,52 +273,6 @@ export default function CustomerProfileTabs({
       }
     : null
 
-  const historicalCheckoutAction: ReactNode = (
-    <HistoricalCheckoutEditor
-      customerId={customerProfile.id}
-      customerName={customerProfile.full_name ?? 'Unknown Customer'}
-      clearanceStatus={clearanceStatus}
-      hasActiveCheckoutRequest={checkoutBookings.some((b) => ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required'].includes(b.status))}
-      defaultPicArn={defaultPicArn}
-      aircraftOptions={aircraftRows.map((a) => ({ id: a.id, registration: a.registration, displayName: a.display_name ?? a.registration }))}
-      existingLogs={aircraftLogRows.map((log) => {
-        const av = log.aircraft
-        const first = Array.isArray(av) ? av[0] : av
-        return {
-          id: log.id,
-          aircraftId: log.aircraft_id,
-          aircraftRegistration: first?.registration ?? 'Unknown',
-          aircraftDisplayName: first?.display_name ?? null,
-          flightDate: log.flight_date,
-          picName: log.pic_name,
-          picArn: log.pic_arn,
-          vdoStart: log.vdo_start,
-          vdoStop: log.vdo_stop,
-          vdoTotal: log.vdo_total,
-          tachoStart: log.tacho_start,
-          tachoStop: log.tacho_stop,
-          tachoTotal: log.tacho_total,
-          airSwitchStart: log.air_switch_start,
-          airSwitchStop: log.air_switch_stop,
-          airSwitchTotal: log.air_switch_total,
-          mrStart: log.mr_start,
-          mrStop: log.mr_stop,
-          mrTotal: log.mr_total,
-          oilAdded: log.oil_added,
-          oilTotal: log.oil_total,
-          fuelAdded: log.fuel_added,
-          fuelReturned: log.fuel_returned,
-          landings: log.landings,
-          source: log.source,
-          reviewStatus: log.review_status,
-        }
-      })}
-      historicalRecord={historicalSummary}
-      renderMode="button_only"
-    />
-  )
-
-  const isCompactOverview = clearanceStatus === 'cleared_to_fly' && accountStatus !== 'blocked'
   const clearanceValue = clearanceStatus
     ? clearanceStatus
         .replace(/_/g, ' ')
@@ -301,7 +293,7 @@ export default function CustomerProfileTabs({
       if (clearanceStatus === 'checkout_required' || clearanceStatus === 'checkout_requested' || clearanceStatus === 'checkout_payment_required') {
         return 'text-amber-600 font-medium'
       }
-      if ((clearanceStatus as string) === 'rejected') return 'text-red-600 font-medium'
+      if (accountStatus === 'blocked' || clearanceStatus === 'not_currently_eligible') return 'text-red-700 font-medium'
       return 'text-[#0C2340] font-medium'
     }
     if (label === 'Account') {
@@ -318,21 +310,113 @@ export default function CustomerProfileTabs({
     return 'text-[#0C2340] font-medium'
   }
 
-  function QuickStatsCard() {
+  const recentTimelineEvents = [...timelineEvents]
+    .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+    .slice(-6)
+
+  const currentStatus = getCurrentStatusText(clearanceStatus, accountStatus)
+  const currentStatusAction = accountStatus === 'blocked' ? null : CLEARANCE_ACTION[clearanceStatus]
+
+  function QuickStatsGrid() {
     return (
-      <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl p-4">
-        <h3 className="text-xs uppercase tracking-wide font-semibold text-[#3d5a80] mb-3">Quick stats</h3>
-        <div className="divide-y divide-[rgba(12,35,64,0.1)] border border-[rgba(12,35,64,0.12)] rounded-xl overflow-hidden">
-          {quickStats.map((stat) => (
-            <div key={stat.label} className="flex items-center justify-between gap-4 px-3 py-3 bg-[#f8f9fb]">
-              <div className="text-xs text-[#3d5a80] uppercase tracking-wide font-medium">
-                {stat.label}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+        {quickStats.map((stat) => (
+          <div key={stat.label} className="bg-white rounded-xl border border-[rgba(12,35,64,0.15)] p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#3d5a80] mb-1.5">
+              {stat.label}
+            </p>
+            <p className={`text-[15px] font-medium ${quickStatValueClass(stat.label)}`}>
+              {stat.value}
+            </p>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  function CurrentStatusCard() {
+    return (
+      <div className="bg-white rounded-xl border border-[rgba(12,35,64,0.15)] p-4 mb-4">
+        <div className="flex items-center justify-between pb-3 border-b border-[rgba(12,35,64,0.08)] mb-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#3d5a80]">
+            Current Status
+          </p>
+          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest ${getStatusBadgeClass(currentStatus.tone)}`}>
+            {currentStatus.label}
+          </span>
+        </div>
+
+        <p className="text-sm text-[#3d5a80] mb-3 leading-relaxed">
+          {currentStatus.description}
+        </p>
+
+        {accountStatus === 'blocked' ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <UnblockCustomerButton customerId={customerProfile.id} />
+          </div>
+        ) : currentStatusAction && currentStatusAction.ctas.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {currentStatusAction.ctas.map((cta, i) => (
+              <Link
+                key={`${cta.label}-${i}`}
+                href={cta.href(latestCheckoutBookingId)}
+                className="text-sm font-medium text-[#185FA5] inline-flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors"
+              >
+                {cta.label}
+                <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'wght' 300" }}>arrow_forward</span>
+              </Link>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
+  function RecentActivityCard() {
+    return (
+      <div className="bg-white rounded-xl border border-[rgba(12,35,64,0.15)] p-4">
+        <div className="flex items-center justify-between pb-3 border-b border-[rgba(12,35,64,0.08)] mb-4">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#3d5a80]">
+            Recent Activity
+          </p>
+          <p className="text-[10px] text-[#94a3b8]">
+            Latest 6 events
+          </p>
+        </div>
+
+        <div className="md:hidden relative pl-4">
+          <div className="absolute left-[6px] top-0 bottom-0 w-px bg-[rgba(12,35,64,0.12)]" />
+          <div className="space-y-4">
+            {recentTimelineEvents.map((item) => (
+              <div key={`${item.title}-${item.at}`} className="relative">
+                <span className="absolute left-[-16px] top-1 w-3 h-3 rounded-full bg-[#185FA5] z-10" />
+                <p className="text-sm font-medium text-[#0C2340]">{item.title}</p>
+                <p className="text-xs text-[#3d5a80]">{item.detail}</p>
+                <p className="text-[10px] text-[#94a3b8] mt-0.5">{shortDate(item.at)}</p>
               </div>
-              <div className={`text-sm ${quickStatValueClass(stat.label)}`}>
-                {stat.value}
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
+        </div>
+
+        <div className="hidden md:block relative pt-2">
+          <div className="absolute top-[7px] left-4 right-4 h-px bg-[rgba(12,35,64,0.12)]" />
+          <div className="flex gap-2">
+            {recentTimelineEvents.map((item, idx) => {
+              const isLatest = idx === recentTimelineEvents.length - 1
+              const shortLabel = trimTimelineLabel(item.title)
+              return (
+                <div key={`${item.title}-${item.at}`} className="flex-1 flex flex-col items-center px-1">
+                  <span className={`w-3.5 h-3.5 rounded-full relative z-10 ${isLatest ? 'bg-[#185FA5] ring-2 ring-blue-200' : 'bg-[#185FA5]'}`} />
+                  <p className={`text-[10px] font-medium text-center mt-2 leading-tight ${isLatest ? 'text-[#185FA5]' : 'text-[#185FA5]'}`}>
+                    {shortLabel}
+                  </p>
+                  <p className="text-[9px] text-[#94a3b8] text-center mt-0.5">
+                    {shortDate(item.at)}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
     )
@@ -430,64 +514,13 @@ export default function CustomerProfileTabs({
       </section>
 
       {activeTab === 'overview' && (
-        <section className={isCompactOverview ? 'space-y-3' : 'grid grid-cols-1 md:grid-cols-[1fr_260px] gap-3'}>
-          <div className="space-y-3">
-            {isCompactOverview ? <QuickStatsCard /> : null}
-
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#3d5a80] mb-2">CURRENT STATUS</p>
-              {!isCompactOverview && (clearanceStatus !== 'cleared_to_fly' || accountStatus === 'blocked') ? (
-                <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl">
-                  <NextActionCard
-                    clearanceStatus={clearanceStatus}
-                    accountStatus={accountStatus}
-                    latestCheckoutBookingId={latestCheckoutBookingId}
-                    historicalCheckoutAction={historicalCheckoutAction}
-                  />
-                </div>
-              ) : null}
-
-              <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl p-5">
-                <CurrentActionSection
-                  clearanceStatus={clearanceStatus}
-                  accountStatus={accountStatus}
-                  latestCheckoutBookingId={latestCheckoutBookingId}
-                  adminReviewNote={customerProfile.admin_review_note}
-                  reviewedAt={customerProfile.reviewed_at}
-                  customerId={customerProfile.id}
-                />
-              </div>
-            </div>
-
-            <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl p-5">
-              <h3 className="text-xs uppercase tracking-wide font-semibold text-[#3d5a80] mb-3">Recent activity</h3>
-              {timelineEvents.slice(0, 8).map((item, idx) => (
-                <div key={`${item.title}-${idx}`} className="flex gap-3 py-2 border-b border-[rgba(12,35,64,0.08)] last:border-b-0">
-                  <span
-                    className="w-2 h-2 rounded-full mt-1.5"
-                    style={{
-                      background: TONE_COLOUR[item.tone] ?? '#9ca3af',
-                      flexShrink: 0,
-                    }}
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-[#0C2340]">{item.title}</p>
-                    <p className="text-sm text-[#3d5a80]">{item.detail}</p>
-                    <p className="text-xs text-[#3d5a80]">{shortDate(item.at)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {!isCompactOverview ? (
-            <div className="space-y-3">
-              <QuickStatsCard />
-              <PilotMetadataEditor customerId={customerProfile.id} initialArn={customerProfile.pilot_arn} />
-            </div>
-          ) : (
+        <section className="space-y-4">
+          <QuickStatsGrid />
+          <CurrentStatusCard />
+          <RecentActivityCard />
+          <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl p-5">
             <PilotMetadataEditor customerId={customerProfile.id} initialArn={customerProfile.pilot_arn} />
-          )}
+          </div>
         </section>
       )}
 
