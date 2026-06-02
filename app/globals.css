@@ -113,6 +113,10 @@ html {
   --admin-button-bg:       rgba(22, 104, 197, 0.10);
   --admin-border:          rgba(12, 35, 64, 0.12);
   --admin-divider:         rgba(12, 35, 64, 0.08);
+  --admin-text:            #0C2340;
+  --admin-text-muted:      #4b6390;
+  --admin-text-secondary:  #64748b;
+  color:                   #0C2340;
 }
 
 /* Canvas hero fill */
