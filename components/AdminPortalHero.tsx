@@ -29,14 +29,14 @@ export default function AdminPortalHero({ eyebrow, title, subtitle, actions }: P
       <div className="relative z-10 max-w-[1400px] mx-auto px-6 md:px-10 py-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
 
         <div>
-          <p className="text-[9px] font-bold uppercase tracking-[0.35em] text-[#a7c8ff]/40 mb-2">
+          <p className="text-[9px] font-bold uppercase tracking-[0.35em] text-[#152d5a]/60 mb-2">
             {eyebrow}
           </p>
-          <h1 className="font-serif text-3xl font-light text-[#e2e2e6] tracking-tight leading-tight">
+          <h1 className="font-serif text-3xl font-light text-deep-ink tracking-tight leading-tight">
             {title}
           </h1>
           {subtitle && (
-            <p className="text-[#8a9ab5] text-sm mt-2 max-w-xl leading-relaxed">
+            <p className="text-[#4b6390] text-sm mt-2 max-w-xl leading-relaxed">
               {subtitle}
             </p>
           )}

@@ -103,29 +103,29 @@ html {
 
 /* Admin design tokens (Stitch benchmark direction) */
 .admin-theme {
-  --admin-bg: #080c12;
-  --admin-sidebar-bg: #0b111a;
-  --admin-content-bg: #080c12;
-  --admin-panel-bg: #111b2a;
-  --admin-panel-bg-soft: #121a27;
-  --admin-card-bg: #101826;
-  --admin-input-bg: #0c121b;
-  --admin-button-bg: rgba(30, 64, 175, 0.18);
-  --admin-border: rgba(148, 163, 184, 0.12);
-  --admin-divider: rgba(148, 163, 184, 0.09);
-  --admin-row-hover: rgba(30, 41, 59, 0.45);
-  --admin-text: #e5e7eb;
-  --admin-text-muted: #94a3b8;
-  --admin-text-dim: #64748b;
-  --admin-accent: #93c5fd;
-  --admin-accent-soft: rgba(96, 165, 250, 0.32);
+  --admin-bg: #cfe3f5;
+  --admin-sidebar-bg: #e8f2fb;
+  --admin-content-bg: #cfe3f5;
+  --admin-panel-bg: #ffffff;
+  --admin-panel-bg-soft: #e8f2fb;
+  --admin-card-bg: #ffffff;
+  --admin-input-bg: #ffffff;
+  --admin-button-bg: rgba(26, 79, 214, 0.12);
+  --admin-border: rgba(21, 45, 90, 0.14);
+  --admin-divider: rgba(21, 45, 90, 0.1);
+  --admin-row-hover: rgba(26, 79, 214, 0.08);
+  --admin-text: #152d5a;
+  --admin-text-muted: #4b6390;
+  --admin-text-dim: #608bca;
+  --admin-accent: #1a4fd6;
+  --admin-accent-soft: rgba(26, 79, 214, 0.22);
   --admin-success: #86efac;
   --admin-warning: #d6b06e;
   --admin-danger: #fca5a5;
   --admin-radius-lg: 14px;
   --admin-radius-xl: 16px;
   --admin-radius-2xl: 18px;
-  --admin-shadow-panel: 0 14px 30px rgba(3, 8, 16, 0.38);
+  --admin-shadow-panel: 0 12px 28px rgba(21, 45, 90, 0.12);
 }
 
 /* Canvas hero fill */

@@ -62,6 +62,7 @@ export type BookingStatus =
   | 'checkout_confirmed'
   | 'checkout_completed_under_review'
   | 'checkout_payment_required'
+  | 'on_hold_pending_documents'
   // Provisional first solo booking (pending checkout clearance)
   | 'pending_checkout_clearance'
   | 'released_due_to_checkout'

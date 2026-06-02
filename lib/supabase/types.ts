@@ -44,6 +44,8 @@ export type Profile = {
   has_night_vfr_rating: boolean | null   // null = not answered, true = yes, false = no
   has_instrument_rating: boolean | null  // null = not answered, true = yes, false = no
   last_flight_date: string | null  // YYYY-MM-DD — shared between Documents page and checkout flow
+  terms_accepted_at: string | null
+  terms_version: string | null
   last_login_at: string | null
   login_count: number
   last_bookings_viewed_at: string | null
