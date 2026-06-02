@@ -15,7 +15,7 @@ type Props = {
 
 export default function AdminPortalHero({ eyebrow, title, subtitle, actions, breadcrumbs }: Props) {
   return (
-    <section className="relative overflow-hidden border-b border-[var(--admin-divider)] bg-[var(--admin-panel-bg)]">
+    <section className="relative overflow-hidden border-b border-[rgba(12,35,64,0.12)] bg-[#dbe8f5]">
 
       {/* Subtle directional glow */}
       <div

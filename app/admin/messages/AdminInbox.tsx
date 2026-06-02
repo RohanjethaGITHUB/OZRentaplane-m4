@@ -101,32 +101,32 @@ function NewMessageModal({ onSelect, onClose }: NewMessageModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="w-full max-w-md bg-[#1a1d21] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+      <div className="w-full max-w-md bg-white border border-[rgba(12,35,64,0.15)] rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-          <h3 className="text-sm font-bold text-[#e2e2e6] tracking-wide">New Message</h3>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[rgba(12,35,64,0.08)]">
+          <h3 className="text-sm font-bold text-[#0C2340] tracking-wide">New Message</h3>
           <button
             onClick={onClose}
-            className="text-slate-500 hover:text-slate-300 transition-colors"
+            className="text-[#3d5a80] hover:text-[#0C2340] transition-colors"
           >
             <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'wght' 300" }}>close</span>
           </button>
         </div>
 
         {/* Search */}
-        <div className="px-5 py-3 border-b border-white/5">
+        <div className="px-5 py-3 border-b border-[rgba(12,35,64,0.08)]">
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-slate-500 text-base" style={{ fontVariationSettings: "'wght' 300" }}>search</span>
+            <span className="material-symbols-outlined text-[#3d5a80] text-base" style={{ fontVariationSettings: "'wght' 300" }}>search</span>
             <input
               ref={inputRef}
               type="text"
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Search customer by name…"
-              className="flex-1 bg-transparent text-sm text-[#e2e2e6] placeholder:text-slate-600 focus:outline-none"
+              className="flex-1 bg-white text-sm text-[#0C2340] placeholder:text-[#3d5a80] focus:outline-none"
             />
             {loading && (
-              <span className="material-symbols-outlined animate-spin text-base text-slate-500">progress_activity</span>
+              <span className="material-symbols-outlined animate-spin text-base text-[#3d5a80]">progress_activity</span>
             )}
           </div>
         </div>
@@ -134,28 +134,28 @@ function NewMessageModal({ onSelect, onClose }: NewMessageModalProps) {
         {/* Results */}
         <div className="max-h-64 overflow-y-auto">
           {results.length === 0 && query.trim() && !loading ? (
-            <div className="px-5 py-8 text-center text-sm text-slate-500 font-light">
+            <div className="px-5 py-8 text-center text-sm text-[#3d5a80] font-light">
               No customers found for "{query}"
             </div>
           ) : results.length === 0 && !query.trim() ? (
-            <div className="px-5 py-8 text-center text-sm text-slate-500 font-light">
+            <div className="px-5 py-8 text-center text-sm text-[#3d5a80] font-light">
               Start typing to search for a customer
             </div>
           ) : results.map(r => (
             <button
               key={r.id}
               onClick={() => onSelect(r)}
-              className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-white/5 transition-colors text-left"
+              className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-[#f6f9fc] transition-colors text-left"
             >
-              <div className="w-8 h-8 rounded-full bg-blue-900/50 border border-blue-300/20 flex items-center justify-center flex-shrink-0">
-                <span className="text-[10px] font-bold text-blue-200">{getInitials(r.full_name)}</span>
+              <div className="w-8 h-8 rounded-full bg-[#dbe8f5] border border-[rgba(12,35,64,0.12)] flex items-center justify-center flex-shrink-0">
+                <span className="text-[10px] font-bold text-[#0C2340]">{getInitials(r.full_name)}</span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-[#e2e2e6] truncate">{r.full_name ?? 'Unknown'}</p>
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest">{STATUS_LABEL[r.verification_status] ?? r.verification_status}</p>
+                <p className="text-sm font-semibold text-[#0C2340] truncate">{r.full_name ?? 'Unknown'}</p>
+                <p className="text-[10px] text-[#3d5a80] uppercase tracking-widest">{STATUS_LABEL[r.verification_status] ?? r.verification_status}</p>
               </div>
               <span
-                className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${STATUS_BADGE[r.verification_status] ?? 'bg-white/5 text-slate-400'}`}
+                className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${STATUS_BADGE[r.verification_status] ?? 'bg-white text-[#3d5a80]'}`}
               >
                 {STATUS_LABEL[r.verification_status] ?? r.verification_status}
               </span>
@@ -337,15 +337,15 @@ export default function AdminInbox({ initialThreads }: Props) {
       <div className="flex h-[calc(100vh-0px)] overflow-hidden">
 
         {/* ── LEFT PANEL: Thread list ─────────────────────────────────── */}
-        <div className="w-80 xl:w-96 flex-shrink-0 border-r border-white/5 flex flex-col bg-[#111316]">
+        <div className="w-80 xl:w-96 flex-shrink-0 border-r border-[rgba(12,35,64,0.12)] flex flex-col bg-white">
 
           {/* Header */}
-          <div className="px-5 pt-8 pb-4 border-b border-white/5">
+          <div className="px-5 pt-8 pb-4 border-b border-[rgba(12,35,64,0.08)]">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-serif text-xl tracking-tight text-[#e2e2e6]">Messages</h2>
+              <h2 className="font-serif text-xl tracking-tight text-[#0C2340]">Messages</h2>
               <button
                 onClick={() => setShowNewMessage(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 border border-blue-400/20 text-blue-300 hover:bg-blue-600/30 hover:text-blue-200 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all hover:scale-[1.02]"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a4a7a]/10 border border-[rgba(26,74,122,0.25)] text-[#1a4a7a] hover:bg-[#1a4a7a]/15 hover:text-[#0C2340] rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all hover:scale-[1.02]"
               >
                 <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>add</span>
                 New
@@ -353,17 +353,17 @@ export default function AdminInbox({ initialThreads }: Props) {
             </div>
 
             {/* Search */}
-            <div className="flex items-center gap-2.5 bg-white/[0.04] border border-white/8 rounded-xl px-3 py-2.5">
-              <span className="material-symbols-outlined text-slate-500 text-base flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>search</span>
+            <div className="flex items-center gap-2.5 bg-white border border-[rgba(12,35,64,0.15)] rounded-xl px-3 py-2.5">
+              <span className="material-symbols-outlined text-[#3d5a80] text-base flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>search</span>
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search by name…"
-                className="flex-1 bg-transparent text-sm text-[#e2e2e6] placeholder:text-slate-600 focus:outline-none"
+                className="flex-1 bg-white text-sm text-[#0C2340] placeholder:text-[#3d5a80] focus:outline-none"
               />
               {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="text-slate-500 hover:text-slate-300">
+                <button onClick={() => setSearchQuery('')} className="text-[#3d5a80] hover:text-[#0C2340]">
                   <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>close</span>
                 </button>
               )}
@@ -371,15 +371,15 @@ export default function AdminInbox({ initialThreads }: Props) {
           </div>
 
           {/* Filter tabs */}
-          <div className="flex gap-1 px-3 py-2.5 border-b border-white/5 overflow-x-auto scrollbar-hide">
+          <div className="flex gap-1 px-3 py-2.5 border-b border-[rgba(12,35,64,0.08)] overflow-x-auto scrollbar-hide bg-white">
             {FILTERS.map(f => (
               <button
                 key={f.key}
                 onClick={() => setActiveFilter(f.key)}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.1em] transition-all ${
                   activeFilter === f.key
-                    ? 'bg-blue-600/20 border border-blue-400/25 text-blue-300'
-                    : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+                    ? 'bg-[#1a4a7a] border border-[#1a4a7a] text-white'
+                    : 'bg-white border border-[rgba(12,35,64,0.15)] text-[#3d5a80] hover:text-[#0C2340] hover:bg-[#f6f9fc]'
                 }`}
               >
                 {f.label}
@@ -397,12 +397,12 @@ export default function AdminInbox({ initialThreads }: Props) {
             {filteredThreads.length === 0 ? (
               <div className="px-5 py-12 text-center">
                 <span
-                  className="material-symbols-outlined text-3xl text-slate-700 block mb-3"
+                  className="material-symbols-outlined text-3xl text-[#3d5a80] block mb-3"
                   style={{ fontVariationSettings: "'wght' 200, 'FILL' 0" }}
                 >
                   {searchQuery ? 'search_off' : 'chat'}
                 </span>
-                <p className="text-sm text-slate-500 font-light">
+                <p className="text-sm text-[#3d5a80] font-light">
                   {searchQuery ? `No threads matching "${searchQuery}"` :
                    activeFilter !== 'all' ? 'No threads in this category' :
                    'No conversations yet'}
@@ -424,10 +424,10 @@ export default function AdminInbox({ initialThreads }: Props) {
                 <button
                   key={thread.customerId}
                   onClick={() => selectThread(thread)}
-                  className={`w-full text-left px-4 py-4 border-b border-white/[0.04] transition-colors relative ${
+                  className={`w-full text-left px-4 py-4 border-b border-[rgba(12,35,64,0.06)] transition-colors relative ${
                     isSelected
-                      ? 'bg-blue-600/10 border-l-2 border-l-blue-400/50'
-                      : 'hover:bg-white/[0.03]'
+                      ? 'bg-[#f6f9fc] border-l-2 border-l-[#1a4a7a]'
+                      : 'hover:bg-[#f6f9fc]'
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -435,10 +435,10 @@ export default function AdminInbox({ initialThreads }: Props) {
                     <div className="relative flex-shrink-0">
                       <div className={`w-9 h-9 rounded-full border flex items-center justify-center text-[11px] font-bold ${
                         thread.verificationStatus === 'on_hold'
-                          ? 'bg-amber-900/40 border-amber-300/20 text-amber-200'
+                          ? 'bg-amber-50 border-amber-300/30 text-amber-700'
                           : thread.verificationStatus === 'verified'
-                          ? 'bg-green-900/30 border-green-300/20 text-green-200'
-                          : 'bg-blue-900/40 border-blue-300/20 text-blue-200'
+                          ? 'bg-green-50 border-green-300/30 text-green-700'
+                          : 'bg-blue-50 border-blue-300/30 text-blue-700'
                       }`}>
                         {getInitials(thread.customerName)}
                       </div>
@@ -450,25 +450,25 @@ export default function AdminInbox({ initialThreads }: Props) {
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-0.5">
-                        <p className={`text-sm truncate ${hasUnread ? 'font-bold text-[#e2e2e6]' : 'font-semibold text-slate-300'}`}>
+                        <p className={`text-sm truncate ${hasUnread ? 'font-bold text-[#0C2340]' : 'font-semibold text-[#0C2340]'}`}>
                           {thread.customerName ?? 'Unknown Customer'}
                         </p>
                         {thread.lastMessageAt && (
-                          <span className="text-[10px] text-slate-600 whitespace-nowrap font-mono flex-shrink-0">
+                          <span className="text-[10px] text-[#3d5a80] whitespace-nowrap font-mono flex-shrink-0">
                             {fmtRelative(thread.lastMessageAt)}
                           </span>
                         )}
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full flex-shrink-0 ${STATUS_BADGE[thread.verificationStatus] ?? 'bg-white/5 text-slate-500'}`}>
+                        <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full flex-shrink-0 ${STATUS_BADGE[thread.verificationStatus] ?? 'bg-white text-[#3d5a80]'}`}>
                           {STATUS_LABEL[thread.verificationStatus] ?? thread.verificationStatus}
                         </span>
                       </div>
 
                       {thread.lastMessageBody && (
                         <p className={`text-xs mt-1 truncate leading-snug ${
-                          hasUnread ? 'text-slate-300' : 'text-slate-500 font-light'
+                          hasUnread ? 'text-[#3d5a80]' : 'text-[#3d5a80] font-light'
                         }`}>
                           {thread.lastMessageRole === 'admin' ? 'You: ' : ''}
                           {thread.lastMessageBody}
@@ -478,7 +478,7 @@ export default function AdminInbox({ initialThreads }: Props) {
 
                     {/* Unread count pill */}
                     {thread.unreadCount > 0 && (
-                      <span className="flex-shrink-0 self-center flex items-center justify-center min-w-[18px] h-4.5 px-1.5 rounded-full bg-blue-500 text-[9px] font-bold text-white tabular-nums">
+                      <span className="flex-shrink-0 self-center flex items-center justify-center min-w-[18px] h-4.5 px-1.5 rounded-full bg-[#1a4a7a] text-[9px] font-bold text-white tabular-nums">
                         {thread.unreadCount > 9 ? '9+' : thread.unreadCount}
                       </span>
                     )}
@@ -490,33 +490,33 @@ export default function AdminInbox({ initialThreads }: Props) {
         </div>
 
         {/* ── RIGHT PANEL: Conversation view ─────────────────────────── */}
-        <div className="flex-1 flex flex-col min-w-0 bg-[#111316]">
+        <div className="flex-1 flex flex-col min-w-0 bg-white">
 
           {selectedThread ? (
             <>
               {/* Conversation header */}
-              <div className="flex items-center justify-between px-8 pt-8 pb-5 border-b border-white/5 flex-shrink-0">
+              <div className="flex items-center justify-between px-8 pt-8 pb-5 border-b border-[rgba(12,35,64,0.08)] flex-shrink-0">
                 <div className="flex items-center gap-4">
                   <div className={`w-10 h-10 rounded-full border flex items-center justify-center text-sm font-bold flex-shrink-0 ${
                     selectedThread.verificationStatus === 'on_hold'
-                      ? 'bg-amber-900/40 border-amber-300/20 text-amber-200'
+                      ? 'bg-amber-50 border-amber-300/30 text-amber-700'
                       : selectedThread.verificationStatus === 'verified'
-                      ? 'bg-green-900/30 border-green-300/20 text-green-200'
-                      : 'bg-blue-900/40 border-blue-300/20 text-blue-200'
+                      ? 'bg-green-50 border-green-300/30 text-green-700'
+                      : 'bg-blue-50 border-blue-300/30 text-blue-700'
                   }`}>
                     {getInitials(selectedThread.customerName)}
                   </div>
                   <div>
                     <div className="flex items-center gap-2.5">
-                      <h3 className="font-semibold text-[#e2e2e6] text-base">
+                      <h3 className="font-semibold text-[#0C2340] text-base">
                         {selectedThread.customerName ?? 'Unknown Customer'}
                       </h3>
-                      <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${STATUS_BADGE[selectedThread.verificationStatus] ?? 'bg-white/5 text-slate-500'}`}>
+                      <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${STATUS_BADGE[selectedThread.verificationStatus] ?? 'bg-white text-[#3d5a80]'}`}>
                         {STATUS_LABEL[selectedThread.verificationStatus] ?? selectedThread.verificationStatus}
                       </span>
                     </div>
                     {selectedThread.customerEmail && (
-                      <p className="text-xs text-slate-500 mt-0.5">{selectedThread.customerEmail}</p>
+                      <p className="text-xs text-[#3d5a80] mt-0.5">{selectedThread.customerEmail}</p>
                     )}
                   </div>
                 </div>
@@ -524,7 +524,7 @@ export default function AdminInbox({ initialThreads }: Props) {
                 {/* View record link */}
                 <Link
                   href={`/admin/users/${selectedThread.customerId}`}
-                  className="flex items-center gap-2 px-4 py-2 border border-blue-300/15 text-blue-300/70 hover:text-blue-200 hover:border-blue-300/30 hover:bg-blue-300/5 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
+                  className="flex items-center gap-2 px-4 py-2 border border-[rgba(12,35,64,0.18)] text-[#3d5a80] hover:text-[#0C2340] hover:border-[rgba(12,35,64,0.28)] hover:bg-[#f6f9fc] rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
                 >
                   <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>open_in_new</span>
                   View Record
@@ -535,17 +535,17 @@ export default function AdminInbox({ initialThreads }: Props) {
               <div className="flex-1 overflow-y-auto px-8 py-6 space-y-4 min-h-0">
                 {loadingThread ? (
                   <div className="flex items-center justify-center py-16">
-                    <span className="material-symbols-outlined animate-spin text-2xl text-slate-600">progress_activity</span>
+                    <span className="material-symbols-outlined animate-spin text-2xl text-[#3d5a80]">progress_activity</span>
                   </div>
                 ) : threadEvents.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
                     <span
-                      className="material-symbols-outlined text-3xl text-slate-700"
+                      className="material-symbols-outlined text-3xl text-[#3d5a80]"
                       style={{ fontVariationSettings: "'wght' 200, 'FILL' 0" }}
                     >
                       chat
                     </span>
-                    <p className="text-sm text-slate-500 font-light">
+                    <p className="text-sm text-[#3d5a80] font-light">
                       No messages yet. Send a message below to start the conversation.
                     </p>
                   </div>
@@ -561,8 +561,8 @@ export default function AdminInbox({ initialThreads }: Props) {
                       >
                         {/* Customer avatar */}
                         {!isAdmin && (
-                          <div className="w-7 h-7 rounded-full bg-blue-900/40 border border-blue-300/15 flex items-center justify-center flex-shrink-0 mt-1">
-                            <span className="text-[10px] font-bold text-blue-200">
+                          <div className="w-7 h-7 rounded-full bg-[#dbe8f5] border border-[rgba(12,35,64,0.12)] flex items-center justify-center flex-shrink-0 mt-1">
+                            <span className="text-[10px] font-bold text-[#0C2340]">
                               {getInitials(selectedThread.customerName)}
                             </span>
                           </div>
@@ -571,7 +571,7 @@ export default function AdminInbox({ initialThreads }: Props) {
                         {/* Bubble */}
                         <div className={`max-w-[68%] space-y-1 flex flex-col ${isAdmin ? 'items-end' : 'items-start'}`}>
                           <div className={`flex items-center gap-2 ${isAdmin ? 'flex-row-reverse' : ''}`}>
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-[#3d5a80]">
                               {isAdmin ? 'You (Admin)' : (selectedThread.customerName ?? 'Customer')}
                             </span>
                             {isUnread && (
@@ -587,21 +587,21 @@ export default function AdminInbox({ initialThreads }: Props) {
                           <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                             isAdmin
                               ? 'bg-blue-600/15 border border-blue-400/15 text-blue-100 rounded-tr-sm'
-                              : 'bg-[#1e2023]/80 border border-white/8 text-[#e2e2e6] rounded-tl-sm'
+                              : 'bg-[#f8f9fb] border border-[rgba(12,35,64,0.08)] text-[#0C2340] rounded-tl-sm'
                           } ${ev.id.startsWith('temp-') ? 'opacity-60' : ''}`}>
                             {ev.body}
                           </div>
 
-                          <span className="text-[10px] text-slate-600 font-mono">
+                          <span className="text-[10px] text-[#3d5a80] font-mono">
                             {fmtFull(ev.created_at)}
                           </span>
                         </div>
 
                         {/* Admin avatar */}
                         {isAdmin && (
-                          <div className="w-7 h-7 rounded-full bg-blue-600/20 border border-blue-400/15 flex items-center justify-center flex-shrink-0 mt-1">
+                          <div className="w-7 h-7 rounded-full bg-[#dbe8f5] border border-[rgba(12,35,64,0.12)] flex items-center justify-center flex-shrink-0 mt-1">
                             <span
-                              className="material-symbols-outlined text-sm text-blue-400/70"
+                              className="material-symbols-outlined text-sm text-[#1a4a7a]"
                               style={{ fontVariationSettings: "'wght' 300" }}
                             >
                               admin_panel_settings
@@ -616,11 +616,11 @@ export default function AdminInbox({ initialThreads }: Props) {
               </div>
 
               {/* Compose */}
-              <div className="flex-shrink-0 px-8 pb-8 pt-4 border-t border-white/5">
+              <div className="flex-shrink-0 px-8 pb-8 pt-4 border-t border-[rgba(12,35,64,0.08)]">
                 {sendError && (
-                  <p className="text-xs text-red-400/80 mb-2 leading-relaxed">{sendError}</p>
+                  <p className="text-xs text-red-600 mb-2 leading-relaxed">{sendError}</p>
                 )}
-                <div className="bg-[#1a1d21] border border-white/8 rounded-2xl p-4 space-y-3 focus-within:border-blue-400/20 transition-colors">
+                <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-2xl p-4 space-y-3 focus-within:border-[#1a4a7a]/30 transition-colors">
                   <textarea
                     value={message}
                     onChange={e => setMessage(e.target.value)}
@@ -628,15 +628,15 @@ export default function AdminInbox({ initialThreads }: Props) {
                     disabled={sending}
                     placeholder={`Message ${selectedThread.customerName ?? 'customer'}…`}
                     rows={3}
-                    className="w-full bg-transparent focus:outline-none text-sm text-[#e2e2e6] placeholder:text-slate-600 resize-none disabled:opacity-50"
+                    className="w-full bg-white focus:outline-none text-sm text-[#0C2340] placeholder:text-[#3d5a80] resize-none disabled:opacity-50"
                   />
                   <div className="flex items-center justify-between">
-                    <p className="text-[10px] text-slate-600 italic">⌘ + Enter to send</p>
+                    <p className="text-[10px] text-[#3d5a80] italic">⌘ + Enter to send</p>
                     <button
                       type="button"
                       onClick={handleSend}
                       disabled={sending || !message.trim()}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-blue-600/20 border border-blue-400/20 text-blue-300 hover:bg-blue-600/30 hover:text-blue-200 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
+                      className="flex items-center gap-2 px-5 py-2.5 bg-[#1a4a7a] border border-[#1a4a7a] text-white hover:bg-[#153d66] rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
                     >
                       {sending ? (
                         <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
@@ -651,24 +651,24 @@ export default function AdminInbox({ initialThreads }: Props) {
             </>
           ) : (
             /* Empty state — no thread selected */
-            <div className="flex-1 flex flex-col items-center justify-center gap-6 text-center px-12">
-              <div className="w-16 h-16 rounded-full bg-white/[0.03] border border-white/8 flex items-center justify-center">
+            <div className="flex-1 flex flex-col items-center justify-center gap-6 text-center px-12 bg-white">
+              <div className="w-16 h-16 rounded-full bg-[#dbe8f5] border border-[rgba(12,35,64,0.12)] flex items-center justify-center">
                 <span
-                  className="material-symbols-outlined text-3xl text-slate-600"
+                  className="material-symbols-outlined text-3xl text-[#3d5a80]"
                   style={{ fontVariationSettings: "'wght' 100, 'FILL' 0" }}
                 >
                   chat
                 </span>
               </div>
               <div className="space-y-2">
-                <h3 className="font-serif text-xl text-[#e2e2e6]">Select a conversation</h3>
-                <p className="text-sm text-slate-500 font-light max-w-xs leading-relaxed">
+                <h3 className="font-serif text-xl text-[#0C2340]">Select a conversation</h3>
+                <p className="text-sm text-[#3d5a80] font-light max-w-xs leading-relaxed">
                   Choose a thread from the left to read and reply, or start a new message.
                 </p>
               </div>
               <button
                 onClick={() => setShowNewMessage(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-blue-600/20 border border-blue-400/20 text-blue-300 hover:bg-blue-600/30 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all hover:scale-[1.02]"
+                className="flex items-center gap-2 px-6 py-3 bg-[#1a4a7a] border border-[#1a4a7a] text-white hover:bg-[#153d66] rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all hover:scale-[1.02]"
               >
                 <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>add</span>
                 New Message

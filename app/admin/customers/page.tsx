@@ -250,9 +250,9 @@ export default async function AdminCustomersOverview({ searchParams }: { searchP
         actions={(
           <Link
             href="/admin/customers/new"
-            className="inline-flex items-center rounded-lg bg-[#152d5a] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#1d3d79]"
+            className="inline-flex items-center rounded-lg bg-[#1a4a7a] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#153d66]"
           >
-            New customer
+            Add New Customer
           </Link>
         )}
       />

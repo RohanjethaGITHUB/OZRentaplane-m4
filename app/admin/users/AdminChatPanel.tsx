@@ -73,14 +73,14 @@ export default function AdminChatPanel({ customerId, events, customerName }: Pro
 
       {/* ── Message thread ─────────────────────────────────────────── */}
       {chatEvents.length === 0 ? (
-        <div className="bg-white border border-[#152d5a]/8 rounded-xl p-10 text-center">
+        <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl p-10 text-center">
           <span
-            className="material-symbols-outlined text-3xl text-[#4b6390] block mb-3"
+            className="material-symbols-outlined text-3xl text-[#3d5a80] block mb-3"
             style={{ fontVariationSettings: "'wght' 200, 'FILL' 0" }}
           >
             chat
           </span>
-          <p className="text-[14px] text-[#4b6390] font-light">
+          <p className="text-sm text-[#3d5a80] font-light">
             No messages yet. Send a message below to start a conversation with {customerName}.
           </p>
         </div>
@@ -97,9 +97,9 @@ export default function AdminChatPanel({ customerId, events, customerName }: Pro
               >
                 {/* Customer avatar (left side) */}
                 {!isAdmin && (
-                  <div className="w-7 h-7 rounded-full bg-blue-900/40 border border-blue-300/15 flex items-center justify-center flex-shrink-0 mt-1">
+                  <div className="w-7 h-7 rounded-full bg-[#dbe8f5] border border-[rgba(12,35,64,0.12)] flex items-center justify-center flex-shrink-0 mt-1">
                     <span
-                      className="material-symbols-outlined text-[14px] text-[#1a4fd6]/70"
+                      className="material-symbols-outlined text-[14px] text-[#1a4a7a]"
                       style={{ fontVariationSettings: "'wght' 300" }}
                     >
                       person
@@ -111,7 +111,7 @@ export default function AdminChatPanel({ customerId, events, customerName }: Pro
                 <div className={`max-w-[72%] space-y-1 ${isAdmin ? 'items-end' : 'items-start'} flex flex-col`}>
                   {/* Label row */}
                   <div className={`flex items-center gap-2 ${isAdmin ? 'flex-row-reverse' : ''}`}>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#4b6390]">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#3d5a80]">
                       {isAdmin ? 'You (Admin)' : customerName}
                     </span>
                     {isUnread && (
@@ -128,22 +128,22 @@ export default function AdminChatPanel({ customerId, events, customerName }: Pro
                   <div className={`px-4 py-3 rounded-2xl text-[14px] leading-relaxed whitespace-pre-wrap ${
                     isAdmin
                       ? 'bg-blue-600/15 border border-blue-400/15 text-blue-100 rounded-tr-sm'
-                      : 'bg-[#f8f9fb] border border-[#152d5a]/8 text-[#152d5a] rounded-tl-sm'
+                      : 'bg-[#f8f9fb] border border-[rgba(12,35,64,0.08)] text-[#0C2340] rounded-tl-sm'
                   }`}>
                     {ev.body}
                   </div>
 
                   {/* Timestamp */}
-                  <span className="text-[10px] text-[#4b6390] font-mono">
+                  <span className="text-[10px] text-[#3d5a80] font-mono">
                     {fmtTime(ev.created_at)}
                   </span>
                 </div>
 
                 {/* Admin avatar (right side) */}
                 {isAdmin && (
-                  <div className="w-7 h-7 rounded-full bg-blue-600/20 border border-blue-400/15 flex items-center justify-center flex-shrink-0 mt-1">
+                  <div className="w-7 h-7 rounded-full bg-[#dbe8f5] border border-[rgba(12,35,64,0.12)] flex items-center justify-center flex-shrink-0 mt-1">
                     <span
-                      className="material-symbols-outlined text-[14px] text-[#1a4fd6]/70"
+                      className="material-symbols-outlined text-[14px] text-[#1a4a7a]"
                       style={{ fontVariationSettings: "'wght' 300" }}
                     >
                       admin_panel_settings
@@ -158,7 +158,7 @@ export default function AdminChatPanel({ customerId, events, customerName }: Pro
       )}
 
       {/* ── Compose area ──────────────────────────────────────────── */}
-      <div className="bg-white border border-blue-300/8 rounded-xl p-4 space-y-3">
+      <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl p-4 space-y-3">
         <textarea
           value={message}
           onChange={e => setMessage(e.target.value)}
@@ -166,22 +166,22 @@ export default function AdminChatPanel({ customerId, events, customerName }: Pro
           disabled={loading}
           placeholder={`Message ${customerName}…`}
           rows={3}
-          className="w-full bg-transparent focus:outline-none text-[14px] text-[#152d5a] placeholder:text-[#4b6390] resize-none disabled:opacity-50"
+          className="w-full bg-white focus:outline-none text-sm text-[#0C2340] placeholder:text-[#3d5a80] resize-none disabled:opacity-50"
         />
 
         {error && (
-          <p className="text-[13px] text-red-400/80 leading-relaxed">{error}</p>
+          <p className="text-[13px] text-red-600 leading-relaxed">{error}</p>
         )}
 
-        <div className="flex items-center justify-between pt-2 border-t border-[#152d5a]/8">
-          <p className="text-[10px] text-[#4b6390] italic">
+        <div className="flex items-center justify-between pt-2 border-t border-[rgba(12,35,64,0.12)]">
+          <p className="text-[10px] text-[#3d5a80] italic">
             ⌘ + Enter to send · This message is visible to {customerName}
           </p>
           <button
             type="button"
             onClick={handleSend}
             disabled={loading || !message.trim()}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600/20 border border-blue-400/20 text-white hover:bg-blue-600/30 hover:text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#1a4a7a] border border-[#1a4a7a] text-white hover:bg-[#153d66] hover:text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
           >
             {loading ? (
               <span className="material-symbols-outlined animate-spin text-[14px]">progress_activity</span>

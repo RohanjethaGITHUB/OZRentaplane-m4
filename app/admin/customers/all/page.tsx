@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import AdminPortalHero from '@/components/AdminPortalHero'
 import CustomerDirectoryTable from './CustomerDirectoryTable'
@@ -102,6 +103,14 @@ export default async function AllCustomersPage({ searchParams }: { searchParams:
   return (
     <>
       <AdminPortalHero eyebrow="Customers" title="Customer Directory" subtitle="Search and filter all customer accounts." />
+      <div className="max-w-[1400px] mx-auto px-6 md:px-10 pt-6">
+        <Link
+          href="/admin/customers/new"
+          className="inline-flex items-center rounded-lg bg-[#1a4a7a] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#153d66]"
+        >
+          Add New Customer
+        </Link>
+      </div>
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24 space-y-6">
         <CustomerDirectoryTable rows={rows} initialFilter={activeStatus} />
       </div>
