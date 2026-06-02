@@ -104,10 +104,22 @@ export default async function CheckoutPaymentsPage({ searchParams }: { searchPar
       <AdminPortalHero eyebrow="Checkouts" title="Checkout Payments" subtitle="Payment operations and review queue for checkout flights." />
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24 space-y-5">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-slate-300">Total collected: <span className="text-emerald-300">${(totalCollected / 100).toFixed(2)}</span></div>
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-slate-300">Outstanding: <span className="text-amber-300">${(outstanding / 100).toFixed(2)}</span></div>
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-slate-300">Waived: <span className="text-sky-300">${(waived / 100).toFixed(2)}</span></div>
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-slate-300">Manual review: <span className="text-orange-300">{manualReviewCount}</span></div>
+          <div className="rounded-xl border border-[rgba(12,35,64,0.15)] bg-white p-3">
+            <p className="text-[#3d5a80]">Total collected</p>
+            <p className="text-[#0C2340] font-medium mt-1">${(totalCollected / 100).toFixed(2)}</p>
+          </div>
+          <div className="rounded-xl border border-[rgba(12,35,64,0.15)] bg-white p-3">
+            <p className="text-[#3d5a80]">Outstanding</p>
+            <p className="text-[#0C2340] font-medium mt-1">${(outstanding / 100).toFixed(2)}</p>
+          </div>
+          <div className="rounded-xl border border-[rgba(12,35,64,0.15)] bg-white p-3">
+            <p className="text-[#3d5a80]">Waived</p>
+            <p className="text-[#0C2340] font-medium mt-1">${(waived / 100).toFixed(2)}</p>
+          </div>
+          <div className="rounded-xl border border-[rgba(12,35,64,0.15)] bg-white p-3">
+            <p className="text-[#3d5a80]">Manual review</p>
+            <p className="text-[#0C2340] font-medium mt-1">{manualReviewCount}</p>
+          </div>
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 flex flex-wrap gap-2">

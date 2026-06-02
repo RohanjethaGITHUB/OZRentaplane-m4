@@ -605,13 +605,12 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                   style={dotStyle}
                 />
                 <div
-                  className={`uppercase tracking-widest text-center leading-[1.35] px-1 whitespace-pre-line ${isCurrent ? 'text-sm font-bold' : 'text-xs font-semibold'}`}
-                  style={{ color: isCurrent ? step.color : reached ? `${step.color}90` : 'rgba(21,45,90,0.3)' }}
+                  className={`uppercase tracking-wide text-center leading-[1.35] px-1 whitespace-pre-line ${isCurrent ? 'text-sm font-semibold text-[#0C2340]' : 'text-xs font-medium text-[#3d5a80]'}`}
                 >
                   {step.label}
                 </div>
                 {reached && historyItem?.created_at && (
-                  <div className="text-[11px] text-center mt-1" style={{ color: isCurrent ? `${step.color}cc` : '#9ca3af' }}>
+                  <div className={`text-[11px] text-center mt-1 ${isCurrent ? 'text-[#0C2340]' : 'text-[#3d5a80]'}`}>
                     {formatDayMonth(historyItem.created_at)}
                   </div>
                 )}
@@ -626,13 +625,13 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           .filter(step =>
             statusHistory.some(h => h.new_status === step.key)
           )
-          .map((step, i, arr) => {
+              .map((step, i, arr) => {
             const historyItem = statusHistory.find(h => h.new_status === step.key)
             const isCurrent = booking.status === step.key
             return (
             <div key={step.key}>
-              <div className="flex items-center justify-between py-[5px]">
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center justify-between py-[5px]">
+                  <div className="flex items-center gap-2.5">
                   <div
                     className="rounded-full shrink-0"
                     style={{
@@ -641,18 +640,12 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                       background: isCurrent ? step.color : `${step.color}70`
                     }}
                   />
-                  <span
-                    className="text-[12px]"
-                    style={{
-                      color: isCurrent ?
-                        step.color :
-                        `${step.color}90`,
-                      fontWeight: isCurrent ? 500 : 400
-                    }}>
-                    {step.label.replace('\n', ' ')}
-                  </span>
-                </div>
-                <span className="text-[11px] text-[#9ca3af]">
+                    <span
+                    className={isCurrent ? 'text-[12px] font-semibold text-[#0C2340]' : 'text-[12px] font-medium text-[#3d5a80]'}>
+                      {step.label.replace('\n', ' ')}
+                    </span>
+                  </div>
+                <span className={isCurrent ? 'text-[11px] text-[#0C2340]' : 'text-[11px] text-[#3d5a80]'}>
                   {historyItem?.created_at ? formatDayMonth(historyItem.created_at) : '—'}
                 </span>
               </div>

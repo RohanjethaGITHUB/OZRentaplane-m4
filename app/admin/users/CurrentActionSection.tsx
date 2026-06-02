@@ -35,11 +35,6 @@ const OUTCOME_OPTIONS = [
   { icon: 'person_off',     color: 'text-red-400',   label: 'Not Currently Eligible' },
 ]
 
-function primaryBtnClass(urgency: string): string {
-  if (urgency === 'high') return 'bg-amber-500/20 border border-amber-400/30 text-amber-200 hover:bg-amber-500/30'
-  return 'bg-blue-600 hover:bg-blue-500 text-white'
-}
-
 export default function CurrentActionSection({
   clearanceStatus,
   accountStatus,
@@ -58,22 +53,15 @@ export default function CurrentActionSection({
   const displayDescription = isBlocked
     ? 'This account has been blocked. The customer cannot create new bookings or access the platform until unblocked.'
     : action.description
-  const statusCardClass = isBlocked
-    ? 'bg-[#fef2f2] border-red-200'
-    : action.urgency === 'none' || clearanceStatus === 'cleared_to_fly'
-      ? 'bg-[#f0fdf4] border-green-200'
-      : action.urgency === 'high'
-        ? 'bg-[#eff6ff] border-blue-200'
-        : 'bg-white border-[#152d5a]/8'
 
   return (
     <div className="space-y-8">
       {/* ── Status + description ─────────────────────────────────────── */}
       <div className="relative">
         <div className={`absolute inset-0 rounded-2xl blur-3xl -z-10 ${glowClass}`} />
-        <div className={`rounded-2xl p-8 flex gap-6 border ${statusCardClass}`}>
+        <div className="rounded-2xl p-8 flex gap-6 border bg-white border-[rgba(12,35,64,0.15)]">
           {/* Icon */}
-          <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <div className="w-10 h-10 rounded-full bg-[#f6f9fc] flex items-center justify-center flex-shrink-0 mt-0.5">
             <span
               className={`material-symbols-outlined text-xl ${
                 isBlocked
@@ -82,7 +70,7 @@ export default function CurrentActionSection({
                     ? 'text-green-600'
                     : action.urgency === 'high'
                       ? 'text-blue-600'
-                      : 'text-[#4b6390]'
+                      : 'text-[#3d5a80]'
               }`}
               style={{ fontVariationSettings: "'wght' 200, 'FILL' 0" }}
             >
@@ -98,7 +86,7 @@ export default function CurrentActionSection({
               </span>
             </div>
 
-            <p className="text-[14px] text-[#4b6390] leading-relaxed">{displayDescription}</p>
+            <p className="text-sm text-[#0C2340] leading-relaxed">{displayDescription}</p>
 
             {/* CTAs */}
             {!isBlocked && action.ctas.length > 0 && (
@@ -110,7 +98,7 @@ export default function CurrentActionSection({
                       <Link
                         key={i}
                         href={href}
-                        className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98] ${primaryBtnClass(action.urgency)}`}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold uppercase tracking-wide transition-all hover:scale-[1.02] active:scale-[0.98] bg-[#1a4a7a] hover:bg-[#153d66] text-white"
                       >
                         {cta.label}
                         <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'wght' 300" }}>arrow_forward</span>
@@ -121,7 +109,7 @@ export default function CurrentActionSection({
                     <Link
                       key={i}
                       href={href}
-                      className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-blue-300/15 text-[#4b6390] hover:text-[#152d5a] hover:border-blue-300/30 rounded-xl text-[13px] font-bold uppercase tracking-widest transition-colors"
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-[rgba(12,35,64,0.18)] text-[#3d5a80] hover:text-[#0C2340] hover:border-[rgba(12,35,64,0.28)] rounded-xl text-[13px] font-semibold uppercase tracking-wide transition-colors"
                     >
                       {cta.label}
                     </Link>
@@ -148,7 +136,7 @@ export default function CurrentActionSection({
             {OUTCOME_OPTIONS.map(opt => (
               <div
                 key={opt.label}
-                className="flex items-center gap-2 bg-white/3 border border-[#152d5a]/8 rounded-lg p-3"
+                className="flex items-center gap-2 bg-white border border-[rgba(12,35,64,0.12)] rounded-lg p-3"
               >
                 <span
                   className={`material-symbols-outlined text-[15px] ${opt.color}`}
@@ -156,7 +144,7 @@ export default function CurrentActionSection({
                 >
                   {opt.icon}
                 </span>
-                <span className="text-[10px] font-medium text-[#4b6390] leading-tight">{opt.label}</span>
+                <span className="text-[10px] font-medium text-[#3d5a80] leading-tight">{opt.label}</span>
               </div>
             ))}
           </div>
@@ -176,16 +164,16 @@ export default function CurrentActionSection({
 
       {/* ── Admin review note ─────────────────────────────────────────── */}
       {adminReviewNote && (
-        <div className="bg-white border border-blue-300/10 rounded-2xl p-8">
-          <p className="text-[10px] text-[#4b6390] uppercase tracking-widest mb-4 font-bold">
+        <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-2xl p-8">
+          <p className="text-xs text-[#3d5a80] uppercase tracking-wide mb-4 font-semibold">
             Internal Review Note
-            <span className="normal-case font-normal text-[#4b6390] ml-2">(not visible to customer)</span>
+            <span className="normal-case font-normal text-[#3d5a80] ml-2">(not visible to customer)</span>
           </p>
-          <p className="text-[14px] text-[#152d5a] leading-relaxed whitespace-pre-wrap">{adminReviewNote}</p>
+          <p className="text-sm text-[#0C2340] leading-relaxed whitespace-pre-wrap">{adminReviewNote}</p>
           {reviewedAt && (
-            <p className="text-[10px] text-[#4b6390] uppercase tracking-widest pt-5 mt-5 border-t border-[#152d5a]/8">
+            <p className="text-xs text-[#3d5a80] uppercase tracking-wide pt-5 mt-5 border-t border-[rgba(12,35,64,0.12)]">
               Recorded{' '}
-              <span className="text-[#4b6390] font-semibold">{formatDateTime(reviewedAt)}</span>
+              <span className="text-[#0C2340] font-medium">{formatDateTime(reviewedAt)}</span>
             </p>
           )}
         </div>

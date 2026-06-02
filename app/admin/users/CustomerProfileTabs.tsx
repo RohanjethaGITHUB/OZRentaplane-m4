@@ -287,25 +287,25 @@ export default function CustomerProfileTabs({
         .replace(/\b\w/g, (c) => c.toUpperCase())
     : '—'
   const quickStats = [
-    { label: 'Clearance', value: clearanceValue, colour: clearance.text },
-    { label: 'Account', value: prettyStatus(accountStatus), colour: accountStatus === 'blocked' ? '#991b1b' : '#152d5a' },
-    { label: 'Documents', value: `${uploadedRequired} / 3`, colour: uploadedRequired === 3 ? '#166534' : '#b45309' },
-    { label: 'Credit', value: `$${(balanceCents / 100).toFixed(2)}`, colour: '#152d5a' },
-    { label: 'Checkouts', value: String(checkoutBookings.length), colour: '#152d5a' },
-    { label: 'Bookings', value: String(standardBookings.length), colour: '#152d5a' },
+    { label: 'Clearance', value: clearanceValue },
+    { label: 'Account', value: prettyStatus(accountStatus) },
+    { label: 'Documents', value: `${uploadedRequired} / 3` },
+    { label: 'Credit', value: `$${(balanceCents / 100).toFixed(2)}` },
+    { label: 'Checkouts', value: String(checkoutBookings.length) },
+    { label: 'Bookings', value: String(standardBookings.length) },
   ]
 
   function QuickStatsCard() {
     return (
-      <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-4">
-        <h3 className="text-[11px] uppercase tracking-widest font-semibold text-[#4b6390] mb-3">Quick stats</h3>
+      <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl p-4">
+        <h3 className="text-xs uppercase tracking-wide font-semibold text-[#3d5a80] mb-3">Quick stats</h3>
         <div className="grid grid-cols-2 gap-3">
           {quickStats.map((stat) => (
-            <div key={stat.label} className="bg-[#f8f9fb] rounded-xl px-3 py-2.5">
-              <div className="text-[11px] text-[#4b6390] mb-0.5 uppercase tracking-widest font-medium">
+            <div key={stat.label} className="bg-[#f8f9fb] rounded-xl px-3 py-2.5 border border-[rgba(12,35,64,0.08)]">
+              <div className="text-xs text-[#3d5a80] mb-0.5 uppercase tracking-wide font-medium">
                 {stat.label}
               </div>
-              <div className="text-[14px] font-semibold" style={{ color: stat.colour }}>
+              <div className="text-sm font-medium text-[#0C2340]">
                 {stat.value}
               </div>
             </div>
@@ -412,15 +412,17 @@ export default function CustomerProfileTabs({
             {isCompactOverview ? <QuickStatsCard /> : null}
 
             {!isCompactOverview && (clearanceStatus !== 'cleared_to_fly' || accountStatus === 'blocked') ? (
-              <NextActionCard
-                clearanceStatus={clearanceStatus}
-                accountStatus={accountStatus}
-                latestCheckoutBookingId={latestCheckoutBookingId}
-                historicalCheckoutAction={historicalCheckoutAction}
-              />
+              <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl">
+                <NextActionCard
+                  clearanceStatus={clearanceStatus}
+                  accountStatus={accountStatus}
+                  latestCheckoutBookingId={latestCheckoutBookingId}
+                  historicalCheckoutAction={historicalCheckoutAction}
+                />
+              </div>
             ) : null}
 
-            <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
+            <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl p-5">
               <CurrentActionSection
                 clearanceStatus={clearanceStatus}
                 accountStatus={accountStatus}
@@ -431,10 +433,10 @@ export default function CustomerProfileTabs({
               />
             </div>
 
-            <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
-              <h3 className="text-[11px] uppercase tracking-widest font-semibold text-[#4b6390] mb-3">Recent activity</h3>
+            <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl p-5">
+              <h3 className="text-xs uppercase tracking-wide font-semibold text-[#3d5a80] mb-3">Recent activity</h3>
               {timelineEvents.slice(0, 8).map((item, idx) => (
-                <div key={`${item.title}-${idx}`} className="flex gap-3 py-2 border-b border-[#152d5a]/8 last:border-b-0">
+                <div key={`${item.title}-${idx}`} className="flex gap-3 py-2 border-b border-[rgba(12,35,64,0.08)] last:border-b-0">
                   <span
                     className="w-2 h-2 rounded-full mt-1.5"
                     style={{
@@ -443,9 +445,9 @@ export default function CustomerProfileTabs({
                     }}
                   />
                   <div>
-                    <p className="text-[14px] font-medium text-[#152d5a]">{item.title}</p>
-                    <p className="text-[12px] text-[#4b6390]">{item.detail}</p>
-                    <p className="text-[11px] text-[#4b6390]/70">{shortDate(item.at)}</p>
+                    <p className="text-sm font-medium text-[#0C2340]">{item.title}</p>
+                    <p className="text-sm text-[#3d5a80]">{item.detail}</p>
+                    <p className="text-xs text-[#3d5a80]">{shortDate(item.at)}</p>
                   </div>
                 </div>
               ))}

@@ -100,8 +100,8 @@ export function TabLink({ active, href, label }: { active: boolean; href: string
       href={href}
       className={`px-3 py-2 rounded-lg text-sm border transition-colors ${
         active
-          ? 'bg-blue-500/15 border-blue-300/40 text-blue-200'
-          : 'bg-white/[0.02] border-white/10 text-slate-300 hover:text-white hover:bg-white/[0.04]'
+          ? 'bg-[#1a4a7a] border-[#1a4a7a] text-white font-medium'
+          : 'bg-white border-[rgba(12,35,64,0.18)] text-[#3d5a80] hover:text-[#0C2340] hover:bg-[#f6f9fc]'
       }`}
     >
       {label}

@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { ReactNode } from 'react'
 
 type Props = {
@@ -5,9 +6,14 @@ type Props = {
   title: string
   subtitle?: string
   actions?: ReactNode
+  breadcrumbs?: {
+    parentLabel: string
+    parentHref: string
+    currentLabel: string
+  }
 }
 
-export default function AdminPortalHero({ eyebrow, title, subtitle, actions }: Props) {
+export default function AdminPortalHero({ eyebrow, title, subtitle, actions, breadcrumbs }: Props) {
   return (
     <section className="relative overflow-hidden border-b border-[var(--admin-divider)] bg-[var(--admin-panel-bg)]">
 
@@ -29,6 +35,16 @@ export default function AdminPortalHero({ eyebrow, title, subtitle, actions }: P
       <div className="relative z-10 max-w-[1400px] mx-auto px-6 md:px-10 py-8 md:py-11 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
 
         <div>
+          {breadcrumbs ? (
+            <div className="mb-2 flex items-center gap-2 text-xs text-[#3d5a80]">
+              <Link href={breadcrumbs.parentHref} className="inline-flex items-center gap-1 hover:text-[#0C2340] transition-colors">
+                <span className="material-symbols-outlined text-[13px]">arrow_back</span>
+                <span>{breadcrumbs.parentLabel}</span>
+              </Link>
+              <span>/</span>
+              <span>{breadcrumbs.currentLabel}</span>
+            </div>
+          ) : null}
           <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[#4b6390] mb-2">
             {eyebrow}
           </p>

@@ -52,7 +52,7 @@ export default function OpenFileButton({ storagePath, fileName, asCardOverlay = 
       <button
         onClick={handleOpen}
         disabled={loading}
-        className="flex items-center gap-1 text-xs text-blue-200 hover:text-white transition-colors disabled:opacity-50"
+        className="inline-flex items-center gap-1 text-sm text-[#185FA5] underline underline-offset-2 hover:text-[#0C2340] transition-colors disabled:opacity-50"
       >
         {loading ? (
           <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>

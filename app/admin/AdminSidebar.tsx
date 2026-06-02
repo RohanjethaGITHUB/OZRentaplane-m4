@@ -263,10 +263,10 @@ export default function AdminSidebar({
                     href={group.href}
                     className={`flex-1 flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 border border-transparent
                       ${groupActive
-                        ? 'text-[#1a4fd6] font-semibold bg-[rgba(59,130,246,0.16)] border-[rgba(96,165,250,0.32)]'
+                        ? 'text-white font-semibold bg-[#1a4a7a] border-[#1a4a7a] shadow-sm'
                         : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-[#1a4fd6]/8'}`}
                   >
-                    <span className={`material-symbols-outlined text-[20px] ${groupActive ? 'text-[#1a4fd6]' : 'text-[var(--admin-text-dim)]'}`} style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>
+                    <span className={`material-symbols-outlined text-[20px] ${groupActive ? 'text-white' : 'text-[var(--admin-text-dim)]'}`} style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>
                       {group.icon}
                     </span>
                     <span className="flex-1 whitespace-nowrap">{group.title}</span>
@@ -303,7 +303,7 @@ export default function AdminSidebar({
                             href={item.href}
                             className={`flex items-center px-3 py-2 rounded-lg text-sm transition-colors duration-200
                               ${active
-                                ? 'text-[var(--admin-accent)] font-semibold bg-[rgba(59,130,246,0.08)]'
+                                ? 'text-white font-semibold bg-[#1a4a7a] shadow-sm'
                                 : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-[#1a4fd6]/5'}`}
                           >
                             <span>{item.label}</span>

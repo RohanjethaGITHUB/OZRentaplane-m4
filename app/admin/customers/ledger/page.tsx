@@ -7,28 +7,17 @@ import { AdminDataTable, AdminStatusBadge } from '@/app/admin/components/AdminLi
 import { getCustomerDerivedStatus, getCustomerDerivedStatusMeta, hasActiveCheckoutBooking } from '@/app/admin/customers/customer-status'
 
 export const metadata = { title: 'Customer Ledger | Admin' }
-const DATE_FMT = new Intl.DateTimeFormat('en-AU', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  timeZone: 'Australia/Sydney',
-})
-
 export default async function CustomerCreditsPage({ searchParams }: { searchParams: { customerId?: string; q?: string } }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: customers }, { data: balances }, { data: ledgerDates }, { data: checkoutBookings }] = await Promise.all([
+  const [{ data: customers }, { data: balances }, { data: checkoutBookings }] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, full_name, email, account_status, pilot_clearance_status')
       .eq('role', 'customer'),
     supabase.from('customer_credit_balances').select('customer_id, balance_cents'),
-    supabase
-      .from('customer_payment_ledger')
-      .select('customer_id, created_at')
-      .order('created_at', { ascending: false }),
     supabase.from('bookings').select('booking_owner_user_id, status, checkout_lifecycle_status').eq('booking_type', 'checkout').not('booking_owner_user_id', 'is', null),
   ])
   const usersWithCheckoutRequests = new Set(
@@ -38,11 +27,6 @@ export default async function CustomerCreditsPage({ searchParams }: { searchPara
       .filter(Boolean),
   )
   const balanceMap = new Map((balances ?? []).map((b) => [b.customer_id, b.balance_cents]))
-  const lastLedgerMap = new Map<string, string>()
-  for (const item of ledgerDates ?? []) {
-    if (!item.customer_id) continue
-    if (!lastLedgerMap.has(item.customer_id)) lastLedgerMap.set(item.customer_id, item.created_at)
-  }
   const rows = (customers ?? []).map((c) => {
     const status = getCustomerDerivedStatus({
       accountStatus: c.account_status,
@@ -54,7 +38,6 @@ export default async function CustomerCreditsPage({ searchParams }: { searchPara
       name: c.full_name || 'Unnamed customer',
       email: c.email || 'No email',
       balanceCents: balanceMap.get(c.id) ?? 0,
-      lastActivityAt: lastLedgerMap.get(c.id) ?? null,
       status,
     }
   })
@@ -72,19 +55,19 @@ export default async function CustomerCreditsPage({ searchParams }: { searchPara
       />
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24 space-y-8">
         <section className="space-y-4">
-          <form className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-panel-bg)] p-4">
+          <form className="rounded-2xl border border-[rgba(12,35,64,0.15)] bg-white p-4">
             <input
               type="search"
               name="q"
               defaultValue={searchParams.q ?? ''}
               placeholder="Search customers..."
-              className="w-full md:w-[360px] rounded-lg border border-white/10 bg-[#0f1625] px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-400/60"
+              className="w-full md:w-[360px] rounded-lg border border-[rgba(12,35,64,0.18)] bg-white px-3.5 py-2.5 text-sm text-[#0C2340] placeholder:text-[#3d5a80] focus:outline-none focus:ring-1 focus:ring-[#1a4a7a]/40"
             />
           </form>
-          <AdminDataTable columns={['Customer', 'Balance', 'Status', 'Last activity']}>
+          <AdminDataTable columns={['Customer', 'Balance', 'Status']}>
             {filteredRows.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-5 py-12 text-center text-[var(--admin-text-muted)]">
+                <td colSpan={3} className="px-5 py-12 text-center text-[var(--admin-text-muted)]">
                   {q ? 'No customers match your search.' : 'No customer ledger records found.'}
                 </td>
               </tr>
@@ -112,11 +95,6 @@ export default async function CustomerCreditsPage({ searchParams }: { searchPara
                     </td>
                     <td className="px-5 py-[16px]">
                       <Link href={`/admin/customers/ledger?customerId=${r.id}`} className="block"><AdminStatusBadge label={status.label} tone={status.tone} /></Link>
-                    </td>
-                    <td className="px-5 py-[16px] text-[14px] text-[var(--admin-text)]">
-                      <Link href={`/admin/customers/ledger?customerId=${r.id}`} className="block">
-                        {r.lastActivityAt ? DATE_FMT.format(new Date(r.lastActivityAt)) : 'No activity'}
-                      </Link>
                     </td>
                   </tr>
                 )
