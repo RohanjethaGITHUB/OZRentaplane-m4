@@ -80,8 +80,8 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
     setForgotEmail(siEmail.trim())
   }
 
-  async function handleForgotPasswordSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+  async function handleForgotPasswordSubmit(e?: React.FormEvent<HTMLFormElement>) {
+    e?.preventDefault()
     setForgotError('')
     setForgotSuccess('')
 
@@ -92,13 +92,14 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
     }
 
     setForgotLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/update-password`,
     })
     setForgotLoading(false)
+    console.log('resetPasswordForEmail response', { data, error })
 
     if (error) {
-      setForgotError(error.message)
+      setForgotError(error.message || 'Unable to send the password reset email.')
       return
     }
 
@@ -249,7 +250,7 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                             </p>
                           </div>
 
-                          <form className="space-y-4" onSubmit={handleForgotPasswordSubmit}>
+                          <div className="space-y-4">
                             <label className="block">
                               <span className={FIELD_LABEL_CLASS}>Email Address</span>
                               <input
@@ -268,7 +269,8 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
 
                             <div className="flex items-center justify-between gap-3">
                               <button
-                                type="submit"
+                                type="button"
+                                onClick={() => void handleForgotPasswordSubmit()}
                                 disabled={forgotLoading}
                                 className="bg-white text-oz-deep px-5 py-3 rounded-full font-sans text-[10px] uppercase tracking-[0.15em] font-bold hover:bg-white/95 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               >
@@ -282,7 +284,7 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                                 Back to sign in
                               </button>
                             </div>
-                          </form>
+                          </div>
                         </div>
                       ) : null}
 
