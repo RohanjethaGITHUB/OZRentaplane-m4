@@ -8,6 +8,23 @@ import {
   buildSubmittedEmail,
 } from '@/lib/email'
 
+// ─── Admin guard ──────────────────────────────────────────────────────────────
+
+async function requireAdmin() {
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) throw new Error('Unauthorized')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile || profile.role !== 'admin') throw new Error('Forbidden')
+  return { supabase, adminId: user.id }
+}
+
 // ─── Submit for review ────────────────────────────────────────────────────────
 // Called when customer submits or resubmits their documents.
 // For on_hold clarification requests the doc check is relaxed — the customer
@@ -154,6 +171,69 @@ export async function sendCustomerReply(message: string): Promise<void> {
 
   revalidatePath('/dashboard')
   revalidatePath(`/admin/users/${user.id}`)
+}
+
+// ─── Admin document review ────────────────────────────────────────────────────
+
+export async function updateDocumentStatus(input: {
+  documentId: string
+  userId: string
+  status: 'approved' | 'rejected'
+  reviewNotes?: string
+}): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    const { supabase, adminId } = await requireAdmin()
+    const now = new Date().toISOString()
+    const reviewNotes = input.reviewNotes?.trim() || null
+
+    const { error: updateError } = await supabase
+      .from('user_documents')
+      .update({
+        status: input.status,
+        review_notes: reviewNotes,
+        reviewed_at: now,
+      })
+      .eq('id', input.documentId)
+      .eq('user_id', input.userId)
+
+    if (updateError) {
+      console.error('[updateDocumentStatus] Document update failed:', updateError)
+      return { success: false, error: 'Failed to update document status.' }
+    }
+
+    if (input.status === 'rejected') {
+      const { error: eventError } = await supabase.from('verification_events').insert({
+        user_id: input.userId,
+        actor_user_id: adminId,
+        actor_role: 'admin',
+        event_type: 'rejected',
+        from_status: 'pending_review',
+        to_status: 'rejected',
+        title: 'Document Rejected',
+        body: reviewNotes
+          ? `One of your verification documents was rejected. Notes from the admin: ${reviewNotes}`
+          : 'One of your verification documents was rejected. Please review the requirements and upload a replacement document if needed.',
+        email_status: 'skipped',
+      })
+
+      if (eventError) {
+        console.error('[updateDocumentStatus] Rejection event insert failed:', eventError)
+        return { success: false, error: 'Document was updated, but the rejection event could not be saved.' }
+      }
+    }
+
+    revalidatePath(`/admin/users/${input.userId}`)
+    revalidatePath('/admin/pending-verifications')
+    revalidatePath('/admin/rejected-users')
+    revalidatePath('/admin/customers/all')
+
+    return { success: true }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unexpected error updating document status.'
+    if (message === 'Unauthorized') return { success: false, error: 'You must be signed in to perform this action.' }
+    if (message === 'Forbidden') return { success: false, error: 'Only admins can review documents.' }
+    return { success: false, error: message }
+  }
 }
 
 // ─── Mark customer messages as read ──────────────────────────────────────────
