@@ -1120,6 +1120,7 @@ export async function markCheckoutOutcome(input: {
   // Waiver path (non-cleared outcomes only)
   paymentWaived?:       boolean
   waiverReason?:        string
+  suppressPaymentRequestEmail?: boolean
 }): Promise<void> {
   const { supabase, adminId } = await requireAdmin()
 
@@ -1450,15 +1451,21 @@ export async function markCheckoutOutcome(input: {
       )
     }
 
-    await sendEmail({
-      to: profileForEmail.email,
-      subject: template.subject,
-      html: template.html,
-      eventType: emailEventType,
-      entityType: 'checkout',
-      entityId: input.bookingId,
-      metadata: { outcome: input.outcome, finalBookingStatus, finalClearanceStatus },
-    }).catch((error) => console.error('[markCheckoutOutcome] email failed:', error))
+    const skipPaymentRequestEmail =
+      input.suppressPaymentRequestEmail === true &&
+      emailEventType === 'checkout_payment_required'
+
+    if (!skipPaymentRequestEmail) {
+      await sendEmail({
+        to: profileForEmail.email,
+        subject: template.subject,
+        html: template.html,
+        eventType: emailEventType,
+        entityType: 'checkout',
+        entityId: input.bookingId,
+        metadata: { outcome: input.outcome, finalBookingStatus, finalClearanceStatus },
+      }).catch((error) => console.error('[markCheckoutOutcome] email failed:', error))
+    }
   }
 
   revalidatePath('/admin')

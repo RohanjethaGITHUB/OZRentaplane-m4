@@ -12,6 +12,15 @@ import {
 import { sendEmail } from "@/lib/email/send-email";
 import { paymentConfirmedEmail } from "@/lib/email/templates/payment";
 
+type ManualPaymentMethod = "cash" | "card_in_person" | "bank_transfer";
+
+type RecordManualPaymentInput = {
+  bookingId: string;
+  paymentMethod: ManualPaymentMethod;
+  amountCents: number;
+  note?: string;
+};
+
 export async function createCheckoutPaymentSession(bookingId: string) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
     apiVersion: "2023-10-16" as any,
@@ -526,5 +535,216 @@ export async function adminRejectBankTransfer(submissionId: string, bookingId: s
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/requests/${bookingId}`);
   revalidatePath(`/dashboard/bookings/${bookingId}`);
+  return { success: true };
+}
+
+async function requireAdmin() {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error("Unauthorized");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role !== "admin") throw new Error("Forbidden");
+  return { supabase, adminId: user.id };
+}
+
+export async function recordManualPayment(input: RecordManualPaymentInput) {
+  const { supabase, adminId } = await requireAdmin();
+
+  if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
+    throw new Error("Amount must be a positive whole number of cents.");
+  }
+
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("id, booking_type, booking_owner_user_id")
+    .eq("id", input.bookingId)
+    .single();
+
+  if (!booking) throw new Error("Booking not found.");
+
+  const manualRef = `manual-${input.paymentMethod}-${input.bookingId}-${Date.now()}`;
+  const trimmedNote = input.note?.trim() || null;
+  const methodLabel =
+    input.paymentMethod === "cash"
+      ? "cash"
+      : input.paymentMethod === "card_in_person"
+      ? "card (in person)"
+      : "bank transfer";
+
+  if (booking.booking_type === "checkout") {
+    const { data: invoice } = await supabase
+      .from("checkout_invoices")
+      .select("id, checkout_outcome")
+      .eq("booking_id", input.bookingId)
+      .eq("invoice_type", "checkout")
+      .single();
+
+    if (!invoice) throw new Error("Checkout invoice not found.");
+
+    const { error: ledgerError } = await supabase
+      .from("customer_payment_ledger")
+      .insert({
+        customer_id: booking.booking_owner_user_id,
+        booking_id: input.bookingId,
+        invoice_id: invoice.id,
+        amount_cents: input.amountCents,
+        currency: "aud",
+        entry_type: input.paymentMethod === "bank_transfer" ? "bank_transfer" : "manual_adjustment",
+        payment_method: input.paymentMethod,
+        note: trimmedNote ?? `Manual payment recorded by admin (${methodLabel}).`,
+        stripe_payment_intent_id: manualRef,
+        stripe_checkout_session_id: manualRef,
+        created_by: adminId,
+      });
+
+    if (ledgerError) throw new Error(ledgerError.message || "Failed to record payment ledger entry.");
+
+    const { error: rpcErr } = await supabase.rpc("mark_checkout_invoice_paid_atomic", {
+      p_invoice_id: invoice.id,
+      p_stripe_payment_intent_id: manualRef,
+      p_stripe_checkout_session_id: manualRef,
+      p_amount_paid_cents: input.amountCents,
+    });
+
+    if (rpcErr) throw new Error(rpcErr.message || "Failed to settle checkout invoice.");
+
+    await supabase
+      .from("booking_status_history")
+      .insert({
+        booking_id: input.bookingId,
+        old_status: "checkout_payment_required",
+        new_status: "completed",
+        note: "Checkout invoice paid via manual admin record.",
+        changed_by_user_id: adminId,
+      });
+
+    let notifTitle = "Checkout payment received";
+    let notifBody = "Your checkout invoice has been paid.";
+    const checkoutOutcome = invoice.checkout_outcome as string | null;
+    if (checkoutOutcome === "cleared_to_fly") {
+      notifTitle = "Checkout payment received — you're cleared to fly";
+      notifBody = "Your checkout invoice has been paid. Aircraft bookings are now available.";
+    } else if (checkoutOutcome === "additional_checkout_required") {
+      notifTitle = "Checkout invoice paid — additional checkout required";
+      notifBody = "Your checkout invoice has been paid. An additional checkout session is required before you can be cleared to fly. You can now book another checkout flight.";
+    } else if (checkoutOutcome === "checkout_reschedule_required") {
+      notifTitle = "Checkout invoice paid — reschedule required";
+      notifBody = "Your checkout invoice has been paid. You can now book another checkout session when you are ready.";
+    } else if (checkoutOutcome === "not_currently_eligible") {
+      notifTitle = "Checkout invoice paid";
+      notifBody = "Your checkout invoice has been paid. Based on your assessment, further training with a qualified instructor is required before you can continue with aircraft hire.";
+    }
+
+    await supabase.from("verification_events").insert({
+      user_id: booking.booking_owner_user_id,
+      actor_role: "system",
+      event_type: "approved",
+      title: notifTitle,
+      body: notifBody,
+      is_read: false,
+      email_status: "skipped",
+    });
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", booking.booking_owner_user_id)
+      .single();
+    if (profile?.email) {
+      const template = paymentConfirmedEmail(notifBody);
+      await sendEmail({
+        to: profile.email,
+        subject: template.subject,
+        html: template.html,
+        eventType: "payment_confirmed",
+        entityType: "checkout",
+        entityId: input.bookingId,
+        metadata: { checkoutOutcome: checkoutOutcome ?? null, paymentMethod: input.paymentMethod },
+      });
+    }
+  } else {
+    const { data: invoice } = await supabase
+      .from("booking_invoices")
+      .select("id")
+      .eq("booking_id", input.bookingId)
+      .single();
+
+    if (!invoice) throw new Error("Booking invoice not found.");
+
+    const { error: ledgerError } = await supabase
+      .from("customer_payment_ledger")
+      .insert({
+        customer_id: booking.booking_owner_user_id,
+        booking_id: input.bookingId,
+        invoice_id: invoice.id,
+        amount_cents: input.amountCents,
+        currency: "aud",
+        entry_type: input.paymentMethod === "bank_transfer" ? "bank_transfer" : "manual_adjustment",
+        payment_method: input.paymentMethod,
+        note: trimmedNote ?? `Manual payment recorded by admin (${methodLabel}).`,
+        stripe_payment_intent_id: manualRef,
+        stripe_checkout_session_id: manualRef,
+        created_by: adminId,
+      });
+
+    if (ledgerError) throw new Error(ledgerError.message || "Failed to record payment ledger entry.");
+
+    const { error: rpcErr } = await supabase.rpc("mark_booking_invoice_paid_atomic", {
+      p_invoice_id: invoice.id,
+      p_stripe_payment_intent_id: manualRef,
+      p_stripe_checkout_session_id: manualRef,
+      p_amount_paid_cents: input.amountCents,
+    });
+
+    if (rpcErr) throw new Error(rpcErr.message || "Failed to settle booking invoice.");
+
+    await supabase
+      .from("booking_status_history")
+      .insert({
+        booking_id: input.bookingId,
+        old_status: "payment_pending",
+        new_status: "completed",
+        note: "Flight invoice paid via manual admin record. Booking completed.",
+        changed_by_user_id: adminId,
+      });
+
+    await supabase.from("verification_events").insert({
+      user_id: booking.booking_owner_user_id,
+      actor_role: "system",
+      event_type: "approved",
+      title: "Flight payment received — booking complete",
+      body: "Your flight payment has been received. Your booking is now complete.",
+      is_read: false,
+      email_status: "skipped",
+    });
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", booking.booking_owner_user_id)
+      .single();
+    if (profile?.email) {
+      const template = paymentConfirmedEmail("Payment has been received and recorded for your flight.");
+      await sendEmail({
+        to: profile.email,
+        subject: template.subject,
+        html: template.html,
+        eventType: "post_flight_payment_received",
+        entityType: "booking",
+        entityId: input.bookingId,
+        metadata: { paymentMethod: input.paymentMethod },
+      });
+    }
+  }
+
+  revalidatePath("/admin/bookings");
+  revalidatePath(`/admin/bookings/requests/${input.bookingId}`);
+  revalidatePath(`/dashboard/bookings/${input.bookingId}`);
   return { success: true };
 }

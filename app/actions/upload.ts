@@ -6,6 +6,19 @@ import type { DocumentType } from '@/lib/supabase/types'
 const MAX_SIZE      = 10 * 1024 * 1024
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
 
+function getHumanReadableDocumentType(docType: DocumentType): string {
+  switch (docType) {
+    case 'pilot_licence':
+      return 'Pilot Licence'
+    case 'medical_certificate':
+      return 'Medical Certificate'
+    case 'photo_id':
+      return 'Photo ID'
+    case 'night_vfr_evidence':
+      return 'Night VFR Evidence'
+  }
+}
+
 export async function uploadVerificationDocument(formData: FormData) {
   const file       = formData.get('file')    as File   | null
   const docType    = formData.get('docType') as DocumentType | null
@@ -103,6 +116,40 @@ export async function uploadVerificationDocument(formData: FormData) {
   if (dbError) {
     console.error('[uploadVerificationDocument] DB error:', dbError)
     throw new Error('Failed to save document metadata. Please try again.')
+  }
+
+  const { data: previousRejectedDoc, error: previousRejectedError } = await supabase
+    .from('user_documents')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('document_type', docType)
+    .eq('status', 'rejected')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (previousRejectedError) {
+    console.error('[uploadVerificationDocument] Previous rejected doc lookup failed:', previousRejectedError)
+  }
+
+  const documentLabel = getHumanReadableDocumentType(docType)
+  const isReupload = Boolean(previousRejectedDoc)
+
+  const { error: notificationError } = await supabase.from('verification_events').insert({
+    user_id:         user.id,
+    actor_user_id:   user.id,
+    actor_role:      'customer',
+    event_type:      'document_uploaded',
+    title:           `${documentLabel} uploaded — awaiting review`,
+    body:            isReupload
+      ? `Customer has re-uploaded their ${documentLabel} after rejection. Please review and approve or reject.`
+      : `Customer has uploaded their ${documentLabel}. Please review and approve or reject.`,
+    is_read:         false,
+    email_status:    'pending',
+  })
+
+  if (notificationError) {
+    console.error('[uploadVerificationDocument] verification_events insert failed:', notificationError)
   }
 
   // When a pilot licence is uploaded, sync ARN and ratings to the customer's profile.

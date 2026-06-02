@@ -28,6 +28,7 @@ type BadgeKey =
   | 'postFlightReview'
   | 'bookingPayments'
   | 'bookingCancellations'
+  | 'bookingOnHold'
   | 'messagesUnread'
 
 const NAV_GROUPS: NavGroupType[] = [
@@ -58,6 +59,7 @@ const NAV_GROUPS: NavGroupType[] = [
       { label: 'Overview', href: '/admin/bookings' },
       { label: 'Upcoming Flights', href: '/admin/bookings/upcoming-flights' },
       { label: 'Awaiting Flight Records', href: '/admin/bookings/awaiting-flight-records', badgeKey: 'awaitingFlightRecord' },
+      { label: 'On Hold', href: '/admin/bookings/on-hold', badgeKey: 'bookingOnHold' },
       { label: 'Post-flight Review', href: '/admin/bookings/post-flight-review', badgeKey: 'postFlightReview' },
       { label: 'Payments', href: '/admin/bookings/payments', badgeKey: 'bookingPayments' },
       { label: 'Cancellations', href: '/admin/bookings/cancellations', badgeKey: 'bookingCancellations' },
@@ -141,12 +143,13 @@ export default function AdminSidebar({
     const checkoutCancelled = actionCounts.checkoutCancelled ?? 0
 
     const awaitingFlightRecord = actionCounts.awaitingFlightRecord ?? 0
+    const bookingOnHold = actionCounts.bookingOnHold ?? 0
     const postFlightReview = actionCounts.postFlightReview ?? 0
     const bookingPayments = actionCounts.bookingPayments ?? 0
     const bookingCancellations = actionCounts.bookingCancellations ?? 0
 
     const checkouts = checkoutNewRequests + checkoutAwaitingOutcome + checkoutPayments + checkoutReschedule + checkoutCancelled
-    const bookings = awaitingFlightRecord + postFlightReview + bookingPayments + bookingCancellations
+    const bookings = awaitingFlightRecord + bookingOnHold + postFlightReview + bookingPayments + bookingCancellations
     const messagesUnread = unreadMessageCount
     const actions = checkouts + bookings + messagesUnread
 
@@ -157,6 +160,7 @@ export default function AdminSidebar({
       checkoutReschedule,
       checkoutCancelled,
       awaitingFlightRecord,
+      bookingOnHold,
       postFlightReview,
       bookingPayments,
       bookingCancellations,
@@ -229,7 +233,7 @@ export default function AdminSidebar({
 
       <aside className={`
         fixed left-0 top-[64px] lg:top-0 lg:absolute h-[calc(100vh-64px)] lg:h-full w-72
-        border-r border-[var(--admin-border)] bg-[var(--admin-sidebar-bg)]/95 lg:bg-[var(--admin-sidebar-bg)]/88 backdrop-blur-xl z-[70] lg:z-10
+        border-r border-[var(--admin-border)] bg-[#e8f2fb] lg:bg-[#e8f2fb] backdrop-blur-xl z-[70] lg:z-10
         flex flex-col py-6 transition-transform duration-300 ease-in-out
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
@@ -259,10 +263,10 @@ export default function AdminSidebar({
                     href={group.href}
                     className={`flex-1 flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 border border-transparent
                       ${groupActive
-                        ? 'text-[#dbeafe] font-semibold bg-[rgba(59,130,246,0.16)] border-[rgba(96,165,250,0.32)]'
-                        : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-white/5'}`}
+                        ? 'text-[#1a4fd6] font-semibold bg-[rgba(59,130,246,0.16)] border-[rgba(96,165,250,0.32)]'
+                        : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-[#1a4fd6]/8'}`}
                   >
-                    <span className={`material-symbols-outlined text-[20px] ${groupActive ? 'text-[#93c5fd]' : 'text-[var(--admin-text-dim)]'}`} style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>
+                    <span className={`material-symbols-outlined text-[20px] ${groupActive ? 'text-[#1a4fd6]' : 'text-[var(--admin-text-dim)]'}`} style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>
                       {group.icon}
                     </span>
                     <span className="flex-1 whitespace-nowrap">{group.title}</span>
@@ -300,7 +304,7 @@ export default function AdminSidebar({
                             className={`flex items-center px-3 py-2 rounded-lg text-sm transition-colors duration-200
                               ${active
                                 ? 'text-[var(--admin-accent)] font-semibold bg-[rgba(59,130,246,0.08)]'
-                                : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-white/[0.02]'}`}
+                                : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-[#1a4fd6]/5'}`}
                           >
                             <span>{item.label}</span>
                             {itemCount > 0 && (
@@ -320,8 +324,8 @@ export default function AdminSidebar({
           })}
         </nav>
 
-        <div className="mt-auto px-4 pt-4 border-t border-[var(--admin-divider)] shrink-0 block bg-slate-950/50 lg:bg-transparent">
-          <div className="px-4 py-3 flex items-center justify-between bg-white/[0.03] border border-[var(--admin-border)] rounded-[16px] hover:bg-white/[0.05] transition-colors">
+        <div className="mt-auto px-4 pt-4 border-t border-[#152d5a]/15 shrink-0 block bg-[#e8f2fb] lg:bg-[#e8f2fb]">
+          <div className="px-4 py-3 flex items-center justify-between bg-[#e8f2fb] border border-[var(--admin-border)] rounded-[16px] transition-colors">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-full bg-[#1a2333] border border-[var(--admin-border)] flex items-center justify-center flex-shrink-0 shadow-inner">
                 <span className="text-[11px] font-bold text-[var(--admin-text)]">{initials}</span>

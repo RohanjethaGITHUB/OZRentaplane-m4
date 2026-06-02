@@ -35,7 +35,7 @@ type Props = {
   redirectAfterSuccess?: string
 }
 
-const LANDING_FEE_CENTS = 2500
+const LANDING_FEE_CENTS = 2895
 let rowIdCounter = 0
 
 function getInitialAirportId(airports: Airport[]) {

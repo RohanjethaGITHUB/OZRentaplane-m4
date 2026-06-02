@@ -23,16 +23,7 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
   return (
     <>
       <Navbar initialUser={user} hideCustomerCheckoutLink={isClearedToFly} />
-      <div
-        className="relative min-h-screen pt-[84px] text-[#e5edf8]"
-        style={{
-          backgroundColor: '#020b16',
-          backgroundImage: "url('/CustomerDashboard/dashboard-main-bg.png')",
-          backgroundSize: 'cover',
-          backgroundPosition: 'center bottom',
-          backgroundRepeat: 'no-repeat',
-        }}
-      >
+      <div className="relative min-h-screen bg-open-ceiling pt-[84px] text-deep-ink">
         <CustomerDashboardBackgroundOverlay />
 
         <div className="relative z-40 hidden md:flex sticky top-[84px] -mt-px justify-center bg-transparent px-4 pb-0 pt-0 md:px-8">

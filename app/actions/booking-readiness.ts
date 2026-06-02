@@ -19,6 +19,9 @@ export async function acceptCurrentBookingTermsFromReadiness() {
 
   if (!profile || profile.role !== 'customer') return { ok: false, error: 'Only customer accounts can accept booking terms.' as const }
 
+  const rejectedGate = await getRejectedDocumentGateMessage(supabase, user.id)
+  if (rejectedGate) return { ok: false, error: rejectedGate }
+
   let activeTerms: ReturnType<typeof normalizeActiveCheckoutTerms> = null
   const primary = await supabase
     .from('terms_documents')
@@ -112,6 +115,9 @@ export async function saveNightVfrRatingFromReadiness(input: { hasNightVfrRating
 
   if (!profile || profile.role !== 'customer') throw new Error('Forbidden')
 
+  const rejectedGate = await getRejectedDocumentGateMessage(supabase, user.id)
+  if (rejectedGate) throw new Error(rejectedGate)
+
   const { error } = await supabase
     .from('profiles')
     .update({ has_night_vfr_rating: input.hasNightVfrRating })
@@ -122,4 +128,21 @@ export async function saveNightVfrRatingFromReadiness(input: { hasNightVfrRating
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/documents')
   revalidatePath('/dashboard/bookings/new')
+}
+
+async function getRejectedDocumentGateMessage(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<string | null> {
+  const { data: rejectedDocs, error } = await supabase
+    .from('user_documents')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('status', 'rejected')
+    .limit(1)
+
+  if (error) return null
+  if ((rejectedDocs ?? []).length === 0) return null
+
+  return 'One or more of your documents has been rejected. Please upload corrected documents and wait for admin approval before booking.'
 }

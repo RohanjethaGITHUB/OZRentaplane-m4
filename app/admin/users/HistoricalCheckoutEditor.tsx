@@ -167,7 +167,7 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
   }, [props.aircraftOptions])
 
   const SELECT_CLASS =
-    'w-full appearance-none rounded-lg border border-white/15 bg-[#0b1220] px-3 py-2 pr-9 text-white shadow-inner outline-none transition focus:border-oz-blue/50 focus:ring-1 focus:ring-oz-blue/40'
+    'w-full appearance-none rounded-lg border border-[#152d5a]/15 bg-white px-3 py-2 pr-9 text-[#152d5a] shadow-inner outline-none transition focus:border-oz-blue/50 focus:ring-1 focus:ring-oz-blue/40'
 
   useEffect(() => {
     if (logMode !== 'create_new') return
@@ -325,7 +325,7 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
       type="button"
       onClick={() => setOpen(true)}
       disabled={disableAction}
-      className="rounded-xl border border-blue-400/25 bg-blue-500/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-blue-200 transition-colors hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+      className="rounded-xl border border-blue-400/25 bg-blue-500/10 px-4 py-2 text-[13px] font-bold uppercase tracking-widest text-[#1a4fd6] transition-colors hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
     >
       Mark Checkout Completed
     </button>
@@ -334,16 +334,16 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
   return (
     <div className="space-y-4">
       {renderMode === 'card' ? (
-        <div className="rounded-xl border border-white/10 bg-[#1e2023]/60 p-4">
+        <div className="rounded-xl border border-[#152d5a]/10 bg-white p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Historical Checkout</p>
-              <p className="mt-1 text-sm text-slate-300">Record checkout completion without creating invoices, payments, or calendar bookings.</p>
+              <p className="text-[13px] font-semibold uppercase tracking-widest text-[#4b6390]">Historical Checkout</p>
+              <p className="mt-1 text-[14px] text-[#4b6390]">Record checkout completion without creating invoices, payments, or calendar bookings.</p>
             </div>
             {SHOW_ADMIN_DIRECT_CHECKOUT_COMPLETE_ACTION && actionButton}
           </div>
           {SHOW_ADMIN_DIRECT_CHECKOUT_COMPLETE_ACTION && disableAction ? (
-            <p className="mt-2 text-xs text-amber-300/90">
+            <p className="mt-2 text-[13px] text-amber-300/90">
               {props.historicalRecord ? 'A historical checkout record already exists for this customer.' : 'Customer is already cleared to fly.'}
             </p>
           ) : null}
@@ -351,8 +351,8 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
       ) : renderMode === 'button_only' && SHOW_ADMIN_DIRECT_CHECKOUT_COMPLETE_ACTION ? actionButton : null}
 
       {props.historicalRecord ? (
-        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm text-emerald-100">
-          <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Pre-portal checkout completed</p>
+        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-[14px] text-emerald-100">
+          <p className="text-[13px] font-bold uppercase tracking-widest text-emerald-300">Pre-portal checkout completed</p>
           <p className="mt-2">Date: {props.historicalRecord.checkoutDate}</p>
           <p>Outcome: {prettyOutcome(props.historicalRecord.checkoutOutcome)}</p>
           <p>Recorded by: {props.historicalRecord.recordedByName || 'Admin'}{props.historicalRecord.recordedByEmail ? ` (${props.historicalRecord.recordedByEmail})` : ''}</p>
@@ -362,14 +362,14 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
       ) : null}
 
       {open ? (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-white/10 bg-[#111827] p-6">
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-[#152d5a]/25 px-4">
+          <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-[#152d5a]/10 bg-white p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-xl font-semibold text-white">Mark Checkout Completed</h3>
-                <p className="mt-2 text-sm text-slate-300">This records a checkout that was completed before or outside the portal. No invoice, payment ledger, or schedule block will be created.</p>
+                <h3 className="text-xl font-semibold text-[#152d5a]">Mark Checkout Completed</h3>
+                <p className="mt-2 text-[14px] text-[#4b6390]">This records a checkout that was completed before or outside the portal. No invoice, payment ledger, or schedule block will be created.</p>
               </div>
-              <button type="button" onClick={() => setOpen(false)} className="rounded-lg border border-white/15 p-2 text-slate-300 hover:bg-white/10 hover:text-white" aria-label="Close dialog">
+              <button type="button" onClick={() => setOpen(false)} className="rounded-lg border border-[#152d5a]/15 p-2 text-[#4b6390] hover:bg-white/10 hover:text-[#152d5a]" aria-label="Close dialog">
                 <span className="material-symbols-outlined text-[18px]">close</span>
               </button>
             </div>
@@ -377,7 +377,7 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
             <form onSubmit={onSubmit} className="mt-5 space-y-5">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1">
-                  <span className="text-sm text-slate-300">Checkout completion date</span>
+                  <span className="text-[14px] text-[#4b6390]">Checkout completion date</span>
                   <CalendarDateField
                     value={checkoutDate}
                     onChange={setCheckoutDate}
@@ -385,10 +385,10 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
                     maxYear={new Date().getFullYear()}
                     maxDate={new Date().toISOString().slice(0, 10)}
                     required
-                    className="w-full bg-[#0b1220] border border-white/15 focus:border-oz-blue/50 focus:outline-none text-sm text-white rounded-lg px-3 py-2 text-left flex items-center justify-between"
+                    className="w-full bg-white border border-[#152d5a]/15 focus:border-oz-blue/50 focus:outline-none text-[14px] text-[#152d5a] rounded-lg px-3 py-2 text-left flex items-center justify-between"
                   />
                 </div>
-                <label className="space-y-1 text-sm text-slate-300">
+                <label className="space-y-1 text-[14px] text-[#4b6390]">
                   <span>Checkout outcome</span>
                   <div className="relative">
                     <select value={checkoutOutcome} onChange={(e) => setCheckoutOutcome(e.target.value as Outcome)} className={SELECT_CLASS}>
@@ -396,27 +396,27 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
                       <option value="additional_checkout_required">Additional checkout required</option>
                       <option value="not_currently_eligible">Not currently eligible</option>
                     </select>
-                    <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 material-symbols-outlined text-[18px]">expand_more</span>
+                    <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#4b6390] material-symbols-outlined text-[18px]">expand_more</span>
                   </div>
                 </label>
               </div>
 
-              <label className="block space-y-1 text-sm text-slate-300">
+              <label className="block space-y-1 text-[14px] text-[#4b6390]">
                 <span>Admin notes</span>
-                <textarea value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} rows={3} className="w-full rounded-lg border border-white/15 bg-[#0b1220] px-3 py-2 text-white" placeholder="Optional context about historical completion." />
+                <textarea value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} rows={3} className="w-full rounded-lg border border-[#152d5a]/15 bg-white px-3 py-2 text-[#152d5a]" placeholder="Optional context about historical completion." />
               </label>
 
               {props.hasActiveCheckoutRequest ? (
-                <label className="flex items-start gap-2 rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+                <label className="flex items-start gap-2 rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-[14px] text-amber-100">
                   <input type="checkbox" checked={acknowledgeActiveCheckout} onChange={(e) => setAcknowledgeActiveCheckout(e.target.checked)} className="mt-0.5" />
                   <span>Customer already has an active checkout request. Confirm you still want to record historical completion.</span>
                 </label>
               ) : null}
 
-              <div className="space-y-3 rounded-xl border border-white/10 p-4">
-                <p className="text-base font-semibold text-slate-100">Aircraft log handling</p>
-                <p className="text-sm text-slate-400">Choose whether to link this checkout to an aircraft flight log.</p>
-                <div className="space-y-2 text-sm text-slate-300">
+              <div className="space-y-3 rounded-xl border border-[#152d5a]/10 p-4">
+                <p className="text-[15px] font-semibold text-[#152d5a]">Aircraft log handling</p>
+                <p className="text-[14px] text-[#4b6390]">Choose whether to link this checkout to an aircraft flight log.</p>
+                <div className="space-y-2 text-[14px] text-[#4b6390]">
                   <label className="flex items-center gap-2"><input type="radio" name="logMode" checked={logMode === 'none'} onChange={() => setLogMode('none')} /> No aircraft log link</label>
                   <label className="flex items-center gap-2"><input type="radio" name="logMode" checked={logMode === 'link_existing'} onChange={() => setLogMode('link_existing')} /> Link existing aircraft flight log</label>
                   <label className="flex items-center gap-2"><input type="radio" name="logMode" checked={logMode === 'create_new'} onChange={() => setLogMode('create_new')} /> Create new aircraft flight log</label>
@@ -426,7 +426,7 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
               {logMode === 'link_existing' ? (
                 <div className="space-y-3">
                   <div className="space-y-1">
-                    <label className="text-sm text-slate-300">Existing flight log</label>
+                    <label className="text-[14px] text-[#4b6390]">Existing flight log</label>
                     <div className="relative">
                       <select value={linkedFlightLogId} onChange={(e) => setLinkedFlightLogId(e.target.value)} required className={SELECT_CLASS}>
                         <option value="">Select flight log...</option>
@@ -434,13 +434,13 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
                           <option key={log.id} value={log.id}>{log.flightDate} · {log.aircraftRegistration} · {log.picName}</option>
                         ))}
                       </select>
-                      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 material-symbols-outlined text-[18px]">expand_more</span>
+                      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#4b6390] material-symbols-outlined text-[18px]">expand_more</span>
                     </div>
                   </div>
                   {selectedLog ? (
-                    <div className="rounded-xl border border-white/10 bg-[#0b1220] p-4">
-                      <p className="text-sm font-semibold text-slate-100">Selected log preview</p>
-                      <div className="mt-2 grid gap-2 text-sm text-slate-300 md:grid-cols-2">
+                    <div className="rounded-xl border border-[#152d5a]/10 bg-white p-4">
+                      <p className="text-[14px] font-semibold text-[#152d5a]">Selected log preview</p>
+                      <div className="mt-2 grid gap-2 text-[14px] text-[#4b6390] md:grid-cols-2">
                         <p>Aircraft: {selectedLog.aircraftRegistration} {selectedLog.aircraftDisplayName ? `(${selectedLog.aircraftDisplayName})` : ''}</p>
                         <p>Date: {selectedLog.flightDate}</p>
                         <p>PIC name: {prettyValue(selectedLog.picName)}</p>
@@ -460,34 +460,34 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
               ) : null}
 
               {logMode === 'create_new' ? (
-                <div className="space-y-4 rounded-xl border border-white/10 p-4">
+                <div className="space-y-4 rounded-xl border border-[#152d5a]/10 p-4">
                   <div className="grid gap-4 md:grid-cols-2">
-                    <label className="space-y-1 text-sm text-slate-300">
+                    <label className="space-y-1 text-[14px] text-[#4b6390]">
                       <span>Aircraft</span>
                       <div className="relative">
                         <select value={aircraftId} onChange={(e) => setAircraftId(e.target.value)} required className={SELECT_CLASS}>
                           <option value="">Select aircraft...</option>
                           {props.aircraftOptions.map((a) => <option key={a.id} value={a.id}>{a.registration} · {a.displayName}</option>)}
                         </select>
-                        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 material-symbols-outlined text-[18px]">expand_more</span>
+                        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#4b6390] material-symbols-outlined text-[18px]">expand_more</span>
                       </div>
                     </label>
-                    <label className="space-y-1 text-sm text-slate-300">
+                    <label className="space-y-1 text-[14px] text-[#4b6390]">
                       <span>PIC name</span>
-                      <input value={picName} onChange={(e) => setPicName(e.target.value)} required className="w-full rounded-lg border border-white/15 bg-[#0b1220] px-3 py-2 text-white" />
+                      <input value={picName} onChange={(e) => setPicName(e.target.value)} required className="w-full rounded-lg border border-[#152d5a]/15 bg-white px-3 py-2 text-[#152d5a]" />
                     </label>
-                    <label className="space-y-1 text-sm text-slate-300 md:col-span-2">
+                    <label className="space-y-1 text-[14px] text-[#4b6390] md:col-span-2">
                       <span>PIC ARN</span>
-                      <input value={picArn} onChange={(e) => setPicArn(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#0b1220] px-3 py-2 text-white" />
+                      <input value={picArn} onChange={(e) => setPicArn(e.target.value)} className="w-full rounded-lg border border-[#152d5a]/15 bg-white px-3 py-2 text-[#152d5a]" />
                     </label>
                   </div>
 
                   <div className="space-y-3">
                     <div className="grid items-center gap-2 md:grid-cols-[120px_1fr_1fr_1fr]">
-                      <p className="text-sm font-bold uppercase tracking-wide text-slate-400">Reading</p>
-                      <p className="text-sm font-bold uppercase tracking-wide text-slate-400">Start</p>
-                      <p className="text-sm font-bold uppercase tracking-wide text-slate-400">Stop</p>
-                      <p className="text-sm font-bold uppercase tracking-wide text-slate-400">Total</p>
+                      <p className="text-[14px] font-bold uppercase tracking-wide text-[#4b6390]">Reading</p>
+                      <p className="text-[14px] font-bold uppercase tracking-wide text-[#4b6390]">Start</p>
+                      <p className="text-[14px] font-bold uppercase tracking-wide text-[#4b6390]">Stop</p>
+                      <p className="text-[14px] font-bold uppercase tracking-wide text-[#4b6390]">Total</p>
                     </div>
                     {([
                       ['vdo', 'VDO'],
@@ -496,31 +496,31 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
                       ['mr', 'MR'],
                     ] as Array<[MeterKey, string]>).map(([key, label]) => (
                       <div key={key} className="grid items-center gap-2 md:grid-cols-[120px_1fr_1fr_1fr]">
-                        <p className="text-sm font-semibold text-slate-200">{label}</p>
-                        <input value={meters[key].start} onChange={(e) => updateMeterFromStart(key, e.target.value)} placeholder="Start" className="rounded-lg border border-white/15 bg-[#0b1220] px-3 py-2 text-white" />
-                        <input value={meters[key].stop} onChange={(e) => updateMeterFromStop(key, e.target.value)} placeholder="Stop" className="rounded-lg border border-white/15 bg-[#0b1220] px-3 py-2 text-white" />
-                        <input value={meters[key].total} onChange={(e) => updateMeterFromTotal(key, e.target.value)} placeholder="Total" className="rounded-lg border border-white/15 bg-[#0b1220] px-3 py-2 text-white" />
+                        <p className="text-[14px] font-semibold text-[#152d5a]">{label}</p>
+                        <input value={meters[key].start} onChange={(e) => updateMeterFromStart(key, e.target.value)} placeholder="Start" className="rounded-lg border border-[#152d5a]/15 bg-white px-3 py-2 text-[#152d5a]" />
+                        <input value={meters[key].stop} onChange={(e) => updateMeterFromStop(key, e.target.value)} placeholder="Stop" className="rounded-lg border border-[#152d5a]/15 bg-white px-3 py-2 text-[#152d5a]" />
+                        <input value={meters[key].total} onChange={(e) => updateMeterFromTotal(key, e.target.value)} placeholder="Total" className="rounded-lg border border-[#152d5a]/15 bg-white px-3 py-2 text-[#152d5a]" />
                       </div>
                     ))}
                   </div>
 
                   <div className="grid gap-3 md:grid-cols-3">
-                    <input value={oilAdded} onChange={(e) => setOilAdded(e.target.value)} placeholder="Oil added" className="rounded-lg border border-white/15 bg-[#0b1220] px-3 py-2 text-white" />
-                    <input value={oilTotal} onChange={(e) => setOilTotal(e.target.value)} placeholder="Oil total" className="rounded-lg border border-white/15 bg-[#0b1220] px-3 py-2 text-white" />
-                    <input value={landings} onChange={(e) => setLandings(e.target.value)} placeholder="Landings" className="rounded-lg border border-white/15 bg-[#0b1220] px-3 py-2 text-white" />
-                    <input value={fuelAdded} onChange={(e) => setFuelAdded(e.target.value)} placeholder="Fuel added" className="rounded-lg border border-white/15 bg-[#0b1220] px-3 py-2 text-white" />
-                    <input value={fuelReturned} onChange={(e) => setFuelReturned(e.target.value)} placeholder="Fuel returned" className="rounded-lg border border-white/15 bg-[#0b1220] px-3 py-2 text-white" />
+                    <input value={oilAdded} onChange={(e) => setOilAdded(e.target.value)} placeholder="Oil added" className="rounded-lg border border-[#152d5a]/15 bg-white px-3 py-2 text-[#152d5a]" />
+                    <input value={oilTotal} onChange={(e) => setOilTotal(e.target.value)} placeholder="Oil total" className="rounded-lg border border-[#152d5a]/15 bg-white px-3 py-2 text-[#152d5a]" />
+                    <input value={landings} onChange={(e) => setLandings(e.target.value)} placeholder="Landings" className="rounded-lg border border-[#152d5a]/15 bg-white px-3 py-2 text-[#152d5a]" />
+                    <input value={fuelAdded} onChange={(e) => setFuelAdded(e.target.value)} placeholder="Fuel added" className="rounded-lg border border-[#152d5a]/15 bg-white px-3 py-2 text-[#152d5a]" />
+                    <input value={fuelReturned} onChange={(e) => setFuelReturned(e.target.value)} placeholder="Fuel returned" className="rounded-lg border border-[#152d5a]/15 bg-white px-3 py-2 text-[#152d5a]" />
                   </div>
-                  <textarea value={logNotes} onChange={(e) => setLogNotes(e.target.value)} rows={2} placeholder="Aircraft log notes" className="w-full rounded-lg border border-white/15 bg-[#0b1220] px-3 py-2 text-white" />
-                  {meterError ? <p className="text-sm text-red-300">{meterError}</p> : null}
+                  <textarea value={logNotes} onChange={(e) => setLogNotes(e.target.value)} rows={2} placeholder="Aircraft log notes" className="w-full rounded-lg border border-[#152d5a]/15 bg-white px-3 py-2 text-[#152d5a]" />
+                  {meterError ? <p className="text-[14px] text-red-300">{meterError}</p> : null}
                 </div>
               ) : null}
 
-              {error ? <p className="text-sm text-red-300">{error}</p> : null}
+              {error ? <p className="text-[14px] text-red-300">{error}</p> : null}
 
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => setOpen(false)} disabled={isPending} className="rounded-xl border border-white/15 px-4 py-2 text-sm text-slate-300">Cancel</button>
-                <button type="submit" disabled={isPending} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60">
+                <button type="button" onClick={() => setOpen(false)} disabled={isPending} className="rounded-xl border border-[#152d5a]/15 px-4 py-2 text-[14px] text-[#4b6390]">Cancel</button>
+                <button type="submit" disabled={isPending} className="rounded-xl bg-blue-600 px-4 py-2 text-[14px] font-semibold text-white hover:bg-blue-500 disabled:opacity-60">
                   {isPending ? 'Recording...' : 'Mark Checkout Completed'}
                 </button>
               </div>

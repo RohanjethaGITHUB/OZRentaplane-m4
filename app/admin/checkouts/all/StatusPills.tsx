@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { usePathname } from 'next/navigation'
 
 type StatusFilter = 'all' | 'new_requests' | 'upcoming' | 'in_progress' | 'awaiting_outcome' | 'payment_required' | 'completed' | 'reschedule' | 'cancelled' | 'no_show'
 
@@ -23,8 +22,14 @@ export default function StatusPills({
   sort: 'customer' | 'submitted' | 'scheduled' | 'status' | 'outcome' | 'payment'
   dir: 'asc' | 'desc'
 }) {
-  const pathname = usePathname()
+  const [pathname, setPathname] = useState('/admin/checkouts/all')
   const [seen, setSeen] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location?.pathname) {
+      setPathname(window.location.pathname)
+    }
+  }, [])
 
   useEffect(() => {
     try {
@@ -105,8 +110,8 @@ export default function StatusPills({
               href={tabHref(t.key)}
               className={`group inline-flex min-h-[38px] items-center gap-2.5 rounded-full border px-[18px] py-2 text-[13px] font-semibold tracking-[0.01em] transition-all duration-200 ${
                 active
-                  ? 'border-[rgba(96,165,250,0.52)] bg-[linear-gradient(180deg,rgba(30,64,175,0.34),rgba(30,58,138,0.24))] text-[#eff6ff] shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_0_0_1px_rgba(250,204,21,0.22),0_10px_18px_rgba(2,6,23,0.35)]'
-                  : 'border-[var(--admin-border)] bg-[rgba(15,23,42,0.5)] text-[var(--admin-text-muted)] hover:border-[rgba(96,165,250,0.3)] hover:bg-[rgba(30,41,59,0.72)] hover:text-[var(--admin-text)] hover:shadow-[0_6px_14px_rgba(2,6,23,0.25)]'
+                  ? 'border-[rgba(96,165,250,0.52)] bg-[#1a4fd6] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_0_0_1px_rgba(250,204,21,0.22),0_10px_18px_rgba(2,6,23,0.35)]'
+                  : 'border-[var(--admin-border)] bg-white text-[#4b6390] hover:border-[rgba(96,165,250,0.3)] hover:bg-[#e8f2fb] hover:text-[#152d5a] hover:shadow-[0_6px_14px_rgba(2,6,23,0.25)]'
               }`}
             >
               {active && <span className="h-3 w-[2px] rounded-full bg-amber-300/90 shadow-[0_0_10px_rgba(252,211,77,0.38)]" />}

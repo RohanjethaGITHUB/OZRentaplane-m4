@@ -77,23 +77,23 @@ export default function AdminCalendarClient({ events }: { events: CalEvent[] }) 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-2">
           {(['day', 'week', 'month'] as const).map((v) => (
-            <button key={v} onClick={() => setView(v)} className={`px-3 py-2 rounded-lg border text-sm ${view === v ? 'bg-blue-500/15 border-blue-300/40 text-blue-200' : 'border-white/10 text-slate-300'}`}>
+            <button key={v} onClick={() => setView(v)} className={`px-3 py-2 rounded-lg border text-sm ${view === v ? 'bg-[#1a4fd6]/15 border-[#1a4fd6]/30 text-[#1a4fd6]' : 'border-[#152d5a]/20 text-[#4b6390]'}`}>
               {v[0].toUpperCase() + v.slice(1)}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => shiftMonth(-1)} className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-white/15 text-slate-200 hover:bg-white/10" aria-label="Previous month">
+          <button onClick={() => shiftMonth(-1)} className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-[#152d5a]/20 text-[#152d5a] hover:bg-[#152d5a]/5" aria-label="Previous month">
             <span className="material-symbols-outlined text-[18px]">chevron_left</span>
           </button>
-          <select value={monthValue} onChange={(e) => onMonthChange(e.target.value)} className="h-9 rounded-lg border border-white/15 bg-[#111827] px-3 text-sm text-slate-100">
+          <select value={monthValue} onChange={(e) => onMonthChange(e.target.value)} className="h-9 rounded-lg border border-[#152d5a]/20 bg-white px-3 text-sm text-[#152d5a]">
             {monthOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
-          <button onClick={() => shiftMonth(1)} className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-white/15 text-slate-200 hover:bg-white/10" aria-label="Next month">
+          <button onClick={() => shiftMonth(1)} className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-[#152d5a]/20 text-[#152d5a] hover:bg-[#152d5a]/5" aria-label="Next month">
             <span className="material-symbols-outlined text-[18px]">chevron_right</span>
           </button>
         </div>
-        <Link href="/admin/bookings/blocks/new" className="px-4 py-2 rounded-lg bg-white text-slate-900 text-sm font-medium">Block Time</Link>
+        <Link href="/admin/bookings/blocks/new" className="px-4 py-2 rounded-lg bg-white text-[#152d5a] text-sm font-medium">Block Time</Link>
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">

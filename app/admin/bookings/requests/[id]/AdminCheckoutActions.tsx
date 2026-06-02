@@ -9,7 +9,7 @@ import {
   markCheckoutNoShow,
   unlockCheckoutNoShowLock,
 } from '@/app/actions/admin-booking'
-import TotalOnlyReadingsForm from '@/components/aircraft/TotalOnlyReadingsForm'
+import { recordManualPayment } from '@/app/actions/payment'
 import {
   type TotalOnlyFormValues,
   validateTotalOnlyReadings,
@@ -48,7 +48,22 @@ type OutcomeKey =
   | 'checkout_reschedule_required'
   | 'not_currently_eligible'
 
-const OUTCOMES: { key: OutcomeKey; label: string; body: string; color: string; border: string; textColor: string; icon: string }[] = [
+type ManualPaymentMethod = 'cash' | 'card_in_person' | 'bank_transfer'
+type SubmissionConfirmation = 'send_invoice' | 'mark_paid' | null
+
+const OUTCOMES: {
+  key: OutcomeKey
+  label: string
+  body: string
+  color: string
+  border: string
+  textColor: string
+  icon: string
+  cardTint: string
+  cardBorder: string
+  cardHover: string
+  cardActive: string
+}[] = [
   {
     key: 'cleared_to_fly',
     label: 'Cleared to Fly',
@@ -57,6 +72,10 @@ const OUTCOMES: { key: OutcomeKey; label: string; body: string; color: string; b
     border: 'border-emerald-500/30',
     textColor: 'text-emerald-400',
     icon: 'verified',
+    cardTint: 'bg-emerald-50',
+    cardBorder: 'border-emerald-400',
+    cardHover: 'hover:border-emerald-500/60',
+    cardActive: 'active:border-emerald-600 active:bg-emerald-100',
   },
   {
     key: 'additional_checkout_required',
@@ -66,6 +85,10 @@ const OUTCOMES: { key: OutcomeKey; label: string; body: string; color: string; b
     border: 'border-amber-500/30',
     textColor: 'text-amber-400',
     icon: 'schedule',
+    cardTint: 'bg-amber-50',
+    cardBorder: 'border-amber-400',
+    cardHover: 'hover:border-amber-500/60',
+    cardActive: 'active:border-amber-600 active:bg-amber-100',
   },
   {
     key: 'checkout_reschedule_required',
@@ -75,6 +98,10 @@ const OUTCOMES: { key: OutcomeKey; label: string; body: string; color: string; b
     border: 'border-orange-500/30',
     textColor: 'text-orange-400',
     icon: 'event_repeat',
+    cardTint: 'bg-orange-50',
+    cardBorder: 'border-orange-400',
+    cardHover: 'hover:border-orange-500/60',
+    cardActive: 'active:border-orange-600 active:bg-orange-100',
   },
   {
     key: 'not_currently_eligible',
@@ -84,10 +111,14 @@ const OUTCOMES: { key: OutcomeKey; label: string; body: string; color: string; b
     border: 'border-rose-500/30',
     textColor: 'text-rose-400',
     icon: 'block',
+    cardTint: 'bg-rose-50',
+    cardBorder: 'border-rose-400',
+    cardHover: 'hover:border-rose-500/60',
+    cardActive: 'active:border-rose-600 active:bg-rose-100',
   },
 ]
 
-const LANDING_FEE_CENTS = 2500
+const LANDING_FEE_CENTS = 2895
 let rowIdCounter = 0
 
 function getNum(value: string): number | null {
@@ -131,6 +162,11 @@ export default function AdminCheckoutActions({
   const [landingRows, setLandingRows] = useState<LandingChargeRow[]>([])
   const [readings, setReadings] = useState<TotalOnlyFormValues>(createInitialReadings)
   const [submitAttempted, setSubmitAttempted] = useState(false)
+  const [showManualPaymentFields, setShowManualPaymentFields] = useState(false)
+  const [manualPaymentMethod, setManualPaymentMethod] = useState<ManualPaymentMethod>('cash')
+  const [manualAmount, setManualAmount] = useState('')
+  const [manualPaymentNote, setManualPaymentNote] = useState('')
+  const [submissionConfirmation, setSubmissionConfirmation] = useState<SubmissionConfirmation>(null)
 
   function run(fn: () => Promise<void>) {
     setError(null)
@@ -163,6 +199,11 @@ export default function AdminCheckoutActions({
     setAdminNote('')
     setLandingRows([])
     setReadings(createInitialReadings())
+    setShowManualPaymentFields(false)
+    setManualPaymentMethod('cash')
+    setManualAmount('')
+    setManualPaymentNote('')
+    setSubmissionConfirmation(null)
     setSubmitAttempted(false)
     setError(null)
   }
@@ -174,6 +215,11 @@ export default function AdminCheckoutActions({
     setHourlyRate('290')
     setAdminNote('')
     setReadings(createInitialReadings())
+    setShowManualPaymentFields(false)
+    setManualPaymentMethod('cash')
+    setManualAmount('')
+    setManualPaymentNote('')
+    setSubmissionConfirmation(null)
     setLandingRows([{ id: ++rowIdCounter, airportId: '', landingCount: '1' }])
     setSubmitAttempted(false)
     setError(null)
@@ -235,13 +281,20 @@ export default function AdminCheckoutActions({
   const estimatedAmountDue  = Math.max(finalAmountCents - creditApplicable, 0)
   const outcomeSupportsWaiver = confirmingOutcome !== null && confirmingOutcome !== 'cleared_to_fly'
 
-  function handleSubmit() {
+  function runSubmit(mode: 'send_invoice' | 'mark_paid') {
     setSubmitAttempted(true)
 
     if (readingsError) { setError(readingsError); return }
     if (!validHourlyRate) { setError('Hourly rate must be a positive number.'); return }
     if (!hasValidLandingRow || hasIncompleteLandingRows) { setError('Add at least one complete landing row before submitting.'); return }
     if (paymentWaived && !waiverReason.trim()) { setError('A waiver reason is required when payment is waived.'); return }
+    if (!paymentWaived && mode === 'mark_paid') {
+      const parsed = Number(manualAmount || (estimatedAmountDue / 100).toFixed(2))
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        setError('Manual payment amount must be greater than zero.')
+        return
+      }
+    }
     if (!confirmingOutcome) return
 
     const totalReadings = {
@@ -257,16 +310,53 @@ export default function AdminCheckoutActions({
       notes:            adminNote.trim() || null,
     }
 
-    run(() => markCheckoutOutcome({
-      bookingId,
-      outcome:             confirmingOutcome,
-      adminNote:           adminNote.trim() || undefined,
-      checkoutRatePerHour: hourlyRateNum,
-      landingCharges:      validLandingCharges,
-      paymentWaived,
-      waiverReason:        paymentWaived ? waiverReason.trim() : undefined,
-      readings:            totalReadings,
-    }))
+    run(async () => {
+      await markCheckoutOutcome({
+        bookingId,
+        outcome:             confirmingOutcome,
+        adminNote:           adminNote.trim() || undefined,
+        checkoutRatePerHour: hourlyRateNum,
+        landingCharges:      validLandingCharges,
+        paymentWaived,
+        waiverReason:        paymentWaived ? waiverReason.trim() : undefined,
+        readings:            totalReadings,
+        suppressPaymentRequestEmail: !paymentWaived && mode === 'mark_paid',
+      })
+
+      if (!paymentWaived && mode === 'mark_paid') {
+        const parsedAmount = Number(manualAmount || (estimatedAmountDue / 100).toFixed(2))
+        await recordManualPayment({
+          bookingId,
+          paymentMethod: manualPaymentMethod,
+          amountCents: Math.round(parsedAmount * 100),
+          note: manualPaymentNote.trim() || undefined,
+        })
+      }
+    })
+  }
+
+  function executeSaveAndSendInvoice() {
+    setSubmissionConfirmation(null)
+    if (showManualPaymentFields) setShowManualPaymentFields(false)
+    runSubmit('send_invoice')
+  }
+
+  function executeMarkPaidAction() {
+    setSubmissionConfirmation(null)
+    runSubmit('mark_paid')
+  }
+
+  function handleSaveAndSendInvoice() {
+    setSubmissionConfirmation('send_invoice')
+  }
+
+  function handleMarkPaidAction() {
+    if (paymentWaived) return
+    if (!showManualPaymentFields) {
+      setShowManualPaymentFields(true)
+      if (!manualAmount) setManualAmount((estimatedAmountDue / 100).toFixed(2))
+    }
+    setSubmissionConfirmation('mark_paid')
   }
 
   if (isCancelling) {
@@ -339,23 +429,28 @@ export default function AdminCheckoutActions({
 
   if (!confirmingOutcome) {
     return (
-      <div className="space-y-2.5">
-        <p className="text-[9px] uppercase tracking-widest font-bold text-slate-500 mb-3">Record Checkout Outcome</p>
-        {OUTCOMES.map(outcome => (
-          <button
-            key={outcome.key}
-            onClick={() => handleOutcomeSelect(outcome.key)}
-            disabled={isPending}
-            className="w-full flex items-start gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.07] hover:border-white/15 hover:bg-white/[0.06] text-left transition-all disabled:opacity-50"
-          >
-            <span className={`material-symbols-outlined text-[18px] flex-shrink-0 mt-0.5 ${outcome.textColor}`} style={{ fontVariationSettings: "'wght' 300" }}>{outcome.icon}</span>
-            <div className="min-w-0">
-              <p className={`text-[11px] font-semibold ${outcome.textColor}`}>{outcome.label}</p>
-              <p className="text-[10px] text-slate-600 leading-relaxed mt-0.5">{outcome.body}</p>
-            </div>
-          </button>
-        ))}
-        {error && <p className="text-[10px] text-rose-400 leading-tight">{error}</p>}
+      <div className="rounded-2xl border border-[#152d5a]/10 bg-open-ceiling p-5">
+        <div className="space-y-3">
+          <div className="mb-2">
+            <p className="text-[9px] uppercase tracking-widest font-bold text-[#152d5a]">RECORD CHECKOUT OUTCOME</p>
+            <p className="mt-1 text-sm text-gray-500">Select the outcome of this checkout flight to proceed.</p>
+          </div>
+          {OUTCOMES.map(outcome => (
+            <button
+              key={outcome.key}
+              onClick={() => handleOutcomeSelect(outcome.key)}
+              disabled={isPending}
+              className={`w-full rounded-xl border border-[#152d5a]/15 border-l-[3px] ${outcome.cardBorder} ${outcome.cardTint} p-6 text-left transition-all ${outcome.cardHover} ${outcome.cardActive} hover:shadow-sm disabled:opacity-50 flex items-start gap-4`}
+            >
+              <span className={`material-symbols-outlined text-[26px] flex-shrink-0 mt-0.5 ${outcome.textColor}`} style={{ fontVariationSettings: "'wght' 350" }}>{outcome.icon}</span>
+              <div className="min-w-0">
+                <p className={`text-base font-semibold ${outcome.textColor}`}>{outcome.label}</p>
+                <p className="mt-1 text-sm leading-relaxed text-gray-600">{outcome.body}</p>
+              </div>
+            </button>
+          ))}
+          {error && <p className="text-[10px] text-rose-500 leading-tight">{error}</p>}
+        </div>
       </div>
     )
   }
@@ -363,27 +458,27 @@ export default function AdminCheckoutActions({
   const outcome = OUTCOMES.find(item => item.key === confirmingOutcome)!
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-2xl border border-white/10 bg-[#0f1216] p-5">
+    <div className="space-y-5 rounded-2xl bg-open-ceiling p-1">
+      <div className="rounded-2xl border border-[#152d5a]/10 bg-white p-5">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
-            <h3 className="text-base font-semibold text-white">Record Checkout Outcome</h3>
-            <p className="text-sm text-slate-400 mt-1">Aircraft totals entered here become the official aircraft flight log row for this checkout.</p>
+            <h3 className="text-base font-semibold text-[#152d5a]">Record Checkout Outcome</h3>
+            <p className="text-sm text-[#4b6390] mt-1">Aircraft totals entered here become the official aircraft flight log row for this checkout.</p>
           </div>
-          <button type="button" onClick={resetOutcomeForm} className="text-sm text-slate-500 hover:text-slate-300">Back</button>
+          <button type="button" onClick={resetOutcomeForm} className="text-sm text-[#4b6390] hover:text-[#152d5a]">← Back</button>
         </div>
 
-        <div className={`rounded-xl border p-4 ${outcome.border} bg-white/[0.02]`}>
+        <div className="rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-4">
           <p className={`text-sm font-semibold ${outcome.textColor} mb-1`}>{outcome.label}</p>
-          <p className="text-sm text-slate-300 leading-relaxed">{outcome.body}</p>
+          <p className="text-sm text-[#4b6390] leading-relaxed">{outcome.body}</p>
         </div>
 
         {outcomeSupportsWaiver && (
-          <div className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
-            <p className="text-sm font-medium text-slate-300 mb-3">Charge customer for this checkout?</p>
+          <div className="mt-4 rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-4">
+            <p className="text-sm font-medium text-[#152d5a] mb-3">Charge customer for this checkout?</p>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setPaymentWaived(false)} disabled={isPending} className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${!paymentWaived ? 'bg-blue-600/30 border border-blue-500/40 text-blue-300' : 'bg-white/[0.03] border border-white/[0.07] text-slate-400 hover:bg-white/[0.06]'}`}>Yes, create payment request</button>
-              <button type="button" onClick={() => setPaymentWaived(true)}  disabled={isPending} className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${paymentWaived  ? 'bg-amber-600/20 border border-amber-500/40 text-amber-300' : 'bg-white/[0.03] border border-white/[0.07] text-slate-400 hover:bg-white/[0.06]'}`}>No, waive payment</button>
+              <button type="button" onClick={() => setPaymentWaived(false)} disabled={isPending} className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${!paymentWaived ? 'bg-[#152d5a] border border-[#152d5a] text-white' : 'bg-white border border-[#152d5a]/15 text-[#4b6390] hover:border-[#152d5a]/30'}`}>Yes, create payment request</button>
+              <button type="button" onClick={() => setPaymentWaived(true)}  disabled={isPending} className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${paymentWaived  ? 'bg-amber-100 border border-amber-300 text-amber-800' : 'bg-white border border-[#152d5a]/15 text-[#4b6390] hover:border-[#152d5a]/30'}`}>No, waive payment</button>
             </div>
           </div>
         )}
@@ -391,16 +486,16 @@ export default function AdminCheckoutActions({
         {paymentWaived && (
           <div className="mt-4 space-y-3">
             <div className="rounded-lg bg-amber-500/[0.06] border border-amber-500/20 px-3 py-3">
-              <p className="text-sm text-amber-300/80 leading-relaxed">Payment will be waived. The checkout outcome will still write the complete aircraft readings into the aircraft ledger.</p>
+              <p className="text-sm text-amber-800 leading-relaxed">Payment will be waived. The checkout outcome will still write the complete aircraft readings into the aircraft ledger.</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">Waiver reason <span className="text-rose-400">*</span></label>
+              <label className="block text-sm font-medium text-[#152d5a] mb-1.5">Waiver reason <span className="text-rose-400">*</span></label>
               <textarea
                 value={waiverReason}
                 onChange={e => setWaiverReason(e.target.value)}
                 rows={3}
                 placeholder="Required — e.g. weather cancellation, aircraft unavailable, customer did not fly…"
-                className="w-full bg-[#0a0b0d] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-slate-500/50 resize-none"
+                className="w-full bg-white border border-[#152d5a]/15 rounded-lg px-3 py-2.5 text-sm text-[#152d5a] placeholder:text-[#4b6390]/60 focus:outline-none focus:border-[#152d5a]/40 resize-none"
                 disabled={isPending}
               />
             </div>
@@ -409,109 +504,272 @@ export default function AdminCheckoutActions({
 
         <div className="mt-5 space-y-4">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-widest text-[#a7c8ff]/70 mb-3">Aircraft Readings</p>
-            <TotalOnlyReadingsForm
-              values={readings}
-              onChange={(field, value) => setReadings(prev => ({ ...prev, [field]: value }))}
-              notes={adminNote}
-              onNotesChange={setAdminNote}
-              compact
-              submitAttempted={submitAttempted}
-            />
+            <p className="text-[11px] font-bold uppercase tracking-widest text-[#4b6390] mb-3">Aircraft Readings</p>
+            <div className="rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-4 space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { field: 'vdo_total', label: 'VDO total' },
+                  { field: 'tacho_total', label: 'Tacho total' },
+                  { field: 'air_switch_total', label: 'Airswitch total' },
+                  { field: 'mr_total', label: 'MR total' },
+                ].map(({ field, label }) => {
+                  const value = readings[field as keyof TotalOnlyFormValues] ?? ''
+                  const parsed = value.trim() ? Number(value) : null
+                  const isInvalid = submitAttempted && (value.trim() === '' || parsed == null || Number.isNaN(parsed) || parsed < 0)
+                  return (
+                    <label key={field} className="block">
+                      <span className="text-[11px] text-[#4b6390] block mb-1">{label}</span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={value}
+                        onChange={(e) => setReadings(prev => ({ ...prev, [field]: e.target.value }))}
+                        className={`w-full bg-white border rounded-lg px-3 py-2.5 text-sm text-[#152d5a] placeholder:text-[#4b6390]/60 focus:outline-none ${
+                          isInvalid ? 'border-rose-300 focus:border-rose-400' : 'border-[#152d5a]/15 focus:border-[#152d5a]/40'
+                        }`}
+                        disabled={isPending}
+                      />
+                    </label>
+                  )
+                })}
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { field: 'oil_added', label: 'Oil added' },
+                  { field: 'oil_total', label: 'Oil total' },
+                  { field: 'fuel_added', label: 'Fuel added' },
+                  { field: 'fuel_returned', label: 'Fuel returned' },
+                ].map(({ field, label }) => (
+                  <label key={field} className="block">
+                    <span className="text-[11px] text-[#4b6390] block mb-1">{label}</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={readings[field as keyof TotalOnlyFormValues] ?? ''}
+                      onChange={(e) => setReadings(prev => ({ ...prev, [field]: e.target.value }))}
+                      className="w-full bg-white border border-[#152d5a]/15 rounded-lg px-3 py-2.5 text-sm text-[#152d5a] placeholder:text-[#4b6390]/60 focus:outline-none focus:border-[#152d5a]/40"
+                      disabled={isPending}
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <label className="block">
+                <span className="text-[11px] text-[#4b6390] block mb-1">Notes</span>
+                <textarea
+                  rows={3}
+                  value={adminNote}
+                  onChange={(e) => setAdminNote(e.target.value)}
+                  className="w-full bg-white border border-[#152d5a]/15 rounded-lg px-3 py-2.5 text-sm text-[#152d5a] placeholder:text-[#4b6390]/60 focus:outline-none focus:border-[#152d5a]/40"
+                  disabled={isPending}
+                />
+              </label>
+            </div>
             {submitAttempted && readingsError && (
               <p className="mt-2 text-xs text-rose-400">{readingsError}</p>
             )}
           </div>
 
-          <div>
-            <label className="block text-[11px] text-slate-400 mb-1.5">Checkout hourly rate</label>
-            <div className="relative max-w-[220px]">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">$</span>
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={hourlyRate}
-                onChange={e => setHourlyRate(e.target.value)}
-                className="w-full bg-[#0a0b0d] border border-white/10 rounded-lg pl-7 pr-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50"
-                disabled={isPending}
-              />
-            </div>
-          </div>
-        </div>
+          <div className="mt-2 border-t border-gray-200 pt-4">
+            <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
+              <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
+                <p className="text-sm font-semibold text-gray-900">Finalise charges</p>
+                <p className="mt-0.5 text-xs text-gray-500">Review and confirm billing before finalising the checkout.</p>
+              </div>
 
-        <div className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-base font-semibold text-white">Airport landings <span className="text-rose-400 ml-1">*</span></p>
-              <p className="text-sm text-slate-400 mt-1 leading-relaxed">Add each airport and number of landings for landing fee billing.</p>
-            </div>
-            <button type="button" onClick={addLandingRow} disabled={isPending || airports.length === 0} className="flex items-center gap-1.5 text-sm text-[#a7c8ff]/80 hover:text-[#a7c8ff] transition-colors disabled:opacity-40">
-              <span className="material-symbols-outlined text-[14px]">add_circle</span>
-              Add Airport
-            </button>
-          </div>
-          <div className="space-y-3">
-            {landingRows.map((row, index) => {
-              const rowError = landingRowErrors[index]
-              const count    = Number(row.landingCount)
-              const rowTotal = row.airportId && Number.isInteger(count) && count > 0 ? LANDING_FEE_CENTS * count : 0
-              return (
-                <div key={row.id} className="rounded-lg border border-white/10 bg-[#0a0d11] p-3">
-                  <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_110px_120px_44px] gap-2 items-start">
-                    <select value={row.airportId} onChange={e => handleLandingChange(row.id, 'airportId', e.target.value)} disabled={isPending} className="w-full bg-[#0c1015] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-slate-500/60">
-                      <option value="">Select airport</option>
-                      {airports.map(airport => (<option key={airport.id} value={airport.id}>{airport.icao_code} — {airport.name}</option>))}
-                    </select>
-                    <input type="number" min="1" step="1" value={row.landingCount} onChange={e => handleLandingChange(row.id, 'landingCount', e.target.value)} disabled={isPending} className="w-full bg-[#0c1015] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-200 text-center focus:outline-none focus:border-slate-500/60" />
-                    <div className="h-[42px] rounded-lg border border-white/5 bg-black/20 flex items-center justify-end px-3 text-sm text-slate-300">{rowTotal > 0 ? `$${(rowTotal / 100).toFixed(2)}` : '—'}</div>
-                    <button type="button" onClick={() => removeLandingRow(row.id)} disabled={isPending || landingRows.length <= 1} className="h-[42px] flex items-center justify-center rounded-lg border border-white/10 text-slate-500 hover:text-rose-300 hover:border-rose-500/30 disabled:opacity-40">
-                      <span className="material-symbols-outlined text-[16px]">remove_circle</span>
+              <div className="grid grid-cols-1 md:grid-cols-2">
+                <div className="px-5 py-5 md:border-r md:border-gray-200">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-500">Hourly rate</label>
+                    <div className="flex items-center rounded-lg border border-gray-200 bg-white px-3 py-2.5">
+                      <span className="mr-1 text-sm text-gray-400">$</span>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={hourlyRate}
+                        onChange={e => setHourlyRate(e.target.value)}
+                        className="w-full border-0 bg-transparent p-0 text-sm text-gray-900 focus:outline-none"
+                        disabled={isPending}
+                      />
+                    </div>
+                    <p className="mt-1.5 text-xs text-gray-400">Applied to VDO duration for hire cost</p>
+                  </div>
+
+                  <div className="mt-5">
+                    <div className="mb-1 flex items-center justify-between">
+                      <p className="text-xs font-medium text-gray-900">Airport landings <span className="text-rose-500">*</span></p>
+                      <button type="button" onClick={addLandingRow} disabled={isPending || airports.length === 0} className="inline-flex items-center gap-1 text-xs text-blue-600 disabled:opacity-40">
+                        <span className="material-symbols-outlined text-[12px]">add</span>
+                        Add airport
+                      </button>
+                    </div>
+                    <p className="mb-2.5 text-xs text-gray-400">$28.95 per landing — add each airport visited</p>
+                    <div>
+                      {landingRows.map((row, index) => {
+                        const rowError = landingRowErrors[index]
+                        const count    = Number(row.landingCount)
+                        const rowTotal = row.airportId && Number.isInteger(count) && count > 0 ? LANDING_FEE_CENTS * count : 0
+                        return (
+                          <div key={row.id} className="mb-2">
+                            <div className="flex items-center gap-2">
+                              <select value={row.airportId} onChange={e => handleLandingChange(row.id, 'airportId', e.target.value)} disabled={isPending} className="min-w-0 flex-1 truncate rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-[#152d5a]/40">
+                                <option value="">Select airport</option>
+                                {airports.map(airport => (<option key={airport.id} value={airport.id}>{airport.icao_code} — {airport.name}</option>))}
+                              </select>
+                              <input type="number" min="1" step="1" value={row.landingCount} onChange={e => handleLandingChange(row.id, 'landingCount', e.target.value)} disabled={isPending} className="w-12 rounded-lg border border-gray-200 bg-white px-2 py-2 text-center text-sm text-gray-900 focus:outline-none focus:border-[#152d5a]/40" />
+                              <div className="w-16 text-right text-sm font-medium text-gray-700">
+                                {rowTotal > 0 ? `$${(rowTotal / 100).toFixed(2)}` : '—'}
+                              </div>
+                              <button type="button" onClick={() => removeLandingRow(row.id)} disabled={isPending || landingRows.length <= 1} className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:text-rose-600 hover:border-rose-300 disabled:opacity-40">
+                                <span className="material-symbols-outlined text-[12px]">remove</span>
+                              </button>
+                            </div>
+                            {rowError && <p className="mt-1 text-xs text-rose-400">{rowError}</p>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white px-5 py-5 md:sticky md:top-4">
+                  <p className="mb-3 border-b border-gray-200 pb-2.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Billing estimate</p>
+                  <div className="flex items-baseline justify-between py-1.5">
+                    <span className="text-sm text-gray-500">VDO total</span>
+                    <span className="text-sm font-medium text-gray-900 tabular-nums">{vdoReading != null ? `${vdoReading.toFixed(1)} h` : '—'}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between py-1.5">
+                    <span className="text-sm text-gray-500">Aircraft hire</span>
+                    <span className="text-sm font-medium text-gray-900 tabular-nums">{validHourlyRate && vdoReading != null ? `$${(vdoBaseCents / 100).toFixed(2)}` : '—'}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between py-1.5">
+                    <span className="text-sm text-gray-500">Landing charges</span>
+                    <span className="text-sm font-medium text-gray-900 tabular-nums">${(landingSubtotalCents / 100).toFixed(2)}</span>
+                  </div>
+                  {customerCreditCents > 0 && (
+                    <div className="flex items-baseline justify-between py-1.5">
+                      <span className="text-sm text-gray-500">Customer credit applied</span>
+                      <span className="text-sm font-medium text-emerald-700 tabular-nums">${(creditApplicable / 100).toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="my-2 border-t border-gray-200" />
+                  <div className="mt-1.5 flex items-center justify-between rounded-lg bg-blue-50 px-3 py-2.5">
+                    <span className="text-sm font-semibold text-blue-800">Estimated amount due</span>
+                    <span className="text-base font-semibold text-blue-800 tabular-nums">{!paymentWaived && validHourlyRate && vdoReading != null ? `$${(estimatedAmountDue / 100).toFixed(2)}` : '—'}</span>
+                  </div>
+                  <p className="mt-2 text-right text-[11px] text-gray-400">Final amount may vary based on airport selection.</p>
+                </div>
+              </div>
+
+              {!paymentWaived && showManualPaymentFields && (
+                <div className="mt-4 rounded-xl border border-[#152d5a]/10 bg-white p-4 space-y-3">
+                  <p className="text-base font-semibold text-[#152d5a]">Payment</p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <label className="block">
+                      <span className="mb-1.5 block text-[11px] text-[#4b6390]">Payment method</span>
+                      <select
+                        value={manualPaymentMethod}
+                        onChange={(e) => setManualPaymentMethod(e.target.value as ManualPaymentMethod)}
+                        className="w-full bg-white border border-[#152d5a]/15 rounded-lg px-3 py-2.5 text-sm text-[#152d5a] focus:outline-none focus:border-[#152d5a]/40"
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="card_in_person">Card (in person)</option>
+                        <option value="bank_transfer">Bank transfer</option>
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="mb-1.5 block text-[11px] text-[#4b6390]">Amount</span>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={manualAmount || (estimatedAmountDue / 100).toFixed(2)}
+                        onChange={(e) => setManualAmount(e.target.value)}
+                        className="w-full bg-white border border-[#152d5a]/15 rounded-lg px-3 py-2.5 text-sm text-[#152d5a] focus:outline-none focus:border-[#152d5a]/40"
+                      />
+                    </label>
+                    <label className="block md:col-span-1">
+                      <span className="mb-1.5 block text-[11px] text-[#4b6390]">Note (optional)</span>
+                      <input
+                        type="text"
+                        value={manualPaymentNote}
+                        onChange={(e) => setManualPaymentNote(e.target.value)}
+                        className="w-full bg-white border border-[#152d5a]/15 rounded-lg px-3 py-2.5 text-sm text-[#152d5a] focus:outline-none focus:border-[#152d5a]/40"
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</div>
+              )}
+
+              <div className="border-t border-gray-200 bg-white px-5 py-4">
+                {submissionConfirmation ? (
+                  <div className="rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-4">
+                    <p className="text-sm font-semibold text-[#152d5a]">
+                      {submissionConfirmation === 'send_invoice' ? 'Send invoice to customer?' : 'Mark payment as received?'}
+                    </p>
+                    <p className="mt-1 text-sm text-[#4b6390]">
+                      {submissionConfirmation === 'send_invoice'
+                        ? 'This will finalise the checkout outcome and send a payment request to the customer. The booking will move to awaiting payment.'
+                        : 'This will finalise the checkout outcome and mark the booking as fully paid. No invoice will be sent to the customer.'}
+                    </p>
+                    <div className="mt-4 flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => { setSubmissionConfirmation(null); setShowManualPaymentFields(false) }}
+                        disabled={isPending}
+                        className="text-sm text-[#4b6390] hover:text-[#152d5a] disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={submissionConfirmation === 'send_invoice' ? executeSaveAndSendInvoice : executeMarkPaidAction}
+                        disabled={isPending}
+                        className={`rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors disabled:opacity-50 ${
+                          submissionConfirmation === 'send_invoice'
+                            ? 'bg-blue-600 hover:bg-blue-700'
+                            : 'bg-green-600 hover:bg-green-700'
+                        }`}
+                      >
+                        {isPending
+                          ? 'Saving…'
+                          : submissionConfirmation === 'send_invoice'
+                            ? 'Yes, send invoice'
+                            : 'Yes, mark as paid'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveAndSendInvoice}
+                      disabled={isPending}
+                      className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {isPending ? 'Saving…' : 'Save and Send Invoice'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleMarkPaidAction}
+                      disabled={isPending || paymentWaived}
+                      className="rounded-lg bg-green-700 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-green-800 disabled:opacity-50"
+                    >
+                      {isPending ? 'Saving…' : showManualPaymentFields ? 'Confirm and Complete' : 'Save and Mark Paid'}
                     </button>
                   </div>
-                  {rowError && <p className="mt-2 text-xs text-rose-400">{rowError}</p>}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {!paymentWaived && vdoReading != null && validHourlyRate && (
-          <div className="mt-4 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-3 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-slate-500">VDO total</span>
-              <span className="text-[10px] font-mono text-slate-300">{vdoReading.toFixed(1)} h</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-slate-500">Aircraft hire</span>
-              <span className="text-[10px] font-mono text-slate-300">${(vdoBaseCents / 100).toFixed(2)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-slate-500">Landing charges</span>
-              <span className="text-[10px] font-mono text-slate-300">${(landingSubtotalCents / 100).toFixed(2)}</span>
-            </div>
-            <div className="border-t border-white/[0.06] pt-1.5 flex items-center justify-between">
-              <span className="text-[10px] font-medium text-slate-300">Estimated amount due</span>
-              <span className="text-[11px] font-bold font-mono text-white">${(estimatedAmountDue / 100).toFixed(2)}</span>
-            </div>
-            {customerCreditCents > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-500">Customer credit applied</span>
-                <span className="text-[10px] font-mono text-emerald-300">${(creditApplicable / 100).toFixed(2)}</span>
+                )}
               </div>
-            )}
+            </div>
           </div>
-        )}
-
-        {error && (
-          <div className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</div>
-        )}
-
-        <div className="mt-5 flex gap-3">
-          <button type="button" onClick={resetOutcomeForm} className="flex-1 rounded-xl border border-white/10 px-4 py-3 text-sm text-slate-300 hover:bg-white/5">Back</button>
-          <button type="button" onClick={handleSubmit} disabled={isPending} className={`flex-1 rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors ${outcome.color} disabled:opacity-50`}>
-            {isPending ? 'Saving…' : 'Save Checkout Outcome'}
-          </button>
         </div>
       </div>
     </div>

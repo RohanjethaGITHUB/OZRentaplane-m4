@@ -68,7 +68,7 @@ export function AdminMetricCard({
 }) {
   const toneClass =
     tone === 'warning'
-      ? 'border-[#5b4a2c] bg-[#1a1715]'
+      ? 'border-[#152d5a]/20 bg-[#152d5a]/10'
       : tone === 'accent'
       ? 'border-[var(--admin-accent-soft)] bg-[var(--admin-card-bg)]'
       : 'border-[var(--admin-border)] bg-[var(--admin-card-bg)]'
@@ -159,12 +159,12 @@ export function AdminActiveFilterChips({
 
 type BadgeTone = 'blue' | 'amber' | 'orange' | 'emerald' | 'red' | 'slate'
 const BADGE_TONE: Record<BadgeTone, string> = {
-  blue: 'bg-[rgba(59,130,246,0.12)] border-[rgba(96,165,250,0.22)] text-[#93c5fd]',
-  amber: 'bg-[rgba(180,120,30,0.13)] border-[rgba(245,158,11,0.22)] text-[#f4cd7a]',
-  orange: 'bg-[rgba(194,65,12,0.13)] border-[rgba(251,146,60,0.22)] text-[#fdba74]',
-  emerald: 'bg-[rgba(22,101,52,0.16)] border-[rgba(74,222,128,0.18)] text-[#86efac]',
-  red: 'bg-[rgba(127,29,29,0.16)] border-[rgba(248,113,113,0.18)] text-[#fca5a5]',
-  slate: 'bg-[rgba(100,116,139,0.14)] border-[rgba(148,163,184,0.16)] text-[#cbd5e1]',
+  blue: 'bg-[rgba(59,130,246,0.12)] border-[rgba(96,165,250,0.22)] text-[#1a4fd6]',
+  amber: 'bg-[rgba(180,120,30,0.13)] border-[rgba(245,158,11,0.22)] text-[#b45309]',
+  orange: 'bg-[rgba(194,65,12,0.13)] border-[rgba(251,146,60,0.22)] text-[#c2410c]',
+  emerald: 'bg-[rgba(22,101,52,0.16)] border-[rgba(74,222,128,0.18)] text-[#166534]',
+  red: 'bg-[rgba(127,29,29,0.16)] border-[rgba(248,113,113,0.18)] text-[#991b1b]',
+  slate: 'bg-[rgba(100,116,139,0.14)] border-[rgba(148,163,184,0.16)] text-[#4b6390]',
 }
 
 export function AdminStatusBadge({ label, tone = 'slate' }: { label: string; tone?: BadgeTone }) {
@@ -179,7 +179,7 @@ export function AdminRowActionButton({ href, label }: { href: string; label: str
   return (
     <Link
       href={href}
-      className="inline-flex items-center rounded-lg border border-[rgba(96,165,250,0.24)] bg-[var(--admin-button-bg)] px-3.5 py-2 text-sm font-medium text-[#bfdbfe] hover:bg-[rgba(37,99,235,0.24)] transition-colors"
+      className="inline-flex items-center rounded-lg border border-[rgba(96,165,250,0.24)] bg-[var(--admin-button-bg)] px-3.5 py-2 text-sm font-medium text-[#1a4fd6] hover:bg-[rgba(37,99,235,0.24)] transition-colors"
     >
       {label}
     </Link>
@@ -196,7 +196,7 @@ export function AdminDataTable({
   return (
     <div className="overflow-x-auto overflow-y-visible rounded-[var(--admin-radius-xl)] border border-[var(--admin-border)] bg-[var(--admin-card-bg)]">
       <table className="w-full">
-        <thead className="bg-[#141b29] text-[var(--admin-text-muted)]">
+        <thead className="bg-[#152d5a] text-white">
           <tr>
             {columns.map((column, idx) => (
               <th key={`col-${idx}`} className={`px-5 py-4 text-[12px] tracking-[0.12em] uppercase font-semibold text-left ${idx === columns.length - 1 ? 'text-right' : ''}`}>

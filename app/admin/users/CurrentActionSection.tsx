@@ -58,17 +58,32 @@ export default function CurrentActionSection({
   const displayDescription = isBlocked
     ? 'This account has been blocked. The customer cannot create new bookings or access the platform until unblocked.'
     : action.description
+  const statusCardClass = isBlocked
+    ? 'bg-[#fef2f2] border-red-200'
+    : action.urgency === 'none' || clearanceStatus === 'cleared_to_fly'
+      ? 'bg-[#f0fdf4] border-green-200'
+      : action.urgency === 'high'
+        ? 'bg-[#eff6ff] border-blue-200'
+        : 'bg-white border-[#152d5a]/8'
 
   return (
     <div className="space-y-8">
       {/* ── Status + description ─────────────────────────────────────── */}
       <div className="relative">
         <div className={`absolute inset-0 rounded-2xl blur-3xl -z-10 ${glowClass}`} />
-        <div className="bg-[#1e2023]/60 backdrop-blur-xl border border-white/5 rounded-2xl p-8 flex gap-6">
+        <div className={`rounded-2xl p-8 flex gap-6 border ${statusCardClass}`}>
           {/* Icon */}
           <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">
             <span
-              className="material-symbols-outlined text-xl text-slate-300"
+              className={`material-symbols-outlined text-xl ${
+                isBlocked
+                  ? 'text-red-500'
+                  : action.urgency === 'none' || clearanceStatus === 'cleared_to_fly'
+                    ? 'text-green-600'
+                    : action.urgency === 'high'
+                      ? 'text-blue-600'
+                      : 'text-[#4b6390]'
+              }`}
               style={{ fontVariationSettings: "'wght' 200, 'FILL' 0" }}
             >
               {isBlocked ? 'block' : action.icon}
@@ -83,7 +98,7 @@ export default function CurrentActionSection({
               </span>
             </div>
 
-            <p className="text-sm text-slate-300 leading-relaxed">{displayDescription}</p>
+            <p className="text-[14px] text-[#4b6390] leading-relaxed">{displayDescription}</p>
 
             {/* CTAs */}
             {!isBlocked && action.ctas.length > 0 && (
@@ -95,10 +110,10 @@ export default function CurrentActionSection({
                       <Link
                         key={i}
                         href={href}
-                        className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98] ${primaryBtnClass(action.urgency)}`}
+                        className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98] ${primaryBtnClass(action.urgency)}`}
                       >
                         {cta.label}
-                        <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>arrow_forward</span>
+                        <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'wght' 300" }}>arrow_forward</span>
                       </Link>
                     )
                   }
@@ -106,7 +121,7 @@ export default function CurrentActionSection({
                     <Link
                       key={i}
                       href={href}
-                      className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-blue-300/15 text-slate-400 hover:text-white hover:border-blue-300/30 rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-blue-300/15 text-[#4b6390] hover:text-[#152d5a] hover:border-blue-300/30 rounded-xl text-[13px] font-bold uppercase tracking-widest transition-colors"
                     >
                       {cta.label}
                     </Link>
@@ -133,25 +148,25 @@ export default function CurrentActionSection({
             {OUTCOME_OPTIONS.map(opt => (
               <div
                 key={opt.label}
-                className="flex items-center gap-2 bg-white/3 border border-white/5 rounded-lg p-3"
+                className="flex items-center gap-2 bg-white/3 border border-[#152d5a]/8 rounded-lg p-3"
               >
                 <span
-                  className={`material-symbols-outlined text-base ${opt.color}`}
+                  className={`material-symbols-outlined text-[15px] ${opt.color}`}
                   style={{ fontVariationSettings: "'wght' 300" }}
                 >
                   {opt.icon}
                 </span>
-                <span className="text-[10px] font-medium text-slate-300 leading-tight">{opt.label}</span>
+                <span className="text-[10px] font-medium text-[#4b6390] leading-tight">{opt.label}</span>
               </div>
             ))}
           </div>
           {latestCheckoutBookingId && (
-            <div className="mt-4 pt-4 border-t border-white/5">
+            <div className="mt-4 pt-4 border-t border-[#152d5a]/8">
               <Link
                 href={`/admin/bookings/requests/${latestCheckoutBookingId}`}
-                className="inline-flex items-center gap-2 text-xs text-amber-400 hover:text-amber-300 font-medium transition-colors"
+                className="inline-flex items-center gap-2 text-[13px] text-amber-400 hover:text-amber-300 font-medium transition-colors"
               >
-                <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>open_in_new</span>
+                <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'wght' 300" }}>open_in_new</span>
                 Open checkout booking to set the outcome
               </Link>
             </div>
@@ -161,16 +176,16 @@ export default function CurrentActionSection({
 
       {/* ── Admin review note ─────────────────────────────────────────── */}
       {adminReviewNote && (
-        <div className="bg-[#1e2023]/60 backdrop-blur-xl border border-blue-300/10 rounded-2xl p-8">
-          <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-4 font-bold">
+        <div className="bg-white border border-blue-300/10 rounded-2xl p-8">
+          <p className="text-[10px] text-[#4b6390] uppercase tracking-widest mb-4 font-bold">
             Internal Review Note
-            <span className="normal-case font-normal text-slate-600 ml-2">(not visible to customer)</span>
+            <span className="normal-case font-normal text-[#4b6390] ml-2">(not visible to customer)</span>
           </p>
-          <p className="text-sm text-[#e2e2e6] leading-relaxed whitespace-pre-wrap">{adminReviewNote}</p>
+          <p className="text-[14px] text-[#152d5a] leading-relaxed whitespace-pre-wrap">{adminReviewNote}</p>
           {reviewedAt && (
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest pt-5 mt-5 border-t border-white/5">
+            <p className="text-[10px] text-[#4b6390] uppercase tracking-widest pt-5 mt-5 border-t border-[#152d5a]/8">
               Recorded{' '}
-              <span className="text-slate-400 font-semibold">{formatDateTime(reviewedAt)}</span>
+              <span className="text-[#4b6390] font-semibold">{formatDateTime(reviewedAt)}</span>
             </p>
           )}
         </div>

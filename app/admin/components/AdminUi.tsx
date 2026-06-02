@@ -82,14 +82,14 @@ export function StatCard({
 export function StatusPill({ label, tone = 'slate' }: { label: string; tone?: 'blue' | 'green' | 'amber' | 'rose' | 'slate' }) {
   const toneClass =
     tone === 'blue'
-      ? 'bg-blue-500/15 text-blue-300 border-blue-400/30'
+      ? 'bg-blue-500/15 text-[#1a4fd6] border-blue-400/30'
       : tone === 'green'
-      ? 'bg-green-500/15 text-green-300 border-green-400/30'
+      ? 'bg-green-500/15 text-[#166534] border-green-400/30'
       : tone === 'amber'
-      ? 'bg-amber-500/15 text-amber-300 border-amber-400/30'
+      ? 'bg-amber-500/15 text-[#b45309] border-amber-400/30'
       : tone === 'rose'
-      ? 'bg-rose-500/15 text-rose-300 border-rose-400/30'
-      : 'bg-slate-500/20 text-slate-300 border-slate-400/30'
+      ? 'bg-rose-500/15 text-[#991b1b] border-rose-400/30'
+      : 'bg-slate-500/20 text-[#4b6390] border-slate-400/30'
 
   return <span className={`px-2.5 py-1 rounded-full text-xs border ${toneClass}`}>{label}</span>
 }
@@ -112,7 +112,7 @@ export function TabLink({ active, href, label }: { active: boolean; href: string
 export function ChartShell({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-      {title ? <h3 className="text-base text-slate-200 mb-4">{title}</h3> : null}
+      {title ? <h3 className="text-base text-deep-ink mb-4">{title}</h3> : null}
       {children}
     </div>
   )

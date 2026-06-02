@@ -14,7 +14,7 @@ export default async function CustomerDocumentsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, last_flight_date, has_night_vfr_rating, has_instrument_rating')
+    .select('role, last_flight_date, has_night_vfr_rating, has_instrument_rating, terms_accepted_at, terms_version')
     .eq('id', user.id)
     .single()
 
@@ -40,6 +40,7 @@ export default async function CustomerDocumentsPage() {
           lastFlightDate={profile?.last_flight_date ?? null}
           hasNightVfrRating={profile?.has_night_vfr_rating ?? null}
           hasInstrumentRating={profile?.has_instrument_rating ?? null}
+          termsAcceptedAt={profile?.terms_accepted_at ?? null}
         />
       </div>
     </>

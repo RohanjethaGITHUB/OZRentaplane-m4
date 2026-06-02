@@ -38,8 +38,8 @@ export function ChartRangeControl({ value, onChange }: { value: TimeRangeValue; 
             onClick={() => onChange(opt.value)}
             className={`px-2.5 py-1 rounded-md text-xs border transition-colors ${
               active
-                ? 'bg-blue-400/15 border-blue-300/40 text-blue-200'
-                : 'border-white/10 text-slate-300 hover:text-white hover:bg-white/5'
+                ? 'bg-[#1a4fd6]/15 border-[#1a4fd6]/30 text-[#1a4fd6]'
+                : 'border-[#152d5a]/20 text-[#4b6390] hover:text-[#152d5a] hover:bg-[#152d5a]/5'
             }`}
           >
             {opt.label}

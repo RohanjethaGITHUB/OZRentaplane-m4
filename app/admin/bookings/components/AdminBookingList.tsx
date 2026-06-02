@@ -35,6 +35,7 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   ready_for_dispatch: { label: 'Upcoming', className: 'bg-green-500/10 text-green-300 border-green-500/20' },
   dispatched: { label: 'In Progress', className: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' },
   awaiting_flight_record: { label: 'Awaiting Flight Record', className: 'bg-amber-500/10 text-amber-300 border-amber-500/20' },
+  on_hold_pending_documents: { label: 'On Hold', className: 'bg-amber-500/10 text-amber-300 border-amber-500/20' },
   pending_post_flight_review: { label: 'Post-flight Review', className: 'bg-purple-500/10 text-purple-300 border-purple-500/20' },
   payment_pending: { label: 'Payment Pending', className: 'bg-orange-500/10 text-orange-300 border-orange-500/20' },
   completed: { label: 'Completed', className: 'bg-white/5 text-slate-300 border-white/10' },

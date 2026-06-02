@@ -26,6 +26,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { count: checkoutAwaitingOutcome },
     { count: checkoutPaymentRequired },
     { data: awaitingFlightRecordRows },
+    { count: bookingOnHold },
     { count: postFlightReview },
     { count: bookingPaymentPending },
     { count: checkoutManualReview },
@@ -51,6 +52,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       .eq('booking_type', 'standard')
       .in('status', ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record', 'flight_record_overdue'])
       .lte('scheduled_end', new Date().toISOString()),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'on_hold_pending_documents'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'pending_post_flight_review'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'payment_pending'),
     supabase.from('checkout_bank_transfer_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending_review'),
@@ -73,21 +75,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const checkoutActions = checkoutNewQueue + checkoutAwaitingOutcomeQueue + checkoutPaymentsQueue + checkoutRescheduleQueue + checkoutCancelledQueue
 
   const bookingAwaitingFlightQueue = countAwaitingFlightRecords(awaitingFlightRecordRows)
+  const bookingOnHoldQueue = bookingOnHold ?? 0
   const bookingPostFlightQueue = postFlightReview ?? 0
   const bookingPaymentsQueue = (bookingPaymentPending ?? 0) + (bookingManualReview ?? 0)
   const bookingCancellationsQueue = cancellationPending ?? 0
-  const bookingActions = bookingAwaitingFlightQueue + bookingPostFlightQueue + bookingPaymentsQueue + bookingCancellationsQueue
+  const bookingActions = bookingAwaitingFlightQueue + bookingOnHoldQueue + bookingPostFlightQueue + bookingPaymentsQueue + bookingCancellationsQueue
   const messagesActions = unreadMessageCount ?? 0
   const totalActions = checkoutActions + bookingActions + messagesActions
 
   return (
-    <div className="admin-theme min-h-screen flex flex-col bg-[var(--admin-bg)] text-[var(--admin-text)] font-sans relative">
-
-      {/* Grain overlay */}
-      <div
-        className="fixed inset-0 pointer-events-none z-[9999] opacity-[0.025] mix-blend-overlay"
-        style={{ backgroundImage: 'url("https://grainy-gradients.vercel.app/noise.svg")' }}
-      />
+    <div className="admin-theme min-h-screen flex flex-col bg-open-ceiling text-[var(--admin-text)] font-sans relative">
 
       {/* Ambient glow */}
       <div className="fixed top-0 left-0 w-[500px] h-[400px] bg-[#7ba4cf]/[0.02] blur-[130px] rounded-full pointer-events-none -z-10" />
@@ -107,6 +104,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             checkoutCancelled: checkoutCancelledQueue,
             bookings: bookingActions,
             awaitingFlightRecord: bookingAwaitingFlightQueue,
+            bookingOnHold: bookingOnHoldQueue,
             postFlightReview: bookingPostFlightQueue,
             bookingPayments: bookingPaymentsQueue,
             bookingCancellations: bookingCancellationsQueue,

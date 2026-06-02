@@ -53,7 +53,7 @@ function ChartCard({ title, subtitle, value, onChange, children }: { title: stri
   return (
     <ChartShell title={title}>
       <div className="-mt-2 mb-3 flex items-start justify-between gap-3 flex-wrap">
-        <p className="text-xs text-slate-400">{subtitle}</p>
+        <p className="text-xs text-[#4b6390]">{subtitle}</p>
         <ChartRangeControl value={value} onChange={onChange} />
       </div>
       {children}
@@ -210,13 +210,13 @@ export default function CheckoutOverviewCharts({
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <ChartCard title="Checkout Requests Over Time" subtitle="New checkout requests submitted during the selected period." value={requestsRange} onChange={setRequestsRange}>
         {requestsOverTime.length === 0 ? <EmptyChartState message="No checkout requests submitted in this period." /> : (
-          <div className="h-[240px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={requestsOverTime} margin={{ top: 22, right: 10, left: 0, bottom: 8 }}><XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} /><YAxis allowDecimals={false} domain={[0, (max: number) => max + 1]} tick={{ fill: '#94a3b8', fontSize: 11 }} /><ReadableTooltip labelFormatter={(label) => `Date/Time: ${label}`} formatter={(value) => [`${value}`, 'Checkout requests']} /><Bar dataKey="count" fill="#60A5FA" radius={[6, 6, 0, 0]}><LabelList dataKey="count" position="top" fill="#e2e8f0" fontSize={11} /></Bar></BarChart></ResponsiveContainer></div>
+          <div className="h-[240px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={requestsOverTime} margin={{ top: 22, right: 10, left: 0, bottom: 8 }}><XAxis dataKey="label" tick={{ fill: '#4b6390', fontSize: 11 }} /><YAxis allowDecimals={false} domain={[0, (max: number) => max + 1]} tick={{ fill: '#4b6390', fontSize: 11 }} /><ReadableTooltip labelFormatter={(label) => `Date/Time: ${label}`} formatter={(value) => [`${value}`, 'Checkout requests']} /><Bar dataKey="count" fill="#60A5FA" radius={[6, 6, 0, 0]}><LabelList dataKey="count" position="top" fill="#152d5a" fontSize={11} /></Bar></BarChart></ResponsiveContainer></div>
         )}
       </ChartCard>
 
       <ChartCard title="Checkout Status Breakdown" subtitle="Current checkout status mix in the selected period." value={statusRange} onChange={setStatusRange}>
         {statusMix.length === 0 ? <EmptyChartState /> : (
-          <div className="h-[240px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={statusMix} margin={{ top: 22, right: 10, left: 0, bottom: 8 }}><XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-12} textAnchor="end" height={48} interval={0} /><YAxis allowDecimals={false} domain={[0, (max: number) => max + 2]} tick={{ fill: '#94a3b8', fontSize: 11 }} /><ReadableTooltip /><Bar dataKey="value" radius={[6, 6, 0, 0]}>{statusMix.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}<LabelList dataKey="value" position="top" fill="#e2e8f0" fontSize={11} /></Bar></BarChart></ResponsiveContainer></div>
+          <div className="h-[240px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={statusMix} margin={{ top: 22, right: 10, left: 0, bottom: 8 }}><XAxis dataKey="name" tick={{ fill: '#4b6390', fontSize: 11 }} angle={-12} textAnchor="end" height={48} interval={0} /><YAxis allowDecimals={false} domain={[0, (max: number) => max + 2]} tick={{ fill: '#4b6390', fontSize: 11 }} /><ReadableTooltip /><Bar dataKey="value" radius={[6, 6, 0, 0]}>{statusMix.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}<LabelList dataKey="value" position="top" fill="#152d5a" fontSize={11} /></Bar></BarChart></ResponsiveContainer></div>
         )}
       </ChartCard>
 
@@ -233,9 +233,9 @@ export default function CheckoutOverviewCharts({
       <ChartCard title="Checkout Payment Summary" subtitle="Checkout payment states for the selected period." value={paymentRange} onChange={setPaymentRange}>
         {paymentSummary.chart.length === 0 ? <EmptyChartState message="No checkout payment activity in this period." /> : (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-xs text-slate-300">
-              <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2">Total collected: <span className="text-emerald-300">${(paymentSummary.totalCollected / 100).toFixed(2)}</span></div>
-              <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2">Outstanding: <span className="text-amber-300">${(paymentSummary.outstanding / 100).toFixed(2)}</span></div>
+            <div className="grid grid-cols-2 gap-2 text-xs text-[#4b6390]">
+              <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2">Total collected: <span className="text-[#166534]">${(paymentSummary.totalCollected / 100).toFixed(2)}</span></div>
+              <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2">Outstanding: <span className="text-[#b45309]">${(paymentSummary.outstanding / 100).toFixed(2)}</span></div>
             </div>
             <div className="h-[205px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={paymentSummary.chart} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={3}>{paymentSummary.chart.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><ReadableTooltip /><Legend formatter={(value, entry) => `${value} (${entry?.payload?.value ?? 0})`} wrapperStyle={{ fontSize: '12px' }} /></PieChart></ResponsiveContainer></div>
           </div>

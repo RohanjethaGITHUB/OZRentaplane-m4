@@ -1,16 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import OpenFileButton from '../OpenFileButton'
-import CollapsibleSection from '../CollapsibleSection'
-import AdminChatPanel from '../AdminChatPanel'
-import PilotMetadataEditor from '../PilotMetadataEditor'
-import DocumentExpiryEditor from '../DocumentExpiryEditor'
-import NextActionCard from '../NextActionCard'
-import CurrentActionSection from '../CurrentActionSection'
-import CheckoutActivitySection from '../CheckoutActivitySection'
-import HistoricalCheckoutEditor from '../HistoricalCheckoutEditor'
-import AttentionBadge from '@/app/admin/customers/AttentionBadge'
+import CustomerProfileTabs from '../CustomerProfileTabs'
 import type { UserDocument, VerificationEvent } from '@/lib/supabase/types'
 import { formatDateTime } from '@/lib/formatDateTime'
 import { getCustomerCreditBalance, getCustomerCreditTransactions } from '@/app/actions/admin'
@@ -89,6 +79,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
     { data: standardBookingsRaw },
     { data: pendingRescheduleRows },
     { data: pendingCancellationRows },
+    { count: onHoldBookingCount },
     { data: historicalCheckoutRow },
     { data: aircraftRows },
     { data: aircraftLogRows },
@@ -130,6 +121,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
       .select('created_at, booking_start_time, status, bookings!inner(booking_owner_user_id)')
       .eq('status', 'pending')
       .eq('bookings.booking_owner_user_id', params.id),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_owner_user_id', params.id).eq('status', 'on_hold_pending_documents'),
     supabase
       .from('historical_checkout_completions')
       .select('id, checkout_date, checkout_outcome, admin_notes, recorded_by_admin_id, recorded_at, linked_aircraft_flight_log_id')
@@ -372,492 +364,37 @@ export default async function AdminUserPage({ params }: { params: { id: string }
         backgroundImage: 'radial-gradient(at 0% 0%, rgba(183,200,222,0.04) 0, transparent 50%), radial-gradient(at 100% 0%, rgba(180,201,219,0.04) 0, transparent 50%)',
       }}
     >
-      {/* Back navigation */}
-      <div className="mb-10">
-        <Link
-          href="/admin"
-          className="inline-flex items-center gap-2 text-slate-400 hover:text-blue-100 transition-colors"
-        >
-          <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'wght' 300" }}>arrow_back</span>
-          <span className="text-xs uppercase tracking-widest font-medium">Back to Queue</span>
-        </Link>
-      </div>
-
-      <div className="max-w-6xl mx-auto space-y-12">
-
-        {/* ── A: Customer Overview ──────────────────────────────────────── */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
-          <div className="md:col-span-2 space-y-6">
-            {/* Account + Clearance badges */}
-            <div className="flex flex-wrap gap-2">
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border ${ACCOUNT_STATUS_BADGE[accountStatus]}`}>
-                {accountStatus === 'blocked' && <span className="w-1.5 h-1.5 rounded-full bg-red-400" />}
-                {ACCOUNT_STATUS_LABEL[accountStatus]}
-              </span>
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border ${CLEARANCE_BADGE[clearanceStatus]}`}>
-                {CLEARANCE_LABEL[clearanceStatus]}
-              </span>
-            </div>
-
-            <h1 className="font-serif text-5xl font-bold tracking-tight text-[#e2e2e6]">
-              {displayName}
-            </h1>
-            {attention.hasIssue ? (
-              <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100 flex items-center gap-2">
-                <AttentionBadge reason={attention.reason} />
-                <span>{attention.reason}</span>
-              </div>
-            ) : null}
-
-            <div className="flex flex-wrap gap-10">
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Account</p>
-                <p className="text-blue-200 text-sm">{customerProfile.email || '—'}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Pilot ARN</p>
-                <PilotMetadataEditor customerId={params.id} initialArn={customerProfile.pilot_arn} />
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Night VFR</p>
-                <p className={`text-sm ${customerProfile.has_night_vfr_rating === true ? 'text-green-400' : customerProfile.has_night_vfr_rating === false ? 'text-blue-200' : 'text-slate-500 italic'}`}>
-                  {customerProfile.has_night_vfr_rating === true ? 'Yes' : customerProfile.has_night_vfr_rating === false ? 'No' : 'Not provided'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Instrument Rating</p>
-                <p className={`text-sm ${customerProfile.has_instrument_rating === true ? 'text-green-400' : customerProfile.has_instrument_rating === false ? 'text-blue-200' : 'text-slate-500 italic'}`}>
-                  {customerProfile.has_instrument_rating === true ? 'Yes' : customerProfile.has_instrument_rating === false ? 'No' : 'Not provided'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Member Since</p>
-                <p className="text-blue-200 text-sm">{submittedAt}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 font-bold">Documents</p>
-                <p className="text-blue-200 text-sm">{(documents ?? []).length} / 3</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Next Required Action card — replaces old clearance status card */}
-          <NextActionCard
-            clearanceStatus={clearanceStatus}
-            accountStatus={accountStatus}
-            latestCheckoutBookingId={latestCheckoutBookingId}
-            historicalCheckoutAction={
-              <HistoricalCheckoutEditor
-                renderMode="button_only"
-                customerId={params.id}
-                customerName={displayName}
-                clearanceStatus={clearanceStatus}
-                hasActiveCheckoutRequest={hasActiveCheckoutRequest}
-                defaultPicArn={defaultPicArn}
-                aircraftOptions={(aircraftRows ?? []).map((a) => ({
-                  id: a.id,
-                  registration: a.registration,
-                  displayName: a.display_name,
-                }))}
-                existingLogs={(aircraftLogRows ?? []).map((log: any) => ({
-                  id: log.id,
-                  aircraftId: log.aircraft_id,
-                  aircraftRegistration: Array.isArray(log.aircraft) ? (log.aircraft[0]?.registration ?? 'Unknown') : (log.aircraft?.registration ?? 'Unknown'),
-                  aircraftDisplayName: Array.isArray(log.aircraft) ? (log.aircraft[0]?.display_name ?? null) : (log.aircraft?.display_name ?? null),
-                  flightDate: log.flight_date,
-                  picName: log.pic_name,
-                  picArn: log.pic_arn ?? null,
-                  vdoStart: log.vdo_start ?? null,
-                  vdoStop: log.vdo_stop ?? null,
-                  vdoTotal: log.vdo_total ?? null,
-                  tachoStart: log.tacho_start ?? null,
-                  tachoStop: log.tacho_stop ?? null,
-                  tachoTotal: log.tacho_total ?? null,
-                  airSwitchStart: log.air_switch_start ?? null,
-                  airSwitchStop: log.air_switch_stop ?? null,
-                  airSwitchTotal: log.air_switch_total ?? null,
-                  mrStart: log.mr_start ?? null,
-                  mrStop: log.mr_stop ?? null,
-                  mrTotal: log.mr_total ?? null,
-                  oilAdded: log.oil_added ?? null,
-                  oilTotal: log.oil_total ?? null,
-                  fuelAdded: log.fuel_added ?? null,
-                  fuelReturned: log.fuel_returned ?? null,
-                  landings: log.landings ?? null,
-                  source: log.source ?? null,
-                  reviewStatus: log.review_status ?? null,
-                }))}
-                historicalRecord={historicalSummary}
-              />
-            }
-          />
-        </section>
-
-        {/* Runway divider */}
-        <div className="h-0.5 w-10 bg-[#44474c]" />
-
-        <section className="space-y-4">
-          <div>
-            <h2 className="text-3xl font-serif text-[#e2e2e6]">Customer Timeline</h2>
-            <p className="text-sm text-slate-400 mt-1">A chronological view of this customer’s account, checkout, document, and booking activity.</p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-[#13161b] p-6 overflow-x-auto">
-            <div className="flex min-w-max items-start gap-5">
-              {timelineEvents.map((event, idx) => (
-                <div key={`${event.at}-${idx}`} className="w-[320px] flex-shrink-0">
-                  <div className="mb-2 flex items-center gap-2">
-                    <span className={`h-3 w-3 rounded-full ${event.tone === 'green' ? 'bg-green-400' : event.tone === 'red' ? 'bg-red-400' : event.tone === 'amber' ? 'bg-amber-400' : event.tone === 'blue' ? 'bg-blue-400' : 'bg-slate-500'}`} />
-                    {idx < timelineEvents.length - 1 ? <span className="h-px flex-1 bg-white/10" /> : null}
-                  </div>
-                  <div className={`rounded-xl border p-4 ${
-                    event.tone === 'green'
-                      ? 'border-green-500/20 bg-green-900/10'
-                      : event.tone === 'amber'
-                      ? 'border-amber-500/20 bg-amber-900/10'
-                      : event.tone === 'red'
-                      ? 'border-red-500/20 bg-red-900/10'
-                      : event.tone === 'blue'
-                      ? 'border-blue-500/20 bg-blue-900/10'
-                      : 'border-white/10 bg-[#1a1d23]'
-                  }`}>
-                    <p className="text-base font-semibold text-[#e2e2e6]">{event.title}</p>
-                    <p className="text-sm text-slate-300 mt-1">{event.detail}</p>
-                    <p className="text-xs text-slate-500 mt-2">{formatDateTime(event.at)}</p>
-                    {(event as any).actor?.full_name || (event as any).actor?.email ? (
-                      <p className="text-xs text-slate-500 mt-1">
-                        Actor: {(event as any).actor?.full_name ?? (event as any).actor?.email}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Runway divider */}
-        <div className="h-0.5 w-10 bg-[#44474c]" />
-
-        {/* ── B: Current Action ─────────────────────────────────────────── */}
-        <CollapsibleSection
-          title="Current Action"
-          description="Primary clearance decision and immediate operational follow-up."
-          defaultOpen={currentActionDefaultOpen}
-          summary={CLEARANCE_LABEL[clearanceStatus]}
-        >
-          <HistoricalCheckoutEditor
-            renderMode="summary_only"
-            customerId={params.id}
-            customerName={displayName}
-            clearanceStatus={clearanceStatus}
-            hasActiveCheckoutRequest={hasActiveCheckoutRequest}
-            defaultPicArn={defaultPicArn}
-            aircraftOptions={(aircraftRows ?? []).map((a) => ({
-              id: a.id,
-              registration: a.registration,
-              displayName: a.display_name,
-            }))}
-            existingLogs={(aircraftLogRows ?? []).map((log: any) => ({
-              id: log.id,
-              aircraftId: log.aircraft_id,
-              aircraftRegistration: Array.isArray(log.aircraft) ? (log.aircraft[0]?.registration ?? 'Unknown') : (log.aircraft?.registration ?? 'Unknown'),
-              aircraftDisplayName: Array.isArray(log.aircraft) ? (log.aircraft[0]?.display_name ?? null) : (log.aircraft?.display_name ?? null),
-              flightDate: log.flight_date,
-              picName: log.pic_name,
-              picArn: log.pic_arn ?? null,
-              vdoStart: log.vdo_start ?? null,
-              vdoStop: log.vdo_stop ?? null,
-              vdoTotal: log.vdo_total ?? null,
-              tachoStart: log.tacho_start ?? null,
-              tachoStop: log.tacho_stop ?? null,
-              tachoTotal: log.tacho_total ?? null,
-              airSwitchStart: log.air_switch_start ?? null,
-              airSwitchStop: log.air_switch_stop ?? null,
-              airSwitchTotal: log.air_switch_total ?? null,
-              mrStart: log.mr_start ?? null,
-              mrStop: log.mr_stop ?? null,
-              mrTotal: log.mr_total ?? null,
-              oilAdded: log.oil_added ?? null,
-              oilTotal: log.oil_total ?? null,
-              fuelAdded: log.fuel_added ?? null,
-              fuelReturned: log.fuel_returned ?? null,
-              landings: log.landings ?? null,
-              source: log.source ?? null,
-              reviewStatus: log.review_status ?? null,
-            }))}
-            historicalRecord={historicalSummary}
-          />
-          <CurrentActionSection
-            clearanceStatus={clearanceStatus}
-            accountStatus={accountStatus}
-            latestCheckoutBookingId={latestCheckoutBookingId}
-            adminReviewNote={customerProfile.admin_review_note ?? null}
-            reviewedAt={customerProfile.reviewed_at ?? null}
-            customerId={params.id}
-          />
-        </CollapsibleSection>
-
-        {/* Runway divider */}
-        <div className="h-0.5 w-10 bg-[#44474c]" />
-
-        {/* ── C: Documents ───────────────────────────────────────────────── */}
-        <CollapsibleSection
-          title="Documents"
-          description="Pilot licence, medical, identity, and flight documents."
-          defaultOpen={false}
-          summary={docSummary}
-        >
-          {(documents ?? []).length === 0 ? (
-            <div className="bg-[#1e2023]/60 border border-white/5 rounded-xl p-12 text-center text-slate-500 text-sm font-light">
-              No documents have been uploaded by this customer yet.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {(documents as UserDocument[]).map(doc => {
-                const meta = DOC_META[doc.document_type] ?? { label: doc.document_type, icon: 'description' }
-                const ext = fileExtension(doc.file_name)
-                const statusChip = documentStatusChip(doc, clearanceStatus)
-                const uploadedAt = new Date(doc.uploaded_at).toLocaleString('en-AU', {
-                  day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-                })
-
-                return (
-                  <div
-                    key={doc.id}
-                    className="relative bg-[#1e2023]/60 backdrop-blur-xl border border-blue-300/5 p-6 rounded-xl group hover:bg-[#282a2d] hover:border-blue-300/15 transition-all duration-300 cursor-pointer"
-                  >
-                    <div className="flex justify-between items-start mb-6">
-                      <span
-                        className="material-symbols-outlined text-blue-300 text-3xl group-hover:text-blue-200 transition-colors"
-                        style={{ fontVariationSettings: "'wght' 200, 'FILL' 0" }}
-                      >
-                        {meta.icon}
-                      </span>
-                      <span className="text-[10px] font-bold text-slate-500 bg-[#0c0e11] px-2 py-1 rounded">
-                        {ext}
-                      </span>
-                    </div>
-
-                    <p className="font-sans font-bold text-[#e2e2e6] group-hover:text-blue-300 transition-colors">
-                      {meta.label}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1 truncate">{doc.file_name}</p>
-                    <div className="mt-3">
-                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusChip.className}`}>
-                        {statusChip.label}
-                      </span>
-                    </div>
-
-                    {doc.document_type === 'pilot_licence' && (
-                      <div className="mt-3 space-y-1">
-                        {doc.licence_type && (
-                          <p className="text-[10px] text-slate-400">Licence: {doc.licence_type}</p>
-                        )}
-                        {doc.licence_number && (
-                          <p className="text-[10px] text-slate-400">ARN: {doc.licence_number}</p>
-                        )}
-                        <p className="text-[10px] text-slate-400">
-                          Night VFR:{' '}
-                          <span className={customerProfile.has_night_vfr_rating === true ? 'text-green-400' : customerProfile.has_night_vfr_rating === false ? 'text-slate-300' : 'text-slate-600 italic'}>
-                            {customerProfile.has_night_vfr_rating === true ? 'Yes' : customerProfile.has_night_vfr_rating === false ? 'No' : 'Not provided'}
-                          </span>
-                        </p>
-                        <p className="text-[10px] text-slate-400">
-                          Instrument Rating:{' '}
-                          <span className={customerProfile.has_instrument_rating === true ? 'text-green-400' : customerProfile.has_instrument_rating === false ? 'text-slate-300' : 'text-slate-600 italic'}>
-                            {customerProfile.has_instrument_rating === true ? 'Yes' : customerProfile.has_instrument_rating === false ? 'No' : 'Not provided'}
-                          </span>
-                        </p>
-                        <p className="text-[10px] text-slate-400">
-                          Red Card Expiry:{' '}
-                          <span className={doc.red_card_expiry_month && doc.red_card_expiry_year ? 'text-green-400' : 'text-slate-600 italic'}>
-                            {doc.red_card_expiry_month && doc.red_card_expiry_year
-                              ? `${String(doc.red_card_expiry_month).padStart(2, '0')}/${doc.red_card_expiry_year}`
-                              : 'Not provided'}
-                          </span>
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="mt-6 flex justify-between items-end">
-                      <div className="text-[10px] text-slate-500">
-                        <p className="uppercase tracking-tighter">Uploaded</p>
-                        <p className="font-bold mt-0.5">{uploadedAt}</p>
-                      </div>
-                      <OpenFileButton storagePath={doc.storage_path} fileName={doc.file_name} />
-                    </div>
-
-                    <DocumentExpiryEditor
-                      documentId={doc.id}
-                      customerId={params.id}
-                      initialExpiry={doc.expiry_date}
-                      documentType={doc.document_type}
-                    />
-
-                    <OpenFileButton
-                      storagePath={doc.storage_path}
-                      fileName={doc.file_name}
-                      asCardOverlay
-                    />
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </CollapsibleSection>
-
-        {/* Runway divider */}
-        <div className="h-0.5 w-10 bg-[#44474c]" />
-
-        {/* ── D: Checkout / Booking Activity ────────────────────────────── */}
-        <CollapsibleSection
-          title="Checkout / Booking Activity"
-          description="Recent checkout and standard booking states for this customer."
-          defaultOpen={activityDefaultOpen}
-          summary={activitySummary}
-        >
-          <CheckoutActivitySection
-            checkoutBookings={checkoutBookings}
-            standardBookings={standardBookings}
-          />
-        </CollapsibleSection>
-
-        {/* Runway divider */}
-        <div className="h-0.5 w-10 bg-[#44474c]" />
-
-        {/* ── E: Billing & Credits ──────────────────────────────────────── */}
-        <CollapsibleSection title="Billing & Credits" description="Credits, refunds, and recent payment ledger activity." defaultOpen={false} summary={creditSummary}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-gradient-to-br from-blue-900/40 to-[#0c1326]/80 border border-blue-500/20 rounded-2xl p-8 backdrop-blur-xl flex flex-col justify-between h-full">
-              <div>
-                <div className="text-sm font-medium text-blue-200/70 mb-1 uppercase tracking-widest">Available Credit</div>
-                <div className="text-5xl font-serif tracking-tight text-white">${(balanceCents / 100).toFixed(2)}</div>
-              </div>
-              <div className="mt-8 flex gap-4">
-                <Link
-                  href={`/admin/customers/ledger?customerId=${params.id}`}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors inline-block"
-                >
-                  Manage Credits & Refunds
-                </Link>
-              </div>
-            </div>
-
-            <div className="bg-[#1e2023]/60 backdrop-blur-xl border border-white/5 rounded-2xl p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-white font-medium text-sm">Recent Activity</h3>
-                <Link
-                  href={`/admin/customers/ledger?customerId=${params.id}`}
-                  className="text-[10px] uppercase tracking-widest font-bold text-slate-400 hover:text-white transition-colors"
-                >
-                  View Full History
-                </Link>
-              </div>
-              {transactions.length === 0 ? (
-                <div className="text-sm text-slate-500 italic py-4">No credit history.</div>
-              ) : (
-                <div className="space-y-4">
-                  {transactions.slice(0, 5).map(tx => {
-                    const isPositive = tx.amount_cents > 0
-                    return (
-                      <div key={tx.id} className="flex justify-between items-center border-b border-white/5 pb-4 last:border-0 last:pb-0">
-                        <div>
-                          <div className="text-sm text-slate-300 font-medium capitalize">{tx.entry_type.replace(/_/g, ' ')}</div>
-                          <div className="text-xs text-slate-500">{new Date(tx.created_at).toLocaleDateString()}</div>
-                        </div>
-                        <div className={`text-sm font-medium tabular-nums ${isPositive ? 'text-emerald-400' : 'text-slate-300'}`}>
-                          {isPositive ? '+' : ''}${(Math.abs(tx.amount_cents) / 100).toFixed(2)}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </CollapsibleSection>
-
-        {/* Runway divider */}
-        <div className="h-0.5 w-10 bg-[#44474c]" />
-
-        {/* ── F: Chat Details ───────────────────────────────────────────── */}
-        <CollapsibleSection
-          title="Chat Details"
-          description="Conversation history with unread indicators and response context."
-          defaultOpen={adminUnreadCount > 0}
-          badge={adminUnreadCount}
-          summary={chatSummary}
-        >
-          <AdminChatPanel
-            customerId={customerProfile.id}
-            events={chatEvents}
-            customerName={displayName}
-          />
-        </CollapsibleSection>
-
-        {/* Runway divider */}
-        <div className="h-0.5 w-10 bg-[#44474c]" />
-
-        {/* ── G: Internal Review History ────────────────────────────────── */}
-        <CollapsibleSection
-          title="Internal Review History"
-          description="Chronological admin decisions, notes, and notification outcomes."
-          defaultOpen={false}
-          summary={historySummary}
-        >
-          {(events ?? []).length === 0 ? (
-            <div className="bg-[#1e2023]/60 border border-white/5 rounded-xl p-10 text-center text-slate-500 text-sm font-light">
-              No review history on record.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {(events as VerificationEvent[]).map(ev => {
-                const style = EVENT_STYLE[ev.event_type] ?? EVENT_STYLE.message
-                const when  = formatDateTime(ev.created_at)
-                return (
-                  <div
-                    key={ev.id}
-                    className="bg-[#1e2023]/60 backdrop-blur-xl border border-white/5 rounded-xl p-5 flex gap-4"
-                  >
-                    <div className={`w-9 h-9 rounded-full ${style.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
-                      <span
-                        className={`material-symbols-outlined text-base ${style.color}`}
-                        style={{ fontVariationSettings: "'wght' 300" }}
-                      >
-                        {style.icon}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-center justify-between gap-4">
-                        <p className="text-sm font-semibold text-[#e2e2e6]">{ev.title}</p>
-                        <span className="text-[10px] text-slate-500 whitespace-nowrap font-mono">{when}</span>
-                      </div>
-                      {ev.body && ev.event_type !== 'message' && (
-                        <p className="text-sm text-slate-400 leading-relaxed">{ev.body}</p>
-                      )}
-                      <div className="flex items-center gap-3 pt-1">
-                        {ev.from_status && ev.to_status && (
-                          <span className="text-[10px] text-slate-600 font-mono">
-                            {ev.from_status.replace(/_/g, ' ')} → {ev.to_status.replace(/_/g, ' ')}
-                          </span>
-                        )}
-                        <span className={`text-[10px] uppercase tracking-wider font-bold ${
-                          ev.email_status === 'sent'    ? 'text-green-500/50' :
-                          ev.email_status === 'failed'  ? 'text-red-500/50'   :
-                          'text-slate-600'
-                        }`}>
-                          email: {ev.email_status}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </CollapsibleSection>
-
-      </div>
+      <CustomerProfileTabs
+        customerId={params.id}
+        customerProfile={customerProfile}
+        accountStatus={accountStatus}
+        clearanceStatus={clearanceStatus}
+        documents={documents ?? []}
+        timelineEvents={timelineEvents}
+        events={events ?? []}
+        checkoutBookings={checkoutBookings}
+        standardBookings={standardBookings}
+        historicalCheckoutRow={
+          historicalCheckoutRow ?? null
+        }
+        pendingRescheduleRows={
+          pendingRescheduleRows ?? []
+        }
+        pendingCancellationRows={
+          pendingCancellationRows ?? []
+        }
+        checkoutStatusHistoryRows={
+          checkoutStatusHistoryRows ?? []
+        }
+        aircraftRows={aircraftRows ?? []}
+        aircraftLogRows={aircraftLogRows ?? []}
+        balanceCents={balanceCents ?? 0}
+        transactions={transactions ?? []}
+        recordedByAdminProfile={
+          recordedByAdminProfile ?? null
+        }
+        onHoldBookingCount={0}
+      />
     </div>
   )
 }

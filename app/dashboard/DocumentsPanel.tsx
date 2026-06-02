@@ -6,9 +6,9 @@ import type { User } from '@supabase/supabase-js'
 import type {
   UserDocument,
   DocumentType,
-  VerificationStatus,
 } from '@/lib/supabase/types'
 import { uploadVerificationDocument } from '@/app/actions/upload'
+import { acceptTermsAndConditions } from '@/app/actions/terms'
 import { getDocumentSignedUrl } from '@/app/actions/documents'
 import { saveLastFlightDate } from '@/app/actions/verification'
 import { fmtDate } from '@/lib/utils/format'
@@ -52,15 +52,13 @@ const DOC_TYPES: DocDef[] = [
 
 type DocUiState =
   | 'missing'
-  | 'uploaded'
-  | 'pending_review'
-  | 'verified'
+  | 'under_review'
+  | 'approved'
   | 'rejected'
   | 'expired'
 
 function getDocUiState(
   doc: UserDocument | undefined,
-  verificationStatus: VerificationStatus,
 ): DocUiState {
   if (!doc) return 'missing'
 
@@ -75,19 +73,17 @@ function getDocUiState(
   }
 
   if (doc.status === 'rejected') return 'rejected'
-  if (doc.status === 'approved') return 'verified'
-  if (verificationStatus === 'pending_review') return 'pending_review'
-  return 'uploaded'
+  if (doc.status === 'approved') return 'approved'
+  return 'under_review'
 }
 
 // ─── Status chip ──────────────────────────────────────────────────────────────
 
 const CHIP_CONFIG: Record<DocUiState, { label: string; color: string; bg: string }> = {
-  missing:        { label: 'Required',        color: 'text-white/30',  bg: 'border border-white/10' },
-  uploaded:       { label: 'Uploaded',        color: 'text-oz-blue',   bg: 'bg-oz-blue/10' },
-  pending_review: { label: 'Pending Review',  color: 'text-amber-400', bg: 'bg-amber-500/10' },
-  verified:       { label: 'Verified',        color: 'text-green-400', bg: 'bg-green-500/10' },
-  rejected:       { label: 'Action Required', color: 'text-red-400',   bg: 'bg-red-500/10' },
+  missing:        { label: 'Not Uploaded',    color: 'text-white/30',  bg: 'border border-white/10' },
+  under_review:   { label: 'Under Review',    color: 'text-amber-400', bg: 'bg-amber-500/10' },
+  approved:       { label: 'Approved',        color: 'text-green-400', bg: 'bg-green-500/10' },
+  rejected:       { label: 'Rejected',        color: 'text-red-400',   bg: 'bg-red-500/10' },
   expired:        { label: 'Expired',         color: 'text-red-400',   bg: 'bg-red-500/10' },
 }
 
@@ -557,7 +553,7 @@ function DocumentCard({
   onOpen:               () => void
   hasNightVfrRating?:   boolean | null
   hasInstrumentRating?: boolean | null
-}) {
+  }) {
   const [viewLoading, setViewLoading] = useState(false)
   const [viewError,   setViewError]   = useState('')
 
@@ -576,25 +572,23 @@ function DocumentCard({
 
   const iconBg: Record<DocUiState, string> = {
     missing:        'bg-white/5      border-white/10      text-white/40',
-    uploaded:       'bg-oz-blue/10   border-oz-blue/20    text-oz-blue',
-    pending_review: 'bg-amber-500/10 border-amber-500/20  text-amber-400',
-    verified:       'bg-green-500/10 border-green-500/20  text-green-400',
+    under_review:   'bg-amber-500/10 border-amber-500/20  text-amber-400',
+    approved:       'bg-green-500/10 border-green-500/20  text-green-400',
     rejected:       'bg-red-500/10   border-red-500/20    text-red-400',
     expired:        'bg-red-500/10   border-red-500/20    text-red-400',
   }
 
   const cardBorder: Record<DocUiState, string> = {
     missing:        'border-white/5      hover:bg-[#0c121e]/80',
-    uploaded:       'border-oz-blue/15',
-    pending_review: 'border-amber-500/15',
-    verified:       'border-green-500/15',
+    under_review:   'border-amber-500/15',
+    approved:       'border-green-500/15',
     rejected:       'border-red-500/15',
     expired:        'border-red-500/15',
   }
 
-  const showView    = !!doc && ['uploaded', 'pending_review', 'verified'].includes(docState)
+  const showView    = !!doc && docState !== 'missing'
   const showUpload  = docState === 'missing'
-  const showReplace = ['uploaded', 'verified', 'rejected', 'expired'].includes(docState)
+  const showReplace = ['rejected', 'expired'].includes(docState)
 
   // Label for upload/replace button
   const actionLabel =
@@ -605,6 +599,7 @@ function DocumentCard({
 
   const actionIcon  =
     docState === 'missing' ? 'cloud_upload' : 'cloud_sync'
+  const reviewedAt = doc?.reviewed_at ?? doc?.updated_at ?? doc?.uploaded_at ?? null
 
   return (
     <div
@@ -647,7 +642,7 @@ function DocumentCard({
                 </span>
 
                 {/* Upload date */}
-                {doc.uploaded_at && (
+                {doc.uploaded_at && docState !== 'approved' && (
                   <span className="text-xs text-white/40 flex items-center gap-1">
                     <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>calendar_today</span>
                     Uploaded {fmtDate(doc.uploaded_at)}
@@ -659,6 +654,20 @@ function DocumentCard({
                   <span className={`text-xs flex items-center gap-1 font-medium ${docState === 'expired' ? 'text-red-400/80' : 'text-white/50'}`}>
                     <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>event</span>
                     {docState === 'expired' ? 'Expired' : 'Expires'} {fmtDate(doc.expiry_date)}
+                  </span>
+                )}
+
+                {/* Approved / reviewed date */}
+                {docState === 'approved' && reviewedAt && (
+                  <span className="text-xs text-green-400/80 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>task_alt</span>
+                    Approved {fmtDate(reviewedAt)}
+                  </span>
+                )}
+                {docState === 'rejected' && reviewedAt && (
+                  <span className="text-xs text-red-400/70 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>gpp_bad</span>
+                    Rejected {fmtDate(reviewedAt)}
                   </span>
                 )}
 
@@ -781,15 +790,25 @@ type Props = {
   lastFlightDate:       string | null
   hasNightVfrRating:    boolean | null
   hasInstrumentRating:  boolean | null
+  termsAcceptedAt:      string | null
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function DocumentsPanel({ user: _user, documents, lastFlightDate, hasNightVfrRating, hasInstrumentRating }: Props) {
+export default function DocumentsPanel({
+  user: _user,
+  documents,
+  lastFlightDate,
+  hasNightVfrRating,
+  hasInstrumentRating,
+  termsAcceptedAt,
+}: Props) {
   // status is derived locally — not needed from parent since we no longer gate on verification_status
-  const status: VerificationStatus = 'not_started'   // used only by getDocUiState for chip display
   const router = useRouter()
   const [modalDocType, setModalDocType] = useState<DocumentType | null>(null)
+  const [termsChecked, setTermsChecked] = useState(false)
+  const [termsError, setTermsError] = useState('')
+  const [isAcceptingTerms, setIsAcceptingTerms] = useState(false)
 
   // ── Last flight date field state ─────────────────────────────────────────────
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
@@ -826,17 +845,24 @@ export default function DocumentsPanel({ user: _user, documents, lastFlightDate,
 
   const docStates = useMemo(
     () => Object.fromEntries(
-      DOC_TYPES.map(def => [def.type, getDocUiState(docMap[def.type], status)])
+      DOC_TYPES.map(def => [def.type, getDocUiState(docMap[def.type])])
     ) as Record<DocumentType, DocUiState>,
-    [docMap, status],
+    [docMap],
   )
 
   // Documents can always be replaced
   const canModify = true
 
-  const expiredDocs    = DOC_TYPES.filter(def => docStates[def.type] === 'expired')
-  const expiredMedical = docStates['medical_certificate'] === 'expired'
-  const medicalDoc     = docMap['medical_certificate']
+  const requiredDocTypes = DOC_TYPES.map(def => def.type)
+  const hasMissingRequiredDoc = requiredDocTypes.some(type => docStates[type] === 'missing')
+  const hasRejectedRequiredDoc = requiredDocTypes.some(type => docStates[type] === 'rejected')
+  const allRequiredDocsUploaded = requiredDocTypes.every(type => docStates[type] !== 'missing')
+  const allRequiredDocsApproved = requiredDocTypes.every(type => docStates[type] === 'approved')
+  const termsAccepted = Boolean(termsAcceptedAt)
+  const readinessState =
+    hasMissingRequiredDoc || hasRejectedRequiredDoc ? 'red'
+    : allRequiredDocsApproved && termsAccepted ? 'green'
+    : 'amber'
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -851,6 +877,28 @@ export default function DocumentsPanel({ user: _user, documents, lastFlightDate,
   function handleUploadSuccess() {
     closeModal()
     router.refresh()
+  }
+
+  async function handleAcceptTerms() {
+    if (!termsChecked || isAcceptingTerms) {
+      setTermsError(termsChecked ? '' : 'Please check the box to accept the terms and conditions.')
+      return
+    }
+
+    setTermsError('')
+    setIsAcceptingTerms(true)
+    try {
+      const result = await acceptTermsAndConditions()
+      if (!result.ok) {
+        setTermsError(result.error)
+        return
+      }
+      router.refresh()
+    } catch (error: unknown) {
+      setTermsError(error instanceof Error ? error.message : 'Could not save your terms acceptance right now.')
+    } finally {
+      setIsAcceptingTerms(false)
+    }
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -901,6 +949,135 @@ export default function DocumentsPanel({ user: _user, documents, lastFlightDate,
                 10 MB per file
               </p>
             </div>
+          </div>
+        </section>
+
+        {/* ── Terms & Conditions acceptance ── */}
+        <section className="bg-[#0c121e]/60 border border-white/[0.07] rounded-[1.25rem] p-6 space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="w-9 h-9 rounded-xl bg-oz-blue/10 border border-oz-blue/20 flex items-center justify-center flex-shrink-0">
+              <span
+                className="material-symbols-outlined text-oz-blue text-base"
+                style={{ fontVariationSettings: "'wght' 300" }}
+              >
+                gavel
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-semibold text-white">Terms & Conditions</h3>
+              <p className="text-xs text-oz-muted mt-0.5">
+                Please accept the current booking terms before requesting a checkout flight.
+              </p>
+            </div>
+            {termsAccepted && (
+              <span className="flex-shrink-0 text-[9px] font-bold uppercase px-2 py-0.5 rounded-full tracking-widest text-green-400 bg-green-500/10">
+                Accepted
+              </span>
+            )}
+          </div>
+
+          {termsAccepted ? (
+            <div className="rounded-xl border border-green-500/15 bg-green-500/[0.06] px-4 py-3 text-sm text-green-200 flex items-start gap-3">
+              <span className="material-symbols-outlined text-base mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>
+                check_circle
+              </span>
+              <p>
+                Terms accepted on <span className="font-semibold">{termsAcceptedAt ? fmtDate(termsAcceptedAt) : '—'}</span>.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <label className="flex items-start gap-3 rounded-xl border border-white/[0.12] bg-white/[0.03] px-4 py-3 cursor-pointer hover:border-oz-blue/30 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={termsChecked}
+                  onChange={e => {
+                    setTermsChecked(e.target.checked)
+                    setTermsError('')
+                  }}
+                  className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent text-oz-blue focus:ring-oz-blue"
+                />
+                <span className="text-sm text-slate-200 leading-relaxed">
+                  I have read and agree to the{' '}
+                  <a
+                    href="/terms-and-conditions"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-oz-blue hover:text-blue-300 underline underline-offset-2"
+                  >
+                    terms and conditions
+                  </a>
+                  .
+                </span>
+              </label>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleAcceptTerms}
+                  disabled={!termsChecked || isAcceptingTerms}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-oz-blue/15 border border-oz-blue/30 text-oz-blue hover:bg-oz-blue hover:text-oz-deep rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {isAcceptingTerms && (
+                    <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                  )}
+                  {isAcceptingTerms ? 'Saving…' : 'Accept'}
+                </button>
+                <p className="text-xs text-oz-muted">
+                  Your acceptance will be recorded against the current terms version.
+                </p>
+              </div>
+
+              {termsError && (
+                <p className="text-xs text-red-400 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm">error</span>
+                  {termsError}
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* ── Overall document readiness banner ── */}
+        <section
+          className={`rounded-[1.25rem] px-6 py-5 flex items-start gap-4 border ${
+            readinessState === 'green'
+              ? 'bg-green-500/5 border-green-500/20'
+              : readinessState === 'amber'
+                ? 'bg-amber-500/5 border-amber-500/20'
+                : 'bg-red-500/5 border-red-500/20'
+          }`}
+        >
+          <span
+            className={`material-symbols-outlined text-xl flex-shrink-0 mt-0.5 ${
+              readinessState === 'green' ? 'text-green-400' : readinessState === 'amber' ? 'text-amber-300' : 'text-red-400'
+            }`}
+            style={{ fontVariationSettings: "'wght' 300" }}
+          >
+            {readinessState === 'green' ? 'check_circle' : readinessState === 'amber' ? 'hourglass_top' : 'warning'}
+          </span>
+          <div className="space-y-1">
+            <p className={`text-sm font-medium leading-relaxed ${readinessState === 'green' ? 'text-green-200' : readinessState === 'amber' ? 'text-amber-200' : 'text-red-300'}`}>
+              {readinessState === 'green'
+                ? "All documents approved — you're eligible to request a checkout flight"
+                : readinessState === 'amber' && allRequiredDocsApproved && !termsAccepted
+                  ? 'Documents approved — accept the terms above to request a checkout flight'
+                  : readinessState === 'amber'
+                  ? 'Documents under review — we\'ll notify you once approved'
+                  : hasMissingRequiredDoc || hasRejectedRequiredDoc
+                    ? 'Action required — one or more documents need attention'
+                    : 'Action required — accept the terms above to become eligible to request a checkout flight'}
+            </p>
+            {readinessState === 'amber' && termsAccepted && allRequiredDocsUploaded && !allRequiredDocsApproved && (
+              <p className="text-xs text-white/45">
+                Once every required document is approved, you’ll be able to request a checkout flight.
+              </p>
+            )}
+            {readinessState === 'amber' && allRequiredDocsApproved && !termsAccepted && (
+              <p className="text-xs text-white/45">
+                The documents are ready. Accept the terms above to unlock checkout readiness.
+              </p>
+            )}
           </div>
         </section>
 
@@ -983,32 +1160,6 @@ export default function DocumentsPanel({ user: _user, documents, lastFlightDate,
             </p>
           )}
         </section>
-
-        {/* ── Expired document alert (page-level) ── */}
-        {expiredDocs.length > 0 && (
-          <section className="bg-red-500/5 border border-red-500/20 rounded-[1.25rem] px-6 py-5 flex items-start gap-4">
-            <span
-              className="material-symbols-outlined text-red-400 text-xl flex-shrink-0 mt-0.5"
-              style={{ fontVariationSettings: "'wght' 300" }}
-            >
-              warning
-            </span>
-            <div className="space-y-1">
-              {expiredMedical && medicalDoc?.expiry_date && (
-                <p className="text-sm text-red-300 font-medium leading-relaxed">
-                  Medical certificate expired{' '}
-                  <span className="text-red-400">{fmtDate(medicalDoc.expiry_date)}</span>.
-                  Please upload an updated certificate before requesting a booking.
-                </p>
-              )}
-              {expiredDocs.filter(d => d.type !== 'medical_certificate').map(d => (
-                <p key={d.type} className="text-sm text-red-300/80 leading-relaxed">
-                  {d.label} has expired. Please upload an updated document.
-                </p>
-              ))}
-            </div>
-          </section>
-        )}
 
         {/* ── Document cards ── */}
         <section className="grid gap-5">

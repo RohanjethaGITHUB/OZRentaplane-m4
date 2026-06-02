@@ -8,6 +8,13 @@ import {
   buildSubmittedEmail,
 } from '@/lib/email'
 
+type UpdateDocumentStatusInput = {
+  documentId: string
+  userId: string
+  status: 'approved' | 'rejected'
+  reviewNotes?: string
+}
+
 // ─── Submit for review ────────────────────────────────────────────────────────
 // Called when customer submits or resubmits their documents.
 // For on_hold clarification requests the doc check is relaxed — the customer
@@ -226,4 +233,79 @@ export async function saveCustomerArn(arn: string): Promise<void> {
   revalidatePath('/dashboard/documents')
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard/bookings/new')
+}
+
+export async function updateDocumentStatus(
+  input: UpdateDocumentStatusInput,
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    const { supabase, adminId } = await requireAdmin()
+
+    const reviewNotes = input.reviewNotes?.trim() || null
+    if (input.status === 'rejected' && !reviewNotes) {
+      return { success: false, error: 'Review notes are required when rejecting a document.' }
+    }
+
+    const { error: updateError } = await supabase
+      .from('user_documents')
+      .update({
+        status: input.status,
+        review_notes: reviewNotes,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq('id', input.documentId)
+      .eq('user_id', input.userId)
+
+    if (updateError) {
+      return { success: false, error: updateError.message || 'Failed to update document status.' }
+    }
+
+    if (input.status === 'rejected') {
+      const bodyBase = 'One of your documents has been rejected. Please upload a corrected version.'
+      const body = reviewNotes ? `${bodyBase} Note from admin: ${reviewNotes}` : bodyBase
+
+      const { error: eventError } = await supabase
+        .from('verification_events')
+        .insert({
+          event_type: 'rejected',
+          actor_role: 'admin',
+          actor_user_id: adminId,
+          user_id: input.userId,
+          title: 'A document requires your attention',
+          body,
+          email_status: 'pending',
+        })
+
+      if (eventError) {
+        return { success: false, error: eventError.message || 'Document was rejected, but notification failed.' }
+      }
+    }
+
+    revalidatePath('/dashboard/documents')
+    revalidatePath('/dashboard/bookings/new')
+    revalidatePath('/dashboard/checkout')
+    revalidatePath(`/admin/users/${input.userId}`)
+
+    return { success: true }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unexpected error'
+    if (message === 'Unauthorized') return { success: false, error: 'Unauthorized' }
+    if (message === 'Forbidden') return { success: false, error: 'Forbidden' }
+    return { success: false, error: message }
+  }
+}
+
+async function requireAdmin() {
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) throw new Error('Unauthorized')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile || profile.role !== 'admin') throw new Error('Forbidden')
+  return { supabase, adminId: user.id }
 }

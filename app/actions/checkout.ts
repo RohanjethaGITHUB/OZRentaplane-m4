@@ -15,6 +15,7 @@ import type {
   CreateCheckoutBookingInput,
   CheckoutSubmitResult,
 } from '@/lib/supabase/booking-types'
+import type { UserDocument } from '@/lib/supabase/types'
 
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000
 
@@ -35,7 +36,7 @@ async function requireCustomer() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('email, role, pilot_clearance_status, has_night_vfr_rating, has_instrument_rating, account_status, account_lock_reason')
+    .select('email, role, pilot_clearance_status, has_night_vfr_rating, has_instrument_rating, account_status, account_lock_reason, terms_accepted_at, terms_version')
     .eq('id', user.id)
     .single()
 
@@ -61,6 +62,12 @@ async function requireAdmin() {
 
   if (!profile || profile.role !== 'admin') throw new Error('Forbidden')
   return { supabase, adminId: user.id }
+}
+
+export type CheckoutDocumentGateState = {
+  documents: UserDocument[]
+  termsAcceptedAt: string | null
+  termsVersion: string | null
 }
 
 const CUSTOMER_MODIFIABLE_CHECKOUT_STATUSES = ['checkout_requested', 'checkout_confirmed'] as const
@@ -104,12 +111,52 @@ export async function canModifyCheckout(checkout: {
   return true
 }
 
+export async function getCheckoutDocumentGateState(): Promise<
+  { ok: true; state: CheckoutDocumentGateState } | { ok: false; error: string }
+> {
+  try {
+    const { supabase, userId } = await requireCustomer()
+
+    const [documentsRes, profileRes] = await Promise.all([
+      supabase
+        .from('user_documents')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('profiles')
+        .select('terms_accepted_at, terms_version')
+        .eq('id', userId)
+        .single(),
+    ])
+
+    if (documentsRes.error) {
+      return { ok: false, error: 'Unable to verify your documents right now. Please try again.' }
+    }
+    if (profileRes.error) {
+      return { ok: false, error: 'Unable to verify your terms acceptance right now. Please try again.' }
+    }
+
+    return {
+      ok: true,
+      state: {
+        documents: (documentsRes.data ?? []) as UserDocument[],
+        termsAcceptedAt: profileRes.data?.terms_accepted_at ?? null,
+        termsVersion: profileRes.data?.terms_version ?? null,
+      },
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return { ok: false, error: message }
+  }
+}
+
 // ─── Submit checkout request ──────────────────────────────────────────────────
 // Creates a checkout booking and sets pilot_clearance_status = checkout_requested.
 //
 // Server-side validation before calling the RPC:
 //   1. Required documents (pilot_licence, medical_certificate, photo_id) must
-//      be uploaded and not rejected or expired.
+//      be approved by the customer documents team.
 //   2. Time range must be valid and in the future.
 //
 // The RPC (create_checkout_booking_atomic) then enforces at the database layer:
@@ -178,7 +225,7 @@ export async function submitCheckoutRequest(
       user_id: userId,
       email: safeEmail,
       auth_user_exists: true,
-      has_terms_payload: Boolean(input.terms_document_id && input.terms_version && input.terms_content_hash),
+      has_terms_acceptance: Boolean(profile.terms_accepted_at),
       has_last_flight_date: Boolean(input.last_flight_date),
       has_night_vfr: input.has_night_vfr,
     })
@@ -237,47 +284,28 @@ export async function submitCheckoutRequest(
   })
   const docMap: Record<string, typeof docs[0]> = {}
 
-  // Build a map of the best (latest non-rejected, non-expired) row per type.
-  // Multiple rows per type are now allowed; we validate against the most recent valid one.
+  // The user_documents query is ordered newest-first, so the first row for each
+  // document type is the current effective document.
   for (const d of (docs ?? [])) {
-    const isRejected = d.status === 'rejected'
-    const isExpired  = d.expiry_date ? d.expiry_date < today : false
-    const existing   = docMap[d.document_type]
-    // Prefer: non-rejected and non-expired; then latest by insertion order (docs are ordered by created_at desc)
-    if (!existing) {
+    if (!docMap[d.document_type]) {
       docMap[d.document_type] = d
-    } else if (!isRejected && !isExpired) {
-      // Replace if current best is rejected or expired
-      const existingRejected = existing.status === 'rejected'
-      const existingExpired  = existing.expiry_date ? existing.expiry_date < today : false
-      if (existingRejected || existingExpired) docMap[d.document_type] = d
     }
   }
 
   const missing: string[] = []
 
-  // Pilot Licence: file uploaded, licence type, licence number (ARN)
-  const licence = docMap['pilot_licence']
-  if (!licence)                         missing.push('pilot licence (file required)')
-  else if (licence.status === 'rejected') missing.push('pilot licence (document rejected — please replace)')
-  else if (!licence.licence_type)       missing.push('pilot licence type')
-  else if (!licence.licence_number)     missing.push('pilot licence number / ARN')
+  const requiredDocLabels: Record<string, string> = {
+    pilot_licence: 'Pilot Licence',
+    medical_certificate: 'Medical Certificate',
+    photo_id: 'Photo ID',
+  }
 
-  // Medical Certificate: file, medical class, date of issue, expiry date (not expired)
-  const medical = docMap['medical_certificate']
-  if (!medical)                          missing.push('medical certificate (file required)')
-  else if (medical.status === 'rejected') missing.push('medical certificate (document rejected — please replace)')
-  else if (!medical.medical_class)       missing.push('medical certificate class')
-  else if (!medical.issue_date)          missing.push('medical certificate date of issue')
-  else if (!medical.expiry_date)         missing.push('medical certificate expiry date')
-  else if (medical.expiry_date < today)  missing.push('medical certificate (expired — please replace)')
-
-  // Photo ID: file, ID type, document number
-  const photoId = docMap['photo_id']
-  if (!photoId)                          missing.push('photo ID (file required)')
-  else if (photoId.status === 'rejected') missing.push('photo ID (document rejected — please replace)')
-  else if (!photoId.id_type)             missing.push('photo ID type')
-  else if (!photoId.document_number)     missing.push('photo ID number')
+  for (const type of ['pilot_licence', 'medical_certificate', 'photo_id'] as const) {
+    const doc = docMap[type]
+    if (!doc || doc.status !== 'approved') {
+      missing.push(requiredDocLabels[type])
+    }
+  }
 
   // Flight review date — required and must be within the last 2 years
   if (!input.last_flight_date) {
@@ -333,12 +361,8 @@ export async function submitCheckoutRequest(
     return {
       ok: false,
       type: 'validation',
-      message: `Please complete the required information before submitting your checkout request. Missing: ${missing.join(', ')}.`,
+      message: 'Your documents must be approved by our team before you can request a checkout flight. Please visit your Documents page.',
     }
-  }
-
-  if (!input.terms_accepted) {
-    return { ok: false, type: 'validation', message: 'You must accept the Checkout Terms and Conditions before submitting.' }
   }
 
   let activeTermsRow: Record<string, unknown> | null = null
@@ -398,14 +422,12 @@ export async function submitCheckoutRequest(
   const activeTermsVersion = normalizedTerms.version
   const activeTermsUrl = normalizedTerms.public_url
   const activeTermsHash = normalizedTerms.content_hash
-  if (!input.terms_document_id || !input.terms_version || !input.terms_content_hash) {
-    return { ok: false, type: 'validation', message: 'Terms acceptance details were not submitted. Please review and accept terms again.' }
-  }
-  if (input.terms_document_id !== activeTermsId || input.terms_version !== activeTermsVersion) {
-    return { ok: false, type: 'validation', message: 'Checkout Terms and Conditions were updated. Please review and accept the latest version.' }
-  }
-  if (activeTermsHash && input.terms_content_hash !== activeTermsHash) {
-    return { ok: false, type: 'validation', message: 'Checkout Terms and Conditions were updated. Please review and accept the latest version.' }
+  if (!profile.terms_accepted_at) {
+    return {
+      ok: false,
+      type: 'validation',
+      message: 'Please accept the terms and conditions on your Documents page before requesting a checkout flight.',
+    }
   }
 
   // ── Time validation ────────────────────────────────────────────────────────
@@ -630,10 +652,11 @@ export async function submitCheckoutRequest(
     booking_id: null,
     checkout_request_id: bookingId,
     terms_document_id: activeTermsId,
-    terms_version: activeTermsVersion,
-    terms_document_url: input.terms_document_url || activeTermsUrl,
-    terms_content_hash: input.terms_content_hash || (activeTermsHash || null),
+    terms_version: profile.terms_version || activeTermsVersion,
+    terms_document_url: activeTermsUrl,
+    terms_content_hash: activeTermsHash || null,
     acceptance_text: ACCEPTANCE_TEXT,
+    accepted_at: profile.terms_accepted_at,
     accepted_ip: acceptedIp,
     user_agent: userAgent,
   }
@@ -644,7 +667,7 @@ export async function submitCheckoutRequest(
     email: safeEmail,
     booking_id: bookingId,
     terms_document_id: activeTermsId,
-    terms_version: activeTermsVersion,
+    terms_version: acceptancePayload.terms_version,
     terms_content_hash: acceptancePayload.terms_content_hash,
   })
   const { error: termsErr } = await admin

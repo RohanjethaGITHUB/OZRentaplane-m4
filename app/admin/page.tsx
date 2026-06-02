@@ -89,7 +89,7 @@ function sortActionRows(rows: ActionRowData[]) {
 
 function SummaryStrip({ items }: { items: SummaryItem[] }) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-[#0a1629]/80 shadow-[0_8px_40px_rgba(3,10,24,0.4)] backdrop-blur-sm overflow-hidden">
+    <section className="rounded-2xl border border-white/10 bg-[#152d5a]/90 shadow-[0_8px_40px_rgba(3,10,24,0.4)] backdrop-blur-sm overflow-hidden">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         {items.map((item, index) => (
           <div
@@ -115,23 +115,23 @@ function ActionRow({ row }: { row: ActionRowData }) {
   return (
     <Link
       href={row.href}
-      className="group block rounded-2xl border border-white/10 bg-[#0a1424]/90 px-5 py-4 sm:px-6 sm:py-5 transition-all duration-200 hover:border-sky-300/35 hover:bg-[#0d1a2f]/95 hover:shadow-[0_10px_28px_rgba(2,8,22,0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+      className="group block rounded-2xl border border-white/10 bg-white/90 px-5 py-4 sm:px-6 sm:py-5 transition-all duration-200 hover:border-sky-300/35 hover:bg-[#e8f2fb] hover:shadow-[0_10px_28px_rgba(2,8,22,0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <p className="text-[1.13rem] leading-tight font-semibold text-white">{heading}</p>
-          <p className="text-slate-300/90 mt-2 text-[0.97rem] leading-relaxed">{row.description}</p>
-          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-300">
+          <p className="text-[1.13rem] leading-tight font-semibold text-deep-ink">{heading}</p>
+          <p className="mt-2 text-[0.97rem] leading-relaxed text-[#152d5a]">{row.description}</p>
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-[#152d5a]">
             <p className="inline-flex items-center gap-1.5">
               <span className={`inline-block w-2 h-2 rounded-full ${priorityClass(row.priority)}`} />
-              <span className="text-slate-300">Urgency: <span className="text-slate-100">{priorityLabel(row.priority)}</span></span>
+              <span className="text-[#152d5a]">Urgency: <span className="text-deep-ink">{priorityLabel(row.priority)}</span></span>
             </p>
-            <p className="text-slate-300">Oldest waiting: <span className="text-slate-100">{formatRelativeAge(row.oldestAt)}</span></p>
-            <p className="text-slate-300">Next step: <span className="text-slate-100">{row.nextStep}</span></p>
+            <p className="text-[#152d5a]">Oldest waiting: <span className="text-deep-ink">{formatRelativeAge(row.oldestAt)}</span></p>
+            <p className="text-[#152d5a]">Next step: <span className="text-deep-ink">{row.nextStep}</span></p>
           </div>
         </div>
 
-        <div className="pt-1 shrink-0 text-slate-400 group-hover:text-sky-200 transition-colors">
+        <div className="pt-1 shrink-0 text-[#152d5a]/60 group-hover:text-deep-ink transition-colors">
           <span className="material-symbols-outlined text-[22px]">chevron_right</span>
         </div>
       </div>
@@ -142,17 +142,17 @@ function ActionRow({ row }: { row: ActionRowData }) {
 function EmptyActionState({ text, subtext }: { text: string; subtext?: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-7 text-center">
-      <p className="text-slate-200">{text}</p>
-      {subtext ? <p className="mt-2 text-sm text-slate-400">{subtext}</p> : null}
+      <p className="text-deep-ink">{text}</p>
+      {subtext ? <p className="mt-2 text-sm text-[#152d5a]">{subtext}</p> : null}
     </div>
   )
 }
 
 function ActionPanelFooter({ note, moreHref, moreLabel }: { note: string; moreHref?: string; moreLabel?: string }) {
   return (
-    <div className="pt-2 text-center text-slate-400 text-sm space-y-2">
+    <div className="space-y-2 pt-2 text-center text-sm text-[#152d5a]">
       {moreHref && moreLabel ? (
-        <Link href={moreHref} className="inline-block text-sky-200 hover:text-sky-100">
+        <Link href={moreHref} className="inline-block text-deep-ink hover:text-[#152d5a]">
           {moreLabel}
         </Link>
       ) : null}
@@ -187,13 +187,13 @@ function ActionGroupPanel({
   const visibleRows = hasOverflow ? sorted.slice(0, 5) : sorted
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-[#071425]/75 shadow-[0_10px_44px_rgba(2,7,18,0.45)] p-5 sm:p-6">
+    <section className="rounded-3xl border border-white/10 bg-white/80 shadow-[0_10px_44px_rgba(2,7,18,0.45)] p-5 sm:p-6">
       <div className="flex flex-col items-center text-center">
-        <div className="w-14 h-14 rounded-full bg-sky-500/20 border border-sky-300/20 text-sky-200 flex items-center justify-center mb-4">
+        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-sky-300/20 bg-sky-500/20 text-deep-ink">
           {icon}
         </div>
-        <h2 className="text-5xl sm:text-[2.2rem] leading-tight text-white font-semibold">{title}</h2>
-        <p className="mt-2 text-slate-400">{subtitle}</p>
+        <h2 className="text-5xl font-semibold leading-tight text-deep-ink sm:text-[2.2rem]">{title}</h2>
+        <p className="mt-2 text-[#152d5a]">{subtitle}</p>
       </div>
 
       <div className="mt-6 space-y-3">

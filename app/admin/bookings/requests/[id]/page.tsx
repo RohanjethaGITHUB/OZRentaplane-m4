@@ -10,9 +10,9 @@ import AdminManualCheckoutCompletion from './AdminManualCheckoutCompletion'
 import AdminClarificationForm from './AdminClarificationForm'
 import AdminOperationalActions from './AdminOperationalActions'
 import AdminBankTransferPanel from './AdminBankTransferPanel'
-import AdminStandardBankTransferPanel from './AdminStandardBankTransferPanel'
 import AdminStandardBillingPanel from './AdminStandardBillingPanel'
 import AdminCancellationReviewCard from './AdminCancellationReviewCard'
+import AdminHoldBookingActions from './AdminHoldBookingActions'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 import { getAircraftFlightLogStartSuggestions } from '@/lib/aircraft-flight-log'
 import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
@@ -30,9 +30,10 @@ const STATUS_CFG: Record<string, {
 }> = {
   // Standard booking lifecycle
   pending_confirmation:            { label: 'Pending Confirmation',      color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   icon: 'pending'        },
-  confirmed:                       { label: 'Confirmed',                 color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    icon: 'check_circle'   },
+  confirmed:                       { label: 'Confirmed',                 color: 'text-[#1a4fd6]',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    icon: 'check_circle'   },
   cancelled:                       { label: 'Cancelled',                 color: 'text-rose-400',    bg: 'bg-rose-500/10',    border: 'border-rose-500/20',    icon: 'cancel'         },
   cancellation_requested:          { label: 'Cancellation Requested',    color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   icon: 'pending_actions'},
+  on_hold_pending_documents:       { label: 'On Hold',                  color: 'text-amber-300',   bg: 'bg-amber-500/10',   border: 'border-amber-500/30',   icon: 'pause_circle'   },
   ready_for_dispatch:              { label: 'Ready for Dispatch',        color: 'text-green-400',   bg: 'bg-green-500/10',   border: 'border-green-500/20',   icon: 'flight_takeoff' },
   dispatched:                      { label: 'Dispatched',                color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', icon: 'flight'         },
   awaiting_flight_record:          { label: 'Awaiting Flight Record',    color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   icon: 'assignment'     },
@@ -40,9 +41,9 @@ const STATUS_CFG: Record<string, {
   pending_post_flight_review:      { label: 'Post-Flight Review',        color: 'text-purple-400',  bg: 'bg-purple-500/10',  border: 'border-purple-500/20',  icon: 'rate_review'    },
   needs_clarification:             { label: 'Needs Clarification',       color: 'text-orange-400',  bg: 'bg-orange-500/10',  border: 'border-orange-500/20',  icon: 'help'           },
   post_flight_approved:            { label: 'Flight Approved',           color: 'text-green-400',   bg: 'bg-green-500/10',   border: 'border-green-500/20',   icon: 'verified'       },
-  completed:                       { label: 'Completed',                 color: 'text-slate-400',   bg: 'bg-white/5',        border: 'border-white/10',       icon: 'done_all'       },
+  completed:                       { label: 'Completed',                 color: 'text-[#4b6390]',   bg: 'bg-white',        border: 'border-[#152d5a]/10',       icon: 'done_all'       },
   // Checkout lifecycle
-  checkout_requested:              { label: 'Checkout Requested',        color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    icon: 'pending_actions'},
+  checkout_requested:              { label: 'Checkout Requested',        color: 'text-[#1a4fd6]',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    icon: 'pending_actions'},
   checkout_confirmed:              { label: 'Checkout Confirmed',        color: 'text-green-400',   bg: 'bg-green-500/10',   border: 'border-green-500/20',   icon: 'event_available'},
   checkout_completed_under_review: { label: 'Awaiting Outcome',          color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   icon: 'rate_review'    },
   checkout_payment_required:       { label: 'Payment Required',          color: 'text-orange-400',  bg: 'bg-orange-500/10',  border: 'border-orange-500/20',  icon: 'payments'       },
@@ -52,8 +53,8 @@ const STATUS_CFG: Record<string, {
 // Pilot clearance status display — replaces the old verification-only label
 // shown in the customer card on the booking detail page.
 const CLEARANCE_CFG: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  checkout_required:                   { label: 'Checkout Required',         color: 'text-slate-400',   bg: 'bg-white/5',        border: 'border-white/10'        },
-  checkout_requested:                  { label: 'Checkout Submitted',        color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20'     },
+  checkout_required:                   { label: 'Checkout Required',         color: 'text-[#4b6390]',   bg: 'bg-white',        border: 'border-[#152d5a]/10'        },
+  checkout_requested:                  { label: 'Checkout Submitted',        color: 'text-[#1a4fd6]',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20'     },
   checkout_confirmed:                  { label: 'Checkout Confirmed',        color: 'text-green-400',   bg: 'bg-green-500/10',   border: 'border-green-500/20'    },
   checkout_completed_under_review:     { label: 'Outcome Under Review',      color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20'    },
   checkout_payment_required:           { label: 'Payment Required',          color: 'text-orange-400',  bg: 'bg-orange-500/10',  border: 'border-orange-500/20'   },
@@ -232,6 +233,19 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const documents        = rawDocuments ?? []
   const messages         = rawMessages  ?? []
   const aircraftLogs     = (aircraftLogsRaw ?? []) as Record<string, unknown>[]
+  const { data: checkoutInvoice } = await supabase
+    .from('checkout_invoices')
+    .select(`
+      id,
+      stripe_amount_due_cents,
+      checkout_rate_cents_per_hour,
+      checkout_duration_hours,
+      checkout_final_amount_cents,
+      total_paid_cents,
+      status
+    `)
+    .eq('booking_id', booking.id)
+    .maybeSingle()
 
   // Sort airports so Sydney Bankstown (YSBK) appears first, then alphabetically.
   const rawAirports = (airportRows ?? []) as { id: string; icao_code: string; name: string; default_landing_fee_cents: number }[]
@@ -286,13 +300,15 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
   // ── Bank transfer submissions (standard booking) ──────────────────────────
   let standardBankTransferSubmissions: BankTransferSub[] = []
+  let standardInvoiceAmountDueCents = 0
   if (isStandardPaymentPending) {
     const { data: stdInvoiceRow } = await supabase
       .from('booking_invoices')
-      .select('id')
+      .select('id, stripe_amount_due_cents')
       .eq('booking_id', booking.id)
       .single()
     if (stdInvoiceRow) {
+      standardInvoiceAmountDueCents = (stdInvoiceRow as { stripe_amount_due_cents?: number | null }).stripe_amount_due_cents ?? 0
       const { data: stdSubs } = await supabase
         .from('booking_bank_transfer_submissions')
         .select('id, status, reference, receipt_storage_path, admin_note, submitted_at, reviewed_at')
@@ -337,23 +353,46 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   // bookingType is already declared above (const bookingType = ...)
   const statusCfgBase = STATUS_CFG[status] ?? {
     label:  status.replace(/_/g, ' '),
-    color:  'text-slate-400',
-    bg:     'bg-white/5',
-    border: 'border-white/10',
+    color:  'text-[#4b6390]',
+    bg:     'bg-white',
+    border: 'border-[#152d5a]/10',
     icon:   'info',
   }
   const statusCfg =
     isAwaitingManualPayment || isStandardAwaitingManualPayment
-      ? { label: 'Manual Payment Submitted', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: 'account_balance' }
+      ? { label: 'Manual Payment Submitted', color: 'text-[#1a4fd6]', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: 'account_balance' }
       : statusCfgBase
   const clearanceStatus  = (customer as { pilot_clearance_status?: string } | null)?.pilot_clearance_status ?? 'checkout_required'
   const clearanceCfgBase = CLEARANCE_CFG[clearanceStatus] ?? CLEARANCE_CFG.checkout_required
   const clearanceCfg = isAwaitingManualPayment
-    ? { label: 'Awaiting Payment Confirmation', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' }
+    ? { label: 'Awaiting Payment Confirmation', color: 'text-[#1a4fd6]', bg: 'bg-blue-500/10', border: 'border-blue-500/20' }
     : clearanceCfgBase
   const bookingRef    = (booking as { booking_reference?: string }).booking_reference
     ?? booking.id.split('-')[0].toUpperCase()
   const statusHistory = rawHistory ?? []
+  const checkoutSteps = [
+    { key: 'checkout_requested',              label: 'Checkout\nRequested', color: '#90a4ae' },
+    { key: 'checkout_confirmed',              label: 'Checkout\nConfirmed', color: '#42a5f5' },
+    { key: 'checkout_completed_under_review', label: 'Awaiting\nOutcome',   color: '#ffa726' },
+    { key: 'checkout_payment_required',       label: 'Payment\nRequired',   color: '#ef5350' },
+    { key: 'completed',                       label: 'Completed',           color: '#2e7d32' },
+  ] as const
+  const formatStatusLabel = (value: string) =>
+    value
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+  const formatDayMonth = (value: string) =>
+    new Date(value).toLocaleDateString('en-AU', {
+      timeZone: 'Australia/Sydney',
+      day: 'numeric',
+      month: 'short',
+    })
+  const heroClearance = clearanceStatus === 'cleared_to_fly'
+    ? { label: 'Cleared to fly', className: 'bg-[#1a4fd6]/20 text-[#93b4ff]' }
+    : clearanceStatus === 'checkout_payment_required'
+      ? { label: 'Payment required', className: 'bg-amber-500/20 text-amber-300' }
+      : { label: formatStatusLabel(clearanceStatus), className: 'bg-white/10 text-white/60' }
+  const mostRecentNoteItem = [...statusHistory].reverse().find((item) => item.note)
   const { data: termsAcceptanceRow } = await supabase
     .from('booking_terms_acceptances')
     .select('accepted_at, terms_version, terms_document_id, accepted_ip, user_agent')
@@ -407,6 +446,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const isCheckoutRequestedStatus = isCheckout && status === 'checkout_requested'
   const isCheckoutConfirmed     = isCheckout && status === 'checkout_confirmed'
   const isCheckoutOutcomePending = isCheckout && status === 'checkout_completed_under_review'
+  const isOnHold                = status === 'on_hold_pending_documents'
   // Checkout bookings need their own action panel — not the standard one
   const needsCheckoutActions    = isCheckoutRequestedStatus || isCheckoutConfirmed || isCheckoutOutcomePending
 
@@ -417,83 +457,237 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   return (
     <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24">
 
-      {/* Back link */}
-      <Link
-        href="/admin/bookings/checkout"
-        className="inline-flex items-center gap-1 text-slate-400 hover:text-[#a7c8ff] text-sm mb-8 transition-colors"
-      >
-        <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-        Booking Requests
-      </Link>
+      {/* Back links */}
+      <div className="mb-8 flex items-center gap-2">
+        <Link
+          href="/admin/bookings/checkout?status=checkout_requested"
+          className="inline-flex items-center gap-1 text-[#4b6390] hover:text-[#152d5a] text-sm transition-colors"
+        >
+          <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+          Checkout Requests
+        </Link>
+        <span className="text-[#9ca3af]">·</span>
+        <Link
+          href="/admin/bookings/checkout?status=all"
+          className="inline-flex items-center gap-1 text-[#4b6390] hover:text-[#152d5a] text-sm transition-colors"
+        >
+          All bookings
+        </Link>
+      </div>
+
+      {isOnHold && (
+        <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-4">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <span className="material-symbols-outlined text-amber-300 text-[22px] mt-0.5">warning</span>
+              <div>
+                <h2 className="text-sm font-semibold text-amber-200">
+                  This booking is on hold pending document approval.
+                </h2>
+                <p className="mt-1 text-sm text-amber-100/80">
+                  It will automatically restore once all required documents are approved.
+                </p>
+                <p className="mt-3 text-xs text-amber-100/70">
+                  Customer:{' '}
+                  <Link
+                    href={`/admin/customers/${customer?.id}`}
+                    className="font-semibold text-amber-100 underline decoration-amber-100/30 underline-offset-2 hover:text-white"
+                  >
+                    {customer?.full_name ?? 'Unknown Customer'}
+                  </Link>
+                </p>
+              </div>
+            </div>
+            <div className="w-full max-w-md">
+              <AdminHoldBookingActions bookingId={booking.id} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header card */}
-      <header className="mb-10 bg-[#0c1326]/40 border border-white/5 rounded-2xl p-8 relative overflow-hidden">
+      <header className="mb-10 bg-[#152d5a]/90 border border-[#152d5a]/10 rounded-2xl pt-12 sm:pt-8 px-8 pb-8 relative overflow-hidden">
         <span
           className="material-symbols-outlined text-[130px] absolute -right-4 -bottom-8 text-white/[0.03] pointer-events-none select-none"
           style={{ fontVariationSettings: "'FILL' 1" }}
         >
           {isCheckout ? 'how_to_reg' : 'flight_takeoff'}
         </span>
-        <div className="relative z-10 flex flex-col sm:flex-row sm:items-start justify-between gap-6">
-          <div>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+          <div className="min-w-0">
             <div className="flex items-center gap-2 mb-2">
-              <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#a7c8ff]/40">
-                Booking Reference
-              </p>
-              {/* Booking type tag */}
-              {isCheckout && (
-                <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border bg-blue-500/10 text-blue-400 border-blue-500/20">
-                  Checkout Flight
-                </span>
-              )}
-            </div>
-            <p className="text-xl font-mono font-bold text-white tracking-wider mb-3">{bookingRef}</p>
-            <h1 className="font-serif text-3xl font-light text-[#e2e2e6]">
-              {(aircraft as { registration?: string } | null)?.registration ?? '—'}
-            </h1>
-            <p className="text-slate-500 text-sm mt-1 capitalize">
-              {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/_/g, ' ') ?? '—'}
-            </p>
-          </div>
-          <div className="flex flex-col items-start sm:items-end gap-2">
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${statusCfg.color} ${statusCfg.bg} ${statusCfg.border}`}>
-              <span className={`material-symbols-outlined text-[14px] ${statusCfg.color}`} style={{ fontVariationSettings: "'FILL' 1" }}>
-                {statusCfg.icon}
+              <span className="text-[10px] uppercase tracking-widest font-semibold px-2.5 py-1 rounded-full bg-white/10 text-white/60">
+                CHECKOUT FLIGHT
               </span>
-              {statusCfg.label}
-            </span>
-            <p className="text-[10px] text-slate-600 font-mono">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${statusCfg.color} ${statusCfg.bg} ${statusCfg.border}`}>
+                {statusCfg.label === 'Completed'
+                  ? <span className="text-[11px]">✓</span>
+                  : (
+                    <span className={`material-symbols-outlined text-[14px] ${statusCfg.color}`} style={{ fontVariationSettings: "'FILL' 1" }}>
+                      {statusCfg.icon}
+                    </span>
+                  )}
+                {statusCfg.label}
+              </span>
+            </div>
+            <div className="text-[20px] md:text-xl font-semibold text-white leading-tight mb-1">
+              {customer?.full_name ?? '—'}
+            </div>
+            <div className="text-xs text-white/45 whitespace-nowrap">
+              {(aircraft as { registration?: string } | null)?.registration ?? ''}
+              {(aircraft as { registration?: string } | null)?.registration && ' · '}
+              {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/^Cessna 172$/, 'Cessna 172N') ?? 'Cessna 172N'}
+            </div>
+          </div>
+          <div className="text-left md:text-right shrink-0">
+            <div className="mb-2">
+              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] uppercase tracking-widest font-semibold whitespace-nowrap ${heroClearance.className}`}>
+                {heroClearance.label}
+              </span>
+            </div>
+            <div className="text-[11px] text-white/35 mt-1 md:mt-0">
               Submitted {formatDateTime(booking.created_at)}
-            </p>
-            <AdminManualCheckoutCompletion
-              bookingId={booking.id}
-              isVisible={isCheckoutRequested}
-              aircraftLogs={aircraftLogs as import('./AdminManualCheckoutCompletion').Props['aircraftLogs']}
-              customerName={(customer as { full_name?: string | null } | null)?.full_name ?? null}
-              pilotArn={(customer as { pilot_arn?: string | null } | null)?.pilot_arn ?? null}
-            />
+            </div>
           </div>
         </div>
       </header>
 
+      <div className="hidden md:block bg-white border border-t-0 border-[#152d5a]/10 rounded-b-2xl px-6 py-5 mb-4">
+        <div className="text-[13px] font-semibold text-deep-ink mb-3">
+          Booking Status
+        </div>
+        <div className="flex items-start gap-3">
+          {checkoutSteps.map((step, i) => {
+            const historyItem = statusHistory.find(h => h.new_status === step.key)
+            const reached = !!historyItem
+            const isCurrent = booking.status === step.key
+            const nextStep = checkoutSteps[i + 1]
+            const nextHistoryItem = nextStep ? statusHistory.find(h => h.new_status === nextStep.key) : null
+            const nextStepReached = !!nextHistoryItem
+            const dotStyle = isCurrent
+              ? {
+                  width: '14px',
+                  height: '14px',
+                  background: step.color,
+                  borderColor: 'transparent',
+                  outline: `2px solid ${step.color}4d`,
+                  outlineOffset: '2px',
+                }
+              : reached
+                ? {
+                    width: '10px',
+                    height: '10px',
+                    background: `${step.color}70`,
+                    borderColor: 'transparent',
+                  }
+                : {
+                    width: '10px',
+                    height: '10px',
+                    background: 'transparent',
+                    borderColor: 'rgba(21,45,90,0.15)',
+                    borderWidth: '1.5px',
+                  }
+            const lineBg = reached && nextStepReached
+              ? `${step.color}66`
+              : reached
+                ? 'rgba(21,45,90,0.1)'
+                : 'rgba(21,45,90,0.08)'
+            return (
+              <div key={step.key} className="flex-1 flex flex-col items-center relative min-w-0 px-1">
+                {i < 4 && (
+                  <div
+                    className="absolute top-[6px] left-[calc(50%+7px)] right-[calc(-50%+7px)] h-[1.5px]"
+                    style={{ background: lineBg }}
+                  />
+                )}
+                <div
+                  className="rounded-full mb-[6px] z-10 border"
+                  style={dotStyle}
+                />
+                <div
+                  className={`uppercase tracking-widest text-center leading-[1.35] px-1 whitespace-pre-line ${isCurrent ? 'text-sm font-bold' : 'text-xs font-semibold'}`}
+                  style={{ color: isCurrent ? step.color : reached ? `${step.color}90` : 'rgba(21,45,90,0.3)' }}
+                >
+                  {step.label}
+                </div>
+                {reached && historyItem?.created_at && (
+                  <div className="text-[11px] text-center mt-1" style={{ color: isCurrent ? `${step.color}cc` : '#9ca3af' }}>
+                    {formatDayMonth(historyItem.created_at)}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="md:hidden bg-white border border-t-0 border-[#152d5a]/10 rounded-b-2xl px-4 py-3 mb-3">
+        {checkoutSteps
+          .filter(step =>
+            statusHistory.some(h => h.new_status === step.key)
+          )
+          .map((step, i, arr) => {
+            const historyItem = statusHistory.find(h => h.new_status === step.key)
+            const isCurrent = booking.status === step.key
+            return (
+            <div key={step.key}>
+              <div className="flex items-center justify-between py-[5px]">
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className="rounded-full shrink-0"
+                    style={{
+                      width: isCurrent ? 10 : 8,
+                      height: isCurrent ? 10 : 8,
+                      background: isCurrent ? step.color : `${step.color}70`
+                    }}
+                  />
+                  <span
+                    className="text-[12px]"
+                    style={{
+                      color: isCurrent ?
+                        step.color :
+                        `${step.color}90`,
+                      fontWeight: isCurrent ? 500 : 400
+                    }}>
+                    {step.label.replace('\n', ' ')}
+                  </span>
+                </div>
+                <span className="text-[11px] text-[#9ca3af]">
+                  {historyItem?.created_at ? formatDayMonth(historyItem.created_at) : '—'}
+                </span>
+              </div>
+              {i < arr.length - 1 && (
+                <div className="w-px h-3 ml-[4px]" style={{ background: 'rgba(21,45,90,0.1)' }} />
+              )}
+            </div>
+          )})}
+        {mostRecentNoteItem?.note && (
+          <p className="text-[11px] text-[#9ca3af] mt-2 pt-2 border-t border-[#152d5a]/[0.08]">
+            {mostRecentNoteItem.note}
+          </p>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
         {/* ── Left column: details ─────────────────────────────────────────────── */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 order-last lg:order-first">
 
           {/* ── Checkout bank transfer panel — shown when checkout payment required ── */}
-          {isPaymentRequired && bankTransferSubmissions.length > 0 && (
+          {isPaymentRequired && (
             <AdminBankTransferPanel
               bookingId={booking.id}
-              submissions={bankTransferSubmissions}
+              bookingType="checkout"
+              amountCents={checkoutInvoice?.stripe_amount_due_cents ?? 0}
             />
           )}
 
-          {/* ── Standard booking bank transfer panel ─────────────────────────── */}
-          {isStandardPaymentPending && standardBankTransferSubmissions.length > 0 && (
-            <AdminStandardBankTransferPanel
+          {/* ── Standard booking manual payment panel ────────────────────────── */}
+          {isStandardPaymentPending && (
+            <AdminBankTransferPanel
               bookingId={booking.id}
-              submissions={standardBankTransferSubmissions}
+              bookingType="standard"
+              amountCents={standardInvoiceAmountDueCents}
             />
           )}
 
@@ -520,71 +714,19 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             />
           )}
 
-          {/* Flight details */}
-          <div className="bg-white/5 border border-white/5 rounded-2xl p-6">
-            <h2 className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-5">
-              Flight Details
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
-              <div>
-                <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">Scheduled Start</p>
-                <p className="text-sm text-white tabular-nums">{formatDateTime(booking.scheduled_start)}</p>
-              </div>
-              <div>
-                <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">Scheduled End</p>
-                <p className="text-sm text-white tabular-nums">{formatDateTime(booking.scheduled_end)}</p>
-              </div>
-              <div>
-                <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">Estimated Duration</p>
-                <p className="text-sm text-white">{booking.estimated_hours?.toFixed(1) ?? '—'} hrs</p>
-              </div>
-              <div>
-                <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">Estimated Amount</p>
-                <p className="text-sm text-white font-mono">
-                  ${booking.estimated_amount?.toFixed(2) ?? '—'} AUD
-                </p>
-              </div>
-              <div>
-                <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">Pilot in Command</p>
-                <p className="text-sm text-white">{booking.pic_name || '—'}</p>
-              </div>
-              {booking.pic_arn && (
-                <div>
-                  <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">ARN</p>
-                  <p className="text-sm text-white font-mono">{booking.pic_arn}</p>
-                </div>
-              )}
-            </div>
-
-            {booking.customer_notes && (
-              <div className="mt-6 pt-5 border-t border-white/5">
-                <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-2">Customer Notes</p>
-                <p className="text-sm text-slate-300 leading-relaxed italic">
-                  &quot;{booking.customer_notes}&quot;
-                </p>
-              </div>
-            )}
-
-            {booking.admin_notes && status === 'cancelled' && (
-              <div className="mt-5 p-4 rounded-xl bg-rose-500/[0.06] border border-rose-500/15">
-                <p className="text-[9px] uppercase tracking-widest text-rose-400/60 mb-2">Cancellation Reason</p>
-                <p className="text-sm text-rose-300/80 leading-relaxed">{booking.admin_notes}</p>
-              </div>
-            )}
-          </div>
           {termsAcceptanceRow && (
-            <div className="bg-white/5 border border-white/5 rounded-2xl p-6">
-              <h2 className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-5">
+            <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-6">
+              <h2 className="text-xs uppercase tracking-widest font-semibold text-[#4b6390] mb-5">
                 Customer accepted Terms and Conditions
               </h2>
-              <div className="space-y-2 text-sm text-slate-300">
+              <div className="space-y-2 text-sm text-[#4b6390]">
                 <p>Accepted date/time: {termsAcceptanceRow.accepted_at ? formatDateTime(termsAcceptanceRow.accepted_at) : '—'}</p>
                 <p>Version: {termsAcceptanceRow.terms_version ?? '—'}</p>
                 <p>IP: {termsAcceptanceRow.accepted_ip ?? '—'}</p>
                 <p>Browser: {termsAcceptanceRow.user_agent ?? '—'}</p>
                 {acceptedTermsPublicUrl && (
                   <p>
-                    <a href={acceptedTermsPublicUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">
+                    <a href={acceptedTermsPublicUrl} target="_blank" rel="noreferrer" className="text-[#1a4fd6] hover:underline">
                       View accepted terms document
                     </a>
                   </p>
@@ -593,42 +735,81 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             </div>
           )}
 
-          {/* Customer details */}
-          <div className="bg-white/5 border border-white/5 rounded-2xl p-6">
-            <h2 className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-5">
-              Customer
-            </h2>
-            <div className="flex items-start justify-between gap-6">
-              <div className="space-y-4 flex-1 min-w-0">
-                <div>
-                  <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">Full Name</p>
-                  <p className="text-sm text-white font-medium">{customer?.full_name || 'Unknown'}</p>
+          <div className="rounded-2xl bg-white border border-[#152d5a]/10 p-5">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#152d5a]/10">
+              <h2 className="text-[13px] font-semibold text-deep-ink">
+                Customer & flight
+              </h2>
+              <a href={`/admin/customers/${customer?.id}`}
+                className="text-[11px] text-[#1a4fd6] flex items-center gap-0.5">
+                Full profile →
+              </a>
+            </div>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <div className="text-[15px] font-semibold text-deep-ink">
+                  {customer?.full_name ?? '—'}
                 </div>
-                <div>
-                  <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">Email</p>
-                  <p className="text-sm text-slate-300 break-all">{customer?.email || '—'}</p>
+                <div className="text-xs text-[#4b6390] mt-0.5">
+                  {customer?.email}
                 </div>
-                {customer?.pilot_arn && (
-                  <div>
-                    <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">Pilot ARN</p>
-                    <p className="text-sm text-slate-300 font-mono">{customer.pilot_arn}</p>
-                  </div>
-                )}
               </div>
-              <div className="flex flex-col items-end gap-3 flex-shrink-0">
-                <div className="text-right space-y-1.5">
-                  <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${clearanceCfg.color} ${clearanceCfg.bg} ${clearanceCfg.border}`}>
-                    {clearanceCfg.label}
-                  </span>
+            </div>
+            <div className="flex items-center gap-6">
+              <div>
+                <div className="text-[9px] uppercase tracking-widest font-semibold text-[#4b6390] mb-0.5">Pilot ARN</div>
+                <div className="text-[13px] text-deep-ink">
+                  {customer?.pilot_arn ?? '—'}
                 </div>
-                {customer?.id && (
-                  <Link
-                    href={`/admin/users/${customer.id}`}
-                    className="text-[10px] text-[#a7c8ff]/50 hover:text-[#a7c8ff] transition-colors"
-                  >
-                    View full profile →
-                  </Link>
-                )}
+              </div>
+              <div>
+                <div className="text-[9px] uppercase tracking-widest font-semibold text-[#4b6390] mb-0.5">Clearance</div>
+                <div
+                  className="text-[13px]"
+                  style={{
+                    color: clearanceStatus === 'cleared_to_fly'
+                      ? '#1a4fd6'
+                      : clearanceStatus === 'checkout_payment_required'
+                        ? '#d97706'
+                        : '#6b7280',
+                  }}
+                >
+                  {clearanceStatus === 'cleared_to_fly'
+                    ? 'Cleared to fly'
+                    : clearanceStatus === 'checkout_payment_required'
+                      ? 'Payment required'
+                      : formatStatusLabel(clearanceStatus)}
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-[#152d5a]/10 my-4" />
+            <div className="text-[9px] uppercase tracking-widest font-semibold text-[#4b6390] mb-3">Flight details</div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <div>
+                <div className="text-[9px] uppercase tracking-widest font-semibold text-[#4b6390] mb-0.5">Scheduled start</div>
+                <div className="text-[13px] text-deep-ink">
+                  {formatDateTime(booking.scheduled_start)}
+                </div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase tracking-widest font-semibold text-[#4b6390] mb-0.5">Scheduled end</div>
+                <div className="text-[13px] text-deep-ink">
+                  {formatDateTime(booking.scheduled_end)}
+                </div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase tracking-widest font-semibold text-[#4b6390] mb-0.5">VDO duration</div>
+                <div className={`text-[13px] ${checkoutInvoice?.checkout_duration_hours ? 'text-deep-ink' : 'text-orange-600'}`}>
+                  {checkoutInvoice?.checkout_duration_hours
+                    ? `${checkoutInvoice.checkout_duration_hours} hrs`
+                    : 'Not recorded'}
+                </div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase tracking-widest font-semibold text-[#4b6390] mb-0.5">Pilot in command</div>
+                <div className="text-[13px] text-deep-ink">
+                  {booking.pic_name ?? '—'}
+                </div>
               </div>
             </div>
           </div>
@@ -637,9 +818,9 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           {/* checkout_requested uses AdminCheckoutReviewPanel above in the left column */}
           {(isCheckoutConfirmed || isCheckoutOutcomePending) && (
             <div className={`rounded-2xl p-6 border ${
-              isCheckoutConfirmed ? 'bg-[#111316] border-green-500/15' : 'bg-[#111316] border-amber-500/15'
+              isCheckoutConfirmed ? 'bg-white border-green-500/15' : 'bg-white border-amber-500/15'
             }`}>
-              <h2 className="text-[9px] uppercase tracking-widest font-bold text-[#a7c8ff]/50 mb-4">
+              <h2 className="text-xs uppercase tracking-widest font-semibold text-[#152d5a] mb-4">
                 {isCheckoutConfirmed ? 'Checkout Flight Actions' : 'Record Checkout Outcome'}
               </h2>
               <AdminCheckoutActions
@@ -654,97 +835,22 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             </div>
           )}
 
-          {/* Status history */}
-          {statusHistory.length > 0 && (
-            <div className="bg-white/5 border border-white/5 rounded-2xl p-6">
-              <h2 className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-6">
-                Status History
-              </h2>
-              <ol className="space-y-0">
-                {statusHistory.map((row, idx) => {
-                  let cfg = { ...(STATUS_CFG[row.new_status] ?? {
-                    label:  row.new_status.replace(/_/g, ' '),
-                    color:  'text-slate-400',
-                    bg:     'bg-white/5',
-                    border: 'border-white/10',
-                    icon:   'info',
-                  }) }
-                  // Determine the note text to display — replace raw DB enum tokens with readable labels.
-                  let noteText = row.note ?? null
-                  if (noteText) {
-                    noteText = noteText
-                      .replace(/\bcleared_to_fly\b/g, 'Cleared to Fly')
-                      .replace(/\badditional_checkout_required\b/g, 'Additional Checkout Required')
-                      .replace(/\bcheckout_reschedule_required\b/g, 'Checkout Reschedule Required')
-                      .replace(/\bnot_currently_eligible\b/g, 'Not Currently Eligible')
-                  }
-                  // When manual payment is pending, override the checkout_payment_required event
-                  // to show the actual state rather than the confusing "Payment Required" label.
-                  let overrideTimestamp: string | null = null
-                  if (row.new_status === 'checkout_payment_required' && isAwaitingManualPayment) {
-                    cfg.label  = 'Manual Payment Submitted'
-                    cfg.color  = 'text-blue-400'
-                    cfg.bg     = 'bg-blue-500/10'
-                    cfg.border = 'border-blue-500/20'
-                    cfg.icon   = 'account_balance'
-                    noteText   = 'Bank transfer details have been submitted. Payment is awaiting confirmation.'
-                    overrideTimestamp = latestBankTransferSub?.submitted_at ?? null
-                  }
-                  const isLast = idx === statusHistory.length - 1
-                  return (
-                    <li key={idx} className="flex gap-4 relative pb-5 last:pb-0">
-                      {!isLast && (
-                        <div className="absolute left-[11px] top-6 bottom-0 w-[2px] bg-white/[0.07]" />
-                      )}
-                      <div
-                        className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center z-10 mt-0.5 ${cfg.bg} border ${cfg.border}`}
-                      >
-                        <span
-                          className={`material-symbols-outlined text-[12px] ${cfg.color}`}
-                          style={{ fontVariationSettings: "'FILL' 1" }}
-                        >
-                          {cfg.icon}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-3">
-                          <p className={`text-sm font-medium ${cfg.color}`}>{cfg.label}</p>
-                          <p className="text-[10px] text-slate-600 font-mono flex-shrink-0 tabular-nums">
-                            {new Date(overrideTimestamp ?? row.created_at).toLocaleDateString('en-AU', {
-                              timeZone: 'Australia/Sydney',
-                              day:      'numeric',
-                              month:    'short',
-                              year:     'numeric',
-                            })}
-                          </p>
-                        </div>
-                        {noteText && (
-                          <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{noteText}</p>
-                        )}
-                      </div>
-                    </li>
-                  )
-                })}
-              </ol>
-            </div>
-          )}
-
         </div>
 
         {/* ── Right column: actions, slot status, summary ───────────────────────── */}
-        <div>
-          <div className="sticky top-24 space-y-4">
+        <div className="order-last lg:order-last">
+          <div className="sticky top-24 space-y-4 flex flex-col">
 
             {/* ── Standard booking: awaiting bank transfer confirmation ─────── */}
             {isStandardPaymentPending && standardBankTransferSubmissions.length === 0 && (
               <div className="bg-orange-500/[0.06] border border-orange-500/20 rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="material-symbols-outlined text-orange-400 text-[16px]">payments</span>
-                  <h2 className="text-[9px] uppercase tracking-widest font-bold text-orange-400/70">
+                  <h2 className="text-xs uppercase tracking-widest font-semibold text-orange-400/70">
                     Payment Pending
                   </h2>
                 </div>
-                <p className="text-[10px] text-slate-500 leading-relaxed">
+                <p className="text-[10px] text-[#4b6390] leading-relaxed">
                   Payment request has been sent. Awaiting customer payment via Stripe or bank transfer.
                 </p>
               </div>
@@ -753,7 +859,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             {/* Admin actions — confirm/cancel while pending (standard bookings only) */}
             {isPending && !isCheckout && (
               <div className="bg-[#111316] border border-[#a7c8ff]/10 rounded-2xl p-6">
-                <h2 className="text-[9px] uppercase tracking-widest font-bold text-[#a7c8ff]/50 mb-4">
+                <h2 className="text-xs uppercase tracking-widest font-semibold text-[#152d5a]/60 mb-4">
                   Admin Actions
                 </h2>
                 <AdminBookingActions bookingId={booking.id} />
@@ -777,19 +883,19 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               <div className="bg-orange-500/[0.06] border border-orange-500/20 rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse flex-shrink-0" />
-                  <h2 className="text-[9px] uppercase tracking-widest font-bold text-orange-400/70">
+                  <h2 className="text-xs uppercase tracking-widest font-semibold text-orange-400/70">
                     Awaiting Customer Response
                   </h2>
                 </div>
                 {clarificationQuestion && (
                   <div className="mt-2">
-                    <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">Your question</p>
-                    <p className="text-xs text-slate-300 leading-relaxed italic">
+                    <p className="text-[10px] uppercase tracking-widest text-[#152d5a] mb-1">Your question</p>
+                    <p className="text-xs text-[#4b6390] leading-relaxed italic">
                       &quot;{clarificationQuestion}&quot;
                     </p>
                   </div>
                 )}
-                <p className="text-[10px] text-slate-600 mt-3 leading-relaxed">
+                <p className="text-[10px] text-[#152d5a] mt-3 leading-relaxed">
                   Customer has been notified. The slot remains held. No further action needed until they respond.
                 </p>
               </div>
@@ -797,8 +903,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
             {/* Clarification form — available from pending or confirmed */}
             {canRequestClarification && (
-              <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-5">
-                <h2 className="text-[9px] uppercase tracking-widest font-bold text-slate-600 mb-3">
+              <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
+                <h2 className="text-xs uppercase tracking-widest font-semibold text-[#152d5a] mb-3">
                   Need More Information?
                 </h2>
                 <AdminClarificationForm bookingId={booking.id} />
@@ -807,9 +913,9 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
             {/* Customer clarification response — shown on admin side after response received */}
             {clarificationResponse && status === 'pending_confirmation' && (
-              <div className="bg-white/5 border border-white/5 rounded-2xl p-5">
-                <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-2">Customer Clarification Response</p>
-                <p className="text-xs text-slate-300 leading-relaxed italic">
+              <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
+                <p className="text-[10px] uppercase tracking-widest text-[#152d5a] mb-2">Customer Clarification Response</p>
+                <p className="text-xs text-[#4b6390] leading-relaxed italic">
                   &quot;{clarificationResponse}&quot;
                 </p>
               </div>
@@ -817,176 +923,114 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
             {/* ── Operational dispatch panel ───────────────────────────────────── */}
             {isOperational && (
-              <div className="bg-[#111316] border border-white/10 rounded-2xl p-6">
-                <h2 className="text-[9px] uppercase tracking-widest font-bold text-slate-500 mb-4">
+              <div className="bg-[#111316] border border-[#152d5a]/10 rounded-2xl p-6">
+                <h2 className="text-xs uppercase tracking-widest font-semibold text-[#4b6390] mb-4">
                   Operational Actions
                 </h2>
                 <AdminOperationalActions bookingId={booking.id} status={status} />
               </div>
             )}
 
-            {/* ── Slot Reservation panel ────────────────────────────────────────── */}
-            {/*
-              Source of truth: schedule_blocks table, status='active'.
-              Blocks are created atomically at pending_confirmation and released on cancel.
-              Confirmation is a status-only change — blocks are unchanged.
-            */}
-            <div className={`rounded-2xl p-5 border ${
-              hasConflict
-                ? 'bg-amber-500/[0.05] border-amber-500/20'
-                : slotHeld
-                  ? 'bg-white/5 border-white/5'
-                  : 'bg-white/[0.02] border-white/5'
-            }`}>
-              <div className="flex items-center gap-2 mb-4">
-                <span
-                  className={`material-symbols-outlined text-[16px] ${
-                    hasConflict ? 'text-amber-400' : slotHeld ? 'text-emerald-400' : 'text-slate-600'
-                  }`}
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  {hasConflict ? 'warning' : slotHeld ? 'lock_clock' : 'lock_open'}
-                </span>
-                <h2 className="text-[9px] uppercase tracking-widest font-bold text-slate-500">
-                  Slot Reservation
-                </h2>
+            {/* CHARGES & PAYMENT CARD */}
+            <div className="rounded-2xl bg-white border border-[#152d5a]/10 p-4">
+              <div className="text-[13px] font-semibold text-deep-ink mb-3">
+                Charges & payment
               </div>
-
-              {/* Slot state */}
-              {slotHeld ? (
-                <p className={`text-[11px] font-medium mb-3 ${hasConflict ? 'text-amber-300' : 'text-emerald-400'}`}>
-                  {hasConflict ? 'Slot held — conflict detected' : 'Slot held'}
-                </p>
-              ) : (
-                <p className="text-[11px] font-medium text-slate-500 mb-3">
-                  {status === 'cancelled' ? 'Slot released (cancelled)' : 'No active slot blocks found'}
-                </p>
-              )}
-
-              {/* This booking's own blocks */}
-              {activeOwnBlocks.length > 0 && (
-                <div className="space-y-1.5 mb-4">
-                  {activeOwnBlocks.map(b => (
-                    <div key={b.id} className="flex items-center justify-between gap-2 text-[10px]">
-                      <span className="text-slate-500 flex items-center gap-1">
-                        <span
-                          className="material-symbols-outlined text-[11px] text-emerald-500/60"
-                          style={{ fontVariationSettings: "'FILL' 1" }}
-                        >
-                          fiber_manual_record
-                        </span>
-                        {BLOCK_TYPE_LABEL[b.block_type] ?? b.block_type}
-                      </span>
-                      <span className="font-mono text-slate-400 tabular-nums">
-                        {formatSydTime(b.start_time)} – {formatSydTime(b.end_time)}
-                      </span>
-                    </div>
-                  ))}
+              {[
+                {
+                  label: 'Aircraft',
+                  value: `${(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/^Cessna 172$/, 'Cessna 172N')?.replace(/^Cessna 172N$/, 'Cessna 172N') ?? 'Cessna 172N'} · ${(aircraft as { registration?: string } | null)?.registration ?? '—'}`
+                },
+                {
+                  label: 'Hourly rate',
+                  value: checkoutInvoice?.checkout_rate_cents_per_hour
+                    ? `$${(checkoutInvoice.checkout_rate_cents_per_hour / 100).toFixed(2)}/hr`
+                    : '—'
+                },
+                {
+                  label: 'VDO duration',
+                  value: checkoutInvoice?.checkout_duration_hours
+                    ? `${checkoutInvoice.checkout_duration_hours} hrs`
+                    : null,
+                  missing: !checkoutInvoice?.checkout_duration_hours
+                },
+              ].map(r => (
+                <div key={r.label} className="flex justify-between items-baseline py-1">
+                  <span className="text-xs text-[#4b6390]">
+                    {r.label}
+                  </span>
+                  <span className={`text-xs font-medium ${r.missing ? 'text-orange-600' : 'text-deep-ink'}`}>
+                    {r.missing ? 'Not recorded' : r.value}
+                  </span>
                 </div>
-              )}
-
-              {/* External conflict warning */}
-              {hasConflict && (
-                <div className="mt-3 pt-3 border-t border-amber-500/15">
-                  <p className="text-[10px] text-amber-400 font-medium mb-2">
-                    {externalConflicts.length} overlapping block{externalConflicts.length > 1 ? 's' : ''} from other sources
-                  </p>
-                  <div className="space-y-1.5">
-                    {externalConflicts.map(b => (
-                      <div key={b.id} className="text-[10px]">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-amber-400/70">
-                            {BLOCK_TYPE_LABEL[b.block_type] ?? b.block_type}
-                          </span>
-                          <span className="font-mono text-amber-400/60 tabular-nums">
-                            {formatSydTime(b.start_time)} – {formatSydTime(b.end_time)}
-                          </span>
-                        </div>
-                        {b.internal_reason && (
-                          <p className="text-slate-600 mt-0.5 text-[9px] leading-relaxed">
-                            {b.internal_reason}
-                          </p>
-                        )}
-                      </div>
-                    ))}
+              ))}
+              <div className="border-t border-[#152d5a]/10 my-2.5" />
+              <div className="flex justify-between items-baseline py-1">
+                <span className="text-xs font-semibold text-deep-ink">Total charged</span>
+                <span className="text-[15px] font-semibold text-deep-ink">
+                  {checkoutInvoice?.checkout_final_amount_cents
+                    ? `$${(checkoutInvoice.checkout_final_amount_cents / 100).toFixed(2)}`
+                    : '$—'}
+                </span>
+              </div>
+              {checkoutInvoice?.total_paid_cents && checkoutInvoice.total_paid_cents > 0 ? (
+                <div className="bg-[#e8f5e9] rounded-xl p-3 mt-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-semibold text-green-700 flex items-center gap-1">
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
+                        <circle cx="7" cy="7" r="6.5" stroke="#2e7d32" fill="#e8f5e9"/>
+                        <path d="M4.5 7l2 2 3-3" stroke="#2e7d32" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      Paid in full
+                    </span>
+                    <span className="text-sm font-semibold text-green-700">
+                      ${(checkoutInvoice.total_paid_cents / 100).toFixed(2)}
+                    </span>
                   </div>
-                  <p className="text-[9px] text-slate-600 mt-3 leading-relaxed">
-                    These blocks were placed after this booking was submitted, likely via an admin override.
-                  </p>
+                  <div className="text-[10px] text-green-600 mt-1">
+                    Bank transfer · in person · {formatDateTime(booking.updated_at)}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-amber-50 rounded-xl p-3 mt-2">
+                  <div className="flex items-center gap-1.5">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
+                      <circle cx="7" cy="7" r="6.5" stroke="#d97706" fill="#fffbeb"/>
+                      <path d="M7 4v3.5l2 1.5" stroke="#d97706" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                    <span className="text-xs font-semibold text-amber-700">Awaiting payment</span>
+                  </div>
                 </div>
               )}
-
-              {/* Buffer explanation */}
-              <p className="text-[9px] text-slate-600 mt-3 pt-3 border-t border-white/5 leading-relaxed">
-                Buffer time protects aircraft turnaround, pre-flight, and post-flight handling around the booking.
-                {isCheckout && ' Checkout flights use the same aircraft buffer configuration.'}
-              </p>
-              <p className="text-[9px] text-slate-700 mt-1 leading-relaxed">
-                Source: <span className="font-mono">schedule_blocks</span> — checked at submission via advisory-locked RPC.
-              </p>
             </div>
 
-            {/* Booking summary */}
-            <div className="bg-white/5 border border-white/5 rounded-2xl p-5">
-              <p className="text-[9px] uppercase tracking-widest font-bold text-slate-600 mb-4">
-                Booking Summary
-              </p>
-              <div className="space-y-3">
-                <div className="flex justify-between items-start gap-3">
-                  <span className="text-[10px] text-slate-500">Reference</span>
-                  <span className="text-[10px] text-white font-mono font-bold">{bookingRef}</span>
-                </div>
-                <div className="flex justify-between items-start gap-3">
-                  <span className="text-[10px] text-slate-500">Aircraft</span>
-                  <span className="text-[10px] text-slate-300">
-                    {(aircraft as { registration?: string } | null)?.registration ?? '—'}
-                  </span>
-                </div>
-                <div className="flex justify-between items-start gap-3">
-                  <span className="text-[10px] text-slate-500">Hourly Rate</span>
-                  <span className="text-[10px] text-slate-300">
-                    ${(aircraft as { default_hourly_rate?: number } | null)?.default_hourly_rate?.toFixed(2) ?? '—'}/hr
-                  </span>
-                </div>
-                <div className="flex justify-between items-start gap-3">
-                  <span className="text-[10px] text-slate-500">Est. Amount</span>
-                  <span className="text-[10px] text-blue-200 font-mono">
-                    ${booking.estimated_amount?.toFixed(2) ?? '—'}
-                  </span>
-                </div>
-                <div className="h-px bg-white/5" />
-                <div className="flex justify-between items-start gap-3">
-                  <span className="text-[10px] text-slate-500">Submitted</span>
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    {new Date(booking.created_at).toLocaleDateString('en-AU', {
-                      timeZone: 'Australia/Sydney',
-                      day:      'numeric',
-                      month:    'short',
-                      year:     'numeric',
-                    })}
-                  </span>
-                </div>
-                <div className="flex justify-between items-start gap-3">
-                  <span className="text-[10px] text-slate-500">Last Updated</span>
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    {new Date(booking.updated_at).toLocaleDateString('en-AU', {
-                      timeZone: 'Australia/Sydney',
-                      day:      'numeric',
-                      month:    'short',
-                      year:     'numeric',
-                    })}
-                  </span>
-                </div>
+            {/* DATES CARD */}
+            <div className="rounded-2xl bg-white border border-[#152d5a]/10 px-4 py-3 mt-2.5">
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-[#4b6390] mb-2">
+                Dates
               </div>
+              {[
+                { label: 'Submitted', val: booking.created_at },
+                { label: 'Last updated', val: booking.updated_at },
+              ].map(r => (
+                <div key={r.label} className="flex justify-between items-baseline py-1">
+                  <span className="text-xs text-[#4b6390]">
+                    {r.label}
+                  </span>
+                  <span className="text-xs font-medium text-deep-ink">
+                    {formatDateTime(r.val)}
+                  </span>
+                </div>
+              ))}
             </div>
 
             {/* Quick nav */}
-            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+            <div className="hidden lg:flex items-center gap-2 px-1 pt-1 pb-2">
               {isCheckout ? (
                 <>
                   <Link
                     href="/admin/bookings/checkout?status=checkout_requested"
-                    className="inline-flex items-center gap-1 text-[10px] text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors"
+                    className="inline-flex items-center gap-1 text-[10px] text-[#152d5a]/60 hover:text-[#152d5a] transition-colors"
                   >
                     <span className="material-symbols-outlined text-[12px]">arrow_back</span>
                     Checkout Requests
@@ -997,7 +1041,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 <>
                   <Link
                     href="/admin/bookings/checkout?status=pending_confirmation"
-                    className="inline-flex items-center gap-1 text-[10px] text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors"
+                    className="inline-flex items-center gap-1 text-[10px] text-[#152d5a]/60 hover:text-[#152d5a] transition-colors"
                   >
                     <span className="material-symbols-outlined text-[12px]">arrow_back</span>
                     Pending
@@ -1007,7 +1051,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               )}
               <Link
                 href="/admin/bookings/checkout?status=all"
-                className="inline-flex items-center gap-1 text-[10px] text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors"
+                className="inline-flex items-center gap-1 text-[10px] text-[#152d5a]/60 hover:text-[#152d5a] transition-colors"
               >
                 All bookings
               </Link>

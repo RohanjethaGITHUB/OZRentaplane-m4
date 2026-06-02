@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { approveCustomer, rejectCustomer, placeCustomerOnHold } from '@/app/actions/admin'
+import { updateDocumentStatus } from '@/app/actions/verification'
 import { formatDateTime } from '@/lib/formatDateTime'
-import type { RequestKind } from '@/lib/supabase/types'
+import type { RequestKind, UserDocument } from '@/lib/supabase/types'
 
 type DecisionAction = 'approve' | 'hold' | 'reject'
 
@@ -173,22 +174,22 @@ export default function VerdictPanel({
     return (
       <section className="relative">
         <div className={`absolute inset-0 rounded-3xl blur-3xl -z-10 ${isOnHold ? 'bg-amber-300/5' : 'bg-blue-300/5'}`} />
-        <div className={`backdrop-blur-xl border px-10 py-8 rounded-3xl ${
-          isOnHold ? 'bg-[#1e1f1a]/60 border-amber-500/15' : 'bg-[#1e2023]/60 border-blue-300/10'
+        <div className={`border px-10 py-8 rounded-3xl ${
+          isOnHold ? 'bg-white border-amber-500/15' : 'bg-white border-blue-300/10'
         }`}>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
             <div className="space-y-1">
-              <h3 className="font-serif text-2xl tracking-tight text-[#e2e2e6]">Verification Verdict</h3>
+              <h3 className="font-serif text-2xl tracking-tight text-[#152d5a]">Verification Verdict</h3>
               {formattedReviewedAt && (
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest">
+                <p className="text-[10px] text-[#4b6390] uppercase tracking-widest">
                   Decision recorded{' '}
-                  <span className="text-slate-400 font-semibold">{formattedReviewedAt}</span>
+                  <span className="text-[#4b6390] font-semibold">{formattedReviewedAt}</span>
                 </p>
               )}
             </div>
 
             <div className="flex items-center gap-4 shrink-0">
-              <div className={`px-6 py-3 rounded-full text-xs font-bold uppercase tracking-[0.2em] ${
+              <div className={`px-6 py-3 rounded-full text-[13px] font-bold uppercase tracking-[0.2em] ${
                 isVerified ? 'bg-green-500/10 text-green-400 border border-green-400/20'
                 : isOnHold ? 'bg-amber-500/10 text-amber-400 border border-amber-400/20'
                 :            'bg-red-500/10   text-red-400   border border-red-400/20'
@@ -198,9 +199,9 @@ export default function VerdictPanel({
 
               <button
                 onClick={enterEditMode}
-                className="flex items-center gap-2 px-5 py-3 border border-blue-300/20 text-blue-200 hover:bg-blue-300/10 hover:text-white font-bold rounded-full text-xs uppercase tracking-[0.2em] transition-all hover:scale-[1.02] active:scale-[0.98]"
+                className="flex items-center gap-2 px-5 py-3 border border-blue-300/20 text-[#1a4fd6] hover:bg-blue-300/10 hover:text-[#152d5a] font-bold rounded-full text-[13px] uppercase tracking-[0.2em] transition-all hover:scale-[1.02] active:scale-[0.98]"
               >
-                <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>
+                <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'wght' 300" }}>
                   edit
                 </span>
                 Edit Decision
@@ -230,24 +231,24 @@ export default function VerdictPanel({
     ? 'bg-amber-500/20 border border-amber-400/30 text-amber-300 hover:bg-amber-500/30'
     : selected === 'approve'
     ? 'bg-gradient-to-r from-blue-300 to-blue-400/80 text-[#213243] shadow-lg hover:shadow-blue-300/20'
-    : 'border border-white/15 text-[#e2e2e6] hover:bg-white/5'
+    : 'border border-[#152d5a]/15 text-[#152d5a] hover:bg-white/5'
 
   return (
     <section className="relative">
       {/* Ambient glow shifts colour with the selected action */}
       <div className={`absolute inset-0 rounded-3xl blur-3xl -z-10 transition-colors duration-500 ${cfg.tabBg}`} />
 
-      <div className={`backdrop-blur-xl border p-10 rounded-3xl transition-colors duration-300 ${
-        isHold ? 'bg-[#1e1f1a]/60 border-amber-500/15' : 'bg-[#1e2023]/60 border-blue-300/10'
+      <div className={` border p-10 rounded-3xl transition-colors duration-300 ${
+        isHold ? 'bg-white border-amber-500/15' : 'bg-white border-blue-300/10'
       }`}>
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="mb-8">
-          <h3 className="font-serif text-2xl tracking-tight text-[#e2e2e6]">
+          <h3 className="font-serif text-2xl tracking-tight text-[#152d5a]">
             {isEditing ? 'Edit Decision' : 'Verification Verdict'}
           </h3>
           {isEditing && (
-            <p className="text-xs text-slate-500 italic leading-relaxed mt-2">
+            <p className="text-[13px] text-[#4b6390] italic leading-relaxed mt-2">
               Select a new verdict below. The customer will be notified of the change immediately.
             </p>
           )}
@@ -266,7 +267,7 @@ export default function VerdictPanel({
                 className={`flex flex-col items-center gap-2 py-4 border rounded-xl text-[10px] font-bold uppercase tracking-[0.15em] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
                   isActive
                     ? tabCfg.activeClass
-                    : 'border-white/10 text-white/30 hover:border-white/20 hover:text-white/55'
+                    : 'border-[#152d5a]/10 text-[#152d5a]/30 hover:border-[#152d5a]/20 hover:text-[#152d5a]/55'
                 }`}
               >
                 <span
@@ -287,15 +288,15 @@ export default function VerdictPanel({
           {/* Approve / Reject: internal notes */}
           {(selected === 'approve' || selected === 'reject') && (
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-500 uppercase tracking-widest font-bold block">
+              <label className="text-[10px] text-[#4b6390] uppercase tracking-widest font-bold block">
                 Internal Review Notes{' '}
-                <span className="normal-case font-normal text-slate-600">(not shown to customer)</span>
+                <span className="normal-case font-normal text-[#4b6390]">(not shown to customer)</span>
               </label>
               <textarea
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
                 disabled={!!loading}
-                className="w-full bg-[#1a1c1f] border border-white/5 focus:border-blue-300/30 focus:ring-0 focus:outline-none text-sm text-[#e2e2e6] rounded-xl p-4 transition-all resize-none disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-slate-600"
+                className="w-full bg-[#f8f9fb] border border-[#152d5a]/8 focus:border-blue-300/30 focus:ring-0 focus:outline-none text-[14px] text-[#152d5a] rounded-xl p-4 transition-all resize-none disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-[#4b6390]"
                 placeholder="Enter internal findings or notes for this profile…"
                 rows={4}
               />
@@ -321,16 +322,16 @@ export default function VerdictPanel({
                       className={`flex items-start gap-2.5 p-3 rounded-xl border text-left transition-all disabled:opacity-40 ${
                         requestKind === kind
                           ? 'border-amber-400/40 bg-amber-500/10 text-amber-300'
-                          : 'border-white/8 text-white/30 hover:border-white/20 hover:text-white/50'
+                          : 'border-[#152d5a]/8 text-[#152d5a]/30 hover:border-[#152d5a]/20 hover:text-[#152d5a]/50'
                       }`}
                     >
                       <span
-                        className="material-symbols-outlined text-base flex-shrink-0 mt-0.5"
+                        className="material-symbols-outlined text-[15px] flex-shrink-0 mt-0.5"
                         style={{ fontVariationSettings: "'wght' 300" }}
                       >{cfg.icon}</span>
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-widest">{cfg.label}</p>
-                        <p className="text-[9px] font-normal normal-case tracking-normal opacity-70 leading-snug mt-0.5">{cfg.sublabel}</p>
+                        <p className="text-[11px] font-normal normal-case tracking-normal opacity-70 leading-snug mt-0.5">{cfg.sublabel}</p>
                       </div>
                     </button>
                   ))}
@@ -340,10 +341,10 @@ export default function VerdictPanel({
               {/* Info banner */}
               <div className="flex items-start gap-3 bg-amber-500/5 border border-amber-500/12 rounded-xl px-4 py-3">
                 <span
-                  className="material-symbols-outlined text-amber-400/70 text-sm flex-shrink-0 mt-0.5"
+                  className="material-symbols-outlined text-amber-400/70 text-[14px] flex-shrink-0 mt-0.5"
                   style={{ fontVariationSettings: "'wght' 300" }}
                 >info</span>
-                <p className="text-xs text-amber-200/60 leading-relaxed">
+                <p className="text-[14px] text-amber-200/60 leading-relaxed">
                   This message will be emailed to the customer and shown on their dashboard.
                   Write clearly — they see exactly what you type. Do not include internal notes.
                 </p>
@@ -351,14 +352,14 @@ export default function VerdictPanel({
 
               {/* Message textarea */}
               <div className="space-y-2">
-                <label className="text-[10px] text-amber-400/70 uppercase tracking-widest font-bold block">
+                <label className="text-[11px] text-amber-400/70 uppercase tracking-widest font-bold block">
                   Message to Customer <span className="text-red-400">*</span>
                 </label>
                 <textarea
                   value={customerMsg}
                   onChange={e => setCustomerMsg(e.target.value)}
                   disabled={!!loading}
-                  className="w-full bg-[#1a1c1f] border border-amber-500/20 focus:border-amber-400/40 focus:ring-0 focus:outline-none text-sm text-[#e2e2e6] rounded-xl p-4 transition-all resize-none disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-slate-600"
+                  className="w-full bg-[#f8f9fb] border border-amber-500/20 focus:border-amber-400/40 focus:ring-0 focus:outline-none text-[14px] text-[#152d5a] rounded-xl p-4 transition-all resize-none disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-[#4b6390]"
                   placeholder={
                     requestKind === 'document_request'
                       ? 'Describe which documents need to be uploaded or replaced…'
@@ -380,33 +381,33 @@ export default function VerdictPanel({
         {/* ── Error (hard failure) ──────────────────────────────────────── */}
         {error && (
           <div className="flex items-start gap-2 mt-5 bg-red-500/5 border border-red-400/15 rounded-xl px-4 py-3">
-            <span className="material-symbols-outlined text-red-400 text-sm flex-shrink-0 mt-0.5" style={{ fontVariationSettings: "'wght' 300" }}>error</span>
-            <p className="text-xs text-red-300 leading-relaxed">{error}</p>
+            <span className="material-symbols-outlined text-red-400 text-[14px] flex-shrink-0 mt-0.5" style={{ fontVariationSettings: "'wght' 300" }}>error</span>
+            <p className="text-[13px] text-red-300 leading-relaxed">{error}</p>
           </div>
         )}
 
         {/* ── Warning (non-fatal advisory) ─────────────────────────────────── */}
         {warning && !error && (
           <div className="flex items-start gap-2 mt-5 bg-amber-500/5 border border-amber-400/15 rounded-xl px-4 py-3">
-            <span className="material-symbols-outlined text-amber-400/80 text-sm flex-shrink-0 mt-0.5" style={{ fontVariationSettings: "'wght' 300" }}>warning</span>
-            <p className="text-xs text-amber-200/70 leading-relaxed">{warning}</p>
+            <span className="material-symbols-outlined text-amber-400/80 text-[14px] flex-shrink-0 mt-0.5" style={{ fontVariationSettings: "'wght' 300" }}>warning</span>
+            <p className="text-[13px] text-amber-200/70 leading-relaxed">{warning}</p>
           </div>
         )}
 
         {/* ── Footer: Cancel (left) · Confirm (right) ──────────────────────── */}
-        <div className="flex items-center justify-between gap-4 pt-7 mt-7 border-t border-white/5">
+        <div className="flex items-center justify-between gap-4 pt-7 mt-7 border-t border-[#152d5a]/8">
 
           {/* Left slot: Cancel when editing, hint text when fresh decision */}
           {isEditing ? (
             <button
               onClick={cancelEdit}
               disabled={!!loading}
-              className="px-6 py-3 border border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20 font-bold rounded-full text-xs uppercase tracking-[0.15em] transition-all disabled:opacity-40"
+              className="px-6 py-3 border border-[#152d5a]/10 text-[#4b6390] hover:text-[#152d5a] hover:border-[#152d5a]/20 font-bold rounded-full text-[13px] uppercase tracking-[0.15em] transition-all disabled:opacity-40"
             >
               Cancel
             </button>
           ) : (
-            <p className="text-[10px] text-slate-500 italic leading-relaxed max-w-xs">
+            <p className="text-[10px] text-[#4b6390] italic leading-relaxed max-w-xs">
               Customer will be notified immediately via email and dashboard.
             </p>
           )}
@@ -415,15 +416,164 @@ export default function VerdictPanel({
           <button
             onClick={handleConfirm}
             disabled={isConfirmDisabled}
-            className={`flex items-center gap-2 px-8 py-3.5 rounded-full text-xs font-bold uppercase tracking-[0.15em] transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 ${confirmButtonClass}`}
+            className={`flex items-center gap-2 px-8 py-3.5 rounded-full text-[13px] font-bold uppercase tracking-[0.15em] transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 ${confirmButtonClass}`}
           >
             {loading && (
-              <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+              <span className="material-symbols-outlined animate-spin text-[14px]">progress_activity</span>
             )}
             {confirmLabel}
           </button>
         </div>
 
+      </div>
+    </section>
+  )
+}
+
+export function DocumentReviewPanel({
+  customerId,
+  documents,
+}: {
+  customerId: string
+  documents: UserDocument[]
+}) {
+  const router = useRouter()
+  const [loadingDocId, setLoadingDocId] = useState<string | null>(null)
+  const [rejectingDocId, setRejectingDocId] = useState<string | null>(null)
+  const [noteByDocId, setNoteByDocId] = useState<Record<string, string>>({})
+  const [errorByDocId, setErrorByDocId] = useState<Record<string, string>>({})
+
+  async function handleApprove(docId: string) {
+    setLoadingDocId(docId)
+    setErrorByDocId((prev) => ({ ...prev, [docId]: '' }))
+    try {
+      const result = await updateDocumentStatus({
+        documentId: docId,
+        userId: customerId,
+        status: 'approved',
+      })
+      if (!result.success) {
+        setErrorByDocId((prev) => ({ ...prev, [docId]: result.error }))
+        return
+      }
+      router.refresh()
+    } finally {
+      setLoadingDocId(null)
+    }
+  }
+
+  async function handleReject(docId: string) {
+    const note = (noteByDocId[docId] ?? '').trim()
+    if (!note) {
+      setErrorByDocId((prev) => ({ ...prev, [docId]: 'Review note is required for rejection.' }))
+      return
+    }
+
+    setLoadingDocId(docId)
+    setErrorByDocId((prev) => ({ ...prev, [docId]: '' }))
+    try {
+      const result = await updateDocumentStatus({
+        documentId: docId,
+        userId: customerId,
+        status: 'rejected',
+        reviewNotes: note,
+      })
+      if (!result.success) {
+        setErrorByDocId((prev) => ({ ...prev, [docId]: result.error }))
+        return
+      }
+      setRejectingDocId(null)
+      setNoteByDocId((prev) => ({ ...prev, [docId]: '' }))
+      router.refresh()
+    } finally {
+      setLoadingDocId(null)
+    }
+  }
+
+  const getBadge = (status: string) => {
+    if (status === 'approved') return 'bg-green-500/10 border-green-400/30 text-green-300'
+    if (status === 'rejected') return 'bg-red-500/10 border-red-400/30 text-red-300'
+    return 'bg-slate-500/10 border-slate-400/30 text-[#4b6390]'
+  }
+
+  return (
+    <section className=" border border-blue-300/10 bg-white p-7 rounded-3xl">
+      <h3 className="font-serif text-2xl tracking-tight text-[#152d5a]">Document Review</h3>
+      <p className="text-[13px] text-[#4b6390] mt-2">Approve documents that are valid, or reject with a required note.</p>
+
+      <div className="mt-6 space-y-3">
+        {documents.length === 0 ? (
+          <div className="rounded-xl border border-[#152d5a]/10 bg-[#152d5a]/[0.02] px-4 py-5 text-[14px] text-[#4b6390]">
+            No documents uploaded yet.
+          </div>
+        ) : (
+          documents.map((doc) => {
+            const isLoading = loadingDocId === doc.id
+            const showRejectBox = rejectingDocId === doc.id
+            const note = noteByDocId[doc.id] ?? ''
+            const error = errorByDocId[doc.id] ?? ''
+            const label = doc.document_type.replace(/_/g, ' ')
+
+            return (
+              <div key={doc.id} className="rounded-xl border border-[#152d5a]/10 bg-[#152d5a]/[0.02] p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-[14px] font-semibold text-[#152d5a]">{label}</p>
+                    <p className="text-[13px] text-[#4b6390] mt-1">
+                      Uploaded {doc.uploaded_at ? formatDateTime(doc.uploaded_at) : '—'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[13px] font-medium ${getBadge(doc.status)}`}>
+                      {doc.status === 'approved' ? 'Approved' : doc.status === 'rejected' ? 'Rejected' : 'Uploaded'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleApprove(doc.id)}
+                      disabled={isLoading}
+                      className="rounded-lg border border-green-400/30 bg-green-500/10 px-3 py-1.5 text-[13px] font-semibold uppercase tracking-wide text-green-300 hover:bg-green-500/20 disabled:opacity-50"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRejectingDocId(showRejectBox ? null : doc.id)
+                        setErrorByDocId((prev) => ({ ...prev, [doc.id]: '' }))
+                      }}
+                      disabled={isLoading}
+                      className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-1.5 text-[13px] font-semibold uppercase tracking-wide text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+
+                {showRejectBox ? (
+                  <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-start">
+                    <input
+                      type="text"
+                      value={note}
+                      onChange={(e) => setNoteByDocId((prev) => ({ ...prev, [doc.id]: e.target.value }))}
+                      placeholder="Required rejection note"
+                      className="h-10 flex-1 rounded-lg border border-red-400/20 bg-[#f8f9fb] px-3 text-[14px] text-[#152d5a] placeholder:text-[#4b6390] focus:outline-none focus:border-red-400/40"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleReject(doc.id)}
+                      disabled={isLoading}
+                      className="h-10 rounded-lg border border-red-400/40 bg-red-500/10 px-3.5 text-[13px] font-semibold uppercase tracking-wide text-red-200 hover:bg-red-500/20 disabled:opacity-50"
+                    >
+                      Confirm reject
+                    </button>
+                  </div>
+                ) : null}
+
+                {error ? <p className="mt-2 text-[13px] text-red-300">{error}</p> : null}
+              </div>
+            )
+          })
+        )}
       </div>
     </section>
   )

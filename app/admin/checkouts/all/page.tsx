@@ -6,7 +6,6 @@ import StatusPills from './StatusPills'
 import {
   AdminDataTable,
   AdminPageHeader,
-  AdminRowActionButton,
   AdminStatusBadge,
 } from '@/app/admin/components/AdminListView'
 
@@ -38,7 +37,7 @@ function fullName(p: { first_name: string | null; last_name: string | null; full
 export const metadata = { title: 'All Checkouts | Admin' }
 export const dynamic = 'force-dynamic'
 
-export default async function AllCheckoutsPage({ searchParams }: { searchParams: { status?: string; sort?: string; dir?: string } }) {
+export default async function AllCheckoutsPage({ searchParams }: { searchParams: { status?: string; sort?: string; dir?: string; page?: string } }) {
   noStore()
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -47,6 +46,9 @@ export default async function AllCheckoutsPage({ searchParams }: { searchParams:
   const statusFilter = getStatusFilter(searchParams.status)
   const sort = (searchParams.sort as SortKey | undefined) ?? 'submitted'
   const dir = (searchParams.dir as SortDir | undefined) === 'asc' ? 'asc' : 'desc'
+  const pageSize = 10
+  const parsedPage = Number(searchParams.page ?? 1)
+  const currentPage = Number.isFinite(parsedPage) && parsedPage > 0 ? Math.floor(parsedPage) : 1
 
   const { data: bookings } = await supabase
     .from('bookings')
@@ -203,6 +205,21 @@ export default async function AllCheckoutsPage({ searchParams }: { searchParams:
       <span className="material-symbols-outlined text-[14px]">{sort === key ? (dir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more'}</span>
     </Link>
   )
+  const totalResults = sortedRows.length
+  const totalPages = Math.max(1, Math.ceil(totalResults / pageSize))
+  const safePage = Math.min(currentPage, totalPages)
+  const paginatedRows = sortedRows.slice((safePage - 1) * pageSize, safePage * pageSize)
+  const showingStart = totalResults === 0 ? 0 : (safePage - 1) * pageSize + 1
+  const showingEnd = totalResults === 0 ? 0 : Math.min(safePage * pageSize, totalResults)
+  const pageHref = (page: number) => {
+    const p = new URLSearchParams()
+    if (statusFilter !== 'all') p.set('status', statusFilter)
+    if (sort !== 'submitted') p.set('sort', sort)
+    if (dir !== 'desc') p.set('dir', dir)
+    if (page > 1) p.set('page', String(page))
+    const query = p.toString()
+    return query ? `/admin/checkouts/all?${query}` : '/admin/checkouts/all'
+  }
 
   const tabs: Array<{ key: StatusFilter; label: string }> = [
     { key: 'all', label: 'All' },
@@ -227,55 +244,157 @@ export default async function AllCheckoutsPage({ searchParams }: { searchParams:
       <div className="max-w-[1450px] mx-auto px-6 md:px-10 py-12 pb-24 space-y-6">
         <section className="space-y-5">
           <StatusPills tabs={tabs} statusCounts={statusCounts} statusFilter={statusFilter} sort={sort} dir={dir} />
-          <AdminDataTable columns={[sortLabel('Customer', 'customer'), sortLabel('Submitted', 'submitted'), sortLabel('Scheduled', 'scheduled'), sortLabel('Status', 'status'), sortLabel('Outcome', 'outcome'), sortLabel('Payment', 'payment'), 'Action']}>
-              {rows.length === 0 && <tr><td colSpan={7} className="px-5 py-12 text-center text-[var(--admin-text-muted)]">No checkout requests found for this filter.</td></tr>}
-              {sortedRows.map((r, idx) => {
-                const action = r.stage === 'new_requests' ? 'Review Request' : r.stage === 'awaiting_outcome' ? 'Record Outcome' : r.stage === 'payment_required' ? 'Review Payment' : r.stage === 'cancelled' || r.stage === 'completed' ? 'View Details' : 'View Checkout'
-                const pay = r.payment.toLowerCase()
-                const statusTone = r.stage === 'new_requests'
-                  ? 'blue'
-                  : r.stage === 'awaiting_outcome'
-                  ? 'amber'
-                  : r.stage === 'payment_required'
-                  ? 'orange'
-                  : r.stage === 'completed'
-                  ? 'emerald'
-                  : r.stage === 'cancelled'
-                  ? 'red'
-                  : 'slate'
-                const outcomeTone = r.outcomeLabel.includes('Cleared')
-                  ? 'emerald'
-                  : r.outcomeLabel.includes('Additional') || r.outcomeLabel.includes('Reschedule')
-                  ? 'amber'
-                  : r.outcomeLabel.includes('Not Currently')
-                  ? 'red'
-                  : 'slate'
-                const paymentTone = pay.includes('paid')
-                  ? 'emerald'
-                  : pay.includes('required')
-                  ? 'orange'
-                  : pay.includes('manual') || pay.includes('pending')
-                  ? 'amber'
-                  : pay.includes('refund') || pay.includes('cancel')
-                  ? 'red'
-                  : 'slate'
+          <div className="hidden md:block">
+            <AdminDataTable columns={[sortLabel('Customer', 'customer'), sortLabel('Submitted', 'submitted'), sortLabel('Scheduled', 'scheduled'), sortLabel('Status', 'status'), sortLabel('Outcome', 'outcome'), sortLabel('Payment', 'payment'), '' ]}>
+                {rows.length === 0 && <tr><td colSpan={7} className="px-5 py-12 text-center text-[var(--admin-text-muted)]">No checkout requests found for this filter.</td></tr>}
+                {paginatedRows.map((r, idx) => {
+                  const action = r.stage === 'new_requests' ? 'Review Request' : r.stage === 'awaiting_outcome' ? 'Record Outcome' : r.stage === 'payment_required' ? 'Review Payment' : r.stage === 'cancelled' || r.stage === 'completed' ? 'View Details' : 'View Checkout'
+                  const pay = r.payment.toLowerCase()
+                  const statusTone = r.stage === 'new_requests'
+                    ? 'blue'
+                    : r.stage === 'awaiting_outcome'
+                    ? 'amber'
+                    : r.stage === 'payment_required'
+                    ? 'orange'
+                    : r.stage === 'completed'
+                    ? 'emerald'
+                    : r.stage === 'cancelled'
+                    ? 'red'
+                    : 'slate'
+                  const outcomeTone = r.outcomeLabel.includes('Cleared')
+                    ? 'emerald'
+                    : r.outcomeLabel.includes('Additional') || r.outcomeLabel.includes('Reschedule')
+                    ? 'amber'
+                    : r.outcomeLabel.includes('Not Currently')
+                    ? 'red'
+                    : 'slate'
+                  const paymentTone = pay.includes('paid')
+                    ? 'emerald'
+                    : pay.includes('required')
+                    ? 'orange'
+                    : pay.includes('manual') || pay.includes('pending')
+                    ? 'amber'
+                    : pay.includes('refund') || pay.includes('cancel')
+                    ? 'red'
+                    : 'slate'
 
-                return (
-                  <tr key={r.id} className={`${idx % 2 === 0 ? 'bg-transparent' : 'bg-transparent'} border-t border-[var(--admin-divider)] hover:bg-[var(--admin-row-hover)] transition-colors`}> 
-                    <td className="px-5 py-[16px]">
-                      <p className="text-lg leading-tight font-semibold text-[var(--admin-text)]">{r.customer}</p>
-                      <p className="text-sm text-[var(--admin-text-muted)] mt-1">{r.email}</p>
-                    </td>
-                    <td className="px-5 py-[16px] text-[14px] text-[var(--admin-text)]">{new Date(r.submitted).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
-                    <td className="px-5 py-[16px] text-[14px] text-[var(--admin-text)]">{r.scheduled ? new Date(r.scheduled).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '-'}</td>
-                    <td className="px-5 py-[16px]"><AdminStatusBadge label={r.statusLabel} tone={statusTone} /></td>
-                    <td className="px-5 py-[16px]"><AdminStatusBadge label={r.outcomeLabel} tone={outcomeTone} /></td>
-                    <td className="px-5 py-[16px]"><AdminStatusBadge label={r.payment} tone={paymentTone} /></td>
-                    <td className="px-5 py-[16px] text-right"><AdminRowActionButton href={`/admin/bookings/requests/${r.id}`} label={action} /></td>
-                  </tr>
-                )
-              })}
-          </AdminDataTable>
+                  return (
+                    <tr key={r.id} className={`${idx % 2 === 0 ? 'bg-transparent' : 'bg-transparent'} border-t border-[var(--admin-divider)] hover:bg-[var(--admin-row-hover)] transition-colors`}> 
+                      <td className="px-5 py-[16px]">
+                        <Link href={`/admin/bookings/requests/${r.id}`} className="group block hover:text-[#1a4fd6] transition-colors">
+                          <p className="text-lg leading-tight font-semibold text-[var(--admin-text)] group-hover:text-[#1a4fd6]">
+                            {r.customer}
+                          </p>
+                          <p className="text-sm text-[var(--admin-text-muted)] mt-1">
+                            {r.email}
+                          </p>
+                        </Link>
+                      </td>
+                      <td className="px-5 py-[16px] text-[14px] text-[var(--admin-text)]">{new Date(r.submitted).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
+                      <td className="px-5 py-[16px] text-[14px] text-[var(--admin-text)]">{r.scheduled ? new Date(r.scheduled).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '-'}</td>
+                      <td className="px-5 py-[16px]"><AdminStatusBadge label={r.statusLabel} tone={statusTone} /></td>
+                      <td className="px-5 py-[16px]"><AdminStatusBadge label={r.outcomeLabel} tone={outcomeTone} /></td>
+                      <td className="px-5 py-[16px]"><AdminStatusBadge label={r.payment} tone={paymentTone} /></td>
+                      <td className="px-5 py-[16px] text-right">
+                        {r.stage === 'completed' || r.stage === 'cancelled' ? null : r.stage === 'new_requests' || r.stage === 'payment_required' ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#1a4fd6]">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#1a4fd6] animate-pulse" />
+                            {action}
+                          </span>
+                        ) : r.stage === 'awaiting_outcome' ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            {action}
+                          </span>
+                        ) : (
+                          <span className="text-[#4b6390] text-xs">{action}</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+            </AdminDataTable>
+            <div className="flex items-center justify-between px-2 pt-4">
+              <p className="text-[#4b6390] text-sm">Showing {showingStart}-{showingEnd} of {totalResults} results</p>
+              <div className="flex items-center gap-2">
+                <Link href={pageHref(safePage - 1)} className={`px-4 py-2 rounded-xl border text-sm ${safePage === 1 ? 'opacity-30 pointer-events-none cursor-not-allowed text-[#152d5a]/30 border-[#152d5a]/10' : 'text-[#1a4fd6] border-[#1a4fd6]/30 hover:bg-[#1a4fd6]/5 font-medium'}`}>Prev</Link>
+                <Link href={pageHref(safePage + 1)} className={`px-4 py-2 rounded-xl border text-sm ${safePage >= totalPages ? 'opacity-30 pointer-events-none cursor-not-allowed text-[#152d5a]/30 border-[#152d5a]/10' : 'text-[#1a4fd6] border-[#1a4fd6]/30 hover:bg-[#1a4fd6]/5 font-medium'}`}>Next</Link>
+              </div>
+            </div>
+          </div>
+          <div className="md:hidden space-y-3">
+            {paginatedRows.map((r) => {
+              const action = r.stage === 'new_requests' ? 'Review Request' : r.stage === 'awaiting_outcome' ? 'Record Outcome' : r.stage === 'payment_required' ? 'Review Payment' : r.stage === 'cancelled' || r.stage === 'completed' ? 'View Details' : 'View Checkout'
+              const pay = r.payment.toLowerCase()
+              const statusTone = r.stage === 'new_requests'
+                ? 'blue'
+                : r.stage === 'awaiting_outcome'
+                ? 'amber'
+                : r.stage === 'payment_required'
+                ? 'orange'
+                : r.stage === 'completed'
+                ? 'emerald'
+                : r.stage === 'cancelled'
+                ? 'red'
+                : 'slate'
+              const outcomeTone = r.outcomeLabel.includes('Cleared')
+                ? 'emerald'
+                : r.outcomeLabel.includes('Additional') || r.outcomeLabel.includes('Reschedule')
+                ? 'amber'
+                : r.outcomeLabel.includes('Not Currently')
+                ? 'red'
+                : 'slate'
+              const paymentTone = pay.includes('paid')
+                ? 'emerald'
+                : pay.includes('required')
+                ? 'orange'
+                : pay.includes('manual') || pay.includes('pending')
+                ? 'amber'
+                : pay.includes('refund') || pay.includes('cancel')
+                ? 'red'
+                : 'slate'
+
+              return (
+                <Link key={r.id} href={`/admin/bookings/requests/${r.id}`} className="block bg-white rounded-2xl border border-[#152d5a]/10 shadow-sm overflow-hidden hover:shadow-md hover:border-[#1a4fd6]/20 transition-all">
+                  <div className="px-4 pt-4 pb-3">
+                    <p className="text-deep-ink font-semibold text-base">{r.customer}</p>
+                    <p className="text-[#4b6390] text-sm mt-1">{r.email}</p>
+                  </div>
+                  <div className="px-4 py-3 border-t border-[#152d5a]/8 space-y-2.5">
+                    <div className="flex justify-between items-center gap-3">
+                      <span className="text-[9px] uppercase tracking-widest font-semibold text-[#4b6390]">Scheduled</span>
+                      <span className="text-right text-sm text-deep-ink">{r.scheduled ? new Date(r.scheduled).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '-'}</span>
+                    </div>
+                    <div className="flex justify-between items-center gap-3">
+                      <span className="text-[9px] uppercase tracking-widest font-semibold text-[#4b6390]">Status</span>
+                      <div className="text-right"><AdminStatusBadge label={r.statusLabel} tone={statusTone} /></div>
+                    </div>
+                    <div className="flex justify-between items-center gap-3">
+                      <span className="text-[9px] uppercase tracking-widest font-semibold text-[#4b6390]">Outcome</span>
+                      <div className="text-right"><AdminStatusBadge label={r.outcomeLabel} tone={outcomeTone} /></div>
+                    </div>
+                    <div className="flex justify-between items-center gap-3">
+                      <span className="text-[9px] uppercase tracking-widest font-semibold text-[#4b6390]">Payment</span>
+                      <div className="text-right"><AdminStatusBadge label={r.payment} tone={paymentTone} /></div>
+                    </div>
+                  </div>
+                  <div className="border-t border-[#152d5a]/8">
+                    <div className="px-4 py-3 flex items-center justify-between text-[#1a4fd6] font-medium text-sm">
+                      <span>{action}</span>
+                      <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+            <div className="flex items-center justify-between px-2 pt-4">
+              <p className="text-[#4b6390] text-sm">Showing {showingStart}-{showingEnd} of {totalResults} results</p>
+              <div className="flex items-center gap-2">
+                <Link href={pageHref(safePage - 1)} className={`px-4 py-2 rounded-xl border text-sm ${safePage === 1 ? 'opacity-30 pointer-events-none cursor-not-allowed text-[#152d5a]/30 border-[#152d5a]/10' : 'text-[#1a4fd6] border-[#1a4fd6]/30 hover:bg-[#1a4fd6]/5 font-medium'}`}>Prev</Link>
+                <Link href={pageHref(safePage + 1)} className={`px-4 py-2 rounded-xl border text-sm ${safePage >= totalPages ? 'opacity-30 pointer-events-none cursor-not-allowed text-[#152d5a]/30 border-[#152d5a]/10' : 'text-[#1a4fd6] border-[#1a4fd6]/30 hover:bg-[#1a4fd6]/5 font-medium'}`}>Next</Link>
+              </div>
+            </div>
+          </div>
         </section>
       </div>
     </div>

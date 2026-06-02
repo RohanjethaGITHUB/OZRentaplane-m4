@@ -1,18 +1,18 @@
 'use client'
 
-import { useState, useEffect, useTransition, useRef } from 'react'
+import { useState, useEffect, useTransition, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   submitCheckoutRequest,
+  getCheckoutDocumentGateState,
+  type CheckoutDocumentGateState,
 } from '@/app/actions/checkout'
 import {
   checkCustomerAvailability,
   getDayAvailability,
   type SafeConflict,
 } from '@/app/actions/customer-availability'
-import { uploadVerificationDocument } from '@/app/actions/upload'
-import { getDocumentSignedUrl, saveCheckoutRedCardDetails } from '@/app/actions/documents'
 import { sydneyInputToUTC, formatSydTime } from '@/lib/utils/sydney-time'
 import { getDayVfrWindow, isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
 import { validateFlightReviewDate, getFlightReviewCutoff } from '@/lib/utils/flight-review'
@@ -39,7 +39,7 @@ type AvailabilityState =
   | { status: 'available' }
   | { status: 'unavailable'; message: string }
 
-type Step = 'time' | 'documents' | 'review' | 'success'
+type Step = 'time' | 'docs_check' | 'review' | 'success'
 
 type Props = {
   firstName:               string
@@ -160,17 +160,17 @@ function mapCheckoutSubmitError(message: string): string {
   if (lower.includes('instrument rating')) {
     return 'Please confirm your Instrument Rating status before submitting your checkout request.'
   }
-  if (lower.includes('terms acceptance details were not submitted') || lower.includes('you must accept the checkout terms')) {
-    return 'Please review and accept the latest checkout terms before submitting.'
-  }
-  if (lower.includes('terms and conditions were updated')) {
-    return 'Please review and accept the latest checkout terms before submitting.'
-  }
   if (lower.includes('no active checkout terms document')) {
     return 'Checkout terms are temporarily unavailable. Please refresh and try again.'
   }
   if (lower.includes('unable to record your terms acceptance')) {
     return 'Your checkout request was created but we could not record your terms acceptance. Please contact support.'
+  }
+  if (lower.includes('documents must be approved')) {
+    return 'Your documents must be approved by our team before you can request a checkout flight. Please visit your Documents page.'
+  }
+  if (lower.includes('accept the terms and conditions on your documents page')) {
+    return 'Please accept the terms and conditions on your Documents page before requesting a checkout flight.'
   }
   if (
     lower.includes('no longer available') ||
@@ -656,464 +656,6 @@ function CheckoutRescheduleModal({
   )
 }
 
-// ── Document card + modal pattern ─────────────────────────────────────────────
-// Shows a clean status card for each document.
-// Upload/Replace opens a modal overlay with the required fields.
-// On success, refreshes server data via router.refresh() without losing time state.
-
-const MAX_DOC_SIZE  = 10 * 1024 * 1024
-const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
-
-type DocCardDef = {
-  type:  DocumentType
-  label: string
-  icon:  string
-}
-
-const DOC_DEFS: DocCardDef[] = [
-  { type: 'pilot_licence',       label: 'Pilot Licence',       icon: 'badge'             },
-  { type: 'medical_certificate', label: 'Medical Certificate', icon: 'health_and_safety' },
-  { type: 'photo_id',            label: 'Photo ID',            icon: 'id_card'           },
-]
-
-function pickBestDocumentForType(
-  docs: UserDocument[],
-  type: DocumentType,
-  todayIso: string,
-): UserDocument | undefined {
-  const candidates = docs.filter((d) => d.document_type === type)
-  if (candidates.length === 0) return undefined
-
-  function score(d: UserDocument): number {
-    const rejected = d.status === 'rejected'
-    const expired = !!(d.expiry_date && d.expiry_date < todayIso)
-    if (!rejected && !expired) return 3
-    if (!rejected && expired) return 2
-    if (rejected && !expired) return 1
-    return 0
-  }
-
-  return [...candidates].sort((a, b) => {
-    const scoreDiff = score(b) - score(a)
-    if (scoreDiff !== 0) return scoreDiff
-    const aTime = new Date(a.uploaded_at ?? 0).getTime()
-    const bTime = new Date(b.uploaded_at ?? 0).getTime()
-    return bTime - aTime
-  })[0]
-}
-
-// ── Document upload modal ──────────────────────────────────────────────────────
-
-function DocModal({
-  def,
-  doc,
-  onClose,
-  onSuccess,
-  onUploadStart,
-  onUploadEnd,
-  initialNightVfrRating,
-  initialInstrumentRating,
-}: {
-  def:                     DocCardDef
-  doc:                     UserDocument | undefined
-  onClose:                 () => void
-  onSuccess:               () => void
-  onUploadStart?:          () => void
-  onUploadEnd?:            () => void
-  initialNightVfrRating?:  boolean | null
-  initialInstrumentRating?: boolean | null
-}) {
-  const isReplace = !!doc
-
-  // Field state pre-filled from existing doc / profile
-  const [licenceType,        setLicenceType]        = useState(doc?.licence_type    ?? '')
-  const [licenceNumber,      setLicenceNumber]       = useState(doc?.licence_number  ?? '')
-  const [nightVfrRating,     setNightVfrRating]      = useState<boolean | null>(initialNightVfrRating ?? null)
-  const [instrumentRating,   setInstrumentRating]    = useState<boolean | null>(initialInstrumentRating ?? null)
-  const [medicalClass,       setMedicalClass]        = useState(doc?.medical_class   ?? '')
-  const [issueDate,          setIssueDate]           = useState(doc?.issue_date      ?? '')
-  const [expiryDate,         setExpiryDate]          = useState(doc?.expiry_date     ?? '')
-  const [idType,             setIdType]              = useState(doc?.id_type         ?? '')
-  const [documentNumber,     setDocumentNumber]      = useState(doc?.document_number ?? '')
-  const [uploading,    setUploading]    = useState(false)
-  const [fileResults,  setFileResults]  = useState<{ name: string; ok: boolean; msg?: string }[]>([])
-  const [formError,    setFormError]    = useState<string | null>(null)
-  const [dragOver,     setDragOver]     = useState(false)
-
-  useEffect(() => { setFormError(null) }, [licenceType, licenceNumber, nightVfrRating, instrumentRating, medicalClass, issueDate, expiryDate, idType, documentNumber])
-
-  function Pill({ value, active, onClick }: { value: string; active: boolean; onClick: () => void }) {
-    return (
-      <button type="button" onClick={onClick}
-        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all text-left ${
-          active ? 'bg-blue-500/15 border-blue-400/50 text-blue-100' : 'bg-white/[0.03] border-white/20 text-slate-200 hover:text-white'
-        }`}
-      >{value}</button>
-    )
-  }
-
-  function validateMeta(): string | null {
-    if (def.type === 'pilot_licence') {
-      if (!licenceType)              return 'Please select a licence type.'
-      if (instrumentRating === null) return 'Please confirm your Instrument Rating status.'
-      if (!licenceNumber)            return 'Please enter your pilot licence number / ARN.'
-    }
-    if (def.type === 'medical_certificate') {
-      if (!medicalClass) return 'Please select a medical class.'
-      if (!issueDate)    return 'Please enter the date of issue (DD/MM/YYYY).'
-      if (!expiryDate)   return 'Please enter the expiry date (DD/MM/YYYY).'
-    }
-    if (def.type === 'photo_id') {
-      if (!idType)         return 'Please select an ID type.'
-      if (!documentNumber) return 'Please enter your document number.'
-    }
-    return null
-  }
-
-  async function uploadFiles(files: File[]) {
-    setFormError(null)
-    const metaErr = validateMeta()
-    if (metaErr) { setFormError(metaErr); return }
-
-    const results: { name: string; ok: boolean; msg?: string }[] = []
-    onUploadStart?.()
-    setUploading(true)
-    try {
-      for (const file of files) {
-        if (!ALLOWED_TYPES.includes(file.type)) {
-          results.push({ name: file.name, ok: false, msg: 'Not PDF/JPG/PNG' })
-          continue
-        }
-        if (file.size > MAX_DOC_SIZE) {
-          results.push({ name: file.name, ok: false, msg: 'Over 10 MB' })
-          continue
-        }
-        try {
-          const fd = new FormData()
-          fd.append('file',    file)
-          fd.append('docType', def.type)
-          if (licenceType)               fd.append('licenceType',      licenceType)
-          if (nightVfrRating !== null)   fd.append('nightVfrRating',   String(nightVfrRating))
-          if (instrumentRating !== null) fd.append('instrumentRating', String(instrumentRating))
-          if (licenceNumber)             fd.append('licenceNumber',    licenceNumber)
-          if (medicalClass)              fd.append('medicalClass',     medicalClass)
-          if (issueDate)                 fd.append('issueDate',        issueDate)
-          if (expiryDate)                fd.append('expiryDate',       expiryDate)
-          if (idType)                    fd.append('idType',           idType)
-          if (documentNumber)            fd.append('documentNumber',   documentNumber)
-          await uploadVerificationDocument(fd)
-          results.push({ name: file.name, ok: true })
-        } catch (err) {
-          results.push({ name: file.name, ok: false, msg: err instanceof Error ? err.message : 'Upload failed' })
-        }
-      }
-    } finally {
-      setUploading(false)
-      onUploadEnd?.()
-    }
-    setFileResults(results)
-    if (results.every(r => r.ok)) onSuccess()
-  }
-
-  function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? [])
-    if (files.length) uploadFiles(files)
-    e.target.value = ''
-  }
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault()
-    setDragOver(false)
-    const files = Array.from(e.dataTransfer.files)
-    if (files.length) uploadFiles(files)
-  }
-
-  return (
-    <ModalPortal>
-      <div className="fixed inset-0 z-[1000] flex items-start justify-center p-4 pt-24 md:pt-28 bg-black/70 backdrop-blur-sm">
-      <div className="w-full max-w-md max-h-[calc(100vh-7.5rem)] bg-[#13243a] border border-[#4c6b8f] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-lg text-blue-400" style={{ fontVariationSettings: "'wght' 300" }}>{def.icon}</span>
-            <div>
-              <p className="text-xs uppercase tracking-widest text-blue-200 font-bold">{isReplace ? 'Replace' : 'Upload'}</p>
-              <p className="text-lg font-semibold text-white">{def.label}</p>
-            </div>
-          </div>
-          <button onClick={onClose} disabled={uploading} className="text-white/30 hover:text-white/70 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-            <span className="material-symbols-outlined text-xl">close</span>
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-5 py-5 space-y-4 overflow-y-auto min-h-0">
-
-          {/* Pilot Licence fields */}
-          {def.type === 'pilot_licence' && (
-            <>
-              <div className="space-y-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Licence Type <span className="text-red-300 font-semibold normal-case">Required</span></p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {['Recreational (RPL)', 'Private (PPL)', 'Commercial (CPL)', 'Other'].map(t => (
-                    <Pill key={t} value={t} active={licenceType === t.split(' ')[0] || licenceType === t} onClick={() => setLicenceType(t.split(' ')[0] ?? t)} />
-                  ))}
-                </div>
-              </div>
-
-              {/* Instrument Rating — Night VFR comes from Step 1, not re-asked here */}
-              <div className="pt-1 border-t border-white/[0.06] space-y-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-300">
-                  Instrument Rating (IFR) <span className="text-red-300 font-semibold normal-case">Required</span>
-                </p>
-                <p className="text-sm text-slate-400">Do you hold a current IFR / Instrument Rating?</p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {([true, false] as const).map(val => (
-                    <Pill
-                      key={String(val)}
-                      value={val ? 'Yes' : 'No'}
-                      active={instrumentRating === val}
-                      onClick={() => setInstrumentRating(val)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Pilot Licence Number / ARN <span className="text-red-300 font-semibold normal-case">Required</span></p>
-                <p className="text-sm text-slate-200">Your ARN is your CASA-issued aviation reference number.</p>
-                <input type="text" value={licenceNumber} onChange={e => setLicenceNumber(e.target.value)}
-                  placeholder="e.g. 123456"
-                  className="w-full bg-white/[0.03] border border-white/20 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-400/60 placeholder:text-slate-400"
-                />
-              </div>
-            </>
-          )}
-
-          {/* Medical Certificate fields */}
-          {def.type === 'medical_certificate' && (
-            <>
-              <div className="space-y-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Medical Class <span className="text-red-300 font-semibold normal-case">Required</span></p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {['Class 1', 'Class 2', 'Basic Class 2', 'Other'].map(c => (
-                    <Pill key={c} value={c} active={medicalClass === c} onClick={() => setMedicalClass(c)} />
-                  ))}
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Date of Issue <span className="text-red-300 font-semibold normal-case">Required</span></p>
-                  <CalendarDateField
-                    value={issueDate}
-                    onChange={setIssueDate}
-                    minYear={new Date().getFullYear() - 80}
-                    maxYear={new Date().getFullYear()}
-                    className="w-full bg-white/[0.03] border border-white/20 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-400/60 text-left flex items-center justify-between"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Expiry Date <span className="text-red-300 font-semibold normal-case">Required</span></p>
-                  <CalendarDateField
-                    value={expiryDate}
-                    onChange={setExpiryDate}
-                    minYear={new Date().getFullYear() - 5}
-                    maxYear={new Date().getFullYear() + 20}
-                    className="w-full bg-white/[0.03] border border-white/20 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-400/60 text-left flex items-center justify-between"
-                  />
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Photo ID fields */}
-          {def.type === 'photo_id' && (
-            <>
-              <div className="space-y-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-300">ID Type <span className="text-red-300 font-semibold normal-case">Required</span></p>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {['Passport', 'Driver Licence', 'Other'].map(t => (
-                    <Pill key={t} value={t} active={idType === t} onClick={() => setIdType(t)} />
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Document Number <span className="text-red-300 font-semibold normal-case">Required</span></p>
-                <input type="text" value={documentNumber} onChange={e => setDocumentNumber(e.target.value)}
-                  placeholder="Passport or licence number"
-                  className="w-full bg-white/[0.03] border border-white/20 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-400/60 placeholder:text-slate-400"
-                />
-              </div>
-            </>
-          )}
-
-          {/* Multi-file drag-and-drop upload */}
-          <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-300 mb-1.5">
-              Document File(s) <span className="text-red-300 font-semibold normal-case">Required</span>
-            </p>
-            <label
-              className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-dashed cursor-pointer transition-all ${
-                dragOver
-                  ? 'border-blue-400/70 bg-blue-500/10'
-                  : uploading
-                  ? 'border-blue-500/30 bg-blue-500/5'
-                  : 'border-[#5f7fa5] bg-[#173150] hover:border-blue-300/70 hover:bg-[#1e3c61]'
-              }`}
-              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-            >
-              <input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple className="hidden" onChange={handleFileInput} disabled={uploading} />
-              <span className={`material-symbols-outlined text-2xl ${
-                uploading ? 'text-blue-400 animate-spin' : dragOver ? 'text-blue-400' : 'text-slate-500'
-              }`} style={{ fontVariationSettings: "'wght' 300" }}>
-                {uploading ? 'progress_activity' : 'cloud_upload'}
-              </span>
-              <div className="text-center">
-                <p className="text-base text-slate-100">{uploading ? 'Uploading…' : 'Drop files here or click to browse'}</p>
-                <p className="text-sm text-slate-200 mt-0.5">PDF, JPG, PNG · up to 10 MB each · multiple files supported</p>
-              </div>
-            </label>
-
-            {/* Per-file results */}
-            {fileResults.length > 0 && (
-              <div className="mt-3 space-y-1.5">
-                {fileResults.map((r, i) => (
-                  <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
-                    r.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
-                  }`}>
-                    <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                      {r.ok ? 'check_circle' : 'error'}
-                    </span>
-                    <span className="truncate flex-1">{r.name}</span>
-                    {r.msg && <span className="text-xs opacity-80">{r.msg}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {formError && <p className="text-sm text-red-300">{formError}</p>}
-        </div>
-
-        {/* Footer */}
-        <div className="px-5 py-4 border-t border-white/[0.06] flex items-center gap-3">
-          <p className="text-sm text-slate-300 flex-1">
-            {uploading ? 'Upload in progress — please wait before closing.' : 'You can upload multiple files at once, for example front and back of a document.'}
-          </p>
-          <button
-            onClick={onClose}
-            disabled={uploading}
-            className="px-5 py-2 text-xs font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Close
-          </button>
-        </div>
-
-      </div>
-      </div>
-    </ModalPortal>
-  )
-}
-
-// ── Document status card ───────────────────────────────────────────────────────
-
-function DocCard({
-  def,
-  doc,
-  onUploaded,
-  onUploadStart,
-  onUploadEnd,
-  initialNightVfrRating,
-  initialInstrumentRating,
-}: {
-  def:                     DocCardDef
-  doc:                     UserDocument | undefined
-  onUploaded:              () => void
-  onUploadStart?:          () => void
-  onUploadEnd?:            () => void
-  initialNightVfrRating?:  boolean | null
-  initialInstrumentRating?: boolean | null
-}) {
-  const today   = new Date().toISOString().split('T')[0]!
-  const expired = doc?.expiry_date ? doc.expiry_date < today : false
-  const ok      = !!doc && !expired && doc.status !== 'rejected'
-  const uploadedOn = doc?.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : null
-  const secondaryFilename = doc?.file_name ? (doc.file_name.length > 24 ? `${doc.file_name.slice(0, 24)}...` : doc.file_name) : null
-  const [modalOpen, setModalOpen] = useState(false)
-
-  return (
-    <>
-      {modalOpen && (
-        <DocModal
-          def={def}
-          doc={doc}
-          onClose={() => setModalOpen(false)}
-          onSuccess={() => { setModalOpen(false); onUploaded() }}
-          onUploadStart={onUploadStart}
-          onUploadEnd={onUploadEnd}
-          initialNightVfrRating={initialNightVfrRating}
-          initialInstrumentRating={initialInstrumentRating}
-        />
-      )}
-      <div className={`flex items-center justify-between rounded-xl border px-4 py-4 transition-all ${
-        ok      ? 'bg-green-500/[0.04] border-green-500/15' :
-        expired ? 'bg-red-500/[0.04] border-red-500/15' :
-                  'bg-white/[0.03] border-white/[0.08]'
-      }`}>
-        {/* Left: icon + label + status */}
-        <div className="flex items-center gap-3 min-w-0">
-          <span
-            className={`material-symbols-outlined text-lg flex-shrink-0 ${ok ? 'text-green-400' : expired ? 'text-red-400' : 'text-slate-500'}`}
-            style={{ fontVariationSettings: ok ? "'FILL' 1" : "'FILL' 0, 'wght' 300" }}
-          >
-            {def.icon}
-          </span>
-          <div className="min-w-0">
-            <p className={`text-base font-semibold truncate ${ok ? 'text-white' : 'text-slate-200'}`}>{def.label}</p>
-            {/* Metadata summary */}
-            {ok && (
-              <p className="text-sm text-slate-300 mt-0.5 truncate">Uploaded{uploadedOn ? ` on ${uploadedOn}` : ''}</p>
-            )}
-            {ok && secondaryFilename && <p className="text-sm text-slate-400 truncate">{secondaryFilename}</p>}
-            {expired && <p className="text-sm text-red-300 mt-0.5">Expired - please replace</p>}
-          </div>
-        </div>
-        {/* Right: status badge + action */}
-        <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-          {ok
-            ? <span className="text-xs font-bold uppercase tracking-widest text-green-300 border border-green-400/30 bg-green-500/10 px-2.5 py-1 rounded">Uploaded</span>
-            : expired
-            ? <span className="text-xs font-bold uppercase tracking-widest text-red-300 border border-red-400/30 bg-red-500/10 px-2.5 py-1 rounded">Expired</span>
-            : doc?.status === 'rejected'
-            ? <span className="text-xs font-bold uppercase tracking-widest text-red-300 border border-red-400/30 bg-red-500/10 px-2.5 py-1 rounded">Rejected</span>
-            : <span className="text-xs font-bold uppercase tracking-widest text-slate-200 border border-white/20 px-2.5 py-1 rounded">Required</span>
-          }
-          {ok && (
-            <button
-              onClick={() => setModalOpen(true)}
-              className="text-xs font-bold uppercase tracking-widest text-blue-200 border border-blue-400/50 hover:bg-blue-500/15 transition-colors px-3 py-1.5 rounded-full"
-            >
-              View
-            </button>
-          )}
-          <button
-            onClick={() => setModalOpen(true)}
-            className={`text-xs font-bold uppercase tracking-widest transition-colors px-3 py-1.5 rounded-full border ${
-              ok
-                ? 'text-slate-200 border-white/20 hover:text-white hover:border-white/35'
-                : 'text-blue-200 border-blue-400/50 hover:bg-blue-500/15'
-            }`}
-          >
-            {ok ? 'Replace' : def.type === 'photo_id' ? 'Upload photo ID' : 'Upload'}
-          </button>
-        </div>
-      </div>
-    </>
-  )
-}
-
 // ── Main flow component ────────────────────────────────────────────────────────
 
 export default function CheckoutFlow({
@@ -1152,27 +694,19 @@ export default function CheckoutFlow({
   const [stepError, setStepError] = useState<string | null>(null)
   const [step2Error, setStep2Error] = useState<string | null>(null)
   const [hasAttemptedStep2Continue, setHasAttemptedStep2Continue] = useState(false)
-  const [redCardExpiry, setRedCardExpiry] = useState('')
-  const [redCardSaving, setRedCardSaving] = useState(false)
-  const [docUploadCount, setDocUploadCount] = useState(0)
-  const anyDocUploading = docUploadCount > 0
 
   // Submission state
   const [submitError, setSubmitError]   = useState<string | null>(null)
-  const [docViewError, setDocViewError] = useState<string | null>(null)
-  const [docViewLoadingType, setDocViewLoadingType] = useState<DocumentType | null>(null)
   const [isPending, startTransition]    = useTransition()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [termsAccepted, setTermsAccepted] = useState(false)
-  const [termsModalOpen, setTermsModalOpen] = useState(false)
-  const [termsScrolledToEnd, setTermsScrolledToEnd] = useState(false)
-  const [termsModalChecked, setTermsModalChecked] = useState(false)
-  const [termsError, setTermsError] = useState<string | null>(null)
 
   // Result state
   const [checkoutResult, setCheckoutResult] = useState<CheckoutBookingResult | null>(null)
   const [activeBookingState, setActiveBookingState] = useState(activeCheckoutBooking)
   const [pendingRescheduleState, setPendingRescheduleState] = useState(pendingRescheduleRequest)
+  const [checkoutGate, setCheckoutGate] = useState<CheckoutDocumentGateState | null>(null)
+  const [checkoutGateLoading, setCheckoutGateLoading] = useState(false)
+  const [checkoutGateError, setCheckoutGateError] = useState<string | null>(null)
 
   // Optional message to team
   const [teamMessage, setTeamMessage] = useState('')
@@ -1186,6 +720,37 @@ export default function CheckoutFlow({
   }, [activeCheckoutBooking, pendingRescheduleRequest])
 
   useEffect(() => {
+    if (step !== 'docs_check') return
+
+    let cancelled = false
+    setCheckoutGateLoading(true)
+    setCheckoutGateError(null)
+
+    getCheckoutDocumentGateState()
+      .then((result) => {
+        if (cancelled) return
+        if (result.ok) {
+          setCheckoutGate(result.state)
+        } else {
+          setCheckoutGate(null)
+          setCheckoutGateError(result.error)
+        }
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return
+        setCheckoutGate(null)
+        setCheckoutGateError(error instanceof Error ? error.message : 'Unable to load document status right now.')
+      })
+      .finally(() => {
+        if (!cancelled) setCheckoutGateLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [step])
+
+  useEffect(() => {
     if (prevStepRef.current !== step && step !== 'success') {
       window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
     }
@@ -1193,39 +758,34 @@ export default function CheckoutFlow({
   }, [step])
 
   // ── Document gate ──────────────────────────────────────────────────────────
+  const currentGateDocuments = checkoutGate?.documents ?? documents
+  const currentGateTermAcceptedAt = checkoutGate?.termsAcceptedAt ?? null
+  const currentGateDocMap = useMemo(() => {
+    const map: Partial<Record<DocumentType, UserDocument>> = {}
+    for (const doc of currentGateDocuments) {
+      if (!map[doc.document_type]) {
+        map[doc.document_type] = doc
+      }
+    }
+    return map
+  }, [currentGateDocuments])
 
-  const today = new Date().toISOString().split('T')[0]!
-
-  const licenceDoc = pickBestDocumentForType(documents, 'pilot_licence', today)
-  const medicalDoc = pickBestDocumentForType(documents, 'medical_certificate', today)
-  const photoIdDoc = pickBestDocumentForType(documents, 'photo_id', today)
-
-  const isDocOk = (doc: UserDocument | undefined): boolean => {
-    if (!doc) return false
-    if (doc.status === 'rejected') return false
-    if (doc.expiry_date && doc.expiry_date < today) return false
-    return true
-  }
-
-  const nightVfrEvidenceDoc = pickBestDocumentForType(documents, 'night_vfr_evidence', today)
-
-  useEffect(() => {
-    const expiryValue =
-      licenceDoc?.red_card_expiry_year && licenceDoc?.red_card_expiry_month
-        ? `${String(licenceDoc.red_card_expiry_year)}-${String(licenceDoc.red_card_expiry_month).padStart(2, '0')}-01`
-        : ''
-    setRedCardExpiry(expiryValue)
-  }, [licenceDoc?.id, licenceDoc?.red_card_expiry_month, licenceDoc?.red_card_expiry_year])
-
-  const allDocsUploaded = isDocOk(licenceDoc) && isDocOk(medicalDoc) && isDocOk(photoIdDoc)
-  const nightVfrEvidenceOk = nightVfrRating !== true || isDocOk(nightVfrEvidenceDoc)
-  const flightReviewError = lastFlightDate ? validateFlightReviewDate(lastFlightDate) : 'Please enter your last flight review date.'
-
-  const missingRequiredDocs: string[] = [
-    !isDocOk(licenceDoc) ? 'Pilot Licence' : null,
-    !isDocOk(medicalDoc) ? 'Medical Certificate' : null,
-    !isDocOk(photoIdDoc) ? 'Photo ID' : null,
-  ].filter((v): v is string => !!v)
+  const requiredDocTypes: Array<{ type: DocumentType; label: string }> = [
+    { type: 'pilot_licence', label: 'Pilot Licence' },
+    { type: 'medical_certificate', label: 'Medical Certificate' },
+    { type: 'photo_id', label: 'Photo ID' },
+  ]
+  const requiredDocChecks = requiredDocTypes.map(({ type, label }) => {
+    const doc = currentGateDocMap[type]
+    return {
+      type,
+      label,
+      doc,
+      approved: doc?.status === 'approved',
+      missing: !doc,
+    }
+  })
+  const docsGateReady = requiredDocChecks.every((entry) => entry.approved) && Boolean(currentGateTermAcceptedAt)
 
   // ── Derived time values ────────────────────────────────────────────────────
   // end is always exactly 2 hours after start — never submitted from the client.
@@ -1306,65 +866,18 @@ export default function CheckoutFlow({
     if (!startTime)              { setStepError('Please select a departure time.'); return }
     if (nightVfrTimeError)       { setStepError(nightVfrTimeError); return }
     if (avail.status !== 'available') return
-    setStep('documents')
+    setStep('docs_check')
   }
 
-  async function handleDocumentsNext() {
-    setHasAttemptedStep2Continue(true)
-    setStep2Error(null)
-
-    if (missingRequiredDocs.length > 0) {
-      if (missingRequiredDocs.length === 1) {
-        setStep2Error(`Please upload your ${missingRequiredDocs[0]} to continue.`)
-      } else {
-        setStep2Error(`Please upload all required documents to continue: ${missingRequiredDocs.join(', ')}.`)
-      }
-      return
-    }
-
-    if (!nightVfrEvidenceOk) {
-      setStep2Error('Please upload Night VFR to continue.')
-      return
-    }
-
-    if (flightReviewError) {
-      setStep2Error(flightReviewError)
-      return
-    }
-
-    if (!redCardExpiry) {
-      setStep2Error('Please enter your Red Card expiry date.')
-      return
-    }
-
-    setRedCardSaving(true)
-    try {
-      await saveCheckoutRedCardDetails({
-        redCardExpiry: redCardExpiry.slice(0, 7),
-      })
-    } catch (err) {
-      setStep2Error(err instanceof Error ? err.message : 'Could not save Red Card details.')
-      setRedCardSaving(false)
-      return
-    } finally {
-      setRedCardSaving(false)
-    }
-
+  function handleDocsCheckContinue() {
+    if (!docsGateReady) return
     setStep('review')
   }
-
-  useEffect(() => {
-    if (!hasAttemptedStep2Continue) return
-    if (missingRequiredDocs.length === 0 && nightVfrEvidenceOk && !flightReviewError && !!redCardExpiry) {
-      setStep2Error(null)
-    }
-  }, [hasAttemptedStep2Continue, missingRequiredDocs.length, nightVfrEvidenceOk, flightReviewError, redCardExpiry])
 
   function handleSubmit() {
     if (isSubmitting || isPending) return
     if (!startUTC) return
     setSubmitError(null)
-    setTermsError(null)
 
     if (nightVfrRating === null) {
       setSubmitError('Please confirm your Night VFR rating status before submitting your checkout request.')
@@ -1379,19 +892,11 @@ export default function CheckoutFlow({
       setSubmitError(lastFlightDateError)
       return
     }
-    if (!activeCheckoutTerms?.id || !activeCheckoutTerms?.version || !activeCheckoutTerms?.content_hash) {
-      setTermsError('Please review and accept the latest checkout terms before submitting.')
-      return
-    }
-    if (!termsAccepted) {
-      setTermsError('Please read the Checkout Terms and Conditions and accept them before submitting.')
-      return
-    }
 
     console.info('[checkout-submit-client]', {
       has_last_flight_date: Boolean(lastFlightDate),
       has_night_vfr: nightVfrRating,
-      has_terms_accepted: termsAccepted,
+      has_terms_accepted: Boolean(currentGateTermAcceptedAt),
       has_terms_id: Boolean(activeCheckoutTerms.id),
       has_terms_version: Boolean(activeCheckoutTerms.version),
       has_terms_hash: Boolean(activeCheckoutTerms.content_hash),
@@ -1409,7 +914,7 @@ export default function CheckoutFlow({
           has_night_vfr:         nightVfrRating,
           last_flight_date:      lastFlightDate || null,
           customer_notes:        teamMessage.trim() || null,
-          terms_accepted:        termsAccepted,
+          terms_accepted:        Boolean(currentGateTermAcceptedAt),
           terms_document_id:     activeCheckoutTerms.id,
           terms_version:         activeCheckoutTerms.version,
           terms_document_url:    activeCheckoutTerms.public_url,
@@ -1447,20 +952,6 @@ export default function CheckoutFlow({
         setIsSubmitting(false)
       }
     })
-  }
-
-  async function handleViewDocument(doc: UserDocument | undefined) {
-    if (!doc) return
-    setDocViewError(null)
-    setDocViewLoadingType(doc.document_type)
-    try {
-      const signedUrl = await getDocumentSignedUrl(doc.document_type)
-      window.open(signedUrl, '_blank', 'noopener,noreferrer')
-    } catch {
-      setDocViewError('Could not open one of your uploaded documents. Please try again.')
-    } finally {
-      setDocViewLoadingType(null)
-    }
   }
 
   // ── Shared card style ──────────────────────────────────────────────────────
@@ -1812,235 +1303,117 @@ export default function CheckoutFlow({
             </div>
           )}
 
-          {/* ── STEP 2: Documents ─────────────────────────────────────────────── */}
-          {step === 'documents' && (
-            <div ref={stepSectionRef} className={`${CARD} p-6 md:p-8`}>
-
-          {/* Row 1: Pilot documents */}
-          <div className="py-7 border-b border-white/[0.07]">
-            <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-8">
-              <div className="flex items-start gap-4 md:w-[42%]">
-                <div className="w-9 h-9 rounded-full border border-blue-500/60 bg-blue-600/[0.18] flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-sm font-semibold text-blue-200">1</span>
-                </div>
+          {/* ── STEP 2: Document verification ───────────────────────────────── */}
+          {step === 'docs_check' && (
+            <div ref={stepSectionRef} className={`${CARD} p-6 md:p-8 space-y-6`}>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                  <p className="text-[17px] font-semibold text-slate-100">Pilot documents</p>
-                  <p className="text-[15px] text-slate-400 mt-1 leading-relaxed">Upload the required pilot documents reviewed as part of your checkout request.</p>
+                  <h2 className="text-[32px] font-bold text-white tracking-tight leading-tight">
+                    Document verification
+                  </h2>
+                  <p className="text-[15px] text-slate-300 mt-2 leading-relaxed">
+                    We check your approved documents and terms acceptance before you can continue.
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => router.push('/dashboard/documents')}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-white/15 text-slate-200 hover:text-white hover:border-white/30 transition-all text-sm font-semibold"
+                >
+                  <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>
+                    folder_open
+                  </span>
+                  Go to Documents page
+                </button>
               </div>
-              <div className="md:flex-1 space-y-3">
-                {DOC_DEFS.map(def => (
-                  <DocCard
-                    key={def.type}
-                    def={def}
-                    doc={pickBestDocumentForType(documents, def.type, today)}
-                    onUploaded={() => {
-                      setStep2Error(null)
-                      setHasAttemptedStep2Continue(false)
-                      router.refresh()
-                    }}
-                    onUploadStart={() => setDocUploadCount(c => c + 1)}
-                    onUploadEnd={() => setDocUploadCount(c => Math.max(0, c - 1))}
-                    initialNightVfrRating={def.type === 'pilot_licence' ? nightVfrRating : undefined}
-                    initialInstrumentRating={def.type === 'pilot_licence' ? initialInstrumentRating : undefined}
-                  />
-                ))}
-                {allDocsUploaded && nightVfrEvidenceOk && (
-                  <div className="bg-green-500/[0.06] border border-green-500/20 rounded-lg px-4 py-3 flex items-center gap-3">
-                    <span className="material-symbols-outlined text-green-400 text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                    <p className="text-sm text-green-300">All required documents have been uploaded.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
 
-          {/* Row 2: Night VFR */}
-          <div className="py-7 border-b border-white/[0.07]">
-            <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-8">
-              <div className="flex items-start gap-4 md:w-[42%]">
-                <div className="w-9 h-9 rounded-full border border-blue-500/60 bg-blue-600/[0.18] flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-sm font-semibold text-blue-200">2</span>
+              {checkoutGateLoading && !checkoutGateError ? (
+                <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.03] px-6 py-8 flex items-center gap-3 text-slate-300">
+                  <span className="material-symbols-outlined text-blue-300 animate-spin">progress_activity</span>
+                  Loading your current document status…
                 </div>
-                <div>
-                  <p className="text-[17px] font-semibold text-slate-100">Night VFR</p>
-                  <p className="text-[15px] text-slate-400 mt-1 leading-relaxed">Provide supporting evidence only if you selected that you hold a Night VFR rating.</p>
+              ) : checkoutGateError ? (
+                <div className="rounded-[1.25rem] border border-red-500/20 bg-red-500/5 px-6 py-5 space-y-3">
+                  <p className="text-sm font-semibold text-red-200">Could not load your document status</p>
+                  <p className="text-sm text-red-200/80">{checkoutGateError}</p>
+                  <button
+                    type="button"
+                    onClick={() => setStep('docs_check')}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-500/15 border border-red-500/25 text-red-100 hover:bg-red-500/25 transition-colors text-sm font-semibold"
+                  >
+                    Retry
+                  </button>
                 </div>
-              </div>
-              <div className="md:flex-1 space-y-3">
-                {nightVfrRating === true ? (
-                  <>
-                    <p className="text-sm text-slate-300 leading-relaxed">
-                      You selected that you hold a Night VFR rating. Please upload supporting evidence for this rating. This can be a CASA licence record, eLicence screenshot, flight review record, logbook endorsement, or other supporting document.
-                    </p>
-                    <DocCard
-                      def={{ type: 'night_vfr_evidence', label: 'Night VFR', icon: 'nightlight' }}
-                      doc={nightVfrEvidenceDoc}
-                      onUploaded={() => {
-                        setStep2Error(null)
-                        setHasAttemptedStep2Continue(false)
-                        router.refresh()
-                      }}
-                      onUploadStart={() => setDocUploadCount(c => c + 1)}
-                      onUploadEnd={() => setDocUploadCount(c => Math.max(0, c - 1))}
-                    />
-                    {!isDocOk(nightVfrEvidenceDoc) && (
-                      <p className="text-sm text-amber-300 flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-[12px]">warning</span>
-                        Night VFR is required before you can continue.
+              ) : docsGateReady ? (
+                <div className="rounded-[1.25rem] border border-green-500/20 bg-green-500/5 px-6 py-6 space-y-4">
+                  <div className="flex items-start gap-4">
+                    <span className="material-symbols-outlined text-green-400 text-2xl mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      check_circle
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-xl font-semibold text-green-100">Documents verified</h3>
+                      <p className="text-sm text-green-100/80 mt-1">
+                        Your documents are approved and you&apos;re ready to proceed.
                       </p>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setStep('time')}
-                      className="text-sm text-blue-300 hover:text-blue-200 underline underline-offset-2 transition-colors"
-                    >
-                      Don&apos;t have a Night VFR rating? Go back and update your checkout details.
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-start gap-3 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3.5">
-                      <span className="material-symbols-outlined text-slate-500 text-[18px] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>check_circle</span>
-                      <div>
-                        <p className="text-sm font-medium text-slate-300">Not required</p>
-                        <p className="text-sm text-slate-500 mt-0.5">Night VFR is not required because you selected Day VFR only.</p>
-                      </div>
                     </div>
+                  </div>
+                  <div className="flex justify-end">
                     <button
                       type="button"
-                      onClick={() => setStep('time')}
-                      className="text-sm text-blue-300 hover:text-blue-200 underline underline-offset-2 transition-colors"
+                      onClick={handleDocsCheckContinue}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-green-500/20 border border-green-500/30 text-green-100 hover:bg-green-500/30 transition-colors text-sm font-semibold"
                     >
-                      Have a Night VFR rating? Go back and update your checkout details.
+                      Continue to Review
                     </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Row 3: Red Card */}
-          <div className="py-7 border-b border-white/[0.07]">
-            <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-8">
-              <div className="flex items-start gap-4 md:w-[42%]">
-                <div className="w-9 h-9 rounded-full border border-blue-500/60 bg-blue-600/[0.18] flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-sm font-semibold text-blue-200">3</span>
-                </div>
-                <div>
-                  <p className="text-[17px] font-semibold text-slate-100">Red Card</p>
-                  <p className="text-[15px] text-slate-400 mt-1 leading-relaxed">What is the expiry date of your Red Card?</p>
-                </div>
-              </div>
-              <div className="md:flex-1 space-y-3">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-100 block">
-                    Red Card expiry date <span className="text-red-400 font-normal">Required</span>
-                  </label>
-                  <div className="sm:max-w-[360px]">
-                    <CalendarDateField
-                      value={redCardExpiry}
-                      onChange={(next) => {
-                        setRedCardExpiry(next)
-                        setStep2Error(null)
-                      }}
-                      minYear={new Date().getFullYear() - 5}
-                      maxYear={new Date().getFullYear() + 25}
-                      className="w-full bg-white/[0.03] border border-white/[0.08] focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5 text-left flex items-center justify-between"
-                    />
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
+              ) : (
+                <div className="rounded-[1.25rem] border border-amber-500/20 bg-amber-500/5 px-6 py-6 space-y-4">
+                  <div className="flex items-start gap-4">
+                    <span className="material-symbols-outlined text-amber-300 text-2xl mt-0.5" style={{ fontVariationSettings: "'wght' 300" }}>
+                      warning
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-xl font-semibold text-amber-100">Documents required</h3>
+                      <p className="text-sm text-amber-100/80 mt-1">
+                        You need approved documents and accepted terms before you can continue.
+                      </p>
+                    </div>
+                  </div>
 
-          {/* Row 4: Last flight review + notes */}
-          <div className="py-7">
-            <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-8">
-              <div className="flex items-start gap-4 md:w-[42%]">
-                <div className="w-9 h-9 rounded-full border border-blue-500/60 bg-blue-600/[0.18] flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-sm font-semibold text-blue-200">4</span>
+                  <div className="space-y-2">
+                    {requiredDocChecks.map((entry) => (
+                      <div key={entry.type} className="flex items-start justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-white">{entry.label}</p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            {entry.missing
+                              ? 'Not uploaded'
+                              : entry.doc?.status === 'approved'
+                                ? 'Approved'
+                                : 'Uploaded, but not yet approved'}
+                          </p>
+                        </div>
+                        <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full flex-shrink-0 ${
+                          entry.approved
+                            ? 'text-green-300 bg-green-500/10 border border-green-500/20'
+                            : 'text-amber-200 bg-amber-500/10 border border-amber-500/20'
+                        }`}>
+                          {entry.approved ? 'Approved' : entry.missing ? 'Missing' : 'Pending'}
+                        </span>
+                      </div>
+                    ))}
+                    {!currentGateTermAcceptedAt && (
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                        <p className="text-sm font-semibold text-white">Terms and conditions</p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Please accept the terms and conditions on your Documents page.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[17px] font-semibold text-slate-100">Last flight review</p>
-                  <p className="text-[15px] text-slate-400 mt-1 leading-relaxed">Tell us when your most recent flight review was completed and add any extra notes if needed.</p>
-                </div>
-              </div>
-              <div className="md:flex-1 space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-100 block">
-                    When was your last flight review? <span className="text-red-400 font-normal">Required</span>
-                  </label>
-                  <CalendarDateField
-                    value={lastFlightDate}
-                    onChange={(next) => {
-                      setLastFlightDate(next)
-                      setStep2Error(null)
-                    }}
-                    minYear={new Date().getFullYear() - 20}
-                    maxYear={new Date().getFullYear()}
-                    minDate={getFlightReviewCutoff()}
-                    maxDate={new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })}
-                    className="w-full bg-[#0d1c33] border border-white/10 rounded-lg px-3 py-3 text-base text-white focus:outline-none focus:border-blue-500/60 transition-colors text-left flex items-center justify-between"
-                  />
-                  {hasAttemptedStep2Continue && !lastFlightDate && (
-                    <p className="text-sm text-red-300 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[12px]">error</span>
-                      Please enter your last flight review date.
-                    </p>
-                  )}
-                  {lastFlightDate && validateFlightReviewDate(lastFlightDate) && (
-                    <p className="text-sm text-red-300 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[12px]">error</span>
-                      {validateFlightReviewDate(lastFlightDate)}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-100 block">
-                    Anything our team should know? <span className="text-slate-500 font-normal">(Optional)</span>
-                  </label>
-                  <textarea
-                    value={teamMessage}
-                    onChange={e => setTeamMessage(e.target.value)}
-                    maxLength={1000}
-                    rows={3}
-                    placeholder="Add any notes, timing preferences, questions, or context for our team..."
-                    className="w-full bg-[#0d1c33] border border-white/10 rounded-lg px-3 py-3 text-base text-white focus:outline-none focus:border-blue-500/60 transition-colors placeholder:text-slate-500 resize-none"
-                  />
-                  {teamMessage.length > 800 && (
-                    <p className="text-sm text-slate-400 text-right">{teamMessage.length} / 1000</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {hasAttemptedStep2Continue && step2Error && (
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3 mt-2">
-              <p className="text-sm text-amber-300">{step2Error}</p>
-            </div>
-          )}
-
-          {/* Bottom buttons */}
-          <div className="pt-6 mt-2 border-t border-white/[0.07] flex items-center justify-center gap-3">
-            <button
-              onClick={() => setStep('time')}
-              className="px-6 py-2.5 border border-white/[0.15] hover:border-white/[0.30] text-slate-300 hover:text-white rounded-xl text-sm font-medium transition-all"
-            >
-              Back
-            </button>
-            <button
-              onClick={handleDocumentsNext}
-              data-testid="checkout-step2-continue"
-              disabled={anyDocUploading || redCardSaving}
-              aria-busy={anyDocUploading || redCardSaving}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-sm font-semibold transition-all"
-            >
-              {anyDocUploading ? 'Uploading…' : redCardSaving ? 'Saving…' : 'Continue to Review'}
-            </button>
-          </div>
-
+              )}
             </div>
           )}
 
@@ -2126,97 +1499,6 @@ export default function CheckoutFlow({
             </div>
           </div>
 
-          {/* ── Section 2: Uploaded documents ── */}
-          <div className="flex flex-col md:flex-row gap-6 md:gap-8 py-7 border-b border-white/[0.07]">
-            {/* Left */}
-            <div className="flex gap-4 md:w-[270px] flex-shrink-0">
-              <div className="flex flex-col items-center">
-                <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-[0_0_18px_rgba(37,99,235,0.40)]">
-                  <span className="text-xl font-bold text-white">2</span>
-                </div>
-              </div>
-              <div className="self-start pt-1">
-                <h3 className="text-[22px] font-bold text-white leading-tight">Uploaded documents</h3>
-                <p className="text-[15px] text-slate-400 mt-1.5 leading-relaxed">Ensure your documents are up to date and valid.</p>
-              </div>
-            </div>
-            {/* Right: 4 doc status cards */}
-            <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[
-                { label: 'Pilot Licence',       icon: 'badge',             ok: isDocOk(licenceDoc),         doc: licenceDoc },
-                { label: 'Medical Certificate', icon: 'health_and_safety', ok: isDocOk(medicalDoc),         doc: medicalDoc },
-                { label: 'Photo ID',            icon: 'id_card',           ok: isDocOk(photoIdDoc),         doc: photoIdDoc },
-              ].map(({ label, icon, ok, doc }) => (
-                <div key={label} className="bg-[#0f1e35] border border-white/[0.08] rounded-2xl px-4 py-4 flex flex-col gap-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[17px] text-slate-400 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>{icon}</span>
-                    <p className="text-[13px] font-semibold text-white leading-tight">{label}</p>
-                  </div>
-                  {ok ? (
-                    <>
-                      <div className="flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-[13px] text-green-400" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                        <span className="text-[13px] font-semibold text-green-400">Uploaded</span>
-                      </div>
-                      {doc && (
-                        <button
-                          type="button"
-                          onClick={() => handleViewDocument(doc)}
-                          disabled={docViewLoadingType === doc.document_type}
-                          className="mt-0.5 inline-flex w-fit items-center gap-1 text-[12px] font-semibold text-blue-300 hover:text-blue-200 underline underline-offset-2"
-                        >
-                          {docViewLoadingType === doc.document_type ? 'Opening…' : 'View'}
-                          <span className="material-symbols-outlined text-[13px]">open_in_new</span>
-                        </button>
-                      )}
-                    </>
-                  ) : (
-                    <div className="flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[13px] text-red-400">error</span>
-                      <span className="text-[13px] font-semibold text-red-400">Missing</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-              {/* Night VFR card */}
-              <div className="bg-[#0f1e35] border border-white/[0.08] rounded-2xl px-4 py-4 flex flex-col gap-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[17px] text-slate-400 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>nightlight</span>
-                  <p className="text-[13px] font-semibold text-white leading-tight">Night VFR</p>
-                </div>
-                {nightVfrRating === true ? (
-                  isDocOk(nightVfrEvidenceDoc) ? (
-                    <>
-                      <div className="flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-[13px] text-green-400" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                        <span className="text-[13px] font-semibold text-green-400">Uploaded</span>
-                      </div>
-                      {nightVfrEvidenceDoc && (
-                        <button
-                          type="button"
-                          onClick={() => handleViewDocument(nightVfrEvidenceDoc)}
-                          disabled={docViewLoadingType === nightVfrEvidenceDoc.document_type}
-                          className="mt-0.5 inline-flex w-fit items-center gap-1 text-[12px] font-semibold text-blue-300 hover:text-blue-200 underline underline-offset-2"
-                        >
-                          {docViewLoadingType === nightVfrEvidenceDoc.document_type ? 'Opening…' : 'View'}
-                          <span className="material-symbols-outlined text-[13px]">open_in_new</span>
-                        </button>
-                      )}
-                    </>
-                  ) : (
-                    <div className="flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[13px] text-red-400">error</span>
-                      <span className="text-[13px] font-semibold text-red-400">Missing</span>
-                    </div>
-                  )
-                ) : (
-                  <span className="text-[13px] font-medium text-[#8FA3BF]">Not required</span>
-                )}
-              </div>
-            </div>
-            {docViewError && <p className="col-span-2 md:col-span-4 text-sm text-red-300">{docViewError}</p>}
-          </div>
-
           {/* ── Section 3: Additional information ── */}
           <div className="flex flex-col md:flex-row gap-6 md:gap-8 py-7 border-b border-white/[0.07]">
             {/* Left */}
@@ -2272,85 +1554,10 @@ export default function CheckoutFlow({
             </div>
           </div>
 
-          {/* ── Terms and conditions acceptance (final consent step) ── */}
-          <div className="bg-[#0f1e35] border border-white/[0.08] rounded-[18px] px-5 py-5 mt-4">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-amber-200">Required before submit</p>
-              {termsAccepted ? (
-                <span className="text-[12px] font-semibold text-green-400 bg-green-500/10 border border-green-500/30 px-2.5 py-1 rounded-full whitespace-nowrap">Accepted</span>
-              ) : (
-                <span className="text-[12px] font-semibold text-amber-200/90 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-full whitespace-nowrap">Not accepted</span>
-              )}
-            </div>
-            <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
-              <div className="flex items-start gap-4 flex-1">
-                <span className="material-symbols-outlined text-[26px] text-slate-400 flex-shrink-0 mt-0.5" style={{ fontVariationSettings: "'wght' 300" }}>description</span>
-                <div>
-                  <p className="text-[15px] font-semibold text-white">Checkout terms and conditions</p>
-                  <p className="text-sm text-slate-400 mt-1 leading-relaxed">Open and read the checkout terms document, then accept to enable submission.</p>
-                </div>
-              </div>
-              <div className="flex flex-col items-start md:items-end gap-2.5 flex-shrink-0">
-                <button
-                  type="button"
-                  disabled={isSubmitting || isPending}
-                  onClick={() => {
-                    setTermsModalOpen(true)
-                    if (termsAccepted) {
-                      setTermsScrolledToEnd(true)
-                      setTermsModalChecked(true)
-                    } else {
-                      setTermsScrolledToEnd(false)
-                      setTermsModalChecked(false)
-                    }
-                  }}
-                  className="px-4 py-2.5 bg-white/[0.05] border border-white/[0.15] hover:border-blue-400/50 text-slate-200 hover:text-white rounded-xl text-sm font-semibold transition-all whitespace-nowrap disabled:opacity-50"
-                >
-                  Open terms
-                </button>
-              </div>
-            </div>
-            <label className={`mt-4 flex items-start gap-3 rounded-xl border px-4 py-3 transition-colors ${
-              termsAccepted ? 'border-green-500/30 bg-green-500/[0.07]' : 'border-white/[0.12] bg-white/[0.03] hover:border-blue-400/45'
-            }`}>
-              <input
-                type="checkbox"
-                checked={termsAccepted}
-                disabled={isSubmitting || isPending}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setTermsModalOpen(true)
-                    setTermsScrolledToEnd(false)
-                    setTermsModalChecked(false)
-                    return
-                  }
-                  setTermsAccepted(false)
-                  setTermsModalChecked(false)
-                  setTermsScrolledToEnd(false)
-                }}
-                className="mt-0.5 h-4 w-4 accent-blue-500 cursor-pointer disabled:opacity-60"
-              />
-              <div className="space-y-1">
-                <span className={`text-sm ${termsAccepted ? 'text-green-200' : 'text-slate-200'}`}>
-                  I have read and accept the checkout terms and conditions.
-                </span>
-                {!termsAccepted && (
-                  <p className="text-[12px] text-slate-400">
-                    Check this to review and accept the terms. Submission stays disabled until accepted.
-                  </p>
-                )}
-              </div>
-            </label>
-            {termsError && <p className="text-sm text-red-300 mt-2">{termsError}</p>}
-            {!termsAccepted && (
-              <p className="text-sm text-amber-200/80 mt-2">Please accept the terms and conditions to submit your checkout request.</p>
-            )}
-          </div>
-
           {/* ── Bottom buttons ── */}
           <div className="pt-7 mt-2 border-t border-white/[0.07] flex items-center justify-center gap-4">
             <button
-              onClick={() => setStep('documents')}
+              onClick={() => setStep('docs_check')}
               disabled={isPending || isSubmitting}
               className="w-[132px] h-12 border border-white/[0.15] hover:border-white/[0.30] text-slate-300 hover:text-white disabled:opacity-40 rounded-xl text-base font-semibold transition-all"
             >
@@ -2362,8 +1569,7 @@ export default function CheckoutFlow({
               disabled={
                 isPending ||
                 isSubmitting ||
-                (nightVfrRating === false && !!startTime && !!date && !isWithinDayVfrWindow(startTime, date, 120)) ||
-                !termsAccepted
+                (nightVfrRating === false && !!startTime && !!date && !isWithinDayVfrWindow(startTime, date, 120))
               }
               className="w-[256px] h-12 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-base font-semibold transition-all shadow-[0_0_24px_rgba(37,99,235,0.35)]"
             >
@@ -2373,124 +1579,6 @@ export default function CheckoutFlow({
 
             </div>
           )}
-
-      {termsModalOpen && (
-        <ModalPortal>
-          <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-4xl bg-[#13243a] border border-[#4c6b8f] rounded-2xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-              <h4 className="text-sm font-semibold text-white">Checkout Terms and Conditions</h4>
-              <button
-                type="button"
-                onClick={() => setTermsModalOpen(false)}
-                className="text-white/30 hover:text-white/70 transition-colors"
-              >
-                <span className="material-symbols-outlined text-xl">close</span>
-              </button>
-            </div>
-            <div className="px-5 py-4 space-y-3">
-              <p className="text-sm text-slate-300">
-                Scroll to the end to enable acceptance.
-              </p>
-              <div
-                data-testid="checkout-terms-scrollbox"
-                className="h-[55vh] min-h-[340px] max-h-[680px] overflow-y-auto rounded-xl border border-white/10 bg-[#0b172b]"
-                onScroll={(e) => {
-                  const el = e.currentTarget
-                  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 4) {
-                    setTermsScrolledToEnd(true)
-                  }
-                }}
-              >
-                <div className="px-6 py-6 md:px-8 md:py-8">
-                  <div className="max-w-3xl mx-auto space-y-8">
-                    <div className="pb-5 border-b border-white/10 space-y-3">
-                      <p className="text-[10px] uppercase tracking-[0.24em] text-blue-200/80 font-bold">OZ Rent A Plane</p>
-                      <h5 className="text-2xl md:text-3xl font-serif text-white">{TERMS_MODAL_TITLE}</h5>
-                      <p className="text-sm text-slate-400">{TERMS_MODAL_SUBTITLE}</p>
-                      <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3">
-                        <p className="text-sm text-amber-100 leading-relaxed">{TERMS_NOTICE}</p>
-                      </div>
-                      <p className="text-xs text-slate-500">Version: {TERMS_LAST_UPDATED}</p>
-                    </div>
-                    {TERMS_SECTIONS.map((section) => (
-                      <section key={`${section.number}-${section.title}`} className="space-y-2">
-                        <div className="flex items-baseline gap-3">
-                          <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-200/50">{section.number}</span>
-                          <h6 className="text-lg md:text-xl font-serif text-slate-100">{section.title}</h6>
-                        </div>
-                        <div className="space-y-2 pl-6">
-                          {section.blocks.map((block, idx) => (
-                            block.type === 'paragraph' ? (
-                              <p key={idx} className="text-sm md:text-[15px] leading-7 text-slate-300">{block.text}</p>
-                            ) : (
-                              <ul key={idx} className="list-disc list-outside ml-5 space-y-1 text-sm md:text-[15px] leading-7 text-slate-300">
-                                {block.items.map((item, itemIdx) => (
-                                  <li key={itemIdx}>{item}</li>
-                                ))}
-                              </ul>
-                            )
-                          ))}
-                        </div>
-                      </section>
-                    ))}
-                    <div className="pt-4 border-t border-white/10">
-                      <p className="text-sm md:text-[15px] font-semibold text-slate-100">{TERMS_END_TEXT}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className={`text-sm ${termsScrolledToEnd ? 'text-green-300' : 'text-amber-300'}`}>
-                {termsScrolledToEnd ? 'You have reached the end. You can now accept the terms.' : 'Scroll to the bottom to continue.'}
-              </div>
-            </div>
-            <div className="sticky bottom-0 px-5 py-4 border-t border-white/[0.06] bg-[#0c1220] flex flex-col gap-3">
-              <label className={`flex items-start gap-3 rounded-lg border px-3 py-2 ${termsScrolledToEnd ? 'border-green-500/30 bg-green-500/5' : 'border-white/10 bg-white/[0.02]'}`}>
-                <input
-                  type="checkbox"
-                  checked={termsModalChecked}
-                  disabled={!termsScrolledToEnd}
-                  data-testid="checkout-terms-checkbox"
-                  onChange={(e) => setTermsModalChecked(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 accent-blue-500 rounded cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                />
-                <div className="space-y-1">
-                  <span className={`text-sm ${termsScrolledToEnd ? 'text-slate-200' : 'text-slate-400'}`}>
-                    I have read and accept the Checkout Terms and Conditions.
-                  </span>
-                  {!termsScrolledToEnd && (
-                    <p className="text-[11px] text-slate-500">
-                      This checkbox is disabled until you scroll to the end of the document.
-                    </p>
-                  )}
-                </div>
-              </label>
-              <div className="flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setTermsModalOpen(false)}
-                  className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 hover:text-white transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTermsAccepted(true)
-                    setTermsError(null)
-                    setTermsModalOpen(false)
-                  }}
-                  disabled={!termsScrolledToEnd || !termsModalChecked}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
-                >
-                  Accept terms
-                </button>
-              </div>
-            </div>
-          </div>
-          </div>
-        </ModalPortal>
-      )}
 
           {/* ── STEP 4: Success ───────────────────────────────────────────────── */}
           {step === 'success' && checkoutResult && (
