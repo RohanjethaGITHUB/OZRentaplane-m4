@@ -278,7 +278,10 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                           <div className="flex items-center justify-between gap-3">
                             <button
                               type="button"
-                              onClick={() => void handleForgotPasswordSubmit()}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                void handleForgotPasswordSubmit()
+                              }}
                               disabled={forgotLoading}
                               className="bg-white text-oz-deep px-5 py-3 rounded-full font-sans text-[10px] uppercase tracking-[0.15em] font-bold hover:bg-white/95 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
