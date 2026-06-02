@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import AdminPortalHero from '@/components/AdminPortalHero'
 import AdminQueueTable from '../AdminQueueTable'
 import type { QueueProfile } from '../AdminQueueTable'
 
@@ -30,13 +31,13 @@ export default async function VerifiedUsersPage() {
   }
 
   return (
-    <div className="p-10 max-w-7xl">
-      <header className="mb-12">
-        <h2 className="font-serif text-4xl font-light text-[#e2e2e6] tracking-tight">Verified Users</h2>
-        <p className="text-slate-400 mt-2 font-light tracking-wide">Customers who have passed full document verification</p>
-        <div className="h-0.5 w-10 bg-[#44474c] mt-6" />
-      </header>
-
+    <div>
+      <AdminPortalHero
+        eyebrow="Verification"
+        title="Verified Users"
+        subtitle="Customers who have passed full document verification."
+      />
+      <div className="max-w-[1450px] mx-auto px-6 md:px-10 py-10 pb-24">
       <AdminQueueTable
         profiles={profiles as QueueProfile[] ?? []}
         docsByUser={docsByUser}
@@ -44,6 +45,7 @@ export default async function VerifiedUsersPage() {
         dateMode="reviewed"
         actionLabel="View"
       />
+      </div>
     </div>
   )
 }

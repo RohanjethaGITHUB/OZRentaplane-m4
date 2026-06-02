@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
+import AdminPortalHero from '@/components/AdminPortalHero'
 
 export function AdminPageHeader({
   eyebrow,
@@ -12,18 +13,7 @@ export function AdminPageHeader({
   subtitle?: string
   actions?: ReactNode
 }) {
-  return (
-    <section className="border-b border-[var(--admin-divider)]">
-      <div className="max-w-[1420px] mx-auto px-6 md:px-10 py-10 md:py-12 flex items-end justify-between gap-4">
-        <div>
-          <p className="text-[11px] tracking-[0.24em] uppercase font-semibold text-[var(--admin-text-dim)]">{eyebrow}</p>
-          <h1 className="mt-2 text-[2.75rem] md:text-[3.25rem] leading-[1.04] font-semibold tracking-[-0.02em] text-[var(--admin-text)]">{title}</h1>
-          {subtitle ? <p className="mt-3 text-[1.05rem] md:text-[1.12rem] leading-relaxed font-medium text-[var(--admin-text-muted)] max-w-4xl">{subtitle}</p> : null}
-        </div>
-        {actions ? <div className="shrink-0">{actions}</div> : null}
-      </div>
-    </section>
-  )
+  return <AdminPortalHero eyebrow={eyebrow} title={title} subtitle={subtitle} actions={actions} />
 }
 
 export function AdminSectionPanel({

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import AdminPortalHero from '@/components/AdminPortalHero'
 import AdminBookingList from '../components/AdminBookingList'
 
 export const metadata = { title: 'Cancellations | Admin' }
@@ -28,6 +29,11 @@ export default async function CancellationsPage({ searchParams }: { searchParams
 
   return (
     <div>
+      <AdminPortalHero
+        eyebrow="Bookings"
+        title="Cancellations & No Shows"
+        subtitle="Cancelled bookings, no shows, and pending cancellation reviews."
+      />
 
       {/* ── Pending cancellation review queue ─────────────────────────────── */}
       {pendingRequests && pendingRequests.length > 0 && (

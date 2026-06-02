@@ -9,34 +9,34 @@ type Props = {
 
 export default function AdminPortalHero({ eyebrow, title, subtitle, actions }: Props) {
   return (
-    <section className="relative border-b border-white/[0.05] overflow-hidden">
+    <section className="relative overflow-hidden border-b border-[var(--admin-divider)] bg-[var(--admin-panel-bg)]">
 
       {/* Subtle directional glow */}
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse at 0% 100%, rgba(59,130,246,0.06) 0%, transparent 60%)' }}
+        style={{ background: 'radial-gradient(ellipse at 0% 100%, rgba(26,79,214,0.08) 0%, transparent 60%)' }}
       />
 
       {/* Runway lines — very faint, horizontal */}
       <div
-        className="absolute inset-0 opacity-[0.07] pointer-events-none"
+        className="absolute inset-0 opacity-[0.05] pointer-events-none"
         style={{
           backgroundImage:
-            'repeating-linear-gradient(90deg, transparent, transparent 60px, rgba(255,255,255,0.04) 60px, rgba(255,255,255,0.04) 61px)',
+            'repeating-linear-gradient(90deg, transparent, transparent 60px, rgba(12,35,64,0.05) 60px, rgba(12,35,64,0.05) 61px)',
         }}
       />
 
-      <div className="relative z-10 max-w-[1400px] mx-auto px-6 md:px-10 py-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <div className="relative z-10 max-w-[1400px] mx-auto px-6 md:px-10 py-8 md:py-11 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
 
         <div>
-          <p className="text-[9px] font-bold uppercase tracking-[0.35em] text-[#a7c8ff]/40 mb-2">
+          <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[#4b6390] mb-2">
             {eyebrow}
           </p>
-          <h1 className="font-serif text-3xl font-light text-[#e2e2e6] tracking-tight leading-tight">
+          <h1 className="font-serif text-3xl md:text-[3.25rem] font-semibold text-[var(--admin-text)] tracking-[-0.02em] leading-[1.04]">
             {title}
           </h1>
           {subtitle && (
-            <p className="text-[#8a9ab5] text-sm mt-2 max-w-xl leading-relaxed">
+            <p className="text-[#4b6390] text-sm md:text-[1.05rem] mt-3 max-w-4xl leading-relaxed">
               {subtitle}
             </p>
           )}

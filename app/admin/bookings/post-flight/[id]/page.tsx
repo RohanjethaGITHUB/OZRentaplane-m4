@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import AdminPortalHero from '@/components/AdminPortalHero'
 import RequestClarificationFormWrapper from './RequestClarificationFormWrapper'
 import AdminStandardBillingPanel from '@/app/admin/bookings/requests/[id]/AdminStandardBillingPanel'
 import { formatDateTime } from '@/lib/formatDateTime'
@@ -128,44 +129,38 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
   const awaitingCustomer         = record.status === 'needs_clarification'
 
   return (
-    <div className="p-10 max-w-7xl mx-auto">
+    <div>
       <Link href="/admin/bookings/post-flight" className="text-blue-400 hover:text-blue-300 text-sm mb-6 inline-flex items-center gap-1">
         <span className="material-symbols-outlined text-[16px]">arrow_back</span>
         Back to Queue
       </Link>
 
-      <header className="mb-10 mt-4">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="font-serif text-4xl font-light text-[#e2e2e6] tracking-tight">Post-Flight Verification</h2>
-            <p className="text-slate-400 mt-2 font-light tracking-wide flex items-center gap-2">
-              {isStandardBillingReady ? 'Billing review for' : 'Approving flight metrics for'}{' '}
-              <span className="px-2 py-0.5 rounded bg-blue-900/30 text-blue-200 border border-blue-500/20 font-medium text-xs">
-                {aircraft?.registration || 'Unknown'}
-              </span>
-            </p>
-          </div>
-          {/* Status badge + conversation link */}
-          <div className="flex items-center gap-3">
+      <AdminPortalHero
+        eyebrow="Bookings"
+        title="Post-Flight Verification"
+        subtitle={`${isStandardBillingReady ? 'Billing review for' : 'Approving flight metrics for'} ${aircraft?.registration || 'Unknown'}.`}
+        actions={
+          <>
             <span className={`px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider ${statusBadge.cls}`}>
               {statusBadge.label}
             </span>
             {customerId && (
               <Link
                 href={`/admin/users/${customerId}`}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-white/10 hover:border-white/20 text-slate-400 hover:text-white rounded-lg text-xs font-medium transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[var(--admin-border)] bg-[var(--admin-button-bg)] text-[var(--admin-text)] rounded-lg text-xs font-medium transition-colors hover:border-[rgba(26,79,214,0.24)]"
               >
                 <span className="material-symbols-outlined text-[14px]">chat</span>
                 Open Conversation
               </Link>
             )}
-          </div>
-        </div>
+          </>
+        }
+      />
+
+      <div className="max-w-[1450px] mx-auto px-6 md:px-10 py-10 pb-24">
         {bookingRef && (
-          <p className="text-[10px] text-slate-600 uppercase tracking-widest mt-3 font-mono">{bookingRef}</p>
+          <p className="text-[10px] text-[var(--admin-text-muted)] uppercase tracking-widest mb-4 font-mono">{bookingRef}</p>
         )}
-        <div className="h-0.5 w-10 bg-[#44474c] mt-4" />
-      </header>
 
       {/* Awaiting customer banner */}
       {awaitingCustomer && latestOpen && (
@@ -379,6 +374,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
           />
         )}
 
+      </div>
       </div>
     </div>
   )
