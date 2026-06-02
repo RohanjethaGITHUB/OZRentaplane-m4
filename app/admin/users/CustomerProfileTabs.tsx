@@ -9,9 +9,7 @@ import CheckoutActivitySection from './CheckoutActivitySection'
 import HistoricalCheckoutEditor from './HistoricalCheckoutEditor'
 import AdminChatPanel from './AdminChatPanel'
 import PilotMetadataEditor from './PilotMetadataEditor'
-import DocumentExpiryEditor from './DocumentExpiryEditor'
-import OpenFileButton from './OpenFileButton'
-import { DocumentReviewPanel } from './VerdictPanel'
+import { DocumentReviewCards } from './VerdictPanel'
 
 type TimelineEvent = {
   at: string
@@ -153,20 +151,6 @@ type Props = {
 
 const REQUIRED_DOC_TYPES: UserDocument['document_type'][] = ['pilot_licence', 'medical_certificate', 'photo_id']
 
-const DOC_LABELS: Record<string, string> = {
-  pilot_licence: 'Pilot Licence',
-  medical_certificate: 'Medical Certificate',
-  photo_id: 'Photo ID',
-  night_vfr_evidence: 'Night VFR Evidence',
-}
-
-const DOC_ICONS: Record<string, string> = {
-  pilot_licence: 'ti-certificate',
-  medical_certificate: 'ti-heart-rate-monitor',
-  photo_id: 'ti-id-badge',
-  night_vfr_evidence: 'ti-moon',
-}
-
 const TONE_COLOUR: Record<TimelineEvent['tone'], string> = {
   slate: '#9ca3af',
   blue: '#42a5f5',
@@ -296,12 +280,6 @@ export default function CustomerProfileTabs({
     />
   )
 
-  const docSlots = REQUIRED_DOC_TYPES.map((type) => ({
-    type,
-    doc: documents.find((d) => d.document_type === type) ?? null,
-  }))
-  const nightDocs = documents.filter((d) => d.document_type === 'night_vfr_evidence').map((d) => ({ type: 'night_vfr_evidence' as const, doc: d }))
-  const allDocSlots = [...docSlots, ...nightDocs]
   const isCompactOverview = clearanceStatus === 'cleared_to_fly' && accountStatus !== 'blocked'
   const clearanceValue = clearanceStatus
     ? clearanceStatus
@@ -493,65 +471,7 @@ export default function CustomerProfileTabs({
               {onHoldBookingCount} booking{onHoldBookingCount === 1 ? '' : 's'} currently on hold pending document approval.
             </div>
           )}
-          <div className="mb-5">
-            <DocumentReviewPanel
-              customerId={customerId}
-              documents={documents}
-            />
-          </div>
-          <div className="flex flex-col md:grid md:grid-cols-3 gap-3">
-            {allDocSlots.map(({ type, doc }, idx) => {
-              const isMissing = !doc
-              const isExpired = !!(doc?.expiry_date && new Date(doc.expiry_date) < new Date())
-              const iconColor = isMissing ? '#9ca3af' : isExpired ? '#d97706' : '#1a4fd6'
-              const docStatus = String(doc?.status ?? '')
-              const badge = isMissing
-                ? { cls: 'bg-gray-100 text-gray-500', label: 'Missing' }
-                : isExpired
-                  ? { cls: 'bg-amber-100 text-amber-700', label: 'Expired' }
-                  : docStatus === 'pending_review'
-                    ? { cls: 'bg-blue-100 text-blue-700', label: 'Under review' }
-                    : { cls: 'bg-green-100 text-green-700', label: 'Uploaded' }
-
-              const expSoon = !!(doc?.expiry_date && ((new Date(doc.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 60)
-
-              return (
-                <div key={`${type}-${idx}`} className="bg-white border border-[#152d5a]/10 rounded-2xl p-4">
-                  <div className="flex items-start justify-between">
-                    <i className={`${DOC_ICONS[type] ?? 'ti-file'} text-[20px]`} style={{ color: iconColor }} />
-                    <span className={`px-2 py-1 rounded-full text-[11px] font-semibold ${badge.cls}`}>{badge.label}</span>
-                  </div>
-                  <p className="text-[14px] font-semibold text-[#152d5a] mt-2 mb-1">{DOC_LABELS[type] ?? prettyStatus(type)}</p>
-
-                  {doc ? (
-                    <div className="text-[12px] text-[#4b6390] space-y-1">
-                      {doc.expiry_date ? <p className={expSoon ? 'text-amber-600' : ''}>Expiry: {shortDate(doc.expiry_date)}</p> : null}
-                      {type === 'pilot_licence' && doc.licence_type ? <p>Type: {doc.licence_type}</p> : null}
-                      {type === 'pilot_licence' && doc.licence_number ? <p>Number: {doc.licence_number}</p> : null}
-                      {type === 'medical_certificate' && doc.medical_class ? <p>Class: {doc.medical_class}</p> : null}
-                      {type === 'photo_id' && doc.id_type ? <p>ID type: {doc.id_type}</p> : null}
-
-                      <DocumentExpiryEditor
-                        documentId={doc.id}
-                        customerId={customerProfile.id}
-                        initialExpiry={doc.expiry_date}
-                        documentType={doc.document_type}
-                      />
-
-                      <div className="pt-2">
-                        <OpenFileButton
-                          storagePath={doc.storage_path}
-                          fileName={doc.file_name}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-[12px] text-[#9ca3af]">Not yet uploaded</p>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+          <DocumentReviewCards customerId={customerId} documents={documents} />
         </section>
       )}
 
