@@ -493,9 +493,11 @@ function cardBorderClass(status: DocumentCardStatus) {
 export function DocumentReviewCards({
   customerId,
   documents,
+  hasNightVfrRating = false,
 }: {
   customerId: string
   documents: UserDocument[]
+  hasNightVfrRating?: boolean | null
 }) {
   const router = useRouter()
   const [loadingDocId, setLoadingDocId] = useState<string | null>(null)
@@ -560,65 +562,89 @@ export function DocumentReviewCards({
     <section className="space-y-4">
       <div className="grid grid-cols-1 gap-4">
         {latestDocuments.map(({ documentType, doc }) => {
-          const config = DOCUMENT_CARD_CONFIG[documentType]
-          const status = getDocumentStatus(doc)
-          const isLoading = doc ? loadingDocId === doc.id : false
-          const showRejectBox = doc ? rejectingDocId === doc.id : false
-          const canApprove = status === 'uploaded' || status === 'rejected'
-          const canReject = status === 'uploaded' || status === 'approved'
-          const isMissing = status === 'missing'
-          const badgeLabel =
-            status === 'missing'
-              ? documentType === 'night_vfr_evidence'
-                ? 'Optional'
-                : 'Not uploaded'
+      const config = DOCUMENT_CARD_CONFIG[documentType]
+      const status = getDocumentStatus(doc)
+      const isLoading = doc ? loadingDocId === doc.id : false
+      const showRejectBox = doc ? rejectingDocId === doc.id : false
+      const isNightVfr = documentType === 'night_vfr_evidence'
+      const nightVfrRequired = hasNightVfrRating === true
+      const nightVfrOptional = hasNightVfrRating === false
+      const canApprove = status === 'uploaded' || status === 'rejected'
+      const canReject = status === 'uploaded' || status === 'approved'
+      const isMissing = status === 'missing'
+      const badgeClass =
+        isNightVfr && nightVfrRequired && isMissing
+          ? 'bg-blue-500/10 border-blue-400/30 text-blue-700'
+          : isNightVfr && nightVfrOptional && isMissing
+            ? 'bg-amber-500/10 border-amber-400/30 text-amber-700'
+            : statusBadgeClass(status, documentType)
+      const badgeLabel =
+        isNightVfr && nightVfrRequired && isMissing
+          ? 'Under Review'
+          : isNightVfr && nightVfrOptional && isMissing
+            ? 'Optional'
+            : status === 'missing'
+              ? 'Not uploaded'
               : status === 'uploaded'
                 ? 'Under Review'
                 : status === 'approved'
                   ? 'Approved'
                   : 'Rejected'
+      const showActions = doc ? !(isNightVfr && nightVfrOptional) : false
 
           return (
             <div
               key={documentType}
               className={`rounded-xl border bg-white p-4 md:p-5 shadow-sm ${cardBorderClass(status)} ${isMissing ? 'border-slate-200/80 bg-[#fafbfc]' : ''}`}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-semibold text-[#0C2340]">{config.label}</p>
-                    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium ${statusBadgeClass(status, documentType)}`}>
-                      {badgeLabel}
-                    </span>
-                  </div>
-                  <div className="mt-1 space-y-0.5 text-xs text-[#4b6390]">
-                    {doc ? (
-                      <>
-                        {documentType === 'pilot_licence' && doc.licence_type ? <p>Type: {doc.licence_type}</p> : null}
-                        {documentType === 'pilot_licence' && doc.licence_number ? <p>Licence number: {doc.licence_number}</p> : null}
-                        {documentType === 'pilot_licence' && doc.licence_number ? <p>Pilot ARN: {doc.licence_number}</p> : null}
-                        {documentType === 'medical_certificate' && doc.medical_class ? <p>Medical class: {doc.medical_class}</p> : null}
-                        {documentType === 'medical_certificate' && doc.expiry_date ? <p>Expiry: {formatDateTime(doc.expiry_date)}</p> : null}
-                        {documentType === 'photo_id' && doc.id_type ? <p>ID type: {doc.id_type}</p> : null}
-                        {documentType === 'photo_id' && doc.document_number ? <p>Document number: {doc.document_number}</p> : null}
-                        {documentType === 'night_vfr_evidence' ? <p>{config.helperText}</p> : null}
-                        <p>Uploaded {formatDateTime(doc.uploaded_at)}</p>
-                      </>
-                    ) : (
-                      <p>{config.helperText}</p>
-                    )}
-                  </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-base font-semibold text-[#0C2340]">{config.label}</p>
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium ${badgeClass}`}>
+                    {badgeLabel}
+                  </span>
+                </div>
+                <div className="mt-2 space-y-1 text-sm text-[#4b6390]">
+                  {doc ? (
+                    <>
+                      {documentType === 'pilot_licence' && doc.licence_type ? <p>Licence type: {doc.licence_type}</p> : null}
+                      {documentType === 'pilot_licence' && doc.licence_number ? <p>Licence number: {doc.licence_number}</p> : null}
+                      {documentType === 'pilot_licence' && ((doc as { pilot_arn?: string | null }).pilot_arn) ? <p>Pilot ARN: {(doc as { pilot_arn?: string | null }).pilot_arn}</p> : null}
+                      {documentType === 'medical_certificate' && doc.medical_class ? <p>Medical class: {doc.medical_class}</p> : null}
+                      {documentType === 'medical_certificate' && doc.expiry_date ? <p>Expiry date: {formatDateTime(doc.expiry_date)}</p> : null}
+                      {documentType === 'photo_id' && doc.id_type ? <p>ID type: {doc.id_type}</p> : null}
+                      {documentType === 'photo_id' && doc.document_number ? <p>Document number: {doc.document_number}</p> : null}
+                      {isNightVfr && !nightVfrRequired ? (
+                        <p className="italic">Customer has not selected Night VFR - no document required</p>
+                      ) : isNightVfr && nightVfrRequired && isMissing ? (
+                        <p className="italic">Customer has Night VFR rating. Please upload supporting evidence.</p>
+                      ) : isNightVfr ? (
+                        <p>Unlocks night flying eligibility.</p>
+                      ) : null}
+                      <p>Uploaded {formatDateTime(doc.uploaded_at)}</p>
+                    </>
+                  ) : (
+                    <>
+                      {isNightVfr && !nightVfrRequired ? (
+                        <p className="italic">Customer has not selected Night VFR - no document required</p>
+                      ) : isNightVfr && nightVfrRequired ? (
+                        <p className="italic">Customer has Night VFR rating. Please upload supporting evidence.</p>
+                      ) : (
+                        <p>{config.helperText}</p>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
 
               {doc?.status === 'rejected' && doc.review_notes ? (
-                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                   {doc.review_notes}
                 </div>
               ) : null}
 
-              {doc ? (
-                <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+              {showActions ? (
+                <div className="mt-4 border-t border-[rgba(12,35,64,0.1)] pt-3 flex flex-wrap items-center justify-end gap-2">
                   <OpenFileButton storagePath={doc.storage_path} fileName={doc.file_name} />
                   {canApprove ? (
                     <button
@@ -653,7 +679,7 @@ export function DocumentReviewCards({
                     onChange={(e) => setNoteByDocId((prev) => ({ ...prev, [doc.id]: e.target.value }))}
                     placeholder="Required rejection note"
                     rows={3}
-                    className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-xs text-[#0C2340] placeholder:text-[#4b6390] focus:outline-none focus:border-red-400"
+                    className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-[#0C2340] placeholder:text-[#4b6390] focus:outline-none focus:border-red-400"
                   />
                   <div className="flex flex-wrap items-center justify-end gap-2">
                     <button
@@ -694,10 +720,11 @@ export function DocumentReviewCards({
 export function DocumentReviewPanel({
   customerId,
   documents,
+  hasNightVfrRating,
 }: {
   customerId: string
   documents: UserDocument[]
+  hasNightVfrRating?: boolean | null
 }) {
-  const router = useRouter()
-  return <DocumentReviewCards customerId={customerId} documents={documents} />
+  return <DocumentReviewCards customerId={customerId} documents={documents} hasNightVfrRating={hasNightVfrRating} />
 }

@@ -295,17 +295,40 @@ export default function CustomerProfileTabs({
     { label: 'Bookings', value: String(standardBookings.length) },
   ]
 
+  function quickStatValueClass(label: string): string {
+    if (label === 'Clearance') {
+      if (clearanceStatus === 'cleared_to_fly') return 'text-green-600 font-medium'
+      if (clearanceStatus === 'checkout_required' || clearanceStatus === 'checkout_requested' || clearanceStatus === 'checkout_payment_required') {
+        return 'text-amber-600 font-medium'
+      }
+      if ((clearanceStatus as string) === 'rejected') return 'text-red-600 font-medium'
+      return 'text-[#0C2340] font-medium'
+    }
+    if (label === 'Account') {
+      if (accountStatus === 'active') return 'text-green-600 font-medium'
+      if (accountStatus === 'blocked') return 'text-red-600 font-medium'
+      return 'text-[#0C2340] font-medium'
+    }
+    if (label === 'Documents') {
+      return uploadedRequired === REQUIRED_DOC_TYPES.length ? 'text-green-600 font-medium' : 'text-amber-600 font-medium'
+    }
+    if (label === 'Credit') {
+      return 'text-[#0C2340] font-medium'
+    }
+    return 'text-[#0C2340] font-medium'
+  }
+
   function QuickStatsCard() {
     return (
       <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl p-4">
         <h3 className="text-xs uppercase tracking-wide font-semibold text-[#3d5a80] mb-3">Quick stats</h3>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="divide-y divide-[rgba(12,35,64,0.1)] border border-[rgba(12,35,64,0.12)] rounded-xl overflow-hidden">
           {quickStats.map((stat) => (
-            <div key={stat.label} className="bg-[#f8f9fb] rounded-xl px-3 py-2.5 border border-[rgba(12,35,64,0.08)]">
-              <div className="text-xs text-[#3d5a80] mb-0.5 uppercase tracking-wide font-medium">
+            <div key={stat.label} className="flex items-center justify-between gap-4 px-3 py-3 bg-[#f8f9fb]">
+              <div className="text-xs text-[#3d5a80] uppercase tracking-wide font-medium">
                 {stat.label}
               </div>
-              <div className="text-sm font-medium text-[#0C2340]">
+              <div className={`text-sm ${quickStatValueClass(stat.label)}`}>
                 {stat.value}
               </div>
             </div>
@@ -411,26 +434,29 @@ export default function CustomerProfileTabs({
           <div className="space-y-3">
             {isCompactOverview ? <QuickStatsCard /> : null}
 
-            {!isCompactOverview && (clearanceStatus !== 'cleared_to_fly' || accountStatus === 'blocked') ? (
-              <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl">
-                <NextActionCard
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#3d5a80] mb-2">CURRENT STATUS</p>
+              {!isCompactOverview && (clearanceStatus !== 'cleared_to_fly' || accountStatus === 'blocked') ? (
+                <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl">
+                  <NextActionCard
+                    clearanceStatus={clearanceStatus}
+                    accountStatus={accountStatus}
+                    latestCheckoutBookingId={latestCheckoutBookingId}
+                    historicalCheckoutAction={historicalCheckoutAction}
+                  />
+                </div>
+              ) : null}
+
+              <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl p-5">
+                <CurrentActionSection
                   clearanceStatus={clearanceStatus}
                   accountStatus={accountStatus}
                   latestCheckoutBookingId={latestCheckoutBookingId}
-                  historicalCheckoutAction={historicalCheckoutAction}
+                  adminReviewNote={customerProfile.admin_review_note}
+                  reviewedAt={customerProfile.reviewed_at}
+                  customerId={customerProfile.id}
                 />
               </div>
-            ) : null}
-
-            <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl p-5">
-              <CurrentActionSection
-                clearanceStatus={clearanceStatus}
-                accountStatus={accountStatus}
-                latestCheckoutBookingId={latestCheckoutBookingId}
-                adminReviewNote={customerProfile.admin_review_note}
-                reviewedAt={customerProfile.reviewed_at}
-                customerId={customerProfile.id}
-              />
             </div>
 
             <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl p-5">
@@ -473,7 +499,7 @@ export default function CustomerProfileTabs({
               {onHoldBookingCount} booking{onHoldBookingCount === 1 ? '' : 's'} currently on hold pending document approval.
             </div>
           )}
-          <DocumentReviewCards customerId={customerId} documents={documents} />
+          <DocumentReviewCards customerId={customerId} documents={documents} hasNightVfrRating={customerProfile.has_night_vfr_rating} />
         </section>
       )}
 

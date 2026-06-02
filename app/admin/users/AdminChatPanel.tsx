@@ -166,7 +166,7 @@ export default function AdminChatPanel({ customerId, events, customerName }: Pro
           disabled={loading}
           placeholder={`Message ${customerName}…`}
           rows={3}
-          className="w-full bg-white focus:outline-none text-sm text-[#0C2340] placeholder:text-[#3d5a80] resize-none disabled:opacity-50"
+          className="w-full rounded-lg border border-[rgba(12,35,64,0.15)] bg-white px-3 py-2 focus:outline-none text-sm text-[#0C2340] placeholder:text-[#3d5a80] resize-none disabled:opacity-50 focus:border-[#1a4a7a]"
         />
 
         {error && (
