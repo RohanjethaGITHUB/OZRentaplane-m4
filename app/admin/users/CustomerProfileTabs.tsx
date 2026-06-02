@@ -322,10 +322,10 @@ export default function CustomerProfileTabs({
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
         {quickStats.map((stat) => (
           <div key={stat.label} className="bg-white rounded-xl border border-[rgba(12,35,64,0.15)] p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#3d5a80] mb-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#3d5a80] mb-1.5">
               {stat.label}
             </p>
-            <p className={`text-[15px] font-medium ${quickStatValueClass(stat.label)}`}>
+            <p className={`text-[17px] font-medium leading-tight ${quickStatValueClass(stat.label)}`}>
               {stat.value}
             </p>
           </div>
@@ -338,15 +338,15 @@ export default function CustomerProfileTabs({
     return (
       <div className="bg-white rounded-xl border border-[rgba(12,35,64,0.15)] p-4 mb-4">
         <div className="flex items-center justify-between pb-3 border-b border-[rgba(12,35,64,0.08)] mb-3">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#3d5a80]">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#3d5a80]">
             Current Status
           </p>
-          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest ${getStatusBadgeClass(currentStatus.tone)}`}>
+          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ${getStatusBadgeClass(currentStatus.tone)}`}>
             {currentStatus.label}
           </span>
         </div>
 
-        <p className="text-sm text-[#3d5a80] mb-3 leading-relaxed">
+        <p className="text-[15px] text-[#3d5a80] mb-3 leading-relaxed">
           {currentStatus.description}
         </p>
 
@@ -360,7 +360,7 @@ export default function CustomerProfileTabs({
               <Link
                 key={`${cta.label}-${i}`}
                 href={cta.href(latestCheckoutBookingId)}
-                className="text-sm font-medium text-[#185FA5] inline-flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors"
+                className="text-[15px] font-medium text-[#185FA5] inline-flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors"
               >
                 {cta.label}
                 <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'wght' 300" }}>arrow_forward</span>
@@ -376,10 +376,10 @@ export default function CustomerProfileTabs({
     return (
       <div className="bg-white rounded-xl border border-[rgba(12,35,64,0.15)] p-4">
         <div className="flex items-center justify-between pb-3 border-b border-[rgba(12,35,64,0.08)] mb-4">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-[#3d5a80]">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#3d5a80]">
             Recent Activity
           </p>
-          <p className="text-[10px] text-[#94a3b8]">
+          <p className="text-[11px] text-[#94a3b8]">
             Latest 6 events
           </p>
         </div>
@@ -390,9 +390,9 @@ export default function CustomerProfileTabs({
             {recentTimelineEvents.map((item) => (
               <div key={`${item.title}-${item.at}`} className="relative">
                 <span className="absolute left-[-16px] top-1 w-3 h-3 rounded-full bg-[#185FA5] z-10" />
-                <p className="text-sm font-medium text-[#0C2340]">{item.title}</p>
+                <p className="text-[15px] font-medium text-[#0C2340]">{item.title}</p>
                 <p className="text-xs text-[#3d5a80]">{item.detail}</p>
-                <p className="text-[10px] text-[#94a3b8] mt-0.5">{shortDate(item.at)}</p>
+                <p className="text-[11px] text-[#94a3b8] mt-0.5">{shortDate(item.at)}</p>
               </div>
             ))}
           </div>
@@ -407,10 +407,10 @@ export default function CustomerProfileTabs({
               return (
                 <div key={`${item.title}-${item.at}`} className="flex-1 flex flex-col items-center px-1">
                   <span className={`w-3.5 h-3.5 rounded-full relative z-10 ${isLatest ? 'bg-[#185FA5] ring-2 ring-blue-200' : 'bg-[#185FA5]'}`} />
-                  <p className={`text-[10px] font-medium text-center mt-2 leading-tight ${isLatest ? 'text-[#185FA5]' : 'text-[#185FA5]'}`}>
+                  <p className={`text-[11px] font-medium text-center mt-2 leading-tight ${isLatest ? 'text-[#185FA5]' : 'text-[#185FA5]'}`}>
                     {shortLabel}
                   </p>
-                  <p className="text-[9px] text-[#94a3b8] text-center mt-0.5">
+                  <p className="text-[10px] text-[#94a3b8] text-center mt-0.5">
                     {shortDate(item.at)}
                   </p>
                 </div>
@@ -532,7 +532,7 @@ export default function CustomerProfileTabs({
               {onHoldBookingCount} booking{onHoldBookingCount === 1 ? '' : 's'} currently on hold pending document approval.
             </div>
           )}
-          <DocumentReviewCards customerId={customerId} documents={documents} hasNightVfrRating={customerProfile.has_night_vfr_rating} />
+          <DocumentReviewCards customerId={customerId} documents={documents} customerProfile={customerProfile} />
         </section>
       )}
 
