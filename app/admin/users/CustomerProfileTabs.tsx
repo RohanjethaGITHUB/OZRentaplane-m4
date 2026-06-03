@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import type { AccountStatus, PilotClearanceStatus, UserDocument, VerificationEvent } from '@/lib/supabase/types'
+import CurrentActionSection from './CurrentActionSection'
 import CheckoutActivitySection from './CheckoutActivitySection'
 import HistoricalCheckoutEditor from './HistoricalCheckoutEditor'
 import AdminChatPanel from './AdminChatPanel'
@@ -117,6 +118,7 @@ type CustomerProfile = {
   account_status: AccountStatus | null
   verification_status: string | null
   pilot_clearance_status: PilotClearanceStatus | null
+  terms_accepted_at: string | null
   created_at: string
   updated_at: string
   reviewed_at: string | null
@@ -271,14 +273,40 @@ export default function CustomerProfileTabs({
         .replace(/_/g, ' ')
         .replace(/\b\w/g, (c) => c.toUpperCase())
     : '—'
-  const quickStats = [
-    { label: 'Clearance', value: clearanceValue },
-    { label: 'Account', value: prettyStatus(accountStatus) },
-    { label: 'Documents', value: `${uploadedRequired} / 3` },
-    { label: 'Credit', value: `$${(balanceCents / 100).toFixed(2)}` },
-    { label: 'Checkouts', value: String(checkoutBookings.length) },
-    { label: 'Bookings', value: String(standardBookings.length) },
+  type QuickStatTone = 'green' | 'amber' | 'red' | 'blue'
+  type QuickStat = { label: string; value: string; tone: QuickStatTone }
+  const quickStats: QuickStat[] = [
+    {
+      label: 'Clearance',
+      value: clearanceValue,
+      tone:
+        accountStatus === 'blocked' || clearanceStatus === 'not_currently_eligible'
+          ? 'red'
+          : clearanceStatus === 'cleared_to_fly'
+            ? 'green'
+            : 'amber',
+    },
+    {
+      label: 'Terms & Conditions',
+      value: customerProfile.terms_accepted_at ? 'Accepted' : 'Not accepted',
+      tone: customerProfile.terms_accepted_at ? 'green' : 'red',
+    },
+    {
+      label: 'Documents',
+      value: `${uploadedRequired} / 3`,
+      tone: uploadedRequired === REQUIRED_DOC_TYPES.length ? 'green' : 'amber',
+    },
+    { label: 'Credit', value: `$${(balanceCents / 100).toFixed(2)}`, tone: 'blue' },
+    { label: 'Checkouts', value: String(checkoutBookings.length), tone: 'blue' },
+    { label: 'Bookings', value: String(standardBookings.length), tone: 'blue' },
   ]
+
+  function quickStatAccentClass(tone: QuickStatTone): string {
+    if (tone === 'green') return 'border-l-green-600'
+    if (tone === 'amber') return 'border-l-amber-500'
+    if (tone === 'red') return 'border-l-red-600'
+    return 'border-l-blue-600'
+  }
 
   function quickStatValueClass(label: string): string {
     if (label === 'Clearance') {
@@ -289,10 +317,8 @@ export default function CustomerProfileTabs({
       if (accountStatus === 'blocked' || clearanceStatus === 'not_currently_eligible') return 'text-red-700 font-medium'
       return 'text-[#0C2340] font-medium'
     }
-    if (label === 'Account') {
-      if (accountStatus === 'active') return 'text-green-600 font-medium'
-      if (accountStatus === 'blocked') return 'text-red-600 font-medium'
-      return 'text-[#0C2340] font-medium'
+    if (label === 'Terms & Conditions') {
+      return customerProfile.terms_accepted_at ? 'text-green-600 font-medium' : 'text-red-600 font-medium'
     }
     if (label === 'Documents') {
       return uploadedRequired === REQUIRED_DOC_TYPES.length ? 'text-green-600 font-medium' : 'text-amber-600 font-medium'
@@ -314,7 +340,10 @@ export default function CustomerProfileTabs({
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
         {quickStats.map((stat) => (
-          <div key={stat.label} className="bg-white rounded-xl border border-[rgba(12,35,64,0.15)] p-3">
+          <div
+            key={stat.label}
+            className={`rounded-xl border border-[rgba(12,35,64,0.15)] border-l-4 bg-white p-3 pl-4 ${quickStatAccentClass(stat.tone)}`}
+          >
             <p className="text-[11px] font-semibold uppercase tracking-widest text-[#3d5a80] mb-1.5">
               {stat.label}
             </p>
@@ -434,16 +463,43 @@ export default function CustomerProfileTabs({
               <div className="bg-red-900/40 border border-red-500/30 rounded-xl px-4 py-2 mt-3 text-red-200 text-[14px]">⚠ This account is blocked</div>
             )}
 
-            <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap gap-6">
-              <div><p className="text-[11px] uppercase text-white/40">Pilot ARN</p><p className="text-[15px] font-medium text-white">{customerProfile.pilot_arn ?? 'Not set'}</p></div>
-              <div><p className="text-[11px] uppercase text-white/40">Night VFR</p><p className="text-[15px] font-medium text-white">{customerProfile.has_night_vfr_rating ? 'Yes' : 'No'}</p></div>
-              <div><p className="text-[11px] uppercase text-white/40">Instrument</p><p className="text-[15px] font-medium text-white">{customerProfile.has_instrument_rating ? 'Yes' : 'No'}</p></div>
-              <div><p className="text-[11px] uppercase text-white/40">Documents</p><p className={`text-[15px] font-medium ${uploadedRequired === REQUIRED_DOC_TYPES.length ? 'text-[#6ee7a0]' : 'text-amber-300'}`}>{uploadedRequired} / 3</p></div>
+            <div className="mt-3 pt-3 border-t border-white/10">
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-white/40">
+                Pilot details
+              </p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-4">
+                <div className="min-w-0 text-left">
+                  <p className="text-[11px] uppercase text-white/40">Pilot ARN</p>
+                  <p className="text-[15px] font-medium text-white">{customerProfile.pilot_arn ?? 'Not set'}</p>
+                </div>
+                <div className="min-w-0 text-left">
+                  <p className="text-[11px] uppercase text-white/40">Night VFR</p>
+                  <p className="text-[15px] font-medium text-white">{customerProfile.has_night_vfr_rating ? 'Yes' : 'No'}</p>
+                </div>
+                <div className="min-w-0 text-left">
+                  <p className="text-[11px] uppercase text-white/40">Instrument</p>
+                  <p className="text-[15px] font-medium text-white">{customerProfile.has_instrument_rating ? 'Yes' : 'No'}</p>
+                </div>
+                <div className="min-w-0 text-left">
+                  <p className="text-[11px] uppercase text-white/40">Documents</p>
+                  <p className={`text-[15px] font-medium ${uploadedRequired === REQUIRED_DOC_TYPES.length ? 'text-[#6ee7a0]' : 'text-amber-300'}`}>{uploadedRequired} / 3</p>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-[13px] text-white/45">{customerProfile.email ?? '—'}</p>
-            <p className="text-[13px] text-white/30 mt-1">Member since {shortDate(customerProfile.created_at)}</p>
+          <div className="text-right flex flex-col items-end gap-3">
+            <div className="flex flex-col items-end gap-2">
+              <Link
+                href={`/admin/users/${customerId}/create-booking`}
+                className="inline-flex items-center justify-center rounded-2xl bg-white px-6 py-3.5 text-sm font-semibold text-[#152d5a] shadow-sm transition-colors hover:bg-[#eef3fa] hover:text-[#0C2340]"
+              >
+                Create Booking
+              </Link>
+            </div>
+            <div>
+              <p className="text-[13px] text-white/45">{customerProfile.email ?? '—'}</p>
+              <p className="text-[13px] text-white/30 mt-1">Member since {shortDate(customerProfile.created_at)}</p>
+            </div>
           </div>
         </div>
 
@@ -463,12 +519,39 @@ export default function CustomerProfileTabs({
             <div className="bg-red-900/40 border border-red-500/30 rounded-xl px-4 py-2 mt-3 text-red-200 text-[14px]">⚠ This account is blocked</div>
           )}
 
+          <div className="mt-4">
+            <Link
+              href={`/admin/users/${customerId}/create-booking`}
+              className="inline-flex w-full items-center justify-center rounded-2xl bg-white px-6 py-3.5 text-sm font-semibold text-[#152d5a] shadow-sm transition-colors hover:bg-[#eef3fa] hover:text-[#0C2340]"
+            >
+              Create Booking
+            </Link>
+          </div>
+
           <p className="text-[13px] text-white/45 mt-3">{customerProfile.email ?? '—'} · ARN {customerProfile.pilot_arn ?? 'Not set'}</p>
 
-          <div className="border-t border-white/10 mt-3 pt-3 grid grid-cols-3 gap-2">
-            <div className="bg-white/5 rounded-lg px-2 py-2"><p className="text-[11px] uppercase text-white/40">Docs</p><p className="text-[15px] font-semibold text-white">{uploadedRequired}/3</p></div>
-            <div className="bg-white/5 rounded-lg px-2 py-2"><p className="text-[11px] uppercase text-white/40">Flights</p><p className="text-[15px] font-semibold text-white">{checkoutBookings.length + standardBookings.length}</p></div>
-            <div className="bg-white/5 rounded-lg px-2 py-2"><p className="text-[11px] uppercase text-white/40">Credit</p><p className="text-[15px] font-semibold text-white">${(balanceCents / 100).toFixed(2)}</p></div>
+          <div className="border-t border-white/10 mt-3 pt-3">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-white/40">
+              Pilot details
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-white/5 rounded-lg px-2 py-2">
+                <p className="text-[11px] uppercase text-white/40">Docs</p>
+                <p className="text-[15px] font-semibold text-white">{uploadedRequired}/3</p>
+              </div>
+              <div className="bg-white/5 rounded-lg px-2 py-2">
+                <p className="text-[11px] uppercase text-white/40">Flights</p>
+                <p className="text-[15px] font-semibold text-white">{checkoutBookings.length + standardBookings.length}</p>
+              </div>
+              <div className="bg-white/5 rounded-lg px-2 py-2">
+                <p className="text-[11px] uppercase text-white/40">Credit</p>
+                <p className="text-[15px] font-semibold text-white">${(balanceCents / 100).toFixed(2)}</p>
+              </div>
+              <div className="bg-white/5 rounded-lg px-2 py-2">
+                <p className="text-[11px] uppercase text-white/40">Night VFR</p>
+                <p className="text-[15px] font-semibold text-white">{customerProfile.has_night_vfr_rating ? 'Yes' : 'No'}</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -508,7 +591,14 @@ export default function CustomerProfileTabs({
       {activeTab === 'overview' && (
         <section className="space-y-4">
           <QuickStatsGrid />
-          <CurrentStatusCard />
+          <CurrentActionSection
+            clearanceStatus={clearanceStatus}
+            accountStatus={accountStatus}
+            latestCheckoutBookingId={latestCheckoutBookingId}
+            adminReviewNote={customerProfile.admin_review_note}
+            reviewedAt={customerProfile.reviewed_at}
+            customerId={customerId}
+          />
           <RecentActivityCard />
         </section>
       )}

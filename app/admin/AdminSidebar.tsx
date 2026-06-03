@@ -39,18 +39,6 @@ const NAV_GROUPS: NavGroupType[] = [
     badgeKey: 'actions',
   },
   {
-    title: 'Checkouts',
-    href: '/admin/checkouts',
-    icon: 'fact_check',
-    badgeKey: 'checkouts',
-    items: [
-      { label: 'Overview', href: '/admin/checkouts' },
-      { label: 'All Checkouts', href: '/admin/checkouts/all' },
-      { label: 'Payment', href: '/admin/checkouts/payments?tab=paid', badgeKey: 'checkoutPayments' },
-      { label: 'History', href: '/admin/checkouts/history' },
-    ],
-  },
-  {
     title: 'Bookings',
     href: '/admin/bookings',
     icon: 'event_seat',
@@ -64,6 +52,10 @@ const NAV_GROUPS: NavGroupType[] = [
       { label: 'Payments', href: '/admin/bookings/payments', badgeKey: 'bookingPayments' },
       { label: 'Cancellations', href: '/admin/bookings/cancellations', badgeKey: 'bookingCancellations' },
       { label: 'History', href: '/admin/bookings/history' },
+      { label: 'Checkout Overview', href: '/admin/checkouts' },
+      { label: 'All Checkouts', href: '/admin/checkouts/all' },
+      { label: 'Checkout Payments', href: '/admin/checkouts/payments?tab=paid', badgeKey: 'checkoutPayments' },
+      { label: 'Checkout History', href: '/admin/checkouts/history' },
     ],
   },
   {

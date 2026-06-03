@@ -65,6 +65,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 
 interface Props {
   initialThreads: ThreadSummary[]
+  initialSelectedUserId?: string | null
 }
 
 // ─── New-message search modal ─────────────────────────────────────────────────
@@ -169,7 +170,7 @@ function NewMessageModal({ onSelect, onClose }: NewMessageModalProps) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function AdminInbox({ initialThreads }: Props) {
+export default function AdminInbox({ initialThreads, initialSelectedUserId }: Props) {
   // Thread list state
   const [threads, setThreads]             = useState<ThreadSummary[]>(initialThreads)
   const [searchQuery, setSearchQuery]     = useState('')
@@ -188,6 +189,7 @@ export default function AdminInbox({ initialThreads }: Props) {
   const [sendError, setSendError] = useState('')
 
   const bottomRef = useRef<HTMLDivElement>(null)
+  const initialSelectionDone = useRef(false)
 
   // ── Derived: filtered thread list ──────────────────────────────────────────
 
@@ -234,6 +236,18 @@ export default function AdminInbox({ initialThreads }: Props) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
   }, [threadEvents.length])
+
+  useEffect(() => {
+    if (initialSelectionDone.current) return
+    if (!initialSelectedUserId) return
+    if (selectedId) return
+
+    const match = threads.find((thread) => thread.customerId === initialSelectedUserId)
+    if (!match) return
+
+    initialSelectionDone.current = true
+    selectThread(match)
+  }, [initialSelectedUserId, selectThread, selectedId, threads])
 
   // ── Send a message ─────────────────────────────────────────────────────────
 
@@ -586,7 +600,7 @@ export default function AdminInbox({ initialThreads }: Props) {
 
                           <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                             isAdmin
-                              ? 'bg-blue-600/15 border border-blue-400/15 text-blue-100 rounded-tr-sm'
+                              ? 'bg-blue-600/15 border border-blue-400/15 text-slate-900 rounded-tr-sm'
                               : 'bg-[#f8f9fb] border border-[rgba(12,35,64,0.08)] text-[#0C2340] rounded-tl-sm'
                           } ${ev.id.startsWith('temp-') ? 'opacity-60' : ''}`}>
                             {ev.body}

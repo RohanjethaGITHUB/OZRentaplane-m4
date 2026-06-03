@@ -654,6 +654,12 @@ export default function AdminCheckoutReviewPanel({
             Checkout Request Actions
           </h2>
 
+        {!allDocsOk && (
+          <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+            One or more required documents are not yet approved. Review document status before proceeding.
+          </div>
+        )}
+
         {isCancelling ? (
           <div className="space-y-3">
             <textarea

@@ -62,7 +62,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
   // Fetch customer profile
   const { data: customerProfile } = await supabase
     .from('profiles')
-    .select('id, full_name, email, account_status, verification_status, pilot_clearance_status, created_at, updated_at, reviewed_at, admin_review_note, pilot_arn, has_night_vfr_rating, has_instrument_rating')
+    .select('id, full_name, email, account_status, verification_status, pilot_clearance_status, terms_accepted_at, created_at, updated_at, reviewed_at, admin_review_note, pilot_arn, has_night_vfr_rating, has_instrument_rating')
     .eq('id', params.id)
     .eq('role', 'customer')
     .single()

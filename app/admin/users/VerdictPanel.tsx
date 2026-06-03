@@ -521,10 +521,11 @@ function getStatusPillClass(status: DocumentCardStatus): string {
   return 'bg-amber-500/10 text-amber-700 border-amber-500/20'
 }
 
-function getStatusAccentClass(status: DocumentCardStatus): string {
-  if (status === 'approved') return 'bg-emerald-500'
-  if (status === 'rejected') return 'bg-red-500'
-  return 'bg-amber-400'
+function getDocumentAccentClass(status: DocumentCardStatus, hasDocument: boolean): string {
+  if (!hasDocument) return 'border-l-slate-300'
+  if (status === 'approved') return 'border-l-green-600'
+  if (status === 'rejected') return 'border-l-red-600'
+  return 'border-l-amber-500'
 }
 
 function getStatusLabel(status: DocumentCardStatus): string {
@@ -631,22 +632,24 @@ export function DocumentReviewCards({
           const status = getDocumentStatus(doc)
           const isLoading = doc ? loadingDocId === doc.id : false
           const uploadDate = formatUploadedTimestamp(doc?.uploaded_at ?? null)
+          const hasDocument = Boolean(doc)
+          const accentClass = getDocumentAccentClass(status, hasDocument)
 
           return (
             <div
               key={documentType}
-              className="flex overflow-hidden rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] shadow-[var(--admin-shadow-panel)]"
+              className={`overflow-hidden rounded-2xl border border-[var(--admin-border)] border-l-4 bg-[var(--admin-card-bg)] shadow-[var(--admin-shadow-panel)] ${accentClass}`}
             >
-              <div className={`w-1 self-stretch shrink-0 ${getStatusAccentClass(status)}`} />
-
-              <div className="flex min-w-0 flex-1 flex-col">
-                <div className="flex items-start justify-between gap-3 px-4 pt-4">
+              <div className="flex min-w-0 flex-1 flex-col gap-4 px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[15px] font-semibold text-[var(--admin-text)]">{config.label}</p>
-                    <p className="mt-2 text-[13px] leading-relaxed text-[var(--admin-text-muted)]">
+                    <p className="text-base font-semibold text-[var(--admin-text)]">
+                      {config.label}
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-[var(--admin-text-muted)]">
                       {getDocumentDetails(doc, documentType)}
                     </p>
-                    <div className="mt-2 flex items-center gap-1.5 text-[12px] text-[var(--admin-text-secondary)]">
+                    <div className="mt-2 flex items-center gap-1.5 text-sm text-[var(--admin-text-secondary)]">
                       <span
                         className="material-symbols-outlined text-[14px]"
                         style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}
@@ -657,62 +660,61 @@ export function DocumentReviewCards({
                     </div>
                   </div>
 
-                  <span className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getStatusPillClass(status)}`}>
+                  <span className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-sm font-semibold ${getStatusPillClass(status)}`}>
                     {getStatusLabel(status)}
                   </span>
                 </div>
 
-                <div className="mt-4 border-t border-[var(--admin-divider)] px-4 py-3">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
-                      {doc ? (
-                        <OpenFileButton storagePath={doc.storage_path} fileName={doc.file_name} />
-                      ) : (
-                        <p className="text-[13px] text-[var(--admin-text-secondary)]">No file available yet.</p>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                      {status === 'pending' && doc ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => updateStatus(doc, 'rejected')}
-                            disabled={isLoading}
-                            className="inline-flex items-center rounded-full border border-red-200 bg-white px-4 py-2 text-[12px] font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Reject
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateStatus(doc, 'approved')}
-                            disabled={isLoading}
-                            className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500 px-4 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Approve
-                          </button>
-                        </>
-                      ) : null}
-
-                      {status === 'approved' || status === 'rejected' ? (
-                        <>
-                          <span className="text-[12px] font-medium text-[var(--admin-text-secondary)]">
-                            Decision recorded
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => updateStatus(doc, 'uploaded')}
-                            disabled={isLoading}
-                            className="inline-flex items-center rounded-full border border-[var(--admin-border)] bg-white px-3 py-1.5 text-[11px] font-semibold text-[var(--admin-text)] transition-colors hover:bg-[var(--admin-panel-bg-soft)] disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Undo
-                          </button>
-                        </>
-                      ) : null}
-                    </div>
+                <div className="flex flex-col gap-3 border-t border-[var(--admin-divider)] pt-4">
+                  <div className="min-w-0">
+                    {doc ? (
+                      <OpenFileButton storagePath={doc.storage_path} fileName={doc.file_name} />
+                    ) : (
+                      <p className="text-sm text-[var(--admin-text-secondary)]">No file available yet.</p>
+                    )}
                   </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {status === 'pending' && doc ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => updateStatus(doc, 'rejected')}
+                          disabled={isLoading}
+                          className="inline-flex items-center rounded-full border border-red-200 bg-white px-4 py-2 text-[12px] font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateStatus(doc, 'approved')}
+                          disabled={isLoading}
+                          className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500 px-4 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Approve
+                        </button>
+                      </>
+                    ) : null}
+
+                    {status === 'approved' || status === 'rejected' ? (
+                      <>
+                        <span className="text-sm font-medium text-[var(--admin-text-secondary)]">
+                          Decision recorded
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateStatus(doc, 'uploaded')}
+                          disabled={isLoading}
+                          className="inline-flex items-center rounded-full border border-[var(--admin-border)] bg-white px-3 py-1.5 text-[11px] font-semibold text-[var(--admin-text)] transition-colors hover:bg-[var(--admin-panel-bg-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Undo
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
+
                   {errorByDocId[doc?.id ?? ''] ? (
-                    <p className="mt-2 text-[12px] text-red-600">{errorByDocId[doc?.id ?? '']}</p>
+                    <p className="text-[12px] text-red-600">{errorByDocId[doc?.id ?? '']}</p>
                   ) : null}
                 </div>
               </div>
@@ -730,30 +732,14 @@ export function DocumentReviewCards({
           </div>
 
           <div className="grid grid-cols-1 gap-4">
-            {optionalDocuments.map(({ documentType, doc }) => (
+            {optionalDocuments.map(({ documentType }) => (
               <div
                 key={documentType}
-                className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-panel-bg-soft)] px-4 py-4"
+                className="overflow-hidden rounded-2xl border border-[var(--admin-border)] border-l-4 border-l-slate-300 bg-[var(--admin-panel-bg-soft)] px-4 py-4 text-slate-500 shadow-[var(--admin-shadow-panel)]"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[15px] font-semibold text-[var(--admin-text)]">
-                      {DOCUMENT_CARD_CONFIG[documentType].label}
-                    </p>
-                    <p className="mt-2 text-[13px] leading-relaxed text-[var(--admin-text-muted)]">
-                      {DOCUMENT_CARD_CONFIG[documentType].optionalReason}
-                    </p>
-                    {doc ? (
-                      <p className="mt-2 text-[12px] text-[var(--admin-text-secondary)]">
-                        Uploaded {formatUploadedTimestamp(doc.uploaded_at)}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <span className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                    Optional
-                  </span>
-                </div>
+                <p className="text-base font-semibold">
+                  Night VFR Evidence — Not required (customer indicated no night VFR endorsement)
+                </p>
               </div>
             ))}
           </div>

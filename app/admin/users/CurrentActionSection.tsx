@@ -79,44 +79,46 @@ export default function CurrentActionSection({
           </div>
 
           <div className="flex-1 space-y-3">
-            {/* Clearance badge */}
-            <div>
-              <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border ${clearanceBadge}`}>
-                {clearanceLabel}
-              </span>
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              {/* Clearance badge */}
+              <div>
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border ${clearanceBadge}`}>
+                  {clearanceLabel}
+                </span>
+              </div>
+
             </div>
 
             <p className="text-sm text-[#0C2340] leading-relaxed">{displayDescription}</p>
 
             {/* CTAs */}
-            {!isBlocked && action.ctas.length > 0 && (
-              <div className="flex flex-wrap items-center gap-3 pt-2">
-                {action.ctas.map((cta, i) => {
-                  const href = cta.href(latestCheckoutBookingId)
-                  if (cta.style === 'primary') {
-                    return (
-                      <Link
-                        key={i}
-                        href={href}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold uppercase tracking-wide transition-all hover:scale-[1.02] active:scale-[0.98] bg-[#1a4a7a] hover:bg-[#153d66] text-white"
-                      >
-                        {cta.label}
-                        <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'wght' 300" }}>arrow_forward</span>
-                      </Link>
-                    )
-                  }
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              {action.ctas.map((cta, i) => {
+                const href = cta.href(latestCheckoutBookingId)
+                if (cta.style === 'primary') {
                   return (
                     <Link
                       key={i}
                       href={href}
-                      className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-[rgba(12,35,64,0.18)] text-[#3d5a80] hover:text-[#0C2340] hover:border-[rgba(12,35,64,0.28)] rounded-xl text-[13px] font-semibold uppercase tracking-wide transition-colors"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold uppercase tracking-wide transition-all hover:scale-[1.02] active:scale-[0.98] bg-[#1a4a7a] hover:bg-[#153d66] text-white"
                     >
                       {cta.label}
+                      <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'wght' 300" }}>arrow_forward</span>
                     </Link>
                   )
-                })}
-              </div>
-            )}
+                }
+                return (
+                  <Link
+                    key={i}
+                    href={href}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-[rgba(12,35,64,0.18)] text-[#3d5a80] hover:text-[#0C2340] hover:border-[rgba(12,35,64,0.28)] rounded-xl text-[13px] font-semibold uppercase tracking-wide transition-colors"
+                  >
+                    {cta.label}
+                  </Link>
+                )
+              })}
+
+            </div>
             {isBlocked ? (
               <div className="pt-2">
                 <UnblockCustomerButton customerId={customerId} />
