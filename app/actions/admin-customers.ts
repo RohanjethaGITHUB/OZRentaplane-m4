@@ -24,20 +24,17 @@ export async function createCustomerAccount(input: CreateCustomerInput): Promise
     const fullName = input.fullName.trim()
     const phone = input.phone.trim()
     const pilotArn = input.pilotArn?.trim() || null
-    const appUrl =
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      'https://www.ozrentaplane.com'
 
     if (!email || !fullName || !phone) {
       return { success: false, error: 'Full name, email, and phone are required.' }
     }
 
     const admin = createAdminClient()
+    const tempPassword = randomUUID().replace(/-/g, '').substring(0, 12)
 
     const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser({
       email,
-      password: randomUUID(),
+      password: tempPassword,
       email_confirm: true,
       user_metadata: { full_name: fullName },
     })
@@ -56,6 +53,7 @@ export async function createCustomerAccount(input: CreateCustomerInput): Promise
       phone_number: phone,
       pilot_arn: pilotArn,
       is_admin_created: true,
+      must_change_password: true,
       created_by_admin_id: adminId,
     }
 
@@ -84,26 +82,10 @@ export async function createCustomerAccount(input: CreateCustomerInput): Promise
       return { success: false, error: lastProfileError ?? 'Customer was created, but profile update failed.' }
     }
 
-    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
-      type: 'recovery',
-      email,
-      options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.ozrentaplane.com'}/auth/update-password`,
-      },
-    })
-
-    if (linkError || !linkData?.properties?.action_link) {
-      return { success: false, error: linkError?.message ?? 'Customer was created, but the password setup link could not be generated.' }
-    }
-
-    const rawActionLink = linkData.properties.action_link
-    const linkUrl = new URL(rawActionLink)
-    const actionLink = `${linkUrl.origin}/auth/update-password${linkUrl.hash}`
-
     const emailTemplate = customerWelcomeAdminEmail({
       fullName,
       email,
-      actionLink,
+      tempPassword,
     })
 
     await sendEmail({

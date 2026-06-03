@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import Navbar from '@/components/Navbar'
 import CustomerPortalSubNavSimple from '@/components/customer/CustomerPortalSubNavSimple'
@@ -7,16 +8,24 @@ import type { PilotClearanceStatus } from '@/lib/supabase/types'
 
 export default async function CustomerPortalLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
+  const requestHeaders = await headers()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, pilot_clearance_status')
+    .select('role, pilot_clearance_status, must_change_password')
     .eq('id', user.id)
     .single()
 
   if (profile?.role === 'admin') redirect('/admin')
+  const requestPath =
+    requestHeaders.get('x-matched-path') ??
+    requestHeaders.get('x-invoke-path') ??
+    requestHeaders.get('next-url') ??
+    ''
+  const isChangePasswordRoute = requestPath.startsWith('/dashboard/change-password')
+  if (profile?.must_change_password && !isChangePasswordRoute) redirect('/dashboard/change-password')
   const clearanceStatus = (profile?.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
   const isClearedToFly = clearanceStatus === 'cleared_to_fly'
 

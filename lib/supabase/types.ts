@@ -48,6 +48,7 @@ export type Profile = {
   login_count: number
   last_bookings_viewed_at: string | null
   last_notification_seen_at: string | null
+  must_change_password: boolean
   created_at: string
   updated_at: string
 }

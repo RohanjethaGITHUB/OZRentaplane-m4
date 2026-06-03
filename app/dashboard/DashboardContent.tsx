@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import type { Profile, PilotClearanceStatus, UserDocument, VerificationEvent } from '@/lib/supabase/types'
@@ -68,6 +69,7 @@ type Props = {
   } | null
   flightSnapshotBooking?: FlightSnapshotBooking | null
   bookingReadiness?: BookingReadinessSummary | null
+  flashNotice?: { kind: 'success'; title: string; message: string } | null
 }
 
 // ── Status config (clearance-level) ──────────────────────────────────────────
@@ -494,8 +496,23 @@ export default function DashboardContent({
   mainBookingHeroState,
   flightSnapshotBooking,
   bookingReadiness,
+  flashNotice,
 }: Props) {
   const router = useRouter()
+  const [toastVisible, setToastVisible] = useState(Boolean(flashNotice))
+
+  useEffect(() => {
+    if (!flashNotice) return
+    setToastVisible(true)
+    const hideTimer = window.setTimeout(() => setToastVisible(false), 4200)
+    const stripTimer = window.setTimeout(() => {
+      window.history.replaceState({}, '', '/dashboard')
+    }, 1200)
+    return () => {
+      window.clearTimeout(hideTimer)
+      window.clearTimeout(stripTimer)
+    }
+  }, [flashNotice])
 
   const displayName = profile?.full_name ?? user.email?.split('@')[0] ?? 'Pilot'
   const firstNameFromProfile = (profile?.first_name ?? '').trim()
@@ -609,6 +626,22 @@ export default function DashboardContent({
 
   return (
     <div className="space-y-5">
+      {toastVisible && flashNotice ? (
+        <div className="fixed right-4 top-4 z-[80] w-[calc(100vw-2rem)] max-w-sm rounded-2xl border border-emerald-400/30 bg-slate-950/95 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl md:right-6 md:top-6">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
+              <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                check_circle
+              </span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white">{flashNotice.title}</p>
+              <p className="mt-1 text-sm text-slate-300">{flashNotice.message}</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {isNoShowLocked && (
         <section className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 md:p-5">
           <p className="text-base md:text-lg font-semibold text-rose-100 text-center">

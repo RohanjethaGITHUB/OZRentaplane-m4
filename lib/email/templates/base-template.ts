@@ -12,6 +12,7 @@ export function renderBaseTemplate(input: {
   ctaLabel: string
   ctaUrl: string
   details?: Array<{ label: string; value: string | number | null | undefined }>
+  extraHtml?: string
 }): string {
   const details = (input.details ?? [])
     .filter((item) => item.value !== null && item.value !== undefined && `${item.value}`.trim() !== '')
@@ -36,6 +37,7 @@ export function renderBaseTemplate(input: {
                 <h1 style=\"margin:0 0 12px;font-size:24px;line-height:1.3;color:#0f172a;\">${escapeHtml(input.headline)}</h1>
                 <p style=\"margin:0 0 16px;font-size:15px;line-height:1.6;color:#334155;\">${escapeHtml(input.message)}</p>
                 ${details ? `<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:0 0 20px;padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;\">${details}</table>` : ''}
+                ${input.extraHtml ?? ''}
                 <a href=\"${escapeHtml(input.ctaUrl)}\" style=\"display:inline-block;background:#facc15;color:#111827;text-decoration:none;padding:12px 18px;border-radius:6px;font-weight:700;font-size:14px;\">${escapeHtml(input.ctaLabel)}</a>
               </td>
             </tr>

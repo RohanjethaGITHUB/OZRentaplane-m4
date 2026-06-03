@@ -14,7 +14,11 @@ type MainBookingHeroState = {
   bookingId: string
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | string[] | undefined }
+}) {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -48,6 +52,7 @@ export default async function DashboardPage() {
   const clearanceStatus = ((profile as Profile | null)?.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
   const paymentPending  = clearanceStatus === 'checkout_payment_required'
   const nowIso = new Date().toISOString()
+  const passwordUpdated = searchParams?.passwordUpdated === '1'
 
   // ── Parallel fetches ──────────────────────────────────────────────────────
   // When payment is pending, also fetch:
@@ -392,6 +397,11 @@ export default async function DashboardPage() {
       mainBookingHeroState={mainBookingHeroState}
       flightSnapshotBooking={flightSnapshotBooking}
       bookingReadiness={bookingReadiness}
+      flashNotice={passwordUpdated ? {
+        kind: 'success',
+        title: 'Password updated',
+        message: 'Your new password is now active.',
+      } : null}
     />
   )
 }
