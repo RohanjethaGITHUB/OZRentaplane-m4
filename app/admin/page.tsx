@@ -89,19 +89,19 @@ function sortActionRows(rows: ActionRowData[]) {
 
 function SummaryStrip({ items }: { items: SummaryItem[] }) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-[#152d5a]/90 shadow-[0_8px_40px_rgba(3,10,24,0.4)] backdrop-blur-sm overflow-hidden">
+    <section className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] shadow-[var(--admin-shadow-panel)] backdrop-blur-sm overflow-hidden">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         {items.map((item, index) => (
           <div
             key={item.label}
-            className={`px-5 py-4 min-h-[92px] ${index < items.length - 1 ? 'border-b sm:border-b-0 sm:border-r border-white/10' : ''}`}
+            className={`px-5 py-4 min-h-[92px] ${index < items.length - 1 ? 'border-b sm:border-b-0 sm:border-r border-[var(--admin-divider)]' : ''}`}
           >
-            <div className="flex items-center gap-2 text-slate-300 text-sm">
+            <div className="flex items-center gap-2 text-[var(--admin-text-muted)] text-sm">
               {item.icon}
               <span>{item.label}</span>
             </div>
-            <p className="text-3xl leading-none text-white mt-2 font-medium">{item.value}</p>
-            <p className="text-sm text-slate-400 mt-1">{item.detail}</p>
+            <p className="text-3xl leading-none text-[var(--admin-text)] mt-2 font-medium">{item.value}</p>
+            <p className="text-sm text-[var(--admin-text-muted)] mt-1">{item.detail}</p>
           </div>
         ))}
       </div>
@@ -115,7 +115,7 @@ function ActionRow({ row }: { row: ActionRowData }) {
   return (
     <Link
       href={row.href}
-      className="group block rounded-2xl border border-white/10 bg-white/90 px-5 py-4 sm:px-6 sm:py-5 transition-all duration-200 hover:border-sky-300/35 hover:bg-[#e8f2fb] hover:shadow-[0_10px_28px_rgba(2,8,22,0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+      className="group block rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] px-5 py-4 sm:px-6 sm:py-5 transition-all duration-200 hover:border-[rgba(96,165,250,0.35)] hover:bg-[#f6f9fd] hover:shadow-[var(--admin-shadow-panel)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
@@ -141,9 +141,9 @@ function ActionRow({ row }: { row: ActionRowData }) {
 
 function EmptyActionState({ text, subtext }: { text: string; subtext?: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-7 text-center">
-      <p className="text-deep-ink">{text}</p>
-      {subtext ? <p className="mt-2 text-sm text-[#152d5a]">{subtext}</p> : null}
+    <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] px-5 py-7 text-center shadow-[var(--admin-shadow-panel)]">
+      <p className="text-[var(--admin-text)]">{text}</p>
+      {subtext ? <p className="mt-2 text-sm text-[var(--admin-text-muted)]">{subtext}</p> : null}
     </div>
   )
 }

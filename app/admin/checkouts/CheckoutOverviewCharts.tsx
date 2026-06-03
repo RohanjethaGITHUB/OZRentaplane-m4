@@ -234,8 +234,8 @@ export default function CheckoutOverviewCharts({
         {paymentSummary.chart.length === 0 ? <EmptyChartState message="No checkout payment activity in this period." /> : (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2 text-xs text-[#4b6390]">
-              <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2">Total collected: <span className="text-[#166534]">${(paymentSummary.totalCollected / 100).toFixed(2)}</span></div>
-              <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2">Outstanding: <span className="text-[#b45309]">${(paymentSummary.outstanding / 100).toFixed(2)}</span></div>
+              <div className="rounded-lg border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-2 shadow-[var(--admin-shadow-panel)]">Total collected: <span className="text-[#166534]">${(paymentSummary.totalCollected / 100).toFixed(2)}</span></div>
+              <div className="rounded-lg border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-2 shadow-[var(--admin-shadow-panel)]">Outstanding: <span className="text-[#b45309]">${(paymentSummary.outstanding / 100).toFixed(2)}</span></div>
             </div>
             <div className="h-[205px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={paymentSummary.chart} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={3}>{paymentSummary.chart.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><ReadableTooltip /><Legend formatter={(value, entry) => `${value} (${entry?.payload?.value ?? 0})`} wrapperStyle={{ fontSize: '12px' }} /></PieChart></ResponsiveContainer></div>
           </div>

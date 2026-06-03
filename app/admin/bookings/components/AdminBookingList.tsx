@@ -194,7 +194,7 @@ export default async function AdminBookingList({
       <AdminPortalHero eyebrow="Operations" title={pageTitle} subtitle={pageSubtitle} />
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24">
         {!hideFilters && tabs.length > 0 && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 mb-6 flex flex-wrap gap-2">
+          <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 mb-6 flex flex-wrap gap-2 shadow-[var(--admin-shadow-panel)]">
             {tabs.map((tab) => (
               <TabLink
                 key={tab.value}
@@ -210,7 +210,7 @@ export default async function AdminBookingList({
           <div className="p-12 text-center text-slate-400 border border-white/10 rounded-2xl bg-white/[0.02]">No records found for this view.</div>
         ) : (
           <>
-            <div className="hidden lg:block overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]">
+            <div className="hidden lg:block overflow-hidden rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] shadow-[var(--admin-shadow-panel)]">
               <table className="w-full text-sm">
                 <thead className="bg-[#111316] text-slate-400">
                   <tr>
@@ -257,7 +257,7 @@ export default async function AdminBookingList({
                 const displayStatus = deriveBookingStatusForFlightRecord(booking)
                 const badge = STATUS_BADGE[displayStatus] ?? { label: displayStatus.replace(/_/g, ' '), className: 'bg-white/5 text-slate-300 border-white/10' }
                 return (
-                  <Link key={booking.id} href={`/admin/bookings/requests/${booking.id}`} className="block rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                  <Link key={booking.id} href={`/admin/bookings/requests/${booking.id}`} className="block rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 shadow-[var(--admin-shadow-panel)]">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-white font-medium">{customerName}</p>
                       <span className={`px-2 py-1 rounded-full text-[11px] border ${badge.className}`}>{badge.label}</span>

@@ -113,6 +113,13 @@ html {
   --admin-button-bg:       rgba(22, 104, 197, 0.10);
   --admin-border:          rgba(12, 35, 64, 0.12);
   --admin-divider:         rgba(12, 35, 64, 0.08);
+  --admin-accent:          #1a4fd6;
+  --admin-accent-soft:     rgba(96, 165, 250, 0.22);
+  --admin-warning:         #b45309;
+  --admin-text-dim:        #94a3b8;
+  --admin-radius-xl:       1.25rem;
+  --admin-radius-2xl:      1.875rem;
+  --admin-shadow-panel:    0 10px 44px rgba(2, 7, 18, 0.45);
   --admin-text:            #0C2340;
   --admin-text-muted:      #4b6390;
   --admin-text-secondary:  #64748b;

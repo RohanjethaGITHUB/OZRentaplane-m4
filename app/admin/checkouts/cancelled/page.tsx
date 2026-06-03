@@ -126,7 +126,7 @@ export default async function CheckoutCancelledPage() {
       />
       <div className="max-w-[1450px] mx-auto px-6 md:px-10 py-12 pb-24 space-y-6">
         {normalized.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-8 text-center text-slate-300">
+          <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-8 text-center text-[var(--admin-text-muted)] shadow-[var(--admin-shadow-panel)]">
             No cancelled checkout requests found.
           </div>
         ) : (

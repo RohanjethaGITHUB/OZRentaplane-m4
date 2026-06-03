@@ -11,7 +11,7 @@ import {
 type UpdateDocumentStatusInput = {
   documentId: string
   userId: string
-  status: 'approved' | 'rejected'
+  status: 'uploaded' | 'approved' | 'rejected'
   reviewNotes?: string
 }
 
@@ -242,17 +242,16 @@ export async function updateDocumentStatus(
     const { supabase, adminId } = await requireAdmin()
 
     const reviewNotes = input.reviewNotes?.trim() || null
-    if (input.status === 'rejected' && !reviewNotes) {
-      return { success: false, error: 'Review notes are required when rejecting a document.' }
+
+    const updatedRow = {
+      status: input.status,
+      review_notes: input.status === 'uploaded' ? null : reviewNotes,
+      reviewed_at: input.status === 'uploaded' ? null : new Date().toISOString(),
     }
 
     const { error: updateError } = await supabase
       .from('user_documents')
-      .update({
-        status: input.status,
-        review_notes: reviewNotes,
-        reviewed_at: new Date().toISOString(),
-      })
+      .update(updatedRow)
       .eq('id', input.documentId)
       .eq('user_id', input.userId)
 

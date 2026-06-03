@@ -122,11 +122,11 @@ export default async function CheckoutPaymentsPage({ searchParams }: { searchPar
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 flex flex-wrap gap-2">
+        <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 flex flex-wrap gap-2 shadow-[var(--admin-shadow-panel)]">
           {tabs.map((t) => <TabLink key={t.key} active={tab === t.key} href={`/admin/checkouts/payments?tab=${t.key}`} label={t.label} />)}
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]">
+        <div className="overflow-hidden rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] shadow-[var(--admin-shadow-panel)]">
           <table className="w-full text-sm">
             <thead className="bg-[#111316] text-slate-400"><tr><th className="px-4 py-3 text-left">Customer</th><th className="px-4 py-3 text-left">Email</th><th className="px-4 py-3 text-left">Booking Reference</th><th className="px-4 py-3 text-left">Outcome</th><th className="px-4 py-3 text-left">Amount</th><th className="px-4 py-3 text-left">Payment Status</th><th className="px-4 py-3 text-left">Method</th><th className="px-4 py-3 text-left">Created / Updated</th><th className="px-4 py-3 text-right">Action</th></tr></thead>
             <tbody className="divide-y divide-white/10">

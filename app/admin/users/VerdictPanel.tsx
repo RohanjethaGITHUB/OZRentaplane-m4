@@ -431,34 +431,29 @@ export default function VerdictPanel({
   )
 }
 
-type DocumentCardStatus = 'missing' | 'uploaded' | 'approved' | 'rejected'
+type DocumentCardStatus = 'pending' | 'approved' | 'rejected'
 
 type DocumentCardType = UserDocument['document_type']
 
-const DOCUMENT_CARD_CONFIG: Record<DocumentCardType, {
-  label: string
-  required: boolean
-  helperText: string
-}> = {
+const REQUIRED_DOC_TYPES: DocumentCardType[] = ['pilot_licence', 'medical_certificate', 'photo_id']
+const OPTIONAL_DOC_TYPE: DocumentCardType = 'night_vfr_evidence'
+
+const DOCUMENT_CARD_CONFIG: Record<DocumentCardType, { label: string; optionalReason: string }> = {
   pilot_licence: {
     label: 'Pilot Licence',
-    required: true,
-    helperText: 'Licence metadata is shown here when available.',
+    optionalReason: '',
   },
   medical_certificate: {
     label: 'Medical Certificate',
-    required: true,
-    helperText: 'Medical class and expiry are shown when available.',
+    optionalReason: '',
   },
   photo_id: {
     label: 'Photo ID',
-    required: true,
-    helperText: 'ID type and document number are shown when available.',
+    optionalReason: '',
   },
   night_vfr_evidence: {
     label: 'Night VFR Evidence',
-    required: false,
-    helperText: 'Unlocks night flying eligibility.',
+    optionalReason: 'Only required for customers who have opted into Night VFR flying.',
   },
 }
 
@@ -469,25 +464,77 @@ function getLatestDocument(documents: UserDocument[], documentType: DocumentCard
 }
 
 function getDocumentStatus(doc: UserDocument | null): DocumentCardStatus {
-  if (!doc) return 'missing'
+  if (!doc) return 'pending'
   if (doc.status === 'approved') return 'approved'
   if (doc.status === 'rejected') return 'rejected'
-  return 'uploaded'
+  return 'pending'
 }
 
-function statusBadgeClass(status: DocumentCardStatus, documentType: DocumentCardType) {
-  if (status === 'approved') return 'bg-green-500/10 border-green-400/30 text-green-700'
-  if (status === 'rejected') return 'bg-red-500/10 border-red-400/30 text-red-700'
-  if (status === 'uploaded') return 'bg-blue-500/10 border-blue-400/30 text-blue-700'
-  if (documentType === 'night_vfr_evidence') return 'bg-amber-500/10 border-amber-400/30 text-amber-700'
-  return 'bg-slate-100 border-slate-300 text-slate-600'
+function formatUploadedTimestamp(value: string | null): string {
+  if (!value) return 'Awaiting upload'
+  return formatDateTime(value)
 }
 
-function cardBorderClass(status: DocumentCardStatus) {
-  if (status === 'approved') return 'border-l-4 border-l-green-400'
-  if (status === 'rejected') return 'border-l-4 border-l-red-400'
-  if (status === 'uploaded') return 'border-l-4 border-l-blue-400'
-  return 'border-slate-200'
+function formatShortDate(value: string | null): string {
+  if (!value) return '—'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '—'
+  return new Intl.DateTimeFormat('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(parsed)
+}
+
+function getDocumentDetails(doc: UserDocument | null, documentType: DocumentCardType): string {
+  if (!doc) return 'No document uploaded yet'
+
+  if (documentType === 'pilot_licence') {
+    const parts = [doc.licence_type ?? 'Licence type unavailable']
+    if (doc.licence_number) parts.push(`Licence number ${doc.licence_number}`)
+    else if ((doc as { pilot_arn?: string | null }).pilot_arn) parts.push(`ARN ${(doc as { pilot_arn?: string | null }).pilot_arn}`)
+    return parts.join(' · ')
+  }
+
+  if (documentType === 'medical_certificate') {
+    const parts = [doc.medical_class ?? 'Class unavailable']
+    parts.push(doc.expiry_date ? `Expires ${formatShortDate(doc.expiry_date)}` : 'Expiry unavailable')
+    return parts.join(' · ')
+  }
+
+  if (documentType === 'photo_id') {
+    const parts = [doc.id_type ?? 'ID type unavailable']
+    if (doc.document_number) parts.push(`Document number ${doc.document_number}`)
+    return parts.join(' · ')
+  }
+
+  if (documentType === 'night_vfr_evidence') {
+    return 'Night VFR evidence'
+  }
+
+  return 'Document details unavailable'
+}
+
+function getStatusPillClass(status: DocumentCardStatus): string {
+  if (status === 'approved') return 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'
+  if (status === 'rejected') return 'bg-red-500/10 text-red-700 border-red-500/20'
+  return 'bg-amber-500/10 text-amber-700 border-amber-500/20'
+}
+
+function getStatusAccentClass(status: DocumentCardStatus): string {
+  if (status === 'approved') return 'bg-emerald-500'
+  if (status === 'rejected') return 'bg-red-500'
+  return 'bg-amber-400'
+}
+
+function getStatusLabel(status: DocumentCardStatus): string {
+  if (status === 'approved') return 'Approved'
+  if (status === 'rejected') return 'Rejected'
+  return 'Awaiting review'
+}
+
+function formatSummaryCounts(approved: number, rejected: number, pending: number, total: number): string {
+  return `${approved} of ${total} approved · ${rejected} rejected · ${pending} pending`
 }
 
 export function DocumentReviewCards({
@@ -495,66 +542,63 @@ export function DocumentReviewCards({
   documents,
   customerProfile,
   hasNightVfrRating = false,
+  onHoldBookingCount = 0,
 }: {
   customerId: string
   documents: UserDocument[]
   customerProfile?: { has_night_vfr_rating: boolean | null }
   hasNightVfrRating?: boolean | null
+  onHoldBookingCount?: number
 }) {
   const router = useRouter()
   const [loadingDocId, setLoadingDocId] = useState<string | null>(null)
-  const [rejectingDocId, setRejectingDocId] = useState<string | null>(null)
-  const [noteByDocId, setNoteByDocId] = useState<Record<string, string>>({})
   const [errorByDocId, setErrorByDocId] = useState<Record<string, string>>({})
 
-  const docTypes: DocumentCardType[] = ['pilot_licence', 'medical_certificate', 'photo_id', 'night_vfr_evidence']
-  const latestDocuments = docTypes.map((documentType) => ({
+  const resolvedNightVfrRating = customerProfile?.has_night_vfr_rating ?? hasNightVfrRating ?? false
+  const requiredDocTypes = resolvedNightVfrRating ? [...REQUIRED_DOC_TYPES, OPTIONAL_DOC_TYPE] : REQUIRED_DOC_TYPES
+  const optionalDocTypes = resolvedNightVfrRating ? [] : [OPTIONAL_DOC_TYPE]
+  const latestDocuments = requiredDocTypes.map((documentType) => ({
     documentType,
     doc: getLatestDocument(documents, documentType),
   }))
-  const resolvedNightVfrRating = customerProfile?.has_night_vfr_rating ?? hasNightVfrRating ?? false
+  const optionalDocuments = optionalDocTypes.map((documentType) => ({
+    documentType,
+    doc: getLatestDocument(documents, documentType),
+  }))
 
-  async function handleApprove(docId: string, userId: string) {
-    setLoadingDocId(docId)
-    setErrorByDocId((prev) => ({ ...prev, [docId]: '' }))
+  const docCounts = latestDocuments.reduce(
+    (acc, item) => {
+      const status = getDocumentStatus(item.doc)
+      if (status === 'approved') acc.approved += 1
+      else if (status === 'rejected') acc.rejected += 1
+      else acc.pending += 1
+      return acc
+    },
+    { approved: 0, rejected: 0, pending: 0 },
+  )
+  const totalRequired = latestDocuments.length
+  const summaryMessage = docCounts.pending > 0
+    ? `${docCounts.pending} document${docCounts.pending === 1 ? '' : 's'} awaiting your review`
+    : 'All documents reviewed'
+  const summaryTone = docCounts.pending > 0
+    ? 'bg-amber-50 border-amber-200 text-amber-800'
+    : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+  const summaryIcon = docCounts.pending > 0 ? 'pending_actions' : 'verified'
+
+  async function updateStatus(doc: UserDocument | null, status: 'approved' | 'rejected' | 'uploaded') {
+    if (!doc) return
+    setLoadingDocId(doc.id)
+    setErrorByDocId((prev) => ({ ...prev, [doc.id]: '' }))
     try {
       const result = await updateDocumentStatus({
-        documentId: docId,
-        userId,
-        status: 'approved',
+        documentId: doc.id,
+        userId: customerId,
+        status,
       })
       if (!result.success) {
-        setErrorByDocId((prev) => ({ ...prev, [docId]: result.error }))
+        setErrorByDocId((prev) => ({ ...prev, [doc.id]: result.error }))
         return
       }
-      router.refresh()
-    } finally {
-      setLoadingDocId(null)
-    }
-  }
-
-  async function handleReject(docId: string, userId: string) {
-    const note = (noteByDocId[docId] ?? '').trim()
-    if (!note) {
-      setErrorByDocId((prev) => ({ ...prev, [docId]: 'Review note is required for rejection.' }))
-      return
-    }
-
-    setLoadingDocId(docId)
-    setErrorByDocId((prev) => ({ ...prev, [docId]: '' }))
-    try {
-      const result = await updateDocumentStatus({
-        documentId: docId,
-        userId,
-        status: 'rejected',
-        reviewNotes: note,
-      })
-      if (!result.success) {
-        setErrorByDocId((prev) => ({ ...prev, [docId]: result.error }))
-        return
-      }
-      setRejectingDocId(null)
-      setNoteByDocId((prev) => ({ ...prev, [docId]: '' }))
       router.refresh()
     } finally {
       setLoadingDocId(null)
@@ -562,200 +606,159 @@ export function DocumentReviewCards({
   }
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-5">
+      <div className={`flex flex-col gap-3 rounded-2xl border px-4 py-4 sm:flex-row sm:items-center sm:justify-between ${summaryTone}`}>
+        <div className="flex items-start gap-3">
+          <span className="material-symbols-outlined text-[20px] mt-0.5" style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>
+            {summaryIcon}
+          </span>
+          <p className="text-[14px] font-medium leading-relaxed">{summaryMessage}</p>
+        </div>
+        <p className="text-[12px] font-semibold tracking-wide text-right">
+          {formatSummaryCounts(docCounts.approved, docCounts.rejected, docCounts.pending, totalRequired)}
+        </p>
+      </div>
+
+      {onHoldBookingCount > 0 && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[14px] text-amber-900">
+          {onHoldBookingCount} booking{onHoldBookingCount === 1 ? '' : 's'} currently on hold pending document approval.
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4">
         {latestDocuments.map(({ documentType, doc }) => {
           const config = DOCUMENT_CARD_CONFIG[documentType]
           const status = getDocumentStatus(doc)
           const isLoading = doc ? loadingDocId === doc.id : false
-          const showRejectBox = doc ? rejectingDocId === doc.id : false
-          const isNightVfr = documentType === 'night_vfr_evidence'
-          const nightVfrOptional = isNightVfr && !resolvedNightVfrRating
-          const canApprove = status === 'uploaded' || status === 'rejected'
-          const canReject = status === 'uploaded' || status === 'approved'
-          const isMissing = status === 'missing'
-          const uploadDate = doc ? formatDateTime(doc.uploaded_at) : null
-          const approvedOrRejectedDate = doc ? formatDateTime(doc.reviewed_at ?? doc.uploaded_at) : null
-          const badgeLabel =
-            nightVfrOptional
-              ? 'Optional'
-              : status === 'missing'
-                ? 'Not uploaded'
-                : status === 'uploaded'
-                  ? 'Under Review'
-                  : status === 'approved'
-                    ? 'Approved'
-                    : 'Rejected'
-          const badgeClass =
-            nightVfrOptional
-              ? 'bg-amber-50 text-amber-700 border border-amber-200'
-              : status === 'approved'
-                ? 'bg-green-50 text-green-700 border border-green-200'
-                : status === 'rejected'
-                  ? 'bg-red-50 text-red-700 border border-red-200'
-                  : status === 'uploaded'
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                    : 'bg-gray-100 text-gray-500 border border-gray-200'
-          const cardClass = nightVfrOptional
-            ? 'bg-white rounded-xl overflow-hidden mb-3 border border-[rgba(12,35,64,0.15)] border-l-4 border-l-gray-300 opacity-70'
-            : status === 'approved'
-              ? 'bg-white rounded-xl overflow-hidden mb-3 border border-[rgba(12,35,64,0.15)] border-l-4 border-l-green-500'
-              : status === 'rejected'
-                ? 'bg-white rounded-xl overflow-hidden mb-3 border border-[#fca5a5] border-l-[4px] border-l-red-400'
-                : status === 'uploaded'
-                  ? 'bg-white rounded-xl overflow-hidden mb-3 border border-[rgba(12,35,64,0.15)] border-l-4 border-l-blue-500'
-                  : 'bg-white rounded-xl overflow-hidden mb-3 border border-[rgba(12,35,64,0.15)] border-l-4 border-l-gray-300 opacity-70'
-
-          const showRejectionFields = doc && showRejectBox
+          const uploadDate = formatUploadedTimestamp(doc?.uploaded_at ?? null)
 
           return (
-            <div key={documentType} className={cardClass}>
-              <div className="p-4 pb-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-[15px] font-semibold text-[#0C2340]">{config.label}</p>
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ${badgeClass}`}>
-                        {badgeLabel}
+            <div
+              key={documentType}
+              className="flex overflow-hidden rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] shadow-[var(--admin-shadow-panel)]"
+            >
+              <div className={`w-1 self-stretch shrink-0 ${getStatusAccentClass(status)}`} />
+
+              <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex items-start justify-between gap-3 px-4 pt-4">
+                  <div className="min-w-0">
+                    <p className="text-[15px] font-semibold text-[var(--admin-text)]">{config.label}</p>
+                    <p className="mt-2 text-[13px] leading-relaxed text-[var(--admin-text-muted)]">
+                      {getDocumentDetails(doc, documentType)}
+                    </p>
+                    <div className="mt-2 flex items-center gap-1.5 text-[12px] text-[var(--admin-text-secondary)]">
+                      <span
+                        className="material-symbols-outlined text-[14px]"
+                        style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}
+                      >
+                        schedule
                       </span>
+                      <span>{uploadDate}</span>
                     </div>
                   </div>
-                  {doc && status === 'approved' ? (
-                    <p className="text-xs text-[#3d5a80] whitespace-nowrap">
-                      Approved {approvedOrRejectedDate}
-                    </p>
-                  ) : doc && status === 'rejected' ? (
-                    <p className="text-xs text-red-500 whitespace-nowrap">
-                      Rejected {approvedOrRejectedDate}
-                    </p>
+
+                  <span className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getStatusPillClass(status)}`}>
+                    {getStatusLabel(status)}
+                  </span>
+                </div>
+
+                <div className="mt-4 border-t border-[var(--admin-divider)] px-4 py-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      {doc ? (
+                        <OpenFileButton storagePath={doc.storage_path} fileName={doc.file_name} />
+                      ) : (
+                        <p className="text-[13px] text-[var(--admin-text-secondary)]">No file available yet.</p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                      {status === 'pending' && doc ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => updateStatus(doc, 'rejected')}
+                            disabled={isLoading}
+                            className="inline-flex items-center rounded-full border border-red-200 bg-white px-4 py-2 text-[12px] font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Reject
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateStatus(doc, 'approved')}
+                            disabled={isLoading}
+                            className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500 px-4 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Approve
+                          </button>
+                        </>
+                      ) : null}
+
+                      {status === 'approved' || status === 'rejected' ? (
+                        <>
+                          <span className="text-[12px] font-medium text-[var(--admin-text-secondary)]">
+                            Decision recorded
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateStatus(doc, 'uploaded')}
+                            disabled={isLoading}
+                            className="inline-flex items-center rounded-full border border-[var(--admin-border)] bg-white px-3 py-1.5 text-[11px] font-semibold text-[var(--admin-text)] transition-colors hover:bg-[var(--admin-panel-bg-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Undo
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+                  {errorByDocId[doc?.id ?? ''] ? (
+                    <p className="mt-2 text-[12px] text-red-600">{errorByDocId[doc?.id ?? '']}</p>
                   ) : null}
                 </div>
               </div>
-
-              {!nightVfrOptional ? (
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 px-4 pb-3">
-                  {doc ? (
-                    <>
-                      {documentType === 'pilot_licence' && doc.licence_type ? <MetaRow label="Licence type" value={doc.licence_type} /> : null}
-                      {documentType === 'pilot_licence' && doc.licence_number ? <MetaRow label="Licence number" value={doc.licence_number} /> : null}
-                      {documentType === 'pilot_licence' && ((doc as { pilot_arn?: string | null }).pilot_arn) ? <MetaRow label="Pilot ARN" value={(doc as { pilot_arn?: string | null }).pilot_arn ?? ''} /> : null}
-                      {documentType === 'medical_certificate' && doc.medical_class ? <MetaRow label="Medical class" value={doc.medical_class} /> : null}
-                      {documentType === 'medical_certificate' && doc.expiry_date ? <MetaRow label="Expiry date" value={formatDateTime(doc.expiry_date)} /> : null}
-                      {documentType === 'photo_id' && doc.id_type ? <MetaRow label="ID type" value={doc.id_type} /> : null}
-                      {documentType === 'photo_id' && doc.document_number ? <MetaRow label="Document number" value={doc.document_number} /> : null}
-                      {uploadDate ? <MetaRow label="Uploaded" value={uploadDate} /> : null}
-                      {isNightVfr && doc ? <MetaRow label="Uploaded" value={uploadDate ?? '—'} /> : null}
-                    </>
-                  ) : (
-                    <>
-                      {documentType === 'pilot_licence' ? (
-                        <>
-                          <MetaRow label="Licence type" value="—" muted />
-                          <MetaRow label="Licence number" value="—" muted />
-                          <MetaRow label="Pilot ARN" value="—" muted />
-                        </>
-                      ) : documentType === 'medical_certificate' ? (
-                        <>
-                          <MetaRow label="Medical class" value="—" muted />
-                          <MetaRow label="Expiry date" value="—" muted />
-                        </>
-                      ) : documentType === 'photo_id' ? (
-                        <>
-                          <MetaRow label="ID type" value="—" muted />
-                          <MetaRow label="Document number" value="—" muted />
-                        </>
-                      ) : null}
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div className="px-4 pb-3">
-                  <p className="text-sm text-[#3d5a80] italic">Customer has not selected Night VFR — no document required.</p>
-                </div>
-              )}
-
-              {doc?.status === 'rejected' && doc.review_notes ? (
-                <div className="mx-4 mb-3 bg-red-50 rounded-lg p-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-red-700 mb-1">Rejection note</p>
-                  <p className="text-sm text-red-800">{doc.review_notes}</p>
-                </div>
-              ) : null}
-
-              {!nightVfrOptional && doc ? (
-                showRejectionFields ? (
-                  <>
-                    <div className="mx-4 mb-3">
-                      <label className="block text-[10px] font-semibold uppercase tracking-wide text-red-700 mb-1">
-                        Rejection reason (required)
-                      </label>
-                      <textarea
-                        value={noteByDocId[doc.id] ?? ''}
-                        onChange={(e) => setNoteByDocId((prev) => ({ ...prev, [doc.id]: e.target.value }))}
-                        placeholder="Explain why this document is being rejected..."
-                        rows={3}
-                        className="w-full border border-red-200 rounded-lg p-2 text-sm min-h-[70px] bg-white text-[#0C2340] placeholder:text-[#4b6390] focus:outline-none focus:border-red-400"
-                      />
-                    </div>
-                    <div className="px-4 py-3 border-t bg-red-50 flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRejectingDocId(null)
-                          setErrorByDocId((prev) => ({ ...prev, [doc.id]: '' }))
-                        }}
-                        className="text-sm text-[#3d5a80]"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleReject(doc.id, customerId)}
-                        disabled={isLoading || !(noteByDocId[doc.id] ?? '').trim()}
-                        className="bg-red-600 text-white border-none text-xs font-medium px-3 py-1.5 rounded-lg disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Confirm Reject
-                      </button>
-                    </div>
-                    {errorByDocId[doc.id] ? <p className="px-4 pb-3 text-xs text-red-600">{errorByDocId[doc.id]}</p> : null}
-                  </>
-                ) : doc ? (
-                  <div className="px-4 py-3 border-t border-[rgba(12,35,64,0.08)] bg-[#f8faff] flex items-center justify-end gap-2">
-                    <OpenFileButton storagePath={doc.storage_path} fileName={doc.file_name} />
-                    <span className="w-px h-5 bg-[rgba(12,35,64,0.15)] mx-1" />
-                    {canApprove ? (
-                      <button
-                        type="button"
-                        onClick={() => handleApprove(doc.id, customerId)}
-                        disabled={isLoading}
-                        className="bg-green-50 text-green-700 border border-green-200 text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50"
-                      >
-                        Approve
-                      </button>
-                    ) : null}
-                    {canReject ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRejectingDocId(showRejectBox ? null : doc.id)
-                          setErrorByDocId((prev) => ({ ...prev, [doc.id]: '' }))
-                        }}
-                        disabled={isLoading}
-                        className="bg-red-50 text-red-700 border border-red-200 text-xs font-medium px-3 py-1.5 rounded-lg disabled:opacity-50"
-                      >
-                        Reject
-                      </button>
-                    ) : null}
-                  </div>
-                ) : null
-              ) : null}
             </div>
           )
         })}
       </div>
 
-      <div className="bg-[#f0f6ff] rounded-lg p-3 border border-blue-100 mt-2 text-xs text-[#3d5a80]">
-        ℹ️ Approving all 3 required documents unlocks checkout booking eligibility. Rejecting any document places active bookings on hold until re-approved.
-      </div>
+      {optionalDocuments.length > 0 ? (
+        <div className="space-y-4 pt-2">
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-[var(--admin-divider)]" />
+            <span className="text-[11px] text-[var(--admin-text-muted)]">Not required</span>
+            <div className="h-px flex-1 bg-[var(--admin-divider)]" />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
+            {optionalDocuments.map(({ documentType, doc }) => (
+              <div
+                key={documentType}
+                className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-panel-bg-soft)] px-4 py-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[15px] font-semibold text-[var(--admin-text)]">
+                      {DOCUMENT_CARD_CONFIG[documentType].label}
+                    </p>
+                    <p className="mt-2 text-[13px] leading-relaxed text-[var(--admin-text-muted)]">
+                      {DOCUMENT_CARD_CONFIG[documentType].optionalReason}
+                    </p>
+                    {doc ? (
+                      <p className="mt-2 text-[12px] text-[var(--admin-text-secondary)]">
+                        Uploaded {formatUploadedTimestamp(doc.uploaded_at)}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <span className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                    Optional
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }
@@ -770,13 +773,4 @@ export function DocumentReviewPanel({
   customerProfile?: { has_night_vfr_rating: boolean | null }
 }) {
   return <DocumentReviewCards customerId={customerId} documents={documents} customerProfile={customerProfile} />
-}
-
-function MetaRow({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
-  return (
-    <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-[#3d5a80]">{label}</p>
-      <p className={`text-sm ${muted ? 'text-[#94a3b8]' : 'text-[#0C2340]'}`}>{value}</p>
-    </div>
-  )
 }

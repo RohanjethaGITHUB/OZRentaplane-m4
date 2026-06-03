@@ -146,14 +146,14 @@ export default function MaintenanceClient({ aircraftId, aircraftRegistration, in
       )}
 
       {/* Current MR */}
-      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+      <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-5 shadow-[var(--admin-shadow-panel)]">
         <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-3">Current MR Reading</p>
         <p className="text-4xl font-mono text-white">{fmt1(info.current_mr)}</p>
         <p className="text-xs text-slate-500 mt-1">From latest finalized aircraft flight log</p>
       </div>
 
       {/* Oil Change Panel */}
-      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-4">
+      <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-5 space-y-4 shadow-[var(--admin-shadow-panel)]">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1">Oil Change</p>
@@ -181,7 +181,7 @@ export default function MaintenanceClient({ aircraftId, aircraftRegistration, in
       </div>
 
       {/* 100-hour Maintenance Panel */}
-      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-4">
+      <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-5 space-y-4 shadow-[var(--admin-shadow-panel)]">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1">100-Hour Maintenance</p>
@@ -209,7 +209,7 @@ export default function MaintenanceClient({ aircraftId, aircraftRegistration, in
       </div>
 
       {/* Edit Settings */}
-      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-4">
+      <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-5 space-y-4 shadow-[var(--admin-shadow-panel)]">
         <div className="flex items-center justify-between">
           <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Edit Maintenance Settings</p>
           {!editing && (

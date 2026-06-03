@@ -29,13 +29,13 @@ export default async function AircraftAvailabilityPage() {
       />
       <div className="max-w-[1200px] mx-auto px-6 md:px-10 py-10 pb-24 space-y-3">
         {(blocks ?? []).map((b) => (
-          <div key={b.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-            <p className="text-white capitalize">{b.block_type.replace(/_/g, ' ')}</p>
-            <p className="text-sm text-slate-400">{new Date(b.start_time).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' })} - {new Date(b.end_time).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' })}</p>
-            <p className="text-xs text-slate-500 capitalize mt-1">{b.status}</p>
+          <div key={b.id} className="rounded-xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 shadow-[var(--admin-shadow-panel)]">
+            <p className="text-[var(--admin-text)] capitalize">{b.block_type.replace(/_/g, ' ')}</p>
+            <p className="text-sm text-[var(--admin-text-muted)]">{new Date(b.start_time).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' })} - {new Date(b.end_time).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' })}</p>
+            <p className="text-xs text-[var(--admin-text-secondary)] capitalize mt-1">{b.status}</p>
           </div>
         ))}
-        {(!blocks || blocks.length === 0) && <div className="rounded-xl border border-white/10 bg-white/[0.02] p-8 text-slate-400">No upcoming blocks scheduled.</div>}
+        {(!blocks || blocks.length === 0) && <div className="rounded-xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-8 text-[var(--admin-text-muted)] shadow-[var(--admin-shadow-panel)]">No upcoming blocks scheduled.</div>}
       </div>
     </>
   )

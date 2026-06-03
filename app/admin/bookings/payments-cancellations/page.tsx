@@ -43,45 +43,45 @@ export default async function PaymentsAndCancellationsPage({ searchParams }: { s
     <>
       <AdminPortalHero eyebrow="Bookings" title="Payments & Cancellations" subtitle="Operational money and exception workflows in one place." />
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24 space-y-6">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 flex flex-wrap gap-2">
+        <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 flex flex-wrap gap-2 shadow-[var(--admin-shadow-panel)]">
           {tabs.map((t) => (
             <TabLink key={t.key} active={tab === t.key} href={`/admin/bookings/payments-cancellations?tab=${t.key}`} label={t.label} />
           ))}
         </div>
 
         {tab === 'manual-payments' && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-3">
-            {(pendingTransfers ?? []).length === 0 && <p className="text-slate-400">No manual payments waiting for review.</p>}
+          <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-5 space-y-3 shadow-[var(--admin-shadow-panel)]">
+            {(pendingTransfers ?? []).length === 0 && <p className="text-[var(--admin-text-muted)]">No manual payments waiting for review.</p>}
             {(pendingTransfers ?? []).map((row) => (
-              <Link key={row.id} href="/admin/bookings/checkout?status=checkout_payment_required" className="block rounded-xl border border-white/10 bg-white/[0.02] p-4 hover:bg-white/[0.05]">
-                <p className="text-white">{row.account_name || 'Bank transfer evidence'}</p>
-                <p className="text-sm text-slate-400">Amount: ${Number(row.amount ?? 0).toFixed(2)} · Submitted {new Date(row.submitted_at).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' })}</p>
+              <Link key={row.id} href="/admin/bookings/checkout?status=checkout_payment_required" className="block rounded-xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 hover:bg-[#f6f9fd]">
+                <p className="text-[var(--admin-text)]">{row.account_name || 'Bank transfer evidence'}</p>
+                <p className="text-sm text-[var(--admin-text-muted)]">Amount: ${Number(row.amount ?? 0).toFixed(2)} · Submitted {new Date(row.submitted_at).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' })}</p>
               </Link>
             ))}
           </div>
         )}
 
         {tab === 'payment-required' && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-3">
-            {(paymentRequiredBookings ?? []).length === 0 && <p className="text-slate-400">No checkout bookings currently awaiting payment.</p>}
+          <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-5 space-y-3 shadow-[var(--admin-shadow-panel)]">
+            {(paymentRequiredBookings ?? []).length === 0 && <p className="text-[var(--admin-text-muted)]">No checkout bookings currently awaiting payment.</p>}
             {(paymentRequiredBookings ?? []).map((b) => (
-              <Link key={b.id} href={`/admin/bookings/requests/${b.id}`} className="block rounded-xl border border-white/10 bg-white/[0.02] p-4 hover:bg-white/[0.05]">
-                <p className="text-white">{b.pic_name || 'Customer'} · {b.booking_reference || b.id.slice(0, 8).toUpperCase()}</p>
-                <p className="text-sm text-amber-300">Payment Required</p>
+              <Link key={b.id} href={`/admin/bookings/requests/${b.id}`} className="block rounded-xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 hover:bg-[#f6f9fd]">
+                <p className="text-[var(--admin-text)]">{b.pic_name || 'Customer'} · {b.booking_reference || b.id.slice(0, 8).toUpperCase()}</p>
+                <p className="text-sm text-amber-700">Payment Required</p>
               </Link>
             ))}
           </div>
         )}
 
         {tab === 'cancellation-requests' && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-3">
-            {(cancellationRequests ?? []).length === 0 && <p className="text-slate-400">No pending cancellation requests.</p>}
+          <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-5 space-y-3 shadow-[var(--admin-shadow-panel)]">
+            {(cancellationRequests ?? []).length === 0 && <p className="text-[var(--admin-text-muted)]">No pending cancellation requests.</p>}
             {(cancellationRequests ?? []).map((r) => {
               const booking = Array.isArray(r.bookings) ? r.bookings[0] : r.bookings
               return (
-                <Link key={r.id} href={`/admin/bookings/requests/${r.booking_id}`} className="block rounded-xl border border-white/10 bg-white/[0.02] p-4 hover:bg-white/[0.05]">
-                  <p className="text-white">{booking?.pic_name || 'Customer'} · {booking?.booking_reference || r.booking_id.slice(0, 8).toUpperCase()}</p>
-                  <p className="text-sm text-slate-400">{r.customer_message || 'No customer note provided.'}</p>
+                <Link key={r.id} href={`/admin/bookings/requests/${r.booking_id}`} className="block rounded-xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 hover:bg-[#f6f9fd]">
+                  <p className="text-[var(--admin-text)]">{booking?.pic_name || 'Customer'} · {booking?.booking_reference || r.booking_id.slice(0, 8).toUpperCase()}</p>
+                  <p className="text-sm text-[var(--admin-text-muted)]">{r.customer_message || 'No customer note provided.'}</p>
                 </Link>
               )
             })}
@@ -89,12 +89,12 @@ export default async function PaymentsAndCancellationsPage({ searchParams }: { s
         )}
 
         {tab === 'resolved' && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-3">
-            {(resolvedCancellations ?? []).length === 0 && <p className="text-slate-400">No resolved items yet.</p>}
+          <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-5 space-y-3 shadow-[var(--admin-shadow-panel)]">
+            {(resolvedCancellations ?? []).length === 0 && <p className="text-[var(--admin-text-muted)]">No resolved items yet.</p>}
             {(resolvedCancellations ?? []).map((b) => (
-              <Link key={b.id} href={`/admin/bookings/requests/${b.id}`} className="block rounded-xl border border-white/10 bg-white/[0.02] p-4 hover:bg-white/[0.05]">
-                <p className="text-white">{b.pic_name || 'Customer'} · {b.booking_reference || b.id.slice(0, 8).toUpperCase()}</p>
-                <p className="text-sm text-slate-400 capitalize">{b.status.replace(/_/g, ' ')}</p>
+              <Link key={b.id} href={`/admin/bookings/requests/${b.id}`} className="block rounded-xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 hover:bg-[#f6f9fd]">
+                <p className="text-[var(--admin-text)]">{b.pic_name || 'Customer'} · {b.booking_reference || b.id.slice(0, 8).toUpperCase()}</p>
+                <p className="text-sm text-[var(--admin-text-muted)] capitalize">{b.status.replace(/_/g, ' ')}</p>
               </Link>
             ))}
           </div>

@@ -6,7 +6,6 @@ import type { AccountStatus, PilotClearanceStatus, UserDocument, VerificationEve
 import CheckoutActivitySection from './CheckoutActivitySection'
 import HistoricalCheckoutEditor from './HistoricalCheckoutEditor'
 import AdminChatPanel from './AdminChatPanel'
-import PilotMetadataEditor from './PilotMetadataEditor'
 import UnblockCustomerButton from './UnblockCustomerButton'
 import { CLEARANCE_ACTION } from './clearance-actions'
 import { DocumentReviewCards } from './VerdictPanel'
@@ -200,12 +199,6 @@ function getStatusBadgeClass(tone: 'green' | 'amber' | 'red' | 'blue'): string {
   return 'bg-blue-50 border-blue-200 text-blue-700'
 }
 
-function trimTimelineLabel(title: string): string {
-  const cleaned = title.trim()
-  if (cleaned.length <= 15) return cleaned
-  return `${cleaned.slice(0, 15).trimEnd()}…`
-}
-
 function getCurrentStatusText(clearanceStatus: PilotClearanceStatus, accountStatus: AccountStatus): { label: string; description: string; tone: 'green' | 'amber' | 'red' | 'blue' } {
   if (accountStatus === 'blocked') {
     return {
@@ -390,9 +383,9 @@ export default function CustomerProfileTabs({
             {recentTimelineEvents.map((item) => (
               <div key={`${item.title}-${item.at}`} className="relative">
                 <span className="absolute left-[-16px] top-1 w-3 h-3 rounded-full bg-[#185FA5] z-10" />
-                <p className="text-[15px] font-medium text-[#0C2340]">{item.title}</p>
-                <p className="text-xs text-[#3d5a80]">{item.detail}</p>
-                <p className="text-[11px] text-[#94a3b8] mt-0.5">{shortDate(item.at)}</p>
+                <p className="text-[16px] font-medium text-[#0C2340] leading-snug">{item.title}</p>
+                <p className="text-[13px] text-[#3d5a80] leading-relaxed">{item.detail}</p>
+                <p className="text-[12px] text-[#94a3b8] mt-0.5">{shortDate(item.at)}</p>
               </div>
             ))}
           </div>
@@ -403,14 +396,13 @@ export default function CustomerProfileTabs({
           <div className="flex gap-2">
             {recentTimelineEvents.map((item, idx) => {
               const isLatest = idx === recentTimelineEvents.length - 1
-              const shortLabel = trimTimelineLabel(item.title)
               return (
-                <div key={`${item.title}-${item.at}`} className="flex-1 flex flex-col items-center px-1">
+                <div key={`${item.title}-${item.at}`} className="flex-1 min-w-0 flex flex-col items-center px-1">
                   <span className={`w-3.5 h-3.5 rounded-full relative z-10 ${isLatest ? 'bg-[#185FA5] ring-2 ring-blue-200' : 'bg-[#185FA5]'}`} />
-                  <p className={`text-[11px] font-medium text-center mt-2 leading-tight ${isLatest ? 'text-[#185FA5]' : 'text-[#185FA5]'}`}>
-                    {shortLabel}
+                  <p className={`text-[12px] font-medium text-center mt-2 leading-snug whitespace-normal break-words ${isLatest ? 'text-[#185FA5]' : 'text-[#185FA5]'}`}>
+                    {item.title}
                   </p>
-                  <p className="text-[10px] text-[#94a3b8] text-center mt-0.5">
+                  <p className="text-[11px] text-[#94a3b8] text-center mt-0.5">
                     {shortDate(item.at)}
                   </p>
                 </div>
@@ -518,21 +510,17 @@ export default function CustomerProfileTabs({
           <QuickStatsGrid />
           <CurrentStatusCard />
           <RecentActivityCard />
-          <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl p-5">
-            <PilotMetadataEditor customerId={customerProfile.id} initialArn={customerProfile.pilot_arn} />
-          </div>
         </section>
       )}
 
       {activeTab === 'documents' && (
         <section>
-          <h3 className="text-[11px] uppercase tracking-widest font-semibold text-[#4b6390] mb-3">Documents</h3>
-          {onHoldBookingCount > 0 && (
-            <div className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-[14px] text-amber-900">
-              {onHoldBookingCount} booking{onHoldBookingCount === 1 ? '' : 's'} currently on hold pending document approval.
-            </div>
-          )}
-          <DocumentReviewCards customerId={customerId} documents={documents} customerProfile={customerProfile} />
+          <DocumentReviewCards
+            customerId={customerId}
+            documents={documents}
+            customerProfile={customerProfile}
+            onHoldBookingCount={onHoldBookingCount}
+          />
         </section>
       )}
 

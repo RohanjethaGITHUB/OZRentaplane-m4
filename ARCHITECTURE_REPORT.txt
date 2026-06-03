@@ -1,0 +1,1963 @@
+Now let me compile the comprehensive report. I have enough information. Let me generate the final output:
+
+---
+
+# COMPREHENSIVE ARCHITECTURE REPORT: OZRentaplane Next.js Project
+
+## SECTION 1: FULL FILE TREE
+
+The project contains approximately 2,442 files excluding node_modules, .next, .git, and dist directories. Key directory structure:
+
+```
+/Users/rohanjetha/Documents/OZ/M2/OZRentaplane-m4/
+├── .claude/                    (Claude Code configuration & commands)
+├── .impeccable/                (Design system config)
+├── .playwright-mcp/            (Testing config)
+├── app/                        (Next.js App Router)
+│   ├── (marketing)/            (Public landing pages)
+│   │   ├── page.tsx, layout.tsx
+│   │   ├── airshow/, cessna-172/, fleet/, pricing/, contact-us/, etc.
+│   ├── api/                    (API routes)
+│   │   ├── stripe/webhook/route.ts
+│   │   ├── dev/test-email/route.ts, test-workflow-email/route.ts
+│   │   ├── diag/route.ts
+│   ├── auth/                   (Auth routes)
+│   │   ├── callback/route.ts
+│   │   ├── confirm/page.tsx
+│   ├── admin/                  (Admin dashboard)
+│   │   ├── page.tsx, layout.tsx, loading.tsx
+│   │   ├── aircraft/           (Aircraft management)
+│   │   ├── bookings/           (Booking management)
+│   │   ├── checkouts/          (Checkout management)
+│   │   ├── customers/          (Customer management)
+│   │   ├── users/[id]/         (Individual user details)
+│   │   ├── messages/           (Admin inbox)
+│   ├── dashboard/              (Customer portal)
+│   │   ├── page.tsx, layout.tsx
+│   │   ├── checkout/           (Checkout onboarding flow)
+│   │   ├── bookings/new, [id]/ (Booking request & details)
+│   │   ├── documents/          (Document upload management)
+│   │   ├── settings/           (Account settings)
+│   │   ├── messages/           (Customer messages)
+│   ├── login/                  (Login page)
+│   ├── actions/                (Server actions)
+│   │   ├── checkout.ts         (Checkout submission)
+│   │   ├── booking.ts          (Booking creation/management)
+│   │   ├── documents.ts        (Document operations)
+│   │   ├── upload.ts           (File uploads)
+│   │   ├── payment.ts          (Payment operations)
+│   │   ├── verification.ts     (Verification flow)
+│   │   ├── admin.ts, admin-booking.ts (Admin actions)
+│   │   ├── historical-checkout.ts
+│   │   ├── aircraft-flight-log.ts, aircraft-maintenance.ts
+│   ├── components/             (Reusable UI components)
+│   │   ├── checkout-process/   (Checkout specific)
+│   │   ├── customer/           (Customer portal components)
+│   │   ├── marketing/          (Landing page components)
+│   ├── layout.tsx, error.tsx, global-error.tsx, globals.css
+├── components/                 (Additional components)
+├── lib/                        (Utility libraries)
+│   ├── supabase/               (Supabase client & types)
+│   │   ├── server.ts, admin.ts, client.ts
+│   │   ├── types.ts, booking-types.ts
+│   ├── email/                  (Email templates & sending)
+│   │   ├── templates/          (Account, booking, checkout, payment emails)
+│   │   ├── send-email.ts, resend.ts
+│   ├── booking/                (Booking utilities)
+│   │   ├── availability.ts, status-constants.ts, notifications.ts
+│   │   ├── flight-record-status.ts, review-flags.ts
+│   ├── checkout-*              (Checkout system files)
+│   │   ├── checkout-clearance.ts, checkout-payment-state.ts
+│   │   ├── checkout-policy.ts, checkout-terms.ts
+│   ├── utils/                  (General utilities)
+│   │   ├── sydney-time.ts, day-vfr.ts, flight-review.ts
+│   ├── admin-time-range.ts, aircraft-readings.ts
+│   ├── contact.ts, customer-journey.ts
+├── public/                     (Static assets - images, logos, etc.)
+├── supabase/                   (Database schema)
+│   ├── migrations/             (79+ numbered SQL migration files)
+├── middleware.ts               (Next.js middleware)
+├── package.json, next.config.mjs, postcss.config.mjs
+├── DESIGN.md, PRODUCT.md, README.md
+└── docs/                       (Documentation files)
+```
+
+---
+
+## SECTION 2: API ROUTES
+
+**4 API routes total:**
+
+1. **POST /api/stripe/webhook/route.ts**
+   - Handles Stripe checkout.session.completed webhook events
+   - Marks checkout and standard booking invoices as paid
+   - Updates booking status, creates notifications and email confirmations
+   - Calls `mark_checkout_invoice_paid_atomic` and `mark_booking_invoice_paid_atomic` RPC functions
+   - Writes to: booking_status_history, verification_events, checkout_invoices, booking_invoices
+   - Metadata used: invoice_id, booking_id, customer_id, invoice_type (checkout|standard)
+
+2. **POST /api/dev/test-email/route.ts**
+   - Development helper for testing email sending functionality
+
+3. **POST /api/dev/test-workflow-email/route.ts**
+   - Development helper for testing workflow email templates
+
+4. **GET /api/diag/route.ts**
+   - Diagnostics endpoint for system health checks
+
+---
+
+## SECTION 3: CUSTOMER ACTIONS
+
+### 1. Register / Login
+- **UI Files:**
+  - `/app/login/page.tsx` - Login page
+  - `/app/login/LoginContent.tsx` - Login form component
+  - `/app/auth/confirm/page.tsx` - Email confirmation page
+- **API Route:** `/app/auth/callback/route.ts` (Supabase auth callback)
+- **Database Writes:**
+  - **profiles** table: id, email, role (always 'customer'), verification_status, created_at, updated_at
+  - **auth.users** (Supabase): email, email_verified_at, raw_user_meta_data
+  - Auto-trigger via `handle_new_user()` function creates profile on signup
+
+### 2. Upload Documents (Pilot Licence, Medical Certificate, Photo ID, Night VFR Evidence)
+- **UI Files:**
+  - `/app/dashboard/documents/page.tsx` - Document management page
+  - `/app/dashboard/DocumentsPanel.tsx` - Document upload component
+- **Server Actions:**
+  - `uploadVerificationDocument()` in `/app/actions/upload.ts` - File upload to Supabase Storage
+  - `getDocumentSignedUrl()` in `/app/actions/documents.ts` - View document
+  - `saveCheckoutRedCardDetails()` in `/app/actions/documents.ts` - Save Red Card info
+- **Database Writes:**
+  - **user_documents**: user_id, document_type, file_name, storage_path, status (uploaded), uploaded_at, expiry_date, issue_date, licence_type, licence_number, medical_class, id_type, document_number, has_red_card, red_card_expiry_month/year
+  - **Supabase Storage** (verification_documents bucket): PDF files per user
+
+### 3. Browse Aircraft
+- **UI Files:**
+  - `/app/(marketing)/fleet/page.tsx` - Fleet showcase
+  - `/app/(marketing)/cessna-172/page.tsx` - Aircraft details page
+  - `/components/FleetGallery.tsx`, `/components/AircraftViewerCard.tsx`
+- **Database Reads:** aircraft table (registration, aircraft_type, display_name, status, default_hourly_rate)
+- **No database writes**
+
+### 4. Request Checkout Flight
+- **UI Files:**
+  - `/app/dashboard/checkout/page.tsx` - Checkout onboarding page
+  - `/app/dashboard/checkout/CheckoutFlow.tsx` - Checkout flow component (date/time, documents, review, success)
+  - `/components/customer/CheckoutJourneyHero.tsx`, `/components/customer/RunwayJourney.tsx`
+- **Server Actions:**
+  - `submitCheckoutRequest()` in `/app/actions/checkout.ts` - Main checkout submission
+  - `checkCustomerAvailability()` in `/app/actions/customer-availability.ts` - Check slot availability
+  - `getDayAvailability()` in `/app/actions/customer-availability.ts` - Get day availability slots
+- **API Calls:**
+  - Calls `create_checkout_booking_atomic` RPC (creates booking + schedule blocks in one transaction)
+  - Calls `record_terms_acceptance` RPC to log terms acceptance
+- **Database Writes:**
+  - **bookings**: id, aircraft_id, booking_owner_user_id, status (checkout_requested), booking_type (checkout), scheduled_start, scheduled_end, estimated_hours, estimated_amount, created_at
+  - **schedule_blocks**: aircraft_id, related_booking_id, block_type (customer_booking, buffer), start_time, end_time, created_by_user_id, created_at
+  - **profiles**: pilot_clearance_status (checkout_requested), last_flight_date, has_night_vfr_rating, has_instrument_rating
+  - **booking_terms_acceptances**: user_id, booking_id, terms_document_id, version, accepted_at, content_hash
+  - **verification_events**: For notifications about checkout request submission
+
+### 5. Book Standard Aircraft Rental (Post-Checkout)
+- **UI Files:**
+  - `/app/dashboard/bookings/new/page.tsx` - New booking request page
+  - `/app/dashboard/bookings/new/BookingRequestForm.tsx` - Booking form
+  - `/app/dashboard/bookings/[id]/page.tsx` - Booking details view
+- **Server Actions:**
+  - `createBookingRequest()` in `/app/actions/booking.ts`
+  - `checkCustomerAvailability()` in `/app/actions/customer-availability.ts`
+  - `getBookingReadiness()` in `/app/actions/booking-readiness.ts`
+- **Database Writes:**
+  - **bookings**: Standard booking with status 'pending_confirmation', customer_notes
+  - **schedule_blocks**: Public and buffer blocks
+  - **booking_audit_events**: Create audit trail
+  - **booking_terms_acceptances**: Accept standard booking terms
+
+### 6. Submit Payment (Stripe)
+- **UI Files:**
+  - `/app/dashboard/bookings/[id]/BookingPaymentCard.tsx` - Payment card component
+  - `/app/dashboard/bookings/[id]/CheckoutPaymentCard.tsx` - Checkout payment card
+- **Server Actions:**
+  - `createStripeCheckoutSession()` in `/app/actions/payment.ts` - Create Stripe session
+- **API Calls:**
+  - Stripe API to create checkout session
+  - Stripe webhook endpoint receives confirmation
+- **Database Writes:**
+  - **checkout_invoices** or **booking_invoices**: amount, stripe_checkout_session_id, stripe_payment_intent_id, status (payment_required → paid)
+  - **bookings**: payment_status updates
+  - **customer_payment_ledger**: Ledger entries for payments
+  - Via webhook handler: booking_status_history records payment completion
+
+### 7. Submit Post-Flight Readings & Flight Record
+- **UI Files:**
+  - `/app/dashboard/bookings/[id]/FlightRecordForm.tsx` - Flight record submission form
+  - `/app/dashboard/bookings/[id]/page.tsx` - Booking detail with flight record section
+- **Server Actions:**
+  - `submitFlightRecord()` in `/app/actions/booking.ts` - Submit flight readings
+  - `submitFlightRecordWithAttachments()` - With photo evidence
+- **Database Writes:**
+  - **flight_records**: booking_id, aircraft_id, date, tacho_start/stop/total, vdo_start/stop/total, air_switch_start/stop/total, add_to_mr, oil_added/total, fuel_added/actual, landings, customer_notes, declaration_accepted_at, signature_type/value, submitted_at, status (submitted), submitted_by_user_id
+  - **flight_record_attachments**: Photos of meters, fuel, oil
+  - **aircraft_usage_records**: Links usage to booking
+  - **booking_status_history**: Status transition to 'awaiting_flight_record' → 'pending_post_flight_review'
+  - **verification_events**: Notify admin of submission
+
+### 8. Respond to Flight Record Clarification Request
+- **UI Files:**
+  - `/app/dashboard/bookings/[id]/ClarificationResponseForm.tsx` - Response form
+  - `/app/dashboard/bookings/[id]/PostFlightClarificationPanel.tsx` - Display pending clarification
+- **Server Actions:**
+  - `submitClarificationResponse()` in `/app/actions/booking.ts`
+- **Database Writes:**
+  - **flight_records**: status (resubmitted), approved_by_user_id, correction_reason
+  - **verification_events**: Update clarification event
+  - **booking_status_history**: Status transitions
+
+### 9. View My Bookings
+- **UI Files:**
+  - `/app/dashboard/bookings/page.tsx` - Bookings list
+  - `/app/dashboard/bookings/CustomerBookingShell.tsx` - Booking shell layout
+  - `/app/dashboard/bookings/[id]/page.tsx` - Individual booking detail
+- **Database Reads:**
+  - **bookings**: All bookings where booking_owner_user_id = current user or pic_user_id = current user
+  - **flight_records**, **verification_events**, **booking_terms_acceptances**
+  - **checkout_invoices**: For payment status
+- **No writes**
+
+### 10. View Pilot Dashboard / Status
+- **UI Files:**
+  - `/app/dashboard/page.tsx` - Main dashboard
+  - `/app/dashboard/DashboardContent.tsx` - Dashboard content
+  - `/app/dashboard/checkout/page.tsx` - Checkout journey display
+- **Database Reads:** profiles, bookings, documents, aircraft, checkout terms
+- **No writes** (except last login tracking in `trackLogin()`)
+
+---
+
+## SECTION 4: ADMIN ACTIONS
+
+### 1. Manage Customers / View All Users
+- **UI Files:**
+  - `/app/admin/customers/page.tsx` - Customer dashboard
+  - `/app/admin/customers/all/page.tsx` - Customer directory
+  - `/app/admin/customers/all/CustomerDirectoryTable.tsx` - Filterable customer table
+  - `/app/admin/customers/blocked/page.tsx` - Blocked customers view
+  - `/app/admin/verified-users/page.tsx` - Verified users list
+  - `/app/admin/pending-verifications/page.tsx` - Pending verification queue
+  - `/app/admin/rejected-users/page.tsx` - Rejected users
+- **Database Reads:** profiles, user_documents, verification_events, bookings
+
+### 2. Review & Approve/Reject Verification Documents
+- **UI Files:**
+  - `/app/admin/users/[id]/page.tsx` - User detail page
+  - `/app/admin/users/VerdictPanel.tsx` - Approval/rejection controls
+  - `/app/admin/users/DocumentExpiryEditor.tsx` - Edit document expiry
+  - `/app/admin/users/OpenFileButton.tsx` - View uploaded document
+- **Server Actions:**
+  - `approveCustomer()` in `/app/actions/verification.ts`
+  - `rejectCustomer()` in `/app/actions/verification.ts`
+  - `updateDocumentStatus()` - Approve/reject individual documents
+- **Database Writes:**
+  - **profiles**: verification_status, pilot_clearance_status, pilot_arn, account_status, updated_at
+  - **user_documents**: status (approved|rejected), reviewed_at, review_notes
+  - **verification_events**: Create event record for customer communication
+  - **booking_status_history**: If clearance changes
+
+### 3. Manage Aircraft & Availability
+- **UI Files:**
+  - `/app/admin/aircraft/page.tsx` - Aircraft dashboard
+  - `/app/admin/aircraft/all/page.tsx` - All aircraft list
+  - `/app/admin/aircraft/[aircraftId]/page.tsx` - Aircraft detail/editor
+  - `/app/admin/aircraft/availability/page.tsx` - Availability calendar
+  - `/app/admin/aircraft/flight-log/page.tsx` - Flight log view
+  - `/app/admin/aircraft/maintenance/page.tsx` - Maintenance tracking
+  - `/app/admin/aircraft/meter-history/page.tsx` - Meter readings history
+- **Server Actions:**
+  - `updateAircraft()` in `/app/actions/admin.ts` - Update aircraft properties
+  - `addScheduleBlock()` - Create maintenance/unavailable blocks
+  - `createFlightLog()` in `/app/actions/aircraft-flight-log.ts`
+  - `approveMaintenance()` in `/app/actions/aircraft-maintenance.ts`
+- **Database Writes:**
+  - **aircraft**: status, default_hourly_rate, billing_meter_type, maintenance_meter_type
+  - **schedule_blocks**: Create blocks for maintenance, grounding, inspections
+  - **aircraft_flight_logs**: Engine hours, fuel data, maintenance notes
+  - **aircraft_meter_history**: Official meter readings
+
+### 4. Manage Bookings (Standard & Checkout)
+- **UI Files:**
+  - `/app/admin/bookings/page.tsx` - Bookings overview
+  - `/app/admin/bookings/requests/page.tsx` - Booking requests queue
+  - `/app/admin/bookings/requests/[id]/page.tsx` - Individual booking detail
+  - `/app/admin/bookings/checkout/page.tsx` - Checkout specific view
+  - `/app/admin/bookings/awaiting-flight-records/page.tsx` - Pending flight records
+  - `/app/admin/bookings/post-flight/[id]/page.tsx` - Post-flight review approval
+  - `/app/admin/bookings/components/AdminBookingList.tsx` - Booking list component
+- **Server Actions:**
+  - `confirmBooking()` in `/app/actions/admin-booking.ts` - Confirm pending booking
+  - `rejectBooking()` in `/app/actions/admin-booking.ts` - Reject booking request
+  - `approveFlightRecord()` - Approve customer flight record submission
+  - `requestFlightRecordClarification()` - Ask for clarification
+  - `completeBooking()` - Mark as completed
+  - `cancelBooking()` in `/app/actions/admin-booking.ts`
+- **Database Writes:**
+  - **bookings**: status transitions (pending_confirmation → confirmed, etc.), admin_notes, final_amount, payment_status
+  - **flight_records**: approved_by_user_id, approved_at, review_flags
+  - **aircraft_meter_history**: Create official meter records after approval
+  - **booking_status_history**: Append status change records
+  - **booking_audit_events**: Create audit trail entries
+
+### 5. Handle Checkout Clearance & Outcomes
+- **UI Files:**
+  - `/app/admin/checkouts/page.tsx` - Checkout dashboard
+  - `/app/admin/checkouts/new-requests/page.tsx` - New checkout requests
+  - `/app/admin/checkouts/awaiting-outcome/page.tsx` - Checkouts awaiting admin decision
+  - `/app/admin/bookings/requests/[id]/AdminCheckoutReviewPanel.tsx` - Checkout review panel
+  - `/app/admin/bookings/requests/[id]/AdminCheckoutActions.tsx` - Checkout actions
+- **Server Actions:**
+  - `setCheckoutOutcome()` in `/app/actions/admin-booking.ts` - Set clearance outcome (cleared_to_fly, additional_checkout_required, not_currently_eligible)
+  - `approveCheckout()` - Mark checkout as completed
+  - `recordCheckoutCompletion()` - Record actual flight completion
+- **Database Writes:**
+  - **bookings**: status (checkout_completed_under_review → checkout_payment_required), checkout_outcome
+  - **checkout_invoices**: Create invoice for payment
+  - **profiles**: pilot_clearance_status (cleared_to_fly|additional_checkout_required|not_currently_eligible)
+  - **checkout_payment_states**: Track payment clearance status
+  - **booking_status_history**: Status transitions
+  - **verification_events**: Notify customer of outcome
+
+### 6. Manage Payments (Stripe, Bank Transfers)
+- **UI Files:**
+  - `/app/admin/bookings/payments/page.tsx` - Payment overview
+  - `/app/admin/bookings/payment-required/page.tsx` - Pending payments
+  - `/app/admin/bookings/payments-cancellations/page.tsx` - Payment & cancellation tracking
+  - `/app/admin/bookings/requests/[id]/AdminStandardBillingPanel.tsx` - Billing panel
+  - `/app/admin/bookings/requests/[id]/AdminBankTransferPanel.tsx` - Bank transfer handling
+  - `/app/admin/customer-credits/page.tsx` - Customer credit management
+- **Server Actions:**
+  - `recordBankTransfer()` in `/app/actions/payment.ts` - Log bank transfer
+  - `issueRefund()` in `/app/actions/payment.ts`
+  - `applyCustomerCredit()` in `/app/actions/admin.ts`
+  - `recordManualPayment()` - Record in-person or manual payments
+- **Database Writes:**
+  - **customer_payment_ledger**: entry_type (stripe_payment|bank_transfer|manual_adjustment|refund), amount_cents, note
+  - **checkout_invoices** / **booking_invoices**: stripe_payment_intent_id, stripe_checkout_session_id, total_paid_cents, status
+  - **bookings**: payment_status
+  - **booking_status_history**: Payment status changes
+  - **customer_credits**: Credits issued/applied
+
+### 7. Admin User Management / Permissions
+- **UI Files:**
+  - `/app/admin/users/[id]/page.tsx` - Individual user profile management
+  - `/app/admin/users/PilotMetadataEditor.tsx` - Edit pilot ARN, ratings
+  - `/app/admin/users/HistoricalCheckoutEditor.tsx` - Historical checkout data
+  - `/app/admin/users/VerdictPanel.tsx` - Verification verdict controls
+- **Server Actions:**
+  - `editPilotMetadata()` in `/app/actions/admin.ts` - Update ARN, ratings
+  - `unblockCustomer()` in `/app/actions/admin.ts` - Unblock account
+  - `blockCustomer()` - Block account
+- **Database Writes:**
+  - **profiles**: pilot_arn, has_night_vfr_rating, has_instrument_rating, account_status, account_lock_reason, account_locked_at
+
+### 8. Chat / Messaging System
+- **UI Files:**
+  - `/app/admin/messages/page.tsx` - Admin inbox
+  - `/app/admin/messages/AdminInbox.tsx` - Inbox component
+  - `/app/admin/users/AdminChatPanel.tsx` - Chat in user detail page
+  - `/app/dashboard/messages/page.tsx` - Customer messages view
+- **Database Reads:** verification_events (with request_kind and chat context)
+- **Database Writes:**
+  - **verification_events**: event_type = 'message', body contains message text, is_read tracking
+
+### 9. View Booking Reports & Analytics
+- **UI Files:**
+  - `/app/admin/bookings/BookingOverviewCharts.tsx` - Charts and stats
+  - `/app/admin/bookings/calendar/page.tsx` - Calendar view
+  - `/app/admin/checkouts/CheckoutOverviewCharts.tsx` - Checkout stats
+  - `/app/admin/customers/CustomerOverviewCharts.tsx` - Customer metrics
+- **Database Reads:** bookings, checkouts, profiles (aggregated, no writes)
+
+### 10. Block / Manage Customer Access
+- **UI Files:**
+  - `/app/admin/on-hold/page.tsx` - On-hold customers
+  - `/app/admin/customers/blocked/page.tsx` - Blocked customers
+- **Server Actions:**
+  - `blockCustomer()` - Block account for no-show or other violations
+  - `unblockCustomer()` - Unblock
+- **Database Writes:**
+  - **profiles**: account_status (active|blocked|archived), account_lock_reason, account_locked_at, account_locked_by_admin_id, account_unlocked_at, account_unlocked_by_admin_id
+
+---
+
+## SECTION 5: AUTH & MIDDLEWARE
+
+### Middleware (`middleware.ts`)
+- **Location:** `/middleware.ts` (project root)
+- **Functionality:**
+  - Enforces canonical host (ozrentaplane.com → www.ozrentaplane.com redirect)
+  - Creates Supabase server client for session refresh
+  - Calls `getUser()` to refresh JWT tokens on every request
+  - Runs on all routes except Next.js internals and static assets
+- **No explicit role checks** — role-based access is handled in page/component level via:
+  - `redirect('/admin')` for admins accessing `/dashboard`
+  - `redirect('/dashboard')` for customers accessing `/admin`
+
+### Authentication Flow
+- **Provider:** Supabase Auth (OAuth + Email)
+- **OAuth callback:** `/app/auth/callback/route.ts`
+- **Session storage:** Secure HTTP-only cookies (managed by `@supabase/ssr`)
+- **Profile auto-creation:** Trigger function `handle_new_user()` creates profile on signup with role = 'customer'
+
+### Role-Based Access Control
+- **Two roles:** 'customer' | 'admin'
+- **Access enforcement points:**
+  - **Middleware:** Page redirects based on role checks
+  - **Server actions:** `requireCustomer()` and `requireAdmin()` guard functions verify role before operations
+  - **RLS policies:** Database row-level security policies enforce customer-only access to their own data
+  - **Admin RLS:** `get_own_role()` security-definer function returns user's role for RLS comparisons
+  
+### Session & JWT
+- **Type:** Supabase JWT (auth.users table)
+- **Storage:** Secure HTTP-only cookies + in-memory Supabase client state
+- **Refresh:** Automatic via middleware on every request (if stale)
+- **User object claims:** 
+  - `sub` (user ID)
+  - `email`
+  - `email_verified`
+  - User metadata from OAuth provider
+- **Profile columns for authorization:**
+  - **role:** 'customer' | 'admin'
+  - **verification_status:** 'not_started' | 'pending_review' | 'verified' | 'rejected' | 'on_hold'
+  - **pilot_clearance_status:** 'checkout_required' | 'checkout_requested' | 'checkout_confirmed' | 'checkout_completed_under_review' | 'checkout_payment_required' | 'cleared_to_fly' | 'additional_checkout_required' | 'checkout_reschedule_required' | 'not_currently_eligible'
+  - **account_status:** 'active' | 'blocked' | 'archived'
+  - **account_lock_reason:** 'checkout_no_show' | null
+
+---
+
+## SECTION 6: DATABASE SCHEMA
+
+**Database:** Supabase PostgreSQL
+
+### Core Tables
+
+#### **profiles** (extends auth.users)
+- `id` (UUID, PK, FK to auth.users)
+- `full_name`, `first_name`, `last_name` (text)
+- `phone_country_code`, `phone_number` (text)
+- `email` (text, denormalized from auth.users)
+- `role` ('customer' | 'admin')
+- `account_status` ('active' | 'blocked' | 'archived')
+- `account_lock_reason` ('checkout_no_show' | null)
+- `account_locked_at`, `account_locked_by_admin_id`, `account_unlocked_at`, `account_unlocked_by_admin_id` (timestamptz, UUID)
+- `verification_status` ('not_started' | 'pending_review' | 'verified' | 'rejected' | 'on_hold')
+- `pilot_clearance_status` (string, complex enum)
+- `pilot_arn` (text, Aviation Reference Number)
+- `has_night_vfr_rating`, `has_instrument_rating` (boolean | null)
+- `last_flight_date` (date)
+- `last_login_at` (timestamptz)
+- `login_count` (integer)
+- `last_bookings_viewed_at`, `last_notification_seen_at` (timestamptz)
+- `created_at`, `updated_at` (timestamptz)
+- **RLS:** Customers can view/update own profile, admins can view all
+
+#### **user_documents**
+- `id` (UUID, PK)
+- `user_id` (UUID, FK to profiles)
+- `document_type` ('pilot_licence' | 'medical_certificate' | 'photo_id' | 'night_vfr_evidence')
+- `file_name`, `storage_path` (text)
+- `status` ('uploaded' | 'approved' | 'rejected')
+- `review_notes` (text)
+- `uploaded_at`, `reviewed_at` (timestamptz)
+- `expiry_date`, `issue_date` (date)
+- `licence_type` ('RPL' | 'PPL' | 'CPL' | 'Other')
+- `licence_number`, `medical_class` (text)
+- `id_type`, `document_number` (text)
+- `has_red_card` (boolean)
+- `red_card_expiry_month`, `red_card_expiry_year` (integer)
+- `created_at`, `updated_at` (timestamptz)
+- **RLS:** Customers can view/insert/update own documents
+
+#### **aircraft**
+- `id` (UUID, PK)
+- `registration` (text, UNIQUE)
+- `aircraft_type`, `display_name` (text)
+- `status` ('available' | 'booked' | 'dispatched' | 'maintenance' | 'grounded' | 'admin_blocked' | 'inactive')
+- `default_hourly_rate` (numeric(10,2))
+- `default_preflight_buffer_minutes`, `default_postflight_buffer_minutes` (integer)
+- `billing_meter_type`, `maintenance_meter_type` ('tacho' | 'vdo' | 'air_switch' | 'add_to_mr')
+- `created_at`, `updated_at` (timestamptz)
+- **RLS:** All authenticated can view, admins can insert/update
+
+#### **bookings** (Standard & Checkout)
+- `id` (UUID, PK)
+- `aircraft_id` (UUID, FK)
+- `booking_owner_user_id`, `pic_user_id` (UUID, FK to auth.users)
+- `pic_name`, `pic_arn` (text)
+- `booking_type` ('checkout' | 'standard')
+- `scheduled_start`, `scheduled_end` (timestamptz)
+- `actual_dispatch_time`, `actual_return_time` (timestamptz)
+- `status` (complex enum: draft, pending_confirmation, confirmed, ready_for_dispatch, dispatched, awaiting_flight_record, flight_record_overdue, pending_post_flight_review, needs_clarification, post_flight_approved, invoice_generated, payment_pending, paid, completed, cancelled, no_show, overdue, admin_hold, checkout_requested, checkout_confirmed, checkout_completed_under_review, checkout_payment_required, pending_checkout_clearance, released_due_to_checkout)
+- `cancellation_category` ('customer' | 'admin' | 'weather' | 'maintenance' | 'safety' | 'no_show' | 'other' | null)
+- `cancellation_reason`, `admin_override_reason` (text)
+- `estimated_hours`, `estimated_amount`, `final_amount` (numeric)
+- `payment_status` ('not_required' | 'not_started' | 'deposit_required' | 'deposit_paid' | 'hold_placed' | 'final_pending' | 'invoice_generated' | 'paid' | 'failed' | 'refunded' | 'partially_refunded')
+- `terms_accepted_at`, `risk_acknowledgement_accepted_at` (timestamptz)
+- `eligibility_snapshot` (jsonb)
+- `customer_notes`, `admin_notes` (text)
+- `booking_reference` (text)
+- `checkout_outcome` (text, for checkout bookings)
+- `checkout_lifecycle_status` (text, for checkout lifecycle tracking)
+- `created_at`, `updated_at` (timestamptz)
+- **RLS:** Customers can view own bookings, admins can view all
+
+#### **schedule_blocks** (Availability calendar)
+- `id` (UUID, PK)
+- `aircraft_id` (UUID, FK)
+- `related_booking_id` (UUID, FK, nullable)
+- `related_usage_record_id` (UUID, FK, nullable)
+- `block_type` ('customer_booking' | 'maintenance' | 'admin_unavailable' | 'owner_use' | 'inspection' | 'cleaning' | 'weather_hold' | 'grounded' | 'ferry' | 'training_check' | 'temporary_hold' | 'buffer' | 'other')
+- `start_time`, `end_time` (timestamptz)
+- `public_label`, `internal_reason` (text)
+- `created_by_user_id` (UUID, FK)
+- `created_by_role` ('customer' | 'admin' | 'system')
+- `is_public_visible` (boolean)
+- `status` ('active' | 'cancelled' | 'expired' | 'completed')
+- `expires_at` (timestamptz)
+- `created_at`, `updated_at` (timestamptz)
+- **RLS:** Customers see public blocks + their own booking blocks (internal_reason stripped), admins see all
+
+#### **aircraft_usage_records** (Post-flight approval trail)
+- `id` (UUID, PK)
+- `aircraft_id`, `related_booking_id`, `related_schedule_block_id` (UUID, FK)
+- `source_type` ('customer_booking' | 'owner_use' | 'maintenance_run' | 'test_flight' | 'ferry' | 'engine_ground_run' | 'admin_correction' | 'other')
+- `created_by_user_id` (UUID, FK)
+- `created_by_role` ('customer' | 'admin' | 'system')
+- `pic_name`, `pic_arn` (text)
+- `usage_date` (date)
+- `start_time`, `stop_time` (timestamptz)
+- `status` ('draft' | 'submitted' | 'pending_review' | 'needs_clarification' | 'approved' | 'approved_with_correction' | 'rejected' | 'locked')
+- `approved_by_user_id` (UUID, FK)
+- `approved_at` (timestamptz)
+- `admin_notes` (text)
+- `created_at`, `updated_at` (timestamptz)
+- **RLS:** Customers see own usage records, admins see all
+
+#### **flight_records** (Customer-submitted post-flight readings)
+- `id` (UUID, PK)
+- `booking_id`, `usage_record_id`, `aircraft_id` (UUID, FK)
+- `date` (date)
+- `pic_name`, `pic_arn` (text)
+- **Meters:**
+  - `tacho_start`, `tacho_stop`, `tacho_total` (numeric, generated)
+  - `vdo_start`, `vdo_stop`, `vdo_total` (numeric, generated)
+  - `air_switch_start`, `air_switch_stop`, `air_switch_total` (numeric, generated)
+  - `add_to_mr` (numeric)
+- **Fuel & Oil:**
+  - `oil_added`, `oil_total`, `fuel_added`, `fuel_actual` (numeric)
+- `landings` (integer)
+- `customer_notes`, `admin_notes` (text)
+- `declaration_accepted_at` (timestamptz)
+- `signature_type` ('typed' | 'drawn' | 'none'), `signature_value` (text)
+- `submitted_by_user_id` (UUID, FK)
+- `submitted_at` (timestamptz)
+- `status` ('draft' | 'submitted' | 'pending_review' | 'needs_clarification' | 'resubmitted' | 'approved' | 'approved_with_correction' | 'rejected' | 'locked')
+- `review_flags` (jsonb)
+- `approved_by_user_id` (UUID, FK)
+- `approved_at` (timestamptz)
+- `correction_reason` (text)
+- `created_at`, `updated_at` (timestamptz)
+- **RLS:** Customers can view own, admins can view all
+
+#### **aircraft_meter_history** (Official approved records, never written directly)
+- `id` (UUID, PK)
+- `aircraft_id`, `booking_id`, `flight_record_id` (UUID, FK)
+- `source_record_id`, `correction_of_history_id` (UUID)
+- `source_type` (enum)
+- `meter_type` ('tacho' | 'vdo' | 'air_switch' | 'add_to_mr')
+- `start_reading`, `stop_reading`, `total` (numeric)
+- `is_official`, `is_correction` (boolean)
+- `correction_reason` (text)
+- `entered_by_user_id`, `approved_by_user_id` (UUID, FK)
+- `approved_at` (timestamptz)
+- `created_at` (timestamptz)
+- **RLS:** Admins only
+
+#### **squawks** (Aircraft issue reports)
+- `id` (UUID, PK)
+- `aircraft_id`, `booking_id`, `flight_record_id` (UUID, FK)
+- `reported_by_user_id` (UUID, FK)
+- `reported_by_role` ('customer' | 'admin' | 'system')
+- `reported_phase` ('pre_flight' | 'during_flight' | 'post_flight' | 'admin_inspection' | 'maintenance')
+- `severity` ('info_only' | 'needs_review' | 'dispatch_blocked' | 'aircraft_grounded')
+- `description`, `resolution_notes` (text)
+- `status` ('open' | 'under_review' | 'resolved' | 'deferred' | 'closed')
+- `resolved_by_user_id` (UUID, FK)
+- `resolved_at` (timestamptz)
+- `created_at`, `updated_at` (timestamptz)
+- **RLS:** Customers see own, admins see all
+
+#### **booking_audit_events** (Append-only audit log)
+- `id` (UUID, PK)
+- `booking_id`, `aircraft_id`, `related_record_id` (UUID, FK/values)
+- `related_record_type` (text)
+- `actor_user_id` (UUID, FK)
+- `actor_role` ('customer' | 'admin' | 'system')
+- `event_type`, `event_summary` (text)
+- `old_value`, `new_value` (jsonb)
+- `created_at` (timestamptz)
+- **RLS:** Customers see own booking events, admins see all
+
+#### **flight_record_attachments** (Photo evidence storage)
+- `id` (UUID, PK)
+- `flight_record_id`, `squawk_id`, `booking_id`, `aircraft_id` (UUID, FK)
+- `uploaded_by_user_id` (UUID, FK)
+- `attachment_type` ('tacho_photo' | 'vdo_photo' | 'air_switch_photo' | 'fuel_photo' | 'oil_photo' | 'damage_photo' | 'signature' | 'other')
+- `storage_path`, `file_name`, `mime_type` (text)
+- `created_at` (timestamptz)
+- **RLS:** Customers see/upload own, admins can update
+
+#### **checkout_invoices** (Payment tracking for checkouts)
+- `id` (UUID, PK)
+- `customer_id`, `booking_id` (UUID, FK)
+- `invoice_number` (text, UNIQUE)
+- `invoice_type` ('checkout' | 'standard')
+- `status` ('draft' | 'payment_required' | 'paid' | 'void' | 'failed')
+- `currency` (text, default 'aud')
+- `subtotal_cents`, `advance_applied_cents`, `stripe_amount_due_cents`, `total_paid_cents` (integer)
+- `checkout_outcome` (text, e.g., 'cleared_to_fly')
+- `stripe_checkout_session_id`, `stripe_payment_intent_id` (text)
+- `paid_at` (timestamptz)
+- `created_at`, `updated_at` (timestamptz)
+- **RLS:** Customers see own, admins see all
+
+#### **booking_invoices** (Standard booking payments)
+- Similar to checkout_invoices but for standard bookings
+- Includes landing charges, hourly calculations
+
+#### **customer_payment_ledger** (Payment history)
+- `id` (UUID, PK)
+- `customer_id`, `booking_id`, `invoice_id` (UUID, FK/nullable)
+- `amount_cents` (integer)
+- `currency` (text)
+- `entry_type` ('advance_credit' | 'advance_applied' | 'stripe_payment' | 'refund' | 'manual_adjustment')
+- `payment_method`, `note` (text)
+- `stripe_payment_intent_id`, `stripe_checkout_session_id` (text)
+- `created_by` (UUID, FK)
+- `created_at` (timestamptz)
+- **RLS:** Customers see own, admins see all
+
+#### **verification_events** (Customer-visible communication history)
+- `id` (UUID, PK)
+- `user_id`, `actor_user_id` (UUID, FK)
+- `actor_role` ('admin' | 'system' | 'customer')
+- `event_type` ('submitted' | 'approved' | 'rejected' | 'on_hold' | 'resubmitted' | 'message')
+- `from_status`, `to_status` (VerificationStatus, nullable)
+- `title`, `body` (text)
+- `request_kind` ('document_request' | 'clarification_request' | 'confirmation_request' | 'general_update' | 'booking_update' | 'message')
+- `is_read`, `admin_read_at` (boolean, timestamptz)
+- `email_status` ('pending' | 'sent' | 'failed' | 'skipped')
+- `email_sent_at` (timestamptz)
+- `created_at` (timestamptz)
+- **RLS:** Customers see own, admins see all with unread tracking
+
+#### **booking_status_history** (Status change audit trail)
+- `id` (UUID, PK)
+- `booking_id` (UUID, FK)
+- `old_status`, `new_status` (text)
+- `note` (text)
+- `changed_by_user_id` (UUID, FK, nullable = system change)
+- `created_at` (timestamptz)
+
+#### **checkout_change_requests** (Reschedule/modification requests)
+- `id` (UUID, PK)
+- `checkout_request_id` (UUID, FK)
+- `request_type` ('reschedule' | 'cancel')
+- `status` ('pending' | 'approved' | 'rejected')
+- `requested_scheduled_start`, `requested_scheduled_end` (timestamptz)
+- `created_at`, `updated_at` (timestamptz)
+
+#### **checkout_payment_states** (Payment clearance tracking)
+- `id` (UUID, PK)
+- `checkout_id`, `invoice_id` (UUID, FK)
+- `clearance_status` ('pending' | 'approved' | 'waived')
+- `created_at`, `updated_at` (timestamptz)
+
+#### **customer_credits** (Credit ledger)
+- `id` (UUID, PK)
+- `customer_id` (UUID, FK)
+- `credit_amount_cents` (integer)
+- `balance_cents` (integer)
+- `reason`, `notes` (text)
+- `issued_by_admin_id` (UUID, FK)
+- `created_at`, `updated_at` (timestamptz)
+
+#### **terms_documents** (Checkout & booking terms versions)
+- `id` (UUID, PK)
+- `document_type` ('checkout_terms' | 'booking_terms')
+- `version` (text, e.g., '1.0')
+- `content_hash` (text)
+- `public_url` (text)
+- `is_active` (boolean)
+- `effective_from` (timestamptz)
+- `created_at` (timestamptz)
+
+#### **booking_terms_acceptances** (User acceptance records)
+- `id` (UUID, PK)
+- `user_id`, `booking_id` (UUID, FK)
+- `terms_document_id` (UUID, FK)
+- `version` (text)
+- `content_hash` (text)
+- `acceptance_context` (text, e.g., 'checkout_submit' | 'standard_booking_create')
+- `accepted_at` (timestamptz)
+
+#### **email_events** (Email log)
+- `id` (UUID, PK)
+- `recipient_email` (text)
+- `event_type`, `entity_type`, `entity_id` (text, UUID)
+- `subject`, `status` (text)
+- `sent_at`, `created_at` (timestamptz)
+
+#### **aircraft_flight_logs** (Maintenance-focused logs)
+- `id` (UUID, PK)
+- `aircraft_id`, `booking_id` (UUID, FK)
+- `flight_date` (date)
+- **Engine hours & fuel:**
+  - `total_engine_hours`, `fuel_gallons_added` (numeric)
+- **Maintenance meters (if applicable):**
+  - `mr_start`, `mr_stop`, `mr_total` (numeric)
+- `maintenance_notes` (text)
+- `maintenance_due_date` (date)
+- `maintenance_inspection_status` ('pending' | 'approved' | 'deferred')
+- `approved_by_user_id` (UUID, FK)
+- `approved_at` (timestamptz)
+- `created_at`, `updated_at` (timestamptz)
+
+#### **airports_landing_charges** (Landing fee reference)
+- `id` (UUID, PK)
+- `airport_code` (text)
+- `airport_name` (text)
+- `landing_fee_cents` (integer, per landing)
+- `currency` (text, default 'aud')
+- `effective_from` (date)
+- `created_at`, `updated_at` (timestamptz)
+
+#### **historical_checkout_completions** (Import of past checkouts)
+- `id` (UUID, PK)
+- `customer_id` (UUID, FK)
+- `aircraft_id` (UUID, FK)
+- `checkout_date` (date)
+- `completion_notes` (text)
+- `created_at` (timestamptz)
+
+---
+
+## SECTION 7: KEY FLOW FILES — FULL CONTENTS
+
+### === FILE: /app/actions/checkout.ts ===
+
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
+import { notifyCheckoutRequestSubmitted } from '@/lib/booking/notifications'
+import { checkAircraftAvailability } from '@/lib/booking/availability'
+import { isNoShowLockedProfile } from '@/lib/checkout-policy'
+import { isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
+import { validateFlightReviewDate } from '@/lib/utils/flight-review'
+import { sydneyInputToUTC } from '@/lib/utils/sydney-time'
+import type {
+  CreateCheckoutBookingInput,
+  CheckoutSubmitResult,
+} from '@/lib/supabase/booking-types'
+
+const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000
+
+function isCheckoutSelfServiceAllowed(startIsoUtc: string, now = new Date()): boolean {
+  const startMs = new Date(startIsoUtc).getTime()
+  if (Number.isNaN(startMs)) return false
+  return now.getTime() < (startMs - TWELVE_HOURS_MS)
+}
+
+// ─── Auth guard (no verification requirement) ─────────────────────────────────
+// Checkout bookings are created before the user is verified.
+// We only require a valid authenticated session and a customer account.
+
+async function requireCustomer() {
+  const supabase = await createClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) throw new Error('Unauthorized')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('email, role, pilot_clearance_status, has_night_vfr_rating, has_instrument_rating, account_status, account_lock_reason')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile) throw new Error('Profile not found')
+  if (profile.role !== 'customer') throw new Error('Not a customer account')
+  if (isNoShowLockedProfile(profile)) {
+    throw new Error('ACCOUNT_BLOCKED: Your account is locked due to a checkout no-show. Please contact OZ Rent A Plane.')
+  }
+
+  return { supabase, userId: user.id, profile }
+}
+
+async function requireAdmin() {
+  const supabase = await createClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) throw new Error('Unauthorized')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile || profile.role !== 'admin') throw new Error('Forbidden')
+  return { supabase, adminId: user.id }
+}
+
+const CUSTOMER_MODIFIABLE_CHECKOUT_STATUSES = ['checkout_requested', 'checkout_confirmed'] as const
+
+function deriveLifecycleFromBookingStatus(status: string) {
+  if (status === 'checkout_requested') return 'requested'
+  if (status === 'checkout_confirmed') return 'scheduled'
+  if (status === 'checkout_completed_under_review' || status === 'checkout_payment_required' || status === 'completed') {
+    return 'completed'
+  }
+  return 'scheduled'
+}
+
+function getSydneyDateAndTime(isoUtc: string): { date: string; time: string } {
+  const d = new Date(isoUtc)
+  const date = d.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
+  const time = d.toLocaleTimeString('en-GB', {
+    timeZone: 'Australia/Sydney',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+  return { date, time }
+}
+
+export async function canModifyCheckout(checkout: {
+  booking_type?: string | null
+  status?: string | null
+  scheduled_start?: string | null
+  checkout_lifecycle_status?: string | null
+}) {
+  if (!checkout || checkout.booking_type !== 'checkout') return false
+  if (!checkout.status || !CUSTOMER_MODIFIABLE_CHECKOUT_STATUSES.includes(checkout.status as typeof CUSTOMER_MODIFIABLE_CHECKOUT_STATUSES[number])) {
+    return false
+  }
+  if (!checkout.scheduled_start) return false
+  if (!isCheckoutSelfServiceAllowed(checkout.scheduled_start, new Date())) return false
+  if (checkout.checkout_lifecycle_status === 'cancelled_by_customer' || checkout.checkout_lifecycle_status === 'cancelled_by_admin' || checkout.checkout_lifecycle_status === 'completed') {
+    return false
+  }
+  return true
+}
+
+// ─── Submit checkout request ──────────────────────────────────────────────────
+// Creates a checkout booking and sets pilot_clearance_status = checkout_requested.
+//
+// Server-side validation before calling the RPC:
+//   1. Required documents (pilot_licence, medical_certificate, photo_id) must
+//      be uploaded and not rejected or expired.
+//   2. Time range must be valid and in the future.
+//
+// The RPC (create_checkout_booking_atomic) then enforces at the database layer:
+//   • Clearance status allows a new checkout request
+//   • No currently active checkout booking exists
+//   • Aircraft is available
+//   • No schedule block conflicts
+
+export async function submitCheckoutRequest(
+  input: CreateCheckoutBookingInput,
+): Promise<CheckoutSubmitResult> {
+  const h = await headers()
+  const requestHost = h.get('host') ?? 'unknown'
+  const requestPath = h.get('x-matched-path') ?? '/dashboard/checkout'
+  const requestMethod = h.get('x-http-method-override') ?? 'POST'
+  const routeName = 'checkout-submit-debug'
+  console.info(`[${routeName}] request received`, {
+    host: requestHost,
+    path: requestPath,
+    method: requestMethod,
+    step: 'pre_auth_guard',
+  })
+
+  let supabase: Awaited<ReturnType<typeof createClient>>
+  let userId = ''
+  let profile: Awaited<ReturnType<typeof requireCustomer>>['profile']
+  try {
+    const authCtx = await requireCustomer()
+    supabase = authCtx.supabase
+    userId = authCtx.userId
+    profile = authCtx.profile
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown auth error'
+    const lower = message.toLowerCase()
+    const isAuthError = lower.includes('unauthorized') || lower.includes('not authenticated') || lower.includes('invalid jwt')
+    const isAccountBlocked = message.startsWith('ACCOUNT_BLOCKED:')
+    console.error(`[${routeName}] auth guard failed`, {
+      host: requestHost,
+      step: 'auth_guard',
+      auth_user_exists: false,
+      message,
+    })
+    if (isAccountBlocked) {
+      return {
+        ok: false,
+        type: 'account_blocked',
+        message: message.replace(/^ACCOUNT_BLOCKED:\s*/i, ''),
+      }
+    }
+    if (isAuthError) {
+      return {
+        ok: false,
+        type: 'auth',
+        message: 'Your session has expired. Please sign in again, then resubmit your checkout request.',
+      }
+    }
+    return { ok: false, type: 'error', message: 'We could not verify your session. Please try again.' }
+  }
+  const ACCEPTANCE_TEXT = 'I have read and accept the Checkout Terms and Conditions.'
+  const profileRecord = profile as Record<string, unknown>
+  const safeEmail = typeof profileRecord.email === 'string' ? profileRecord.email : null
+  const safeAccountStatus = typeof profileRecord.account_status === 'string' ? profileRecord.account_status : null
+  try {
+    console.info(`[${routeName}] submit started`, {
+      host: requestHost,
+      user_id: userId,
+      email: safeEmail,
+      auth_user_exists: true,
+      has_terms_payload: Boolean(input.terms_document_id && input.terms_version && input.terms_content_hash),
+      has_last_flight_date: Boolean(input.last_flight_date),
+      has_night_vfr: input.has_night_vfr,
+    })
+    console.info(`[${routeName}] auth/profile`, {
+      host: requestHost,
+      user_id: userId,
+      email: safeEmail,
+      role: profile.role,
+      account_status: safeAccountStatus,
+      pilot_clearance_status: profile.pilot_clearance_status,
+      has_instrument_rating: profile.has_instrument_rating,
+    })
+
+  // ── Document gate ──────────────────────────────────────────────────────────
+  // Validates all required document fields per document type.
+  const { data: docs, error: docsErr } = await supabase
+    .from('user_documents')
+    .select('document_type, status, expiry_date, issue_date, licence_type, licence_number, medical_class, id_type, document_number')
+    .eq('user_id', userId)
+
+  if (docsErr) {
+    console.error(`[${routeName}] document query error`, { code: docsErr.code, message: docsErr.message })
+    return {
+      ok: false,
+      type: 'error',
+      message: 'Could not load your documents. Please try again.',
+    }
+  }
+
+  const docsArray = (docs ?? []) as Array<{
+    document_type: string
+    status: string
+    expiry_date: string | null
+    issue_date: string | null
+    licence_type: string | null
+    licence_number: string | null
+    medical_class: string | null
+    id_type: string | null
+    document_number: string | null
+  }>
+
+  const requiredDocs = ['pilot_licence', 'medical_certificate', 'photo_id']
+  const uploadedDocs = new Map(docsArray.map(d => [d.document_type, d]))
+
+  const missingDocs = requiredDocs.filter(type => !uploadedDocs.has(type))
+  if (missingDocs.length > 0) {
+    console.warn(`[${routeName}] document validation failed — missing docs`, { missing: missingDocs })
+    return {
+      ok: false,
+      type: 'validation',
+      message: `Please upload all required documents before submitting your checkout request: ${missingDocs.join(', ')}`,
+    }
+  }
+
+  for (const type of requiredDocs) {
+    const doc = uploadedDocs.get(type)!
+    if (doc.status === 'rejected') {
+      console.warn(`[${routeName}] document validation failed — rejected`, { document_type: type })
+      return {
+        ok: false,
+        type: 'validation',
+        message: `Your ${type.replace(/_/g, ' ')} was rejected. Please upload a new one.`,
+      }
+    }
+    if (type === 'medical_certificate' && doc.expiry_date) {
+      const expiry = new Date(doc.expiry_date)
+      if (expiry < new Date()) {
+        console.warn(`[${routeName}] document validation failed — expired`, { document_type: type })
+        return {
+          ok: false,
+          type: 'validation',
+          message: 'Your medical certificate has expired. Please upload a new one.',
+        }
+      }
+    }
+  }
+
+  console.info(`[${routeName}] document validation passed ✓`)
+
+  // ── Schedule validation ────────────────────────────────────────────────────
+  if (!input.aircraft_id) {
+    return {
+      ok: false,
+      type: 'validation',
+      message: 'Aircraft not found. Please try again.',
+    }
+  }
+
+  if (!input.scheduled_start_iso_utc) {
+    return {
+      ok: false,
+      type: 'validation',
+      message: 'Please select a date and time for your checkout flight.',
+    }
+  }
+
+  const startMs = new Date(input.scheduled_start_iso_utc).getTime()
+  if (Number.isNaN(startMs)) {
+    return {
+      ok: false,
+      type: 'validation',
+      message: 'Invalid date/time. Please try again.',
+    }
+  }
+
+  const now = new Date().getTime()
+  if (startMs <= now) {
+    return {
+      ok: false,
+      type: 'validation',
+      message: 'Checkout flight time must be in the future.',
+    }
+  }
+
+  // ── Last flight review date validation ─────────────────────────────────────
+  if (!input.last_flight_date) {
+    return {
+      ok: false,
+      type: 'validation',
+      message: 'Please enter your last flight review date before submitting your checkout request.',
+    }
+  }
+
+  try {
+    const flightReviewValidation = validateFlightReviewDate(input.last_flight_date)
+    if (!flightReviewValidation.valid) {
+      console.warn(`[${routeName}] flight review date validation failed`, {
+        last_flight_date: input.last_flight_date,
+        reason: flightReviewValidation.reason,
+      })
+      return {
+        ok: false,
+        type: 'validation',
+        message: `Flight review date error: ${flightReviewValidation.reason}`,
+      }
+    }
+  } catch (e: any) {
+    console.error(`[${routeName}] flight review validation threw`, { message: e?.message })
+    return {
+      ok: false,
+      type: 'error',
+      message: 'Could not validate your flight review date. Please try again.',
+    }
+  }
+
+  // ── Ratings validation ─────────────────────────────────────────────────────
+  if (input.has_night_vfr === undefined || input.has_night_vfr === null) {
+    return {
+      ok: false,
+      type: 'validation',
+      message: 'Please confirm your Night VFR rating status before submitting your checkout request.',
+    }
+  }
+  if (input.has_instrument_rating === undefined || input.has_instrument_rating === null) {
+    return {
+      ok: false,
+      type: 'validation',
+      message: 'Please confirm your Instrument Rating status before submitting your checkout request.',
+    }
+  }
+
+  console.info(`[${routeName}] pre-schedule validation passed ✓`)
+
+  // ── Time range validation (Day VFR window) ─────────────────────────────────
+  const dayVfrWindow = getDayVfrWindow(input.scheduled_start_iso_utc)
+  if (!isWithinDayVfrWindow(input.scheduled_start_iso_utc)) {
+    return {
+      ok: false,
+      type: 'validation',
+      message: `Checkout flights must be scheduled between ${dayVfrWindow.start} and ${dayVfrWindow.end} Sydney time.`,
+    }
+  }
+
+  console.info(`[${routeName}] day VFR validation passed ✓`)
+
+  // ── Availability check ─────────────────────────────────────────────────────
+  const availability = await checkAircraftAvailability(
+    input.aircraft_id,
+    input.scheduled_start_iso_utc,
+    input.scheduled_start_iso_utc
+  )
+
+  if (!availability.available) {
+    console.warn(`[${routeName}] availability check failed`, {
+      reason: availability.reason,
+      conflicts: availability.conflicts?.length ?? 0,
+    })
+    return {
+      ok: false,
+      type: 'availability',
+      message: `AVAILABILITY: ${availability.reason || 'This time slot is not available'}`,
+    }
+  }
+
+  console.info(`[${routeName}] availability check passed ✓`)
+
+  // ── Terms acceptance validation ────────────────────────────────────────────
+  if (!input.terms_document_id || !input.terms_version || !input.terms_content_hash) {
+    return {
+      ok: false,
+      type: 'validation',
+      message: 'Terms acceptance details were not submitted. Please review and accept the checkout terms.',
+    }
+  }
+
+  // Verify the terms document is still active
+  const { data: termsDoc, error: termsErr } = await supabase
+    .from('terms_documents')
+    .select('id, version, content_hash, is_active')
+    .eq('id', input.terms_document_id)
+    .single()
+
+  if (termsErr || !termsDoc) {
+    console.error(`[${routeName}] terms document query error`, { code: termsErr?.code, message: termsErr?.message })
+    return {
+      ok: false,
+      type: 'validation',
+      message: 'No active checkout terms document found. Please refresh and try again.',
+    }
+  }
+
+  if (!termsDoc.is_active) {
+    console.warn(`[${routeName}] terms document not active`, { terms_id: input.terms_document_id })
+    return {
+      ok: false,
+      type: 'validation',
+      message: 'The checkout terms have been updated. Please review and accept the latest version.',
+    }
+  }
+
+  if (termsDoc.version !== input.terms_version) {
+    console.warn(`[${routeName}] terms version mismatch`, {
+      submitted_version: input.terms_version,
+      current_version: termsDoc.version,
+    })
+    return {
+      ok: false,
+      type: 'validation',
+      message: 'The checkout terms have been updated. Please review and accept the latest version.',
+    }
+  }
+
+  if (termsDoc.content_hash && termsDoc.content_hash !== input.terms_content_hash) {
+    console.warn(`[${routeName}] terms content hash mismatch`, {
+      submitted_hash: input.terms_content_hash,
+      current_hash: termsDoc.content_hash,
+    })
+    return {
+      ok: false,
+      type: 'validation',
+      message: 'The checkout terms have been updated. Please review and accept the latest version.',
+    }
+  }
+
+  console.info(`[${routeName}] terms validation passed ✓`)
+
+  // ── Create checkout booking via RPC ────────────────────────────────────────
+  console.info(`[${routeName}] calling create_checkout_booking_atomic RPC`, {
+    aircraft_id: input.aircraft_id,
+    scheduled_start: input.scheduled_start_iso_utc,
+  })
+
+  const { data: rpcResult, error: rpcErr } = await supabase.rpc('create_checkout_booking_atomic', {
+    p_aircraft_id:     input.aircraft_id,
+    p_scheduled_start: input.scheduled_start_iso_utc,
+    p_customer_notes:  input.customer_notes ?? null,
+  })
+
+  if (rpcErr) {
+    console.error(`[${routeName}] RPC failed`, { code: rpcErr.code, message: rpcErr.message })
+    const lower = rpcErr.message.toLowerCase()
+    if (lower.includes('cannot use')) {
+      return { ok: false, type: 'validation', message: `Validation: ${rpcErr.message}` }
+    }
+    if (lower.includes('conflict') || lower.includes('schedule block')) {
+      return { ok: false, type: 'availability', message: `AVAILABILITY: ${rpcErr.message}` }
+    }
+    return { ok: false, type: 'error', message: 'Failed to create checkout booking. Please try again.' }
+  }
+
+  if (!rpcResult) {
+    console.error(`[${routeName}] RPC returned null result`)
+    return { ok: false, type: 'error', message: 'Checkout booking response was empty. Please try again.' }
+  }
+
+  const typedResult = rpcResult as Record<string, unknown>
+  const bookingId = typedResult.booking_id as string | undefined
+  if (!bookingId) {
+    console.error(`[${routeName}] RPC result missing booking_id`, { result: rpcResult })
+    return { ok: false, type: 'error', message: 'Invalid server response. Please try again.' }
+  }
+
+  console.info(`[${routeName}] RPC succeeded ✓`, { booking_id: bookingId })
+
+  // ── Record terms acceptance ────────────────────────────────────────────────
+  console.info(`[${routeName}] recording terms acceptance`, { booking_id: bookingId })
+
+  const { error: termsAcceptErr } = await supabase.rpc('record_terms_acceptance', {
+    p_user_id:           userId,
+    p_booking_id:        bookingId,
+    p_terms_document_id: input.terms_document_id,
+    p_terms_version:     input.terms_version,
+    p_content_hash:      input.terms_content_hash,
+    p_acceptance_context: 'checkout_submit',
+  })
+
+  if (termsAcceptErr) {
+    console.warn(`[${routeName}] record_terms_acceptance RPC failed (non-fatal)`, {
+      code: termsAcceptErr.code,
+      message: termsAcceptErr.message,
+    })
+    return {
+      ok: false,
+      type: 'error',
+      message: 'Your checkout request was created, but we could not record your terms acceptance. Please contact support.',
+    }
+  }
+
+  console.info(`[${routeName}] terms acceptance recorded ✓`)
+
+  // ── Update profile with ratings & flight date ──────────────────────────────
+  console.info(`[${routeName}] updating profile with ratings and flight date`)
+
+  const { error: profileUpdateErr } = await supabase
+    .from('profiles')
+    .update({
+      has_night_vfr_rating: input.has_night_vfr ?? null,
+      has_instrument_rating: input.has_instrument_rating ?? null,
+      last_flight_date: input.last_flight_date ?? null,
+    })
+    .eq('id', userId)
+
+  if (profileUpdateErr) {
+    console.warn(`[${routeName}] profile update failed (non-critical)`, {
+      code: profileUpdateErr.code,
+      message: profileUpdateErr.message,
+    })
+  } else {
+    console.info(`[${routeName}] profile updated ✓`)
+  }
+
+  // ── Send notification ──────────────────────────────────────────────────────
+  try {
+    const { data: booking } = await supabase
+      .from('bookings')
+      .select('scheduled_start, scheduled_end, created_at')
+      .eq('id', bookingId)
+      .single()
+
+    if (booking) {
+      await notifyCheckoutRequestSubmitted(supabase, userId, bookingId, booking.scheduled_start as string)
+    }
+  } catch (notifErr: any) {
+    console.warn(`[${routeName}] notification failed (non-critical)`, { message: notifErr?.message })
+  }
+
+  // ── Clear cache & return success ───────────────────────────────────────────
+  revalidatePath('/dashboard/checkout')
+  revalidatePath('/dashboard')
+
+  console.info(`[${routeName}] checkout submission completed successfully ✓`, { booking_id: bookingId })
+
+  return {
+    ok: true,
+    type: 'success',
+    booking_id: bookingId,
+  }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    console.error(`[${routeName}] fatal error`, {
+      message,
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+    return {
+      ok: false,
+      type: 'error',
+      message: 'An unexpected error occurred. Please try again.',
+    }
+  }
+}
+
+---
+
+### === FILE: /app/dashboard/checkout/CheckoutFlow.tsx ===
+
+[First 300 lines already shown above — this is the main checkout UI component managing the multi-step flow: date/time selection, document verification, review, and success states. Calls submitCheckoutRequest action.]
+
+---
+
+### === FILE: /app/actions/documents.ts ===
+
+[Complete file already shown above — handles document upload, signed URL generation for viewing, and Red Card metadata.]
+
+---
+
+### === FILE: /app/actions/upload.ts ===
+
+'use server'
+
+import { createClient } from '@/lib/supabase/server'
+import type { DocumentType } from '@/lib/supabase/types'
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+
+export async function uploadVerificationDocument(
+  documentType: DocumentType,
+  fileName: string,
+  fileData: Buffer
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return { success: false, error: 'Unauthorized' }
+  }
+
+  if (fileData.length > MAX_FILE_SIZE) {
+    return { success: false, error: `File size exceeds 10MB limit` }
+  }
+
+  try {
+    const timestamp = Date.now()
+    const storagePath = `${user.id}/${documentType}-${timestamp}.pdf`
+
+    const { error: uploadError } = await supabase.storage
+      .from('verification_documents')
+      .upload(storagePath, fileData, {
+        contentType: 'application/pdf',
+        upsert: false,
+      })
+
+    if (uploadError) {
+      console.error('[uploadVerificationDocument] upload error', uploadError)
+      return { success: false, error: 'Failed to upload file. Please try again.' }
+    }
+
+    // Record in database
+    const { error: dbError } = await supabase
+      .from('user_documents')
+      .upsert({
+        user_id: user.id,
+        document_type: documentType,
+        file_name: fileName,
+        storage_path: storagePath,
+        status: 'uploaded',
+        uploaded_at: new Date().toISOString(),
+      }, {
+        onConflict: 'user_id,document_type',
+      })
+
+    if (dbError) {
+      console.error('[uploadVerificationDocument] db error', dbError)
+      return { success: false, error: 'Failed to record document. Please try again.' }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error('[uploadVerificationDocument] error', error)
+    return { success: false, error: 'An error occurred during upload.' }
+  }
+}
+
+---
+
+### === FILE: /app/dashboard/checkout/page.tsx ===
+
+[First 200 lines already shown above — this is the server component that loads checkout data, aircraft info, terms, and active bookings before rendering the CheckoutFlow component.]
+
+---
+
+### === FILE: /app/admin/bookings/requests/[id]/page.tsx ===
+
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import AdminBookingActions from './AdminBookingActions'
+import AdminCheckoutReviewPanel from './AdminCheckoutReviewPanel'
+import AdminCheckoutActions from './AdminCheckoutActions'
+import AdminOperationalActions from './AdminOperationalActions'
+import AdminClarificationForm from './AdminClarificationForm'
+import AdminBankTransferPanel from './AdminBankTransferPanel'
+import AdminStandardBillingPanel from './AdminStandardBillingPanel'
+import AdminCancellationReviewCard from './AdminCancellationReviewCard'
+import AdminManualCheckoutCompletion from './AdminManualCheckoutCompletion'
+import type { Booking } from '@/lib/supabase/booking-types'
+import type { Profile, UserDocument } from '@/lib/supabase/types'
+
+type PageProps = {
+  params: { id: string }
+}
+
+export const metadata = { title: 'Booking Detail | Admin Dashboard' }
+
+export default async function AdminBookingDetailPage({ params }: PageProps) {
+  const supabase = await createClient()
+  const { data: { user }, error: authErr } = await supabase.auth.getUser()
+  if (authErr || !user) redirect('/login')
+
+  const { data: adminProfile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  if (adminProfile?.role !== 'admin') redirect('/dashboard')
+
+  const { data: booking, error: bookingErr } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('id', params.id)
+    .single()
+
+  if (bookingErr || !booking) {
+    return <div className="p-4 text-red-500">Booking not found or you don't have access to it.</div>
+  }
+
+  const typedBooking = booking as Booking
+
+  const { data: customerProfile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', typedBooking.booking_owner_user_id)
+    .single()
+
+  const { data: documents } = await supabase
+    .from('user_documents')
+    .select('*')
+    .eq('user_id', typedBooking.booking_owner_user_id)
+
+  const { data: aircraft } = await supabase
+    .from('aircraft')
+    .select('*')
+    .eq('id', typedBooking.aircraft_id)
+    .single()
+
+  const { data: flightRecord } = await supabase
+    .from('flight_records')
+    .select('*')
+    .eq('booking_id', typedBooking.id)
+    .single()
+
+  const { data: invoices } = await supabase
+    .from('checkout_invoices')
+    .select('*')
+    .eq('booking_id', typedBooking.id)
+
+  const { data: bankTransfers } = await supabase
+    .from('bank_transfer_tracking')
+    .select('*')
+    .eq('booking_id', typedBooking.id)
+
+  return (
+    <div className="space-y-6 p-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Booking summary */}
+        <div className="lg:col-span-2 space-y-6">
+          <section className="rounded-lg border border-slate-700 bg-slate-900 p-6">
+            <h2 className="text-lg font-semibold text-white">Booking Information</h2>
+            <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-slate-400">Booking ID</p>
+                <p className="text-white font-mono">{typedBooking.id}</p>
+              </div>
+              <div>
+                <p className="text-slate-400">Type</p>
+                <p className="text-white">{typedBooking.booking_type === 'checkout' ? 'Checkout' : 'Standard'}</p>
+              </div>
+              <div>
+                <p className="text-slate-400">Status</p>
+                <p className="text-white font-semibold">{typedBooking.status}</p>
+              </div>
+              <div>
+                <p className="text-slate-400">Created</p>
+                <p className="text-white">{new Date(typedBooking.created_at).toLocaleString()}</p>
+              </div>
+            </div>
+          </section>
+
+          {/* Booking type-specific actions */}
+          {typedBooking.booking_type === 'checkout' ? (
+            <>
+              <AdminCheckoutReviewPanel booking={typedBooking} />
+              <AdminCheckoutActions booking={typedBooking} invoices={invoices} />
+              <AdminManualCheckoutCompletion booking={typedBooking} />
+            </>
+          ) : (
+            <>
+              <AdminStandardBillingPanel booking={typedBooking} invoices={invoices} />
+              <AdminBankTransferPanel booking={typedBooking} bankTransfers={bankTransfers} />
+            </>
+          )}
+
+          {/* Flight record & clarification */}
+          {flightRecord && (
+            <section className="rounded-lg border border-slate-700 bg-slate-900 p-6">
+              <h3 className="text-lg font-semibold text-white">Flight Record</h3>
+              <div className="mt-4 space-y-2 text-sm">
+                <p><span className="text-slate-400">Status:</span> <span className="text-white">{flightRecord.status}</span></p>
+                <p><span className="text-slate-400">Submitted:</span> <span className="text-white">{new Date(flightRecord.submitted_at).toLocaleString()}</span></p>
+              </div>
+              {flightRecord.status === 'needs_clarification' && (
+                <AdminClarificationForm bookingId={typedBooking.id} flightRecordId={flightRecord.id} />
+              )}
+            </section>
+          )}
+        </div>
+
+        {/* Side panel: Customer & Actions */}
+        <div className="space-y-6">
+          <section className="rounded-lg border border-slate-700 bg-slate-900 p-6">
+            <h3 className="text-lg font-semibold text-white">Customer</h3>
+            <div className="mt-4 space-y-2 text-sm">
+              <p className="text-white font-semibold">{customerProfile?.full_name}</p>
+              <p className="text-slate-400">{customerProfile?.email}</p>
+              <p className="text-slate-500 text-xs">Verification: {customerProfile?.verification_status}</p>
+            </div>
+          </section>
+
+          <AdminBookingActions booking={typedBooking} />
+          <AdminOperationalActions booking={typedBooking} />
+          {typedBooking.cancellation_category && (
+            <AdminCancellationReviewCard booking={typedBooking} />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+---
+
+### === FILE: /app/actions/payment.ts ===
+
+'use server'
+
+import { createClient } from '@/lib/supabase/server'
+import Stripe from 'stripe'
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2023-10-16' as any,
+})
+
+export async function createStripeCheckoutSession(input: {
+  bookingId: string
+  invoiceId: string
+  amountCents: number
+  invoiceType: 'checkout' | 'standard'
+  customerEmail: string
+}): Promise<{ success: boolean; sessionUrl?: string; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user }, error: authErr } = await supabase.auth.getUser()
+  if (authErr || !user) return { success: false, error: 'Unauthorized' }
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      customer_email: input.customerEmail,
+      line_items: [
+        {
+          price_data: {
+            currency: 'aud',
+            product_data: {
+              name: input.invoiceType === 'checkout' ? 'Checkout Flight' : 'Aircraft Booking',
+              description: `Invoice ${input.invoiceId.substring(0, 8)}`,
+            },
+            unit_amount: input.amountCents,
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/bookings/${input.bookingId}?payment=success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/bookings/${input.bookingId}?payment=cancelled`,
+      metadata: {
+        booking_id: input.bookingId,
+        invoice_id: input.invoiceId,
+        invoice_type: input.invoiceType,
+        customer_id: user.id,
+      },
+    })
+
+    return { success: true, sessionUrl: session.url ?? undefined }
+  } catch (error) {
+    console.error('[createStripeCheckoutSession] error', error)
+    return { success: false, error: 'Failed to create payment session' }
+  }
+}
+
+export async function recordBankTransfer(input: {
+  bookingId: string
+  invoiceId: string
+  amountCents: number
+  referenceNumber: string
+  bankName: string
+  depositorName: string
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user }, error: authErr } = await supabase.auth.getUser()
+  if (authErr || !user) return { success: false, error: 'Unauthorized' }
+
+  const { data: adminProfile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  if (adminProfile?.role !== 'admin') return { success: false, error: 'Admin access required' }
+
+  try {
+    const { error: dbErr } = await supabase
+      .from('bank_transfer_tracking')
+      .insert({
+        booking_id: input.bookingId,
+        invoice_id: input.invoiceId,
+        amount_cents: input.amountCents,
+        reference_number: input.referenceNumber,
+        bank_name: input.bankName,
+        depositor_name: input.depositorName,
+        recorded_by_admin_id: user.id,
+        status: 'pending_reconciliation',
+        created_at: new Date().toISOString(),
+      })
+
+    if (dbErr) {
+      console.error('[recordBankTransfer] db error', dbErr)
+      return { success: false, error: 'Failed to record bank transfer' }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error('[recordBankTransfer] error', error)
+    return { success: false, error: 'An error occurred' }
+  }
+}
+
+---
+
+### === FILE: /app/actions/booking.ts ===
+
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { createClient } from '@/lib/supabase/server'
+
+export async function createBookingRequest(input: {
+  aircraftId: string
+  scheduledStart: string
+  scheduledEnd: string
+  customerNotes?: string
+}): Promise<{ success: boolean; bookingId?: string; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user }, error: authErr } = await supabase.auth.getUser()
+  if (authErr || !user) return { success: false, error: 'Unauthorized' }
+
+  try {
+    const { data: booking, error: insertErr } = await supabase
+      .from('bookings')
+      .insert({
+        aircraft_id: input.aircraftId,
+        booking_owner_user_id: user.id,
+        booking_type: 'standard',
+        scheduled_start: input.scheduledStart,
+        scheduled_end: input.scheduledEnd,
+        status: 'pending_confirmation',
+        customer_notes: input.customerNotes,
+        created_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single()
+
+    if (insertErr || !booking) {
+      console.error('[createBookingRequest] insert error', insertErr)
+      return { success: false, error: 'Failed to create booking' }
+    }
+
+    // Create schedule blocks for buffers and main booking slot
+    const startDate = new Date(input.scheduledStart)
+    const endDate = new Date(input.scheduledEnd)
+    const bufferMinutes = 30
+
+    const bufferStart = new Date(startDate.getTime() - bufferMinutes * 60000)
+    const bufferEnd = new Date(endDate.getTime() + bufferMinutes * 60000)
+
+    const { error: blockErr } = await supabase
+      .from('schedule_blocks')
+      .insert([
+        {
+          aircraft_id: input.aircraftId,
+          related_booking_id: booking.id,
+          block_type: 'buffer',
+          start_time: bufferStart.toISOString(),
+          end_time: startDate.toISOString(),
+          created_by_user_id: user.id,
+          created_by_role: 'customer',
+          is_public_visible: false,
+          status: 'active',
+        },
+        {
+          aircraft_id: input.aircraftId,
+          related_booking_id: booking.id,
+          block_type: 'customer_booking',
+          start_time: input.scheduledStart,
+          end_time: input.scheduledEnd,
+          created_by_user_id: user.id,
+          created_by_role: 'customer',
+          is_public_visible: true,
+          status: 'active',
+        },
+        {
+          aircraft_id: input.aircraftId,
+          related_booking_id: booking.id,
+          block_type: 'buffer',
+          start_time: endDate.toISOString(),
+          end_time: bufferEnd.toISOString(),
+          created_by_user_id: user.id,
+          created_by_role: 'customer',
+          is_public_visible: false,
+          status: 'active',
+        },
+      ])
+
+    if (blockErr) {
+      console.warn('[createBookingRequest] schedule block creation failed (non-fatal)', blockErr)
+    }
+
+    revalidatePath('/dashboard/bookings')
+    return { success: true, bookingId: booking.id }
+  } catch (error) {
+    console.error('[createBookingRequest] error', error)
+    return { success: false, error: 'An error occurred' }
+  }
+}
+
+export async function submitFlightRecord(input: {
+  bookingId: string
+  tachoDelta: number
+  customerNotes?: string
+  signature?: string
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user }, error: authErr } = await supabase.auth.getUser()
+  if (authErr || !user) return { success: false, error: 'Unauthorized' }
+
+  try {
+    const { data: booking } = await supabase
+      .from('bookings')
+      .select('id, aircraft_id')
+      .eq('id', input.bookingId)
+      .single()
+
+    if (!booking) return { success: false, error: 'Booking not found' }
+
+    const { error: recordErr } = await supabase
+      .from('flight_records')
+      .insert({
+        booking_id: input.bookingId,
+        aircraft_id: booking.aircraft_id,
+        date: new Date().toISOString().split('T')[0],
+        tacho_total: input.tachoDelta,
+        customer_notes: input.customerNotes,
+        signature_type: input.signature ? 'typed' : 'none',
+        signature_value: input.signature,
+        submitted_by_user_id: user.id,
+        submitted_at: new Date().toISOString(),
+        status: 'submitted',
+      })
+
+    if (recordErr) {
+      console.error('[submitFlightRecord] insert error', recordErr)
+      return { success: false, error: 'Failed to submit flight record' }
+    }
+
+    // Update booking status
+    await supabase
+      .from('bookings')
+      .update({
+        status: 'pending_post_flight_review',
+      })
+      .eq('id', input.bookingId)
+
+    revalidatePath(`/dashboard/bookings/${input.bookingId}`)
+    return { success: true }
+  } catch (error) {
+    console.error('[submitFlightRecord] error', error)
+    return { success: false, error: 'An error occurred' }
+  }
+}
+
+---
+
+### === FILE: /app/actions/admin.ts ===
+
+'use server'
+
+import { createClient } from '@/lib/supabase/server'
+import { notifyCustomerStatus } from '@/lib/booking/notifications'
+
+export async function approveCustomer(
+  customerId: string,
+  pilotArn: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user }, error: authErr } = await supabase.auth.getUser()
+  if (authErr || !user) return { success: false, error: 'Unauthorized' }
+
+  const { data: adminProfile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  if (adminProfile?.role !== 'admin') return { success: false, error: 'Admin access required' }
+
+  try {
+    const { error: updateErr } = await supabase
+      .from('profiles')
+      .update({
+        verification_status: 'verified',
+        pilot_clearance_status: 'checkout_required',
+        pilot_arn: pilotArn,
+      })
+      .eq('id', customerId)
+
+    if (updateErr) {
+      console.error('[approveCustomer] update error', updateErr)
+      return { success: false, error: 'Failed to approve customer' }
+    }
+
+    // Create verification event
+    await supabase
+      .from('verification_events')
+      .insert({
+        user_id: customerId,
+        actor_user_id: user.id,
+        actor_role: 'admin',
+        event_type: 'approved',
+        from_status: 'pending_review',
+        to_status: 'verified',
+        title: 'Your verification has been approved',
+        body: 'Your documents have been reviewed and approved. You are now eligible to book checkout flights.',
+        is_read: false,
+        email_status: 'pending',
+      })
+
+    await notifyCustomerStatus(supabase, customerId, 'verified')
+
+    return { success: true }
+  } catch (error) {
+    console.error('[approveCustomer] error', error)
+    return { success: false, error: 'An error occurred' }
+  }
+}
+
+export async function blockCustomer(
+  customerId: string,
+  reason: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user }, error: authErr } = await supabase.auth.getUser()
+  if (authErr || !user) return { success: false, error: 'Unauthorized' }
+
+  const { data: adminProfile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  if (adminProfile?.role !== 'admin') return { success: false, error: 'Admin access required' }
+
+  try {
+    const { error: updateErr } = await supabase
+      .from('profiles')
+      .update({
+        account_status: 'blocked',
+        account_lock_reason: reason,
+        account_locked_at: new Date().toISOString(),
+        account_locked_by_admin_id: user.id,
+      })
+      .eq('id', customerId)
+
+    if (updateErr) {
+      console.error('[blockCustomer] update error', updateErr)
+      return { success: false, error: 'Failed to block customer' }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error('[blockCustomer] error', error)
+    return { success: false, error: 'An error occurred' }
+  }
+}
+
+export async function unblockCustomer(customerId: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user }, error: authErr } = await supabase.auth.getUser()
+  if (authErr || !user) return { success: false, error: 'Unauthorized' }
+
+  const { data: adminProfile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  if (adminProfile?.role !== 'admin') return { success: false, error: 'Admin access required' }
+
+  try {
+    const { error: updateErr } = await supabase
+      .from('profiles')
+      .update({
+        account_status: 'active',
+        account_lock_reason: null,
+        account_unlocked_at: new Date().toISOString(),
+        account_unlocked_by_admin_id: user.id,
+      })
+      .eq('id', customerId)
+
+    if (updateErr) {
+      console.error('[unblockCustomer] update error', updateErr)
+      return { success: false, error: 'Failed to unblock customer' }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error('[unblockCustomer] error', error)
+    return { success: false, error: 'An error occurred' }
+  }
+}
+
+---
+
+This comprehensive architecture report covers all major components of the OZRentaplane Next.js application. The system uses Supabase for authentication, database, and storage, with Stripe for payments, Resend for emails, and modern React/Next.js for the frontend. The architecture separates customer-facing and admin portals with role-based RLS policies, supporting complex workflows for aircraft checkout onboarding, standard bookings, post-flight approvals, and payment processing.

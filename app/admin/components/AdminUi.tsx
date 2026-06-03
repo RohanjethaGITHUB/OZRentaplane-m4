@@ -27,8 +27,8 @@ export function TimeRangeControl({
             href={`${basePath}?range=${opt.value}`}
             className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
               isActive
-                ? 'bg-blue-400/15 border-blue-300/40 text-blue-200'
-                : 'border-white/10 text-slate-300 hover:text-white hover:bg-white/5'
+                ? 'bg-white border-[rgba(255,255,255,0.10)] text-[var(--admin-text)] shadow-[var(--admin-shadow-panel)]'
+                : 'bg-white border-[rgba(255,255,255,0.10)] text-[var(--admin-text-muted)] shadow-[var(--admin-shadow-panel)] hover:text-[var(--admin-text)] hover:bg-white/90'
             }`}
           >
             {opt.label}
@@ -42,8 +42,8 @@ export function TimeRangeControl({
 export function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div className="mb-4">
-      <h2 className="text-2xl text-white font-semibold">{title}</h2>
-      {subtitle ? <p className="text-sm text-slate-400 mt-1">{subtitle}</p> : null}
+      <h2 className="text-2xl text-[var(--admin-text)] font-semibold">{title}</h2>
+      {subtitle ? <p className="text-sm text-[var(--admin-text-muted)] mt-1">{subtitle}</p> : null}
     </div>
   )
 }
@@ -64,16 +64,16 @@ export function StatCard({
   return (
     <Link
       href={href}
-      className={`rounded-2xl border p-5 transition-colors min-h-[140px] flex flex-col justify-between ${
+      className={`rounded-[var(--admin-radius-xl)] border p-5 transition-colors min-h-[140px] flex flex-col justify-between shadow-[var(--admin-shadow-panel)] backdrop-blur-sm ${
         warn
-          ? 'bg-amber-500/10 border-amber-500/25 hover:bg-amber-500/20'
-          : 'bg-white/[0.02] border-white/10 hover:bg-white/[0.05]'
+          ? 'bg-white border-[var(--admin-border)] hover:bg-white/90'
+          : 'bg-[var(--admin-card-bg)] border-[var(--admin-border)] hover:bg-white/90'
       }`}
     >
-      <p className="text-base text-slate-200 font-medium">{title}</p>
+      <p className="text-base text-[var(--admin-text-muted)] font-medium">{title}</p>
       <div>
-        <p className={`text-4xl font-semibold ${warn ? 'text-amber-300' : 'text-white'}`}>{value}</p>
-        <p className="text-sm text-slate-400 mt-1">{helper}</p>
+        <p className={`text-4xl font-semibold ${warn ? 'text-[var(--admin-warning)]' : 'text-[var(--admin-text)]'}`}>{value}</p>
+        <p className="text-sm text-[var(--admin-text-muted)] mt-1">{helper}</p>
       </div>
     </Link>
   )
@@ -111,8 +111,8 @@ export function TabLink({ active, href, label }: { active: boolean; href: string
 
 export function ChartShell({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-      {title ? <h3 className="text-base text-deep-ink mb-4">{title}</h3> : null}
+    <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-5 shadow-[var(--admin-shadow-panel)] backdrop-blur-sm">
+      {title ? <h3 className="text-base text-[var(--admin-text)] mb-4">{title}</h3> : null}
       {children}
     </div>
   )

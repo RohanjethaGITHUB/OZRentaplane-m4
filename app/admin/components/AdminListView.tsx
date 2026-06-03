@@ -28,7 +28,7 @@ export function AdminSectionPanel({
   right?: ReactNode
 }) {
   return (
-    <section className="rounded-[var(--admin-radius-2xl)] border border-[var(--admin-border)] bg-[var(--admin-panel-bg)] shadow-[var(--admin-shadow-panel)]">
+    <section className="rounded-[var(--admin-radius-2xl)] border border-[var(--admin-border)] bg-[var(--admin-panel-bg)] shadow-[var(--admin-shadow-panel)] backdrop-blur-sm">
       {(title || subtitle || right) && (
         <div className="px-7 md:px-8 pt-6 pb-2 flex items-start justify-between gap-4">
           <div>
@@ -70,7 +70,7 @@ export function AdminMetricCard({
       : 'text-[var(--admin-text)]'
 
   return (
-    <div className={`rounded-[var(--admin-radius-xl)] border p-6 md:p-7 ${toneClass}`}>
+    <div className={`rounded-[var(--admin-radius-xl)] border p-6 md:p-7 shadow-[var(--admin-shadow-panel)] backdrop-blur-sm ${toneClass}`}>
       <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--admin-text-muted)] font-semibold">{label}</p>
       <p className={`mt-5 text-[2.8rem] leading-none font-semibold ${valueClass}`}>{value}</p>
     </div>
@@ -99,7 +99,7 @@ export function AdminFilterPanel({
   subtitleClassName?: string
 }) {
   return (
-    <section className={`rounded-[var(--admin-radius-2xl)] border border-[var(--admin-border)] bg-[var(--admin-panel-bg)] shadow-[var(--admin-shadow-panel)] ${className ?? ''}`}>
+    <section className={`rounded-[var(--admin-radius-2xl)] border border-[var(--admin-border)] bg-[var(--admin-panel-bg)] shadow-[var(--admin-shadow-panel)] backdrop-blur-sm ${className ?? ''}`}>
       <button type="button" onClick={onToggle} className={`w-full px-7 md:px-8 py-6 flex items-start justify-between text-left ${headerClassName ?? ''}`}>
         <div>
           <h2 className={`text-[2rem] md:text-[2.1rem] leading-[1.08] font-semibold text-[var(--admin-text)] ${titleClassName ?? ''}`}>{title}</h2>
@@ -184,7 +184,7 @@ export function AdminDataTable({
   children: ReactNode
 }) {
   return (
-    <div className="overflow-x-auto overflow-y-visible rounded-[var(--admin-radius-xl)] border border-[var(--admin-border)] bg-[var(--admin-card-bg)]">
+    <div className="overflow-x-auto overflow-y-visible rounded-[var(--admin-radius-xl)] border border-[var(--admin-border)] bg-[var(--admin-card-bg)] shadow-[var(--admin-shadow-panel)] backdrop-blur-sm">
       <table className="w-full">
         <thead className="bg-[#152d5a] text-white">
           <tr>

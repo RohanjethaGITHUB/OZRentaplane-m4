@@ -96,7 +96,7 @@ export default function AdminCalendarClient({ events }: { events: CalEvent[] }) 
         <Link href="/admin/bookings/blocks/new" className="px-4 py-2 rounded-lg bg-white text-[#152d5a] text-sm font-medium">Block Time</Link>
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+      <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 shadow-[var(--admin-shadow-panel)]">
         <div className="flex flex-wrap gap-2 mb-4">
           <StatusPill tone="blue" label="Checkout Flight" />
           <StatusPill tone="green" label="Customer Booking" />
@@ -108,12 +108,12 @@ export default function AdminCalendarClient({ events }: { events: CalEvent[] }) 
         {view === 'day' && (
           <div className="space-y-2">
             {dayEvents.map((e) => (
-              <button key={e.id} onClick={() => setSelected(e)} className="w-full text-left rounded-lg border border-white/10 p-3 bg-white/[0.02]">
-                <p className="text-white">{e.title}</p>
-                <p className="text-sm text-slate-400">{formatCalendarTime(e.start)} - {formatCalendarTime(e.end)}</p>
+              <button key={e.id} onClick={() => setSelected(e)} className="w-full text-left rounded-lg border border-[var(--admin-border)] p-3 bg-[var(--admin-card-bg)]">
+                <p className="text-[var(--admin-text)]">{e.title}</p>
+                <p className="text-sm text-[var(--admin-text-muted)]">{formatCalendarTime(e.start)} - {formatCalendarTime(e.end)}</p>
               </button>
             ))}
-            {dayEvents.length === 0 && <p className="text-slate-400">No events on this day.</p>}
+            {dayEvents.length === 0 && <p className="text-[var(--admin-text-muted)]">No events on this day.</p>}
           </div>
         )}
 
@@ -123,8 +123,8 @@ export default function AdminCalendarClient({ events }: { events: CalEvent[] }) 
               const dayKey = sydneyCalendarDateKey(d)
               const daily = events.filter((e) => sydneyCalendarDateKey(e.start) === dayKey)
               return (
-                <div key={d.toISOString()} className="rounded-lg border border-white/10 p-2 min-h-[220px]">
-                  <p className="text-sm text-slate-300 mb-2">{formatCalendarWeekdayDay(d)}</p>
+                <div key={d.toISOString()} className="rounded-lg border border-[var(--admin-border)] p-2 min-h-[220px] bg-[var(--admin-card-bg)]">
+                  <p className="text-sm text-[var(--admin-text-muted)] mb-2">{formatCalendarWeekdayDay(d)}</p>
                   <div className="space-y-1">
                     {daily.map((e) => (
                       <button key={e.id} onClick={() => setSelected(e)} className={`w-full text-left text-xs rounded px-2 py-1 border ${tone(e.type) === 'blue' ? 'border-blue-400/30 bg-blue-500/15 text-blue-100' : tone(e.type) === 'green' ? 'border-green-400/30 bg-green-500/15 text-green-100' : tone(e.type) === 'rose' ? 'border-rose-400/30 bg-rose-500/15 text-rose-100' : tone(e.type) === 'amber' ? 'border-amber-400/30 bg-amber-500/15 text-amber-100' : 'border-slate-400/30 bg-slate-500/15 text-slate-200'}`}>
@@ -144,13 +144,13 @@ export default function AdminCalendarClient({ events }: { events: CalEvent[] }) 
               const dayKey = sydneyCalendarDateKey(d)
               const daily = events.filter((e) => sydneyCalendarDateKey(e.start) === dayKey)
               return (
-                <div key={d.toISOString()} className="rounded-lg border border-white/10 p-2 min-h-[120px]">
-                  <p className="text-sm text-slate-300 mb-2">{d.getDate()}</p>
+                <div key={d.toISOString()} className="rounded-lg border border-[var(--admin-border)] p-2 min-h-[120px] bg-[var(--admin-card-bg)]">
+                  <p className="text-sm text-[var(--admin-text-muted)] mb-2">{d.getDate()}</p>
                   <div className="space-y-1">
                     {daily.slice(0, 3).map((e) => (
-                      <button key={e.id} onClick={() => setSelected(e)} className="w-full text-left text-xs rounded bg-white/[0.05] text-slate-200 px-1.5 py-1">
-                        {e.title}
-                      </button>
+                    <button key={e.id} onClick={() => setSelected(e)} className="w-full text-left text-xs rounded bg-white px-1.5 py-1 text-[var(--admin-text)] border border-[var(--admin-border)]">
+                      {e.title}
+                    </button>
                     ))}
                   </div>
                 </div>
@@ -162,21 +162,21 @@ export default function AdminCalendarClient({ events }: { events: CalEvent[] }) 
 
       {selected && (
         <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setSelected(null)}>
-          <div className="absolute right-0 top-0 h-full w-full max-w-md bg-[#0f131b] border-l border-white/10 p-5" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl text-white mb-3">Event details</h3>
-            <p className="text-sm text-slate-400">Event type</p>
-            <p className="text-white mb-2">{selected.type}</p>
-            <p className="text-sm text-slate-400">Customer</p>
-            <p className="text-white mb-2">{selected.customer || 'N/A'}</p>
-            <p className="text-sm text-slate-400">Aircraft</p>
-            <p className="text-white mb-2">{selected.aircraft}</p>
-            <p className="text-sm text-slate-400">Start / End</p>
-            <p className="text-white mb-2">{formatCalendarDateTime(selected.start)} - {formatCalendarDateTime(selected.end)}</p>
-            <p className="text-sm text-slate-400">Status</p>
-            <p className="text-white mb-2 capitalize">{selected.status.replace(/_/g, ' ')}</p>
-            <p className="text-sm text-slate-400">Payment status</p>
-            <p className="text-white mb-4">{selected.paymentStatus || 'N/A'}</p>
-            <Link href="/admin/bookings/flights" className="inline-block px-3 py-2 rounded-lg bg-blue-500/20 text-blue-200">View booking actions</Link>
+          <div className="absolute right-0 top-0 h-full w-full max-w-md bg-[var(--admin-card-bg)] border-l border-[var(--admin-border)] p-5 shadow-[var(--admin-shadow-panel)]" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl text-[var(--admin-text)] mb-3">Event details</h3>
+            <p className="text-sm text-[var(--admin-text-muted)]">Event type</p>
+            <p className="text-[var(--admin-text)] mb-2">{selected.type}</p>
+            <p className="text-sm text-[var(--admin-text-muted)]">Customer</p>
+            <p className="text-[var(--admin-text)] mb-2">{selected.customer || 'N/A'}</p>
+            <p className="text-sm text-[var(--admin-text-muted)]">Aircraft</p>
+            <p className="text-[var(--admin-text)] mb-2">{selected.aircraft}</p>
+            <p className="text-sm text-[var(--admin-text-muted)]">Start / End</p>
+            <p className="text-[var(--admin-text)] mb-2">{formatCalendarDateTime(selected.start)} - {formatCalendarDateTime(selected.end)}</p>
+            <p className="text-sm text-[var(--admin-text-muted)]">Status</p>
+            <p className="text-[var(--admin-text)] mb-2 capitalize">{selected.status.replace(/_/g, ' ')}</p>
+            <p className="text-sm text-[var(--admin-text-muted)]">Payment status</p>
+            <p className="text-[var(--admin-text)] mb-4">{selected.paymentStatus || 'N/A'}</p>
+            <Link href="/admin/bookings/flights" className="inline-block px-3 py-2 rounded-lg bg-[var(--admin-button-bg)] text-[#185FA5] border border-[rgba(24,95,165,0.18)]">View booking actions</Link>
           </div>
         </div>
       )}

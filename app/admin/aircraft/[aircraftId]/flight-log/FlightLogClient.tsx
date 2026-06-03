@@ -551,7 +551,7 @@ export default function FlightLogClient({
       </div>
 
       {/* ── Filters / actions bar ─────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-4 mb-5">
+      <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] px-5 py-4 mb-5 shadow-[var(--admin-shadow-panel)]">
         <div className="flex flex-wrap gap-3 items-end">
           <label className="text-xs text-slate-400 flex items-center gap-2">
             PIC

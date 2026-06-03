@@ -107,7 +107,7 @@ export default async function CheckoutReschedulePage({ searchParams }: { searchP
         subtitle="Customer checkout reschedule requests."
       />
       <div className="max-w-[1450px] mx-auto px-6 md:px-10 py-12 pb-24 space-y-6">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 flex flex-wrap gap-2 items-center">
+        <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 flex flex-wrap gap-2 items-center shadow-[var(--admin-shadow-panel)]">
           {tabs.map((t) => (
             <TabLink
               key={t.key}
@@ -119,7 +119,7 @@ export default async function CheckoutReschedulePage({ searchParams }: { searchP
         </div>
 
         {tab === 'pending' && filtered.length === 0 && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-8 text-center text-slate-300">
+          <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-8 text-center text-[var(--admin-text-muted)] shadow-[var(--admin-shadow-panel)]">
             No pending reschedule requests.
           </div>
         )}
