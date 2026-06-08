@@ -37,7 +37,7 @@ export default async function AdminAircraftOverview({ searchParams }: { searchPa
         actions={<TimeRangeControl active={range} basePath="/admin/aircraft" />}
       />
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24 space-y-6">
-        <div className="rounded-2xl border border-[#152d5a]/15 bg-white/80 p-6 grid grid-cols-1 lg:grid-cols-4 gap-4">
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-6 grid grid-cols-1 lg:grid-cols-4 gap-4">
           <div><p className="text-sm text-[#4b6390]">Aircraft</p><p className="text-3xl text-deep-ink mt-1">{aircraft?.registration || 'VH-KZG'}</p></div>
           <div><p className="text-sm text-[#4b6390]">Availability status</p><p className="text-2xl text-[#166534] mt-1 capitalize">{aircraft?.status || 'unknown'}</p></div>
           <div><p className="text-sm text-[#4b6390]">Next booking</p><p className="text-base text-deep-ink mt-2">{nextBooking ? `${new Date(nextBooking.scheduled_start).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' })} · ${nextBooking.pic_name || 'Customer'}` : 'No upcoming booking'}</p></div>
@@ -45,11 +45,11 @@ export default async function AdminAircraftOverview({ searchParams }: { searchPa
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="rounded-2xl border border-[#152d5a]/15 bg-white/80 p-5">
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
             <h3 className="text-deep-ink text-lg mb-3">Upcoming Blocked Time</h3>
             <div className="space-y-2">
               {(upcomingBlocks ?? []).map((b) => (
-                <div key={b.id} className="rounded-lg border border-[#152d5a]/15 p-3 bg-white/80">
+                <div key={b.id} className="rounded-xl border border-slate-200 bg-white shadow-sm p-3">
                   <p className="text-[#152d5a] capitalize">{b.block_type.replace(/_/g, ' ')}</p>
                   <p className="text-sm text-[#4b6390]">{new Date(b.start_time).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' })}</p>
                 </div>
@@ -57,7 +57,7 @@ export default async function AdminAircraftOverview({ searchParams }: { searchPa
               {(!upcomingBlocks || upcomingBlocks.length === 0) && <p className="text-[#4b6390]">No upcoming blocks.</p>}
             </div>
           </div>
-          <div className="rounded-2xl border border-[#152d5a]/15 bg-white/80 p-5">
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
             <h3 className="text-deep-ink text-lg mb-3">Utilisation Summary</h3>
             <p className="text-[#4b6390] text-sm">This section uses existing booking and schedule data to estimate utilisation over the selected period.</p>
             <div className="mt-4 h-2 rounded-full bg-[#152d5a]/15 overflow-hidden"><div className="h-full bg-[#1a4fd6] w-[42%]" /></div>

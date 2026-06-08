@@ -1,17 +1,17 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { createCustomerAccount } from '@/app/actions/admin-customers'
 
 export default function NewCustomerForm() {
-  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
+    setSuccessMessage(null)
 
     const form = event.currentTarget
     const formData = new FormData(form)
@@ -19,14 +19,12 @@ export default function NewCustomerForm() {
     const fullName = String(formData.get('fullName') ?? '')
     const email = String(formData.get('email') ?? '')
     const phone = String(formData.get('phone') ?? '')
-    const pilotArnValue = String(formData.get('pilotArn') ?? '').trim()
 
     startTransition(async () => {
       const result = await createCustomerAccount({
         fullName,
         email,
         phone,
-        pilotArn: pilotArnValue || undefined,
       })
 
       if (!result.success) {
@@ -35,12 +33,20 @@ export default function NewCustomerForm() {
       }
 
       form.reset()
-      router.push(`/admin/users/${result.customerId}`)
+      setSuccessMessage(
+        `Customer account created. A welcome email with their temporary password has been sent to ${email}.`,
+      )
     })
   }
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
+      {successMessage ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {successMessage}
+        </div>
+      ) : null}
+
       {error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -71,23 +77,12 @@ export default function NewCustomerForm() {
         </label>
 
         <label className="block">
-          <span className="mb-2 block text-sm font-medium text-[var(--admin-text)]">Phone number</span>
+          <span className="mb-2 block text-sm font-medium text-[var(--admin-text)]">Phone number (optional)</span>
           <input
             type="tel"
             name="phone"
-            required
             className="h-11 w-full rounded-xl border border-[#152d5a]/15 bg-white px-3.5 text-sm text-[#152d5a] placeholder:text-[#4b6390]/60 focus:outline-none focus:border-[#152d5a]/40 focus:ring-2 focus:ring-[#152d5a]/8"
             placeholder="Enter phone number"
-          />
-        </label>
-
-        <label className="block md:col-span-2">
-          <span className="mb-2 block text-sm font-medium text-[var(--admin-text)]">Pilot ARN (optional)</span>
-          <input
-            type="text"
-            name="pilotArn"
-            className="h-11 w-full rounded-xl border border-[#152d5a]/15 bg-white px-3.5 text-sm text-[#152d5a] placeholder:text-[#4b6390]/60 focus:outline-none focus:border-[#152d5a]/40 focus:ring-2 focus:ring-[#152d5a]/8"
-            placeholder="Enter ARN if provided"
           />
         </label>
       </div>

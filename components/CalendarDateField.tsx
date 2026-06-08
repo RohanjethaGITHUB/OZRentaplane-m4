@@ -173,39 +173,39 @@ export default function CalendarDateField({
         }
       >
         <span>{value ? toDisplayDate(value) : placeholder}</span>
-        <span className="material-symbols-outlined text-white/45 text-[18px]">calendar_month</span>
+      <span className="material-symbols-outlined text-[#94a3b8] text-[18px]">calendar_month</span>
       </button>
 
       {open && mounted && createPortal(
         <div
           ref={popoverRef}
-          className="fixed max-w-[calc(100vw-1.5rem)] rounded-xl border border-white/12 bg-[#0b1322] shadow-[0_16px_32px_rgba(0,0,0,0.5)] p-3"
+          className="fixed max-w-[calc(100vw-1.5rem)] rounded-xl border border-[#152d5a]/15 bg-white shadow-[0_8px_32px_rgba(21,45,90,0.15)] p-3"
           style={{ top: popoverStyle.top, left: popoverStyle.left, width: popoverStyle.width, zIndex: popoverZIndex }}
         >
           <div className="grid grid-cols-2 gap-2 mb-3">
             <select
               value={viewMonth}
               onChange={(e) => setViewMonth(Number(e.target.value))}
-              className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-2 text-xs text-white/80 focus:outline-none focus:border-oz-blue/40"
+              className="bg-white border border-[#152d5a]/20 rounded-lg px-2 py-2 text-xs text-[#152d5a] focus:outline-none focus:border-[#1a4fd6]/60"
             >
               {MONTH_NAMES.map((m, i) => (
-                <option key={m} value={i} className="bg-[#0b1322]">{m}</option>
+                <option key={m} value={i}>{m}</option>
               ))}
             </select>
             <select
               value={viewYear}
               onChange={(e) => setViewYear(Number(e.target.value))}
-              className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-2 text-xs text-white/80 focus:outline-none focus:border-oz-blue/40"
+              className="bg-white border border-[#152d5a]/20 rounded-lg px-2 py-2 text-xs text-[#152d5a] focus:outline-none focus:border-[#1a4fd6]/60"
             >
               {years.map((y) => (
-                <option key={y} value={y} className="bg-[#0b1322]">{y}</option>
+                <option key={y} value={y}>{y}</option>
               ))}
             </select>
           </div>
 
           <div className="grid grid-cols-7 gap-1 mb-1">
             {weekday.map((d) => (
-              <div key={d} className="text-[10px] text-white/35 text-center py-1">{d}</div>
+              <div key={d} className="text-[10px] text-[#94a3b8] font-semibold text-center py-1">{d}</div>
             ))}
           </div>
 
@@ -226,10 +226,10 @@ export default function CalendarDateField({
                   disabled={disabled}
                   className={`h-8 rounded-md text-xs border transition-colors ${
                     selected
-                      ? 'bg-oz-blue/25 border-oz-blue/60 text-oz-blue'
+                      ? 'bg-[#1a4fd6] border-[#1a4fd6] text-white font-semibold'
                       : disabled
-                      ? 'bg-white/[0.01] border-white/6 text-white/20 cursor-not-allowed'
-                      : 'bg-white/[0.02] border-white/8 text-white/75 hover:bg-white/[0.08] hover:border-white/20'
+                      ? 'bg-[#f8fafc] border-[#e2e8f0] text-[#cbd5e1] cursor-not-allowed'
+                      : 'bg-white border-[#e2e8f0] text-[#152d5a] hover:bg-[#f0f6ff] hover:border-[#1a4fd6]/40'
                   }`}
                 >
                   {day}

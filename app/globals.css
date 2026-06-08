@@ -126,6 +126,23 @@ html {
   color:                   #0C2340;
 }
 
+/* Customer dashboard design tokens */
+.dashboard-theme {
+  --dash-bg:              #cfe3f5;
+  --dash-content-bg:      #ffffff;
+  --dash-panel-bg:        #ffffff;
+  --dash-panel-soft:      #f0f6ff;
+  --dash-card-bg:         #ffffff;
+  --dash-input-bg:        #ffffff;
+  --dash-border:          rgba(21, 45, 90, 0.12);
+  --dash-divider:         rgba(21, 45, 90, 0.08);
+  --dash-accent:          #1a4fd6;
+  --dash-text:            #152d5a;
+  --dash-text-muted:      #4b6390;
+  --dash-text-secondary:  #64748b;
+  --dash-amber:           #f59e0b;
+}
+
 /* Canvas hero fill */
 .hero-canvas {
   display: block;

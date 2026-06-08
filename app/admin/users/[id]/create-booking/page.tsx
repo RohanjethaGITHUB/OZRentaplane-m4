@@ -59,7 +59,7 @@ export default async function CreateProxyBookingPage({
       .order('registration', { ascending: true }),
     supabase
       .from('user_documents')
-      .select('id')
+      .select('id, document_type, status')
       .eq('user_id', params.id)
       .order('uploaded_at', { ascending: false }),
   ])
@@ -68,7 +68,11 @@ export default async function CreateProxyBookingPage({
 
   const customerName = formatCustomerName(customer as CustomerRow)
   const aircraft = (aircraftRows ?? []) as AircraftRow[]
-  const customerDocuments = (documents ?? []) as Array<{ id: string }>
+  const customerDocuments = (documents ?? []) as Array<{
+    id: string
+    document_type: string | null
+    status: string | null
+  }>
 
   return (
     <>

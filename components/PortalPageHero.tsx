@@ -18,6 +18,7 @@ type Props = {
   eyebrow: string
   title: string
   subtitle?: string
+  backgroundImage?: string
   statusPill?: StatusPill
   cta?: CtaButton
 }
@@ -38,12 +39,20 @@ const DOT_CLASSES: Record<StatusPillColor, string> = {
   slate: 'bg-slate-500',
 }
 
-export default function PortalPageHero({ eyebrow, title, subtitle, statusPill, cta }: Props) {
+export default function PortalPageHero({ eyebrow, title, subtitle, backgroundImage, statusPill, cta }: Props) {
   return (
-    <section className="relative py-16 overflow-hidden">
-
-      {/* Deep navy gradient — darker base for more atmosphere */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#071428] via-[#060e1c] to-[#060d18]" />
+    <section
+      className="relative overflow-hidden -mt-6"
+      style={{
+        minHeight: '300px',
+        marginLeft: 'calc(-50vw + 50%)',
+        marginRight: 'calc(-50vw + 50%)',
+        width: '100vw',
+        ...(backgroundImage
+          ? { backgroundImage: `url(${backgroundImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+          : { background: 'linear-gradient(135deg, #0d1b3e 0%, #1a3a6b 50%, #0f2654 100%)' }),
+      }}
+    >
 
       {/* Runway lines texture */}
       <div
@@ -80,24 +89,28 @@ export default function PortalPageHero({ eyebrow, title, subtitle, statusPill, c
       <div className="absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-[#060d18] to-transparent" />
 
       {/* Content */}
-      <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-2xl mx-auto">
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(8,20,50,0.88) 0%, rgba(8,20,50,0.70) 50%, rgba(8,20,50,0.25) 100%)' }} />
 
-        <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-blue-400/60 mb-4">
-          {eyebrow}
-        </p>
-
-        <h1 className="text-4xl md:text-5xl font-serif tracking-tight text-white mb-4 leading-tight">
+      <div className="relative z-10 max-w-[1440px] mx-auto px-4 md:px-5 lg:px-6 py-12 md:py-16">
+        {eyebrow && (
+          <div className="text-[11px] font-semibold tracking-[0.2em] uppercase text-[#f59e0b] mb-4 font-sans">
+            {eyebrow}
+          </div>
+        )}
+        <h1
+          className="text-5xl md:text-6xl font-bold text-white leading-tight mb-4 max-w-2xl"
+          style={{ fontFamily: 'Newsreader, Georgia, serif' }}
+        >
           {title}
         </h1>
-
         {subtitle && (
-          <p className="text-slate-400/90 text-[15px] leading-relaxed mb-5 max-w-lg">
+          <p className="text-[15px] text-white/80 max-w-lg leading-relaxed">
             {subtitle}
           </p>
         )}
 
         {statusPill && (
-          <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-[10px] font-bold uppercase tracking-widest ${PILL_CLASSES[statusPill.color]}`}>
+          <div className={`mt-5 inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-[10px] font-bold uppercase tracking-widest ${PILL_CLASSES[statusPill.color]}`}>
             <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${DOT_CLASSES[statusPill.color]} ${statusPill.pulse ? 'animate-pulse' : ''}`} />
             {statusPill.label}
           </div>
@@ -114,7 +127,6 @@ export default function PortalPageHero({ eyebrow, title, subtitle, statusPill, c
             {cta.label}
           </Link>
         )}
-
       </div>
     </section>
   )

@@ -26,11 +26,11 @@ type Point = {
 function HangarSvg({ className = '' }: { className?: string }) {
   return (
     <svg viewBox="0 0 94 70" className={className} aria-hidden="true">
-      <path d="M5 26 L47 6 L89 26 V64 H5 Z" fill="rgba(24,38,61,0.86)" stroke="rgba(142,166,201,0.62)" strokeWidth="1.5" />
-      <path d="M28 64 V34 H66 V64" fill="rgba(17,27,44,0.92)" stroke="rgba(126,150,188,0.66)" strokeWidth="1.4" />
-      <path d="M32 37 H62" stroke="rgba(112,137,176,0.56)" strokeWidth="1" />
-      <circle cx="47" cy="16" r="4" fill="none" stroke="rgba(139,160,194,0.62)" strokeWidth="1.2" />
-      <path d="M18 64 H76" stroke="rgba(120,147,186,0.55)" strokeWidth="1" />
+      <path d="M5 26 L47 6 L89 26 V64 H5 Z" fill="#1a3a6b" stroke="rgba(21,45,90,0.14)" strokeWidth="1.5" />
+      <path d="M28 64 V34 H66 V64" fill="rgba(219,234,254,0.96)" stroke="rgba(21,45,90,0.14)" strokeWidth="1.4" />
+      <path d="M32 37 H62" stroke="rgba(96,165,250,0.40)" strokeWidth="1" />
+      <circle cx="47" cy="16" r="4" fill="none" stroke="rgba(96,165,250,0.40)" strokeWidth="1.2" />
+      <path d="M18 64 H76" stroke="rgba(21,45,90,0.12)" strokeWidth="1" />
     </svg>
   )
 }
@@ -89,7 +89,7 @@ export default function RunwayJourney({
   const isHorizontal = orientation === 'horizontal'
   const frameClass = variant === 'embedded'
     ? 'w-full'
-    : `rounded-2xl bg-[#1a2c45] border border-blue-900/35 shadow-[0_10px_26px_rgba(3,10,25,0.24)] ${isHorizontal ? 'p-6 md:p-7' : 'p-7 md:p-8'}`
+    : `rounded-2xl bg-white border border-[#152d5a]/10 shadow-[0_10px_26px_rgba(2,10,22,0.08)] ${isHorizontal ? 'p-6 md:p-7' : 'p-7 md:p-8'}`
 
   const geometry = useMemo(() => {
     if (isHorizontal) {
@@ -176,8 +176,8 @@ export default function RunwayJourney({
     <div className={frameClass}>
       {firstName && (
         <div className="mb-5">
-          <p className="text-xs uppercase tracking-[0.2em] text-blue-200/70">Progress</p>
-          <h2 className="text-base md:text-lg font-semibold text-white mt-1">Welcome, {firstName}</h2>
+          <p className="text-xs uppercase tracking-[0.2em] text-[#4b6390]">Progress</p>
+          <h2 className="text-base md:text-lg font-semibold text-[#152d5a] mt-1">Welcome, {firstName}</h2>
         </div>
       )}
 
@@ -195,13 +195,13 @@ export default function RunwayJourney({
               </filter>
             </defs>
 
-            <path d={geometry.d} stroke="rgba(16,27,44,0.96)" strokeWidth={geometry.runwayStroke} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            <path d={geometry.d} stroke="rgba(174,199,247,0.16)" strokeWidth={geometry.runwayStroke + 2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            <path d={geometry.d} stroke="rgba(219,234,254,0.74)" strokeWidth="2" fill="none" strokeDasharray="16 22" strokeLinecap="round" />
+            <path d={geometry.d} stroke="#dbeafe" strokeWidth={geometry.runwayStroke} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <path d={geometry.d} stroke="#93c5fd" strokeWidth={geometry.runwayStroke + 2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <path d={geometry.d} stroke="rgba(96,165,250,0.40)" strokeWidth="2" fill="none" strokeDasharray="16 22" strokeLinecap="round" />
 
             <path
               d={geometry.d}
-              stroke="rgba(147,197,253,0.45)"
+              stroke="#dbeafe"
               strokeWidth="14"
               fill="none"
               strokeLinecap="round"
@@ -231,7 +231,7 @@ export default function RunwayJourney({
                 <g key={m.label} transform={`translate(${point.x} ${point.y})`}>
                   <circle
                     r="8"
-                    className={done ? 'fill-emerald-500 stroke-emerald-300' : current ? 'fill-blue-500 stroke-blue-200' : 'fill-slate-500/80 stroke-slate-300/70'}
+                    className={done ? 'fill-[#1a4fd6] stroke-[#1a4fd6]' : current ? 'fill-blue-500 stroke-blue-200' : 'fill-[#f0f6ff] stroke-[#152d5a]/15'}
                     strokeWidth="1.5"
                   />
                   {current && <circle r="13" fill="rgba(191,219,254,0.32)" />}
@@ -241,7 +241,7 @@ export default function RunwayJourney({
                     width={isHorizontal ? 144 : 180}
                     height={isHorizontal ? 40 : 26}
                   >
-                    <p className={`text-[12px] md:text-[13px] whitespace-nowrap ${done ? 'text-emerald-100' : current ? 'text-blue-50 font-semibold' : 'text-slate-300/95'} ${isHorizontal ? 'text-center' : 'text-left'}`}>
+                    <p className={`text-[12px] md:text-[13px] whitespace-nowrap ${done || current ? 'text-[#152d5a]' : 'text-[#94a3b8]'} ${isHorizontal ? 'text-center' : 'text-left'}`}>
                       {m.label}
                     </p>
                   </foreignObject>
@@ -274,7 +274,7 @@ export default function RunwayJourney({
         </div>
 
         <div className="absolute pointer-events-none" style={geometry.hangarStyle as React.CSSProperties}>
-          <HangarSvg className="h-auto w-full drop-shadow-[0_4px_10px_rgba(2,6,18,0.45)]" />
+          <HangarSvg className="h-auto w-full drop-shadow-[0_4px_10px_rgba(2,6,18,0.12)]" />
         </div>
       </div>
     </div>

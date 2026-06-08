@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import PortalPageHero from '@/components/PortalPageHero'
 import CustomerAccountForm from './CustomerAccountForm'
+import ChangePasswordForm from '../../change-password/ChangePasswordForm'
 
 export const metadata = { title: 'Account | OZRentAPlane' }
 
@@ -45,6 +46,18 @@ export default async function CustomerSettingsPage() {
             initialPhoneCountryCode={(profile.phone_country_code ?? '+61').trim() || '+61'}
             initialPhoneNumber={profile.phone_number ?? ''}
           />
+
+          <section className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="mb-6">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500">Change password</h2>
+              <p className="mt-2 text-sm text-slate-500">
+                Set a new password for your customer portal account.
+              </p>
+            </div>
+            <div className="max-w-md">
+              <ChangePasswordForm />
+            </div>
+          </section>
         </div>
       </div>
     </>

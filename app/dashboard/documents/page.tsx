@@ -5,6 +5,7 @@ import PortalPageHero from '@/components/PortalPageHero'
 import type { UserDocument } from '@/lib/supabase/types'
 
 export const metadata = { title: 'My Documents | OZRentAPlane' }
+export const revalidate = 0
 
 export default async function CustomerDocumentsPage() {
   const supabase = await createClient()
@@ -24,6 +25,10 @@ export default async function CustomerDocumentsPage() {
     .from('user_documents')
     .select('*')
     .eq('user_id', user.id)
+    .order('updated_at', { ascending: false })
+
+  const pilotLicenceDocument =
+    (documents as UserDocument[] | null)?.find((doc) => doc.document_type === 'pilot_licence') ?? null
 
   return (
     <>
@@ -37,6 +42,7 @@ export default async function CustomerDocumentsPage() {
         <DocumentsPanel
           user={user}
           documents={(documents as UserDocument[]) || []}
+          pilotLicenceDocument={pilotLicenceDocument}
           lastFlightDate={profile?.last_flight_date ?? null}
           hasNightVfrRating={profile?.has_night_vfr_rating ?? null}
           hasInstrumentRating={profile?.has_instrument_rating ?? null}

@@ -20,7 +20,7 @@ export default async function AllCustomersPage({ searchParams }: { searchParams:
   const [{ data: profiles }, { data: checkoutBookings }, { data: pendingRescheduleRows }, { data: pendingCancellationRows }, { data: userDocuments }] = await Promise.all([
     supabase
     .from('profiles')
-    .select('id, full_name, email, pilot_clearance_status, account_status, updated_at')
+    .select('id, full_name, email, pilot_clearance_status, account_status, updated_at, phone_country_code, phone_number')
     .eq('role', 'customer')
     .order('updated_at', { ascending: false }),
     supabase
@@ -93,7 +93,7 @@ export default async function AllCustomersPage({ searchParams }: { searchParams:
         id: p.id,
         fullName: p.full_name || 'Unnamed customer',
         email: p.email || 'No email',
-        updatedAt: p.updated_at,
+        phone: p.phone_number ? (p.phone_country_code ? `+${p.phone_country_code} ${p.phone_number}` : p.phone_number) : null,
         lifecycleStatus: derivedStatus,
         needsAttention: attention.hasIssue,
         attentionReason: attention.hasIssue ? attention.reason : null,

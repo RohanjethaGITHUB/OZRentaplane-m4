@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
-import Navbar from '@/components/Navbar'
-import CustomerPortalSubNavSimple from '@/components/customer/CustomerPortalSubNavSimple'
+import CustomerPortalNav from '@/components/customer/CustomerPortalNav'
 import CustomerDashboardBackgroundOverlay from './CustomerDashboardBackgroundOverlay'
 import type { PilotClearanceStatus } from '@/lib/supabase/types'
 
@@ -14,7 +13,7 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, pilot_clearance_status, must_change_password')
+    .select('role, pilot_clearance_status, must_change_password, first_name')
     .eq('id', user.id)
     .single()
 
@@ -28,19 +27,33 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
   if (profile?.must_change_password && !isChangePasswordRoute) redirect('/dashboard/change-password')
   const clearanceStatus = (profile?.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
   const isClearedToFly = clearanceStatus === 'cleared_to_fly'
+  const firstName = (profile as any)?.first_name ?? user.email?.split('@')[0] ?? 'Pilot'
+  const email = user.email ?? ''
 
   return (
     <>
-      <Navbar initialUser={user} hideCustomerCheckoutLink={isClearedToFly} />
-      <div className="relative min-h-screen bg-open-ceiling pt-[84px] text-deep-ink">
+      <CustomerPortalNav firstName={firstName} email={email} hideCheckout={isClearedToFly} />
+      <div
+        className="relative min-h-screen pt-[64px] text-deep-ink dashboard-theme"
+        style={{
+          background: 'linear-gradient(180deg, #cfe3f5 0%, #daeaf8 60%, #e4f0fb 100%)',
+        }}
+      >
+        <div
+          className="pointer-events-none fixed inset-0 z-0"
+          style={{
+            backgroundImage: 'radial-gradient(circle, rgba(21,45,90,0.08) 1px, transparent 1px)',
+            backgroundSize: '22px 22px',
+          }}
+          aria-hidden="true"
+        />
+        <div className="pointer-events-none fixed top-[64px] left-0 right-0 z-40 h-[2px] bg-gradient-to-r from-transparent via-[#f59e0b]/30 to-transparent" />
         <CustomerDashboardBackgroundOverlay />
 
-        <div className="relative z-40 hidden md:flex sticky top-[84px] -mt-px justify-center bg-transparent px-4 pb-0 pt-0 md:px-8">
-          <CustomerPortalSubNavSimple hideCheckout={isClearedToFly} />
-        </div>
-
-        <main className="relative mx-auto w-full max-w-[1400px] px-4 pb-10 pt-4 md:px-8 md:pb-14 md:pt-4">
-          <div className="space-y-6">{children}</div>
+        <main className="relative z-10 mx-auto w-full max-w-[1440px] px-3 md:px-4 lg:px-6 pb-24 pt-4 md:pb-14 md:pt-4">
+          <div className="relative">
+            <div className="space-y-6">{children}</div>
+          </div>
         </main>
       </div>
     </>

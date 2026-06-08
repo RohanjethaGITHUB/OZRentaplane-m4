@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type { DocumentType } from '@/lib/supabase/types'
 
@@ -88,4 +89,62 @@ export async function saveCheckoutRedCardDetails(input: {
     console.error('[saveCheckoutRedCardDetails] update error', updateErr)
     throw new Error('Could not save Red Card details. Please try again.')
   }
+}
+
+export async function saveRedCardDetails(
+  userId: string,
+  expiryMonth: number,
+  expiryYear: number,
+): Promise<{ success: true } | { error: string }> {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+  if (authError || !user) throw new Error('Unauthorized')
+  if (user.id !== userId) throw new Error('Forbidden')
+
+  if (!expiryMonth || expiryMonth < 1 || expiryMonth > 12) {
+    throw new Error('Please select a valid Red Card expiry month.')
+  }
+  if (!expiryYear || expiryYear < new Date().getFullYear() || expiryYear > new Date().getFullYear() + 10) {
+    throw new Error('Please select a valid Red Card expiry year.')
+  }
+
+  const { data: pilotDoc, error: pilotDocErr } = await supabase
+    .from('user_documents')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('document_type', 'pilot_licence')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (pilotDocErr) {
+    console.error('[saveRedCardDetails] lookup error', pilotDocErr)
+    throw new Error('Could not load your pilot licence document.')
+  }
+  if (!pilotDoc?.id) {
+    throw new Error('Please upload your Pilot Licence before saving Red Card details.')
+  }
+
+  const { error: updateErr } = await supabase
+    .from('user_documents')
+    .update({
+      has_red_card: true,
+      red_card_expiry_month: expiryMonth,
+      red_card_expiry_year: expiryYear,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId)
+    .eq('document_type', 'pilot_licence')
+
+  if (updateErr) {
+    console.error('saveRedCardDetails error:', updateErr)
+    return { error: 'Failed to save Red Card details.' }
+  }
+
+  revalidatePath('/dashboard/documents')
+  return { success: true }
 }

@@ -10,7 +10,7 @@ import { customerWelcomeAdminEmail } from '@/lib/email/templates/customer-welcom
 type CreateCustomerInput = {
   email: string
   fullName: string
-  phone: string
+  phone?: string
   pilotArn?: string
 }
 
@@ -22,11 +22,11 @@ export async function createCustomerAccount(input: CreateCustomerInput): Promise
 
     const email = input.email.trim().toLowerCase()
     const fullName = input.fullName.trim()
-    const phone = input.phone.trim()
+    const phone = input.phone?.trim() || null
     const pilotArn = input.pilotArn?.trim() || null
 
-    if (!email || !fullName || !phone) {
-      return { success: false, error: 'Full name, email, and phone are required.' }
+    if (!email || !fullName) {
+      return { success: false, error: 'Full name and email are required.' }
     }
 
     const admin = createAdminClient()

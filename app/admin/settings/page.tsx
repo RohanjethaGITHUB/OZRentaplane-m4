@@ -29,7 +29,7 @@ export default async function AdminSettingsPage() {
 
       <section className="space-y-6">
         <h3 className="text-xl font-semibold text-[#0C2340] tracking-tight">1. Aircraft Settings</h3>
-        <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-[1.25rem] p-8 space-y-6">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8 space-y-6">
           {aircraft ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div>
@@ -76,23 +76,23 @@ export default async function AdminSettingsPage() {
       <section className="space-y-6">
         <h3 className="text-xl font-semibold text-[#0C2340] tracking-tight">2. Booking Rules</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-2xl p-6 pointer-events-none">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 pointer-events-none">
             <h4 className="text-sm font-semibold text-[#0C2340] mb-2">Admin Approval Requirement</h4>
             <p className="text-xs text-[#3d5a80] mb-4">Dictates if flights need manual PIC checkout verification.</p>
             <div className="w-12 h-6 bg-[#dbe8f5] rounded-full relative border border-[rgba(12,35,64,0.18)]">
               <div className="w-4 h-4 bg-[#1a4a7a] rounded-full absolute top-1 right-1" />
             </div>
           </div>
-          <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-2xl p-6 pointer-events-none">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 pointer-events-none">
             <h4 className="text-sm font-semibold text-[#0C2340] mb-2">Cancellation Windows</h4>
             <p className="text-xs text-[#3d5a80] mb-4">Hours required before a booking cancellation charges a penalty.</p>
             <input type="text" disabled placeholder="e.g. 24 hours" className="w-full bg-white border border-[rgba(12,35,64,0.2)] rounded-lg px-3 py-2 text-sm text-[#0C2340] placeholder:text-[#3d5a80]" />
           </div>
-          <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-2xl p-6 pointer-events-none">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 pointer-events-none">
             <h4 className="text-sm font-semibold text-[#0C2340] mb-2">Maximum Booking Duration</h4>
             <input type="text" disabled placeholder="e.g. 7 days" className="w-full bg-white border border-[rgba(12,35,64,0.2)] rounded-lg px-3 py-2 text-sm text-[#0C2340] placeholder:text-[#3d5a80]" />
           </div>
-          <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-2xl p-6 pointer-events-none">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 pointer-events-none">
             <h4 className="text-sm font-semibold text-[#0C2340] mb-2">Minimum Booking Duration</h4>
             <input type="text" disabled placeholder="e.g. 1 hour" className="w-full bg-white border border-[rgba(12,35,64,0.2)] rounded-lg px-3 py-2 text-sm text-[#0C2340] placeholder:text-[#3d5a80]" />
           </div>
@@ -101,7 +101,7 @@ export default async function AdminSettingsPage() {
 
       <section className="space-y-6">
         <h3 className="text-xl font-semibold text-[#0C2340] tracking-tight">3. Post-Flight Requirements</h3>
-        <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-[1.25rem] p-8">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-4 pointer-events-none">
               <h4 className="text-xs font-semibold uppercase tracking-wide text-[#3d5a80]">Meters Enforced</h4>
@@ -128,7 +128,7 @@ export default async function AdminSettingsPage() {
         <h3 className="text-xl font-semibold text-[#0C2340] tracking-tight">4. Notifications & Alerts</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {['Booking Requests', 'Post-Flight Reviews', 'Overdue Flight Logs', 'Grounded Aircraft'].map((item) => (
-            <div key={item} className="bg-white border border-[rgba(12,35,64,0.15)] rounded-xl p-5 flex items-center justify-between pointer-events-none">
+            <div key={item} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center justify-between pointer-events-none">
               <span className="text-sm text-[#0C2340]">{item}</span>
               <div className="w-8 h-4 bg-[#dbe8f5] rounded-full relative border border-[rgba(12,35,64,0.18)]">
                 <div className="w-3 h-3 bg-[#1a4a7a] rounded-full absolute top-0.5 right-0.5" />
@@ -140,7 +140,7 @@ export default async function AdminSettingsPage() {
 
       <section className="space-y-6 pb-12">
         <h3 className="text-xl font-semibold text-[#0C2340] tracking-tight">5. Legal Documents</h3>
-        <div className="bg-white border border-[rgba(12,35,64,0.15)] rounded-2xl p-6 flex flex-col md:flex-row gap-6">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col md:flex-row gap-6">
           <div className="flex-1 space-y-2 pointer-events-none">
             <h4 className="text-xs font-semibold uppercase tracking-wide text-[#3d5a80]">Terms & Conditions</h4>
             <input type="text" disabled value="v1.4 (Active)" className="w-full bg-white border border-[rgba(12,35,64,0.2)] rounded-lg px-3 py-2 text-sm text-[#0C2340]" />

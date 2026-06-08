@@ -53,6 +53,12 @@ export default async function DashboardPage({
   const paymentPending  = clearanceStatus === 'checkout_payment_required'
   const nowIso = new Date().toISOString()
   const passwordUpdated = searchParams?.passwordUpdated === '1'
+  const mustChangePassword = Boolean((profile as Profile | null)?.must_change_password)
+  const skipPasswordPrompt = searchParams?.skip_password_prompt === '1'
+
+  if (mustChangePassword && !skipPasswordPrompt) {
+    redirect('/change-password')
+  }
 
   // ── Parallel fetches ──────────────────────────────────────────────────────
   // When payment is pending, also fetch:
@@ -391,6 +397,8 @@ export default async function DashboardPage({
       documents={(documents as UserDocument[]) || []}
       events={(events as VerificationEvent[]) || []}
       isFirstLogin={isFirstLogin}
+      mustChangePassword={mustChangePassword}
+      passwordUpdated={passwordUpdated}
       checkoutBookingId={checkoutBookingId}
       checkoutInvoice={checkoutInvoice}
       activeBooking={activeBooking}

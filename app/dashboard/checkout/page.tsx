@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeActiveCheckoutTerms, type ActiveCheckoutTerms } from '@/lib/checkout-terms'
+import PortalPageHero from '@/components/PortalPageHero'
 import CustomerBookingShell from '../bookings/CustomerBookingShell'
 import CheckoutFlow from './CheckoutFlow'
 import { deriveJourneyState } from '@/lib/customer-journey'
@@ -57,8 +58,25 @@ function CheckoutSetupUnavailable() {
   )
 }
 
+function CheckoutHero() {
+  return (
+    <PortalPageHero
+      eyebrow="CHECKOUT"
+      title="Book Your Checkout Flight"
+      subtitle="Select your checkout flight details below. Our instructors will review your request and confirm your flight."
+      backgroundImage="/CustomerDashboard/CustomerDashboard-checkout-hero.webp"
+    />
+  )
+}
+
 export default async function CheckoutPage() {
   const supabase = await createClient()
+  const ACTIVE_CHECKOUT_STATUSES = [
+    'checkout_confirmed',
+    'checkout_requested',
+    'checkout_completed_under_review',
+    'checkout_payment_required',
+  ] as const
   const { data: { user }, error: authErr } = await supabase.auth.getUser()
   if (authErr) {
     console.error('[checkout_route_auth_error]', {
@@ -83,27 +101,40 @@ export default async function CheckoutPage() {
     typedProfile?.account_status === 'blocked' &&
     typedProfile?.account_lock_reason === 'checkout_no_show'
 
+  const { data: activeCheckoutBookingForRedirect } = await supabase
+    .from('bookings')
+    .select('id')
+    .eq('booking_owner_user_id', user.id)
+    .eq('booking_type', 'checkout')
+    .in('status', [...ACTIVE_CHECKOUT_STATUSES])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
   const TERMINAL_STATES = ['cleared_to_fly', 'not_currently_eligible']
-  if (TERMINAL_STATES.includes(clearanceStatus)) {
+  if (!activeCheckoutBookingForRedirect && TERMINAL_STATES.includes(clearanceStatus)) {
     redirect('/dashboard')
   }
 
   if (noShowLocked) {
     return (
       <CustomerBookingShell user={user as User} profile={typedProfile}>
-        <section className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-5">
-          <p className="text-sm font-semibold text-rose-100">
-            Your account is currently locked because you were marked as a no-show for your checkout flight.
-          </p>
-          <p className="mt-2 text-sm text-rose-100/90">
-            Please contact OZ Rent A Plane to discuss your checkout status and unlock your account.
-          </p>
-          <p className="mt-2 text-sm text-white">
-            Call:{' '}
-            <a href={`tel:${ADMIN_CONTACT_PHONE_TEL}`} className="underline underline-offset-2">
-              {ADMIN_CONTACT_PHONE_DISPLAY}
-            </a>
-          </p>
+        <CheckoutHero />
+        <section className="space-y-5 mt-5">
+          <section className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-5">
+            <p className="text-sm font-semibold text-rose-100">
+              Your account is currently locked because you were marked as a no-show for your checkout flight.
+            </p>
+            <p className="mt-2 text-sm text-rose-100/90">
+              Please contact OZ Rent A Plane to discuss your checkout status and unlock your account.
+            </p>
+            <p className="mt-2 text-sm text-white">
+              Call:{' '}
+              <a href={`tel:${ADMIN_CONTACT_PHONE_TEL}`} className="underline underline-offset-2">
+                {ADMIN_CONTACT_PHONE_DISPLAY}
+              </a>
+            </p>
+          </section>
         </section>
       </CustomerBookingShell>
     )
@@ -124,6 +155,7 @@ export default async function CheckoutPage() {
       .select('id, status, booking_type, scheduled_start, scheduled_end, checkout_lifecycle_status, created_at')
       .eq('booking_owner_user_id', user.id)
       .eq('booking_type', 'checkout')
+      .in('status', [...ACTIVE_CHECKOUT_STATUSES])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -221,7 +253,10 @@ export default async function CheckoutPage() {
   if (!aircraft || !activeCheckoutTerms) {
     return (
       <CustomerBookingShell user={user as User} profile={typedProfile}>
-        <CheckoutSetupUnavailable />
+        <CheckoutHero />
+        <div className="space-y-5 mt-5">
+          <CheckoutSetupUnavailable />
+        </div>
       </CustomerBookingShell>
     )
   }
@@ -234,47 +269,46 @@ export default async function CheckoutPage() {
   })
   return (
     <CustomerBookingShell user={user as User} profile={typedProfile}>
-      <section className="space-y-6">
-        <section className="rounded-2xl border border-[rgba(148,163,184,0.16)] bg-[rgba(8,22,39,0.88)] p-3 md:p-5 shadow-sm">
-          <CheckoutFlow
-            firstName={firstName}
-            aircraftId={aircraft.id}
-            aircraftRegistration={aircraft.registration}
-            aircraftDisplayName={aircraft.display_name || aircraft.aircraft_type}
-            aircraftStatus={aircraft.status}
-            documents={(documents ?? []) as UserDocument[]}
-            pilotClearanceStatus={clearanceStatus}
-            journeyActiveIndex={journey.activeIndex}
-            journeyCompletedMap={journey.completedMap}
-            initialLastFlightDate={typedProfile?.last_flight_date ?? ''}
-            initialNightVfrRating={typedProfile?.has_night_vfr_rating ?? null}
-            initialInstrumentRating={typedProfile?.has_instrument_rating ?? null}
-            activeCheckoutTerms={activeCheckoutTerms}
-            activeCheckoutBooking={
-              checkoutBooking
-                ? {
-                    id: checkoutBooking.id,
-                    status: checkoutBooking.status,
-                    booking_type: checkoutBooking.booking_type,
-                    scheduled_start: checkoutBooking.scheduled_start,
-                    scheduled_end: checkoutBooking.scheduled_end,
-                    checkout_lifecycle_status: checkoutBooking.checkout_lifecycle_status ?? null,
-                  }
-                : null
-            }
-            pendingRescheduleRequest={
-              latestRescheduleRequest
-                ? {
-                    id: latestRescheduleRequest.id,
-                    status: latestRescheduleRequest.status,
-                    requested_scheduled_start: latestRescheduleRequest.requested_scheduled_start,
-                    requested_scheduled_end: latestRescheduleRequest.requested_scheduled_end,
-                  }
-                : null
-            }
-          />
-        </section>
-      </section>
+      <CheckoutHero />
+      <div className="space-y-5 mt-5">
+        <CheckoutFlow
+          firstName={firstName}
+          aircraftId={aircraft.id}
+          aircraftRegistration={aircraft.registration}
+          aircraftDisplayName={aircraft.display_name || aircraft.aircraft_type}
+          aircraftStatus={aircraft.status}
+          documents={(documents ?? []) as UserDocument[]}
+          pilotClearanceStatus={clearanceStatus}
+          journeyActiveIndex={journey.activeIndex}
+          journeyCompletedMap={journey.completedMap}
+          initialLastFlightDate={typedProfile?.last_flight_date ?? ''}
+          initialNightVfrRating={typedProfile?.has_night_vfr_rating ?? null}
+          initialInstrumentRating={typedProfile?.has_instrument_rating ?? null}
+          activeCheckoutTerms={activeCheckoutTerms}
+          activeCheckoutBooking={
+            checkoutBooking
+              ? {
+                  id: checkoutBooking.id,
+                  status: checkoutBooking.status,
+                  booking_type: checkoutBooking.booking_type,
+                  scheduled_start: checkoutBooking.scheduled_start,
+                  scheduled_end: checkoutBooking.scheduled_end,
+                  checkout_lifecycle_status: checkoutBooking.checkout_lifecycle_status ?? null,
+                }
+              : null
+          }
+          pendingRescheduleRequest={
+            latestRescheduleRequest
+              ? {
+                  id: latestRescheduleRequest.id,
+                  status: latestRescheduleRequest.status,
+                  requested_scheduled_start: latestRescheduleRequest.requested_scheduled_start,
+                  requested_scheduled_end: latestRescheduleRequest.requested_scheduled_end,
+                }
+              : null
+          }
+        />
+      </div>
     </CustomerBookingShell>
   )
 }

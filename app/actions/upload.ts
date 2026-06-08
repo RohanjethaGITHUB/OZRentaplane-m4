@@ -55,10 +55,9 @@ export async function uploadVerificationDocument(formData: FormData) {
     if (!expiryDate)   throw new Error('Expiry date is required for the Medical Certificate.')
   }
 
-  // Pilot licence requires licence type and both rating answers
+  // Pilot licence requires licence type and instrument rating.
   if (docType === 'pilot_licence') {
     if (!licenceType)                throw new Error('Licence type is required for the Pilot Licence.')
-    if (hasNightVfrRating === null)  throw new Error('Night VFR rating status is required for the Pilot Licence.')
     if (hasInstrumentRating === null) throw new Error('Instrument rating status is required for the Pilot Licence.')
     if (hasRedCard === true && (!redCardExpiryMonth || !redCardExpiryYear)) {
       throw new Error('Red Card expiry month and year are required when Red Card is set to Yes.')
@@ -81,6 +80,20 @@ export async function uploadVerificationDocument(formData: FormData) {
   const ext         = file.name.split('.').pop() ?? 'pdf'
   const storagePath = `${user.id}/${docType}/${timestamp}.${ext}`
 
+  const { data: existingDoc, error: existingDocError } = await supabase
+    .from('user_documents')
+    .select('id, status')
+    .eq('user_id', user.id)
+    .eq('document_type', docType)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (existingDocError) {
+    console.error('[uploadVerificationDocument] Existing document lookup failed:', existingDocError)
+    throw new Error('Failed to load your existing document record. Please try again.')
+  }
+
   const { error: uploadError } = await supabase.storage
     .from('verification_documents')
     .upload(storagePath, file, { upsert: false, contentType: file.type })
@@ -90,50 +103,44 @@ export async function uploadVerificationDocument(formData: FormData) {
     throw new Error('Upload failed. Please try again.')
   }
 
-  // INSERT a new row — the unique constraint on (user_id, document_type) was
-  // dropped in migration 051 to support multiple files per document type.
-  // Validation selects the latest non-rejected, non-expired row per type.
-  const { error: dbError } = await supabase
-    .from('user_documents')
-    .insert({
-      user_id:         user.id,
-      document_type:   docType,
-      file_name:       file.name,
-      storage_path:    storagePath,
-      status:          'uploaded',
-      expiry_date:     expiryDate,
-      issue_date:      issueDate,
-      licence_type:    licenceType,
-      licence_number:  licenceNumber,
-      medical_class:   medicalClass,
-      id_type:         idType,
-      document_number: documentNumber,
-      has_red_card: hasRedCard,
-      red_card_expiry_month: redCardExpiryMonth,
-      red_card_expiry_year: redCardExpiryYear,
-    })
+  const documentPayload = {
+    user_id:               user.id,
+    document_type:         docType,
+    file_name:             file.name,
+    storage_path:          storagePath,
+    status:                'uploaded' as const,
+    review_notes:          null,
+    reviewed_at:           null,
+    uploaded_at:           new Date().toISOString(),
+    updated_at:            new Date().toISOString(),
+    expiry_date:           expiryDate,
+    issue_date:            issueDate,
+    licence_type:          licenceType,
+    licence_number:        licenceNumber,
+    medical_class:         medicalClass,
+    id_type:               idType,
+    document_number:       documentNumber,
+    has_red_card:          hasRedCard,
+    red_card_expiry_month: redCardExpiryMonth,
+    red_card_expiry_year:  redCardExpiryYear,
+  }
+
+  const { error: dbError } = existingDoc?.id
+    ? await supabase
+        .from('user_documents')
+        .update(documentPayload)
+        .eq('id', existingDoc.id)
+    : await supabase
+        .from('user_documents')
+        .insert(documentPayload)
 
   if (dbError) {
     console.error('[uploadVerificationDocument] DB error:', dbError)
     throw new Error('Failed to save document metadata. Please try again.')
   }
 
-  const { data: previousRejectedDoc, error: previousRejectedError } = await supabase
-    .from('user_documents')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('document_type', docType)
-    .eq('status', 'rejected')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (previousRejectedError) {
-    console.error('[uploadVerificationDocument] Previous rejected doc lookup failed:', previousRejectedError)
-  }
-
   const documentLabel = getHumanReadableDocumentType(docType)
-  const isReupload = Boolean(previousRejectedDoc)
+  const isReupload = existingDoc?.status === 'rejected'
 
   const { error: notificationError } = await supabase.from('verification_events').insert({
     user_id:         user.id,
@@ -155,9 +162,9 @@ export async function uploadVerificationDocument(formData: FormData) {
   // When a pilot licence is uploaded, sync ARN and ratings to the customer's profile.
   if (docType === 'pilot_licence') {
     const profileUpdate: Record<string, unknown> = {
-      has_night_vfr_rating:  hasNightVfrRating,
       has_instrument_rating: hasInstrumentRating,
     }
+    if (hasNightVfrRating !== null) profileUpdate.has_night_vfr_rating = hasNightVfrRating
     if (licenceNumber?.trim()) profileUpdate.pilot_arn = licenceNumber.trim()
 
     await supabase

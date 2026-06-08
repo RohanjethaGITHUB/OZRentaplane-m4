@@ -10,7 +10,7 @@ type Row = {
   id: string
   fullName: string
   email: string
-  updatedAt: string
+  phone?: string | null
   lifecycleStatus: CustomerLifecycleStatus
   needsAttention: boolean
   attentionReason: string | null
@@ -25,12 +25,7 @@ const FILTERS: Array<{ key: CustomerFilterKey; label: string }> = [
   { key: 'needs_attention', label: 'Needs Attention' },
 ]
 
-const DATE_FMT = new Intl.DateTimeFormat('en-AU', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  timeZone: 'Australia/Sydney',
-})
+
 
 export default function CustomerDirectoryTable({
   rows,
@@ -60,7 +55,7 @@ export default function CustomerDirectoryTable({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-panel-bg)] p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between shadow-sm">
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
           {FILTERS.map((filter) => {
             const active = activeFilter === filter.key
@@ -91,7 +86,7 @@ export default function CustomerDirectoryTable({
       </div>
 
       <div className="hidden md:block">
-        <AdminDataTable columns={activeFilter === 'needs_attention' ? ['Customer', 'Status', 'Attention Needed', 'Updated'] : ['Customer', 'Status', 'Updated']}>
+        <AdminDataTable columns={activeFilter === 'needs_attention' ? ['Customer', 'Status', 'Attention Needed', 'PHONE'] : ['Customer', 'Status', 'PHONE']}>
           {filteredRows.length === 0 ? (
             <tr>
               <td colSpan={activeFilter === 'needs_attention' ? 4 : 3} className="px-5 py-12 text-center text-[var(--admin-text-muted)]">
@@ -133,7 +128,7 @@ export default function CustomerDirectoryTable({
                   {activeFilter === 'needs_attention' ? (
                     <td className="px-5 py-[16px] text-[14px] text-[var(--admin-text-muted)]">{r.attentionReason || 'Status inconsistency, review customer record'}</td>
                   ) : null}
-                  <td className="px-5 py-[16px] text-[14px] text-[var(--admin-text)]">{DATE_FMT.format(new Date(r.updatedAt))}</td>
+                  <td className="px-5 py-[16px] text-[14px] text-[var(--admin-text)]">{r.phone || <span className="text-slate-400">—</span>}</td>
                 </tr>
               )
             })
@@ -205,7 +200,7 @@ export default function CustomerDirectoryTable({
 
                 <div className="flex items-center justify-between border-t border-[#152d5a]/8 pt-2.5">
                   <span className="text-[11px] text-[#4b6390]/70">
-                    Updated {DATE_FMT.format(new Date(r.updatedAt))}
+                    {r.phone || <span className="text-slate-400">—</span>}
                   </span>
                   <span className="text-[11px] font-medium text-[#1a4fd6] flex items-center gap-0.5">
                     View profile →

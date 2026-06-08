@@ -74,7 +74,11 @@ export default async function AdminUserPage({ params }: { params: { id: string }
     { data: documents },
     { data: events },
     balanceCents,
+    { data: revenueInvoices },
     transactions,
+    { count: totalBookingCount },
+    { count: checkoutBookingCount },
+    { count: standardBookingCount },
     { data: checkoutBookingsRaw },
     { data: standardBookingsRaw },
     { data: pendingRescheduleRows },
@@ -95,7 +99,15 @@ export default async function AdminUserPage({ params }: { params: { id: string }
       .eq('user_id', params.id)
       .order('created_at', { ascending: false }),
     getCustomerCreditBalance(params.id),
+    supabase
+      .from('checkout_payment_invoices')
+      .select('total_paid_cents')
+      .eq('customer_id', params.id)
+      .eq('status', 'paid'),
     getCustomerCreditTransactions(params.id),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_owner_user_id', params.id),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_owner_user_id', params.id).eq('booking_type', 'checkout'),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_owner_user_id', params.id).eq('booking_type', 'standard'),
     supabase
       .from('bookings')
       .select('id, status, booking_type, checkout_lifecycle_status, scheduled_start, payment_status, aircraft ( id, registration )')
@@ -157,6 +169,10 @@ export default async function AdminUserPage({ params }: { params: { id: string }
 
   const checkoutBookings  = checkoutBookingsRaw ?? []
   const standardBookings  = standardBookingsRaw ?? []
+  const totalRevenueCents = (revenueInvoices ?? []).reduce(
+    (sum, invoice: { total_paid_cents: number | null }) => sum + (invoice.total_paid_cents ?? 0),
+    0,
+  )
   const latestCheckoutBookingId = checkoutBookings[0]?.id ?? null
   const ACTIVE_CHECKOUT_STATUSES = ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required']
   const hasActiveCheckoutRequest = checkoutBookings.some(
@@ -389,7 +405,11 @@ export default async function AdminUserPage({ params }: { params: { id: string }
         aircraftRows={aircraftRows ?? []}
         aircraftLogRows={aircraftLogRows ?? []}
         balanceCents={balanceCents ?? 0}
+        totalRevenueCents={totalRevenueCents}
         transactions={transactions ?? []}
+        totalBookingCount={totalBookingCount ?? 0}
+        checkoutBookingCount={checkoutBookingCount ?? 0}
+        standardBookingCount={standardBookingCount ?? 0}
         recordedByAdminProfile={
           recordedByAdminProfile ?? null
         }

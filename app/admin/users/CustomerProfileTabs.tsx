@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { type ReactNode } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import type { AccountStatus, PilotClearanceStatus, UserDocument, VerificationEvent } from '@/lib/supabase/types'
 import CurrentActionSection from './CurrentActionSection'
 import CheckoutActivitySection from './CheckoutActivitySection'
@@ -111,6 +112,8 @@ type RecordedByAdminProfile = {
   } | null
 } | null
 
+type TabType = 'overview' | 'documents' | 'bookings' | 'billing' | 'messages' | 'log'
+
 type CustomerProfile = {
   id: string
   full_name: string | null
@@ -145,7 +148,11 @@ type Props = {
   aircraftRows: AircraftRow[]
   aircraftLogRows: AircraftLogRow[]
   balanceCents: number
+  totalRevenueCents: number
   transactions: CreditTransaction[]
+  totalBookingCount: number
+  checkoutBookingCount: number
+  standardBookingCount: number
   recordedByAdminProfile: RecordedByAdminProfile
   onHoldBookingCount: number
 }
@@ -161,6 +168,24 @@ function shortDate(value: string | null | undefined): string {
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return '—'
   return new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric' }).format(d)
+}
+
+function activityDate(value: string | null | undefined): string {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function activityDotClass(eventType: string): string {
+  if (eventType === 'document_uploaded') return 'bg-amber-400'
+  if (eventType === 'approved') return 'bg-green-500'
+  if (eventType === 'rejected') return 'bg-red-500'
+  if (eventType === 'on_hold') return 'bg-orange-400'
+  if (eventType === 'submitted' || eventType === 'resubmitted') return 'bg-blue-500'
+  if (eventType === 'message') return 'bg-purple-400'
+  if (eventType === 'admin_proxy_booking_created') return 'bg-[#152d5a]'
+  return 'bg-slate-400'
 }
 
 function clearanceBadge(status: PilotClearanceStatus): { label: string; bg: string; text: string } {
@@ -235,14 +260,65 @@ export default function CustomerProfileTabs({
   aircraftRows,
   aircraftLogRows,
   balanceCents,
+  totalRevenueCents,
   transactions,
+  totalBookingCount,
+  checkoutBookingCount,
+  standardBookingCount,
   recordedByAdminProfile,
   onHoldBookingCount,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<'overview'|'documents'|'bookings'|'billing'|'messages'|'log'>('overview')
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const activeTab = (searchParams?.get('tab') ?? 'overview') as TabType
 
   const initials = customerProfile.full_name?.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() ?? '??'
   const uploadedRequired = REQUIRED_DOC_TYPES.filter((t) => documents.some((d) => d.document_type === t && (d.status === 'uploaded' || d.status === 'approved'))).length
+  const latestDocumentsByType = new Map<UserDocument['document_type'], UserDocument>()
+  for (const doc of documents) {
+    if (!latestDocumentsByType.has(doc.document_type)) {
+      latestDocumentsByType.set(doc.document_type, doc)
+    }
+  }
+  const latestDocuments = Array.from(latestDocumentsByType.values())
+  const documentStatusCounts = {
+    uploaded: latestDocuments.filter((doc) => doc.status === 'uploaded').length,
+    approved: latestDocuments.filter((doc) => doc.status === 'approved').length,
+    rejected: latestDocuments.filter((doc) => doc.status === 'rejected').length,
+  }
+  const totalDocumentCount =
+    documentStatusCounts.uploaded + documentStatusCounts.approved + documentStatusCounts.rejected
+  const documentStatTone: QuickStatTone =
+    documentStatusCounts.rejected > 0
+      ? 'red'
+      : documentStatusCounts.approved > 0 && totalDocumentCount === documentStatusCounts.approved
+        ? 'green'
+        : documentStatusCounts.uploaded > 0
+          ? 'amber'
+          : 'slate'
+  const requiredHeroDocuments = REQUIRED_DOC_TYPES
+    .map((type) => latestDocumentsByType.get(type))
+    .filter((doc): doc is UserDocument => Boolean(doc))
+  const heroDocumentsLabel =
+    requiredHeroDocuments.length === 0
+      ? 'Docs required'
+      : requiredHeroDocuments.some((doc) => doc.status === 'rejected')
+        ? 'Review required'
+        : requiredHeroDocuments.some((doc) => doc.status === 'uploaded')
+          ? 'Review required'
+          : REQUIRED_DOC_TYPES.every((type) => latestDocumentsByType.get(type)?.status === 'approved')
+            ? 'All approved'
+            : 'Docs required'
+  const heroDocumentsValueClass =
+    requiredHeroDocuments.length === 0
+      ? 'text-red-400'
+      : requiredHeroDocuments.some((doc) => doc.status === 'rejected')
+        ? 'text-red-400'
+        : requiredHeroDocuments.some((doc) => doc.status === 'uploaded')
+          ? 'text-amber-400'
+          : REQUIRED_DOC_TYPES.every((type) => latestDocumentsByType.get(type)?.status === 'approved')
+            ? 'text-green-400'
+            : 'text-red-400'
   const clearance = clearanceBadge(clearanceStatus)
   const account = accountBadge(accountStatus)
 
@@ -273,38 +349,13 @@ export default function CustomerProfileTabs({
         .replace(/_/g, ' ')
         .replace(/\b\w/g, (c) => c.toUpperCase())
     : '—'
-  type QuickStatTone = 'green' | 'amber' | 'red' | 'blue'
-  type QuickStat = { label: string; value: string; tone: QuickStatTone }
-  const quickStats: QuickStat[] = [
-    {
-      label: 'Clearance',
-      value: clearanceValue,
-      tone:
-        accountStatus === 'blocked' || clearanceStatus === 'not_currently_eligible'
-          ? 'red'
-          : clearanceStatus === 'cleared_to_fly'
-            ? 'green'
-            : 'amber',
-    },
-    {
-      label: 'Terms & Conditions',
-      value: customerProfile.terms_accepted_at ? 'Accepted' : 'Not accepted',
-      tone: customerProfile.terms_accepted_at ? 'green' : 'red',
-    },
-    {
-      label: 'Documents',
-      value: `${uploadedRequired} / 3`,
-      tone: uploadedRequired === REQUIRED_DOC_TYPES.length ? 'green' : 'amber',
-    },
-    { label: 'Credit', value: `$${(balanceCents / 100).toFixed(2)}`, tone: 'blue' },
-    { label: 'Checkouts', value: String(checkoutBookings.length), tone: 'blue' },
-    { label: 'Bookings', value: String(standardBookings.length), tone: 'blue' },
-  ]
+  type QuickStatTone = 'green' | 'amber' | 'red' | 'blue' | 'slate'
 
   function quickStatAccentClass(tone: QuickStatTone): string {
     if (tone === 'green') return 'border-l-green-600'
     if (tone === 'amber') return 'border-l-amber-500'
     if (tone === 'red') return 'border-l-red-600'
+    if (tone === 'slate') return 'border-l-slate-300'
     return 'border-l-blue-600'
   }
 
@@ -321,37 +372,159 @@ export default function CustomerProfileTabs({
       return customerProfile.terms_accepted_at ? 'text-green-600 font-medium' : 'text-red-600 font-medium'
     }
     if (label === 'Documents') {
-      return uploadedRequired === REQUIRED_DOC_TYPES.length ? 'text-green-600 font-medium' : 'text-amber-600 font-medium'
-    }
-    if (label === 'Credit') {
-      return 'text-[#0C2340] font-medium'
+      if (documentStatusCounts.rejected > 0) return 'text-red-700 font-medium'
+      if (documentStatusCounts.approved > 0 && totalDocumentCount === documentStatusCounts.approved) {
+        return 'text-green-700 font-medium'
+      }
+      if (documentStatusCounts.uploaded > 0) return 'text-amber-800 font-medium'
+      return 'text-slate-500 font-medium'
     }
     return 'text-[#0C2340] font-medium'
   }
 
-  const recentTimelineEvents = [...timelineEvents]
-    .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
-    .slice(-6)
+  const recentActivityEvents = [...events]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 6)
 
   const currentStatus = getCurrentStatusText(clearanceStatus, accountStatus)
   const currentStatusAction = accountStatus === 'blocked' ? null : CLEARANCE_ACTION[clearanceStatus]
 
+  function setTab(tab: TabType) {
+    router.replace(`?tab=${tab}`, { scroll: false })
+  }
+
+  function openTab(tab: TabType) {
+    setTab(tab)
+  }
+
   function QuickStatsGrid() {
+    function StatCard({
+      label,
+      tone,
+      children,
+      subtext,
+      hrefTab,
+      className = '',
+    }: {
+      label: string
+      tone: QuickStatTone
+      children: ReactNode
+      subtext?: ReactNode
+      hrefTab?: TabType | null
+      className?: string
+    }) {
+      const isClickable = Boolean(hrefTab)
+      const handleClick = () => {
+        if (hrefTab) openTab(hrefTab)
+      }
+
+      const cardClasses = `rounded-xl border border-[rgba(12,35,64,0.15)] border-l-4 p-3 pl-4 ${quickStatAccentClass(tone)} ${
+        label === 'Clearance'
+          ? clearanceStatus === 'cleared_to_fly'
+            ? 'bg-green-50'
+            : accountStatus === 'blocked' || clearanceStatus === 'not_currently_eligible'
+              ? 'bg-red-50'
+              : 'bg-amber-50'
+          : label === 'Terms & Conditions'
+            ? customerProfile.terms_accepted_at
+              ? 'bg-green-50'
+              : 'bg-red-50'
+            : label === 'Documents'
+              ? documentStatusCounts.rejected > 0
+                ? 'bg-red-50 border-red-300'
+                : documentStatusCounts.approved > 0 && totalDocumentCount === documentStatusCounts.approved
+                  ? 'bg-green-50 border-green-300'
+                  : documentStatusCounts.uploaded > 0
+                    ? 'bg-amber-50 border-amber-300'
+                    : 'bg-slate-50 border-slate-200'
+              : label === 'Billing'
+                ? 'bg-slate-50'
+                : 'bg-slate-50'
+      } ${isClickable ? 'cursor-pointer hover:shadow-md hover:border-[#152d5a]/20 transition-all duration-150' : ''} ${className}`
+
+      if (isClickable) {
+        return (
+          <button type="button" onClick={handleClick} className={`${cardClasses} text-left w-full`}>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#3d5a80] mb-1.5">
+              {label}
+            </p>
+            <p className={`text-[17px] font-medium leading-tight ${quickStatValueClass(label)}`}>
+              {children}
+            </p>
+            {subtext ? (
+              <p className="mt-1 text-xs text-slate-400 leading-tight">
+                {subtext}
+              </p>
+            ) : null}
+            <span className="text-slate-300 text-xs mt-2 block text-right">→</span>
+          </button>
+        )
+      }
+
+      return (
+        <div className={cardClasses}>
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#3d5a80] mb-1.5">
+            {label}
+          </p>
+          <p className={`text-[17px] font-medium leading-tight ${quickStatValueClass(label)}`}>
+            {children}
+          </p>
+          {subtext ? (
+            <p className="mt-1 text-xs text-slate-400 leading-tight">
+              {subtext}
+            </p>
+          ) : null}
+        </div>
+      )
+    }
+
+    const bookingSummary = `${checkoutBookingCount} checkout · ${standardBookingCount} standard`
+    const formattedRevenue = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(totalRevenueCents / 100)
+
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-        {quickStats.map((stat) => (
-          <div
-            key={stat.label}
-            className={`rounded-xl border border-[rgba(12,35,64,0.15)] border-l-4 bg-white p-3 pl-4 ${quickStatAccentClass(stat.tone)}`}
-          >
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#3d5a80] mb-1.5">
-              {stat.label}
-            </p>
-            <p className={`text-[17px] font-medium leading-tight ${quickStatValueClass(stat.label)}`}>
-              {stat.value}
-            </p>
-          </div>
-        ))}
+        <StatCard label="Clearance" tone="red">
+          {clearanceValue}
+        </StatCard>
+        <StatCard label="Terms & Conditions" tone={customerProfile.terms_accepted_at ? 'green' : 'red'} hrefTab="documents">
+          {customerProfile.terms_accepted_at ? 'Accepted' : 'Not accepted'}
+        </StatCard>
+        <StatCard label="Documents" tone={documentStatTone} hrefTab="documents">
+          <>
+            <span className={documentStatusCounts.uploaded > 0 ? 'text-amber-700' : 'text-slate-400'}>
+              {documentStatusCounts.uploaded} uploaded
+            </span>
+            <span className="mx-1 text-slate-300">·</span>
+            <span className={documentStatusCounts.approved > 0 ? 'text-green-700' : 'text-slate-400'}>
+              {documentStatusCounts.approved} approved
+            </span>
+            <span className="mx-1 text-slate-300">·</span>
+            <span className={documentStatusCounts.rejected > 0 ? 'text-red-700' : 'text-slate-400'}>
+              {documentStatusCounts.rejected} rejected
+            </span>
+          </>
+        </StatCard>
+        <StatCard label="Billing" tone="blue" hrefTab="billing">
+          <span className={totalRevenueCents > 0 ? 'text-[#0C2340] font-medium' : 'text-slate-400 font-medium'}>
+            {formattedRevenue}
+          </span>
+        </StatCard>
+        <StatCard
+          label="Bookings"
+          tone="blue"
+          hrefTab="bookings"
+          className="border-l-blue-400 bg-slate-50 border-slate-200"
+          subtext={bookingSummary}
+        >
+          <span className={totalBookingCount > 0 ? 'text-[#0C2340] font-medium' : 'text-slate-400 font-medium'}>
+            {totalBookingCount}
+          </span>
+        </StatCard>
       </div>
     )
   }
@@ -396,49 +569,41 @@ export default function CustomerProfileTabs({
 
   function RecentActivityCard() {
     return (
-      <div className="bg-white rounded-xl border border-[rgba(12,35,64,0.15)] p-4">
-        <div className="flex items-center justify-between pb-3 border-b border-[rgba(12,35,64,0.08)] mb-4">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#3d5a80]">
-            Recent Activity
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            RECENT ACTIVITY
           </p>
-          <p className="text-[11px] text-[#94a3b8]">
+          <p className="text-xs text-slate-400">
             Latest 6 events
           </p>
         </div>
 
-        <div className="md:hidden relative pl-4">
-          <div className="absolute left-[6px] top-0 bottom-0 w-px bg-[rgba(12,35,64,0.12)]" />
-          <div className="space-y-4">
-            {recentTimelineEvents.map((item) => (
-              <div key={`${item.title}-${item.at}`} className="relative">
-                <span className="absolute left-[-16px] top-1 w-3 h-3 rounded-full bg-[#185FA5] z-10" />
-                <p className="text-[16px] font-medium text-[#0C2340] leading-snug">{item.title}</p>
-                <p className="text-[13px] text-[#3d5a80] leading-relaxed">{item.detail}</p>
-                <p className="text-[12px] text-[#94a3b8] mt-0.5">{shortDate(item.at)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="hidden md:block relative pt-2">
-          <div className="absolute top-[7px] left-4 right-4 h-px bg-[rgba(12,35,64,0.12)]" />
-          <div className="flex gap-2">
-            {recentTimelineEvents.map((item, idx) => {
-              const isLatest = idx === recentTimelineEvents.length - 1
+        {recentActivityEvents.length === 0 ? (
+          <p className="text-sm text-slate-400">No activity recorded yet.</p>
+        ) : (
+          <div className="space-y-0">
+            {recentActivityEvents.map((event, idx) => {
+              const isLast = idx === recentActivityEvents.length - 1
               return (
-                <div key={`${item.title}-${item.at}`} className="flex-1 min-w-0 flex flex-col items-center px-1">
-                  <span className={`w-3.5 h-3.5 rounded-full relative z-10 ${isLatest ? 'bg-[#185FA5] ring-2 ring-blue-200' : 'bg-[#185FA5]'}`} />
-                  <p className={`text-[12px] font-medium text-center mt-2 leading-snug whitespace-normal break-words ${isLatest ? 'text-[#185FA5]' : 'text-[#185FA5]'}`}>
-                    {item.title}
-                  </p>
-                  <p className="text-[11px] text-[#94a3b8] text-center mt-0.5">
-                    {shortDate(item.at)}
-                  </p>
+                <div key={event.id} className="flex gap-4 pb-4 relative">
+                  <div className="flex flex-col items-center">
+                    <div className={`w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0 ${activityDotClass(event.event_type)}`} />
+                    {!isLast && <div className="w-0.5 bg-slate-200 flex-1 mt-1" />}
+                  </div>
+                  <div className="flex-1 pb-2">
+                    <div className="text-sm font-medium text-slate-800">
+                      {event.title}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-0.5">
+                      {activityDate(event.created_at)}
+                    </div>
+                  </div>
                 </div>
               )
             })}
           </div>
-        </div>
+        )}
       </div>
     )
   }
@@ -474,7 +639,21 @@ export default function CustomerProfileTabs({
                 </div>
                 <div className="min-w-0 text-left">
                   <p className="text-[11px] uppercase text-white/40">Night VFR</p>
-                  <p className="text-[15px] font-medium text-white">{customerProfile.has_night_vfr_rating ? 'Yes' : 'No'}</p>
+                  <p
+                    className={`text-[15px] font-medium ${
+                      customerProfile.has_night_vfr_rating === true
+                        ? 'text-green-400'
+                        : customerProfile.has_night_vfr_rating === false
+                          ? 'text-slate-300'
+                          : 'text-amber-400'
+                    }`}
+                  >
+                    {customerProfile.has_night_vfr_rating === true
+                      ? 'Yes'
+                      : customerProfile.has_night_vfr_rating === false
+                        ? 'No'
+                        : 'Not set'}
+                  </p>
                 </div>
                 <div className="min-w-0 text-left">
                   <p className="text-[11px] uppercase text-white/40">Instrument</p>
@@ -482,7 +661,7 @@ export default function CustomerProfileTabs({
                 </div>
                 <div className="min-w-0 text-left">
                   <p className="text-[11px] uppercase text-white/40">Documents</p>
-                  <p className={`text-[15px] font-medium ${uploadedRequired === REQUIRED_DOC_TYPES.length ? 'text-[#6ee7a0]' : 'text-amber-300'}`}>{uploadedRequired} / 3</p>
+                  <p className={`text-[15px] font-medium ${heroDocumentsValueClass}`}>{heroDocumentsLabel}</p>
                 </div>
               </div>
             </div>
@@ -537,7 +716,7 @@ export default function CustomerProfileTabs({
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-white/5 rounded-lg px-2 py-2">
                 <p className="text-[11px] uppercase text-white/40">Docs</p>
-                <p className="text-[15px] font-semibold text-white">{uploadedRequired}/3</p>
+                <p className={`text-[15px] font-semibold ${heroDocumentsValueClass}`}>{heroDocumentsLabel}</p>
               </div>
               <div className="bg-white/5 rounded-lg px-2 py-2">
                 <p className="text-[11px] uppercase text-white/40">Flights</p>
@@ -549,18 +728,29 @@ export default function CustomerProfileTabs({
               </div>
               <div className="bg-white/5 rounded-lg px-2 py-2">
                 <p className="text-[11px] uppercase text-white/40">Night VFR</p>
-                <p className="text-[15px] font-semibold text-white">{customerProfile.has_night_vfr_rating ? 'Yes' : 'No'}</p>
+                <p
+                  className={`text-[15px] font-semibold ${
+                    customerProfile.has_night_vfr_rating === true
+                      ? 'text-green-400'
+                      : customerProfile.has_night_vfr_rating === false
+                        ? 'text-slate-300'
+                        : 'text-amber-400'
+                  }`}
+                >
+                  {customerProfile.has_night_vfr_rating === true
+                    ? 'Yes'
+                    : customerProfile.has_night_vfr_rating === false
+                      ? 'No'
+                      : 'Not set'}
+                </p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="bg-white border border-t-0 border-[#152d5a]/10 rounded-b-2xl mb-4">
-        <div className="relative">
-          <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent pointer-events-none md:hidden z-10" />
-
-          <div className="flex overflow-x-auto scrollbar-none [-webkit-overflow-scrolling:touch] [scrollbar-width:none] px-2 border-b border-[#152d5a]/8">
+      <section className="sticky top-0 z-10 mb-4 rounded-b-2xl bg-white">
+        <div className="flex border-b-2 border-slate-200 bg-white">
             {([
               { key: 'overview', label: 'Overview' },
               { key: 'documents', label: 'Documents' },
@@ -571,11 +761,11 @@ export default function CustomerProfileTabs({
             ] as const).map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`relative px-4 py-3.5 text-[14px] font-semibold whitespace-nowrap shrink-0 transition-colors border-b-2 -mb-px ${
+                onClick={() => setTab(tab.key)}
+                className={`relative px-5 py-4 text-sm font-semibold tracking-wide transition-all duration-150 whitespace-nowrap ${
                   activeTab === tab.key
-                    ? 'text-[#152d5a] border-[#152d5a]'
-                    : 'text-[#4b6390] border-transparent hover:text-[#152d5a] hover:border-[#152d5a]/30'
+                    ? 'text-[#152d5a] border-b-2 border-[#152d5a] bg-white'
+                    : 'text-slate-400 border-b-2 border-transparent hover:text-slate-700 hover:border-slate-300'
                 }`}
               >
                 {tab.label}
@@ -585,7 +775,6 @@ export default function CustomerProfileTabs({
               </button>
             ))}
           </div>
-        </div>
       </section>
 
       {activeTab === 'overview' && (

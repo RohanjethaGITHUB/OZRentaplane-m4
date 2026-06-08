@@ -186,27 +186,41 @@ export async function markCustomerMessagesRead(): Promise<void> {
 // Stored on profiles.last_flight_date — shared between the Documents page,
 // checkout flow, and standard booking form.
 
-export async function saveLastFlightDate(dateStr: string): Promise<void> {
+export async function saveLastFlightDate(dateStr: string): Promise<{ success: true } | { error: string }> {
   const trimmed = dateStr.trim()
 
   const validationError = validateFlightReviewDate(trimmed)
-  if (validationError) throw new Error(`VALIDATION: ${validationError}`)
+  if (validationError) return { error: validationError }
 
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) throw new Error('Unauthorized')
+  if (authError || !user) return { error: 'Unauthorized' }
 
-  const { error } = await supabase
+  console.log('saveLastFlightDate:start', {
+    userId: user.id,
+    dateStr: trimmed,
+  })
+
+  const { data, error } = await supabase
     .from('profiles')
     .update({ last_flight_date: trimmed })
     .eq('id', user.id)
+    .select('id, last_flight_date')
 
-  if (error) throw new Error('Failed to save flight review date. Please try again.')
+  console.log('saveLastFlightDate:', {
+    userId: user.id,
+    dateStr: trimmed,
+    error,
+    data,
+  })
+
+  if (error) return { error: 'Failed to save flight review date. Please try again.' }
 
   revalidatePath('/dashboard/documents')
   revalidatePath('/dashboard/checkout')
   revalidatePath('/dashboard/bookings/new')
   revalidatePath('/dashboard')
+  return { success: true }
 }
 
 // ─── Save customer ARN ────────────────────────────────────────────────────────
@@ -281,9 +295,11 @@ export async function updateDocumentStatus(
     }
 
     revalidatePath('/dashboard/documents')
+    revalidatePath('/dashboard')
     revalidatePath('/dashboard/bookings/new')
     revalidatePath('/dashboard/checkout')
     revalidatePath(`/admin/users/${input.userId}`)
+    revalidatePath(`/admin/users/${input.userId}/documents`)
 
     return { success: true }
   } catch (error) {

@@ -10,7 +10,7 @@ import {
 } from '@/app/actions/customer-availability'
 import CalendarDateField from '@/components/CalendarDateField'
 import { formatDate } from '@/lib/formatDateTime'
-import { sydneyInputToUTC, todaySydneyDateKey } from '@/lib/utils/sydney-time'
+import { todaySydneyDateKey } from '@/lib/utils/sydney-time'
 
 type CustomerRow = {
   id: string
@@ -30,7 +30,11 @@ type AircraftRow = {
 type Props = {
   customer: CustomerRow
   aircraft: AircraftRow[]
-  documents: Array<{ id: string }>
+  documents: Array<{
+    id: string
+    document_type: string | null
+    status: string | null
+  }>
   termsAcceptedAt: string | null
 }
 
@@ -39,6 +43,8 @@ type AvailabilityState =
   | { status: 'checking' }
   | { status: 'available'; message: string }
   | { status: 'unavailable'; message: string }
+
+type RequiredDocumentType = 'pilot_licence' | 'medical_certificate' | 'photo_id'
 
 const ALL_TIME_OPTIONS = (() => {
   const opts: { value: string; label: string }[] = []
@@ -65,6 +71,11 @@ const CHECKOUT_WINDOW_STARTS = (() => {
 
 const DATE_OPTIONS_MIN_YEAR = new Date().getFullYear() - 20
 const DATE_OPTIONS_MAX_YEAR = new Date().getFullYear() + 5
+const REQUIRED_DOCUMENTS: Array<{ type: RequiredDocumentType; label: string }> = [
+  { type: 'pilot_licence', label: 'Pilot Licence' },
+  { type: 'medical_certificate', label: 'Medical Certificate' },
+  { type: 'photo_id', label: 'Photo ID' },
+]
 
 function formatCustomerName(customer: CustomerRow): string {
   if (customer.full_name?.trim()) return customer.full_name.trim()
@@ -130,9 +141,8 @@ function DateInput({
         disabled={disabled}
         onChange={onChange}
         className={`
-          w-full px-4 py-3.5 bg-white border border-slate-200
-          focus:border-[#152d5a]/40 focus:outline-none rounded-xl
-          text-sm text-slate-700 transition-colors
+          w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900
+          focus:border-[#152d5a] focus:outline-none focus:ring-1 focus:ring-[#152d5a]
           ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:border-slate-300'}
         `}
       />
@@ -160,11 +170,9 @@ function TimeSelect({
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         className={`
-          w-full pl-4 pr-9 py-3.5 bg-white border border-slate-200
-          focus:border-[#152d5a]/40 focus:outline-none rounded-xl
-          text-sm appearance-none transition-colors
-          ${disabled ? 'opacity-40 cursor-not-allowed text-slate-400' : 'cursor-pointer text-slate-700 hover:border-slate-300'}
-          ${!value ? 'text-slate-400' : ''}
+          w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 appearance-none transition-colors
+          focus:border-[#152d5a] focus:outline-none focus:ring-1 focus:ring-[#152d5a]
+          ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:border-slate-300'}
         `}
       >
         <option value="" disabled>
@@ -199,14 +207,49 @@ function validateForm(values: {
   if (!values.startTime) return 'Please choose a start time.'
   if (!values.endTime) return 'Please choose an end time.'
 
-  const startUtc = sydneyInputToUTC(`${values.startDate}T${values.startTime}`)
-  const endUtc = sydneyInputToUTC(`${values.endDate}T${values.endTime}`)
+  const startUtc = buildLocalDateTimeIso(values.startDate, values.startTime)
+  const endUtc = buildLocalDateTimeIso(values.endDate, values.endTime)
   if (!startUtc || !endUtc) return 'Please enter a valid date and time.'
   if (new Date(endUtc).getTime() <= new Date(startUtc).getTime()) {
     return 'The end time must be after the start time.'
   }
 
   return null
+}
+
+function buildLocalDateTimeIso(dateString: string, timeString: string): string | null {
+  const [year, month, day] = dateString.split('-')
+  const [hour, minute] = timeString.split(':')
+
+  const yearNumber = Number(year)
+  const monthNumber = Number(month)
+  const dayNumber = Number(day)
+  const hourNumber = Number(hour)
+  const minuteNumber = Number(minute)
+
+  if (
+    !Number.isFinite(yearNumber) ||
+    !Number.isFinite(monthNumber) ||
+    !Number.isFinite(dayNumber) ||
+    !Number.isFinite(hourNumber) ||
+    !Number.isFinite(minuteNumber)
+  ) {
+    return null
+  }
+
+  return new Date(
+    yearNumber,
+    monthNumber - 1,
+    dayNumber,
+    hourNumber,
+    minuteNumber,
+  ).toISOString()
+}
+
+function formatDocumentStatus(status: string | null | undefined): string {
+  if (!status) return 'missing'
+  if (status === 'under_review') return 'uploaded'
+  return status.replace(/_/g, ' ')
 }
 
 export default function ProxyBookingForm({
@@ -229,6 +272,7 @@ export default function ProxyBookingForm({
   const [checkoutWindowStart, setCheckoutWindowStart] = useState('')
   const [availability, setAvailability] = useState<AvailabilityState>({ status: 'idle' })
   const [standardAttempted, setStandardAttempted] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
   const minDate = useMemo(() => {
     const now = new Date(Date.now() + 60 * 60 * 1000)
@@ -301,10 +345,8 @@ export default function ProxyBookingForm({
   const activeStartDate = startDate
   const activeEndDate = bookingType === 'checkout' ? startDate : endDate
 
-  const startDT = activeStartDate && activeStartTime ? `${activeStartDate}T${activeStartTime}` : ''
-  const endDT = activeEndDate && activeEndTime ? `${activeEndDate}T${activeEndTime}` : ''
-  const startUTC = startDT ? sydneyInputToUTC(startDT) : null
-  const endUTC = endDT ? sydneyInputToUTC(endDT) : null
+  const startUTC = activeStartDate && activeStartTime ? buildLocalDateTimeIso(activeStartDate, activeStartTime) : null
+  const endUTC = activeEndDate && activeEndTime ? buildLocalDateTimeIso(activeEndDate, activeEndTime) : null
   const endIsBeforeStart = !!(startUTC && endUTC && new Date(endUTC).getTime() <= new Date(startUTC).getTime())
 
   const estimatedHours = useMemo(() => {
@@ -313,6 +355,28 @@ export default function ProxyBookingForm({
     if (!(diffHours > 0)) return null
     return Number(diffHours.toFixed(2))
   }, [startUTC, endUTC])
+
+  const requiredDocumentChecks = useMemo(() => {
+    const latestDocs = new Map<string, { status: string | null }>()
+    for (const doc of documents) {
+      const documentType = doc.document_type
+      if (!documentType || latestDocs.has(documentType)) continue
+      latestDocs.set(documentType, { status: doc.status })
+    }
+
+    return REQUIRED_DOCUMENTS.map(({ type, label }) => {
+      const doc = latestDocs.get(type)
+      return {
+        type,
+        label,
+        status: doc?.status ?? null,
+        approved: doc?.status === 'approved',
+        missing: !doc,
+      }
+    })
+  }, [documents])
+
+  const hasUnapprovedRequiredDocuments = requiredDocumentChecks.some((doc) => !doc.approved)
 
   const checkoutWarnings = useMemo(() => {
     if (bookingType !== 'checkout') return []
@@ -337,6 +401,7 @@ export default function ProxyBookingForm({
     Boolean(endDate) &&
     timeSelectionComplete &&
     !endIsBeforeStart &&
+    !hasUnapprovedRequiredDocuments &&
     estimatedHours !== null &&
     availability.status === 'available' &&
     checkoutWarnings.length === 0
@@ -382,6 +447,7 @@ export default function ProxyBookingForm({
     if (availability.status === 'checking') return 'Checking availability...'
     if (availability.status === 'unavailable') return availability.message
     if (estimatedHours === null) return 'Select a valid departure and return time.'
+    if (hasUnapprovedRequiredDocuments) return 'All required documents must be approved before creating a booking.'
     if (bookingType === 'checkout' && documents.length === 0) return 'This customer has no documents on file.'
     if (bookingType === 'checkout' && !termsAcceptedAt) return 'This customer has not accepted the booking terms.'
     return null
@@ -390,6 +456,7 @@ export default function ProxyBookingForm({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (bookingType === null) return
+    setSubmitError('')
 
     const validationError = validateForm({
       aircraftId: selectedAircraftId,
@@ -407,24 +474,44 @@ export default function ProxyBookingForm({
 
     if (checkoutWarnings.length > 0) return
 
+    const selectedDate = activeStartDate
+    const selectedWindow = activeStartTime
+    const scheduledStart = buildLocalDateTimeIso(selectedDate, selectedWindow)
+    const scheduledEnd = buildLocalDateTimeIso(activeEndDate, activeEndTime)
+
+    if (!scheduledStart || !scheduledEnd) {
+      setSubmitError('Please enter a valid date and time.')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+
     const formData = new FormData()
     formData.set('customerId', customer.id)
     formData.set('bookingType', bookingType)
     formData.set('aircraftId', selectedAircraftId)
-    formData.set('scheduledStart', `${startDate}T${activeStartTime}`)
-    formData.set('scheduledEnd', `${endDate}T${activeEndTime}`)
+    formData.set('scheduledStart', scheduledStart)
+    formData.set('scheduledEnd', scheduledEnd)
     formData.set('estimatedHours', estimatedHours.toFixed(2))
     formData.set('adminNotes', adminNotes)
     formData.set('customerNotes', customerNotes)
 
     startSubmit(async () => {
       try {
+        console.log('Submitting booking:', {
+          scheduledStart,
+          scheduledEnd,
+          date: selectedDate,
+          window: selectedWindow,
+        })
         const result = await createProxyBooking(formData)
-        if (result && 'error' in result) {
-          console.error(result.error)
+        if (result?.error) {
+          setSubmitError(result.error)
+          window.scrollTo({ top: 0, behavior: 'smooth' })
         }
       } catch {
-        console.error('Failed to create booking. Please try again.')
+        const message = 'Failed to create booking'
+        setSubmitError(message)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
       }
     })
   }
@@ -433,35 +520,40 @@ export default function ProxyBookingForm({
 
   return (
     <>
+      {submitError && (
+        <div className="bg-red-50 border border-red-400 text-red-800 rounded-lg p-4 text-sm mb-6">
+          {submitError}
+        </div>
+      )}
       <form
         onSubmit={handleSubmit}
-        className="space-y-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+        className="space-y-6 rounded-xl border border-slate-200 bg-white p-8 shadow-sm"
       >
-        <div className="space-y-5 border-b border-slate-200 pb-5">
+        <div className="space-y-5">
           <div>
-            <span className="mb-3 block text-sm font-semibold uppercase tracking-wide text-slate-800">
+            <span className="mb-4 mt-6 block text-xs font-semibold uppercase tracking-widest text-slate-500">
               Booking Type
             </span>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="group relative">
                 <button
-                type="button"
-                onClick={() => {
-                  if (standardFlightDisabled) {
-                    setStandardAttempted(true)
-                    return
-                  }
-                  setBookingType('standard')
-                  setStandardAttempted(false)
-                }}
-                className={`rounded-2xl p-4 text-left transition-all ${
-                  standardFlightDisabled
-                    ? 'border border-slate-200 bg-slate-50 text-slate-500 opacity-40 cursor-not-allowed'
-                    : bookingType === 'standard'
-                    ? 'border-2 border-[#152d5a] bg-[#eef3fa] shadow-sm'
-                      : 'border border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'
-                }`}
-              >
+                  type="button"
+                  onClick={() => {
+                    if (standardFlightDisabled) {
+                      setStandardAttempted(true)
+                      return
+                    }
+                    setBookingType('standard')
+                    setStandardAttempted(false)
+                  }}
+                  className={`min-h-[80px] rounded-xl p-4 text-left transition-all ${
+                    standardFlightDisabled
+                      ? 'border border-slate-200 bg-slate-50 text-slate-500 opacity-40 cursor-not-allowed'
+                      : bookingType === 'standard'
+                        ? 'border-2 border-[#152d5a] bg-[#eef3fa] shadow-sm'
+                        : 'border border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'
+                  }`}
+                >
                 <div className="flex items-start gap-3">
                   <span
                     className={`material-symbols-outlined text-[18px] mt-0.5 ${
@@ -518,7 +610,7 @@ export default function ProxyBookingForm({
                     setBookingType('checkout')
                     setStandardAttempted(false)
                   }}
-                  className={`rounded-2xl p-4 text-left transition-all ${
+                  className={`min-h-[80px] rounded-xl p-4 text-left transition-all ${
                     checkoutFlightDisabled
                       ? 'border border-slate-200 bg-slate-50 text-slate-500 opacity-40 cursor-not-allowed'
                       : bookingType === 'checkout'
@@ -579,7 +671,35 @@ export default function ProxyBookingForm({
         </div>
 
         {bookingType === 'checkout' ? (
-          checkoutWarnings.length > 0 ? (
+          hasUnapprovedRequiredDocuments ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-4">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 text-base font-semibold text-red-700">X</span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-red-800">
+                    This customer has unapproved or missing documents.
+                  </p>
+                  <p className="mt-1 text-sm text-red-700">
+                    A booking cannot be created until all required documents are approved.
+                  </p>
+                  <p className="mt-2 text-sm text-red-700">
+                    {requiredDocumentChecks
+                      .filter((doc) => !doc.approved)
+                      .map((doc) => `${doc.label} (${doc.missing ? 'missing' : formatDocumentStatus(doc.status)})`)
+                      .join(', ')}
+                  </p>
+                  <div className="mt-3">
+                    <Link
+                      href={`/admin/users/${customer.id}?tab=documents`}
+                      className="underline text-red-700 font-medium text-sm"
+                    >
+                      Review Documents →
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : checkoutWarnings.length > 0 ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
               <div className="flex items-start gap-3">
                 <span className="material-symbols-outlined mt-0.5 text-amber-600 text-base">warning</span>
@@ -617,6 +737,34 @@ export default function ProxyBookingForm({
               </div>
             </div>
           )
+        ) : hasUnapprovedRequiredDocuments ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-4">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 text-base font-semibold text-red-700">X</span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-red-800">
+                  This customer has unapproved or missing documents.
+                </p>
+                <p className="mt-1 text-sm text-red-700">
+                  A booking cannot be created until all required documents are approved.
+                </p>
+                <p className="mt-2 text-sm text-red-700">
+                  {requiredDocumentChecks
+                    .filter((doc) => !doc.approved)
+                    .map((doc) => `${doc.label} (${doc.missing ? 'missing' : formatDocumentStatus(doc.status)})`)
+                    .join(', ')}
+                </p>
+                <div className="mt-3">
+                  <Link
+                    href={`/admin/users/${customer.id}?tab=documents`}
+                    className="underline text-red-700 font-medium text-sm"
+                  >
+                    Review Documents →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : showStandardFlightReadiness ? (
           pilotClearanceStatus !== 'cleared_to_fly' ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
@@ -651,13 +799,14 @@ export default function ProxyBookingForm({
 
         <div className={`space-y-6 ${bookingType === null ? 'pointer-events-none opacity-50' : ''}`}>
           <div>
-            <span className="mb-3 block text-sm font-semibold uppercase tracking-wide text-slate-800">
+            <div className="border-t border-slate-100 pt-6" />
+            <span className="mb-4 mt-6 block text-xs font-semibold uppercase tracking-widest text-slate-500">
               Aircraft
             </span>
             <select
               value={selectedAircraftId}
               onChange={(event) => setSelectedAircraftId(event.target.value)}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-700 focus:outline-none focus:border-[#152d5a]/40 focus:ring-2 focus:ring-[#152d5a]/8"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-[#152d5a] focus:ring-1 focus:ring-[#152d5a] focus:outline-none"
               required
             >
               <option value="" disabled>
@@ -672,7 +821,8 @@ export default function ProxyBookingForm({
           </div>
 
           <div>
-            <span className="mb-3 block text-sm font-semibold uppercase tracking-wide text-slate-800">
+            <div className="border-t border-slate-100 pt-6" />
+            <span className="mb-4 mt-6 block text-xs font-semibold uppercase tracking-widest text-slate-500">
               Date & Time
             </span>
             <div className="space-y-4">
@@ -680,7 +830,7 @@ export default function ProxyBookingForm({
                 <div>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                      <label className="mb-2 block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-500">
+                      <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
                         Date
                       </label>
                       <DateInput
@@ -695,7 +845,7 @@ export default function ProxyBookingForm({
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-500">
+                      <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
                         FLIGHT WINDOW
                       </label>
                       <TimeSelect
@@ -723,7 +873,7 @@ export default function ProxyBookingForm({
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                      <label className="mb-2 block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-500">
+                      <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
                         Start date
                       </label>
                       <DateInput
@@ -739,7 +889,7 @@ export default function ProxyBookingForm({
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-500">
+                      <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
                         Start time
                       </label>
                       <TimeSelect
@@ -758,7 +908,7 @@ export default function ProxyBookingForm({
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                      <label className="mb-2 block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-500">
+                      <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
                         End date
                       </label>
                       <DateInput
@@ -773,7 +923,7 @@ export default function ProxyBookingForm({
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-500">
+                      <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
                         End time
                       </label>
                       <TimeSelect
@@ -801,7 +951,8 @@ export default function ProxyBookingForm({
           </div>
 
           <div>
-            <span className="mb-3 block text-sm font-semibold uppercase tracking-wide text-slate-800">
+            <div className="border-t border-slate-100 pt-6" />
+            <span className="mb-4 mt-6 block text-xs font-semibold uppercase tracking-widest text-slate-500">
               Notes
             </span>
             <div className="grid grid-cols-1 gap-5">
@@ -811,7 +962,7 @@ export default function ProxyBookingForm({
                   value={adminNotes}
                   onChange={(event) => setAdminNotes(event.target.value)}
                   rows={3}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#152d5a]/40 focus:ring-2 focus:ring-[#152d5a]/8"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-[#152d5a] focus:ring-1 focus:ring-[#152d5a] focus:outline-none"
                   placeholder="Optional internal note"
                 />
               </label>
@@ -822,7 +973,7 @@ export default function ProxyBookingForm({
                   value={customerNotes}
                   onChange={(event) => setCustomerNotes(event.target.value)}
                   rows={3}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#152d5a]/40 focus:ring-2 focus:ring-[#152d5a]/8"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-[#152d5a] focus:ring-1 focus:ring-[#152d5a] focus:outline-none"
                   placeholder="Optional note that will be stored on the booking"
                 />
               </label>
@@ -834,7 +985,7 @@ export default function ProxyBookingForm({
           <button
             type="submit"
             disabled={!canSubmit}
-            className="inline-flex w-full items-center justify-center rounded-xl bg-[#152d5a] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1d3d79] disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-8 inline-flex w-full items-center justify-center rounded-xl bg-[#152d5a] px-4 py-3 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1d3d79] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting
               ? 'Creating booking...'

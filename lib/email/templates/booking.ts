@@ -44,3 +44,50 @@ export function cancellationRequestedEmail() {
     }),
   }
 }
+
+export function proxyBookingConfirmedEmail(details: Record<string, string | null>) {
+  const bookingTypeLabel = details.bookingTypeLabel ?? 'Flight'
+  const bookingTypeLower = details.bookingTypeLower ?? 'flight'
+
+  return {
+    subject: `Your ${bookingTypeLabel} Flight is Confirmed — OZ Rent A Plane`,
+    html: renderBaseTemplate({
+      headline: `${bookingTypeLabel} flight confirmed`,
+      message: `Hi ${details.customerName ?? 'Pilot'}, your ${bookingTypeLower} flight has been confirmed.`,
+      details: [
+        { label: 'Aircraft', value: details.aircraft },
+        { label: 'Date', value: details.date },
+        { label: 'Time', value: details.time },
+      ],
+      ctaLabel: 'View My Booking',
+      ctaUrl: `${appUrl}/dashboard/bookings`,
+    }),
+  }
+}
+
+export function adminProxyBookingCreatedEmail(details: Record<string, string | null>) {
+  const bookingTypeLabel = details.bookingTypeLabel ?? 'Standard'
+  const bookingTypeLower = details.bookingTypeLower ?? 'standard'
+  const templateDetails = [
+    { label: 'Customer', value: details.customerName },
+    { label: 'Customer email', value: details.customerEmail },
+    { label: 'Aircraft', value: details.aircraft },
+    { label: 'Date', value: details.date },
+    { label: 'Time', value: details.time },
+  ]
+
+  if (details.adminNotes) {
+    templateDetails.push({ label: 'Admin notes', value: details.adminNotes })
+  }
+
+  return {
+    subject: `New Proxy Booking Created — ${details.customerName ?? 'Customer'} (${bookingTypeLabel})`,
+    html: renderBaseTemplate({
+      headline: 'New proxy booking created',
+      message: `A ${bookingTypeLower} booking has been created by an admin on behalf of ${details.customerName ?? 'the customer'}.`,
+      details: templateDetails,
+      ctaLabel: 'View Customer Profile',
+      ctaUrl: `${appUrl}/admin/users/${details.customerId ?? ''}`,
+    }),
+  }
+}

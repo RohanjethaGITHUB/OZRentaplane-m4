@@ -128,12 +128,12 @@ function ClearanceGateBanner({
 }: GateBannerProps) {
   if (clearanceStatus === 'checkout_required') {
     return (
-      <div className="border rounded-2xl p-8 text-center bg-blue-500/[0.06] border-blue-500/20 mb-8">
+      <div className="border rounded-2xl p-8 text-center bg-white border-[#152d5a]/10 mb-8">
         <span className="material-symbols-outlined text-4xl mb-4 block text-blue-400" style={{ fontVariationSettings: "'wght' 200" }}>
           how_to_reg
         </span>
-        <h2 className="text-xl font-serif text-white mb-3">Checkout Required</h2>
-        <p className="text-slate-500 text-sm leading-relaxed mb-6 max-w-md mx-auto">
+        <h2 className="text-xl font-serif text-[#152d5a] mb-3">Checkout Required</h2>
+        <p className="text-[#4b6390] text-sm leading-relaxed mb-6 max-w-md mx-auto">
           Before booking solo flights, you must complete a one-time checkout flight with our team. Documents are uploaded as part of the checkout process.
         </p>
         <Link href="/dashboard/checkout" className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors">
@@ -145,12 +145,12 @@ function ClearanceGateBanner({
   }
   if (clearanceStatus === 'checkout_requested') {
     return (
-      <div className="border rounded-2xl p-8 bg-blue-500/[0.06] border-blue-500/20 mb-8">
+      <div className="border rounded-2xl p-8 bg-white border-[#152d5a]/10 mb-8">
         <div className="flex items-start gap-4">
           <span className="material-symbols-outlined text-2xl text-blue-400 flex-shrink-0 mt-0.5 animate-pulse" style={{ fontVariationSettings: "'wght' 200" }}>pending_actions</span>
           <div>
-            <h2 className="text-lg font-serif text-white mb-2">No action needed right now</h2>
-            <p className="text-slate-400 text-base leading-relaxed">
+            <h2 className="text-lg font-serif text-[#152d5a] mb-2">No action needed right now</h2>
+            <p className="text-[#4b6390] text-base leading-relaxed">
               Our team is reviewing your checkout request. We will contact you once it is confirmed or if another time is needed.
             </p>
             {hasPendingReschedule && (
@@ -169,8 +169,8 @@ function ClearanceGateBanner({
               </p>
             )}
             {checkoutBooking && (
-              <div className="mt-4 bg-white/[0.03] border border-white/[0.06] rounded-lg px-4 py-3 inline-flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
-                <span className="font-mono font-medium text-slate-400">{checkoutBooking.booking_reference}</span>
+              <div className="mt-4 bg-[#f0f6ff] border border-[#152d5a]/10 rounded-lg px-4 py-3 inline-flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#4b6390]">
+                <span className="font-mono font-medium text-[#152d5a]">{checkoutBooking.booking_reference}</span>
                 <span>{formatDateFromISO(checkoutBooking.scheduled_start)}</span>
                 <span className="tabular-nums">{formatSydTime(checkoutBooking.scheduled_start)} – {formatSydTime(checkoutBooking.scheduled_end)}</span>
               </div>
@@ -182,17 +182,17 @@ function ClearanceGateBanner({
   }
   if (clearanceStatus === 'checkout_confirmed') {
     return (
-      <div className="border rounded-2xl p-8 bg-green-500/[0.05] border-green-500/20 mb-8">
+      <div className="border rounded-2xl p-8 bg-white border-[#152d5a]/10 mb-8">
         <div className="flex items-start gap-4">
           <span className="material-symbols-outlined text-2xl text-green-400 flex-shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>event_available</span>
           <div>
-            <h2 className="text-lg font-serif text-white mb-2">Checkout Flight Confirmed</h2>
-            <p className="text-slate-500 text-sm leading-relaxed">
+            <h2 className="text-lg font-serif text-[#152d5a] mb-2">Checkout Flight Confirmed</h2>
+            <p className="text-[#4b6390] text-sm leading-relaxed">
               Your checkout flight has been confirmed by our team. Once your checkout flight is approved, you will unlock bookings.
             </p>
             {checkoutBooking && (
-              <div className="mt-4 bg-white/[0.03] border border-white/[0.06] rounded-lg px-4 py-3 inline-flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
-                <span className="font-mono font-medium text-slate-400">{checkoutBooking.booking_reference}</span>
+              <div className="mt-4 bg-[#f0f6ff] border border-[#152d5a]/10 rounded-lg px-4 py-3 inline-flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#4b6390]">
+                <span className="font-mono font-medium text-[#152d5a]">{checkoutBooking.booking_reference}</span>
                 <span>{formatDateFromISO(checkoutBooking.scheduled_start)}</span>
                 <span className="tabular-nums">{formatSydTime(checkoutBooking.scheduled_start)} – {formatSydTime(checkoutBooking.scheduled_end)}</span>
               </div>
@@ -205,12 +205,12 @@ function ClearanceGateBanner({
   if (checkoutBooking?.status === 'checkout_payment_required') {
     if (isAwaitingManualPayment) {
       return (
-        <div className="border rounded-2xl p-8 bg-blue-500/[0.05] border-blue-500/20 mb-8">
+        <div className="border rounded-2xl p-8 bg-white border-[#152d5a]/10 mb-8">
           <div className="flex items-start gap-4">
             <span className="material-symbols-outlined text-2xl text-blue-400 flex-shrink-0 mt-0.5 animate-pulse" style={{ fontVariationSettings: "'wght' 200" }}>account_balance</span>
             <div>
-              <h2 className="text-lg font-serif text-white mb-2">Awaiting Payment Confirmation</h2>
-              <p className="text-slate-500 text-sm leading-relaxed">
+              <h2 className="text-lg font-serif text-[#152d5a] mb-2">Awaiting Payment Confirmation</h2>
+              <p className="text-[#4b6390] text-sm leading-relaxed">
                 Your bank transfer details have been submitted. Our team will verify the payment before your checkout result is finalised. No further action is required from you right now.
               </p>
             </div>
@@ -219,12 +219,12 @@ function ClearanceGateBanner({
       )
     }
     return (
-      <div className="border rounded-2xl p-8 bg-orange-500/[0.05] border-orange-500/20 mb-8">
+      <div className="border rounded-2xl p-8 bg-white border-[#152d5a]/10 mb-8">
         <div className="flex items-start gap-4">
           <span className="material-symbols-outlined text-2xl text-orange-400 flex-shrink-0 mt-0.5" style={{ fontVariationSettings: "'wght' 200" }}>payments</span>
           <div>
-            <h2 className="text-lg font-serif text-white mb-2">Checkout Payment Required</h2>
-            <p className="text-slate-500 text-sm leading-relaxed mb-4">
+            <h2 className="text-lg font-serif text-[#152d5a] mb-2">Checkout Payment Required</h2>
+            <p className="text-[#4b6390] text-sm leading-relaxed mb-4">
               Your checkout flight has been completed. Please pay your checkout invoice before aircraft bookings become available.
             </p>
             <Link href={`/dashboard/bookings/${checkoutBooking.id}`} className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-500/15 border border-orange-400/30 text-orange-300 hover:bg-orange-500/25 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all">
@@ -237,12 +237,12 @@ function ClearanceGateBanner({
   }
   if (clearanceStatus === 'checkout_completed_under_review') {
     return (
-      <div className="border rounded-2xl p-8 bg-amber-500/[0.05] border-amber-500/20 mb-8">
+      <div className="border rounded-2xl p-8 bg-white border-[#152d5a]/10 mb-8">
         <div className="flex items-start gap-4">
           <span className="material-symbols-outlined text-2xl text-amber-400 flex-shrink-0 mt-0.5 animate-pulse" style={{ fontVariationSettings: "'wght' 200" }}>hourglass_top</span>
           <div>
-            <h2 className="text-lg font-serif text-white mb-2">Awaiting Checkout Outcome</h2>
-            <p className="text-slate-500 text-sm leading-relaxed">
+            <h2 className="text-lg font-serif text-[#152d5a] mb-2">Awaiting Checkout Outcome</h2>
+            <p className="text-[#4b6390] text-sm leading-relaxed">
               Your checkout flight has been completed and is awaiting review by the flight operations team. Once your checkout flight is approved, you will unlock bookings.
             </p>
           </div>
@@ -252,12 +252,12 @@ function ClearanceGateBanner({
   }
   if (clearanceStatus === 'additional_checkout_required') {
     return (
-      <div className="border rounded-2xl p-8 bg-amber-500/[0.05] border-amber-500/20 mb-8">
+      <div className="border rounded-2xl p-8 bg-white border-[#152d5a]/10 mb-8">
         <div className="flex items-start gap-4">
           <span className="material-symbols-outlined text-2xl text-amber-400 flex-shrink-0 mt-0.5" style={{ fontVariationSettings: "'wght' 200" }}>schedule</span>
           <div>
-            <h2 className="text-lg font-serif text-white mb-2">Additional Checkout Required</h2>
-            <p className="text-slate-500 text-sm leading-relaxed mb-4">
+            <h2 className="text-lg font-serif text-[#152d5a] mb-2">Additional Checkout Required</h2>
+            <p className="text-[#4b6390] text-sm leading-relaxed mb-4">
               Following your checkout, our team has determined that an additional checkout session is required before you can be cleared to fly.
             </p>
             <Link href="/dashboard/checkout" className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500/15 border border-amber-400/30 text-amber-300 hover:bg-amber-500/25 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all">
@@ -270,12 +270,12 @@ function ClearanceGateBanner({
   }
   if (clearanceStatus === 'checkout_reschedule_required') {
     return (
-      <div className="border rounded-2xl p-8 bg-amber-500/[0.05] border-amber-500/20 mb-8">
+      <div className="border rounded-2xl p-8 bg-white border-[#152d5a]/10 mb-8">
         <div className="flex items-start gap-4">
           <span className="material-symbols-outlined text-2xl text-amber-400 flex-shrink-0 mt-0.5" style={{ fontVariationSettings: "'wght' 200" }}>event_repeat</span>
           <div>
-            <h2 className="text-lg font-serif text-white mb-2">Checkout Reschedule Required</h2>
-            <p className="text-slate-500 text-sm leading-relaxed mb-4">
+            <h2 className="text-lg font-serif text-[#152d5a] mb-2">Checkout Reschedule Required</h2>
+            <p className="text-[#4b6390] text-sm leading-relaxed mb-4">
               Your checkout could not be fully assessed this time. Book another checkout session when you are ready to try again.
             </p>
             <Link href="/dashboard/checkout" className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500/15 border border-amber-400/30 text-amber-300 hover:bg-amber-500/25 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all">
@@ -288,12 +288,12 @@ function ClearanceGateBanner({
   }
   if (clearanceStatus === 'not_currently_eligible') {
     return (
-      <div className="border rounded-2xl p-8 bg-red-500/[0.05] border-red-500/20 mb-8">
+      <div className="border rounded-2xl p-8 bg-white border-[#152d5a]/10 mb-8">
         <div className="flex items-start gap-4">
           <span className="material-symbols-outlined text-2xl text-red-400 flex-shrink-0 mt-0.5" style={{ fontVariationSettings: "'wght' 200" }}>block</span>
           <div>
-            <h2 className="text-lg font-serif text-white mb-2">Not Currently Eligible</h2>
-            <p className="text-slate-500 text-sm leading-relaxed">
+            <h2 className="text-lg font-serif text-[#152d5a] mb-2">Not Currently Eligible</h2>
+            <p className="text-[#4b6390] text-sm leading-relaxed">
               Based on your checkout assessment, further training is required before you can continue with aircraft hire. Please contact us when you are ready to try again.
             </p>
           </div>
@@ -449,20 +449,20 @@ export default async function CustomerBookingsPage() {
           {statCards.map(s => (
             <div
               key={s.label}
-              className="relative overflow-hidden rounded-xl border border-[rgba(59,130,246,0.14)] bg-gradient-to-br from-[#080f1e] to-[#050c18] p-5"
-              style={{ boxShadow: '0 2px 20px rgba(0,0,0,0.35), 0 0 0 1px rgba(59,130,246,0.04)' }}
+              className="relative overflow-hidden rounded-xl border border-[#152d5a]/10 bg-white p-5"
+              style={{ boxShadow: '0 2px 20px rgba(2,10,22,0.08), 0 0 0 1px rgba(21,45,90,0.03)' }}
             >
               {/* Soft bottom glow */}
-              <div className="absolute bottom-0 inset-x-0 h-8 bg-gradient-to-t from-[rgba(37,99,235,0.08)] to-transparent pointer-events-none" />
+              <div className="absolute bottom-0 inset-x-0 h-8 bg-gradient-to-t from-[rgba(37,99,235,0.05)] to-transparent pointer-events-none" />
               <div className="flex items-center gap-3.5 relative z-10">
-                <div className="w-11 h-11 rounded-full bg-[rgba(59,130,246,0.10)] border border-[rgba(59,130,246,0.18)] flex items-center justify-center flex-shrink-0">
+                <div className="w-11 h-11 rounded-full bg-[#f0f6ff] border border-[#152d5a]/10 flex items-center justify-center flex-shrink-0">
                   <span className="material-symbols-outlined text-blue-400 text-[18px]" style={{ fontVariationSettings: "'wght' 300" }} aria-hidden="true">
                     {s.icon}
                   </span>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[26px] font-light text-white leading-none tabular-nums">{s.value}</p>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mt-1 leading-tight">{s.label}</p>
+                  <p className="text-[26px] font-light text-[#152d5a] leading-none tabular-nums">{s.value}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#4b6390] mt-1 leading-tight">{s.label}</p>
                 </div>
               </div>
             </div>
@@ -485,7 +485,7 @@ export default async function CustomerBookingsPage() {
           <section className="mb-8">
             <div className="flex items-center gap-2.5 mb-5">
               <span className="material-symbols-outlined text-blue-400/60 text-[18px]" style={{ fontVariationSettings: "'wght' 300" }} aria-hidden="true">how_to_reg</span>
-              <h2 className="text-[13px] font-bold uppercase tracking-widest text-white/60">Checkout Requests</h2>
+              <h2 className="text-[13px] font-bold uppercase tracking-widest text-[#152d5a]">Checkout Requests</h2>
             </div>
             <div className="space-y-3">
               {checkoutRequests.map(b => {
@@ -495,8 +495,8 @@ export default async function CustomerBookingsPage() {
                   <Link
                     key={b.id}
                     href={`/dashboard/bookings/${b.id}`}
-                    className="block rounded-2xl border border-[rgba(59,130,246,0.12)] bg-gradient-to-br from-[#080f1e] to-[#050c18] p-5 sm:p-6 hover:border-[rgba(59,130,246,0.28)] transition-all group"
-                    style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.30)' }}
+                    className="block rounded-2xl border border-[#152d5a]/10 bg-white p-5 sm:p-6 hover:border-[#152d5a]/20 transition-all group"
+                    style={{ boxShadow: '0 4px 24px rgba(2,10,22,0.08)' }}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-4 min-w-0">
@@ -507,28 +507,28 @@ export default async function CustomerBookingsPage() {
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-[14px] font-semibold text-white group-hover:text-blue-300 transition-colors">Checkout Flight</p>
+                            <p className="text-[14px] font-semibold text-[#152d5a] group-hover:text-blue-300 transition-colors">Checkout Flight</p>
                             {b.booking_reference && (
-                              <span className="text-[10px] font-mono text-slate-500 bg-white/[0.04] border border-white/[0.06] px-1.5 py-0.5 rounded">{b.booking_reference}</span>
+                              <span className="text-[10px] font-mono text-[#4b6390] bg-[#f0f6ff] border border-[#152d5a]/10 px-1.5 py-0.5 rounded">{b.booking_reference}</span>
                             )}
                           </div>
-                          <p className="text-[12px] text-slate-400 mt-1">Cessna 172N · Registration {aircraft?.registration ?? 'VH-KZG'}</p>
+                          <p className="text-[12px] text-[#4b6390] mt-1">Cessna 172N · Registration {aircraft?.registration ?? 'VH-KZG'}</p>
                           <div className="flex items-center gap-1.5 mt-2">
-                            <span className="material-symbols-outlined text-slate-600 text-[13px]" aria-hidden="true">calendar_today</span>
-                            <span className="text-[12px] text-slate-400">{formatDateFromISO(b.scheduled_start)}</span>
-                            <span className="mx-1 text-slate-700">·</span>
-                            <span className="material-symbols-outlined text-slate-600 text-[13px]" aria-hidden="true">schedule</span>
-                            <span className="text-[12px] text-slate-400 tabular-nums">{formatSydTime(b.scheduled_start)} – {formatSydTime(b.scheduled_end)}</span>
+                            <span className="material-symbols-outlined text-[#64748b] text-[13px]" aria-hidden="true">calendar_today</span>
+                            <span className="text-[12px] text-[#4b6390]">{formatDateFromISO(b.scheduled_start)}</span>
+                            <span className="mx-1 text-[#94a3b8]">·</span>
+                            <span className="material-symbols-outlined text-[#64748b] text-[13px]" aria-hidden="true">schedule</span>
+                            <span className="text-[12px] text-[#4b6390] tabular-nums">{formatSydTime(b.scheduled_start)} – {formatSydTime(b.scheduled_end)}</span>
                           </div>
-                          <p className="text-[11px] text-slate-600 mt-1.5">Submitted {formatDateFromISO(b.created_at)}</p>
+                          <p className="text-[11px] text-[#64748b] mt-1.5">Submitted {formatDateFromISO(b.created_at)}</p>
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-3 flex-shrink-0">
                         <StatusBadge status={b.status} bookingType={b.booking_type} checkoutOutcome={checkoutOutcomeMap[b.id]} isAwaitingManualPayment={b.status === 'checkout_payment_required' ? isAwaitingManualPayment : undefined} />
                         {b.estimated_amount != null && (
-                          <span className="text-[12px] text-white/60 tabular-nums">Checkout fee: ${b.estimated_amount.toFixed(0)}</span>
+                          <span className="text-[12px] text-[#4b6390] tabular-nums">Checkout fee: ${b.estimated_amount.toFixed(0)}</span>
                         )}
-                        <div className="w-8 h-8 rounded-full border border-[rgba(59,130,246,0.20)] bg-[rgba(59,130,246,0.06)] flex items-center justify-center group-hover:border-blue-400/40 group-hover:bg-blue-500/10 transition-all">
+                        <div className="w-8 h-8 rounded-full border border-[#152d5a]/10 bg-[#f0f6ff] flex items-center justify-center group-hover:border-blue-400/40 group-hover:bg-blue-500/10 transition-all">
                           <span className="material-symbols-outlined text-slate-500 text-[14px] group-hover:text-blue-400 transition-colors" aria-hidden="true">arrow_forward</span>
                         </div>
                       </div>
@@ -545,7 +545,7 @@ export default async function CustomerBookingsPage() {
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-2.5">
               <span className="material-symbols-outlined text-blue-400/60 text-[20px]" style={{ fontVariationSettings: "'wght' 300" }} aria-hidden="true">flight_takeoff</span>
-              <h2 className="text-[13px] font-bold uppercase tracking-widest text-white/60">
+              <h2 className="text-[13px] font-bold uppercase tracking-widest text-[#152d5a]">
                 {isCleared ? 'Upcoming Bookings' : 'Upcoming Aircraft Bookings'}
               </h2>
             </div>
@@ -563,12 +563,12 @@ export default async function CustomerBookingsPage() {
 
           {upcomingAircraft.length === 0 ? (
             <div
-              className="rounded-2xl border border-[rgba(59,130,246,0.12)] bg-gradient-to-br from-[#080f1e] to-[#050c18] p-12 text-center"
-              style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.30)' }}
+              className="rounded-2xl border border-[#152d5a]/10 bg-white p-12 text-center"
+              style={{ boxShadow: '0 4px 24px rgba(2,10,22,0.08)' }}
             >
               <span className="material-symbols-outlined text-4xl text-slate-700 mb-4 block" style={{ fontVariationSettings: "'wght' 200" }} aria-hidden="true">flight_land</span>
-              <h3 className="text-lg font-serif text-white/60 mb-2">No aircraft bookings yet</h3>
-              <p className="text-slate-500 text-[13px] mb-7 max-w-sm mx-auto leading-relaxed">
+              <h3 className="text-lg font-serif text-[#152d5a] mb-2">No aircraft bookings yet</h3>
+              <p className="text-[#4b6390] text-[13px] mb-7 max-w-sm mx-auto leading-relaxed">
                 {isCleared
                   ? 'Request your first aircraft booking and our team will confirm it for you.'
                   : 'Aircraft bookings become available once your checkout flight is completed and you are cleared to fly.'}
@@ -589,13 +589,13 @@ export default async function CustomerBookingsPage() {
                   <Link
                     key={b.id}
                     href={`/dashboard/bookings/${b.id}`}
-                    className="block rounded-2xl border border-[rgba(59,130,246,0.14)] bg-gradient-to-br from-[#080f1e] to-[#050c18] hover:border-[rgba(59,130,246,0.30)] transition-all group"
-                    style={{ boxShadow: '0 4px 28px rgba(0,0,0,0.35)' }}
+                    className="block rounded-2xl border border-[#152d5a]/10 bg-white hover:border-[#152d5a]/20 transition-all group"
+                    style={{ boxShadow: '0 4px 28px rgba(2,10,22,0.08)' }}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center gap-0">
 
                       {/* Thumbnail area */}
-                      <div className="relative sm:w-[180px] sm:flex-shrink-0 h-[120px] sm:h-auto sm:self-stretch rounded-t-2xl sm:rounded-l-2xl sm:rounded-tr-none overflow-hidden border-r border-white/[0.06]">
+                      <div className="relative sm:w-[180px] sm:flex-shrink-0 h-[120px] sm:h-auto sm:self-stretch rounded-t-2xl sm:rounded-l-2xl sm:rounded-tr-none overflow-hidden border-r border-[#152d5a]/10">
                         <div
                           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                           style={{ backgroundImage: "url('/Cessna-172.webp')", backgroundPosition: 'center center' }}
@@ -603,7 +603,7 @@ export default async function CustomerBookingsPage() {
                         />
                         <div className="absolute inset-0 bg-gradient-to-br from-[#061427]/56 via-[#071a31]/34 to-[#04101f]/62" aria-hidden="true" />
                         {/* Aircraft badge overlay */}
-                        <div className="absolute bottom-2.5 left-2.5 w-8 h-8 rounded-full bg-blue-600 border-2 border-[#080f1e] flex items-center justify-center shadow-lg">
+                        <div className="absolute bottom-2.5 left-2.5 w-8 h-8 rounded-full bg-blue-600 border-2 border-white flex items-center justify-center shadow-lg">
                           <span className="material-symbols-outlined text-white text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">flight_takeoff</span>
                         </div>
                       </div>
@@ -614,35 +614,35 @@ export default async function CustomerBookingsPage() {
                           <div className="min-w-0 flex-1">
                             {/* Aircraft name + reference pill */}
                             <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <p className="text-[15px] font-semibold text-white group-hover:text-blue-300 transition-colors">
+                              <p className="text-[15px] font-semibold text-[#152d5a] group-hover:text-blue-300 transition-colors">
                                 Cessna 172N
                               </p>
                               {b.booking_reference && (
-                                <span className="text-[10px] font-mono text-slate-500 bg-white/[0.04] border border-white/[0.06] px-1.5 py-0.5 rounded">{b.booking_reference}</span>
+                                <span className="text-[10px] font-mono text-[#4b6390] bg-[#f0f6ff] border border-[#152d5a]/10 px-1.5 py-0.5 rounded">{b.booking_reference}</span>
                               )}
                             </div>
-                            <p className="text-[12px] text-slate-400 mb-3">
+                            <p className="text-[12px] text-[#4b6390] mb-3">
                               Registration {aircraft?.registration ?? 'VH-KZG'}
                             </p>
                             {/* Date + time row */}
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
                               <div className="flex items-center gap-1.5">
-                                <span className="material-symbols-outlined text-slate-600 text-[14px]" aria-hidden="true">calendar_today</span>
-                                <span className="text-[12px] text-slate-300">{formatDateFromISO(b.scheduled_start)}</span>
+                                <span className="material-symbols-outlined text-[#64748b] text-[14px]" aria-hidden="true">calendar_today</span>
+                                <span className="text-[12px] text-[#4b6390]">{formatDateFromISO(b.scheduled_start)}</span>
                               </div>
                               <div className="flex items-center gap-1.5">
-                                <span className="material-symbols-outlined text-slate-600 text-[14px]" aria-hidden="true">schedule</span>
-                                <span className="text-[12px] text-slate-300 tabular-nums">{formatSydTime(b.scheduled_start)} – {formatSydTime(b.scheduled_end)}</span>
-                                <span className="text-[11px] text-slate-600">Sydney time (AEST)</span>
+                                <span className="material-symbols-outlined text-[#64748b] text-[14px]" aria-hidden="true">schedule</span>
+                                <span className="text-[12px] text-[#4b6390] tabular-nums">{formatSydTime(b.scheduled_start)} – {formatSydTime(b.scheduled_end)}</span>
+                                <span className="text-[11px] text-[#64748b]">Sydney time (AEST)</span>
                               </div>
                             </div>
-                            <p className="text-[11px] text-slate-600 mt-2">Submitted {formatDateFromISO(b.created_at)}</p>
+                            <p className="text-[11px] text-[#64748b] mt-2">Submitted {formatDateFromISO(b.created_at)}</p>
                           </div>
 
                           {/* Status + arrow */}
                           <div className="flex flex-col items-end gap-3 flex-shrink-0">
                             <StatusBadge status={b.status} bookingType={b.booking_type} checkoutOutcome={checkoutOutcomeMap[b.id]} isAwaitingManualPayment={b.status === 'checkout_payment_required' ? isAwaitingManualPayment : undefined} />
-                            <div className="w-9 h-9 rounded-full border border-[rgba(59,130,246,0.20)] bg-[rgba(59,130,246,0.06)] flex items-center justify-center group-hover:border-blue-400/40 group-hover:bg-blue-500/10 transition-all">
+                            <div className="w-9 h-9 rounded-full border border-[#152d5a]/10 bg-[#f0f6ff] flex items-center justify-center group-hover:border-blue-400/40 group-hover:bg-blue-500/10 transition-all">
                               <span className="material-symbols-outlined text-slate-500 text-[15px] group-hover:text-blue-400 transition-colors" aria-hidden="true">arrow_forward</span>
                             </div>
                           </div>
@@ -661,33 +661,33 @@ export default async function CustomerBookingsPage() {
           <section className="mb-8">
             <div className="flex items-center gap-2.5 mb-5">
               <span className="material-symbols-outlined text-blue-400/60 text-[18px]" style={{ fontVariationSettings: "'wght' 300" }} aria-hidden="true">check_circle</span>
-              <h2 className="text-[13px] font-bold uppercase tracking-widest text-white/60">Completed Flights</h2>
+              <h2 className="text-[13px] font-bold uppercase tracking-widest text-[#152d5a]">Completed Flights</h2>
             </div>
-            <div className="rounded-2xl border border-[rgba(59,130,246,0.12)] bg-gradient-to-br from-[#080f1e] to-[#050c18] overflow-hidden divide-y divide-white/[0.05]" style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.30)' }}>
+            <div className="rounded-2xl border border-[#152d5a]/10 bg-white overflow-hidden divide-y divide-[#152d5a]/10" style={{ boxShadow: '0 4px 24px rgba(2,10,22,0.08)' }}>
               {completedFlights.map(b => {
                 const aircraft = Array.isArray(b.aircraft) ? b.aircraft[0] : b.aircraft
                 return (
                   <Link
                     key={b.id}
                     href={`/dashboard/bookings/${b.id}`}
-                    className="flex items-center gap-4 px-5 py-4 hover:bg-white/[0.025] transition-colors group"
+                    className="flex items-center gap-4 px-5 py-4 hover:bg-[#f0f6ff] transition-colors group"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-[13px] font-medium text-white/60 group-hover:text-white/80 transition-colors">Cessna 172N</p>
-                        <span className="text-[10px] font-mono text-slate-600 bg-white/[0.04] px-1.5 py-0.5 rounded">{aircraft?.registration ?? 'VH-KZG'}</span>
+                        <p className="text-[13px] font-medium text-[#152d5a] group-hover:text-[#152d5a] transition-colors">Cessna 172N</p>
+                        <span className="text-[10px] font-mono text-[#4b6390] bg-[#f0f6ff] px-1.5 py-0.5 rounded">{aircraft?.registration ?? 'VH-KZG'}</span>
                         {b.booking_reference && (
-                          <span className="text-[10px] font-mono text-slate-700">{b.booking_reference}</span>
+                          <span className="text-[10px] font-mono text-[#64748b]">{b.booking_reference}</span>
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-600 mt-0.5 tabular-nums">
+                      <p className="text-[11px] text-[#64748b] mt-0.5 tabular-nums">
                         {formatDateFromISO(b.scheduled_start)} · {formatSydTime(b.scheduled_start)} – {formatSydTime(b.scheduled_end)} Sydney time (AEST)
                       </p>
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <StatusBadge status={b.status} bookingType={b.booking_type} />
-                      <div className="w-7 h-7 rounded-full border border-white/[0.08] flex items-center justify-center group-hover:border-white/[0.18] transition-colors">
-                        <span className="material-symbols-outlined text-slate-600 group-hover:text-slate-400 text-[13px] transition-colors" aria-hidden="true">arrow_forward</span>
+                      <div className="w-7 h-7 rounded-full border border-[#152d5a]/10 flex items-center justify-center group-hover:border-[#152d5a]/20 transition-colors">
+                        <span className="material-symbols-outlined text-[#64748b] group-hover:text-[#4b6390] text-[13px] transition-colors" aria-hidden="true">arrow_forward</span>
                       </div>
                     </div>
                   </Link>
@@ -702,7 +702,7 @@ export default async function CustomerBookingsPage() {
           <section>
             <div className="flex items-center gap-2.5 mb-5">
               <span className="material-symbols-outlined text-blue-400/60 text-[18px]" style={{ fontVariationSettings: "'wght' 300" }} aria-hidden="true">history</span>
-              <h2 className="text-[13px] font-bold uppercase tracking-widest text-white/60">Checkout History</h2>
+              <h2 className="text-[13px] font-bold uppercase tracking-widest text-[#152d5a]">Checkout History</h2>
             </div>
             <div className="space-y-3">
               {checkoutRequests.map(b => {
@@ -713,23 +713,23 @@ export default async function CustomerBookingsPage() {
                   <Link
                     key={b.id}
                     href={`/dashboard/bookings/${b.id}`}
-                    className="flex items-center gap-4 rounded-2xl border border-[rgba(59,130,246,0.12)] bg-gradient-to-br from-[#080f1e] to-[#050c18] px-5 py-4 sm:px-6 hover:border-[rgba(59,130,246,0.25)] transition-all group"
-                    style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.30)' }}
+                    className="flex items-center gap-4 rounded-2xl border border-[#152d5a]/10 bg-white px-5 py-4 sm:px-6 hover:border-[#152d5a]/20 transition-all group"
+                    style={{ boxShadow: '0 4px 24px rgba(2,10,22,0.08)' }}
                   >
                     {/* Icon */}
-                    <div className="w-11 h-11 rounded-full bg-[rgba(59,130,246,0.08)] border border-[rgba(59,130,246,0.16)] flex items-center justify-center flex-shrink-0">
+                    <div className="w-11 h-11 rounded-full bg-[#f0f6ff] border border-[#152d5a]/10 flex items-center justify-center flex-shrink-0">
                       <span className="material-symbols-outlined text-blue-400/70 text-[18px]" style={{ fontVariationSettings: "'wght' 300" }} aria-hidden="true">receipt_long</span>
                     </div>
 
                     {/* Details */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                        <p className="text-[13px] font-semibold text-white/80 group-hover:text-white transition-colors">Checkout Flight</p>
+                        <p className="text-[13px] font-semibold text-[#152d5a] group-hover:text-[#152d5a] transition-colors">Checkout Flight</p>
                         {b.booking_reference && (
-                          <span className="text-[10px] font-mono text-slate-600 bg-white/[0.03] border border-white/[0.05] px-1.5 py-0.5 rounded">{b.booking_reference}</span>
+                          <span className="text-[10px] font-mono text-[#64748b] bg-[#f0f6ff] border border-[#152d5a]/10 px-1.5 py-0.5 rounded">{b.booking_reference}</span>
                         )}
                       </div>
-                      <p className="text-[12px] text-slate-500">Cessna 172N · Registration {aircraft?.registration ?? 'VH-KZG'}</p>
+                      <p className="text-[12px] text-[#4b6390]">Cessna 172N · Registration {aircraft?.registration ?? 'VH-KZG'}</p>
                       {outcomeCfg ? (
                         <p className={`text-[11px] mt-0.5 font-medium ${outcomeCfg.color}`}>
                           Status: {outcomeCfg.label}
@@ -743,11 +743,11 @@ export default async function CustomerBookingsPage() {
 
                     {/* Date + arrow */}
                     <div className="flex-shrink-0 text-right">
-                      <p className="text-[12px] text-slate-400 tabular-nums">{formatDateFromISO(b.scheduled_start)}</p>
-                      <p className="text-[11px] text-slate-600 tabular-nums mt-0.5">{formatSydTime(b.scheduled_start)} Sydney time (AEST)</p>
+                      <p className="text-[12px] text-[#4b6390] tabular-nums">{formatDateFromISO(b.scheduled_start)}</p>
+                      <p className="text-[11px] text-[#64748b] tabular-nums mt-0.5">{formatSydTime(b.scheduled_start)} Sydney time (AEST)</p>
                       <div className="mt-2 flex justify-end">
-                        <div className="w-7 h-7 rounded-full border border-white/[0.08] flex items-center justify-center group-hover:border-blue-400/30 transition-colors">
-                          <span className="material-symbols-outlined text-slate-600 group-hover:text-blue-400 text-[13px] transition-colors" aria-hidden="true">arrow_forward</span>
+                        <div className="w-7 h-7 rounded-full border border-[#152d5a]/10 flex items-center justify-center group-hover:border-blue-400/30 transition-colors">
+                          <span className="material-symbols-outlined text-[#64748b] group-hover:text-blue-400 text-[13px] transition-colors" aria-hidden="true">arrow_forward</span>
                         </div>
                       </div>
                     </div>

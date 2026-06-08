@@ -13,6 +13,7 @@ type CustomerPortalItem = {
 const ITEMS: CustomerPortalItem[] = [
   { label: 'Pilot Dashboard', href: '/dashboard', icon: 'dashboard', exact: true },
   { label: 'Checkout', href: '/dashboard/checkout', icon: 'flight_takeoff' },
+  { label: 'Documents', href: '/dashboard/documents', icon: 'description' },
   { label: 'Bookings', href: '/dashboard/bookings', icon: 'event' },
   { label: 'Profile', href: '/dashboard/settings', icon: 'person' },
 ]

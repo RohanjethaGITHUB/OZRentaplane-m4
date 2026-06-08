@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import type { Profile, PilotClearanceStatus, UserDocument, VerificationEvent } from '@/lib/supabase/types'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
-import DashboardHeroRunway from '@/components/customer/DashboardHeroRunway'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import { formatSydTime } from '@/lib/utils/sydney-time'
 import { ADMIN_CONTACT_PHONE_DISPLAY, ADMIN_CONTACT_PHONE_TEL } from '@/lib/contact'
@@ -60,6 +60,8 @@ type Props = {
   documents: UserDocument[]
   events: VerificationEvent[]
   isFirstLogin: boolean
+  mustChangePassword?: boolean
+  passwordUpdated?: boolean
   checkoutBookingId?: string | null
   checkoutInvoice?: CheckoutInvoiceData | null
   activeBooking?: { id: string; status: string } | null
@@ -185,6 +187,250 @@ function toneIconBg(tone: StatusTone): React.CSSProperties {
   if (tone === 'green') return { background: 'rgba(52,211,153,0.10)', border: '1px solid rgba(52,211,153,0.25)' }
   if (tone === 'red') return { background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.25)' }
   return { background: 'rgba(96,165,250,0.09)', border: '1px solid rgba(96,165,250,0.20)' }
+}
+
+// ── Pilot journey strip ─────────────────────────────────────────────────────
+
+type JourneyStep = {
+  key: string
+  label: string
+  icon: string
+}
+
+const JOURNEY_STEPS: JourneyStep[] = [
+  { key: 'account_created', label: 'Account Created', icon: 'check' },
+  { key: 'checkout_requested', label: 'Checkout Requested', icon: 'description' },
+  { key: 'checkout_booked', label: 'Checkout Flight Booked', icon: 'calendar_month' },
+  { key: 'checkout_result', label: 'Checkout Result', icon: 'verified_user' },
+  { key: 'ready_to_fly', label: 'Ready to Fly', icon: 'flag' },
+]
+
+function getStepState(
+  stepId: string,
+  status: PilotClearanceStatus,
+): 'completed' | 'current' | 'upcoming' | 'locked' {
+  const order = ['account', 'documents', 'checkout', 'approved', 'ready']
+  const statusToStep: Record<PilotClearanceStatus, number> = {
+    checkout_required: 1,
+    checkout_requested: 2,
+    checkout_confirmed: 2,
+    checkout_completed_under_review: 3,
+    checkout_payment_required: 3,
+    cleared_to_fly: 5,
+    additional_checkout_required: 3,
+    checkout_reschedule_required: 3,
+    not_currently_eligible: 3,
+  }
+
+  const currentIndex = statusToStep[status] ?? 0
+  const stepIndex = order.indexOf(stepId)
+
+  if (stepIndex < currentIndex) return 'completed'
+  if (stepIndex === currentIndex) return 'current'
+  if (stepId === 'ready' && status !== 'cleared_to_fly') return 'locked'
+  return 'upcoming'
+}
+
+function getJourneyStepIndex(clearanceStatus: PilotClearanceStatus): number {
+  if (clearanceStatus === 'checkout_required') return 0
+  if (clearanceStatus === 'checkout_requested') return 1
+  if (clearanceStatus === 'checkout_confirmed') return 2
+  if (clearanceStatus === 'checkout_completed_under_review') return 3
+  if (clearanceStatus === 'checkout_payment_required') return 3
+  if (clearanceStatus === 'additional_checkout_required') return 3
+  if (clearanceStatus === 'checkout_reschedule_required') return 3
+  if (clearanceStatus === 'not_currently_eligible') return 0
+  return 4
+}
+
+function PilotJourneyStrip({ clearanceStatus }: { clearanceStatus: PilotClearanceStatus }) {
+  const steps = [
+    {
+      id: 'account',
+      label: 'Account Created',
+      sublabel: getStepState('account', clearanceStatus) === 'completed' ? 'Completed' : 'Upcoming',
+      icon: 'person',
+      state: getStepState('account', clearanceStatus),
+    },
+    {
+      id: 'documents',
+      label: 'Documents',
+      sublabel:
+        getStepState('documents', clearanceStatus) === 'current'
+          ? 'In Progress'
+          : getStepState('documents', clearanceStatus) === 'completed'
+            ? 'Completed'
+            : 'Upcoming',
+      icon: 'description',
+      state: getStepState('documents', clearanceStatus),
+    },
+    {
+      id: 'checkout',
+      label: 'Checkout',
+      sublabel:
+        getStepState('checkout', clearanceStatus) === 'current'
+          ? 'Required'
+          : getStepState('checkout', clearanceStatus) === 'completed'
+            ? 'Completed'
+            : 'Upcoming',
+      icon: 'flight_takeoff',
+      state: getStepState('checkout', clearanceStatus),
+    },
+    {
+      id: 'approved',
+      label: 'Approved',
+      sublabel:
+        getStepState('approved', clearanceStatus) === 'current'
+          ? 'Pending'
+          : getStepState('approved', clearanceStatus) === 'completed'
+            ? 'Completed'
+            : 'Upcoming',
+      icon: 'verified',
+      state: getStepState('approved', clearanceStatus),
+    },
+    {
+      id: 'ready',
+      label: 'Ready to Fly',
+      sublabel: getStepState('ready', clearanceStatus) === 'completed' ? 'Unlocked' : 'Locked',
+      icon: 'local_airport',
+      state: getStepState('ready', clearanceStatus),
+    },
+  ] as const
+
+  return (
+    <section className="bg-[#eef4ff] border border-[#dbeafe] rounded-2xl p-6 md:p-8" style={{ boxShadow: '0 4px 40px rgba(2,10,22,0.08)' }}>
+      <div className="flex flex-col md:flex-row md:items-center gap-5 md:gap-8">
+        <div className="hidden md:flex flex-col gap-1 min-w-[160px]">
+          <div className="text-[10px] font-semibold tracking-[0.18em] uppercase text-[#1a4fd6]">
+            PILOT JOURNEY
+          </div>
+          <div className="text-[22px] font-semibold leading-snug text-[#152d5a]" style={{ fontFamily: 'Newsreader, Georgia, serif' }}>
+            Your path to<br />flying solo
+          </div>
+        </div>
+
+        <div className="flex items-start flex-1 overflow-x-auto scrollbar-none">
+          {steps.map((step, index) => (
+            <div key={step.id} className="flex items-start flex-1 min-w-0">
+              <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                <div
+                  className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    step.state === 'completed'
+                      ? 'bg-[#1a4fd6] text-white'
+                      : step.state === 'current'
+                        ? 'bg-white border-2 border-[#f59e0b] text-[#f59e0b]'
+                        : step.state === 'upcoming'
+                          ? 'bg-[#f0f6ff] border border-[#152d5a]/15 text-[#94a3b8]'
+                          : 'bg-[#f0f6ff] border border-[#152d5a]/10 text-[#c4c6ce]'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">{step.icon}</span>
+                </div>
+                <div className="text-center">
+                  <div
+                    className={`text-[11px] font-semibold leading-tight ${
+                      step.state === 'completed' || step.state === 'current' ? 'text-[#152d5a]' : 'text-[#94a3b8]'
+                    }`}
+                  >
+                    {step.label}
+                  </div>
+                  <div
+                    className={`text-[10px] leading-tight mt-0.5 ${
+                      step.state === 'current' ? 'text-[#f59e0b] font-medium' : 'text-[#94a3b8]'
+                    }`}
+                  >
+                    {step.sublabel}
+                  </div>
+                </div>
+              </div>
+              {index < steps.length - 1 && (
+                <div className={`h-[2px] min-w-[24px] flex-1 mt-4 mx-1 rounded-full ${step.state === 'completed' ? 'bg-[#1a4fd6]' : 'bg-[#e2e8f0]'}`} />
+              )}
+            </div>
+          ))}
+          {/* Control tower — end of runway */}
+          <div className="flex-shrink-0 flex items-center pl-0 ml-1">
+            <img
+              src="/CustomerDashboard/CustomerDashboard-tower.png"
+              alt=""
+              aria-hidden="true"
+              className="w-auto object-contain"
+              style={{
+                height: '80px',
+                filter: 'invert(45%) sepia(60%) saturate(300%) hue-rotate(190deg) brightness(1.1) opacity(0.45)',
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ── Recent activity strip ────────────────────────────────────────────────────
+
+function formatActivityTimestamp(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function getActivityChip(event: VerificationEvent): { label: string; tone: string; icon: string } {
+  if (event.event_type === 'message') return { label: 'Message', tone: 'text-blue-700 bg-blue-50 border-blue-200', icon: 'chat_bubble' }
+  if (event.event_type === 'on_hold') return { label: 'Action needed', tone: 'text-amber-700 bg-amber-50 border-amber-200', icon: 'schedule' }
+  if (event.event_type === 'approved') return { label: 'Approved', tone: 'text-emerald-700 bg-emerald-50 border-emerald-200', icon: 'check_circle' }
+  if (event.event_type === 'rejected') return { label: 'Rejected', tone: 'text-rose-700 bg-rose-50 border-rose-200', icon: 'cancel' }
+  if (event.event_type === 'resubmitted') return { label: 'Resubmitted', tone: 'text-violet-700 bg-violet-50 border-violet-200', icon: 'refresh' }
+  return { label: 'Update', tone: 'text-slate-700 bg-slate-50 border-slate-200', icon: 'notifications' }
+}
+
+function RecentActivityStrip({ events }: { events: VerificationEvent[] }) {
+  const visibleEvents = events.slice(0, 4)
+
+  return (
+    <section className="rounded-2xl border border-[#152d5a]/10 bg-white p-5 md:p-6" style={{ boxShadow: '0 4px 40px rgba(2,10,22,0.08)' }}>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-[#4b6390]">Recent Activity</p>
+          <p className="mt-1 text-sm text-[#4b6390]">Latest updates from your pilot file and booking history.</p>
+        </div>
+      </div>
+
+      {visibleEvents.length > 0 ? (
+        <div className="mt-4 overflow-x-auto pb-1">
+          <div className="flex min-w-max gap-3">
+            {visibleEvents.map((event) => {
+              const chip = getActivityChip(event)
+              return (
+                <article key={event.id} className="min-w-[260px] rounded-2xl border border-[#152d5a]/10 bg-[#f8fbff] p-4 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${chip.tone}`}>
+                      <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                        {chip.icon}
+                      </span>
+                      {chip.label}
+                    </div>
+                    <span className="text-[11px] text-[#64748b]">{formatActivityTimestamp(event.created_at)}</span>
+                  </div>
+                  <h3 className="mt-3 text-[15px] font-semibold text-[#152d5a]">{event.title}</h3>
+                  {event.body ? <p className="mt-1.5 text-sm leading-relaxed text-[#4b6390]">{event.body}</p> : null}
+                </article>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4 rounded-2xl border border-dashed border-[#152d5a]/15 bg-[#f8fafc] p-5 text-sm text-[#4b6390]">
+          No recent activity yet. Updates will appear here as your pilot file changes.
+        </div>
+      )}
+    </section>
+  )
 }
 
 // ── Hero status line ──────────────────────────────────────────────────────────
@@ -469,15 +715,15 @@ function getSnapshotStatusDisplay(status: string, bookingType: string): { label:
 
 function SnapshotRow({ icon, label, children }: { icon: string; label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-3 py-2.5 border-b border-white/[0.07] last:border-0">
+    <div className="flex items-start gap-3 py-2.5 border-b border-[#152d5a]/10 last:border-0">
       <span
         className="material-symbols-outlined text-[15px] flex-shrink-0 mt-0.5"
-        style={{ color: 'rgba(148,178,218,0.55)', fontVariationSettings: "'wght' 300" }}
+        style={{ color: 'rgba(75,99,144,0.75)', fontVariationSettings: "'wght' 300" }}
       >
         {icon}
       </span>
-      <span className="text-[11px] uppercase tracking-[0.08em] text-white/35 w-24 flex-shrink-0 pt-0.5">{label}</span>
-      <span className="text-[13px] text-white/80 font-medium leading-snug">{children}</span>
+      <span className="text-[11px] uppercase tracking-[0.08em] text-[#64748b] w-24 flex-shrink-0 pt-0.5">{label}</span>
+      <span className="text-[13px] text-[#152d5a] font-medium leading-snug">{children}</span>
     </div>
   )
 }
@@ -487,9 +733,11 @@ function SnapshotRow({ icon, label, children }: { icon: string; label: string; c
 export default function DashboardContent({
   user,
   profile,
-  documents: _documents,
-  events: _events,
+  documents,
+  events,
   isFirstLogin: _isFirstLogin,
+  mustChangePassword = false,
+  passwordUpdated = false,
   checkoutBookingId,
   checkoutInvoice,
   activeBooking,
@@ -499,10 +747,19 @@ export default function DashboardContent({
   flashNotice,
 }: Props) {
   const router = useRouter()
-  const [toastVisible, setToastVisible] = useState(Boolean(flashNotice))
+  const [toastVisible, setToastVisible] = useState(Boolean(flashNotice) || passwordUpdated)
+  const toastNotice =
+    flashNotice ??
+    (passwordUpdated
+      ? {
+          kind: 'success' as const,
+          title: 'Password updated successfully',
+          message: 'Welcome to OZ Rent A Plane.',
+        }
+      : null)
 
   useEffect(() => {
-    if (!flashNotice) return
+    if (!toastNotice) return
     setToastVisible(true)
     const hideTimer = window.setTimeout(() => setToastVisible(false), 4200)
     const stripTimer = window.setTimeout(() => {
@@ -512,7 +769,7 @@ export default function DashboardContent({
       window.clearTimeout(hideTimer)
       window.clearTimeout(stripTimer)
     }
-  }, [flashNotice])
+  }, [toastNotice])
 
   const displayName = profile?.full_name ?? user.email?.split('@')[0] ?? 'Pilot'
   const firstNameFromProfile = (profile?.first_name ?? '').trim()
@@ -626,8 +883,8 @@ export default function DashboardContent({
 
   return (
     <div className="space-y-5">
-      {toastVisible && flashNotice ? (
-        <div className="fixed right-4 top-4 z-[80] w-[calc(100vw-2rem)] max-w-sm rounded-2xl border border-emerald-400/30 bg-slate-950/95 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl md:right-6 md:top-6">
+      {toastVisible && toastNotice ? (
+        <div className="fixed right-4 top-4 z-[80] w-[calc(100vw-2rem)] max-w-sm rounded-2xl border border-emerald-400/30 bg-white/95 p-4 shadow-[0_24px_80px_rgba(2,10,22,0.12)] backdrop-blur-xl md:right-6 md:top-6">
           <div className="flex items-start gap-3">
             <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
               <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -635,11 +892,22 @@ export default function DashboardContent({
               </span>
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-white">{flashNotice.title}</p>
-              <p className="mt-1 text-sm text-slate-300">{flashNotice.message}</p>
+              <p className="text-sm font-semibold text-[#152d5a]">{toastNotice.title}</p>
+              <p className="mt-1 text-sm text-[#4b6390]">{toastNotice.message}</p>
             </div>
           </div>
         </div>
+      ) : null}
+
+      {mustChangePassword && !passwordUpdated ? (
+        <section className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p>Your account is using a temporary password. Please update it when you get a chance.</p>
+            <Link href="/change-password" className="font-semibold text-amber-900 hover:text-amber-950">
+              Update now →
+            </Link>
+          </div>
+        </section>
       ) : null}
 
       {isNoShowLocked && (
@@ -650,7 +918,7 @@ export default function DashboardContent({
           <p className="mt-2 text-sm md:text-base text-rose-100/90 text-center">
             Please contact OZ Rent A Plane to discuss your checkout status and unlock your account.
           </p>
-          <p className="mt-2 text-sm md:text-base text-white text-center">
+          <p className="mt-2 text-sm md:text-base text-[#152d5a] text-center">
             Call:{' '}
             <a href={`tel:${ADMIN_CONTACT_PHONE_TEL}`} className="underline underline-offset-2">
               {ADMIN_CONTACT_PHONE_DISPLAY}
@@ -659,296 +927,212 @@ export default function DashboardContent({
         </section>
       )}
 
-      {bookingReadiness?.show && (
-        <section className="rounded-2xl border border-blue-500/25 bg-blue-500/10 p-4 md:p-5">
-          <p className="text-base font-semibold text-white">Before your first booking</p>
-          <p className="mt-1 text-sm text-blue-100/90">Your checkout is complete. Please finish your pilot file before booking.</p>
-          {bookingReadiness.hasHistoricalClearance ? (
-            <p className="mt-1 text-xs text-blue-200/80">Checkout source: Historical/manual completion.</p>
-          ) : null}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${bookingReadiness.docsReady ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'}`}>
-              Documents: {bookingReadiness.docsReady ? 'Complete' : bookingReadiness.hasAwaitingReview && !bookingReadiness.hasMissingOrExpired ? 'Awaiting admin review' : 'Action required'}
-            </span>
-            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${bookingReadiness.flightRecencyComplete ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'}`}>
-              Flight recency: {bookingReadiness.flightRecencyComplete ? 'Complete' : 'Missing'}
-            </span>
-            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${bookingReadiness.termsAccepted ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'}`}>
-              Terms: {bookingReadiness.termsAccepted ? 'Accepted current version' : 'Not accepted'}
-            </span>
-          </div>
-          <button
-            onClick={() => router.push('/dashboard/bookings/new')}
-            className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-white hover:bg-blue-500"
-          >
-            Complete pilot file
-          </button>
-        </section>
-      )}
-
       {/* ─── SECTION 1: HERO CARD ────────────────────────────────────────────── */}
       <section
-        className="relative overflow-hidden rounded-[20px] border"
+        data-hero="dashboard"
+        className="relative overflow-hidden -mt-6"
         style={{
-          borderColor: 'rgba(80,122,186,0.22)',
-          minHeight: 'clamp(340px, 42vh, 470px)',
-          boxShadow: '0 8px 64px rgba(0,0,0,0.65), 0 0 0 1px rgba(80,122,186,0.06)',
+          minHeight: '380px',
+          marginLeft: 'calc(-50vw + 50%)',
+          marginRight: 'calc(-50vw + 50%)',
+          width: '100vw',
+          backgroundImage: 'url(/CustomerDashboard/CustomerDashboard-hero.webp)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center right',
+          boxShadow: '0 8px 64px rgba(2,10,22,0.18)',
         }}
       >
-        {/* Background image */}
         <div
-          className="absolute inset-0 z-0"
+          className="absolute inset-0"
           style={{
-            backgroundImage: "url('/CustomerDashboard/dashboard-Hero.png')",
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
+            background: 'linear-gradient(90deg, rgba(8,20,50,0.82) 0%, rgba(8,20,50,0.65) 45%, rgba(8,20,50,0.15) 100%)',
           }}
         />
-        {/* Subtle left-side readability overlay (localized, lighter) */}
-        <div className="absolute inset-0 z-10" style={{ background: 'linear-gradient(105deg, rgba(7,16,30,0.34) 0%, rgba(8,18,34,0.22) 38%, rgba(8,18,34,0.08) 65%, rgba(8,18,34,0.00) 100%)' }} />
-        {/* Very light top/bottom vignette */}
-        <div className="absolute inset-0 z-10" style={{ background: 'linear-gradient(to top, rgba(6,14,28,0.14) 0%, transparent 50%, rgba(6,14,28,0.10) 100%)' }} />
 
-        {/* Content */}
-        <div
-          className="relative z-20 flex flex-col h-full px-7 py-7 md:px-12 md:py-8"
-          style={{ minHeight: 'clamp(340px, 42vh, 470px)' }}
-        >
-          {/* Top row: status pill */}
-          <div className="flex items-center justify-end gap-4">
-            {/* Status pill */}
+        <div className="relative z-10 max-w-[1440px] mx-auto px-3 md:px-4 lg:px-6 py-12 md:py-16">
+          <div className="text-[11px] font-semibold tracking-[0.18em] uppercase text-[#f59e0b] mb-3 font-sans">
+            DASHBOARD
+          </div>
+          <h1
+            className="text-5xl md:text-6xl font-bold text-white leading-tight mb-4"
+            style={{ fontFamily: 'Newsreader, Georgia, serif' }}
+          >
+            Welcome back,<br />
+            Captain {firstName}
+          </h1>
+          <div className="mb-3">
             <div
-              className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[10px] font-bold tracking-[0.14em] uppercase backdrop-blur-sm ${pillClass(effectiveTone)}`}
+              className="inline-flex items-center gap-2 mb-4 px-4 py-1.5 rounded-full border text-[13px] font-semibold"
+              style={{
+                background: 'rgba(245,158,11,0.15)',
+                borderColor: 'rgba(245,158,11,0.35)',
+                color: '#f59e0b',
+              }}
             >
-              {effectiveTone === 'green' ? (
-                <span
-                  className="material-symbols-outlined text-[13px] leading-none"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  check_circle
-                </span>
-              ) : (
-                <span
-                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                  style={{ background: toneDotColor(effectiveTone) }}
-                />
-              )}
+              <span className="material-symbols-outlined text-[14px]">anchor</span>
               {effectiveStatusPill}
             </div>
           </div>
-
-          {/* Main hero content — pushed to lower third */}
-          <div className="mt-auto">
-            {/* "WELCOME BACK," small label */}
-            <p className="text-[11px] md:text-[12px] font-bold uppercase tracking-[0.28em] text-white/55 mb-0.5">
-              Welcome back,
-            </p>
-            {/* "Captain Adam" large gold heading */}
-            <h1
-              className="font-serif leading-[0.95] tracking-[-0.01em] mb-3.5"
-              style={{
-                fontSize: 'clamp(42px, 6.5vw, 78px)',
-                color: '#e8b84b',
-                textShadow: '0 2px 24px rgba(232,184,75,0.22)',
-              }}
+          <p className="text-[15px] text-white/80 leading-relaxed mb-6 max-w-md">
+            {clearanceStatus === 'checkout_required'
+              ? "You're almost ready for solo hire. Complete your checkout to access and book your aircraft."
+              : heroStatusLine}
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => router.push(mainCtaHref)}
+              className="bg-[#f59e0b] hover:bg-[#e08c00] text-white font-semibold rounded-xl px-6 py-3 flex items-center gap-2 transition-colors"
             >
-              Captain {firstName || 'Pilot'}
-            </h1>
-            <p className="text-[15px] text-white/60 leading-relaxed mb-2.5 max-w-lg">
-              Your next adventure is ready when you are.
-            </p>
-            {/* Dynamic status line — keep green dot for success/ready */}
-            <div className="flex items-center gap-2.5 mb-6">
               <span
-                className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ background: effectiveTone === 'green' ? '#34d399' : toneDotColor(effectiveTone) }}
-              />
-              <p className="text-[14px] font-medium text-white/70">{heroStatusLine}</p>
-            </div>
-            {/* CTA buttons */}
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={() => router.push(mainCtaHref)}
-                className="inline-flex items-center justify-center gap-2 rounded-full text-[11px] uppercase tracking-[0.16em] font-bold transition-all px-7 py-3 bg-blue-600 hover:bg-blue-500 text-white"
-                style={{ boxShadow: '0 0 28px rgba(37,99,235,0.40)' }}
+                className="material-symbols-outlined text-[15px] leading-none"
+                style={{ fontVariationSettings: "'FILL' 1" }}
               >
-                <span
-                  className="material-symbols-outlined text-[15px] leading-none"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  flight_takeoff
-                </span>
-                {mainCtaLabel}
-              </button>
-              <button
-                onClick={() => router.push(heroSecondaryCta.href)}
-                className="inline-flex items-center justify-center gap-2 rounded-full border text-white/75 text-[11px] uppercase tracking-[0.16em] font-bold hover:bg-white/[0.07] hover:text-white transition-all px-7 py-3"
-                style={{ borderColor: 'rgba(255,255,255,0.22)' }}
-              >
-                <span className="material-symbols-outlined text-[15px] leading-none">calendar_month</span>
-                {heroSecondaryCta.label}
-              </button>
-            </div>
+                flight_takeoff
+              </span>
+              {mainCtaLabel}
+            </button>
+            <button
+              onClick={() => router.push(heroSecondaryCta.href)}
+              className="bg-transparent border border-white/40 hover:border-white text-white font-medium rounded-xl px-5 py-3 flex items-center gap-2 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[15px] leading-none">calendar_month</span>
+              {heroSecondaryCta.label}
+            </button>
           </div>
         </div>
+        <div
+          className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none"
+          style={{ background: 'linear-gradient(to bottom, transparent, rgba(13,27,62,0.3))' }}
+        />
       </section>
 
       {/* ─── SECTION 2: PILOT JOURNEY CARD ───────────────────────────────────── */}
-      <section
-        className="relative rounded-[20px] border overflow-hidden"
-        style={{
-          borderColor: 'rgba(80,122,186,0.18)',
-          boxShadow: '0 4px 40px rgba(0,0,0,0.52)',
-        }}
-      >
-        {/* Background image */}
-        <div
-          className="absolute inset-0 z-0"
-          style={{
-            backgroundImage: "url('/CustomerDashboard/dashboard-journey.png')",
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
-        />
-        {/* Very light readability wash for labels/track contrast */}
-        <div className="absolute inset-0 z-10" style={{ background: 'rgba(6,14,28,0.18)' }} />
-        <div className="absolute inset-0 z-10" style={{ background: 'linear-gradient(to bottom, rgba(6,14,28,0.12) 0%, rgba(6,14,28,0.04) 38%, rgba(6,14,28,0.14) 100%)' }} />
+      <PilotJourneyStrip clearanceStatus={clearanceStatus} />
 
-        {/* Content */}
-        <div className="relative z-20">
-          <div className="px-8 pt-5 pb-0 md:px-12 md:pt-6">
-            <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-blue-300/55 mb-0.5">
-              Your Pilot Journey
-            </p>
-            <p className="text-[13px] text-[#5a7896] leading-tight">
-              From takeoff to touchdown, we&apos;ve got you covered.
-            </p>
-          </div>
-          <DashboardHeroRunway
-            clearanceStatus={clearanceStatus}
-            checkoutPaymentDisplayState={checkoutPaymentDisplayState}
-            activeBooking={hasActiveBooking && activeBooking ? activeBooking : null}
-            blocked={clearanceStatus === 'not_currently_eligible'}
-          />
-        </div>
-      </section>
-
-      {/* ─── SECTION 3: NEXT ACTION + FLIGHT SNAPSHOT ───────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {/* ─── SECTION 3: NEXT ACTION + UPCOMING BOOKING + DOCUMENT READINESS ─── */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
 
         {/* ── Next Action Card ── */}
         <div
-          className="relative rounded-[20px] border overflow-hidden"
+          className="bg-white border border-[#152d5a]/10 rounded-2xl p-5 flex flex-col relative overflow-hidden min-h-[280px]"
           style={{
-            borderColor: toneBorder(nextAction.tone),
-            boxShadow: '0 4px 40px rgba(0,0,0,0.52)',
-            minHeight: '320px',
+            position: 'relative',
+            boxShadow: '0 4px 40px rgba(2,10,22,0.08)',
           }}
         >
-          {/* Background image */}
-          <div
-            className="absolute inset-0 z-0"
-            style={{
-              backgroundImage: "url('/CustomerDashboard/dashboard-nextaction.png')",
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-            }}
-          />
-          {/* Lighter, localized readability gradient */}
-          <div className="absolute inset-0 z-10" style={{ background: 'linear-gradient(135deg, rgba(7,16,30,0.34) 0%, rgba(7,16,30,0.20) 50%, rgba(7,16,30,0.08) 100%)' }} />
-          {/* Top accent line */}
           <div className="absolute top-0 inset-x-0 z-20 h-[3px]" style={{ background: toneAccentGradient(nextAction.tone) }} />
 
-          <div className="relative z-20 px-7 py-7 md:px-8 md:py-8">
-            <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-white/35 mb-6">
-              Next Action
-            </p>
-
-            {/* Icon + title */}
-            <div className="flex items-start gap-5 mb-5">
-              <div
-                className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={toneIconBg(nextAction.tone)}
-              >
-                <span
-                  className="material-symbols-outlined text-[26px]"
-                  style={{ color: nextAction.iconColor, fontVariationSettings: "'wght' 200" }}
-                >
-                  {nextAction.icon}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0 pt-1">
-                <h2 className="font-serif text-[22px] md:text-[26px] leading-tight text-white">
-                  {nextAction.title}
-                </h2>
-              </div>
+          {/* Top row */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">send</span>
+              <span className="text-[16px] font-semibold text-[#4b6390]">Next Action</span>
             </div>
+            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-md border border-[#f59e0b] text-[#f59e0b] flex items-center gap-1">
+              ★ PRIORITY
+            </span>
+          </div>
 
-            <p className="text-[14px] text-white/55 leading-relaxed mb-7">
-              {nextAction.body}
-            </p>
-
-            <div className="flex flex-col sm:flex-row items-start gap-3">
-              <button
-                onClick={() => router.push(nextAction.ctaHref)}
-                className="inline-flex items-center gap-2 rounded-full text-[11px] uppercase tracking-[0.14em] font-bold transition-all px-6 py-3 whitespace-nowrap"
-                style={{ ...toneCtaStyle(nextAction.tone), boxShadow: nextAction.tone === 'amber' ? '0 0 20px rgba(245,158,11,0.30)' : undefined }}
-              >
-                <span
-                  className="material-symbols-outlined text-[15px] leading-none"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
-                >
-                  flight_takeoff
-                </span>
-                {nextAction.ctaLabel}
-              </button>
-              {nextAction.secondaryLink && (
-                <button
-                  onClick={() => {
-                    const href = nextAction.secondaryLink!.href
-                    if (href.startsWith('tel:')) {
-                      window.location.href = href
-                      return
-                    }
-                    router.push(href)
-                  }}
-                  className="inline-flex items-center gap-0.5 text-[12px] text-white/40 hover:text-white/65 transition-colors py-3 px-1"
-                >
-                  {nextAction.secondaryLink.label}
-                  <span className="material-symbols-outlined text-[14px] leading-none">chevron_right</span>
-                </button>
-              )}
+          {/* Checklist illustration — always visible, absolute top-right */}
+          <div className="absolute top-20 right-3 pointer-events-none select-none">
+            <div className="bg-white rounded-xl p-1">
+              <img
+                src="/CustomerDashboard/CustomerDashboard-checklist.png"
+                alt=""
+                aria-hidden="true"
+                className="w-32 h-36 object-contain"
+              />
             </div>
           </div>
+
+          {(() => {
+            // Determine if docs need uploading first
+            const hasAllDocs =
+              documents &&
+              documents.filter((d) => d.status === 'approved' || d.status === 'uploaded').length >= 3
+            const showDocumentAction = !hasAllDocs && clearanceStatus === 'checkout_required'
+
+            return showDocumentAction ? (
+              <>
+                <h2
+                  className="text-[32px] font-normal text-[#152d5a] leading-tight mb-3 pr-36"
+                  style={{ fontFamily: 'Newsreader, Georgia, serif' }}
+                >
+                  Upload Your Documents
+                </h2>
+                <p className="text-[13px] text-[#4b6390] leading-relaxed mb-4 pr-32">
+                  Before booking your checkout flight, upload your pilot licence, medical certificate, and photo ID.
+                </p>
+                <div className="mt-auto pt-4">
+                  <Link
+                    href="/dashboard/documents"
+                    className="w-full flex items-center justify-center gap-2 bg-[#f59e0b] hover:bg-[#e08c00] text-white font-semibold rounded-xl py-3.5 px-4 transition-colors text-[14px]"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">upload_file</span>
+                    Upload Documents Now
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Heading + illustration row */}
+                <div>
+                  <h2
+                    className="text-[32px] font-normal text-[#152d5a] leading-tight mb-3 pr-36"
+                    style={{ fontFamily: 'Newsreader, Georgia, serif' }}
+                  >
+                    Complete Checkout
+                  </h2>
+                </div>
+
+                {/* Description */}
+                <div className="relative mb-3">
+                  {/* Checklist illustration — positioned right, white bg to mask dots */}
+                  <div className="absolute top-8 right-0 pointer-events-none select-none">
+                    <div className="bg-white rounded-xl p-1">
+                      <img
+                        src="/CustomerDashboard/CustomerDashboard-checklist.png"
+                        alt=""
+                        aria-hidden="true"
+                        className="w-32 h-36 object-contain"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <p className="text-[13px] text-[#4b6390] leading-relaxed mb-4 pr-32">
+                  Checkout is required before you can hire an aircraft. It includes aircraft selection, rate confirmation, and final approval.
+                </p>
+
+                {/* Full width CTA */}
+                <div className="mt-auto pt-4">
+                  <Link
+                    href="/dashboard/checkout"
+                    className="w-full flex items-center justify-center gap-2 bg-[#f59e0b] hover:bg-[#e08c00] text-white font-semibold rounded-xl py-3.5 px-4 transition-colors text-[14px]"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">flight_takeoff</span>
+                    Book Checkout Now
+                  </Link>
+                </div>
+              </>
+            )
+          })()}
         </div>
 
-        {/* ── Flight Snapshot Card ── */}
+        {/* ── Upcoming Booking Card ── */}
         <div
-          className="relative rounded-[20px] border overflow-hidden"
+          className="relative rounded-2xl overflow-hidden bg-white border border-[#152d5a]/10"
           style={{
-            borderColor: 'rgba(60,100,160,0.22)',
-            boxShadow: '0 4px 40px rgba(0,0,0,0.52)',
+            boxShadow: '0 4px 40px rgba(2,10,22,0.08)',
             minHeight: '320px',
           }}
         >
-          {/* Background image */}
-          <div
-            className="absolute inset-0 z-0"
-            style={{
-              backgroundImage: "url('/CustomerDashboard/dashboard-flight-snapshot.png')",
-              backgroundSize: 'cover',
-              backgroundPosition: 'center right',
-            }}
-          />
-          {/* Lighter, localized readability gradient */}
-          <div className="absolute inset-0 z-10" style={{ background: 'linear-gradient(135deg, rgba(7,16,30,0.36) 0%, rgba(7,16,30,0.22) 52%, rgba(7,16,30,0.10) 100%)' }} />
-          {/* Top accent line */}
           <div className="absolute top-0 inset-x-0 z-20 h-[3px]" style={{ background: 'linear-gradient(90deg, rgba(96,165,250,0.55) 0%, rgba(96,165,250,0.04) 100%)' }} />
 
-          <div className="relative z-20 px-7 py-7 md:px-8 md:py-8">
-            <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-white/35 mb-6">
-              Flight Snapshot
-            </p>
+          <div className="relative z-20 p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">calendar_month</span>
+              <span className="text-[16px] font-semibold text-[#4b6390]">Upcoming Booking</span>
+            </div>
 
             {flightSnapshotBooking ? (
               /* ── Populated state ── */
@@ -990,66 +1174,284 @@ export default function DashboardContent({
               </div>
             ) : clearanceStatus === 'cleared_to_fly' ? (
               /* ── Cleared, no booking ── */
-              <div className="flex flex-col items-start">
-                <div
-                  className="w-12 h-12 rounded-2xl flex items-center justify-center mb-5"
-                  style={{ background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.25)' }}
-                >
-                  <span
-                    className="material-symbols-outlined text-[22px]"
-                    style={{ color: '#60a5fa', fontVariationSettings: "'wght' 200" }}
-                  >
-                    flight
-                  </span>
+              <div>
+                <div className="relative flex justify-center items-center" style={{ height: '180px' }}>
+                  {/* Circle backdrop — centred, lower half of the space */}
+                  <div
+                    className="absolute rounded-full"
+                    style={{
+                      width: '160px',
+                      height: '160px',
+                      bottom: '0px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      background: 'rgba(219,234,254,0.55)',
+                    }}
+                  />
+                  {/* Plane — larger, sits across the circle */}
+                  <img
+                    src="/CustomerDashboard/CustomerDashboard-plane.png"
+                    alt=""
+                    aria-hidden="true"
+                    className="relative z-10 object-contain"
+                    style={{ width: '240px', height: 'auto', position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)' }}
+                  />
                 </div>
-                <p className="font-serif text-[20px] text-white mb-2">No current booking</p>
-                <p className="text-[13px] text-white/50 leading-relaxed mb-6">
+                <p className="text-[20px] font-semibold text-[#152d5a] text-center mb-2">No upcoming bookings</p>
+                <p className="text-[12px] text-[#4b6390] text-center leading-relaxed mt-2 mb-5">
                   You&apos;re cleared to fly, but you don&apos;t have an active booking yet. Book your next flight to see the details here.
                 </p>
-                <button
-                  onClick={() => router.push('/dashboard/bookings/new')}
-                  className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] font-bold text-blue-400 hover:text-blue-300 transition-colors"
-                >
-                  Book a Flight
-                  <span className="material-symbols-outlined text-[14px] leading-none">arrow_forward</span>
-                </button>
+                {/* Check if there's an active booking */}
+                {activeBooking || flightSnapshotBooking ? (
+                  <div className="flex justify-center">
+                    <Link
+                      href={`/dashboard/bookings/${checkoutBookingId ?? (activeBooking as { id: string } | null)?.id ?? (flightSnapshotBooking as { id: string } | null)?.id}`}
+                      className="border border-[#1a4fd6] text-[#1a4fd6] rounded-xl py-2.5 px-6 text-[13px] font-semibold hover:bg-[#f0f6ff] transition-colors"
+                    >
+                      View Booking
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="flex justify-center">
+                    <Link
+                      href="/dashboard/bookings/new"
+                      className="border border-[#1a4fd6] text-[#1a4fd6] rounded-xl py-2.5 px-6 text-[13px] font-semibold hover:bg-[#f0f6ff] transition-colors"
+                    >
+                      Make a Booking
+                    </Link>
+                  </div>
+                )}
               </div>
             ) : (
               /* ── Not cleared, no checkout booked ── */
-              <div className="flex flex-col items-start">
-                <div
-                  className="w-12 h-12 rounded-2xl flex items-center justify-center mb-5"
-                  style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.22)' }}
-                >
-                  <span
-                    className="material-symbols-outlined text-[22px]"
-                    style={{ color: '#f59e0b', fontVariationSettings: "'wght' 200" }}
-                  >
-                    how_to_reg
-                  </span>
+              <div>
+                <div className="relative flex justify-center items-center" style={{ height: '180px' }}>
+                  {/* Circle backdrop — centred, lower half of the space */}
+                  <div
+                    className="absolute rounded-full"
+                    style={{
+                      width: '160px',
+                      height: '160px',
+                      bottom: '0px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      background: 'rgba(219,234,254,0.55)',
+                    }}
+                  />
+                  {/* Plane — larger, sits across the circle */}
+                  <img
+                    src="/CustomerDashboard/CustomerDashboard-plane.png"
+                    alt=""
+                    aria-hidden="true"
+                    className="relative z-10 object-contain"
+                    style={{ width: '240px', height: 'auto', position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)' }}
+                  />
                 </div>
-                <p className="font-serif text-[20px] text-white mb-2">
+                <p className="text-[20px] font-semibold text-[#152d5a] text-center mb-2">
                   {clearanceStatus === 'checkout_required' ? 'No checkout booked' : 'No upcoming flight'}
                 </p>
-                <p className="text-[13px] text-white/50 leading-relaxed mb-6">
+                <p className="text-[12px] text-[#4b6390] text-center leading-relaxed mt-2 mb-5">
                   {clearanceStatus === 'checkout_required'
                     ? 'Once you schedule your checkout flight, your booking details and status will appear here.'
                     : 'Your booking details will appear here once available.'}
                 </p>
-                {clearanceStatus === 'checkout_required' && (
-                  <button
-                    onClick={() => router.push('/dashboard/checkout')}
-                    className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] font-bold text-amber-400 hover:text-amber-300 transition-colors"
-                  >
-                    Book Checkout
-                    <span className="material-symbols-outlined text-[14px] leading-none">arrow_forward</span>
-                  </button>
+                {activeBooking || flightSnapshotBooking ? (
+                  <div className="flex justify-center">
+                    <Link
+                      href={`/dashboard/bookings/${checkoutBookingId ?? (activeBooking as { id: string } | null)?.id ?? (flightSnapshotBooking as { id: string } | null)?.id}`}
+                      className="border border-[#1a4fd6] text-[#1a4fd6] rounded-xl py-2.5 px-6 text-[13px] font-semibold hover:bg-[#f0f6ff] transition-colors"
+                    >
+                      View Booking
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="flex justify-center">
+                    <Link
+                      href="/dashboard/bookings/new"
+                      className="border border-[#1a4fd6] text-[#1a4fd6] rounded-xl py-2.5 px-6 text-[13px] font-semibold hover:bg-[#f0f6ff] transition-colors"
+                    >
+                      Make a Booking
+                    </Link>
+                  </div>
                 )}
               </div>
             )}
           </div>
         </div>
 
+        {/* ── Document Readiness Card ── */}
+        <div
+          className="bg-white border border-[#152d5a]/10 rounded-2xl p-5 flex flex-col"
+          style={{
+            boxShadow: '0 4px 40px rgba(2,10,22,0.08)',
+          }}
+        >
+          {(() => {
+            const approvedCount = documents?.filter((d) => d.status === 'approved').length ?? 0
+            const getDocStatus = (key: string) => {
+              const doc = documents?.find(d => d.document_type === key)
+              if (!doc) return {
+                label: 'Not Submitted',
+                color: 'text-[#94a3b8]',
+                icon: 'radio_button_unchecked',
+                iconColor: 'text-[#cbd5e1]',
+                nameColor: 'text-[#94a3b8]',
+              }
+              switch (doc.status as string) {
+                case 'uploaded':
+                case 'pending_review':
+                  return {
+                    label: 'Awaiting Approval',
+                    color: 'text-[#f59e0b]',
+                    icon: 'schedule',
+                    iconColor: 'text-[#f59e0b]',
+                    nameColor: 'text-[#152d5a]',
+                  }
+                case 'approved':
+                  return {
+                    label: 'Approved',
+                    color: 'text-[#4b6390]',
+                    icon: 'check_circle',
+                    iconColor: 'text-green-500',
+                    nameColor: 'text-[#152d5a]',
+                  }
+                case 'rejected':
+                  return {
+                    label: 'Rejected',
+                    color: 'text-red-500',
+                    icon: 'cancel',
+                    iconColor: 'text-red-500',
+                    nameColor: 'text-[#152d5a]',
+                  }
+                default:
+                  return {
+                    label: 'Not Submitted',
+                    color: 'text-[#94a3b8]',
+                    icon: 'radio_button_unchecked',
+                    iconColor: 'text-[#cbd5e1]',
+                    nameColor: 'text-[#94a3b8]',
+                  }
+              }
+            }
+            return (
+              <>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">description</span>
+                  <span className="text-[16px] font-semibold text-[#4b6390]">Document Readiness</span>
+                </div>
+
+                <div className="flex items-start gap-4 mb-5">
+                  <div className="flex-shrink-0">
+                    <svg viewBox="0 0 100 100" className="w-28 h-28 flex-shrink-0">
+                      <circle cx="50" cy="50" r="40" fill="none" stroke="#e2e8f0" strokeWidth="14"/>
+                      <circle
+                        cx="50" cy="50" r="40"
+                        fill="none"
+                        stroke="#1a4fd6"
+                        strokeWidth="14"
+                        strokeLinecap="round"
+                        strokeDasharray={`${(approvedCount / 5) * 251.2} 251.2`}
+                        transform="rotate(-90 50 50)"
+                      />
+                      <text x="50" y="46" textAnchor="middle" fontWeight="800" fontSize="18" fill="#152d5a">{approvedCount}/5</text>
+                      <text x="50" y="62" textAnchor="middle" fontSize="12" fill="#4b6390">Ready</text>
+                    </svg>
+                  </div>
+                  <div className="flex-1 pt-1">
+                    <p className="text-[12px] text-[#4b6390] leading-relaxed">
+                      {approvedCount === 0
+                        ? 'Upload your pilot documents to get checkout ready.'
+                        : approvedCount < 5
+                          ? "You're making progress. Complete the remaining documents to get checkout ready."
+                          : 'All documents uploaded. Awaiting admin verification.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-4 gap-y-4 mb-4">
+                  {[
+                    { label: 'Pilot Licence', key: 'pilot_licence' },
+                    { label: 'Night VFR Endorsement', key: 'night_vfr' },
+                    { label: 'Medical Certificate', key: 'medical_certificate' },
+                    { label: 'Red Card (ASIC)', key: 'red_card' },
+                  ].map((doc) => {
+                    const status = getDocStatus(doc.key)
+                    return (
+                      <div key={doc.key} className="flex items-start gap-2">
+                          <span className={`material-symbols-outlined text-[18px] mt-0.5 flex-shrink-0 ${status.iconColor}`}>
+                          {status.icon}
+                        </span>
+                        <div>
+                          <div className={`text-[13px] font-semibold leading-tight ${status.nameColor}`}>
+                            {doc.label}
+                          </div>
+                          <div className={`text-[12px] leading-tight mt-0.5 ${status.color}`}>
+                            {status.label}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <Link href="/dashboard/documents" className="flex items-center gap-1 text-[15px] font-semibold text-[#1a4fd6] hover:underline mt-auto">
+                  Go to Documents
+                  <span className="material-symbols-outlined text-[15px]">chevron_right</span>
+                </Link>
+              </>
+            )
+          })()}
+        </div>
+
+      </div>
+
+      <div className="bg-white border border-[#152d5a]/10 rounded-2xl px-6 py-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px] text-[#1a4fd6]">show_chart</span>
+            <span className="text-[15px] font-semibold text-[#152d5a]">Recent Activity</span>
+          </div>
+          <Link href="/dashboard/bookings" className="text-[12px] text-[#1a4fd6] hover:underline font-medium">
+            View All Activity →
+          </Link>
+        </div>
+
+        <div className="flex flex-col md:flex-row items-stretch gap-2 md:gap-0">
+          {(events && events.length > 0 ? events.slice(0, 3) : [
+            { label: 'Account created', time: 'Today', icon: 'person', color: 'blue' },
+            { label: 'Complete your documents', time: 'Action required', icon: 'description', color: 'amber' },
+          ]).map((item: any, i: number, arr: any[]) => {
+            const isEvent = 'event_type' in item
+            const label = isEvent ? (item.title ?? item.event_type ?? 'Activity update') : item.label
+            const time = isEvent
+              ? (item.created_at ? new Date(item.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : 'Recently')
+              : item.time
+            const isPositive = isEvent
+              ? (item.event_type?.includes('approved') || item.event_type?.includes('verified'))
+              : item.color === 'blue'
+
+            return (
+              <div key={i} className="flex items-center flex-1">
+                <div className="flex items-center gap-3 bg-[#f0f6ff] border border-[#152d5a]/08 rounded-xl px-4 py-3 flex-1">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isPositive ? 'bg-green-100' : 'bg-amber-50'}`}>
+                    <span className={`material-symbols-outlined text-[15px] ${isPositive ? 'text-green-600' : 'text-[#f59e0b]'}`}>
+                      {isEvent ? (isPositive ? 'check_circle' : 'schedule') : (item.icon ?? 'info')}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12px] font-semibold text-[#152d5a] truncate">{label}</div>
+                    <div className="text-[11px] text-[#4b6390]">{time}</div>
+                  </div>
+                </div>
+                {i < arr.length - 1 && (
+                  <div className="hidden md:flex items-center justify-center w-8 flex-shrink-0">
+                    <span className="text-[#94a3b8] text-[18px]">→</span>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

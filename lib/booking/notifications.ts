@@ -3,6 +3,8 @@ import {
   bookingConfirmedEmail,
   bookingCancelledEmail,
   cancellationRequestedEmail,
+  proxyBookingConfirmedEmail,
+  adminProxyBookingCreatedEmail,
 } from '@/lib/email/templates/booking'
 import {
   checkoutRequestReceivedEmail,
@@ -13,6 +15,29 @@ import {
 } from '@/lib/email/templates/checkout'
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL
+const ADMIN_CC_EMAIL = 'ozrentaplane@gmail.com'
+
+function formatBookingTypeLabel(bookingType: 'standard' | 'checkout'): string {
+  return bookingType === 'checkout' ? 'Checkout' : 'Standard'
+}
+
+function formatSydneyDate(isoDateTime: string): string {
+  return new Date(isoDateTime).toLocaleDateString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    dateStyle: 'medium',
+  })
+}
+
+function formatSydneyTimeRange(startIso: string, endIso: string): string {
+  const formatOptions: Intl.DateTimeFormatOptions = {
+    timeZone: 'Australia/Sydney',
+    timeStyle: 'short',
+  }
+
+  const start = new Date(startIso).toLocaleTimeString('en-AU', formatOptions)
+  const end = new Date(endIso).toLocaleTimeString('en-AU', formatOptions)
+  return `${start} → ${end} AEST`
+}
 
 export async function notifyBookingSubmitted(opts: {
   customerEmail: string
@@ -249,6 +274,90 @@ export async function notifyCheckoutRequestSubmitted(opts: {
       entityId: opts.bookingId,
     })
   }
+}
+
+export async function notifyProxyBookingCreated(opts: {
+  bookingId: string
+  bookingType: 'standard' | 'checkout'
+  customerId: string
+  customerName: string
+  customerEmail: string
+  aircraftRegistration: string
+  aircraftName: string
+  scheduledStart: string
+  scheduledEnd: string
+  adminNotes?: string
+}) {
+  const bookingTypeLabel = formatBookingTypeLabel(opts.bookingType)
+  const bookingTypeLower = opts.bookingType
+  const aircraftLabel = `${opts.aircraftRegistration} — ${opts.aircraftName}`
+  const date = formatSydneyDate(opts.scheduledStart)
+  const time = formatSydneyTimeRange(opts.scheduledStart, opts.scheduledEnd)
+
+  const customerTemplate = proxyBookingConfirmedEmail({
+    bookingTypeLabel,
+    bookingTypeLower,
+    customerName: opts.customerName,
+    aircraft: aircraftLabel,
+    date,
+    time,
+  })
+
+  await sendEmail({
+    to: opts.customerEmail,
+    subject: customerTemplate.subject,
+    html: customerTemplate.html,
+    eventType: 'proxy_booking_created_customer',
+    entityType: 'booking',
+    entityId: opts.bookingId,
+    metadata: {
+      bookingType: opts.bookingType,
+      customerId: opts.customerId,
+      customerEmail: opts.customerEmail,
+    },
+  })
+
+  const adminTemplate = adminProxyBookingCreatedEmail({
+    bookingTypeLabel,
+    bookingTypeLower,
+    customerId: opts.customerId,
+    customerName: opts.customerName,
+    customerEmail: opts.customerEmail,
+    aircraft: aircraftLabel,
+    date,
+    time,
+    adminNotes: opts.adminNotes ?? null,
+  })
+
+  if (ADMIN_EMAIL) {
+    await sendEmail({
+      to: ADMIN_EMAIL,
+      subject: adminTemplate.subject,
+      html: adminTemplate.html,
+      eventType: 'admin_proxy_booking_created_email',
+      entityType: 'booking',
+      entityId: opts.bookingId,
+      metadata: {
+        bookingType: opts.bookingType,
+        customerId: opts.customerId,
+        customerEmail: opts.customerEmail,
+      },
+    })
+  }
+
+  await sendEmail({
+    to: ADMIN_CC_EMAIL,
+    subject: adminTemplate.subject,
+    html: adminTemplate.html,
+    eventType: 'admin_proxy_booking_created_cc',
+    entityType: 'booking',
+    entityId: opts.bookingId,
+    metadata: {
+      bookingType: opts.bookingType,
+      customerId: opts.customerId,
+      customerEmail: opts.customerEmail,
+    },
+  })
 }
 
 export async function notifyCheckoutConfirmed(opts: {

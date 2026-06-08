@@ -124,16 +124,16 @@ function TimeDropdown({
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="w-full bg-[#0d1c33] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500/60 flex items-center justify-between transition-colors hover:border-white/25 text-white"
+        className="w-full bg-white border border-[#152d5a]/15 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500/60 flex items-center justify-between transition-colors hover:border-[#152d5a]/30 text-[#152d5a]"
       >
-        <span className={value === '' ? 'text-slate-500' : ''}>{value === '' ? 'Select departure time' : selectedLabel}</span>
-        <span className={`material-symbols-outlined text-[18px] text-slate-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}>
+        <span className={value === '' ? 'text-[#94a3b8]' : ''}>{value === '' ? 'Select departure time' : selectedLabel}</span>
+        <span className={`material-symbols-outlined text-[18px] text-[#94a3b8] transition-transform duration-150 ${open ? 'rotate-180' : ''}`}>
           expand_more
         </span>
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full bg-[#0c1220] border border-white/10 rounded-lg shadow-2xl overflow-hidden">
+        <div className="absolute z-50 mt-1 w-full bg-white border border-[#152d5a]/15 rounded-lg shadow-2xl overflow-hidden">
           <div ref={listRef} className="max-h-52 overflow-y-auto overscroll-contain">
             {options.map(o => (
               <button
@@ -144,8 +144,8 @@ function TimeDropdown({
                 onClick={() => { onChange(o.value); setOpen(false) }}
                 className={`w-full px-3 py-2 text-sm text-left transition-colors ${
                   o.value === value
-                    ? 'bg-blue-500/20 text-blue-200 font-medium'
-                    : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+                    ? 'bg-[#dbeafe] text-[#152d5a] font-medium'
+                    : 'text-[#4b6390] hover:bg-[#f8fbff] hover:text-[#152d5a]'
                 }`}
               >
                 {o.label}
@@ -273,28 +273,28 @@ function AvailabilityTimeline({
       <div className="relative" ref={barContainerRef}>
         <div
           onClick={handleTimelineClick}
-          className={`relative h-10 rounded-lg overflow-hidden border ${dayVfrWindow ? 'bg-[#0a1628] border-white/15' : 'bg-green-500/15 border-green-500/10'} ${onTimeChange ? 'cursor-pointer' : ''}`}
+          className={`relative h-10 rounded-lg overflow-hidden border ${dayVfrWindow ? 'bg-[#dbeafe] border-[#93c5fd]' : 'bg-green-50 border-green-200'} ${onTimeChange ? 'cursor-pointer' : ''}`}
         >
           {dayVfrWindow && (
             <>
               <div
-                className="absolute top-0 bottom-0 bg-slate-800/60 flex items-center justify-center overflow-hidden"
+                className="absolute top-0 bottom-0 bg-[#1a3a6b]/90 flex items-center justify-center overflow-hidden"
                 style={{ left: '0%', right: `${100 - (timeStrToMin(dayVfrWindow.start) / (24 * 60)) * 100}%` }}
               >
-                <span className="text-[8px] text-slate-600 select-none leading-none">🌙</span>
+                <span className="text-[8px] text-[#eff6ff] select-none leading-none">🌙</span>
               </div>
               <div
-                className="absolute top-0 bottom-0 bg-green-500/15"
+                className="absolute top-0 bottom-0 bg-[#bfdbfe]"
                 style={{
                   left: `${(timeStrToMin(dayVfrWindow.start) / (24 * 60)) * 100}%`,
                   right: `${100 - (timeStrToMin(dayVfrWindow.end) / (24 * 60)) * 100}%`,
                 }}
               />
               <div
-                className="absolute top-0 bottom-0 bg-slate-800/60 flex items-center justify-center overflow-hidden"
+                className="absolute top-0 bottom-0 bg-[#1a3a6b]/90 flex items-center justify-center overflow-hidden"
                 style={{ left: `${(timeStrToMin(dayVfrWindow.end) / (24 * 60)) * 100}%`, right: '0%' }}
               >
-                <span className="text-[8px] text-slate-600 select-none leading-none">🌙</span>
+                <span className="text-[8px] text-[#eff6ff] select-none leading-none">🌙</span>
               </div>
             </>
           )}
@@ -337,7 +337,7 @@ function AvailabilityTimeline({
         {majorTicks.map(h => (
           <span
             key={h}
-            className="absolute text-[9px] font-medium text-slate-600 -translate-x-1/2 select-none leading-none uppercase"
+            className="absolute text-[9px] font-medium text-[#64748b] -translate-x-1/2 select-none leading-none uppercase"
             style={{ left: `${(h / 24) * 100}%` }}
           >
             {hourLabel(h)}
@@ -345,20 +345,20 @@ function AvailabilityTimeline({
         ))}
       </div>
       <div className="flex flex-wrap gap-5 pt-1">
-        <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600">
+        <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-[#64748b]">
           <span className="w-2.5 h-2.5 rounded-sm bg-green-500/40 inline-block" />
           {dayVfrWindow ? `Day VFR (${dayVfrWindow.start}-${dayVfrWindow.end})` : 'Available'}
         </span>
         {dayVfrWindow && (
-          <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600">
-            <span className="w-2.5 h-2.5 rounded-sm bg-slate-700 border border-white/15 inline-block" />Night restricted
+          <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-[#64748b]">
+            <span className="w-2.5 h-2.5 rounded-sm bg-[#1a3a6b] border border-[#93c5fd] inline-block" />Night restricted
           </span>
         )}
-        <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600">
+        <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-[#64748b]">
           <span className="w-2.5 h-2.5 rounded-sm bg-red-500/60 inline-block" />Booked
         </span>
         {hasSelection && (
-          <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600">
+          <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-[#64748b]">
             <span className="w-2.5 h-2.5 rounded-sm border-2 border-blue-400/80 inline-block" />
             Selected time ({startDT.split('T')[1] ?? '--:--'}) - drag or click timeline
           </span>
@@ -440,32 +440,32 @@ function CheckoutRescheduleModal({
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="w-full max-w-3xl max-h-[calc(100vh-7.5rem)] bg-[#13243a] border border-[#4c6b8f] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+      <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="w-full max-w-3xl max-h-[calc(100vh-7.5rem)] bg-white border border-[#152d5a]/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#152d5a]/10">
           <div>
-            <p className="text-xs uppercase tracking-widest text-blue-200 font-bold">Checkout change request</p>
-            <h3 className="text-lg font-semibold text-white">Request checkout reschedule</h3>
+            <p className="text-xs uppercase tracking-widest text-[#1a4fd6] font-bold">Checkout change request</p>
+            <h3 className="text-lg font-semibold text-[#152d5a]">Request checkout reschedule</h3>
           </div>
-          <button onClick={onClose} className="text-white/30 hover:text-white/70 transition-colors">
+          <button onClick={onClose} className="text-[#94a3b8] hover:text-[#152d5a] transition-colors">
             <span className="material-symbols-outlined text-xl">close</span>
           </button>
         </div>
         <div className="px-5 py-5 space-y-4 overflow-y-auto min-h-0">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-300 mb-2">Checkout date</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#64748b] mb-2">Checkout date</p>
               <CalendarDateField
                 value={date}
                 onChange={(next) => { setDate(next); setStartTime(''); setError(null) }}
                 minYear={new Date().getFullYear()}
                 maxYear={new Date().getFullYear() + 2}
                 minDate={getSydneyToday()}
-                className="w-full h-11 bg-[#0b1a2f] border border-white/20 rounded-xl px-4 py-3 text-base text-white text-left flex items-center justify-between"
+                className="w-full h-11 bg-white border border-[#152d5a]/15 rounded-xl px-4 py-3 text-base text-[#152d5a] text-left flex items-center justify-between"
               />
             </div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-300 mb-2">Departure time</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#64748b] mb-2">Departure time</p>
               <TimeDropdown value={startTime} options={timeOptions} onChange={(v) => { setStartTime(v); setError(null) }} />
             </div>
           </div>
@@ -479,9 +479,9 @@ function CheckoutRescheduleModal({
                   onClick={() => setNightVfrRating(val)}
                   className={`px-4 py-3 rounded-xl border text-left transition-all ${
                     nightVfrRating === val
-                      ? 'bg-blue-500/[0.18] border-blue-400/55 text-blue-100'
-                      : 'bg-[#0d1c33] border-white/[0.12] text-slate-300'
-                  }`}
+                      ? 'bg-[#dbeafe] border-[#93c5fd] text-[#152d5a]'
+                      : 'bg-white border-[#152d5a]/15 text-[#4b6390]'
+                    }`}
                 >
                   {val ? 'Night VFR: Yes' : 'Night VFR: No (Day VFR only)'}
                 </button>
@@ -490,7 +490,7 @@ function CheckoutRescheduleModal({
           )}
 
           {date && (
-            <div className="rounded-xl border border-white/10 bg-[#0d1a2c]/70 p-4">
+            <div className="rounded-xl border border-[#152d5a]/10 bg-[#f8fbff] p-4">
               <AvailabilityTimeline
                 selectedDate={date}
                 daySlots={daySlots}
@@ -502,16 +502,16 @@ function CheckoutRescheduleModal({
             </div>
           )}
 
-          {nightVfrTimeError && <p className="text-sm text-amber-300">{nightVfrTimeError}</p>}
+          {nightVfrTimeError && <p className="text-sm text-amber-600">{nightVfrTimeError}</p>}
           {dayVfrWindow && (
-            <p className="text-[11px] text-slate-400">Day VFR window: {dayVfrWindow.start} - {dayVfrWindow.end}</p>
+            <p className="text-[11px] text-[#64748b]">Day VFR window: {dayVfrWindow.start} - {dayVfrWindow.end}</p>
           )}
-          {avail.status === 'checking' && <p className="text-sm text-slate-400">Checking availability...</p>}
-          {avail.status === 'unavailable' && <p className="text-sm text-red-300">{avail.message}</p>}
-          {error && <p className="text-sm text-red-300">{error}</p>}
+          {avail.status === 'checking' && <p className="text-sm text-[#64748b]">Checking availability...</p>}
+          {avail.status === 'unavailable' && <p className="text-sm text-red-600">{avail.message}</p>}
+          {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
-        <div className="px-5 py-4 border-t border-white/[0.06] flex items-center justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-300 border border-white/15 rounded-lg">Keep current time</button>
+        <div className="px-5 py-4 border-t border-[#152d5a]/10 flex items-center justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-[#4b6390] border border-[#152d5a]/15 rounded-lg">Keep current time</button>
           <button
             onClick={handleSubmit}
             disabled={submitting}
@@ -613,18 +613,18 @@ export default function CheckoutChangeActions({
     <>
       {cancelModalOpen && canModify && (
         <ModalPortal>
-          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-[#13243a] border border-[#4c6b8f] rounded-2xl shadow-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-white/[0.06]">
-              <h3 className="text-lg font-semibold text-white">Cancel checkout flight?</h3>
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-white border border-[#152d5a]/10 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#152d5a]/10">
+              <h3 className="text-lg font-semibold text-[#152d5a]">Cancel checkout flight?</h3>
             </div>
             <div className="px-5 py-5">
-              <p className="text-sm text-slate-300 leading-relaxed">
+              <p className="text-sm text-[#4b6390] leading-relaxed">
                 You can cancel your checkout flight if it is more than 12 hours away. This will release your current checkout slot.
               </p>
             </div>
-            <div className="px-5 py-4 border-t border-white/[0.06] flex justify-end gap-3">
-              <button onClick={() => setCancelModalOpen(false)} className="px-4 py-2 text-sm text-slate-300 border border-white/15 rounded-lg">
+            <div className="px-5 py-4 border-t border-[#152d5a]/10 flex justify-end gap-3">
+              <button onClick={() => setCancelModalOpen(false)} className="px-4 py-2 text-sm text-[#4b6390] border border-[#152d5a]/15 rounded-lg">
                 Keep checkout
               </button>
               <button
@@ -642,29 +642,29 @@ export default function CheckoutChangeActions({
 
       {selfServiceBlockedByCutoff && (cancelModalOpen || rescheduleModalOpen) && (
         <ModalPortal>
-          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-            <div className="w-full max-w-lg bg-[#13243a] border border-[#4c6b8f] rounded-2xl shadow-2xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-white/[0.06]">
-                <h3 className="text-lg font-semibold text-white">Manual approval required</h3>
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <div className="w-full max-w-lg bg-white border border-[#152d5a]/10 rounded-2xl shadow-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#152d5a]/10">
+                <h3 className="text-lg font-semibold text-[#152d5a]">Manual approval required</h3>
               </div>
               <div className="px-5 py-5 space-y-3">
-                <p className="text-sm text-slate-300 leading-relaxed">
+                <p className="text-sm text-[#4b6390] leading-relaxed">
                   Your checkout flight is less than 12 hours away.
                 </p>
-                <p className="text-sm text-slate-300 leading-relaxed">
+                <p className="text-sm text-[#4b6390] leading-relaxed">
                   To cancel or reschedule at this stage, please call OZ Rent A Plane so the team can review and approve the change manually.
                 </p>
-                <p className="text-sm text-white">
+                <p className="text-sm text-[#152d5a]">
                   Call:{' '}
                   <a href={`tel:${ADMIN_CONTACT_PHONE_TEL}`} className="text-blue-300 hover:text-blue-200 underline underline-offset-2">
                     {ADMIN_CONTACT_PHONE_DISPLAY}
                   </a>
                 </p>
               </div>
-              <div className="px-5 py-4 border-t border-white/[0.06] flex justify-end">
+              <div className="px-5 py-4 border-t border-[#152d5a]/10 flex justify-end">
                 <button
                   onClick={() => { setCancelModalOpen(false); setRescheduleModalOpen(false) }}
-                  className="px-4 py-2 text-sm text-slate-300 border border-white/15 rounded-lg"
+                  className="px-4 py-2 text-sm text-[#4b6390] border border-[#152d5a]/15 rounded-lg"
                 >
                   Close
                 </button>
@@ -685,29 +685,29 @@ export default function CheckoutChangeActions({
 
       <div className="mt-4 space-y-3">
         {checkout.checkout_lifecycle_status === 'cancelled_by_customer' && (
-          <p className="text-sm text-emerald-300">Your checkout flight has been cancelled.</p>
+          <p className="text-sm text-emerald-600">Your checkout flight has been cancelled.</p>
         )}
         {hasPendingReschedule && (
-          <p className="text-sm text-amber-300">
+          <p className="text-sm text-amber-600">
             Your reschedule request is waiting for admin review. Your current checkout time remains active.
             {requestedRescheduleLabel ? ` Requested time: ${requestedRescheduleLabel}.` : ''}
           </p>
         )}
         {!hasPendingReschedule && latestApproved && (
-          <p className="text-sm text-emerald-300">Your checkout flight has been rescheduled.</p>
+          <p className="text-sm text-emerald-600">Your checkout flight has been rescheduled.</p>
         )}
         {!hasPendingReschedule && latestRejected && (
-          <p className="text-sm text-amber-300">Your reschedule request was not approved. Your original checkout time remains active.</p>
+          <p className="text-sm text-amber-600">Your reschedule request was not approved. Your original checkout time remains active.</p>
         )}
-        {actionError && <p className="text-sm text-red-300">{actionError}</p>}
-        {!hasPendingReschedule && actionSuccess && <p className="text-sm text-emerald-300">{actionSuccess}</p>}
+        {actionError && <p className="text-sm text-red-600">{actionError}</p>}
+        {!hasPendingReschedule && actionSuccess && <p className="text-sm text-emerald-600">{actionSuccess}</p>}
 
         {checkout.checkout_lifecycle_status !== 'cancelled_by_customer' && checkout.checkout_lifecycle_status !== 'cancelled_by_admin' && checkout.checkout_lifecycle_status !== 'completed' && (
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={() => setRescheduleModalOpen(true)}
               disabled={hasPendingReschedule || isRescheduling || checkout.status === 'cancelled'}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700/40 disabled:text-slate-400 text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-[#e2e8f0] disabled:text-[#94a3b8] text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
             >
               {isRescheduling ? 'Sending...' : 'Reschedule checkout'}
             </button>

@@ -12,7 +12,7 @@ type Props = {
   initialPhoneNumber: string
 }
 
-const CARD = 'bg-gradient-to-br from-[#0c1525] to-[#080e1c] border border-white/[0.07] rounded-xl shadow-[0_4px_30px_rgba(0,0,0,0.35)]'
+const CARD = 'bg-white border border-[#152d5a]/10 rounded-xl shadow-[0_4px_30px_rgba(2,10,22,0.08)]'
 const COUNTRY_CODE_REGEX = /^\+?\d{1,4}$/
 const PHONE_NUMBER_REGEX = /^\d*$/
 
@@ -94,45 +94,45 @@ export default function CustomerAccountForm({
   return (
     <form className="space-y-6" onSubmit={handleSave}>
       <section className={`${CARD} p-8`}>
-        <h2 className="text-[10px] font-bold uppercase tracking-widest text-blue-400/80 mb-6">Personal Details</h2>
+        <h2 className="text-[10px] font-bold uppercase tracking-widest text-[#152d5a] mb-6">Personal Details</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
-            <label className="block text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-2">First Name</label>
+            <label className="block text-[9px] font-bold uppercase tracking-[0.18em] text-[#152d5a] mb-2">First Name</label>
             <input
               type="text"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               required
-              className="w-full px-4 py-3 bg-[#05080f] border border-white/[0.07] rounded-lg text-white text-sm focus:border-blue-400/60 focus:outline-none"
+              className="w-full px-4 py-3 bg-white border border-[#152d5a]/20 rounded-lg text-[#152d5a] text-sm placeholder:text-[#4b6390] focus:border-blue-400/60 focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="block text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-2">Last Name</label>
+            <label className="block text-[9px] font-bold uppercase tracking-[0.18em] text-[#152d5a] mb-2">Last Name</label>
             <input
               type="text"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               required
-              className="w-full px-4 py-3 bg-[#05080f] border border-white/[0.07] rounded-lg text-white text-sm focus:border-blue-400/60 focus:outline-none"
+              className="w-full px-4 py-3 bg-white border border-[#152d5a]/20 rounded-lg text-[#152d5a] text-sm placeholder:text-[#4b6390] focus:border-blue-400/60 focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="block text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-2">Email Address</label>
+            <label className="block text-[9px] font-bold uppercase tracking-[0.18em] text-[#152d5a] mb-2">Email Address</label>
             <input
               type="email"
               value={email}
               disabled
               readOnly
-              className="w-full px-4 py-3 bg-[#05080f] border border-white/[0.07] rounded-lg text-white/50 text-sm cursor-not-allowed"
+              className="w-full px-4 py-3 bg-white border border-[#152d5a]/20 rounded-lg text-[#4b6390] text-sm cursor-not-allowed"
             />
           </div>
 
           <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-3">
             <div>
-              <label className="block text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-2">Country Code</label>
+              <label className="block text-[9px] font-bold uppercase tracking-[0.18em] text-[#152d5a] mb-2">Country Code</label>
               <input
                 type="text"
                 value={phoneCountryCode}
@@ -141,11 +141,11 @@ export default function CustomerAccountForm({
                   if (/^\+?\d{0,4}$/.test(value)) setPhoneCountryCode(value)
                 }}
                 placeholder="+61"
-                className="w-full px-4 py-3 bg-[#05080f] border border-white/[0.07] rounded-lg text-white text-sm focus:border-blue-400/60 focus:outline-none"
+                className="w-full px-4 py-3 bg-white border border-[#152d5a]/20 rounded-lg text-[#152d5a] text-sm placeholder:text-[#4b6390] focus:border-blue-400/60 focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-2">Phone Number</label>
+              <label className="block text-[9px] font-bold uppercase tracking-[0.18em] text-[#152d5a] mb-2">Phone Number</label>
               <input
                 type="tel"
                 value={phoneNumber}
@@ -154,7 +154,7 @@ export default function CustomerAccountForm({
                   if (/^\d*$/.test(value)) setPhoneNumber(value)
                 }}
                 placeholder="Optional"
-                className="w-full px-4 py-3 bg-[#05080f] border border-white/[0.07] rounded-lg text-white text-sm focus:border-blue-400/60 focus:outline-none"
+                className="w-full px-4 py-3 bg-white border border-[#152d5a]/20 rounded-lg text-[#152d5a] text-sm placeholder:text-[#4b6390] focus:border-blue-400/60 focus:outline-none"
               />
             </div>
           </div>
@@ -179,13 +179,13 @@ export default function CustomerAccountForm({
 
       <section className={`${CARD} p-8 opacity-45 pointer-events-none select-none`}>
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-[10px] font-bold uppercase tracking-widest text-blue-400/80">Communication Preferences</h2>
+          <h2 className="text-[10px] font-bold uppercase tracking-widest text-[#152d5a]">Communication Preferences</h2>
           <span className="text-[9px] uppercase tracking-widest text-amber-400 border border-amber-400/20 px-2 py-0.5 rounded">Coming Soon</span>
         </div>
         <div className="space-y-3">
           {['Email Notifications', 'SMS Alerts'].map((label) => (
-            <div key={label} className="flex items-center justify-between p-4 bg-white/[0.025] rounded-xl border border-white/[0.06]">
-              <p className="text-sm text-white font-medium">{label}</p>
+            <div key={label} className="flex items-center justify-between p-4 bg-[#f0f6ff] rounded-xl border border-[#152d5a]/10">
+              <p className="text-sm text-[#152d5a] font-medium">{label}</p>
               <div className="w-10 h-5 bg-white/10 rounded-full" />
             </div>
           ))}

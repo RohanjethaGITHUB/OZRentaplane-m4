@@ -3,37 +3,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
-export async function markPasswordChanged(): Promise<{ success: true }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-
-  if (error || !user) {
-    throw new Error('Unauthorized')
-  }
-
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({ must_change_password: false })
-    .eq('id', user.id)
-
-  if (profileError) {
-    throw new Error(profileError.message)
-  }
-
-  return { success: true }
-}
-
-export type ChangePasswordState = {
-  error: string | null
-}
-
-export async function changePassword(
-  _prevState: ChangePasswordState,
-  formData: FormData,
-): Promise<ChangePasswordState> {
+export async function changePassword(formData: FormData): Promise<{ error?: string } | void> {
   const password = String(formData.get('password') ?? '')
   const confirmPassword = String(formData.get('confirmPassword') ?? '')
 
