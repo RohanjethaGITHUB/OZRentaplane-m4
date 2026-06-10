@@ -107,7 +107,7 @@ export default function PortalPageHero({ eyebrow, title, subtitle, backgroundIma
           </div>
         )}
         <h1
-          className="text-5xl md:text-6xl font-bold text-white leading-tight mb-4 max-w-2xl"
+          className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-4 max-w-2xl"
           style={{ fontFamily: 'Newsreader, Georgia, serif' }}
         >
           {title}

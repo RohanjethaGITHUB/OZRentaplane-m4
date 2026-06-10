@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import CustomerAccountForm from './CustomerAccountForm'
 import ChangePasswordInline from './ChangePasswordInline'
-import DeactivateModal from './DeactivateModal'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -74,26 +73,6 @@ function DocumentDonut({ ready, total, size = 96 }: { ready: number; total: numb
   )
 }
 
-// ─── Inline toggle ────────────────────────────────────────────────────────────
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#1a4fd6]/30 ${
-        checked ? 'bg-[#1a4fd6]' : 'bg-[#d1d9e8]'
-      }`}
-    >
-      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
-        checked ? 'translate-x-6' : 'translate-x-1'
-      }`} />
-    </button>
-  )
-}
-
 // ─── Card token ───────────────────────────────────────────────────────────────
 
 const CARD = 'bg-white border border-[#152d5a]/10 rounded-2xl'
@@ -112,10 +91,9 @@ export default function ProfilePageClient({
   pilotType,
   documents,
 }: Props) {
-  const [emailNotif, setEmailNotif] = useState(true)
-  const [smsNotif,   setSmsNotif]   = useState(true)
+  const [showPersonalForm, setShowPersonalForm] = useState(false)
+  const [showDocSummary, setShowDocSummary] = useState(false)
   const [showPasswordForm, setShowPasswordForm] = useState(false)
-  const [showDeactivateModal, setShowDeactivateModal] = useState(false)
 
   // Count docs that are submitted (uploaded or approved) — mirrors DocumentsPanelV2 completion logic
   const readyCount = REQUIRED_DOCS.filter(d => {
@@ -354,61 +332,160 @@ export default function ProfilePageClient({
               <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-[#94a3b8] group-hover:text-[#1a4fd6]"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
             </a>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowDeactivateModal(true)}
-            className="w-full text-[13px] text-red-500 border border-red-200 rounded-xl px-4 py-2.5 hover:bg-red-50/60 transition-colors"
-          >
-            Deactivate Account
-          </button>
         </div>
       </div>
 
       {/* ══ MOBILE: Profile summary card ══════════════════════════════════════ */}
       <div className="md:hidden mb-5">
-        <div className={`${CARD} p-5 flex items-center gap-4`}>
-          <div className="w-[72px] h-[72px] rounded-full bg-[#e8edf5] border-2 border-[#152d5a]/10 flex items-center justify-center flex-shrink-0">
-            <span className="text-[#152d5a] font-semibold text-xl">
-              {initialFirstName?.[0]}{initialLastName?.[0]}
-            </span>
+        <div className={`${CARD} p-5`}>
+          {/* Top row: avatar + name/badge + donut */}
+          <div className="flex items-center gap-4 mb-3">
+            {/* Avatar */}
+            <div className="w-[72px] h-[72px] rounded-full bg-[#e8edf5] border-2 border-[#152d5a]/10 flex items-center justify-center flex-shrink-0">
+              <span className="text-[#152d5a] font-semibold text-2xl">
+                {initialFirstName?.[0]?.toUpperCase()}{initialLastName?.[0]?.toUpperCase()}
+              </span>
+            </div>
+            {/* Name + badge */}
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-[#152d5a] text-[17px] leading-tight">
+                Captain {initialFirstName}
+              </p>
+              <span className="inline-block text-[11px] font-semibold text-[#1a4fd6] border border-[#1a4fd6]/25 rounded-full px-2.5 py-0.5 mt-1.5">
+                {pilotLabel}
+              </span>
+            </div>
+            {/* Donut — right side */}
+            <div className="flex-shrink-0">
+              <DocumentDonut ready={readyCount} total={REQUIRED_DOCS.length} size={80} />
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-[#152d5a] text-[16px] leading-tight">
-              {[initialFirstName, initialLastName].filter(Boolean).join(' ') || 'Pilot'}
+          {/* Bottom row: CTA text + chevron */}
+          <div className="flex items-center justify-between pt-3 border-t border-[#152d5a]/6">
+            <p className="text-[#6b7ea8] text-[13px]">
+              {showDocSummary ? 'Document status' : 'Complete your documents to unlock faster checkouts.'}
             </p>
-            <span className="inline-block text-[11px] font-semibold text-[#1a4fd6] border border-[#1a4fd6]/25 rounded-full px-2.5 py-0.5 mt-1 mb-1.5">
-              {pilotLabel}
-            </span>
-            <p className="text-[#6b7ea8] text-[12px] leading-snug">Complete your documents to unlock faster checkouts.</p>
+            <button
+              type="button"
+              onClick={() => setShowDocSummary(v => !v)}
+              className="w-8 h-8 rounded-lg bg-[#f0f4ff] flex items-center justify-center hover:bg-[#e0e8ff] transition-colors flex-shrink-0 ml-3"
+            >
+              <svg
+                width="15"
+                height="15"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="#1a4fd6"
+                strokeWidth="2.5"
+                className={`transition-transform duration-200 ${showDocSummary ? 'rotate-90' : ''}`}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+              </svg>
+            </button>
           </div>
-          <div className="flex flex-col items-center gap-1 flex-shrink-0">
-            <DocumentDonut ready={readyCount} total={REQUIRED_DOCS.length} />
-            <a href="/dashboard/documents" className="text-[11px] text-[#1a4fd6]">
-              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="inline"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
-            </a>
-          </div>
+
+          {/* Expandable document checklist */}
+          {showDocSummary && (
+            <div className="mt-4 pt-4 border-t border-[#152d5a]/6 space-y-1">
+              {REQUIRED_DOCS.map(doc => {
+                const s = getDocStatus(documents, doc.type)
+                return (
+                  <div key={doc.type} className="flex items-center justify-between py-1.5 border-b border-[#152d5a]/5 last:border-0">
+                    <div className="flex items-center gap-2.5">
+                      {s === 'approved' ? (
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                          <circle cx="8" cy="8" r="8" fill="#22c55e" fillOpacity="0.12"/>
+                          <path d="M4.5 8l2.5 2.5 4.5-4.5" stroke="#16a34a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      ) : s === 'rejected' ? (
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                          <circle cx="8" cy="8" r="8" fill="#ef4444" fillOpacity="0.12"/>
+                          <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                      ) : s === 'under_review' ? (
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                          <circle cx="8" cy="8" r="7.25" stroke="#f59e0b" strokeWidth="1.5" fill="#fef9ec"/>
+                          <circle cx="8" cy="8" r="2.5" fill="#f59e0b"/>
+                        </svg>
+                      ) : (
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                          <circle cx="8" cy="8" r="7.25" stroke="#cbd5e1" strokeWidth="1.5"/>
+                        </svg>
+                      )}
+                      <span className="text-[13px] text-[#152d5a]">{doc.label}</span>
+                    </div>
+                    <span className={`text-[12px] font-medium ${
+                      s === 'approved'     ? 'text-[#16a34a]' :
+                      s === 'under_review' ? 'text-[#d97706]' :
+                      s === 'rejected'     ? 'text-[#ef4444]' :
+                      'text-[#94a3b8]'
+                    }`}>
+                      {s === 'approved'     ? 'Approved'        :
+                       s === 'under_review' ? 'Awaiting Review' :
+                       s === 'rejected'     ? 'Rejected'        : 'Not Started'}
+                    </span>
+                  </div>
+                )
+              })}
+              <a href="/dashboard/documents" className="flex items-center gap-1.5 pt-3 text-[13px] font-semibold text-[#1a4fd6] hover:underline">
+                Go to Documents
+                <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
+              </a>
+            </div>
+          )}
         </div>
       </div>
 
       {/* ══ MOBILE: Settings list rows ════════════════════════════════════════ */}
       <div className="md:hidden space-y-3 mb-5">
 
-        {/* Personal Details */}
-        <a href="/dashboard/settings/personal" className={`${CARD} p-5 flex items-center gap-4 hover:border-[#152d5a]/20 transition-colors`}>
-          <div className="w-10 h-10 rounded-xl bg-[#f0f4ff] flex items-center justify-center flex-shrink-0">
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#152d5a" strokeWidth="1.5" opacity="0.6">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/>
-            </svg>
+        {/* Personal Details — expandable on mobile */}
+        <div className={`${CARD} p-5`}>
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-[#f0f4ff] flex items-center justify-center flex-shrink-0">
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#1a4fd6" strokeWidth="1.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/>
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-[#152d5a] text-[15px]">Personal Details</p>
+              <p className="text-[#6b7ea8] text-[13px] mt-0.5 leading-snug">View and update your personal and contact information.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowPersonalForm(v => !v)}
+              className="w-8 h-8 rounded-lg bg-[#f0f4ff] flex items-center justify-center hover:bg-[#e0e8ff] transition-colors flex-shrink-0"
+            >
+              <svg
+                width="15"
+                height="15"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="#1a4fd6"
+                strokeWidth="2.5"
+                className={`transition-transform duration-200 ${showPersonalForm ? 'rotate-90' : ''}`}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+              </svg>
+            </button>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-[#152d5a] text-[15px]">Personal Details</p>
-            <p className="text-[#6b7ea8] text-[13px] mt-0.5">View and update your personal and contact information.</p>
-          </div>
-          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#1a4fd6" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
-        </a>
+
+          {showPersonalForm && (
+            <div className="mt-4 pt-4 border-t border-[#152d5a]/6">
+              <CustomerAccountForm
+                userId={userId}
+                email={email}
+                initialFirstName={initialFirstName}
+                initialLastName={initialLastName}
+                initialPhoneCountryCode={initialPhoneCountryCode}
+                initialPhoneNumber={initialPhoneNumber}
+              />
+            </div>
+          )}
+        </div>
 
         {/* Communication Preferences */}
-        <div className={`${CARD} p-5 flex items-center gap-4`}>
+        <div className={`${CARD} p-5 flex items-center gap-4 opacity-70`}>
           <div className="w-10 h-10 rounded-xl bg-[#fff8ec] flex items-center justify-center flex-shrink-0">
             <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#e8a020" strokeWidth="1.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/>
@@ -416,34 +493,51 @@ export default function ProfilePageClient({
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-[#152d5a] text-[15px]">Communication Preferences</p>
-            <p className="text-[#6b7ea8] text-[13px] mt-0.5">Manage how you'd like us to contact you about bookings, updates, and offers.</p>
+            <p className="text-[#6b7ea8] text-[13px] mt-0.5 leading-snug">Manage how you'd like us to contact you about bookings, updates, and offers.</p>
           </div>
-          <div className="flex flex-col items-end gap-2 flex-shrink-0">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-[#6b7ea8]">Email</span>
-              <Toggle checked={emailNotif} onChange={setEmailNotif} />
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-[#6b7ea8]">SMS</span>
-              <Toggle checked={smsNotif} onChange={setSmsNotif} />
-            </div>
-          </div>
-          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#1a4fd6" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-[#e8a020] border border-[#e8a020]/25 rounded-full px-2 py-0.5 flex-shrink-0">Soon</span>
         </div>
 
         {/* Security & Password */}
-        <div className={`${CARD} p-5 flex items-center gap-4`}>
-          <div className="w-10 h-10 rounded-xl bg-[#f0f4ff] flex items-center justify-center flex-shrink-0">
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#152d5a" strokeWidth="1.5" opacity="0.6">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/>
-            </svg>
+        <div className={`${CARD} p-5`}>
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-[#f0f4ff] flex items-center justify-center flex-shrink-0">
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#1a4fd6" strokeWidth="1.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/>
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-[#152d5a] text-[15px]">Security & Password</p>
+              <p className="text-[#6b7ea8] text-[13px] mt-0.5 leading-snug">Keep your account secure by updating your password.</p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-[11px] font-semibold text-[#16a34a] bg-[#f0fdf4] border border-[#16a34a]/20 rounded-full px-2.5 py-1">2FA</span>
+              <button
+                type="button"
+                onClick={() => setShowPasswordForm(v => !v)}
+                className="w-8 h-8 rounded-lg bg-[#f0f4ff] flex items-center justify-center hover:bg-[#e0e8ff] transition-colors"
+              >
+                <svg
+                  width="15"
+                  height="15"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="#1a4fd6"
+                  strokeWidth="2.5"
+                  className={`transition-transform duration-200 ${showPasswordForm ? 'rotate-90' : ''}`}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+                </svg>
+              </button>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-[#152d5a] text-[15px]">Security & Password</p>
-            <p className="text-[#6b7ea8] text-[13px] mt-0.5">Keep your account secure by updating your password and security settings.</p>
-          </div>
-          <span className="text-[11px] font-semibold text-[#16a34a] bg-[#f0fdf4] border border-[#16a34a]/20 rounded-full px-2.5 py-1 flex-shrink-0">2FA Enabled</span>
-          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#1a4fd6" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
+
+          {/* Inline password form — expands on tap */}
+          {showPasswordForm && (
+            <div className="mt-4 pt-4 border-t border-[#152d5a]/6">
+              <ChangePasswordInline onClose={() => setShowPasswordForm(false)} />
+            </div>
+          )}
         </div>
 
         {/* Support & Account */}
@@ -455,28 +549,12 @@ export default function ProfilePageClient({
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-[#152d5a] text-[15px]">Support & Account</p>
-            <p className="text-[#6b7ea8] text-[13px] mt-0.5">Get help or manage your account with our support tools.</p>
+            <p className="text-[#6b7ea8] text-[13px] mt-0.5 leading-snug">Get help or manage your account with our support tools.</p>
           </div>
           <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#1a4fd6" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
         </a>
 
-        {/* Deactivate Account */}
-        <button
-          type="button"
-          onClick={() => setShowDeactivateModal(true)}
-          className="w-full bg-white border border-red-200 rounded-2xl p-5 flex items-center gap-4 hover:border-red-300 hover:bg-red-50/30 transition-colors text-left"
-        >
-          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#ef4444" strokeWidth="1.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M22 10.5h-6m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z"/>
-          </svg>
-          <span className="flex-1 font-semibold text-red-500 text-[15px]">Deactivate Account</span>
-          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#ef4444" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
-        </button>
       </div>
-
-      {showDeactivateModal && (
-        <DeactivateModal onClose={() => setShowDeactivateModal(false)} />
-      )}
 
       {/* ══ Trust footer ══════════════════════════════════════════════════════ */}
       <div className="border-t border-[#152d5a]/8 pt-6 pb-2 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-center">

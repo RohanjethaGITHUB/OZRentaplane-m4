@@ -147,21 +147,24 @@ function Section({ num, title, desc, status, error, children }: {
   return (
     <div className="bg-white border border-[#152d5a]/15 rounded-2xl overflow-hidden shadow-sm">
       <button type="button" onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-4 px-6 py-5 hover:bg-[#f8fbff] transition-colors text-left">
-        <div className="w-9 h-9 rounded-full bg-[#1a4fd6] flex items-center justify-center flex-shrink-0">
-          <span className="text-white text-[13px] font-bold">{num}</span>
-        </div>
+        className="w-full flex items-start px-4 py-4 md:px-6 md:py-5 hover:bg-[#f8fbff] transition-colors text-left">
         <div className="flex-1 min-w-0">
-          <p className="text-[17px] font-semibold text-[#152d5a] leading-snug">{title}</p>
-          <p className="text-[13px] text-[#4b6390] mt-1">{desc}</p>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <SectionBadge status={status} />
-          <span className={`material-symbols-outlined text-[#4b6390] text-[20px] transition-transform duration-200 ${open ? 'rotate-0' : '-rotate-90'}`}>expand_less</span>
+          {/* Top row: circle + badge + chevron */}
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-8 h-8 rounded-full bg-[#1a4fd6] flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-[12px] font-bold">{num}</span>
+            </div>
+            <div className="flex-1" />
+            <SectionBadge status={status} />
+            <span className={`material-symbols-outlined text-[#4b6390] text-[20px] transition-transform duration-200 ${open ? 'rotate-0' : '-rotate-90'}`}>expand_less</span>
+          </div>
+          {/* Title + desc full width */}
+          <p className="text-[16px] font-semibold text-[#152d5a] leading-snug">{title}</p>
+          <p className="text-[13px] text-[#4b6390] mt-1 leading-relaxed">{desc}</p>
         </div>
       </button>
       {open && (
-        <div className="px-6 pb-6 pt-4 border-t border-[#152d5a]/08">
+        <div className="px-3 pb-4 pt-3 md:px-6 md:pb-6 md:pt-4 border-t border-[#152d5a]/08">
           {error && (
             <div className="mb-4 flex items-center gap-3 bg-red-50 border-2 border-red-400 rounded-xl px-4 py-4 shadow-[0_0_0_4px_rgba(239,68,68,0.08)]">
               <span className="material-symbols-outlined text-red-500 text-[22px] flex-shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
@@ -385,11 +388,11 @@ function MiniDocCard({ def, doc, docState, onOpen }: {
   }
 
   const borderCls: Record<DocUiState, string> = {
-    missing:      'border-[#152d5a]/10',
-    under_review: 'border-amber-500/20 bg-amber-500/[0.02]',
-    approved:     'border-green-500/20 bg-green-500/[0.03]',
-    rejected:     'border-red-500/20 bg-red-500/[0.02]',
-    expired:      'border-red-500/20 bg-red-500/[0.02]',
+    missing:      'border-[#152d5a]/20',
+    under_review: 'border-amber-300',
+    approved:     'border-green-300',
+    rejected:     'border-red-300',
+    expired:      'border-red-300',
   }
   const iconCls: Record<DocUiState, string> = {
     missing:      'bg-[#f0f6ff] border-[#152d5a]/10 text-[#94a3b8]',
@@ -400,7 +403,7 @@ function MiniDocCard({ def, doc, docState, onOpen }: {
   }
 
   return (
-    <div className={`bg-[#f8fbff] border rounded-2xl p-4 flex flex-col gap-3 ${borderCls[docState]}`}>
+    <div className={`bg-white border-2 rounded-2xl p-4 flex flex-col gap-3 shadow-sm ${borderCls[docState]}`}>
       <div className="flex items-start gap-3">
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 border ${iconCls[docState]}`}>
           <span className="material-symbols-outlined text-[17px]" style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>{def.icon}</span>
@@ -414,9 +417,9 @@ function MiniDocCard({ def, doc, docState, onOpen }: {
         </div>
       </div>
       {doc && docState !== 'missing' && (
-        <div className="text-[11px] text-[#64748b] flex items-center gap-1.5 bg-white rounded-lg px-2.5 py-1.5 border border-[#152d5a]/08">
-          <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'wght' 300" }}>draft</span>
-          <span className="truncate">{doc.file_name}</span>
+        <div className="text-[11px] text-[#64748b] flex items-center gap-1.5 bg-[#f8fbff] rounded-lg px-2.5 py-1.5 border border-[#152d5a]/10 min-w-0">
+          <span className="material-symbols-outlined text-[12px] flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>draft</span>
+          <span className="truncate min-w-0 flex-1">{doc.file_name}</span>
         </div>
       )}
       {docState === 'under_review' && (
@@ -431,25 +434,29 @@ function MiniDocCard({ def, doc, docState, onOpen }: {
         </p>
       )}
       {viewError && <p className="text-[11px] text-red-500 flex items-center gap-1"><span className="material-symbols-outlined text-[12px]">error</span>{viewError}</p>}
-      <div className="flex items-center gap-2 mt-auto">
+      <div className="flex items-center gap-2 mt-auto flex-wrap">
         {doc && docState !== 'missing' && (
           <button onClick={handleView} disabled={viewLoading}
-            className="flex items-center gap-1 border border-[#152d5a]/10 hover:border-[#152d5a]/25 text-[#64748b] hover:text-[#152d5a] px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-40">
-            {viewLoading ? <span className="material-symbols-outlined text-[12px] animate-spin">progress_activity</span> : <span className="material-symbols-outlined text-[12px]">open_in_new</span>}
+            className="flex items-center gap-1.5 border border-[#152d5a]/10 hover:border-[#152d5a]/25 text-[#64748b] hover:text-[#152d5a] px-3 py-2 rounded-xl text-[12px] font-semibold transition-all disabled:opacity-40">
+            {viewLoading
+              ? <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>
+              : <span className="material-symbols-outlined text-[14px]">open_in_new</span>}
             View
           </button>
         )}
         <button onClick={onOpen}
-          className={`flex items-center gap-1.5 border text-[10px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full transition-all ml-auto ${
-            docState === 'missing' ? 'border-[#1a4fd6]/40 hover:border-[#1a4fd6] text-[#1a4fd6] hover:bg-[#1a4fd6]/5' : 'border-[#152d5a]/15 hover:border-[#152d5a]/30 text-[#4b6390] hover:text-[#152d5a]'
+          className={`flex items-center gap-1.5 border text-[12px] font-semibold px-3 py-2 rounded-xl transition-all ml-auto ${
+            docState === 'missing'
+              ? 'border-[#1a4fd6]/40 hover:border-[#1a4fd6] text-[#1a4fd6] bg-[#f0f4ff] hover:bg-[#1a4fd6]/10'
+              : 'border-[#152d5a]/15 hover:border-[#152d5a]/30 text-[#4b6390] hover:text-[#152d5a] bg-white'
           }`}>
-          <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'wght' 300" }}>
+          <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'wght' 300" }}>
             {docState === 'missing' ? 'cloud_upload' : 'cloud_sync'}
           </span>
-          {docState === 'missing' ? 'Upload file' : 'Replace'}
+          {docState === 'missing' ? 'Upload' : 'Replace'}
         </button>
       </div>
-      <p className="text-[10px] text-[#94a3b8]">Accepted formats: PDF, JPG, PNG (Max 10MB)</p>
+      <p className="text-[11px] text-[#94a3b8]">PDF, JPG, PNG — max 10MB</p>
     </div>
   )
 }
@@ -679,7 +686,7 @@ export default function DocumentsPanelV2({
         <Section num={1} title="Upload Identity & Licence Documents"
           desc="Upload clear, current copies of your pilot licence and any other required documents."
           status={s1} error={validationErrors.s1}>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
             {docChecks.map(({ def, doc, state }) => (
               <MiniDocCard key={def.type} def={def} doc={doc} docState={state} onOpen={() => setModalDocType(def.type)} />
             ))}
