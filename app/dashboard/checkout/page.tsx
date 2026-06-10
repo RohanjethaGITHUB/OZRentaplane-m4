@@ -64,7 +64,7 @@ function CheckoutHero() {
       eyebrow="CHECKOUT"
       title="Book Your Checkout Flight"
       subtitle="Select your checkout flight details below. Our instructors will review your request and confirm your flight."
-      backgroundImage="/CustomerDashboard/CustomerDashboard-checkout-hero.webp"
+      backgroundImage="/CustomerDashboard/CustomerDashboard-CheckoutHero.png"
     />
   )
 }

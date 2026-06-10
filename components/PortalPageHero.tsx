@@ -19,6 +19,7 @@ type Props = {
   title: string
   subtitle?: string
   backgroundImage?: string
+  backgroundPosition?: string
   statusPill?: StatusPill
   cta?: CtaButton
 }
@@ -39,17 +40,17 @@ const DOT_CLASSES: Record<StatusPillColor, string> = {
   slate: 'bg-slate-500',
 }
 
-export default function PortalPageHero({ eyebrow, title, subtitle, backgroundImage, statusPill, cta }: Props) {
+export default function PortalPageHero({ eyebrow, title, subtitle, backgroundImage, backgroundPosition = 'top right', statusPill, cta }: Props) {
   return (
     <section
       className="relative overflow-hidden -mt-6"
       style={{
-        minHeight: '300px',
+        minHeight: '460px',
         marginLeft: 'calc(-50vw + 50%)',
         marginRight: 'calc(-50vw + 50%)',
         width: '100vw',
         ...(backgroundImage
-          ? { backgroundImage: `url(${backgroundImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+          ? { backgroundImage: `url(${backgroundImage})`, backgroundSize: 'cover', backgroundPosition }
           : { background: 'linear-gradient(135deg, #0d1b3e 0%, #1a3a6b 50%, #0f2654 100%)' }),
       }}
     >
@@ -64,16 +65,18 @@ export default function PortalPageHero({ eyebrow, title, subtitle, backgroundIma
       />
 
       {/* Primary radial glow — centred and deep */}
-      <div
-        className="absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse at 50% 80%, rgba(59,130,246,0.15) 0%, transparent 60%)' }}
-      />
-
-      {/* Secondary glow — subtle upper warmth */}
-      <div
-        className="absolute inset-0 opacity-50"
-        style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.06) 0%, transparent 55%)' }}
-      />
+      {!backgroundImage && (
+        <>
+          <div
+            className="absolute inset-0"
+            style={{ background: 'radial-gradient(ellipse at 50% 80%, rgba(59,130,246,0.15) 0%, transparent 60%)' }}
+          />
+          <div
+            className="absolute inset-0 opacity-50"
+            style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.06) 0%, transparent 55%)' }}
+          />
+        </>
+      )}
 
       {/* Aircraft silhouette — right edge, very faint */}
       <div className="absolute right-0 top-1/2 -translate-y-1/2 opacity-[0.035] pointer-events-none select-none hidden lg:block pr-8">
@@ -89,9 +92,15 @@ export default function PortalPageHero({ eyebrow, title, subtitle, backgroundIma
       <div className="absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-[#060d18] to-transparent" />
 
       {/* Content */}
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(8,20,50,0.88) 0%, rgba(8,20,50,0.70) 50%, rgba(8,20,50,0.25) 100%)' }} />
+      {backgroundImage ? (
+        /* Light directional scrim - keeps left-side text readable without killing the photo */
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(4,10,28,0.72) 0%, rgba(4,10,28,0.45) 45%, rgba(4,10,28,0.10) 100%)' }} />
+      ) : (
+        /* Heavy overlay for gradient-only fallback - no photo underneath */
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(8,20,50,0.88) 0%, rgba(8,20,50,0.70) 50%, rgba(8,20,50,0.25) 100%)' }} />
+      )}
 
-      <div className="relative z-10 max-w-[1440px] mx-auto px-4 md:px-5 lg:px-6 py-12 md:py-16">
+      <div className="relative z-10 max-w-[1440px] mx-auto px-4 md:px-5 lg:px-6 py-16 md:py-20">
         {eyebrow && (
           <div className="text-[11px] font-semibold tracking-[0.2em] uppercase text-[#f59e0b] mb-4 font-sans">
             {eyebrow}

@@ -12,7 +12,6 @@ type Props = {
   initialPhoneNumber: string
 }
 
-const CARD = 'bg-white border border-[#152d5a]/10 rounded-xl shadow-[0_4px_30px_rgba(2,10,22,0.08)]'
 const COUNTRY_CODE_REGEX = /^\+?\d{1,4}$/
 const PHONE_NUMBER_REGEX = /^\d*$/
 
@@ -93,46 +92,45 @@ export default function CustomerAccountForm({
 
   return (
     <form className="space-y-6" onSubmit={handleSave}>
-      <section className={`${CARD} p-8`}>
-        <h2 className="text-[10px] font-bold uppercase tracking-widest text-[#152d5a] mb-6">Personal Details</h2>
+      <section>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
-            <label className="block text-[9px] font-bold uppercase tracking-[0.18em] text-[#152d5a] mb-2">First Name</label>
+            <label className="block text-xs font-semibold uppercase tracking-[0.1em] text-[#152d5a] mb-2">First Name</label>
             <input
               type="text"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               required
-              className="w-full px-4 py-3 bg-white border border-[#152d5a]/20 rounded-lg text-[#152d5a] text-sm placeholder:text-[#4b6390] focus:border-blue-400/60 focus:outline-none"
+              className="w-full px-4 py-3.5 bg-white border border-[#152d5a]/20 rounded-lg text-[#152d5a] text-sm placeholder:text-[#94a3b8] focus:border-[#1a4fd6]/50 focus:outline-none transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-[9px] font-bold uppercase tracking-[0.18em] text-[#152d5a] mb-2">Last Name</label>
+            <label className="block text-xs font-semibold uppercase tracking-[0.1em] text-[#152d5a] mb-2">Last Name</label>
             <input
               type="text"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               required
-              className="w-full px-4 py-3 bg-white border border-[#152d5a]/20 rounded-lg text-[#152d5a] text-sm placeholder:text-[#4b6390] focus:border-blue-400/60 focus:outline-none"
+              className="w-full px-4 py-3.5 bg-white border border-[#152d5a]/20 rounded-lg text-[#152d5a] text-sm placeholder:text-[#94a3b8] focus:border-[#1a4fd6]/50 focus:outline-none transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-[9px] font-bold uppercase tracking-[0.18em] text-[#152d5a] mb-2">Email Address</label>
+            <label className="block text-xs font-semibold uppercase tracking-[0.1em] text-[#152d5a] mb-2">Email Address</label>
             <input
               type="email"
               value={email}
               disabled
               readOnly
-              className="w-full px-4 py-3 bg-white border border-[#152d5a]/20 rounded-lg text-[#4b6390] text-sm cursor-not-allowed"
+              className="w-full px-4 py-3.5 bg-white border border-[#152d5a]/20 rounded-lg text-[#6b7ea8] text-sm cursor-not-allowed transition-colors"
             />
           </div>
 
           <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-3">
             <div>
-              <label className="block text-[9px] font-bold uppercase tracking-[0.18em] text-[#152d5a] mb-2">Country Code</label>
+              <label className="block text-xs font-semibold uppercase tracking-[0.1em] text-[#152d5a] mb-2">Country Code</label>
               <input
                 type="text"
                 value={phoneCountryCode}
@@ -141,11 +139,11 @@ export default function CustomerAccountForm({
                   if (/^\+?\d{0,4}$/.test(value)) setPhoneCountryCode(value)
                 }}
                 placeholder="+61"
-                className="w-full px-4 py-3 bg-white border border-[#152d5a]/20 rounded-lg text-[#152d5a] text-sm placeholder:text-[#4b6390] focus:border-blue-400/60 focus:outline-none"
+                className="w-full px-4 py-3.5 bg-white border border-[#152d5a]/20 rounded-lg text-[#152d5a] text-sm placeholder:text-[#94a3b8] focus:border-[#1a4fd6]/50 focus:outline-none transition-colors"
               />
             </div>
             <div>
-              <label className="block text-[9px] font-bold uppercase tracking-[0.18em] text-[#152d5a] mb-2">Phone Number</label>
+              <label className="block text-xs font-semibold uppercase tracking-[0.1em] text-[#152d5a] mb-2">Phone Number</label>
               <input
                 type="tel"
                 value={phoneNumber}
@@ -154,7 +152,7 @@ export default function CustomerAccountForm({
                   if (/^\d*$/.test(value)) setPhoneNumber(value)
                 }}
                 placeholder="Optional"
-                className="w-full px-4 py-3 bg-white border border-[#152d5a]/20 rounded-lg text-[#152d5a] text-sm placeholder:text-[#4b6390] focus:border-blue-400/60 focus:outline-none"
+                className="w-full px-4 py-3.5 bg-white border border-[#152d5a]/20 rounded-lg text-[#152d5a] text-sm placeholder:text-[#94a3b8] focus:border-[#1a4fd6]/50 focus:outline-none transition-colors"
               />
             </div>
           </div>
@@ -170,25 +168,17 @@ export default function CustomerAccountForm({
           <button
             type="submit"
             disabled={loading}
-            className="px-6 py-3 rounded-full text-[10px] font-bold uppercase tracking-widest bg-[#f4c943] text-[#07101c] hover:bg-[#ffd761] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 bg-[#e8a020] hover:bg-[#d4911a] text-white font-semibold text-sm px-6 py-3 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Saving…' : 'Update Details'}
+            {loading ? 'Saving…' : (
+              <>
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/>
+                </svg>
+                Save Changes
+              </>
+            )}
           </button>
-        </div>
-      </section>
-
-      <section className={`${CARD} p-8 opacity-45 pointer-events-none select-none`}>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-[10px] font-bold uppercase tracking-widest text-[#152d5a]">Communication Preferences</h2>
-          <span className="text-[9px] uppercase tracking-widest text-amber-400 border border-amber-400/20 px-2 py-0.5 rounded">Coming Soon</span>
-        </div>
-        <div className="space-y-3">
-          {['Email Notifications', 'SMS Alerts'].map((label) => (
-            <div key={label} className="flex items-center justify-between p-4 bg-[#f0f6ff] rounded-xl border border-[#152d5a]/10">
-              <p className="text-sm text-[#152d5a] font-medium">{label}</p>
-              <div className="w-10 h-5 bg-white/10 rounded-full" />
-            </div>
-          ))}
         </div>
       </section>
     </form>

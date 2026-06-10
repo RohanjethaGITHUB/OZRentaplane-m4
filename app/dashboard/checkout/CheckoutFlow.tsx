@@ -13,6 +13,7 @@ import {
   getDayAvailability,
   type SafeConflict,
 } from '@/app/actions/customer-availability'
+import { saveNightVfrRatingFromReadiness } from '@/app/actions/booking-readiness'
 import { sydneyInputToUTC, formatSydTime } from '@/lib/utils/sydney-time'
 import { getDayVfrWindow, isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
 import { validateFlightReviewDate, getFlightReviewCutoff } from '@/lib/utils/flight-review'
@@ -29,6 +30,7 @@ import {
 } from '@/lib/checkout-terms-content'
 import CalendarDateField from '@/components/CalendarDateField'
 import ModalPortal from '@/components/ModalPortal'
+import CheckoutDocumentsStep from './CheckoutDocumentsStep'
 import CheckoutChangeActions from './CheckoutChangeActions'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -802,7 +804,7 @@ export default function CheckoutFlow({
       missing: !doc,
     }
   })
-  const docsGateReady = requiredDocChecks.every((entry) => entry.approved) && Boolean(currentGateTermAcceptedAt)
+  const docsGateReady = requiredDocChecks.every((entry) => entry.approved || (!entry.missing && entry.doc?.status !== 'rejected')) && Boolean(currentGateTermAcceptedAt)
 
   // ── Derived time values ────────────────────────────────────────────────────
   // end is always exactly 2 hours after start — never submitted from the client.
@@ -884,6 +886,27 @@ export default function CheckoutFlow({
     if (nightVfrTimeError)       { setStepError(nightVfrTimeError); return }
     if (avail.status !== 'available') return
     setStep('docs_check')
+  }
+
+  function refreshCheckoutGate(silent = false) {
+    if (!silent) setCheckoutGateLoading(true)
+    setCheckoutGateError(null)
+    getCheckoutDocumentGateState()
+      .then((result) => {
+        if (result.ok) {
+          setCheckoutGate(result.state)
+        } else {
+          setCheckoutGate(null)
+          setCheckoutGateError(result.error)
+        }
+      })
+      .catch((error: unknown) => {
+        setCheckoutGate(null)
+        setCheckoutGateError(error instanceof Error ? error.message : 'Unable to load document status.')
+      })
+      .finally(() => {
+        if (!silent) setCheckoutGateLoading(false)
+      })
   }
 
   function handleDocsCheckContinue() {
@@ -1187,7 +1210,12 @@ export default function CheckoutFlow({
                             <button
                               key={String(val)}
                               type="button"
-                              onClick={() => { setNightVfrRating(val); setStepError(null); if (!val && startTime && !isWithinDayVfrWindow(startTime, date, 120)) setStartTime('') }}
+                              onClick={() => {
+                                setNightVfrRating(val)
+                                setStepError(null)
+                                if (!val && startTime && !isWithinDayVfrWindow(startTime, date, 120)) setStartTime('')
+                                void saveNightVfrRatingFromReadiness({ hasNightVfrRating: val }).catch(() => {/* non-critical */})
+                              }}
                               className={`flex items-center gap-3.5 px-5 py-4 rounded-xl text-[15px] font-medium border transition-all text-left ${
                                 nightVfrRating === val
                                   ? 'bg-[#dbeafe] border-[#93c5fd] text-[#152d5a] shadow-[0_0_14px_rgba(59,130,246,0.10)]'
@@ -1362,114 +1390,23 @@ export default function CheckoutFlow({
           {/* ── STEP 2: Document verification ───────────────────────────────── */}
           {step === 'docs_check' && (
             <div ref={stepSectionRef} className={`${CARD} p-6 md:p-8 space-y-6`}>
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                  <h2 className="text-[32px] font-bold text-[#152d5a] tracking-tight leading-tight">
-                    Document verification
-                  </h2>
-                  <p className="text-[15px] text-[#4b6390] mt-2 leading-relaxed">
-                    We check your approved documents and terms acceptance before you can continue.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => router.push('/dashboard/documents')}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-[#152d5a]/15 text-[#4b6390] hover:text-[#152d5a] hover:border-[#152d5a]/30 transition-all text-sm font-semibold"
-                >
-                  <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>
-                    folder_open
-                  </span>
-                  Go to Documents page
-                </button>
+              <div>
+                <h2 className="text-[28px] font-bold text-[#152d5a] tracking-tight leading-tight">
+                  Document Verification
+                </h2>
+                <p className="text-[14px] text-[#4b6390] mt-1.5 leading-relaxed">
+                  Upload and verify your documents before your checkout flight. All documents are reviewed by our team.
+                </p>
               </div>
-
-              {checkoutGateLoading && !checkoutGateError ? (
-                <div className="rounded-[1.25rem] border border-[#152d5a]/10 bg-white px-6 py-8 flex items-center gap-3 text-[#4b6390]">
-                  <span className="material-symbols-outlined text-[#1a4fd6] animate-spin">progress_activity</span>
-                  Loading your current document status…
-                </div>
-              ) : checkoutGateError ? (
-                <div className="rounded-[1.25rem] border border-red-500/20 bg-red-500/5 px-6 py-5 space-y-3">
-                  <p className="text-sm font-semibold text-red-200">Could not load your document status</p>
-                  <p className="text-sm text-red-200/80">{checkoutGateError}</p>
-                  <button
-                    type="button"
-                    onClick={() => setStep('docs_check')}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-500/15 border border-red-500/25 text-red-100 hover:bg-red-500/25 transition-colors text-sm font-semibold"
-                  >
-                    Retry
-                  </button>
-                </div>
-              ) : docsGateReady ? (
-                <div className="rounded-[1.25rem] border border-green-500/20 bg-green-500/5 px-6 py-6 space-y-4">
-                  <div className="flex items-start gap-4">
-                    <span className="material-symbols-outlined text-green-400 text-2xl mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>
-                      check_circle
-                    </span>
-                    <div className="min-w-0">
-                      <h3 className="text-xl font-semibold text-green-100">Documents verified</h3>
-                      <p className="text-sm text-green-100/80 mt-1">
-                        Your documents are approved and you&apos;re ready to proceed.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={handleDocsCheckContinue}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-green-500/20 border border-green-500/30 text-green-100 hover:bg-green-500/30 transition-colors text-sm font-semibold"
-                    >
-                      Continue to Review
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-[1.25rem] border border-amber-500/20 bg-amber-500/5 px-6 py-6 space-y-4">
-                  <div className="flex items-start gap-4">
-                    <span className="material-symbols-outlined text-amber-300 text-2xl mt-0.5" style={{ fontVariationSettings: "'wght' 300" }}>
-                      warning
-                    </span>
-                    <div className="min-w-0">
-                      <h3 className="text-xl font-semibold text-amber-100">Documents required</h3>
-                      <p className="text-sm text-amber-100/80 mt-1">
-                        You need approved documents and accepted terms before you can continue.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {requiredDocChecks.map((entry) => (
-                      <div key={entry.type} className="flex items-start justify-between gap-4 rounded-xl border border-[#152d5a]/10 bg-white px-4 py-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-[#152d5a]">{entry.label}</p>
-                          <p className="text-xs text-[#64748b] mt-1">
-                            {entry.missing
-                              ? 'Not uploaded'
-                              : entry.doc?.status === 'approved'
-                                ? 'Approved'
-                                : 'Uploaded, but not yet approved'}
-                          </p>
-                        </div>
-                        <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full flex-shrink-0 ${
-                          entry.approved
-                            ? 'text-green-300 bg-green-500/10 border border-green-500/20'
-                            : 'text-amber-200 bg-amber-500/10 border border-amber-500/20'
-                        }`}>
-                          {entry.approved ? 'Approved' : entry.missing ? 'Missing' : 'Pending'}
-                        </span>
-                      </div>
-                    ))}
-                    {!currentGateTermAcceptedAt && (
-                      <div className="rounded-xl border border-[#152d5a]/10 bg-white px-4 py-3">
-                        <p className="text-sm font-semibold text-[#152d5a]">Terms and conditions</p>
-                        <p className="text-xs text-[#64748b] mt-1">
-                          Please accept the terms and conditions on your Documents page.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+              <CheckoutDocumentsStep
+                checkoutGate={checkoutGate}
+                checkoutGateLoading={checkoutGateLoading}
+                checkoutGateError={checkoutGateError}
+                onRefresh={() => refreshCheckoutGate(true)}
+                onContinue={handleDocsCheckContinue}
+                onBackToStep1={() => setStep('time')}
+                onNoteChange={(note) => setTeamMessage(note)}
+              />
             </div>
           )}
 
@@ -1493,17 +1430,17 @@ export default function CheckoutFlow({
             </div>
             {/* Right: 2×3 review card */}
             <div className="flex-1">
-              <div className="bg-white border border-[#152d5a]/10 rounded-[18px] overflow-hidden">
+              <div className="bg-white border border-[#152d5a]/20 rounded-[18px] overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-2">
                   {/* Row 1 */}
-                  <div className="flex gap-3 px-5 py-4 border-b border-[#152d5a]/10 md:border-r md:border-b border-[#152d5a]/10">
+                  <div className="flex gap-3 px-5 py-4 border-b border-[#152d5a]/20 md:border-r md:border-b border-[#152d5a]/20">
                     <span className="material-symbols-outlined text-[17px] text-[#64748b] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>calendar_month</span>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#64748b]">Date</p>
                       <p className="text-[17px] font-semibold text-[#152d5a] mt-0.5">{formatDate(date)}</p>
                     </div>
                   </div>
-                  <div className="flex gap-3 px-5 py-4 border-b border-[#152d5a]/10">
+                  <div className="flex gap-3 px-5 py-4 border-b border-[#152d5a]/20">
                     <span className="material-symbols-outlined text-[17px] text-[#64748b] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>schedule</span>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#64748b]">Departure time</p>
@@ -1511,14 +1448,14 @@ export default function CheckoutFlow({
                     </div>
                   </div>
                   {/* Row 2 */}
-                  <div className="flex gap-3 px-5 py-4 border-b border-[#152d5a]/10 md:border-r border-[#152d5a]/10">
+                  <div className="flex gap-3 px-5 py-4 border-b border-[#152d5a]/20 md:border-r border-[#152d5a]/20">
                     <span className="material-symbols-outlined text-[17px] text-[#64748b] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>{nightVfrRating ? 'nightlight' : 'wb_sunny'}</span>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#64748b]">Night VFR</p>
                       <p className="text-[17px] font-semibold text-[#152d5a] mt-0.5">{nightVfrRating ? 'Yes — Night VFR held' : 'No – Day VFR only'}</p>
                     </div>
                   </div>
-                  <div className="flex gap-3 px-5 py-4 border-b border-[#152d5a]/10">
+                  <div className="flex gap-3 px-5 py-4 border-b border-[#152d5a]/20">
                     <span className="material-symbols-outlined text-[17px] text-[#64748b] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>timer</span>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#64748b]">Duration</p>
@@ -1528,7 +1465,7 @@ export default function CheckoutFlow({
                     </div>
                   </div>
                   {/* Row 3 */}
-                  <div className="flex gap-3 px-5 py-4 md:border-r border-[#152d5a]/10">
+                  <div className="flex gap-3 px-5 py-4 md:border-r border-[#152d5a]/20">
                     <span className="material-symbols-outlined text-[17px] text-[#64748b] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>payments</span>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#64748b]">Rate</p>
@@ -1571,16 +1508,16 @@ export default function CheckoutFlow({
             </div>
             {/* Right: 2-column review card */}
             <div className="flex-1">
-              <div className="bg-white border border-[#152d5a]/10 rounded-[18px] overflow-hidden">
-                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#152d5a]/10">
-                  <div className="flex gap-3 px-5 py-5">
+              <div className="bg-white border border-[#152d5a]/20 rounded-[18px] overflow-hidden">
+                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#152d5a]/20">
+                  <div className="flex gap-3 px-5 py-5 border-b border-[#152d5a]/20">
                     <span className="material-symbols-outlined text-[17px] text-[#64748b] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>calendar_month</span>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#64748b]">Last flight review</p>
                       <p className="text-[17px] font-semibold text-[#152d5a] mt-0.5">{lastFlightDate ? formatDate(lastFlightDate) : '—'}</p>
                     </div>
                   </div>
-                  <div className="flex gap-3 px-5 py-5">
+                  <div className="flex gap-3 px-5 py-5 border-b border-[#152d5a]/20">
                     <span className="material-symbols-outlined text-[17px] text-[#64748b] mt-0.5 flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>chat</span>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.10em] text-[#64748b]">Notes</p>

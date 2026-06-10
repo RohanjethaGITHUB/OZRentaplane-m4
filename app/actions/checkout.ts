@@ -68,6 +68,9 @@ export type CheckoutDocumentGateState = {
   documents: UserDocument[]
   termsAcceptedAt: string | null
   termsVersion: string | null
+  lastFlightDate: string | null
+  hasNightVfrRating: boolean | null
+  pilotLicenceDoc: UserDocument | null
 }
 
 const CUSTOMER_MODIFIABLE_CHECKOUT_STATUSES = ['checkout_requested', 'checkout_confirmed'] as const
@@ -125,7 +128,7 @@ export async function getCheckoutDocumentGateState(): Promise<
         .order('created_at', { ascending: false }),
       supabase
         .from('profiles')
-        .select('terms_accepted_at, terms_version')
+        .select('terms_accepted_at, terms_version, last_flight_date, has_night_vfr_rating')
         .eq('id', userId)
         .single(),
     ])
@@ -137,12 +140,18 @@ export async function getCheckoutDocumentGateState(): Promise<
       return { ok: false, error: 'Unable to verify your terms acceptance right now. Please try again.' }
     }
 
+    const allDocs = (documentsRes.data ?? []) as UserDocument[]
+    const pilotLicenceDoc = allDocs.find(d => d.document_type === 'pilot_licence') ?? null
+
     return {
       ok: true,
       state: {
-        documents: (documentsRes.data ?? []) as UserDocument[],
+        documents: allDocs,
         termsAcceptedAt: profileRes.data?.terms_accepted_at ?? null,
         termsVersion: profileRes.data?.terms_version ?? null,
+        lastFlightDate: profileRes.data?.last_flight_date ?? null,
+        hasNightVfrRating: profileRes.data?.has_night_vfr_rating ?? null,
+        pilotLicenceDoc,
       },
     }
   } catch (error) {

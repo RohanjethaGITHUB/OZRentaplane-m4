@@ -6,17 +6,12 @@ import { sendCustomerReply, markCustomerMessagesRead } from '@/app/actions/verif
 import type { VerificationEvent } from '@/lib/supabase/types'
 import { formatDateTime } from '@/lib/formatDateTime'
 
-// Show message events + on_hold events that carry a customer-facing body
 function isChatEvent(ev: VerificationEvent): boolean {
   if (ev.event_type === 'message' && ev.title === 'Message from Admin') return true
   if (ev.event_type === 'message' && ev.actor_role === 'customer') return true
   if (ev.event_type === 'message' && ev.request_kind === 'message') return true
   if (ev.event_type === 'on_hold' && ev.body) return true
   return false
-}
-
-function fmtTime(iso: string): string {
-  return formatDateTime(iso)
 }
 
 interface Props {
@@ -27,21 +22,19 @@ interface Props {
 export default function CustomerChatPanel({ events, displayName }: Props) {
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState('')
-  const [sent, setSent]       = useState(false)
-  const router = useRouter()
+  const [error,   setError]   = useState('')
+  const [sent,    setSent]    = useState(false)
+  const router    = useRouter()
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const chatEvents = events
     .filter(isChatEvent)
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
-  // Mark admin messages as read when panel mounts
   useEffect(() => {
-    markCustomerMessagesRead().catch(() => {/* non-critical */})
+    markCustomerMessagesRead().catch(() => {})
   }, [])
 
-  // Scroll to bottom on mount and when new messages arrive
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatEvents.length])
@@ -75,35 +68,37 @@ export default function CustomerChatPanel({ events, displayName }: Props) {
   return (
     <div className="space-y-5">
 
-      {/* ── Conversation thread ────────────────────────────────────── */}
+      {/* ── Conversation thread ──────────────────────────────────── */}
       {chatEvents.length === 0 ? (
-        <div className="bg-[#0c121e]/60 backdrop-blur-2xl border border-white/5 rounded-[1.25rem] p-10 text-center">
-          <span
-            className="material-symbols-outlined text-3xl text-oz-subtle/30 block mb-3"
-            style={{ fontVariationSettings: "'wght' 100, 'FILL' 0" }}
-          >
-            chat
-          </span>
-          <p className="text-sm text-oz-muted font-light">
+        <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-12 flex flex-col items-center justify-center text-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-[#f0f4ff] flex items-center justify-center">
+            <span
+              className="material-symbols-outlined text-2xl text-[#1a4fd6]/40"
+              style={{ fontVariationSettings: "'wght' 100, 'FILL' 0" }}
+            >
+              chat
+            </span>
+          </div>
+          <p className="text-sm text-[#6b7ea8]">
             No messages yet. When our team sends you a message it will appear here.
           </p>
         </div>
       ) : (
-        <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+        <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5 space-y-4 max-h-[520px] overflow-y-auto">
           {chatEvents.map(ev => {
-            const isAdmin     = ev.actor_role === 'admin'
-            const isUnreadForCustomer = !ev.is_read && isAdmin
+            const isAdmin  = ev.actor_role === 'admin'
+            const isUnread = !ev.is_read && isAdmin
 
             return (
               <div
                 key={ev.id}
                 className={`flex gap-3 ${isAdmin ? 'justify-start' : 'justify-end'}`}
               >
-                {/* Admin avatar (left side) */}
+                {/* Admin avatar */}
                 {isAdmin && (
-                  <div className="w-7 h-7 rounded-full bg-oz-blue/15 border border-oz-blue/20 flex items-center justify-center flex-shrink-0 mt-1">
+                  <div className="w-8 h-8 rounded-full bg-[#f0f4ff] border border-[#1a4fd6]/15 flex items-center justify-center flex-shrink-0 mt-1">
                     <span
-                      className="material-symbols-outlined text-sm text-oz-blue/60"
+                      className="material-symbols-outlined text-sm text-[#1a4fd6]/60"
                       style={{ fontVariationSettings: "'wght' 300" }}
                     >
                       admin_panel_settings
@@ -114,39 +109,39 @@ export default function CustomerChatPanel({ events, displayName }: Props) {
                 <div className={`max-w-[72%] space-y-1 flex flex-col ${isAdmin ? 'items-start' : 'items-end'}`}>
                   {/* Label row */}
                   <div className={`flex items-center gap-2 ${isAdmin ? '' : 'flex-row-reverse'}`}>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-oz-subtle/60">
-                      {isAdmin ? 'OZRentAPlane Team' : 'You'}
+                    <span className="text-[11px] font-semibold text-[#6b7ea8]">
+                      {isAdmin ? 'OZRentAPlane Team' : displayName}
                     </span>
-                    {isUnreadForCustomer && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-oz-blue flex-shrink-0" />
+                    {isUnread && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#1a4fd6] flex-shrink-0" />
                     )}
                     {ev.event_type === 'on_hold' && (
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400/60 border border-amber-400/20 px-1.5 py-0.5 rounded">
-                        on hold
+                      <span className="text-[10px] font-semibold text-[#d97706] bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                        On Hold
                       </span>
                     )}
                   </div>
 
-                  {/* Message body */}
+                  {/* Message bubble */}
                   <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                     isAdmin
-                      ? 'bg-[#0c121e]/80 border border-white/8 text-[#e2e2e6] rounded-tl-sm'
-                      : 'bg-oz-blue/15 border border-oz-blue/20 text-blue-100 rounded-tr-sm'
+                      ? 'bg-[#f0f4ff] border border-[#1a4fd6]/10 text-[#152d5a] rounded-tl-sm'
+                      : 'bg-[#1a4fd6] text-white rounded-tr-sm'
                   }`}>
                     {ev.body}
                   </div>
 
                   {/* Timestamp */}
-                  <span className="text-[10px] text-oz-subtle/50 font-mono">
-                    {fmtTime(ev.created_at)}
+                  <span className="text-[11px] text-[#94a3b8]">
+                    {formatDateTime(ev.created_at)}
                   </span>
                 </div>
 
-                {/* Customer avatar (right side) */}
+                {/* Customer avatar */}
                 {!isAdmin && (
-                  <div className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0 mt-1">
+                  <div className="w-8 h-8 rounded-full bg-[#e8edf5] border border-[#152d5a]/10 flex items-center justify-center flex-shrink-0 mt-1">
                     <span
-                      className="material-symbols-outlined text-sm text-white/30"
+                      className="material-symbols-outlined text-sm text-[#152d5a]/40"
                       style={{ fontVariationSettings: "'wght' 300" }}
                     >
                       person
@@ -160,8 +155,8 @@ export default function CustomerChatPanel({ events, displayName }: Props) {
         </div>
       )}
 
-      {/* ── Compose area ──────────────────────────────────────────── */}
-      <div className="bg-[#0c121e]/60 backdrop-blur-2xl border border-white/5 rounded-[1.25rem] p-4 space-y-3">
+      {/* ── Compose area ────────────────────────────────────────── */}
+      <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
         <textarea
           value={message}
           onChange={e => setMessage(e.target.value)}
@@ -169,30 +164,34 @@ export default function CustomerChatPanel({ events, displayName }: Props) {
           disabled={loading}
           placeholder="Send a message to our team…"
           rows={3}
-          className="w-full bg-transparent focus:outline-none text-sm text-[#e2e2e6] placeholder:text-oz-subtle/40 resize-none disabled:opacity-50"
+          className="w-full bg-transparent focus:outline-none text-sm text-[#152d5a] placeholder:text-[#94a3b8] resize-none disabled:opacity-50"
         />
 
         {error && (
-          <p className="text-xs text-red-400/80 leading-relaxed">{error}</p>
+          <div className="mt-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2">
+            <p className="text-xs text-red-600">{error}</p>
+          </div>
         )}
         {sent && (
-          <p className="text-xs text-green-400/80 leading-relaxed">Message sent.</p>
+          <div className="mt-2 rounded-lg bg-[#f0fdf4] border border-[#16a34a]/20 px-3 py-2">
+            <p className="text-xs text-[#16a34a]">Message sent successfully.</p>
+          </div>
         )}
 
-        <div className="flex items-center justify-between pt-2 border-t border-white/5">
-          <p className="text-[10px] text-oz-subtle/40 italic">
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#152d5a]/6">
+          <p className="text-[11px] text-[#94a3b8]">
             ⌘ + Enter to send
           </p>
           <button
             type="button"
             onClick={handleSend}
             disabled={loading || !message.trim()}
-            className="flex items-center gap-2 px-5 py-2.5 bg-oz-blue/15 border border-oz-blue/20 text-oz-blue hover:bg-oz-blue/25 hover:text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#e8a020] hover:bg-[#d4911a] text-white font-semibold text-sm rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {loading ? (
-              <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+              <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>
             ) : (
-              <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>send</span>
+              <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'wght' 300" }}>send</span>
             )}
             Send
           </button>

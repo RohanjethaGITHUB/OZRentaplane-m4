@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import DocumentsPanel from '@/app/dashboard/DocumentsPanel'
+import DocumentsPanelV2 from '@/app/dashboard/DocumentsPanelV2'
 import PortalPageHero from '@/components/PortalPageHero'
 import type { UserDocument } from '@/lib/supabase/types'
 
@@ -36,10 +36,11 @@ export default async function CustomerDocumentsPage() {
         eyebrow="Pilot Documents"
         title="My Documents"
         subtitle="Upload your required pilot documents and keep your flight review date up to date for checkout review."
+        backgroundImage="/CustomerDashboard/CustomerDashboard-CheckoutHero.png"
       />
 
-      <div className="max-w-[1280px] mx-auto px-6 md:px-10 xl:px-12 py-10">
-        <DocumentsPanel
+      <div className="py-8">
+        <DocumentsPanelV2
           user={user}
           documents={(documents as UserDocument[]) || []}
           pilotLicenceDocument={pilotLicenceDocument}

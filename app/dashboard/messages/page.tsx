@@ -27,7 +27,6 @@ export default async function CustomerMessagesPage() {
     .order('created_at', { ascending: true })
 
   const displayName = profile?.full_name ?? user.email?.split('@')[0] ?? 'Pilot'
-
   const chatEvents  = (events as VerificationEvent[]) || []
   const unreadCount = chatEvents.filter(
     ev => ((ev.event_type === 'message' && (ev.title === 'Message from Admin' || ev.request_kind === 'message')) || (ev.event_type === 'on_hold' && ev.body))
@@ -47,19 +46,20 @@ export default async function CustomerMessagesPage() {
         }
       />
 
-      <div className="max-w-[1280px] mx-auto px-6 md:px-10 xl:px-12 py-10">
-
+      <div className="max-w-[1440px] mx-auto px-3 md:px-4 lg:px-6 py-8 md:py-10">
         {chatEvents.length === 0 ? (
-          <div className="bg-gradient-to-br from-[#0c1525] to-[#080e1c] border border-white/[0.07] rounded-xl p-14 flex flex-col items-center justify-center text-center gap-5 shadow-[0_4px_30px_rgba(0,0,0,0.35)]">
-            <span
-              className="material-symbols-outlined text-4xl text-white/10"
-              style={{ fontVariationSettings: "'wght' 100, 'FILL' 0" }}
-            >
-              chat_bubble
-            </span>
+          <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-14 flex flex-col items-center justify-center text-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-[#f0f4ff] flex items-center justify-center">
+              <span
+                className="material-symbols-outlined text-3xl text-[#1a4fd6]/40"
+                style={{ fontVariationSettings: "'wght' 100, 'FILL' 0" }}
+              >
+                chat_bubble
+              </span>
+            </div>
             <div>
-              <h2 className="text-lg font-serif text-white/50 mb-2">No messages yet</h2>
-              <p className="text-sm text-slate-600 font-light max-w-sm leading-relaxed">
+              <h2 className="text-base font-semibold text-[#152d5a] mb-1">No messages yet</h2>
+              <p className="text-sm text-[#6b7ea8] max-w-sm leading-relaxed">
                 The OZRentAPlane team will contact you here if anything needs your attention.
               </p>
             </div>
