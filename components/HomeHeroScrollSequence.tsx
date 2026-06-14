@@ -589,8 +589,9 @@ export default function HomeHeroScrollSequence() {
           className={`absolute inset-0 h-full w-full object-cover object-center ${isMobileViewport ? 'hidden' : 'block'}`}
           muted
           playsInline
-          preload="auto"
+          preload={isMobileViewport ? 'none' : 'auto'}
           disablePictureInPicture
+          style={{ willChange: 'transform' }}
           aria-hidden="true"
         >
           <source src="/hero-desktop.webm" type="video/webm" />
@@ -601,8 +602,9 @@ export default function HomeHeroScrollSequence() {
           className={`absolute inset-0 h-full w-full object-cover object-[50%_38%] ${isMobileViewport ? 'block' : 'hidden'}`}
           muted
           playsInline
-          preload="auto"
+          preload={isMobileViewport ? 'auto' : 'none'}
           disablePictureInPicture
+          style={{ willChange: 'transform' }}
           aria-hidden="true"
         >
           <source src="/hero-mobile.webm" type="video/webm" />
