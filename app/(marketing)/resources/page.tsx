@@ -1,6 +1,8 @@
 import PreFooterCTA from '@/components/marketing/PreFooterCTA'
 import AtmoClouds from '@/components/AtmoClouds'
 
+export const dynamic = 'force-static'
+
 export default function ResourcesPage() {
   return (
     <main className="bg-mkt-main text-deep-ink">

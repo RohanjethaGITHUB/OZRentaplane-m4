@@ -3,6 +3,8 @@ import { FadeUp, StaggerContainer, StaggerItem } from '@/components/MotionPreset
 import PreFooterCTA from '@/components/marketing/PreFooterCTA'
 import AtmoClouds from '@/components/AtmoClouds'
 
+export const dynamic = 'force-static'
+
 // ─── Tiny helper: Material Symbol icon ───────────────────────────────────────
 function Icon({ name, className = '' }: { name: string; className?: string }) {
   return <span className={`material-symbols-outlined ${className}`}>{name}</span>

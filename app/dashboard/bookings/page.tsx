@@ -312,30 +312,33 @@ export default async function CustomerBookingsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  const [profileResult, bookingsResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('bookings')
+      .select(`
+        id, booking_reference, status, booking_type,
+        checkout_lifecycle_status,
+        scheduled_start, scheduled_end,
+        estimated_hours, estimated_amount, pic_name, created_at,
+        aircraft ( registration ),
+        flight_records ( status, submitted_at )
+      `)
+      .eq('booking_owner_user_id', user.id)
+      .order('scheduled_start', { ascending: false }),
+  ])
+
+  const profile = profileResult.data
   if (profile?.role === 'admin') redirect('/admin')
 
   const clearanceStatus = ((profile as Profile | null)?.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
   const isCleared = clearanceStatus === 'cleared_to_fly'
 
-  const { data: bookings } = await supabase
-    .from('bookings')
-    .select(`
-      id, booking_reference, status, booking_type,
-      checkout_lifecycle_status,
-      scheduled_start, scheduled_end,
-      estimated_hours, estimated_amount, pic_name, created_at,
-      aircraft ( registration ),
-      flight_records ( status, submitted_at )
-    `)
-    .eq('booking_owner_user_id', user.id)
-    .order('scheduled_start', { ascending: false })
-
-  const rows             = ((bookings ?? []) as unknown as BookingRow[]).map((booking) => ({
+  const rows             = ((bookingsResult.data ?? []) as unknown as BookingRow[]).map((booking) => ({
     ...booking,
     status: deriveBookingStatusForFlightRecord(booking),
   }))

@@ -59,14 +59,27 @@ export default async function AdminUserPage({ params }: { params: { id: string }
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Fetch customer profile
-  const { data: customerProfile } = await supabase
-    .from('profiles')
-    .select('id, full_name, email, account_status, verification_status, pilot_clearance_status, terms_accepted_at, created_at, updated_at, reviewed_at, admin_review_note, pilot_arn, has_night_vfr_rating, has_instrument_rating')
-    .eq('id', params.id)
-    .eq('role', 'customer')
-    .single()
+  // Admin guard + customer profile in parallel
+  const [adminCheckResult, customerProfileResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('profiles')
+      .select('id, full_name, email, account_status, verification_status, pilot_clearance_status, terms_accepted_at, created_at, updated_at, reviewed_at, admin_review_note, pilot_arn, has_night_vfr_rating, has_instrument_rating')
+      .eq('id', params.id)
+      .eq('role', 'customer')
+      .single(),
+  ])
 
+  // Keep existing admin role check logic
+  if (adminCheckResult.data?.role !== 'admin') {
+    redirect('/login')
+  }
+
+  const customerProfile = customerProfileResult.data
   if (!customerProfile) notFound()
 
   // Fetch documents, events, credits, and bookings in parallel

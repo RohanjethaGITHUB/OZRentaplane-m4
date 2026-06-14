@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { FadeUp, StaggerContainer, StaggerItem, HoverEmphasize } from '@/components/MotionPresets'
 
+export const dynamic = 'force-static'
+
 // ─── Icon helper (Material Symbols Outlined) ──────────────────────────────────
 function Icon({ name, className = '', style }: { name: string; className?: string; style?: React.CSSProperties }) {
   return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>

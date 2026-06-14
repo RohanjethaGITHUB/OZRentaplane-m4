@@ -3,6 +3,8 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { FadeUp, StaggerContainer, StaggerItem } from '@/components/MotionPresets'
 
+export const dynamic = 'force-static'
+
 /* ─── Types ───────────────────────────────────────────────────────────────── */
 
 interface FaqItem {

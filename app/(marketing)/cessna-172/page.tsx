@@ -6,6 +6,8 @@ import { fleetGalleryManifest } from '@/lib/fleetGalleryManifest'
 import { FadeUp, StaggerContainer, StaggerItem, HoverEmphasize } from '@/components/MotionPresets'
 import AtmoClouds from '@/components/AtmoClouds'
 
+export const dynamic = 'force-static'
+
 function OrganicFlightOverlay() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-[5] overflow-hidden">

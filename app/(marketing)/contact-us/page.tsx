@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import PreFooterCTA from '@/components/marketing/PreFooterCTA'
 import AtmoClouds from '@/components/AtmoClouds'
 
+export const dynamic = 'force-static'
+
 export const metadata: Metadata = {
   title: 'Contact Us | OZ Rent A Plane',
   description:

@@ -10,17 +10,22 @@ export default async function CustomerSettingsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  const [profileResult, documentsResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('user_documents')
+      .select('document_type, status')
+      .eq('user_id', user.id),
+  ])
+
+  const profile = profileResult.data
   if (!profile) redirect('/login')
 
-  const { data: documents } = await supabase
-    .from('user_documents')
-    .select('document_type, status')
-    .eq('user_id', user.id)
+  const documents = documentsResult.data
 
   // Derive first/last name using same splitName logic as before
   function splitName(fullName: string | null): { firstName: string; lastName: string } {

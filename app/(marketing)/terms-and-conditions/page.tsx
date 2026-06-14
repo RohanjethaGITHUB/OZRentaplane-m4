@@ -8,6 +8,8 @@ import {
   TERMS_SECTIONS,
 } from '@/lib/checkout-terms-content'
 
+export const dynamic = 'force-static'
+
 export const metadata: Metadata = {
   title: 'Terms & Conditions — OZRentAPlane',
   description:

@@ -234,19 +234,30 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const documents        = rawDocuments ?? []
   const messages         = rawMessages  ?? []
   const aircraftLogs     = (aircraftLogsRaw ?? []) as Record<string, unknown>[]
-  const { data: checkoutInvoice } = await supabase
-    .from('checkout_invoices')
-    .select(`
-      id,
-      stripe_amount_due_cents,
-      checkout_rate_cents_per_hour,
-      checkout_duration_hours,
-      checkout_final_amount_cents,
-      total_paid_cents,
-      status
-    `)
-    .eq('booking_id', booking.id)
-    .maybeSingle()
+  const [checkoutInvoiceResult, suggestionsResult] = await Promise.all([
+    supabase
+      .from('checkout_invoices')
+      .select(`
+        id,
+        stripe_amount_due_cents,
+        checkout_rate_cents_per_hour,
+        checkout_duration_hours,
+        checkout_final_amount_cents,
+        total_paid_cents,
+        status
+      `)
+      .eq('booking_id', booking.id)
+      .maybeSingle(),
+    booking.aircraft_id
+      ? getAircraftFlightLogStartSuggestions(booking.aircraft_id)
+      : Promise.resolve({
+          latestLog: null,
+          nextLogNumber: 1,
+          suggestedStarts: { vdo_start: null, tacho_start: null, air_switch_start: null, mr_start: null },
+        }),
+  ])
+  const checkoutInvoice = checkoutInvoiceResult.data
+  const flightLogStartSuggestions = suggestionsResult.suggestedStarts
   // Invoice was sent via Stripe if checkoutInvoice exists with a status of 'open' or 'paid'
   const invoiceSentViaStripe = !!(
     checkoutInvoice &&
@@ -265,9 +276,6 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   })
 
   const customerCreditCents = (creditRow as { balance_cents?: number } | null)?.balance_cents ?? 0
-  const flightLogStartSuggestions = booking.aircraft_id
-    ? (await getAircraftFlightLogStartSuggestions(booking.aircraft_id)).suggestedStarts
-    : { vdo_start: null, tacho_start: null, air_switch_start: null, mr_start: null }
 
   // ── Bank transfer submissions (checkout) ─────────────────────────────────
   type BankTransferSub = {

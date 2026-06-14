@@ -5,6 +5,8 @@ import { FadeUp, StaggerContainer, StaggerItem } from '@/components/MotionPreset
 import PreFooterCTA from '@/components/marketing/PreFooterCTA'
 import AtmoClouds from '@/components/AtmoClouds'
 
+export const dynamic = 'force-static'
+
 type FaqItemType = {
   question: string
   answer: string

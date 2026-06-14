@@ -91,11 +91,25 @@ export default async function CheckoutPage() {
   }
   if (!user) redirect('/login')
 
-  const { data: profile, error: profileErr } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  const [profileResult, activeCheckoutBookingResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('bookings')
+      .select('id')
+      .eq('booking_owner_user_id', user.id)
+      .eq('booking_type', 'checkout')
+      .in('status', [...ACTIVE_CHECKOUT_STATUSES])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  const profile = profileResult.data
+  const profileErr = profileResult.error
 
   if (profile?.role === 'admin') redirect('/admin')
 
@@ -105,15 +119,7 @@ export default async function CheckoutPage() {
     typedProfile?.account_status === 'blocked' &&
     typedProfile?.account_lock_reason === 'checkout_no_show'
 
-  const { data: activeCheckoutBookingForRedirect } = await supabase
-    .from('bookings')
-    .select('id')
-    .eq('booking_owner_user_id', user.id)
-    .eq('booking_type', 'checkout')
-    .in('status', [...ACTIVE_CHECKOUT_STATUSES])
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const activeCheckoutBookingForRedirect = activeCheckoutBookingResult.data
 
   const TERMINAL_STATES = ['cleared_to_fly', 'not_currently_eligible']
   if (!activeCheckoutBookingForRedirect && TERMINAL_STATES.includes(clearanceStatus)) {

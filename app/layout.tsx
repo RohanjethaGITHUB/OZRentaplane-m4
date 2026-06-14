@@ -1,10 +1,26 @@
 import type { Metadata } from 'next'
+import { Manrope, Newsreader } from 'next/font/google'
 import './globals.css'
 import ScreenshotMode from './ScreenshotMode'
 import ContentsquareTag from './components/ContentsquareTag'
 import { Suspense } from 'react'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.ozrentaplane.com'
+
+const newsreader = Newsreader({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  style: ['normal', 'italic'],
+  variable: '--font-newsreader',
+  display: 'swap',
+})
+
+const manrope = Manrope({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-manrope',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -60,16 +76,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&family=Manrope:wght@200..800&display=swap"
-          rel="stylesheet"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
-          rel="stylesheet"
-        />
         <script dangerouslySetInnerHTML={{ __html: screenshotModeBootScript }} />
         <script
           type="application/ld+json"
@@ -107,7 +113,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           }}
         />
       </head>
-      <body className="bg-mkt-main text-[#0d1b3e]">
+      <body className={`${newsreader.variable} ${manrope.variable} bg-mkt-main text-[#0d1b3e]`}>
         <Suspense fallback={null}>
           <ScreenshotMode />
         </Suspense>

@@ -4,6 +4,8 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import { FadeUp, StaggerContainer, StaggerItem, HoverEmphasize } from '@/components/MotionPresets'
 
+export const dynamic = 'force-static'
+
 export default function PilotRequirementsPage() {
   return (
     <main className="min-h-screen bg-mkt-main text-pale-sky">

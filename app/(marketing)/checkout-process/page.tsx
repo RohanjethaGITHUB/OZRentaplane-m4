@@ -8,6 +8,8 @@ import RunwaySpine from '@/components/checkout-process/RunwaySpine'
 import { createClient } from '@/lib/supabase/client'
 import AtmoClouds from '@/components/AtmoClouds'
 
+export const dynamic = 'force-static'
+
 /* ─── Icon ────────────────────────────────────────────────────────────────── */
 function Icon({ name, className = '', fill = false }: { name: string; className?: string; fill?: boolean }) {
   return (

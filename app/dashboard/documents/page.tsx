@@ -13,19 +13,24 @@ export default async function CustomerDocumentsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, last_flight_date, has_night_vfr_rating, has_instrument_rating, terms_accepted_at, terms_version')
-    .eq('id', user.id)
-    .single()
+  const [profileResult, documentsResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('role, last_flight_date, has_night_vfr_rating, has_instrument_rating, terms_accepted_at, terms_version')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('user_documents')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false }),
+  ])
+
+  const profile = profileResult.data
 
   if (profile?.role === 'admin') redirect('/admin')
 
-  const { data: documents } = await supabase
-    .from('user_documents')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('updated_at', { ascending: false })
+  const documents = documentsResult.data
 
   const pilotLicenceDocument =
     (documents as UserDocument[] | null)?.find((doc) => doc.document_type === 'pilot_licence') ?? null
