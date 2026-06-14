@@ -12,8 +12,8 @@ const EASE_PREMIUM = [0.25, 1, 0.35, 1] as const
 const isScreenshotMode = typeof window !== 'undefined' && window.location.search.includes('screenshotMode=1')
 const TRANSITION = { duration: isScreenshotMode ? 0 : 1.4, ease: EASE_PREMIUM }
 
-const FIELD_LABEL_CLASS = 'block text-[10px] font-sans uppercase tracking-[0.2em] text-white/[0.72] mb-1.5 group-focus-within:text-oz-blue transition-colors'
-const FIELD_INPUT_CLASS = 'w-full bg-white/[0.09] border border-white/30 px-3.5 py-3.5 text-white placeholder:text-white/50 focus:ring-0 focus:border-oz-blue focus:bg-white/[0.13] transition-all outline-none font-sans rounded-xl'
+const FIELD_LABEL_CLASS = 'block text-[12px] font-medium text-[#152d5a] mb-1.5'
+const FIELD_INPUT_CLASS = 'w-full bg-white border border-[#152d5a]/20 px-4 py-3.5 text-[#152d5a] placeholder:text-[#94a3b8] focus:ring-0 focus:border-[#1a4fd6]/50 focus:outline-none transition-all rounded-xl text-sm'
 
 interface LoginContentProps {
   presentation?: 'page' | 'modal'
@@ -189,245 +189,474 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
   }, [anyLoading, onBusyChange])
 
   return (
-    <div className={`${isModal ? 'w-full' : 'min-h-screen pt-[120px] pb-12 px-6 md:px-12 lg:px-24 bg-gradient-to-br from-[#050B14] via-[#0A111F] to-[#04080F]'} flex flex-col items-center justify-center relative overflow-hidden`}>
-      {!isModal && <div className="fixed top-0 right-0 w-[600px] h-[600px] bg-[#1E3A8A]/10 blur-[120px] -z-10 rounded-full pointer-events-none" />}
-      {!isModal && <div className="fixed bottom-0 left-0 w-[600px] h-[600px] bg-[#0F172A]/30 blur-[120px] -z-10 rounded-full pointer-events-none" />}
-      {!isModal && <div className="fixed inset-0 opacity-[0.03] pointer-events-none z-50 mix-blend-overlay" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/carbon-fibre.png")' }} />}
+    <div className={`${isModal ? 'w-full' : 'min-h-screen flex items-center justify-center p-4 bg-[#f0f4ff]'}`}>
+      <main className={`${isModal
+        ? 'w-full max-w-[1100px] h-[min(calc(100dvh-24px),820px)] min-h-0 rounded-[1.5rem]'
+        : 'w-full max-w-[1100px] min-h-[600px] rounded-[1.5rem]'
+      } overflow-hidden flex flex-col md:flex-row relative shadow-2xl`}>
 
-      <main className={`${isModal ? 'w-full max-w-[1220px] h-[min(calc(100dvh-24px),880px)] min-h-0 rounded-[1.65rem]' : 'w-full max-w-[1300px] h-auto my-auto md:min-h-[700px] md:h-[calc(100vh-160px)] md:max-h-[900px] rounded-2xl md:rounded-[2rem]'} bg-[#0A101C]/80 backdrop-blur-2xl overflow-hidden flex flex-col md:flex-row relative shadow-[0_40px_100px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.1)] ring-1 ring-white/10`}>
+        {/* ── Close button ── */}
         {isModal && (
           <button
             type="button"
             onClick={onRequestClose}
             disabled={anyLoading}
-            aria-label="Close authentication"
-            className="absolute top-4 right-4 z-30 h-10 w-10 p-0 rounded-full border border-white/15 bg-[#0a1423]/80 text-white/70 hover:text-white hover:border-white/30 hover:bg-[#12233d]/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+            aria-label="Close"
+            className="absolute top-4 right-4 z-30 h-9 w-9 rounded-full border border-[#152d5a]/15 bg-white text-[#152d5a]/50 hover:text-[#152d5a] hover:border-[#152d5a]/30 transition-colors disabled:opacity-40 flex items-center justify-center shadow-sm"
           >
-            <span className="material-symbols-outlined block leading-none text-[18px]">close</span>
+            <span className="material-symbols-outlined text-[18px] leading-none">close</span>
           </button>
         )}
-        <section className={`relative flex-1 ${isModal ? 'min-h-0' : 'min-h-[400px]'} md:min-h-full overflow-hidden border-b md:border-b-0 md:border-r border-white/5${mode === 'signup' && isModal ? ' hidden md:block' : ''}`}>
+
+        {/* ══ LEFT PANEL — photo + brand ══════════════════════════════════ */}
+        <section className="relative hidden md:flex md:w-[42%] flex-shrink-0 flex-col overflow-hidden">
+          {/* Background image */}
           <div className="absolute inset-0 z-0">
-            <motion.div className="w-full h-full" initial={isScreenshotMode ? false : undefined} animate={{ scale: mode === 'signin' ? 1.06 : 1.09, filter: mode === 'signin' ? 'blur(12px) brightness(0.42) contrast(0.9) saturate(0.72)' : 'blur(15px) brightness(0.34) contrast(0.86) saturate(0.66)' }} transition={TRANSITION}>
-              <Image src="/Cockpit-twilight.webp" alt="Cockpit at twilight" fill className="object-cover" priority />
+            <motion.div
+              className="w-full h-full"
+              initial={isScreenshotMode ? false : undefined}
+              animate={{
+                scale: 1.04,
+                filter: 'blur(0px) brightness(0.82) saturate(1.0)',
+              }}
+              transition={TRANSITION}
+            >
+              <Image
+                src="/Login-wing.png"
+                alt="Aircraft wing at sunset"
+                fill
+                className="object-cover object-center"
+                priority
+              />
             </motion.div>
-            <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-[#040a15]/94 via-[#071225]/90 to-[#0a1730]/84 pointer-events-none" />
-            <div className="absolute inset-0 bg-[#081224]/46 pointer-events-none" />
+            {/* Gradient overlay — left-heavy for text legibility */}
+            <div className="absolute inset-0 bg-gradient-to-br from-[#040d1e]/75 via-[#071528]/55 to-[#0a1a35]/40" />
           </div>
 
-          <div className={`relative z-10 w-full h-full flex flex-col ${isModal ? 'px-5 pt-14 pb-6 sm:p-8 md:p-14 lg:p-20' : 'p-8 md:p-14 lg:p-20'}`}>
-            <div className="flex-1 flex flex-col justify-center">
-              <AnimatePresence mode="popLayout" initial={isScreenshotMode ? false : undefined}>
-                {mode === 'signin' ? (
-                  <motion.div key="signin-active" initial={isScreenshotMode ? false : { opacity: 0, x: -30, filter: 'blur(10px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: 30, filter: 'blur(10px)' }} transition={TRANSITION} className="max-w-md w-full">
-                    <h1 className="text-[1.7rem] sm:text-4xl md:text-5xl lg:text-6xl font-serif text-white mb-3 md:mb-4 leading-tight tracking-tight">Welcome Back, Pilot</h1>
-                    <p className="text-white/[0.78] font-sans font-light mb-6 md:mb-10 text-base md:text-lg tracking-wide">Your aircraft is waiting. Please authenticate to access your dashboard.</p>
-                    <form className="space-y-7" onSubmit={handleSignIn}>
-                      <div className="group relative">
-                        <label className={FIELD_LABEL_CLASS}>Email Address</label>
-                        <input type="email" placeholder="captain@ozrentaplane.com.au" value={siEmail} onChange={(e) => setSiEmail(e.target.value)} required disabled={loading} className={`${FIELD_INPUT_CLASS} disabled:opacity-60 disabled:cursor-not-allowed`} />
-                      </div>
-                      <div className="group relative">
-                        <label className={FIELD_LABEL_CLASS}>Password</label>
-                        <input type="password" placeholder="••••••••" value={siPassword} onChange={(e) => setSiPassword(e.target.value)} required disabled={loading} className={`${FIELD_INPUT_CLASS} font-mono disabled:opacity-60 disabled:cursor-not-allowed`} />
-                      </div>
-                      {siError && <p className="text-red-400 text-[11px] font-sans font-light tracking-wide -mt-2">{siError}</p>}
-                      <div className="pt-8 flex items-center justify-between gap-4">
-                        <button type="submit" disabled={anyLoading} className="bg-gradient-to-br from-oz-blue to-oz-blue-dim text-oz-deep px-8 py-3.5 rounded-full font-sans text-xs uppercase tracking-[0.15em] font-bold shadow-[0_4px_16px_rgba(167,200,255,0.15)] hover:shadow-[0_4px_24px_rgba(167,200,255,0.25)] hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">{loading ? 'Signing In…' : 'Sign In'}</button>
-                        <button
-                          type="button"
-                          onClick={() => (forgotPasswordOpen ? clearForgotPasswordState() : openForgotPassword())}
-                          className="text-[10px] font-sans uppercase tracking-[0.1em] text-white/[0.66] hover:text-white transition-colors text-right"
-                        >
-                          {forgotPasswordOpen ? 'Cancel reset' : 'Forgot password?'}
-                        </button>
-                      </div>
+          {/* Content */}
+          <div className="relative z-10 flex flex-col h-full p-10 lg:p-14">
+            {/* Logo */}
+            <div className="mb-auto">
+              <div className="flex items-center gap-2 mb-12">
+                <Image src="/Logo/ozrentaplane-transparent-bg.png" alt="OZ Rent A Plane" width={120} height={32} className="h-8 w-auto" />
+              </div>
 
-                      <div className="pt-6 mt-2 border-t border-white/5 flex items-center justify-between">
-                        <span className="text-white/[0.72] text-xs font-sans font-light">New pilot?</span>
-                        <button type="button" onClick={() => setModeWithReset('signup')} className="text-[10px] font-sans uppercase tracking-[0.15em] text-oz-blue hover:text-white transition-colors">Create account</button>
-                      </div>
-                    </form>
+              {/* Headline */}
+              <h2 className="text-white font-serif text-4xl lg:text-5xl leading-tight mb-4 tracking-tight">
+                Your journey<br />starts here
+              </h2>
+              {/* Amber accent line */}
+              <div className="w-10 h-[3px] bg-[#e8a020] rounded-full mb-6" />
+              <p className="text-white/70 text-[15px] leading-relaxed max-w-[28ch]">
+                Access premium aircraft, manage your bookings, and join Australia's most trusted aviation network.
+              </p>
+            </div>
 
-                    {forgotPasswordOpen ? (
-                      <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5 space-y-4">
-                        <div>
-                          <p className="text-sm font-medium text-white">Reset your password</p>
-                          <p className="mt-1 text-xs leading-relaxed text-white/65">
-                            We’ll send a password reset link to your email address.
-                          </p>
-                        </div>
+            {/* Feature list */}
+            <div className="space-y-5 my-10">
+              {[
+                { icon: 'verified_user',  title: 'Verified & Trusted',    desc: 'Verified pilots. Trusted aircraft. Total peace of mind.' },
+                { icon: 'flight_takeoff', title: 'Premium Fleet Access',   desc: 'Fly a curated range of aircraft across Australia.' },
+                { icon: 'headset_mic',    title: 'Dedicated Support',      desc: 'Real people. Real support. When you need it.' },
+              ].map(f => (
+                <div key={f.title} className="flex items-start gap-3.5">
+                  <div className="w-9 h-9 rounded-full border border-white/20 bg-white/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="material-symbols-outlined text-white/70 text-[16px]" style={{ fontVariationSettings: "'wght' 300" }}>{f.icon}</span>
+                  </div>
+                  <div>
+                    <p className="text-white text-[13px] font-semibold leading-tight">{f.title}</p>
+                    <p className="text-white/55 text-[12px] leading-relaxed mt-0.5">{f.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
 
-                        <div className="space-y-4">
-                          <label className="block">
-                            <span className={FIELD_LABEL_CLASS}>Email Address</span>
-                            <input
-                              type="email"
-                              value={forgotEmail}
-                              onChange={(e) => setForgotEmail(e.target.value)}
-                              placeholder="pilot@example.com"
-                              required
-                              disabled={forgotLoading}
-                              className={`${FIELD_INPUT_CLASS} disabled:opacity-60 disabled:cursor-not-allowed`}
-                            />
-                          </label>
-
-                          {forgotError ? <p className="text-red-300 text-[11px] font-sans font-light tracking-wide">{forgotError}</p> : null}
-                          {forgotSuccess ? <p className="text-emerald-300 text-[11px] font-sans font-light tracking-wide">{forgotSuccess}</p> : null}
-
-                          <div className="flex items-center justify-between gap-3">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                void handleForgotPasswordSubmit()
-                              }}
-                              disabled={forgotLoading}
-                              className="bg-white text-oz-deep px-5 py-3 rounded-full font-sans text-[10px] uppercase tracking-[0.15em] font-bold hover:bg-white/95 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {forgotLoading ? 'Sending...' : 'Send reset link'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={clearForgotPasswordState}
-                              className="text-[10px] font-sans uppercase tracking-[0.1em] text-white/55 hover:text-white transition-colors"
-                            >
-                              Back to sign in
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : null}
-                  </motion.div>
-                ) : (
-                  <motion.div key="signin-inactive" initial={isScreenshotMode ? false : { opacity: 0, x: -20, filter: 'blur(12px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -20, filter: 'blur(12px)' }} transition={TRANSITION} className="max-w-md w-full my-auto relative flex justify-center">
-                    <div className="absolute -z-10 left-1/2 top-1/2 h-56 w-56 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#7ca6e8]/20 blur-[78px]" />
-                    <div className="w-full max-w-[430px] rounded-[24px] border border-white/[0.12] bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-transparent px-7 py-8 md:px-9 md:py-10 shadow-[0_12px_48px_rgba(8,16,30,0.45)] flex flex-col items-center text-center">
-                      <span className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-blue/70 mb-3">Existing Pilots</span>
-                      <h2 className="text-[2.35rem] md:text-[2.8rem] leading-tight font-serif text-white/[0.80] mb-4 tracking-tight">Member Access</h2>
-                      <p className="text-white/[0.72] font-sans font-light text-base mb-8 max-w-[30ch]">Return to the cockpit. Access your active aircraft bookings and manage fleet availability.</p>
-                      <button onClick={() => setModeWithReset('signin')} className="border border-oz-blue/40 bg-oz-blue/[0.10] px-6 py-3 rounded-full text-[10px] uppercase tracking-[0.15em] text-oz-blue hover:bg-oz-blue/[0.16] hover:text-[#d3e4ff] transition-colors duration-300 font-sans shadow-lg">Switch to Sign In</button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+            {/* Quote */}
+            <div className="border-t border-white/10 pt-6">
+              <p className="text-white/50 text-[13px] italic font-serif leading-relaxed">
+                &ldquo;The best way to predict the future is to create it.&rdquo;
+              </p>
+              <p className="text-white/35 text-[11px] mt-2">— Peter Drucker</p>
             </div>
           </div>
         </section>
 
-        <section className={`relative flex-1 ${isModal ? 'min-h-0' : 'min-h-[420px]'} md:min-h-full overflow-hidden${mode === 'signin' && isModal ? ' hidden md:block' : ''}`}>
-          <div className="absolute inset-0 z-0">
-            <motion.div className="w-full h-full" initial={isScreenshotMode ? false : undefined} animate={{ scale: mode === 'signup' ? 1.06 : 1.09, filter: mode === 'signup' ? 'blur(12px) brightness(0.42) contrast(0.9) saturate(0.74)' : 'blur(15px) brightness(0.34) contrast(0.86) saturate(0.66)' }} transition={TRANSITION}>
-              <Image src="/Pilot&aircraftTwilight.webp" alt="Aircraft on tarmac at twilight" fill className="object-cover" priority />
-            </motion.div>
-            <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-l from-[#040a15]/94 via-[#071225]/90 to-[#0a1730]/84 pointer-events-none" />
-            <div className="absolute inset-0 bg-[#081224]/46 pointer-events-none" />
-          </div>
+        {/* ══ RIGHT PANEL — auth form ══════════════════════════════════════ */}
+        <section className="flex-1 bg-white flex flex-col overflow-y-auto">
+          <div className="flex-1 flex flex-col justify-center px-8 py-8 sm:px-10 md:px-12 lg:px-14 max-w-[480px] mx-auto w-full">
 
-          <div className={`relative z-10 w-full h-full min-h-0 flex flex-col items-center justify-start overflow-y-auto overscroll-contain ${isModal ? 'px-5 pt-14 pb-6 sm:p-8 md:p-14 lg:p-20' : 'p-8 md:p-14 lg:p-20'}`}>
-            <AnimatePresence mode="popLayout" initial={isScreenshotMode ? false : undefined}>
-              {mode === 'signup' ? (
-                <motion.div key="signup-active" initial={isScreenshotMode ? false : { opacity: 0, x: 30, filter: 'blur(10px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -30, filter: 'blur(10px)' }} transition={TRANSITION} className="w-full max-w-md mx-auto">
-                  <div className="mb-10 text-center md:text-left">
-                    <span className="block text-[10px] font-sans uppercase tracking-[0.2em] text-oz-blue mb-3">New Aviator Registration</span>
-                    <h2 className="text-[1.7rem] sm:text-4xl md:text-6xl font-serif text-white mb-3 md:mb-4 leading-tight tracking-tight">Create account</h2>
-                    <p className="text-white/[0.78] font-sans font-light text-base md:text-lg">Join Sydney's premier aircraft rental platform for licensed aviation professionals.</p>
-                  </div>
+            {/* Mobile logo */}
+            <div className="md:hidden mb-8">
+              <Image src="/Logo/ozrentaplane-transparent-bg.png" alt="OZ Rent A Plane" width={100} height={28} className="h-7 w-auto" />
+            </div>
 
-                  {suSuccess ? (
-                    <div className="py-10 flex flex-col items-center text-center gap-4">
-                      <span className="material-symbols-outlined text-oz-blue text-4xl">mark_email_read</span>
-                      <p className="text-white font-serif text-2xl tracking-tight">Check your inbox</p>
-                      <p className="text-oz-muted font-sans font-light text-sm leading-relaxed max-w-xs">A confirmation link has been sent to <span className="text-white">{suEmail}</span>. Follow the link to activate your account.</p>
+            {/* Heading */}
+            <div className="mb-8">
+              <h1 className="text-[#152d5a] font-serif text-3xl sm:text-4xl leading-tight mb-2">
+                {mode === 'signin' ? 'Welcome back, Pilot' : 'Create your account'}
+              </h1>
+              <p className="text-[#6b7ea8] text-[14px] leading-relaxed">
+                {mode === 'signin'
+                  ? 'Sign in to access your bookings, saved aircraft and manage your account.'
+                  : 'Join Sydney\'s premier aircraft rental platform for licensed pilots.'}
+              </p>
+            </div>
+
+            {/* Tab switcher */}
+            <div className="flex border-b border-[#152d5a]/10 mb-8">
+              <button
+                type="button"
+                onClick={() => setModeWithReset('signin')}
+                className={`pb-3 px-1 mr-6 text-[14px] font-medium border-b-2 transition-colors ${
+                  mode === 'signin'
+                    ? 'border-[#1a4fd6] text-[#1a4fd6]'
+                    : 'border-transparent text-[#6b7ea8] hover:text-[#152d5a]'
+                }`}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                onClick={() => setModeWithReset('signup')}
+                className={`pb-3 px-1 text-[14px] font-medium border-b-2 transition-colors ${
+                  mode === 'signup'
+                    ? 'border-[#1a4fd6] text-[#1a4fd6]'
+                    : 'border-transparent text-[#6b7ea8] hover:text-[#152d5a]'
+                }`}
+              >
+                Create account
+              </button>
+            </div>
+
+            {/* ── SIGN IN FORM ── */}
+            {mode === 'signin' && (
+              <AnimatePresence mode="wait" initial={false}>
+                {!forgotPasswordOpen ? (
+                  <motion.form
+                    key="signin-form"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.2 }}
+                    className="space-y-5"
+                    onSubmit={handleSignIn}
+                  >
+                    <div>
+                      <label className={FIELD_LABEL_CLASS}>Email address</label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[#94a3b8] text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>mail</span>
+                        <input
+                          type="email"
+                          placeholder="pilot@example.com"
+                          value={siEmail}
+                          onChange={e => setSiEmail(e.target.value)}
+                          required
+                          disabled={loading}
+                          className={`${FIELD_INPUT_CLASS} pl-10 disabled:opacity-60`}
+                        />
+                      </div>
                     </div>
-                  ) : (
-                    <form className="space-y-7" onSubmit={handleSignUp}>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
-                        <div className="group relative">
-                          <label className={FIELD_LABEL_CLASS}>First Name</label>
-                          <input type="text" placeholder="e.g. Julian" value={suFirstName} onChange={(e) => setSuFirstName(e.target.value)} required disabled={loading} className={`${FIELD_INPUT_CLASS} disabled:opacity-60 disabled:cursor-not-allowed`} />
-                        </div>
-                        <div className="group relative">
-                          <label className={FIELD_LABEL_CLASS}>Last Name</label>
-                          <input type="text" placeholder="e.g. Vance" value={suLastName} onChange={(e) => setSuLastName(e.target.value)} required disabled={loading} className={`${FIELD_INPUT_CLASS} disabled:opacity-60 disabled:cursor-not-allowed`} />
-                        </div>
-                      </div>
 
-                      <div className="group relative">
-                        <label className={FIELD_LABEL_CLASS}>Email Address</label>
-                        <input type="email" placeholder="pilot@example.com" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} required disabled={loading} className={`${FIELD_INPUT_CLASS} disabled:opacity-60 disabled:cursor-not-allowed`} />
+                    <div>
+                      <label className={FIELD_LABEL_CLASS}>Password</label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[#94a3b8] text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>lock</span>
+                        <input
+                          type="password"
+                          placeholder="Enter your password"
+                          value={siPassword}
+                          onChange={e => setSiPassword(e.target.value)}
+                          required
+                          disabled={loading}
+                          className={`${FIELD_INPUT_CLASS} pl-10 font-mono disabled:opacity-60`}
+                        />
                       </div>
+                    </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-7">
-                        <div className="group relative">
-                          <label className={FIELD_LABEL_CLASS}>Country Code</label>
-                          <input
-                            type="text"
-                            placeholder="+61"
-                            value={suPhoneCountryCode}
-                            onChange={(e) => {
-                              const value = e.target.value
-                              if (/^\+?\d{0,4}$/.test(value)) setSuPhoneCountryCode(value)
-                            }}
-                            disabled={loading}
-                            className={`${FIELD_INPUT_CLASS} disabled:opacity-60 disabled:cursor-not-allowed`}
-                          />
+                    {siError && (
+                      <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-red-500 text-[16px] flex-shrink-0">error</span>
+                        <p className="text-[13px] text-red-600">{siError}</p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <div className="w-4 h-4 rounded border-2 border-[#1a4fd6] bg-[#1a4fd6] flex items-center justify-center flex-shrink-0">
+                          <span className="material-symbols-outlined text-white text-[12px]">check</span>
                         </div>
-                        <div className="group relative">
-                          <label className={FIELD_LABEL_CLASS}>Phone Number</label>
+                        <span className="text-[13px] text-[#4b6390]">Remember me</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={openForgotPassword}
+                        className="text-[13px] text-[#e8a020] hover:text-[#d4911a] font-medium transition-colors"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={anyLoading}
+                      className="w-full bg-[#e8a020] hover:bg-[#d4911a] text-white font-semibold text-sm py-4 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+                    >
+                      {loading ? 'Signing in…' : (
+                        <>
+                          SIGN IN
+                          <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                        </>
+                      )}
+                    </button>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-[#152d5a]/8">
+                      <span className="text-[13px] text-[#6b7ea8]">New to OZ Rent A Plane?</span>
+                      <button type="button" onClick={() => setModeWithReset('signup')} className="text-[13px] text-[#e8a020] hover:text-[#d4911a] font-medium transition-colors flex items-center gap-1">
+                        Create account
+                        <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                      </button>
+                    </div>
+                  </motion.form>
+                ) : (
+                  <motion.div
+                    key="forgot-form"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.2 }}
+                    className="space-y-5"
+                  >
+                    <div>
+                      <h2 className="text-[#152d5a] font-serif text-2xl leading-tight mb-2">Reset your password</h2>
+                      <p className="text-[#6b7ea8] text-[14px] leading-relaxed">
+                        We&apos;ll send a password reset link to your email address.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className={FIELD_LABEL_CLASS}>Email address</label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[#94a3b8] text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>mail</span>
+                        <input
+                          type="email"
+                          placeholder="pilot@example.com"
+                          value={forgotEmail}
+                          onChange={e => setForgotEmail(e.target.value)}
+                          required
+                          disabled={forgotLoading}
+                          className={`${FIELD_INPUT_CLASS} pl-10 disabled:opacity-60`}
+                        />
+                      </div>
+                    </div>
+
+                    {forgotError && (
+                      <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-red-500 text-[16px] flex-shrink-0">error</span>
+                        <p className="text-[13px] text-red-600">{forgotError}</p>
+                      </div>
+                    )}
+
+                    {forgotSuccess && (
+                      <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-emerald-600 text-[16px] flex-shrink-0">check_circle</span>
+                        <p className="text-[13px] text-emerald-700">{forgotSuccess}</p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-3 pt-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void handleForgotPasswordSubmit()
+                        }}
+                        disabled={forgotLoading}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1a4fd6] px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[#1847be] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {forgotLoading ? 'Sending...' : 'Send reset link'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearForgotPasswordState}
+                        className="text-sm font-medium text-[#6b7ea8] hover:text-[#152d5a] transition-colors"
+                      >
+                        Back to sign in
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            )}
+
+            {/* ── SIGN UP FORM ── */}
+            {mode === 'signup' && (
+              <AnimatePresence mode="wait" initial={false}>
+                {!suSuccess ? (
+                  <motion.form
+                    key="signup-form"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.2 }}
+                    className="space-y-5"
+                    onSubmit={handleSignUp}
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label className={FIELD_LABEL_CLASS}>First name</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Julian"
+                          value={suFirstName}
+                          onChange={e => setSuFirstName(e.target.value)}
+                          required
+                          disabled={loading}
+                          className={`${FIELD_INPUT_CLASS} disabled:opacity-60`}
+                        />
+                      </div>
+                      <div>
+                        <label className={FIELD_LABEL_CLASS}>Last name</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Vance"
+                          value={suLastName}
+                          onChange={e => setSuLastName(e.target.value)}
+                          required
+                          disabled={loading}
+                          className={`${FIELD_INPUT_CLASS} disabled:opacity-60`}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className={FIELD_LABEL_CLASS}>Email address</label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[#94a3b8] text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>mail</span>
+                        <input
+                          type="email"
+                          placeholder="pilot@example.com"
+                          value={suEmail}
+                          onChange={e => setSuEmail(e.target.value)}
+                          required
+                          disabled={loading}
+                          className={`${FIELD_INPUT_CLASS} pl-10 disabled:opacity-60`}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-5">
+                      <div>
+                        <label className={FIELD_LABEL_CLASS}>Country code</label>
+                        <input
+                          type="text"
+                          placeholder="+61"
+                          value={suPhoneCountryCode}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            if (/^\+?\d{0,4}$/.test(value)) setSuPhoneCountryCode(value)
+                          }}
+                          disabled={loading}
+                          className={`${FIELD_INPUT_CLASS} disabled:opacity-60`}
+                        />
+                      </div>
+                      <div>
+                        <label className={FIELD_LABEL_CLASS}>Phone number</label>
+                        <input
+                          type="tel"
+                          placeholder="e.g. 412345678"
+                          value={suPhoneNumber}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            if (/^\d*$/.test(value)) setSuPhoneNumber(value)
+                          }}
+                          required
+                          disabled={loading}
+                          className={`${FIELD_INPUT_CLASS} disabled:opacity-60`}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label className={FIELD_LABEL_CLASS}>Password</label>
+                        <div className="relative">
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[#94a3b8] text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>lock</span>
                           <input
-                            type="tel"
-                            placeholder="e.g. 412345678"
-                            value={suPhoneNumber}
-                            onChange={(e) => {
-                              const value = e.target.value
-                              if (/^\d*$/.test(value)) setSuPhoneNumber(value)
-                            }}
+                            type="password"
+                            placeholder="••••••••"
+                            value={suPassword}
+                            onChange={e => setSuPassword(e.target.value)}
                             required
                             disabled={loading}
-                            className={`${FIELD_INPUT_CLASS} disabled:opacity-60 disabled:cursor-not-allowed`}
+                            className={`${FIELD_INPUT_CLASS} pl-10 font-mono disabled:opacity-60`}
                           />
                         </div>
                       </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-7">
-                        <div className="group relative">
-                          <label className={FIELD_LABEL_CLASS}>Password</label>
-                          <input type="password" placeholder="••••••••" value={suPassword} onChange={(e) => setSuPassword(e.target.value)} required disabled={loading} className={`${FIELD_INPUT_CLASS} font-mono disabled:opacity-60 disabled:cursor-not-allowed`} />
+                      <div>
+                        <label className={FIELD_LABEL_CLASS}>Confirm password</label>
+                        <div className="relative">
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[#94a3b8] text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>lock</span>
+                          <input
+                            type="password"
+                            placeholder="••••••••"
+                            value={suConfirm}
+                            onChange={e => setSuConfirm(e.target.value)}
+                            required
+                            disabled={loading}
+                            className={`${FIELD_INPUT_CLASS} pl-10 font-mono disabled:opacity-60`}
+                          />
                         </div>
-                        <div className="group relative">
-                          <label className={FIELD_LABEL_CLASS}>Confirm Password</label>
-                          <input type="password" placeholder="••••••••" value={suConfirm} onChange={(e) => setSuConfirm(e.target.value)} required disabled={loading} className={`${FIELD_INPUT_CLASS} font-mono disabled:opacity-60 disabled:cursor-not-allowed`} />
-                        </div>
                       </div>
+                    </div>
 
-                      {suError && <p className="text-red-400 text-[11px] font-sans font-light tracking-wide -mt-2">{suError}</p>}
-
-                      <div className="pt-6">
-                        <button type="submit" disabled={anyLoading} className="w-full bg-white text-oz-deep py-4 rounded-full font-sans text-xs uppercase tracking-[0.15em] font-bold shadow-[0_4px_16px_rgba(255,255,255,0.1)] hover:bg-gray-100 transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
-                          {loading ? 'Processing…' : (<><span>Create Account</span><span className="material-symbols-outlined text-[1rem]">arrow_forward</span></>)}
-                        </button>
+                    {suError && (
+                      <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-red-500 text-[16px] flex-shrink-0">error</span>
+                        <p className="text-[13px] text-red-600">{suError}</p>
                       </div>
+                    )}
 
-                      <div className="pt-4 mt-2 border-t border-white/5 flex items-center justify-between px-2">
-                        <span className="text-oz-muted text-xs font-sans font-light">Already have access?</span>
-                        <button type="button" onClick={() => setModeWithReset('signin')} className="text-[10px] font-sans uppercase tracking-[0.15em] text-oz-blue hover:text-white transition-colors">Sign In</button>
-                      </div>
-                    </form>
-                  )}
-                </motion.div>
-              ) : (
-                <motion.div key="signup-inactive" initial={isScreenshotMode ? false : { opacity: 0, x: 20, filter: 'blur(12px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: 20, filter: 'blur(12px)' }} transition={TRANSITION} className="max-w-md w-full flex justify-center my-auto relative">
-                  <div className="absolute -z-10 left-1/2 top-1/2 h-[240px] w-[240px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#6d8fbf]/18 blur-[80px]" />
-                  <div className="w-full max-w-[430px] rounded-[26px] border border-white/[0.12] bg-gradient-to-br from-white/[0.08] via-white/[0.03] to-transparent px-7 py-8 md:px-9 md:py-10 shadow-[0_12px_48px_rgba(8,16,30,0.45)] flex flex-col items-center text-center">
-                    <div className="w-16 h-16 rounded-full bg-white/[0.08] border border-white/[0.16] flex items-center justify-center mb-6 shadow-[0_0_35px_rgba(154,187,235,0.18)]"><span className="material-symbols-outlined text-white/[0.70] text-2xl">flight_takeoff</span></div>
-                    <h2 className="text-[2.2rem] md:text-[2.5rem] font-serif text-white/[0.80] mb-4 tracking-tight">Join the Fleet</h2>
-                    <p className="text-white/[0.72] font-sans font-light text-sm md:text-base mb-8 leading-relaxed max-w-[30ch]">Access premium aircraft exclusively for verified pilots. Step into the cockpit with OZRentAPlane.</p>
-                    <button onClick={() => setModeWithReset('signup')} className="border border-oz-blue/40 bg-oz-blue/[0.10] px-8 py-3.5 rounded-full text-[10px] uppercase tracking-[0.15em] text-oz-blue hover:bg-oz-blue/[0.16] hover:text-[#d3e4ff] transition-colors duration-300 font-sans shadow-lg backdrop-blur-sm">Create account</button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                    <button
+                      type="submit"
+                      disabled={anyLoading}
+                      className="w-full bg-[#e8a020] hover:bg-[#d4911a] text-white font-semibold text-sm py-4 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-1"
+                    >
+                      {loading ? 'Processing…' : (
+                        <>
+                          Create account
+                          <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                        </>
+                      )}
+                    </button>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-[#152d5a]/8">
+                      <span className="text-[13px] text-[#6b7ea8]">Already have an account?</span>
+                      <button type="button" onClick={() => setModeWithReset('signin')} className="text-[13px] text-[#e8a020] hover:text-[#d4911a] font-medium transition-colors flex items-center gap-1">
+                        Sign in
+                        <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                      </button>
+                    </div>
+                  </motion.form>
+                ) : (
+                  <motion.div
+                    key="signup-success"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.2 }}
+                    className="space-y-5 text-center"
+                  >
+                    <div className="py-8">
+                      <span className="material-symbols-outlined text-[#1a4fd6] text-5xl mb-3">mark_email_read</span>
+                      <h2 className="text-[#152d5a] font-serif text-3xl leading-tight mb-2">Check your inbox</h2>
+                      <p className="text-[#6b7ea8] text-[14px] leading-relaxed">
+                        A confirmation link has been sent to <span className="text-[#152d5a]">{suEmail}</span>. Follow the link to activate your account.
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            )}
           </div>
         </section>
       </main>

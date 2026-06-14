@@ -62,20 +62,20 @@ export default function CheckoutPaymentCard({ bookingId, checkoutInvoice, bankTr
   // to review and confirm — do NOT show "Pay invoice" or "Payment Required".
   if (displayState === 'awaiting_manual_payment_confirmation') {
     return (
-      <div className="bg-blue-500/10 border border-blue-500/20 rounded-[1.25rem] p-6">
+      <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
         <div className="flex items-center gap-3 mb-3">
-          <span className="material-symbols-outlined text-blue-400 text-lg">account_balance</span>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-blue-400">Awaiting Payment Confirmation</h3>
+          <span className="material-symbols-outlined text-[#1a4fd6] text-lg">account_balance</span>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-[#1a4fd6]">Awaiting Payment Confirmation</h3>
         </div>
-        <p className="text-sm text-oz-muted leading-relaxed mb-4">
+        <p className="text-sm text-[#4b6390] leading-relaxed mb-4">
           Your bank transfer details have been submitted. An admin will verify the payment before your checkout result is finalised.
         </p>
-        <div className="flex items-center gap-2 p-3 bg-white/5 rounded-lg border border-white/10 text-sm text-slate-300">
-          <span className="material-symbols-outlined text-blue-400 text-[18px]">pending_actions</span>
+        <div className="flex items-center gap-2 p-3 bg-[#f0f6ff] rounded-lg border border-[#152d5a]/10 text-sm text-[#152d5a]">
+          <span className="material-symbols-outlined text-[#1a4fd6] text-[18px]">pending_actions</span>
           Awaiting admin review — no further action needed
         </div>
-        <p className="text-[10px] text-slate-600 mt-3 leading-relaxed">
-          Invoice reference: <span className="font-mono text-slate-500">{checkoutInvoice.invoice_number}</span>
+        <p className="text-[10px] text-[#4b6390] mt-3 leading-relaxed">
+          Invoice reference: <span className="font-mono text-[#152d5a]">{checkoutInvoice.invoice_number}</span>
         </p>
       </div>
     )
@@ -84,12 +84,12 @@ export default function CheckoutPaymentCard({ bookingId, checkoutInvoice, bankTr
   // ── paid ───────────────────────────────────────────────────────────────────
   if (displayState === 'paid') {
     return (
-      <div className="bg-green-500/10 border border-green-500/20 rounded-[1.25rem] p-6">
+      <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
         <div className="flex items-center gap-3 mb-3">
-          <span className="material-symbols-outlined text-green-400 text-lg">check_circle</span>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-green-400">Payment Confirmed</h3>
+          <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-600">Payment Confirmed</h3>
         </div>
-        <p className="text-sm text-oz-muted leading-relaxed">
+        <p className="text-sm text-[#4b6390] leading-relaxed">
           Your checkout payment has been confirmed. Your pilot status has been updated accordingly.
         </p>
       </div>
@@ -129,17 +129,17 @@ export default function CheckoutPaymentCard({ bookingId, checkoutInvoice, bankTr
   }
 
   return (
-    <div className="bg-orange-500/10 border border-orange-500/20 rounded-[1.25rem] p-6">
+    <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
       <div className="flex items-center gap-3 mb-3">
-        <span className="material-symbols-outlined text-orange-400 text-lg">payments</span>
-        <h3 className="text-xs font-bold uppercase tracking-widest text-orange-400">Payment Required</h3>
+        <span className="material-symbols-outlined text-[#1a4fd6] text-lg">payments</span>
+        <h3 className="text-xs font-bold uppercase tracking-widest text-[#1a4fd6]">Payment Required</h3>
       </div>
-      <p className="text-sm text-oz-muted leading-relaxed mb-2">
+      <p className="text-sm text-[#4b6390] leading-relaxed mb-2">
         Your checkout flight has been completed and approved. The amount below is calculated from the aircraft VDO meter reading plus applicable landing fees. Please complete payment to finalise your clearance and unlock aircraft bookings.
       </p>
 
       {bankTransferSubmission?.status === "rejected" && (
-        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-400">
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-600">
           <div className="flex gap-2 items-start">
             <span className="material-symbols-outlined text-[18px] flex-shrink-0">error</span>
             <p>Your previous bank transfer proof was rejected. Please upload a valid receipt.</p>
@@ -153,8 +153,8 @@ export default function CheckoutPaymentCard({ bookingId, checkoutInvoice, bankTr
           onClick={() => setMethod("stripe")}
           className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-colors ${
             method === "stripe" 
-              ? "bg-orange-500/20 border-orange-500/40" 
-              : "bg-white/5 border-white/10 hover:bg-white/10 text-slate-400"
+              ? "bg-[#1a4fd6] border-[#1a4fd6] text-white" 
+              : "bg-[#f0f6ff] border-[#152d5a]/10 hover:bg-[#e8f0fe] text-[#152d5a]"
           }`}
         >
           <span className="material-symbols-outlined">credit_card</span>
@@ -164,8 +164,8 @@ export default function CheckoutPaymentCard({ bookingId, checkoutInvoice, bankTr
           onClick={() => setMethod("bank_transfer")}
           className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-colors ${
             method === "bank_transfer" 
-              ? "bg-orange-500/20 border-orange-500/40" 
-              : "bg-white/5 border-white/10 hover:bg-white/10 text-slate-400"
+              ? "bg-[#1a4fd6] border-[#1a4fd6] text-white" 
+              : "bg-[#f0f6ff] border-[#152d5a]/10 hover:bg-[#e8f0fe] text-[#152d5a]"
           }`}
         >
           <span className="material-symbols-outlined">account_balance</span>
@@ -175,28 +175,28 @@ export default function CheckoutPaymentCard({ bookingId, checkoutInvoice, bankTr
 
       {method === "stripe" ? (
         <>
-          <div className="mb-6 space-y-2 p-4 rounded-xl bg-orange-500/[0.05] border border-orange-500/15 text-sm">
-            <div className="flex justify-between text-slate-300">
+          <div className="mb-6 space-y-2 p-4 rounded-xl bg-white border border-[#152d5a]/10 text-sm">
+            <div className="flex justify-between text-[#152d5a]">
               <span>Checkout Fee (VDO meter + landings)</span>
               <span>${subtotal}</span>
             </div>
             {checkoutInvoice.advance_applied_cents > 0 && (
-              <div className="flex justify-between text-green-400">
+              <div className="flex justify-between text-emerald-600">
                 <span>Advance Credit Applied</span>
                 <span>-${advanceApplied}</span>
               </div>
             )}
-            <div className="flex justify-between text-slate-300">
+            <div className="flex justify-between text-[#152d5a]">
               <span>Base Amount Due</span>
               <span>${baseAmount}</span>
             </div>
             {surchargeCents > 0 && (
-              <div className="flex justify-between text-slate-400 text-xs">
+              <div className="flex justify-between text-[#4b6390] text-xs">
                 <span>Online payment surcharge (1.7% + 30c)</span>
                 <span>${surchargeAmount}</span>
               </div>
             )}
-            <div className="flex justify-between font-bold text-orange-400 pt-2 border-t border-orange-500/20">
+            <div className="flex justify-between font-bold text-[#1a4fd6] pt-2 border-t border-[#152d5a]/10">
               <span>Total Card Payment</span>
               <span>${grossAmount}</span>
             </div>
@@ -211,51 +211,51 @@ export default function CheckoutPaymentCard({ bookingId, checkoutInvoice, bankTr
         </>
       ) : (
         <>
-          <div className="mb-5 rounded-xl border border-amber-500/30 bg-amber-500/[0.07] p-4">
+          <div className="mb-5 rounded-xl border border-[#152d5a]/10 bg-[#f0f6ff] p-4">
             <div className="flex items-center gap-2 mb-2">
-              <span className="material-symbols-outlined text-amber-400 text-[18px] flex-shrink-0">info</span>
-              <p className="text-xs font-bold uppercase tracking-widest text-amber-400">Manual bank transfer required</p>
+              <span className="material-symbols-outlined text-[#1a4fd6] text-[18px] flex-shrink-0">info</span>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#1a4fd6]">Manual bank transfer required</p>
             </div>
-            <p className="text-sm text-slate-300 leading-relaxed mb-3">
+            <p className="text-sm text-[#4b6390] leading-relaxed mb-3">
               Bank transfer is a manual payment method. Please transfer the exact amount shown below to the official OZ Rent A Plane bank account using the payment reference provided.
             </p>
-            <p className="text-sm text-slate-300 leading-relaxed mb-3">
+            <p className="text-sm text-[#4b6390] leading-relaxed mb-3">
               After completing the transfer, upload proof of payment — a bank receipt or screenshot showing the successful transfer.
             </p>
-            <p className="text-sm text-slate-400 leading-relaxed">
-              Our admin team will manually verify your payment and usually respond within <span className="text-amber-300 font-medium">2 to 24 hours</span> after your proof is submitted. Your clearance and aircraft booking access will be finalised only after payment has been verified.
+            <p className="text-sm text-[#4b6390] leading-relaxed">
+              Our admin team will manually verify your payment and usually respond within <span className="text-amber-600 font-medium">2 to 24 hours</span> after your proof is submitted. Your clearance and aircraft booking access will be finalised only after payment has been verified.
             </p>
           </div>
 
-          <div className="mb-6 p-4 rounded-xl bg-white/5 border border-white/10 text-sm space-y-4">
+          <div className="mb-6 p-4 rounded-xl bg-white border border-[#152d5a]/10 text-sm space-y-4">
             <div>
-              <p className="text-xs text-slate-400 mb-1">Transfer Amount (No Surcharge)</p>
-              <p className="text-xl font-bold text-white">${baseAmount}</p>
+              <p className="text-xs text-[#4b6390] mb-1">Transfer Amount (No Surcharge)</p>
+              <p className="text-xl font-bold text-[#152d5a]">${baseAmount}</p>
             </div>
 
-            <div className="pt-3 border-t border-white/10 space-y-2 text-slate-300">
+            <div className="pt-3 border-t border-[#152d5a]/10 space-y-2 text-[#4b6390]">
               <div className="flex justify-between">
-                <span className="text-slate-500">Account Name</span>
-                <span className="font-medium text-white">{bankDetails?.accountName}</span>
+                <span className="text-[#4b6390]">Account Name</span>
+                <span className="font-medium text-[#152d5a]">{bankDetails?.accountName}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">BSB</span>
-                <span className="font-mono text-white">{bankDetails?.bsb}</span>
+                <span className="text-[#4b6390]">BSB</span>
+                <span className="font-mono text-[#152d5a]">{bankDetails?.bsb}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Account Number</span>
-                <span className="font-mono text-white">{bankDetails?.accountNumber}</span>
+                <span className="text-[#4b6390]">Account Number</span>
+                <span className="font-mono text-[#152d5a]">{bankDetails?.accountNumber}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Payment Reference</span>
-                <span className="font-mono text-orange-400 font-bold">{checkoutInvoice.invoice_number}</span>
+                <span className="text-[#4b6390]">Payment Reference</span>
+                <span className="font-mono text-[#1a4fd6] font-bold">{checkoutInvoice.invoice_number}</span>
               </div>
             </div>
           </div>
 
           <form onSubmit={handleBankTransferSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">
+              <label className="block text-xs font-bold uppercase tracking-widest text-[#4b6390] mb-2">
                 Upload Transfer Receipt
               </label>
               <input
@@ -263,12 +263,12 @@ export default function CheckoutPaymentCard({ bookingId, checkoutInvoice, bankTr
                 name="receipt"
                 accept="image/jpeg,image/png,image/webp,application/pdf"
                 required
-                className="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-orange-500/10 file:text-orange-400 hover:file:bg-orange-500/20"
+                className="w-full text-sm text-[#4b6390] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-[#f0f6ff] file:text-[#1a4fd6] hover:file:bg-[#e8f0fe]"
               />
             </div>
 
             {error && (
-              <p className="text-xs text-red-400">{error}</p>
+              <p className="text-xs text-red-600">{error}</p>
             )}
 
             <button 

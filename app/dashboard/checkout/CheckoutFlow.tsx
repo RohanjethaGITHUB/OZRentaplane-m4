@@ -485,9 +485,9 @@ function TimeDropdown({
         type="button"
         disabled={disabled}
         onClick={() => setOpen(o => !o)}
-        className="w-full bg-white border border-[#152d5a]/15 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500/60 flex items-center justify-between transition-colors hover:border-[#152d5a]/30 disabled:opacity-40 disabled:cursor-not-allowed text-[#152d5a]"
+        className="w-full bg-white border-2 border-[#152d5a]/25 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500/60 flex items-center justify-between transition-colors hover:border-[#152d5a]/30 disabled:opacity-40 disabled:cursor-not-allowed text-[#152d5a]"
       >
-        <span className={value === '' ? 'text-[#94a3b8]' : ''}>{value === '' ? 'Select departure time' : selectedLabel}</span>
+        <span className={value === '' ? 'text-[#152d5a]/50' : ''}>{value === '' ? 'Select departure time' : selectedLabel}</span>
         <span
           className={`material-symbols-outlined text-[18px] text-[#94a3b8] transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
           style={{ fontVariationSettings: "'wght' 300" }}
@@ -732,6 +732,16 @@ export default function CheckoutFlow({
 
   // Last flight date — pre-filled from profile so it stays in sync with Documents page
   const [lastFlightDate, setLastFlightDate] = useState(initialLastFlightDate)
+  const pilotLicenceDocument = useMemo(() => {
+    const latestByType: Partial<Record<string, UserDocument>> = {}
+    for (const doc of documents) {
+      const existing = latestByType[doc.document_type]
+      if (!existing || new Date(doc.updated_at) > new Date(existing.updated_at)) {
+        latestByType[doc.document_type] = doc
+      }
+    }
+    return latestByType['pilot_licence'] ?? null
+  }, [documents])
 
   useEffect(() => {
     setActiveBookingState(activeCheckoutBooking)
@@ -1170,7 +1180,7 @@ export default function CheckoutFlow({
                           minYear={new Date().getFullYear()}
                           maxYear={new Date().getFullYear() + 2}
                           minDate={minDateString()}
-                          className="w-full h-12 bg-white border border-[#152d5a]/15 rounded-xl px-4 py-3 text-base text-[#152d5a] focus:outline-none focus:border-blue-500/60 transition-colors text-left flex items-center justify-between"
+                          className="w-full h-12 bg-white border-2 border-[#152d5a]/25 rounded-xl px-4 py-3 text-base text-[#152d5a] focus:outline-none focus:border-blue-500/60 transition-colors text-left flex items-center justify-between"
                         />
                       </div>
                       <p className="text-[13px] text-[#94a3b8] mt-2">Choose a date that works best for your checkout.</p>
@@ -1218,12 +1228,12 @@ export default function CheckoutFlow({
                               }}
                               className={`flex items-center gap-3.5 px-5 py-4 rounded-xl text-[15px] font-medium border transition-all text-left ${
                                 nightVfrRating === val
-                                  ? 'bg-[#dbeafe] border-[#93c5fd] text-[#152d5a] shadow-[0_0_14px_rgba(59,130,246,0.10)]'
-                                  : 'bg-white border-[#152d5a]/15 text-[#4b6390] hover:text-[#152d5a] hover:border-blue-500/40'
+                                  ? 'bg-[#f0f6ff] border-2 border-[#1a4fd6] text-[#152d5a] shadow-[0_0_14px_rgba(59,130,246,0.10)]'
+                                  : 'bg-white border-2 border-[#152d5a]/20 text-[#4b6390] hover:text-[#152d5a] hover:border-[#1a4fd6]/40'
                               }`}
                             >
                               <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                                nightVfrRating === val ? 'border-blue-400 bg-blue-500' : 'border-[#cbd5e1]'
+                                nightVfrRating === val ? 'border-[#1a4fd6] bg-[#1a4fd6]' : 'border-[#152d5a]/30 bg-white'
                               }`}>
                                 {nightVfrRating === val && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                               </span>
@@ -1406,6 +1416,9 @@ export default function CheckoutFlow({
                 onContinue={handleDocsCheckContinue}
                 onBackToStep1={() => setStep('time')}
                 onNoteChange={(note) => setTeamMessage(note)}
+                initialFlightDate={initialLastFlightDate}
+                initialRedCardMonth={pilotLicenceDocument?.red_card_expiry_month ?? null}
+                initialRedCardYear={pilotLicenceDocument?.red_card_expiry_year ?? null}
               />
             </div>
           )}
@@ -1498,7 +1511,7 @@ export default function CheckoutFlow({
             <div className="flex gap-4 md:w-[270px] flex-shrink-0">
               <div className="flex flex-col items-center">
                 <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-[0_0_18px_rgba(37,99,235,0.40)]">
-                  <span className="text-xl font-bold text-white">3</span>
+                  <span className="text-xl font-bold text-white">2</span>
                 </div>
               </div>
               <div className="self-start pt-1">
@@ -1531,8 +1544,11 @@ export default function CheckoutFlow({
 
           {/* ── Submit error ── */}
           {submitError && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
-              <p className="text-sm text-red-300">{submitError}</p>
+            <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+              <span className="material-symbols-outlined text-red-400 flex-shrink-0 mt-0.5" style={{ fontVariationSettings: "'wght' 300" }}>
+                error
+              </span>
+              <p className="text-[13px] text-red-700 leading-relaxed">{submitError}</p>
             </div>
           )}
 

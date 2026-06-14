@@ -102,7 +102,7 @@ export default function ProfilePageClient({
   }).length
   const pct = REQUIRED_DOCS.length > 0 ? Math.round((readyCount / REQUIRED_DOCS.length) * 100) : 0
   const memberLabel  = memberSince
-    ? new Date(memberSince).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
+    ? new Date(memberSince).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' })
     : '—'
   const pilotLabel   = pilotType ?? 'Pilot'
 

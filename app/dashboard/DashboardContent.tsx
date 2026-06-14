@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import type { Profile, PilotClearanceStatus, UserDocument, VerificationEvent } from '@/lib/supabase/types'
@@ -298,9 +299,9 @@ function PilotJourneyStrip({ clearanceStatus }: { clearanceStatus: PilotClearanc
   ] as const
 
   return (
-    <section className="bg-[#eef4ff] border border-[#dbeafe] rounded-2xl p-6 md:p-8" style={{ boxShadow: '0 4px 40px rgba(2,10,22,0.08)' }}>
+    <section className="relative bg-[#eef4ff] border border-[#dbeafe] rounded-2xl p-6 md:p-8" style={{ boxShadow: '0 4px 40px rgba(2,10,22,0.08)' }}>
       <div className="flex flex-col md:flex-row md:items-center gap-5 md:gap-8">
-        <div className="hidden md:flex flex-col gap-1 min-w-[160px]">
+        <div className="flex flex-col gap-1 md:min-w-[160px]">
           <div className="text-[10px] font-semibold tracking-[0.18em] uppercase text-[#1a4fd6]">
             PILOT JOURNEY
           </div>
@@ -314,7 +315,7 @@ function PilotJourneyStrip({ clearanceStatus }: { clearanceStatus: PilotClearanc
             <div key={step.id} className="flex items-start flex-1 min-w-0">
               <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
                 <div
-                  className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                     step.state === 'completed'
                       ? 'bg-[#1a4fd6] text-white'
                       : step.state === 'current'
@@ -324,18 +325,18 @@ function PilotJourneyStrip({ clearanceStatus }: { clearanceStatus: PilotClearanc
                           : 'bg-[#f0f6ff] border border-[#152d5a]/10 text-[#c4c6ce]'
                   }`}
                 >
-                  <span className="material-symbols-outlined text-[18px]">{step.icon}</span>
+                  <span className="material-symbols-outlined text-[14px] md:text-[16px]">{step.icon}</span>
                 </div>
                 <div className="text-center">
                   <div
-                    className={`text-[11px] font-semibold leading-tight ${
+                    className={`hidden md:block text-[11px] font-semibold leading-tight ${
                       step.state === 'completed' || step.state === 'current' ? 'text-[#152d5a]' : 'text-[#94a3b8]'
                     }`}
                   >
                     {step.label}
                   </div>
                   <div
-                    className={`text-[10px] leading-tight mt-0.5 ${
+                    className={`hidden text-[10px] leading-tight mt-0.5 ${
                       step.state === 'current' ? 'text-[#f59e0b] font-medium' : 'text-[#94a3b8]'
                     }`}
                   >
@@ -344,12 +345,12 @@ function PilotJourneyStrip({ clearanceStatus }: { clearanceStatus: PilotClearanc
                 </div>
               </div>
               {index < steps.length - 1 && (
-                <div className={`h-[2px] min-w-[24px] flex-1 mt-4 mx-1 rounded-full ${step.state === 'completed' ? 'bg-[#1a4fd6]' : 'bg-[#e2e8f0]'}`} />
+                <div className={`h-[2px] w-4 md:w-8 flex-shrink-0 mt-4 mx-1 rounded-full ${step.state === 'completed' ? 'bg-[#1a4fd6]' : 'bg-[#e2e8f0]'}`} />
               )}
             </div>
           ))}
           {/* Control tower — end of runway */}
-          <div className="flex-shrink-0 flex items-center pl-0 ml-1">
+          <div className="hidden md:block flex-shrink-0 flex items-center pl-0 ml-1">
             <img
               src="/CustomerDashboard/CustomerDashboard-tower.png"
               alt=""
@@ -362,6 +363,8 @@ function PilotJourneyStrip({ clearanceStatus }: { clearanceStatus: PilotClearanc
             />
           </div>
         </div>
+        {/* Mobile scroll hint — fade right edge */}
+        <div className="md:hidden absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#eef4ff] to-transparent pointer-events-none" />
       </div>
     </section>
   )
@@ -518,8 +521,8 @@ function getNextActionConfig(
         icon: 'payments',
         iconColor: '#f59e0b',
         tone: 'amber',
-        title: 'Payment required',
-        body: 'Your post-flight invoice is ready. Complete payment to finalise this flight.',
+        title: 'Payment Required',
+        body: 'Your post-flight invoice is ready. Please complete payment to unlock aircraft bookings.',
         ctaLabel: 'View payment',
         ctaHref: mainCtaHref,
         secondaryLink: { label: 'View Booking Details', href: `/dashboard/bookings/${mainBookingHeroState.bookingId}` },
@@ -530,8 +533,8 @@ function getNextActionConfig(
         icon: 'assignment',
         iconColor: '#f59e0b',
         tone: 'amber',
-        title: 'Submit post-flight records',
-        body: 'Your flight is complete. Submit your VDO/tacho readings and landing details so our team can finalise the booking.',
+        title: 'Submit Post-Flight Records',
+        body: 'Your flight is complete. Submit your VDO and tacho readings so our team can finalise the booking.',
         ctaLabel: mainCtaLabel,
         ctaHref: mainCtaHref,
         secondaryLink: { label: 'View Booking Details', href: `/dashboard/bookings/${mainBookingHeroState.bookingId}` },
@@ -565,8 +568,8 @@ function getNextActionConfig(
       icon: 'flight_takeoff',
       iconColor: '#f59e0b',
       tone: 'amber',
-      title: 'Book your next flight',
-      body: "You're cleared to fly. Browse available windows and submit a new aircraft booking request.",
+      title: 'Book Your Next Flight',
+      body: "You're cleared to fly. Browse available times and book your next rental flight.",
       ctaLabel: 'Book a Flight',
       ctaHref: '/dashboard/bookings/new',
       secondaryLink: { label: 'View My Bookings', href: '/dashboard/bookings' },
@@ -579,9 +582,9 @@ function getNextActionConfig(
       icon: 'account_balance',
       iconColor: '#60a5fa',
       tone: 'blue',
-      title: 'Awaiting payment confirmation',
+      title: 'Awaiting confirmation',
       body: 'Your payment proof has been submitted. Our team will review it and update your status once confirmed.',
-      ctaLabel: 'View Payment Details',
+      ctaLabel: 'View Details',
       ctaHref: checkoutBookingId ? `/dashboard/bookings/${checkoutBookingId}` : '/dashboard/bookings',
     }
   }
@@ -598,10 +601,10 @@ function getNextActionConfig(
       icon: 'how_to_reg',
       iconColor: '#f59e0b',
       tone: 'amber',
-      title: 'Book your checkout',
-      body: 'Your checkout flight is required before you can hire aircraft solo. Choose a suitable date and time to get started.',
-      ctaLabel: 'Book Checkout',
-      ctaHref: '/dashboard/checkout',
+      title: 'Complete Your Checkout',
+      body: 'A one-time checkout flight is required before you can hire an aircraft solo.',
+      ctaLabel: 'Book a Flight',
+      ctaHref: '/dashboard/bookings',
       secondaryLink: { label: 'View Requirements', href: '/checkout-process' },
     }
   }
@@ -610,9 +613,9 @@ function getNextActionConfig(
       icon: 'pending_actions',
       iconColor: '#60a5fa',
       tone: 'blue',
-      title: 'Checkout under review',
-      body: 'Your checkout request has been submitted. Our team is reviewing the booking and will confirm it shortly.',
-      ctaLabel: 'View Checkout Booking',
+      title: 'Checkout Request Submitted',
+      body: 'Our team is reviewing your request and will confirm your checkout time shortly.',
+      ctaLabel: 'View Status',
       ctaHref: checkoutBookingHref,
     }
   }
@@ -621,11 +624,10 @@ function getNextActionConfig(
       icon: 'event_available',
       iconColor: '#60a5fa',
       tone: 'blue',
-      title: 'Prepare for your checkout flight',
-      body: 'Your checkout has been confirmed. Review the booking details and arrive ready with your required documentation.',
-      ctaLabel: 'View Checkout Booking',
+      title: 'Checkout Flight Confirmed',
+      body: "Your checkout flight is confirmed. We'll see you on the day - no further action needed.",
+      ctaLabel: 'View Booking',
       ctaHref: checkoutBookingHref,
-      secondaryLink: { label: 'View Booking Details', href: checkoutBookingHref },
     }
   }
   if (clearanceStatus === 'checkout_completed_under_review') {
@@ -633,9 +635,9 @@ function getNextActionConfig(
       icon: 'rate_review',
       iconColor: '#f59e0b',
       tone: 'amber',
-      title: 'Awaiting checkout result',
-      body: 'Your checkout is complete and our team is reviewing the result. We will update your status shortly.',
-      ctaLabel: 'View Checkout Booking',
+      title: 'Awaiting Checkout Outcome',
+      body: 'Your checkout flight is under review by our flight operations team.',
+      ctaLabel: 'View Details',
       ctaHref: checkoutBookingHref,
     }
   }
@@ -644,8 +646,8 @@ function getNextActionConfig(
       icon: 'payments',
       iconColor: '#f59e0b',
       tone: 'amber',
-      title: 'Complete payment',
-      body: 'Your checkout outcome has been processed and payment is now required before you can continue.',
+      title: 'Complete Payment',
+      body: 'Your checkout flight is complete. Please pay your invoice to unlock aircraft bookings.',
       ctaLabel: 'Complete Payment',
       ctaHref: checkoutBookingId ? `/dashboard/bookings/${checkoutBookingId}` : '/dashboard/bookings',
     }
@@ -936,7 +938,7 @@ export default function DashboardContent({
           marginLeft: 'calc(-50vw + 50%)',
           marginRight: 'calc(-50vw + 50%)',
           width: '100vw',
-          backgroundImage: 'url(/CustomerDashboard/CustomerDashboard-hero.webp)',
+          backgroundImage: 'url(/CustomerDashboard/CustomerDashboard-hero.png)',
           backgroundSize: 'cover',
           backgroundPosition: 'center right',
           boxShadow: '0 8px 64px rgba(2,10,22,0.18)',
@@ -969,7 +971,7 @@ export default function DashboardContent({
                 color: '#f59e0b',
               }}
             >
-              <span className="material-symbols-outlined text-[14px]">anchor</span>
+              <span className="material-symbols-outlined text-[14px]">flight_takeoff</span>
               {effectiveStatusPill}
             </div>
           </div>
@@ -1034,7 +1036,7 @@ export default function DashboardContent({
           </div>
 
           {/* Checklist illustration — always visible, absolute top-right */}
-          <div className="absolute top-20 right-3 pointer-events-none select-none">
+          <div className="hidden md:block absolute top-20 right-3 pointer-events-none select-none">
             <div className="bg-white rounded-xl p-1">
               <img
                 src="/CustomerDashboard/CustomerDashboard-checklist.png"
@@ -1055,12 +1057,12 @@ export default function DashboardContent({
             return showDocumentAction ? (
               <>
                 <h2
-                  className="text-[32px] font-normal text-[#152d5a] leading-tight mb-3 pr-36"
+                  className="text-[32px] font-normal text-[#152d5a] leading-tight mb-3 pr-0 md:pr-36"
                   style={{ fontFamily: 'Newsreader, Georgia, serif' }}
                 >
                   Upload Your Documents
                 </h2>
-                <p className="text-[13px] text-[#4b6390] leading-relaxed mb-4 pr-32">
+                <p className="text-[13px] text-[#4b6390] leading-relaxed mb-4 pr-0 md:pr-32">
                   Before booking your checkout flight, upload your pilot licence, medical certificate, and photo ID.
                 </p>
                 <div className="mt-auto pt-4">
@@ -1075,42 +1077,27 @@ export default function DashboardContent({
               </>
             ) : (
               <>
-                {/* Heading + illustration row */}
-                <div>
+                {/* Status-driven action content */}
+                <div className="relative z-10">
                   <h2
-                    className="text-[32px] font-normal text-[#152d5a] leading-tight mb-3 pr-36"
+                    className="text-[32px] font-normal text-[#152d5a] leading-tight mb-3 pr-0 md:pr-36"
                     style={{ fontFamily: 'Newsreader, Georgia, serif' }}
                   >
-                    Complete Checkout
+                    {nextAction.title}
                   </h2>
                 </div>
 
-                {/* Description */}
-                <div className="relative mb-3">
-                  {/* Checklist illustration — positioned right, white bg to mask dots */}
-                  <div className="absolute top-8 right-0 pointer-events-none select-none">
-                    <div className="bg-white rounded-xl p-1">
-                      <img
-                        src="/CustomerDashboard/CustomerDashboard-checklist.png"
-                        alt=""
-                        aria-hidden="true"
-                        className="w-32 h-36 object-contain"
-                      />
-                    </div>
-                  </div>
-                </div>
-                <p className="text-[13px] text-[#4b6390] leading-relaxed mb-4 pr-32">
-                  Checkout is required before you can hire an aircraft. It includes aircraft selection, rate confirmation, and final approval.
+                <p className="text-[13px] text-[#4b6390] leading-relaxed mb-4 pr-0 md:pr-32">
+                  {nextAction.body}
                 </p>
 
-                {/* Full width CTA */}
                 <div className="mt-auto pt-4">
                   <Link
-                    href="/dashboard/checkout"
+                    href={nextAction.ctaHref}
                     className="w-full flex items-center justify-center gap-2 bg-[#f59e0b] hover:bg-[#e08c00] text-white font-semibold rounded-xl py-3.5 px-4 transition-colors text-[14px]"
                   >
-                    <span className="material-symbols-outlined text-[16px]">flight_takeoff</span>
-                    Book Checkout Now
+                    <span className="material-symbols-outlined text-[16px]">{nextAction.icon}</span>
+                    {nextAction.ctaLabel}
                   </Link>
                 </div>
               </>
@@ -1136,8 +1123,17 @@ export default function DashboardContent({
 
             {flightSnapshotBooking ? (
               /* ── Populated state ── */
-              <div>
-                <div className="mb-6">
+              <div className="relative flex flex-col gap-3 flex-1">
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none">
+                  <img
+                    src="/CustomerDashboard/CustomerDashboard-plane.png"
+                    alt=""
+                    aria-hidden="true"
+                    style={{ width: '320px', height: 'auto', opacity: 0.18 }}
+                    className="object-contain"
+                  />
+                </div>
+                <div className="relative z-10 mb-6">
                   <SnapshotRow icon="calendar_month" label="Booking Date">
                     {formatDateFromISO(flightSnapshotBooking.scheduledStart) || '—'}
                   </SnapshotRow>
@@ -1166,7 +1162,7 @@ export default function DashboardContent({
                 </div>
                 <button
                   onClick={() => router.push(`/dashboard/bookings/${flightSnapshotBooking.id}`)}
-                  className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.12em] font-bold text-blue-400 hover:text-blue-300 transition-colors"
+                  className="relative z-10 inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.12em] font-bold text-blue-400 hover:text-blue-300 transition-colors"
                 >
                   View Booking Details
                   <span className="material-symbols-outlined text-[14px] leading-none">arrow_forward</span>
@@ -1285,114 +1281,119 @@ export default function DashboardContent({
           style={{
             boxShadow: '0 4px 40px rgba(2,10,22,0.08)',
           }}
-        >
-          {(() => {
-            const approvedCount = documents?.filter((d) => d.status === 'approved').length ?? 0
-            const getDocStatus = (key: string) => {
-              const doc = documents?.find(d => d.document_type === key)
-              if (!doc) return {
-                label: 'Not Submitted',
-                color: 'text-[#94a3b8]',
-                icon: 'radio_button_unchecked',
-                iconColor: 'text-[#cbd5e1]',
-                nameColor: 'text-[#94a3b8]',
-              }
-              switch (doc.status as string) {
-                case 'uploaded':
-                case 'pending_review':
-                  return {
-                    label: 'Awaiting Approval',
-                    color: 'text-[#f59e0b]',
-                    icon: 'schedule',
-                    iconColor: 'text-[#f59e0b]',
-                    nameColor: 'text-[#152d5a]',
-                  }
-                case 'approved':
-                  return {
-                    label: 'Approved',
-                    color: 'text-[#4b6390]',
-                    icon: 'check_circle',
-                    iconColor: 'text-green-500',
-                    nameColor: 'text-[#152d5a]',
-                  }
-                case 'rejected':
-                  return {
-                    label: 'Rejected',
-                    color: 'text-red-500',
-                    icon: 'cancel',
-                    iconColor: 'text-red-500',
-                    nameColor: 'text-[#152d5a]',
-                  }
-                default:
-                  return {
-                    label: 'Not Submitted',
-                    color: 'text-[#94a3b8]',
-                    icon: 'radio_button_unchecked',
-                    iconColor: 'text-[#cbd5e1]',
-                    nameColor: 'text-[#94a3b8]',
-                  }
-              }
-            }
-            return (
-              <>
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">description</span>
-                  <span className="text-[16px] font-semibold text-[#4b6390]">Document Readiness</span>
+	        >
+	          {(() => {
+	            // Build latest-per-type map (mirrors DocumentsPanelV2 logic)
+	            const docMap = (() => {
+	              const map: Record<string, (typeof documents)[number]> = {}
+	              for (const doc of (documents ?? [])) {
+	                const existing = map[doc.document_type]
+	                if (!existing || new Date(doc.updated_at) > new Date(existing.updated_at)) {
+	                  map[doc.document_type] = doc
+	                }
+	              }
+	              return map
+	            })()
+
+	            // Core 3 required docs (matches DocumentsPanelV2 DOC_TYPES)
+	            const CORE_DOC_TYPES = ['pilot_licence', 'medical_certificate', 'photo_id'] as const
+
+	            // Count docs that are uploaded (not missing/rejected) — mirrors allDocsUploaded logic
+	            const approvedCount = CORE_DOC_TYPES.filter((key) => {
+	              const doc = docMap[key]
+	              if (!doc) return false
+	              if (doc.status === 'rejected') return false
+	              return true
+	            }).length
+
+	            // Night VFR is separate/optional
+	            const nightVfrDoc = docMap['night_vfr_evidence']
+	            const nightVfrState = !nightVfrDoc ? 'missing' : nightVfrDoc.status === 'rejected' ? 'rejected' : 'uploaded'
+	            return (
+	              <>
+	                <div className="flex items-center gap-2 mb-4">
+	                  <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">description</span>
+	                  <span className="text-[16px] font-semibold text-[#4b6390]">Document Readiness</span>
                 </div>
 
                 <div className="flex items-start gap-4 mb-5">
                   <div className="flex-shrink-0">
                     <svg viewBox="0 0 100 100" className="w-28 h-28 flex-shrink-0">
                       <circle cx="50" cy="50" r="40" fill="none" stroke="#e2e8f0" strokeWidth="14"/>
-                      <circle
-                        cx="50" cy="50" r="40"
-                        fill="none"
-                        stroke="#1a4fd6"
-                        strokeWidth="14"
-                        strokeLinecap="round"
-                        strokeDasharray={`${(approvedCount / 5) * 251.2} 251.2`}
-                        transform="rotate(-90 50 50)"
-                      />
-                      <text x="50" y="46" textAnchor="middle" fontWeight="800" fontSize="18" fill="#152d5a">{approvedCount}/5</text>
-                      <text x="50" y="62" textAnchor="middle" fontSize="12" fill="#4b6390">Ready</text>
-                    </svg>
-                  </div>
-                  <div className="flex-1 pt-1">
+	                      <circle
+	                        cx="50" cy="50" r="40"
+	                        fill="none"
+	                        stroke="#1a4fd6"
+	                        strokeWidth="14"
+	                        strokeLinecap="round"
+	                        strokeDasharray={`${(approvedCount / 3) * 251.2} 251.2`}
+	                        transform="rotate(-90 50 50)"
+	                      />
+	                      <text x="50" y="46" textAnchor="middle" fontWeight="800" fontSize="18" fill="#152d5a">{Math.round((approvedCount / 3) * 100)}%</text>
+	                      <text x="50" y="62" textAnchor="middle" fontSize="12" fill="#4b6390">Ready</text>
+	                    </svg>
+	                  </div>
+                  <div className="flex-1 min-w-0 pt-1">
                     <p className="text-[12px] text-[#4b6390] leading-relaxed">
                       {approvedCount === 0
                         ? 'Upload your pilot documents to get checkout ready.'
-                        : approvedCount < 5
-                          ? "You're making progress. Complete the remaining documents to get checkout ready."
-                          : 'All documents uploaded. Awaiting admin verification.'}
-                    </p>
-                  </div>
-                </div>
+	                        : approvedCount < 3
+	                          ? "You're making progress. Complete the remaining documents."
+	                          : 'All documents uploaded. Awaiting admin verification.'}
+	                    </p>
+	                  </div>
+	                </div>
 
-                <div className="grid grid-cols-2 gap-x-4 gap-y-4 mb-4">
-                  {[
-                    { label: 'Pilot Licence', key: 'pilot_licence' },
-                    { label: 'Night VFR Endorsement', key: 'night_vfr' },
-                    { label: 'Medical Certificate', key: 'medical_certificate' },
-                    { label: 'Red Card (ASIC)', key: 'red_card' },
-                  ].map((doc) => {
-                    const status = getDocStatus(doc.key)
-                    return (
-                      <div key={doc.key} className="flex items-start gap-2">
-                          <span className={`material-symbols-outlined text-[18px] mt-0.5 flex-shrink-0 ${status.iconColor}`}>
-                          {status.icon}
-                        </span>
-                        <div>
-                          <div className={`text-[13px] font-semibold leading-tight ${status.nameColor}`}>
-                            {doc.label}
-                          </div>
-                          <div className={`text-[12px] leading-tight mt-0.5 ${status.color}`}>
-                            {status.label}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+	                <div className="space-y-3 mb-4">
+	                  {[
+	                    { label: 'Pilot Licence', key: 'pilot_licence' },
+	                    { label: 'Medical Certificate', key: 'medical_certificate' },
+	                  ].map((doc) => {
+	                    const found = docMap[doc.key]
+	                    const isOk = found && found.status !== 'rejected'
+	                    const isPending = found && found.status !== 'approved' && found.status !== 'rejected'
+	                    return (
+	                      <div key={doc.key} className="flex items-center gap-2">
+	                        <span className={`material-symbols-outlined text-[15px] flex-shrink-0 ${
+	                          isOk && !isPending ? 'text-green-500' :
+	                          isPending ? 'text-amber-500' :
+	                          'text-slate-300'
+	                        }`}>
+	                          {isOk && !isPending ? 'check_circle' : isPending ? 'pending' : 'radio_button_unchecked'}
+	                        </span>
+	                        <span className="text-[11px] text-[#4b6390] flex-1">{doc.label}</span>
+	                        <span className={`text-[10px] font-medium ${
+	                          isOk && !isPending ? 'text-green-600' :
+	                          isPending ? 'text-amber-600' :
+	                          'text-slate-400'
+	                        }`}>
+	                          {isOk && !isPending ? 'Approved' : isPending ? 'Awaiting Approval' : 'Not Submitted'}
+	                        </span>
+	                      </div>
+	                    )
+	                  })}
+	                  <div className="flex items-center gap-2">
+	                    <span className={`material-symbols-outlined text-[15px] flex-shrink-0 ${
+	                      nightVfrState === 'uploaded' ? 'text-green-500' :
+	                      nightVfrState === 'missing' ? 'text-slate-300' :
+	                      'text-red-400'
+	                    }`}>
+	                      {nightVfrState === 'uploaded' ? 'check_circle' :
+	                       nightVfrState === 'missing' ? 'radio_button_unchecked' :
+	                       'cancel'}
+	                    </span>
+	                    <span className="text-[11px] text-[#4b6390] flex-1">Night VFR Endorsement</span>
+	                    <span className={`text-[10px] font-medium ${
+	                      nightVfrState === 'uploaded' ? 'text-green-600' :
+	                      nightVfrState === 'missing' ? 'text-slate-400' :
+	                      'text-red-500'
+	                    }`}>
+	                      {nightVfrState === 'uploaded' ? 'Submitted' :
+	                       nightVfrState === 'missing' ? 'Not Submitted' :
+	                       'Rejected'}
+	                    </span>
+	                  </div>
+	                </div>
 
                 <Link href="/dashboard/documents" className="flex items-center gap-1 text-[15px] font-semibold text-[#1a4fd6] hover:underline mt-auto">
                   Go to Documents

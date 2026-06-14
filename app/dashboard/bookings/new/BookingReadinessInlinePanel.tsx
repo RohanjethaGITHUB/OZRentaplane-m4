@@ -166,13 +166,13 @@ function DocModal({
   return (
     <ModalPortal>
       <div className="fixed inset-0 z-[1000] flex items-start justify-center p-4 pt-24 md:pt-28 bg-black/70 backdrop-blur-sm">
-        <div className="w-full max-w-md max-h-[calc(100vh-7.5rem)] bg-[#13243a] border border-[#4c6b8f] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+        <div className="w-full max-w-md max-h-[calc(100vh-7.5rem)] bg-white border border-[#152d5a]/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-[#152d5a]/10">
             <div>
-              <p className="text-xs uppercase tracking-widest text-blue-200 font-bold">{existingDoc ? 'Replace' : 'Upload'}</p>
-              <p className="text-lg font-semibold text-white">{def.label}</p>
+              <p className="text-xs uppercase tracking-widest text-[#1a4fd6] font-bold">{existingDoc ? 'Replace' : 'Upload'}</p>
+              <p className="text-lg font-semibold text-[#152d5a]">{def.label}</p>
             </div>
-            <button onClick={onClose} disabled={uploading} className="text-white/30 hover:text-white/70 disabled:opacity-40">
+            <button onClick={onClose} disabled={uploading} className="text-[#4b6390] hover:text-[#152d5a] disabled:opacity-40">
               <span className="material-symbols-outlined text-xl">close</span>
             </button>
           </div>
@@ -181,32 +181,32 @@ function DocModal({
               <>
                 <div className="grid grid-cols-2 gap-2">
                   {['RPL', 'PPL', 'CPL', 'Other'].map((t) => (
-                    <button key={t} type="button" onClick={() => setLicenceType(t)} className={`px-3 py-2 rounded-lg text-sm border ${licenceType === t ? 'bg-blue-500/15 border-blue-400/50 text-blue-100' : 'bg-white/[0.03] border-white/20 text-slate-200'}`}>{t}</button>
+                    <button key={t} type="button" onClick={() => setLicenceType(t)} className={`px-3 py-2 rounded-lg text-sm border ${licenceType === t ? 'bg-[#e8f0fe] border-[#1a4fd6]/50 text-[#152d5a]' : 'bg-[#f0f6ff] border-[#152d5a]/15 text-[#4b6390]'}`}>{t}</button>
                   ))}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {[true, false].map((v) => (
-                    <button key={`n-${v}`} type="button" onClick={() => setNightVfrRating(v)} className={`px-3 py-2 rounded-lg text-sm border ${nightVfrRating === v ? 'bg-blue-500/15 border-blue-400/50 text-blue-100' : 'bg-white/[0.03] border-white/20 text-slate-200'}`}>Night VFR: {v ? 'Yes' : 'No'}</button>
+                    <button key={`n-${v}`} type="button" onClick={() => setNightVfrRating(v)} className={`px-3 py-2 rounded-lg text-sm border ${nightVfrRating === v ? 'bg-[#e8f0fe] border-[#1a4fd6]/50 text-[#152d5a]' : 'bg-[#f0f6ff] border-[#152d5a]/15 text-[#4b6390]'}`}>Night VFR: {v ? 'Yes' : 'No'}</button>
                   ))}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {[true, false].map((v) => (
-                    <button key={`i-${v}`} type="button" onClick={() => setInstrumentRating(v)} className={`px-3 py-2 rounded-lg text-sm border ${instrumentRating === v ? 'bg-blue-500/15 border-blue-400/50 text-blue-100' : 'bg-white/[0.03] border-white/20 text-slate-200'}`}>IFR: {v ? 'Yes' : 'No'}</button>
+                    <button key={`i-${v}`} type="button" onClick={() => setInstrumentRating(v)} className={`px-3 py-2 rounded-lg text-sm border ${instrumentRating === v ? 'bg-[#e8f0fe] border-[#1a4fd6]/50 text-[#152d5a]' : 'bg-[#f0f6ff] border-[#152d5a]/15 text-[#4b6390]'}`}>IFR: {v ? 'Yes' : 'No'}</button>
                   ))}
                 </div>
-                <input value={licenceNumber} onChange={(e) => setLicenceNumber(e.target.value)} placeholder="Pilot licence number / ARN" className="w-full bg-white/[0.03] border border-white/20 rounded-lg px-3 py-2.5 text-sm text-white" />
+                <input value={licenceNumber} onChange={(e) => setLicenceNumber(e.target.value)} placeholder="Pilot licence number / ARN" className="w-full bg-[#f0f6ff] border border-[#152d5a]/15 rounded-lg px-3 py-2.5 text-sm text-[#152d5a]" />
               </>
             )}
             {def.type === 'medical_certificate' && (
               <>
                 <div className="grid grid-cols-2 gap-2">
                   {['Class 1', 'Class 2', 'Basic Class 2', 'Other'].map((t) => (
-                    <button key={t} type="button" onClick={() => setMedicalClass(t)} className={`px-3 py-2 rounded-lg text-sm border ${medicalClass === t ? 'bg-blue-500/15 border-blue-400/50 text-blue-100' : 'bg-white/[0.03] border-white/20 text-slate-200'}`}>{t}</button>
+                    <button key={t} type="button" onClick={() => setMedicalClass(t)} className={`px-3 py-2 rounded-lg text-sm border ${medicalClass === t ? 'bg-[#e8f0fe] border-[#1a4fd6]/50 text-[#152d5a]' : 'bg-[#f0f6ff] border-[#152d5a]/15 text-[#4b6390]'}`}>{t}</button>
                   ))}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <CalendarDateField value={issueDate} onChange={setIssueDate} minYear={new Date().getFullYear() - 80} maxYear={new Date().getFullYear()} className="w-full bg-white/[0.03] border border-white/20 rounded-lg px-3 py-2.5 text-sm text-white text-left flex items-center justify-between" />
-                  <CalendarDateField value={expiryDate} onChange={setExpiryDate} minYear={new Date().getFullYear() - 5} maxYear={new Date().getFullYear() + 20} className="w-full bg-white/[0.03] border border-white/20 rounded-lg px-3 py-2.5 text-sm text-white text-left flex items-center justify-between" />
+                  <CalendarDateField value={issueDate} onChange={setIssueDate} minYear={new Date().getFullYear() - 80} maxYear={new Date().getFullYear()} className="w-full bg-[#f0f6ff] border border-[#152d5a]/15 rounded-lg px-3 py-2.5 text-sm text-[#152d5a] text-left flex items-center justify-between" />
+                  <CalendarDateField value={expiryDate} onChange={setExpiryDate} minYear={new Date().getFullYear() - 5} maxYear={new Date().getFullYear() + 20} className="w-full bg-[#f0f6ff] border border-[#152d5a]/15 rounded-lg px-3 py-2.5 text-sm text-[#152d5a] text-left flex items-center justify-between" />
                 </div>
               </>
             )}
@@ -214,23 +214,23 @@ function DocModal({
               <>
                 <div className="grid grid-cols-3 gap-2">
                   {['Passport', 'Driver Licence', 'Other'].map((t) => (
-                    <button key={t} type="button" onClick={() => setIdType(t)} className={`px-3 py-2 rounded-lg text-sm border ${idType === t ? 'bg-blue-500/15 border-blue-400/50 text-blue-100' : 'bg-white/[0.03] border-white/20 text-slate-200'}`}>{t}</button>
+                    <button key={t} type="button" onClick={() => setIdType(t)} className={`px-3 py-2 rounded-lg text-sm border ${idType === t ? 'bg-[#e8f0fe] border-[#1a4fd6]/50 text-[#152d5a]' : 'bg-[#f0f6ff] border-[#152d5a]/15 text-[#4b6390]'}`}>{t}</button>
                   ))}
                 </div>
-                <input value={documentNumber} onChange={(e) => setDocumentNumber(e.target.value)} placeholder="Document number" className="w-full bg-white/[0.03] border border-white/20 rounded-lg px-3 py-2.5 text-sm text-white" />
+                <input value={documentNumber} onChange={(e) => setDocumentNumber(e.target.value)} placeholder="Document number" className="w-full bg-[#f0f6ff] border border-[#152d5a]/15 rounded-lg px-3 py-2.5 text-sm text-[#152d5a]" />
               </>
             )}
 
-            <label className="flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-dashed border-[#5f7fa5] bg-[#173150] hover:border-blue-300/70 cursor-pointer">
+            <label className="flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-dashed border-[#152d5a]/15 bg-[#f0f6ff] hover:border-[#1a4fd6]/40 cursor-pointer">
               <input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple className="hidden" onChange={onFileChange} disabled={uploading} />
-              <span className={`material-symbols-outlined text-2xl ${uploading ? 'text-blue-400 animate-spin' : 'text-slate-400'}`}>{uploading ? 'progress_activity' : 'cloud_upload'}</span>
-              <p className="text-sm text-slate-100">{uploading ? 'Uploading…' : 'Drop files or click to upload'}</p>
-              <p className="text-xs text-slate-300">PDF, JPG, PNG - up to 10 MB each - multiple files supported</p>
+              <span className={`material-symbols-outlined text-2xl ${uploading ? 'text-[#1a4fd6] animate-spin' : 'text-[#4b6390]'}`}>{uploading ? 'progress_activity' : 'cloud_upload'}</span>
+              <p className="text-sm text-[#152d5a]">{uploading ? 'Uploading…' : 'Drop files or click to upload'}</p>
+              <p className="text-xs text-[#4b6390]">PDF, JPG, PNG - up to 10 MB each - multiple files supported</p>
             </label>
 
-            {formError ? <p className="text-sm text-red-300">{formError}</p> : null}
+            {formError ? <p className="text-sm text-red-600">{formError}</p> : null}
             {fileResults.map((r, i) => (
-              <p key={`${r.name}-${i}`} className={`text-xs ${r.ok ? 'text-green-300' : 'text-red-300'}`}>{r.name}{r.msg ? ` - ${r.msg}` : ''}</p>
+              <p key={`${r.name}-${i}`} className={`text-xs ${r.ok ? 'text-green-600' : 'text-red-600'}`}>{r.name}{r.msg ? ` - ${r.msg}` : ''}</p>
             ))}
           </div>
         </div>
@@ -318,9 +318,9 @@ export default function BookingReadinessInlinePanel({
     <div className="mt-6 space-y-4">
       {modalType ? <DocModal def={DOC_DEFS.find((d) => d.type === modalType)!} existingDoc={docMap[modalType]} onClose={() => setModalType(null)} onSuccess={() => { setModalType(null); router.refresh() }} /> : null}
       <div className="grid gap-3">
-        <div className="rounded-xl border border-white/10 bg-[#0d1a2c]/70 p-4">
-          <p className="text-sm text-white">Night VFR rating</p>
-          <p className="text-xs text-slate-400 mt-1">Do you have Night VFR?</p>
+        <div className="rounded-xl border border-[#152d5a]/10 bg-white p-4">
+          <p className="text-sm text-[#152d5a]">Night VFR rating</p>
+          <p className="text-xs text-[#4b6390] mt-1">Do you have Night VFR?</p>
           <div className="mt-3 grid grid-cols-2 gap-2 max-w-md">
             {[true, false].map((val) => (
               <button
@@ -329,8 +329,8 @@ export default function BookingReadinessInlinePanel({
                 onClick={() => setNightVfrAnswer(val)}
                 className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all ${
                   nightVfrAnswer === val
-                    ? 'bg-blue-500/15 border-blue-400/50 text-blue-100'
-                    : 'bg-white/[0.03] border-white/20 text-slate-200 hover:text-white'
+                    ? 'bg-[#e8f0fe] border-[#1a4fd6]/50 text-[#152d5a]'
+                    : 'bg-[#f0f6ff] border-[#152d5a]/15 text-[#4b6390] hover:text-[#152d5a]'
                 }`}
               >
                 {val ? 'Yes' : 'No'}
@@ -338,10 +338,10 @@ export default function BookingReadinessInlinePanel({
             ))}
           </div>
           {nightVfrAnswer === false ? (
-            <p className="mt-2 text-xs text-emerald-300">Night VFR evidence is not required when you select No.</p>
+            <p className="mt-2 text-xs text-emerald-700">Night VFR evidence is not required when you select No.</p>
           ) : null}
           {nightVfrAnswer === null ? (
-            <p className="mt-2 text-xs text-amber-300">Please select Yes or No.</p>
+            <p className="mt-2 text-xs text-amber-700">Please select Yes or No.</p>
           ) : null}
         </div>
         {docItems.map((item) => {
@@ -351,20 +351,20 @@ export default function BookingReadinessInlinePanel({
           const showUpload = item.state === 'missing' || item.state === 'expired' || item.state === 'needs_review'
           const docDetail = item.state === 'needs_review' ? 'Submitted, awaiting admin review.' : item.detail
           return (
-            <div key={item.key} className="rounded-xl border border-white/10 bg-[#0d1a2c]/70 p-4 flex items-center justify-between gap-4">
+            <div key={item.key} className="rounded-xl border border-[#152d5a]/10 bg-white p-4 flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm text-white">{def?.label ?? item.label}</p>
-                <p className="text-xs text-slate-400">{docDetail}</p>
+                <p className="text-sm text-[#152d5a]">{def?.label ?? item.label}</p>
+                <p className="text-xs text-[#4b6390]">{docDetail}</p>
               </div>
               <div className="flex items-center gap-2">
                 <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full border tracking-widest ${statusTone(item.state)}`}>{statusLabel(item.state)}</span>
                 {docMap[docType] ? (
-                  <button onClick={() => handleView(docType)} disabled={viewLoadingType === docType} className="text-xs font-bold uppercase tracking-widest text-blue-200 border border-blue-400/50 hover:bg-blue-500/15 px-3 py-1.5 rounded-full">
+                  <button onClick={() => handleView(docType)} disabled={viewLoadingType === docType} className="text-xs font-bold uppercase tracking-widest text-[#1a4fd6] border border-[#1a4fd6]/20 hover:bg-[#f0f6ff] px-3 py-1.5 rounded-full">
                     {viewLoadingType === docType ? 'Opening…' : 'View'}
                   </button>
                 ) : null}
                 {showUpload ? (
-                  <button onClick={() => setModalType(docType)} className="text-xs font-bold uppercase tracking-widest text-white border border-white/25 hover:border-white/40 px-3 py-1.5 rounded-full">
+                  <button onClick={() => setModalType(docType)} className="text-xs font-bold uppercase tracking-widest text-[#152d5a] border border-[#152d5a]/20 hover:bg-[#f0f6ff] px-3 py-1.5 rounded-full">
                     {docMap[docType] ? 'Replace' : 'Upload'}
                   </button>
                 ) : null}
@@ -374,12 +374,12 @@ export default function BookingReadinessInlinePanel({
         })}
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-[#0d1a2c]/70 p-4">
-        <p className="text-[17px] font-semibold text-slate-100">Last flight review</p>
-        <p className="text-[15px] text-slate-400 mt-1 leading-relaxed">Tell us when your most recent flight review was completed.</p>
+      <div className="rounded-xl border border-[#152d5a]/10 bg-white p-4">
+        <p className="text-[17px] font-semibold text-[#152d5a]">Last flight review</p>
+        <p className="text-[15px] text-[#4b6390] mt-1 leading-relaxed">Tell us when your most recent flight review was completed.</p>
         <div className="mt-3">
-          <label className="text-sm font-medium text-slate-100 block mb-2">
-            When was your last flight review? <span className="text-red-400 font-normal">Required</span>
+          <label className="text-sm font-medium text-[#152d5a] block mb-2">
+            When was your last flight review? <span className="text-red-600 font-normal">Required</span>
           </label>
           <CalendarDateField
             value={flightDate}
@@ -388,15 +388,15 @@ export default function BookingReadinessInlinePanel({
             maxYear={new Date().getFullYear()}
             minDate={getFlightReviewCutoff()}
             maxDate={today}
-            className="w-full bg-white/[0.03] border border-white/20 rounded-lg px-3 py-2.5 text-sm text-white text-left flex items-center justify-between"
+            className="w-full bg-[#f0f6ff] border border-[#152d5a]/15 rounded-lg px-3 py-2.5 text-sm text-[#152d5a] text-left flex items-center justify-between"
           />
-          {dateError ? <p className="mt-2 text-xs text-red-300">{dateError}</p> : null}
+          {dateError ? <p className="mt-2 text-xs text-red-600">{dateError}</p> : null}
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-[#0d1a2c]/70 p-4">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Terms and conditions</p>
-        <p className={`mt-2 text-sm ${canAcceptTerms ? 'text-emerald-200' : 'text-amber-200'}`}>
+      <div className="rounded-xl border border-[#152d5a]/10 bg-white p-4">
+        <p className="text-xs font-bold uppercase tracking-wider text-[#4b6390]">Terms and conditions</p>
+        <p className={`mt-2 text-sm ${canAcceptTerms ? 'text-emerald-700' : 'text-amber-700'}`}>
           {canAcceptTerms ? 'Accepted current version.' : 'Current version not accepted.'}
         </p>
         {!canAcceptTerms && activeTerms ? (
@@ -408,7 +408,7 @@ export default function BookingReadinessInlinePanel({
                 setTermsScrolledToEnd(false)
                 setTermsModalChecked(false)
               }}
-              className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-blue-500 disabled:opacity-40"
+              className="inline-flex items-center gap-2 rounded-full bg-[#1a4fd6] px-4 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-[#1540a8] disabled:opacity-40"
             >
               Open terms
             </button>
@@ -417,47 +417,47 @@ export default function BookingReadinessInlinePanel({
       </div>
 
       {awaitingAdminOnly ? (
-        <div className="rounded-xl border border-blue-400/25 bg-blue-500/10 p-4">
-          <p className="text-sm text-blue-100">Your documents have been submitted and are awaiting review by OZ Rent A Plane.</p>
+        <div className="rounded-xl border border-[#1a4fd6]/15 bg-[#f0f6ff] p-4">
+          <p className="text-sm text-[#152d5a]">Your documents have been submitted and are awaiting review by OZ Rent A Plane.</p>
         </div>
       ) : null}
-      {message ? <p className="text-sm text-emerald-300">{message}</p> : null}
-      {saveError ? <p className="text-sm text-red-300">{saveError}</p> : null}
+      {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
+      {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
 
       <div className="flex flex-wrap gap-3">
         {awaitingAdminOnly ? (
-          <Link href="/dashboard" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-oz-blue hover:bg-blue-400 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors">
-            Return to dashboard
+          <Link href="/dashboard" className="inline-flex items-center justify-center gap-2 bg-[#1a4fd6] hover:bg-[#1540a8] text-white font-semibold rounded-xl px-5 py-2.5 transition-colors">
+            View my bookings
           </Link>
         ) : (
           <button
             type="button"
             onClick={handleSaveAndCheck}
             disabled={isPending}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-oz-blue hover:bg-blue-400 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors disabled:opacity-40"
+            className="inline-flex items-center justify-center gap-2 bg-[#1a4fd6] hover:bg-[#1540a8] text-white font-semibold rounded-xl px-5 py-2.5 transition-colors disabled:opacity-40"
           >
             {isPending ? 'Saving…' : 'Save and check readiness'}
           </button>
         )}
-        <Link href="/dashboard" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 border border-white/20 hover:border-white/35 text-white/70 hover:text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors">
-          Return to overview
+        <Link href="/dashboard" className="inline-flex items-center justify-center gap-2 border border-[#152d5a]/20 text-[#152d5a] hover:bg-[#f0f6ff] font-semibold rounded-xl px-5 py-2.5 transition-colors">
+          Go to overview
         </Link>
       </div>
 
       {termsModalOpen && activeTerms ? (
         <ModalPortal>
           <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-            <div className="w-full max-w-4xl bg-[#13243a] border border-[#4c6b8f] rounded-2xl shadow-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-                <h4 className="text-sm font-semibold text-white">Booking Terms and Conditions</h4>
-                <button type="button" onClick={() => setTermsModalOpen(false)} className="text-white/30 hover:text-white/70 transition-colors">
+            <div className="w-full max-w-4xl bg-white border border-[#152d5a]/10 rounded-2xl shadow-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-[#152d5a]/10">
+                <h4 className="text-sm font-semibold text-[#152d5a]">Booking Terms and Conditions</h4>
+                <button type="button" onClick={() => setTermsModalOpen(false)} className="text-[#4b6390] hover:text-[#152d5a] transition-colors">
                   <span className="material-symbols-outlined text-xl">close</span>
                 </button>
               </div>
               <div className="px-5 py-4 space-y-3">
-                <p className="text-sm text-slate-300">Scroll to the end to enable acceptance.</p>
+                <p className="text-sm text-[#4b6390]">Scroll to the end to enable acceptance.</p>
                 <div
-                  className="h-[55vh] min-h-[340px] max-h-[680px] overflow-y-auto rounded-xl border border-white/10 bg-[#0b172b]"
+                  className="h-[55vh] min-h-[340px] max-h-[680px] overflow-y-auto rounded-xl border border-[#152d5a]/10 bg-white"
                   onScroll={(e) => {
                     const el = e.currentTarget
                     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 4) setTermsScrolledToEnd(true)
@@ -465,30 +465,30 @@ export default function BookingReadinessInlinePanel({
                 >
                   <div className="px-6 py-6 md:px-8 md:py-8">
                     <div className="max-w-3xl mx-auto space-y-8">
-                      <div className="pb-5 border-b border-white/10 space-y-3">
-                        <p className="text-[10px] uppercase tracking-[0.24em] text-blue-200/80 font-bold">OZ Rent A Plane</p>
-                        <h5 className="text-2xl md:text-3xl font-serif text-white">{TERMS_MODAL_TITLE}</h5>
-                        <p className="text-sm text-slate-400">{TERMS_MODAL_SUBTITLE}</p>
-                        <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3">
-                          <p className="text-sm text-amber-100 leading-relaxed">{TERMS_NOTICE}</p>
+                      <div className="pb-5 border-b border-[#152d5a]/10 space-y-3">
+                        <p className="text-[10px] uppercase tracking-[0.24em] text-[#1a4fd6]/80 font-bold">OZ Rent A Plane</p>
+                        <h5 className="text-2xl md:text-3xl font-serif text-[#152d5a]">{TERMS_MODAL_TITLE}</h5>
+                        <p className="text-sm text-[#4b6390]">{TERMS_MODAL_SUBTITLE}</p>
+                        <div className="rounded-lg border border-amber-200 bg-[#fff3cd] px-4 py-3">
+                          <p className="text-sm text-[#152d5a] leading-relaxed">{TERMS_NOTICE}</p>
                         </div>
-                        <p className="text-xs text-slate-500">Version: {TERMS_LAST_UPDATED}</p>
-                        <Link href={activeTerms.public_url} target="_blank" className="inline-flex items-center gap-2 rounded-full border border-white/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white/80 hover:text-white hover:border-white/40">
+                        <p className="text-xs text-[#4b6390]">Version: {TERMS_LAST_UPDATED}</p>
+                        <Link href={activeTerms.public_url} target="_blank" className="inline-flex items-center gap-2 rounded-full border border-[#152d5a]/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-[#152d5a] hover:bg-[#f0f6ff] hover:border-[#152d5a]/30">
                           Open official terms document
                         </Link>
                       </div>
                       {TERMS_SECTIONS.map((section) => (
                         <section key={`${section.number}-${section.title}`} className="space-y-2">
                           <div className="flex items-baseline gap-3">
-                            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-200/50">{section.number}</span>
-                            <h6 className="text-lg md:text-xl font-serif text-slate-100">{section.title}</h6>
+                            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#1a4fd6]/50">{section.number}</span>
+                            <h6 className="text-lg md:text-xl font-serif text-[#152d5a]">{section.title}</h6>
                           </div>
                           <div className="space-y-2 pl-6">
                             {section.blocks.map((block, idx) => (
                               block.type === 'paragraph' ? (
-                                <p key={idx} className="text-sm md:text-[15px] leading-7 text-slate-300">{block.text}</p>
+                                <p key={idx} className="text-sm md:text-[15px] leading-7 text-[#4b6390]">{block.text}</p>
                               ) : (
-                                <ul key={idx} className="list-disc list-outside ml-5 space-y-1 text-sm md:text-[15px] leading-7 text-slate-300">
+                                <ul key={idx} className="list-disc list-outside ml-5 space-y-1 text-sm md:text-[15px] leading-7 text-[#4b6390]">
                                   {block.items.map((item, itemIdx) => <li key={itemIdx}>{item}</li>)}
                                 </ul>
                               )
@@ -496,18 +496,18 @@ export default function BookingReadinessInlinePanel({
                           </div>
                         </section>
                       ))}
-                      <div className="pt-4 border-t border-white/10">
-                        <p className="text-sm md:text-[15px] font-semibold text-slate-100">{TERMS_END_TEXT}</p>
+                      <div className="pt-4 border-t border-[#152d5a]/10">
+                        <p className="text-sm md:text-[15px] font-semibold text-[#152d5a]">{TERMS_END_TEXT}</p>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className={`text-sm ${termsScrolledToEnd ? 'text-green-300' : 'text-amber-300'}`}>
+                <div className={`text-sm ${termsScrolledToEnd ? 'text-green-700' : 'text-amber-700'}`}>
                   {termsScrolledToEnd ? 'You have reached the end. You can now accept the terms.' : 'Scroll to the bottom to continue.'}
                 </div>
               </div>
-              <div className="sticky bottom-0 px-5 py-4 border-t border-white/[0.06] bg-[#0c1220] flex flex-col gap-3">
-                <label className={`flex items-start gap-3 rounded-lg border px-3 py-2 ${termsScrolledToEnd ? 'border-green-500/30 bg-green-500/5' : 'border-white/10 bg-white/[0.02]'}`}>
+              <div className="sticky bottom-0 px-5 py-4 border-t border-[#152d5a]/10 bg-white flex flex-col gap-3">
+                <label className={`flex items-start gap-3 rounded-lg border px-3 py-2 ${termsScrolledToEnd ? 'border-green-200 bg-green-50' : 'border-[#152d5a]/10 bg-[#f0f6ff]'}`}>
                   <input
                     type="checkbox"
                     checked={termsModalChecked}
@@ -516,13 +516,13 @@ export default function BookingReadinessInlinePanel({
                     className="mt-0.5 w-4 h-4 accent-blue-500 rounded cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                   />
                   <div className="space-y-1">
-                    <span className={`text-sm ${termsScrolledToEnd ? 'text-slate-200' : 'text-slate-400'}`}>
+                    <span className={`text-sm ${termsScrolledToEnd ? 'text-[#152d5a]' : 'text-[#4b6390]'}`}>
                       I have read and accept the Booking Terms and Conditions.
                     </span>
                   </div>
                 </label>
                 <div className="flex items-center justify-end gap-3">
-                  <button type="button" onClick={() => setTermsModalOpen(false)} className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 hover:text-white transition-colors">
+                  <button type="button" onClick={() => setTermsModalOpen(false)} className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.15em] text-[#4b6390] hover:text-[#152d5a] transition-colors">
                     Cancel
                   </button>
                   <button
@@ -541,12 +541,12 @@ export default function BookingReadinessInlinePanel({
                       })
                     }}
                     disabled={!termsScrolledToEnd || !termsModalChecked || isTermsPending}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
+                    className="px-4 py-2 bg-[#1a4fd6] hover:bg-[#1540a8] disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
                   >
                     {isTermsPending ? 'Saving…' : 'Accept terms'}
                   </button>
                 </div>
-                {termsError ? <p className="text-sm text-red-300">{termsError}</p> : null}
+                {termsError ? <p className="text-sm text-red-600">{termsError}</p> : null}
               </div>
             </div>
           </div>

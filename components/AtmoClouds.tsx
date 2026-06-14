@@ -72,7 +72,7 @@ const STANDARD_CLOUDS: CloudRuntimeDef[] = [
   // Cloud 1
   { shape: 'A', opacity: 0.15, top: '5%', duration: 45, delay: 0, width: 560, direction: 'ltr', startMode: 'edge' },
   // Cloud 2
-  { shape: 'C', opacity: 0.10, top: '18%', duration: 60, delay: -15, width: 420, direction: 'rtl', startMode: 'edge' },
+  { shape: 'C', opacity: 0.12, top: '18%', duration: 60, delay: -15, width: 420, direction: 'rtl', startMode: 'edge' },
   // Cloud 3
   { shape: 'E', opacity: 0.12, top: '28%', duration: 52, delay: -28, width: 520, direction: 'ltr', startMode: 'edge' },
   // Cloud 4
@@ -81,7 +81,7 @@ const STANDARD_CLOUDS: CloudRuntimeDef[] = [
 
 const MIRRORED_CLOUDS: CloudRuntimeDef[] = [
   { shape: 'A', opacity: 0.15, top: '10%', duration: 45, delay: 0, width: 560, direction: 'rtl', startMode: 'edge' },
-  { shape: 'C', opacity: 0.10, top: '22%', duration: 60, delay: -15, width: 420, direction: 'ltr', startMode: 'edge' },
+  { shape: 'C', opacity: 0.12, top: '22%', duration: 60, delay: -15, width: 420, direction: 'ltr', startMode: 'edge' },
   { shape: 'E', opacity: 0.12, top: '35%', duration: 52, delay: -28, width: 520, direction: 'rtl', startMode: 'edge' },
   { shape: 'B', opacity: 0.13, top: '15%', duration: 38, delay: -8, width: 320, direction: 'rtl', startMode: 'mid' },
 ]

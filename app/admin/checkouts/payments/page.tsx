@@ -87,6 +87,7 @@ export default async function CheckoutPaymentsPage({ searchParams }: { searchPar
   const outstanding = (invoices ?? []).filter((i) => ['payment_required', 'pending'].includes(i.status)).reduce((sum, i) => sum + (i.stripe_amount_due_cents ?? 0), 0)
   const waived = (invoices ?? []).filter((i) => i.status === 'waived').reduce((sum, i) => sum + (i.stripe_amount_due_cents ?? 0), 0)
   const manualReviewCount = (manualSubs ?? []).filter((s) => s.status === 'pending_review').length
+  const pendingSubmissionsCount = (manualSubs ?? []).filter((s) => s.status === 'pending_review').length
 
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: 'all', label: 'All' },
@@ -123,7 +124,28 @@ export default async function CheckoutPaymentsPage({ searchParams }: { searchPar
         </div>
 
         <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 flex flex-wrap gap-2 shadow-[var(--admin-shadow-panel)]">
-          {tabs.map((t) => <TabLink key={t.key} active={tab === t.key} href={`/admin/checkouts/payments?tab=${t.key}`} label={t.label} />)}
+          {tabs.map((t) => (
+            t.key === 'manual_review' ? (
+              <Link
+                key={t.key}
+                href={`/admin/checkouts/payments?tab=${t.key}`}
+                className={`px-3 py-2 rounded-lg text-sm border transition-colors inline-flex items-center gap-1.5 ${
+                  tab === t.key
+                    ? 'bg-[#1a4a7a] border-[#1a4a7a] text-white font-medium'
+                    : 'bg-white border-[rgba(12,35,64,0.18)] text-[#3d5a80] hover:text-[#0C2340] hover:bg-[#f6f9fc]'
+                }`}
+              >
+                {t.label}
+                {pendingSubmissionsCount > 0 && (
+                  <span className="ml-1.5 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                    {pendingSubmissionsCount}
+                  </span>
+                )}
+              </Link>
+            ) : (
+              <TabLink key={t.key} active={tab === t.key} href={`/admin/checkouts/payments?tab=${t.key}`} label={t.label} />
+            )
+          ))}
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] shadow-[var(--admin-shadow-panel)]">

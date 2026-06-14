@@ -21,7 +21,10 @@ type Props = {
   backgroundImage?: string
   backgroundPosition?: string
   statusPill?: StatusPill
+  backHref?: string
+  backLabel?: string
   cta?: CtaButton
+  secondaryCta?: { label: string; href: string }
 }
 
 const PILL_CLASSES: Record<StatusPillColor, string> = {
@@ -40,7 +43,7 @@ const DOT_CLASSES: Record<StatusPillColor, string> = {
   slate: 'bg-slate-500',
 }
 
-export default function PortalPageHero({ eyebrow, title, subtitle, backgroundImage, backgroundPosition = 'top right', statusPill, cta }: Props) {
+export default function PortalPageHero({ eyebrow, title, subtitle, backgroundImage, backgroundPosition = 'top right', statusPill, backHref, backLabel, cta, secondaryCta }: Props) {
   return (
     <section
       className="relative overflow-hidden -mt-6"
@@ -94,13 +97,22 @@ export default function PortalPageHero({ eyebrow, title, subtitle, backgroundIma
       {/* Content */}
       {backgroundImage ? (
         /* Light directional scrim - keeps left-side text readable without killing the photo */
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(4,10,28,0.72) 0%, rgba(4,10,28,0.45) 45%, rgba(4,10,28,0.10) 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(8,20,50,0.72) 0%, rgba(8,20,50,0.45) 55%, rgba(8,20,50,0.15) 100%)' }} />
       ) : (
         /* Heavy overlay for gradient-only fallback - no photo underneath */
         <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(8,20,50,0.88) 0%, rgba(8,20,50,0.70) 50%, rgba(8,20,50,0.25) 100%)' }} />
       )}
 
       <div className="relative z-10 max-w-[1440px] mx-auto px-4 md:px-5 lg:px-6 py-16 md:py-20">
+        {backHref && (
+          <Link
+            href={backHref}
+            className="inline-flex items-center gap-1.5 text-white/70 hover:text-white text-[13px] font-medium mb-4 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[15px]">arrow_back</span>
+            {backLabel ?? 'Back'}
+          </Link>
+        )}
         {eyebrow && (
           <div className="text-[11px] font-semibold tracking-[0.2em] uppercase text-[#f59e0b] mb-4 font-sans">
             {eyebrow}
@@ -125,16 +137,29 @@ export default function PortalPageHero({ eyebrow, title, subtitle, backgroundIma
           </div>
         )}
 
-        {cta && (
-          <Link
-            href={cta.href}
-            className="mt-5 inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full text-[11px] font-bold uppercase tracking-widest transition-colors shadow-[0_0_24px_rgba(37,99,235,0.35)]"
-          >
-            {cta.icon && (
-              <span className="material-symbols-outlined text-sm">{cta.icon}</span>
+        {(cta || secondaryCta) && (
+          <div className="mt-5 flex flex-row gap-3 flex-wrap">
+            {cta && (
+              <Link
+                href={cta.href}
+                className="inline-flex items-center gap-2 bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e] font-bold text-[14px] px-6 py-3 rounded-xl transition-colors"
+              >
+                {cta.icon && (
+                  <span className="material-symbols-outlined text-sm">{cta.icon}</span>
+                )}
+                {cta.label}
+              </Link>
             )}
-            {cta.label}
-          </Link>
+            {secondaryCta && (
+              <Link
+                href={secondaryCta.href}
+                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-white/40 text-white text-[14px] font-semibold hover:bg-white/10 transition-colors"
+              >
+                {secondaryCta.label}
+                <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+              </Link>
+            )}
+          </div>
         )}
       </div>
     </section>

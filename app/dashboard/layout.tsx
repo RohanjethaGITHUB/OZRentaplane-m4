@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import AtmoClouds from '@/components/AtmoClouds'
 import CustomerPortalNav from '@/components/customer/CustomerPortalNav'
 import CustomerDashboardBackgroundOverlay from './CustomerDashboardBackgroundOverlay'
-import type { PilotClearanceStatus } from '@/lib/supabase/types'
 
 export default async function CustomerPortalLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -25,20 +25,23 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
     ''
   const isChangePasswordRoute = requestPath.startsWith('/dashboard/change-password')
   if (profile?.must_change_password && !isChangePasswordRoute) redirect('/dashboard/change-password')
-  const clearanceStatus = (profile?.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
-  const isClearedToFly = clearanceStatus === 'cleared_to_fly'
   const firstName = (profile as any)?.first_name ?? user.email?.split('@')[0] ?? 'Pilot'
   const email = user.email ?? ''
 
   return (
     <>
-      <CustomerPortalNav firstName={firstName} email={email} hideCheckout={isClearedToFly} />
+      <CustomerPortalNav firstName={firstName} email={email} hideCheckout={true} />
       <div
-        className="relative min-h-screen pt-[64px] text-deep-ink dashboard-theme"
+        className="relative min-h-screen pt-[64px] text-deep-ink dashboard-theme overflow-x-hidden"
         style={{
           background: 'linear-gradient(180deg, #cfe3f5 0%, #daeaf8 60%, #e4f0fb 100%)',
         }}
       >
+        {/* Atmospheric clouds — gutter decoration, behind all content */}
+        <div className="fixed inset-0 pointer-events-none z-0" aria-hidden="true">
+          <AtmoClouds direction="ltr" density="light" />
+          <AtmoClouds direction="rtl" density="light" />
+        </div>
         <div
           className="pointer-events-none fixed inset-0 z-0"
           style={{

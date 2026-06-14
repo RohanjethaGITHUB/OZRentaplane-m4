@@ -106,6 +106,8 @@ type BookingRow = {
   estimated_amount:  number | null
   pic_name:          string | null
   created_at:        string
+  aircraft_name?:    string | null
+  aircraft_registration?: string | null
   aircraft:          { registration: string } | null
   flight_records?:   { status: string | null; submitted_at: string | null }[] | null
 }
@@ -339,7 +341,14 @@ export default async function CustomerBookingsPage() {
   }))
   const checkoutRequests = rows.filter(b => b.booking_type === 'checkout')
   const upcomingAircraft = rows.filter(b => b.booking_type !== 'checkout' && ACTIVE_STATUSES.includes(b.status))
-  const completedFlights = rows.filter(b => b.booking_type !== 'checkout' && !ACTIVE_STATUSES.includes(b.status))
+  const completedFlights = rows.filter(b => {
+    if (b.booking_type === 'checkout') {
+      // Include checkout flights that are fully done (not active/in-progress)
+      const checkoutDoneStatuses = ['completed', 'checkout_payment_required', 'awaiting_outcome', 'checkout_completed_under_review', 'additional_checkout_required', 'not_currently_eligible', 'checkout_reschedule_required']
+      return checkoutDoneStatuses.includes(b.status)
+    }
+    return !ACTIVE_STATUSES.includes(b.status)
+  })
 
   const completedCheckoutIds = checkoutRequests.filter(b => b.status === 'completed').map(b => b.id)
   const checkoutOutcomeMap: Record<string, string> = {}
@@ -397,6 +406,7 @@ export default async function CustomerBookingsPage() {
       isAwaitingManualPayment = displayState === 'awaiting_manual_payment_confirmation'
     }
   }
+  const paymentSubmittedAwaitingConfirmation = isAwaitingManualPayment
 
   // ── Derived stat values ───────────────────────────────────────────────────
   const statCards = !isCleared ? [
@@ -411,258 +421,559 @@ export default async function CustomerBookingsPage() {
     { label: 'Total Flight Hours',    value: rows.filter(b => b.booking_type !== 'checkout' && b.status === 'completed').reduce((sum, b) => sum + (b.estimated_hours ?? 0), 0).toFixed(1), icon: 'schedule' },
   ]
 
+  const allUpcoming = [
+    ...(checkoutRequests?.filter((r) => ['checkout_requested', 'checkout_confirmed'].includes(r.status)) ?? []),
+    ...(upcomingAircraft ?? []),
+  ].sort((a, b) => {
+    const dateA = a.scheduled_start ?? ''
+    const dateB = b.scheduled_start ?? ''
+    return dateA.localeCompare(dateB)
+  })
+
   return (
     <>
       <BookingsViewedTracker />
 
-      {/* ── Hero — matches all other portal pages ── */}
       <PortalPageHero
         eyebrow="Flight Records"
         title="My Bookings"
         subtitle="Manage your bookings, track flight status, and access everything you need in one place."
-        backgroundImage="/customer-my-booking-bg.png"
+        backgroundImage="/CustomerDashboard/CustomerDashboard-bookingHero.png"
         backgroundPosition="center"
-        {...(isCleared ? { cta: { label: 'Book New Flight', href: '/dashboard/bookings/new', icon: 'flight_takeoff' } } : {})}
+        {...(isCleared
+          ? { cta: { label: 'Book New Flight', href: '/dashboard/bookings/new', icon: 'flight_takeoff' } }
+          : { cta: { label: 'Book a Flight', href: '/dashboard/checkout', icon: 'flight_takeoff' } })}
       />
 
-      <div className="max-w-[1440px] mx-auto px-3 md:px-4 lg:px-6 py-8 md:py-10">
-
-        {/* ── Stat strip ─────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {statCards.map(s => (
-            <div
-              key={s.label}
-              className="bg-white border border-[#152d5a]/10 rounded-2xl p-5 flex items-center gap-3.5"
-              style={{ boxShadow: '0 2px 20px rgba(2,10,22,0.06)' }}
-            >
-              <div className="w-11 h-11 rounded-full bg-[#f0f4ff] border border-[#152d5a]/8 flex items-center justify-center flex-shrink-0">
-                <span className="material-symbols-outlined text-[#1a4fd6] text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>{s.icon}</span>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[28px] font-light text-[#152d5a] leading-none tabular-nums">{s.value}</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#4b6390] mt-1 leading-tight">{s.label}</p>
-              </div>
-            </div>
-          ))}
+      <div className="max-w-[1320px] mx-auto pt-0 pb-16">
+        <div className="relative z-10 -mt-16 mb-8 px-0">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              {[
+                { icon: 'person_check', value: checkoutRequests.length, label: 'Checkout Requests' },
+                {
+                  icon: 'hourglass_empty',
+                  value: rows.filter((r) => ['checkout_requested', 'pending_confirmation', 'checkout_completed_under_review'].includes(r.status)).length,
+                  label: 'Pending Review',
+                },
+                { icon: 'calendar_month', value: upcomingAircraft.length, label: 'Upcoming Flights' },
+                {
+                  icon: 'check_circle',
+                  value: rows.filter((r) => r.booking_type !== 'checkout' && r.status === 'completed').length,
+                  label: 'Completed Flights',
+                },
+                {
+                  icon: 'schedule',
+                  value: `${rows.filter((r) => r.booking_type !== 'checkout' && r.status === 'completed').reduce((acc, r) => acc + (r.estimated_hours ?? 0), 0).toFixed(1)}h`,
+                  label: 'Total Flight Hours',
+                },
+              ].map((stat) => (
+                <div key={stat.label} className="bg-[#152d5a] rounded-2xl px-6 py-6 flex items-center gap-4 min-h-[96px]">
+                  <div className="w-12 h-12 rounded-full border-2 border-white/20 flex items-center justify-center flex-shrink-0">
+                    <span className="material-symbols-outlined text-[22px] text-white/70">{stat.icon}</span>
+                  </div>
+                  <div>
+                    <p className="text-[36px] font-bold text-white leading-none tracking-tight">{stat.value}</p>
+                    <p className="text-[10px] text-white/50 uppercase tracking-[0.12em] mt-2">{stat.label}</p>
+                  </div>
+                </div>
+              ))}
+          </div>
         </div>
 
-        {/* ── Action Required banner ──────────────────────────────────── */}
-        {!isCleared && (
-          <ClearanceGateBanner
-            clearanceStatus={clearanceStatus}
-            checkoutBooking={checkoutBooking}
-            isAwaitingManualPayment={isAwaitingManualPayment}
-            hasPendingReschedule={hasPendingReschedule}
-            latestRescheduleStatus={latestRescheduleStatus}
-          />
-        )}
+        {/* Action Required — always visible */}
+        {(() => {
+          let icon = 'warning'
+          let iconBg = 'bg-amber-100'
+          let iconColor = 'text-amber-600'
+          let label = 'ACTION REQUIRED'
+          let labelColor = 'text-amber-600'
+          let heading = ''
+          let body = ''
+          let ctaLabel = ''
+          let ctaHref = ''
+          let ctaStyle = 'bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e]'
+          let cardStyle = 'bg-amber-50 border border-amber-200 border-l-4 border-l-amber-500 rounded-2xl p-5 mb-6'
 
-        {/* ── Checkout Requests (pre-cleared only) ───────────────────── */}
-        {!isCleared && checkoutRequests.length > 0 && (
-          <section className="mb-8">
-            <div className="flex items-center gap-2.5 mb-5">
-              <span className="material-symbols-outlined text-[#1a4fd6]/60 text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>how_to_reg</span>
-              <h2 className="text-[13px] font-bold uppercase tracking-widest text-[#152d5a]">Checkout Requests</h2>
-            </div>
-            <div className="space-y-3">
-              {checkoutRequests.map(b => {
-                const aircraft = Array.isArray(b.aircraft) ? b.aircraft[0] : b.aircraft
-                const cfg = STATUS_CFG[b.status]
-                return (
+          const status = clearanceStatus
+          const hasUpcoming = allUpcoming.length > 0
+
+          if (status === 'cleared_to_fly' && hasUpcoming) {
+            icon = 'check_circle'
+            iconBg = 'bg-green-100'
+            iconColor = 'text-green-600'
+            label = 'ALL CLEAR'
+            labelColor = 'text-green-600'
+            heading = "You're ready to fly"
+            body = 'Your upcoming flight is confirmed. Check your booking details and we\'ll see you on the day.'
+            ctaLabel = 'View Booking'
+            ctaHref = `/dashboard/bookings/${allUpcoming[0]?.id}`
+            ctaStyle = 'bg-[#152d5a] hover:bg-[#1a3a6e] text-white'
+            cardStyle = 'bg-white border border-green-200 border-l-4 border-l-green-500 rounded-2xl p-5 mb-6'
+          } else if (status === 'cleared_to_fly' && !hasUpcoming) {
+            icon = 'flight_takeoff'
+            iconBg = 'bg-blue-100'
+            iconColor = 'text-[#1a4fd6]'
+            label = 'NEXT STEP'
+            labelColor = 'text-[#1a4fd6]'
+            heading = 'Ready to book your next flight?'
+            body = 'Your pilot clearance is active. Browse available times and book your next rental flight.'
+            ctaLabel = 'Book a Flight'
+            ctaHref = '/dashboard/bookings/new'
+            ctaStyle = 'bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e]'
+            cardStyle = 'bg-white border border-blue-200 border-l-4 border-l-[#1a4fd6] rounded-2xl p-5 mb-6'
+          } else if (status === 'checkout_confirmed') {
+            icon = 'event_available'
+            iconBg = 'bg-blue-100'
+            iconColor = 'text-[#1a4fd6]'
+            label = 'UPCOMING'
+            labelColor = 'text-[#1a4fd6]'
+            heading = 'Checkout Flight Confirmed'
+            body = 'Your checkout flight has been confirmed. Once our team approves it, your aircraft bookings will unlock.'
+            ctaLabel = 'View Checkout'
+            ctaHref = '/dashboard/checkout'
+            ctaStyle = 'bg-[#152d5a] hover:bg-[#1a3a6e] text-white'
+            cardStyle = 'bg-white border border-blue-200 border-l-4 border-l-[#1a4fd6] rounded-2xl p-5 mb-6'
+          } else if (status === 'checkout_requested') {
+            icon = 'hourglass_empty'
+            iconBg = 'bg-blue-100'
+            iconColor = 'text-[#1a4fd6]'
+            label = 'IN REVIEW'
+            labelColor = 'text-[#1a4fd6]'
+            heading = 'Checkout Request Under Review'
+            body = 'Our team is reviewing your checkout request. We\'ll be in touch to confirm your time or suggest an alternative.'
+            ctaLabel = 'View Status'
+            ctaHref = '/dashboard/checkout'
+            ctaStyle = 'bg-[#152d5a] hover:bg-[#1a3a6e] text-white'
+            cardStyle = 'bg-white border border-blue-200 border-l-4 border-l-[#1a4fd6] rounded-2xl p-5 mb-6'
+          } else if (status === 'checkout_payment_required') {
+            if (paymentSubmittedAwaitingConfirmation) {
+              icon = 'hourglass_empty'
+              iconBg = 'bg-blue-100'
+              iconColor = 'text-blue-600'
+              label = 'AWAITING CONFIRMATION'
+              labelColor = 'text-blue-600'
+              heading = 'Payment Proof Submitted'
+              body = 'Your payment proof has been submitted. Our team will review it and update your status once confirmed.'
+              ctaLabel = 'View Details'
+              ctaHref = allUpcoming[0]?.id ? `/dashboard/bookings/${allUpcoming[0].id}` : '/dashboard/bookings'
+              ctaStyle = 'bg-[#152d5a] hover:bg-[#1a3a6e] text-white'
+            } else {
+              icon = 'payments'
+              iconBg = 'bg-amber-100'
+              iconColor = 'text-amber-600'
+              label = 'ACTION REQUIRED'
+              labelColor = 'text-amber-600'
+              heading = 'Checkout Payment Required'
+              body = 'Your checkout flight is complete. Please pay your invoice to unlock aircraft bookings.'
+              ctaLabel = 'Pay Invoice'
+              ctaHref = '/dashboard/checkout'
+              ctaStyle = 'bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e]'
+            }
+          } else if (status === 'checkout_completed_under_review') {
+            icon = 'manage_search'
+            iconBg = 'bg-blue-100'
+            iconColor = 'text-[#1a4fd6]'
+            label = 'AWAITING OUTCOME'
+            labelColor = 'text-[#1a4fd6]'
+            heading = 'Checkout Outcome Under Review'
+            body = 'Your checkout flight has been completed and is under review by our flight operations team.'
+            ctaLabel = 'View Details'
+            ctaHref = '/dashboard/checkout'
+            ctaStyle = 'bg-[#152d5a] hover:bg-[#1a3a6e] text-white'
+            cardStyle = 'bg-white border border-blue-200 border-l-4 border-l-[#1a4fd6] rounded-2xl p-5 flex items-start gap-4 mb-6'
+          } else {
+            heading = 'Complete Your Checkout to Start Flying'
+            body = 'A one-time checkout flight is required before you can hire an aircraft solo. Upload your documents and book your checkout to get started.'
+            ctaLabel = 'Book a Flight'
+            ctaHref = '/dashboard/checkout'
+          }
+
+          return (
+            <div className={cardStyle}>
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full ${iconBg} flex items-center justify-center flex-shrink-0`}>
+                    <span className={`material-symbols-outlined text-[20px] ${iconColor}`}>{icon}</span>
+                  </div>
+                  <p className={`text-[10px] font-bold tracking-[0.15em] uppercase ${labelColor}`}>{label}</p>
+                </div>
+                {ctaLabel && (
                   <Link
-                    key={b.id}
-                    href={`/dashboard/bookings/${b.id}`}
-                    className="block bg-white rounded-2xl border border-[#152d5a]/10 p-5 sm:p-6 hover:border-[#152d5a]/20 transition-all group"
-                    style={{ boxShadow: '0 4px 24px rgba(2,10,22,0.06)' }}
+                    href={ctaHref}
+                    className={`flex-shrink-0 inline-flex items-center gap-1.5 ${ctaStyle} font-semibold text-[13px] px-4 py-2.5 rounded-xl transition-colors whitespace-nowrap`}
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-4 min-w-0">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${cfg?.bg ?? 'bg-slate-50'} border ${cfg?.border ?? 'border-slate-200'}`}>
-                          <span className={`material-symbols-outlined text-[18px] ${cfg?.color ?? 'text-slate-600'}`} style={{ fontVariationSettings: "'wght' 300" }}>{cfg?.icon ?? 'how_to_reg'}</span>
+                    {ctaLabel}
+                    <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+                  </Link>
+                )}
+              </div>
+              <div className="pl-0">
+                <p className="text-[17px] font-bold text-[#152d5a] leading-snug mb-1">{heading}</p>
+                <p className="text-[13px] text-[#4b6390] leading-relaxed">{body}</p>
+              </div>
+            </div>
+          )
+        })()}
+
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+          <div className="flex-1 min-w-0 flex flex-col gap-6">
+            <section className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-[#1a4fd6] text-[18px]">flight_takeoff</span>
+                  <h2 className="text-[13px] font-semibold text-[#152d5a] tracking-[0.05em] uppercase">
+                    Upcoming Flights
+                  </h2>
+                </div>
+                <Link
+                  href="/dashboard/bookings"
+                  className="text-[12px] font-semibold text-[#1a4fd6] hover:underline flex items-center gap-1"
+                >
+                  View all <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+                </Link>
+              </div>
+
+              {(() => {
+                return allUpcoming.length === 0 ? (
+                  <div className="bg-white rounded-2xl border border-[#152d5a]/10 p-12 text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-[#f0f4ff] flex items-center justify-center mx-auto mb-4">
+                      <span className="material-symbols-outlined text-3xl text-[#1a4fd6]/40" style={{ fontVariationSettings: "'wght' 100" }}>flight_land</span>
+                    </div>
+                    <h3 className="text-base font-semibold text-[#152d5a] mb-2">No upcoming flights</h3>
+                    <p className="text-[#6b7ea8] text-[13px] mb-6 max-w-sm mx-auto leading-relaxed">
+                      {isCleared
+                        ? 'Request your first aircraft booking and our team will confirm it for you.'
+                        : 'Aircraft bookings become available once your checkout flight is completed and you are cleared to fly.'}
+                    </p>
+                    {isCleared && (
+                      <Link href="/dashboard/bookings/new" className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#e8a020] hover:bg-[#d4911a] text-white rounded-xl text-sm font-semibold transition-colors">
+                        <span className="material-symbols-outlined text-[16px]">flight_takeoff</span>
+                        Book a Flight
+                      </Link>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {allUpcoming.map((booking) => {
+                      const aircraft = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
+                      return (
+                        <div key={booking.id} className="bg-white border border-[#152d5a]/10 rounded-2xl overflow-hidden flex">
+                          <div
+                            className="w-[220px] min-h-[160px] flex-shrink-0 bg-cover bg-center hidden sm:block"
+                            style={{ backgroundImage: `url('/Cessna-172.webp')` }}
+                          />
+                          <div className="flex-1 min-w-0 p-5 flex flex-col justify-between gap-3">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <span className={`text-[11px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full ${
+                                booking.booking_type === 'checkout'
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                  : 'bg-blue-50 text-blue-700 border border-blue-200'
+                              }`}>
+                                {booking.booking_type === 'checkout' ? 'Checkout Flight' : 'Rental Booking'}
+                              </span>
+                              <StatusBadge status={booking.status} />
+                            </div>
+                            <div>
+                              <p className="text-[18px] font-semibold text-[#152d5a] leading-snug">
+                                {(booking.aircraft_name ?? 'Cessna 172N').replace(/Cessna 172(?!N)/g, 'Cessna 172N')}
+                              </p>
+                              <p className="text-[12px] text-[#4b6390] mt-0.5">{booking.aircraft_registration ?? aircraft?.registration ?? 'VH-KZG'}</p>
+                            </div>
+                            <div className="flex items-center gap-3 text-[12px] text-[#4b6390] flex-wrap">
+                              {booking.scheduled_start && (
+                                <span className="flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-[13px]">calendar_today</span>
+                                  {formatDateFromISO(booking.scheduled_start)}
+                                </span>
+                              )}
+                              {booking.scheduled_start && (
+                                <>
+                                  <span className="text-[#152d5a]/20">·</span>
+                                  <span className="flex items-center gap-1">
+                                    <span className="material-symbols-outlined text-[13px]">schedule</span>
+                                    {formatSydTime(booking.scheduled_start)} – {formatSydTime(booking.scheduled_end)}
+                                  </span>
+                                </>
+                              )}
+                              {booking.estimated_hours && (
+                                <>
+                                  <span className="text-[#152d5a]/20">·</span>
+                                  <span className="flex items-center gap-1">
+                                    <span className="material-symbols-outlined text-[13px]">timer</span>
+                                    {booking.estimated_hours} hrs
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-2 p-4 justify-center border-l border-[#152d5a]/[0.07] w-[180px] flex-shrink-0">
+                            <Link
+                              href={`/dashboard/bookings/${booking.id}`}
+                              className="flex items-center justify-between whitespace-nowrap bg-[#152d5a] hover:bg-[#1a3a6e] text-white text-[13px] font-bold px-4 py-2.5 rounded-xl transition-colors"
+                            >
+                              VIEW DETAILS
+                              <span className="material-symbols-outlined text-[16px] ml-2">chevron_right</span>
+                            </Link>
+                            <Link
+                              href={`/dashboard/bookings/${booking.id}`}
+                              className="flex items-center justify-center whitespace-nowrap border border-[#152d5a]/20 text-[#152d5a] hover:bg-[#f0f6ff] text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors"
+                            >
+                              MODIFY BOOKING
+                            </Link>
+                            <button className="flex items-center justify-center whitespace-nowrap border border-red-200 text-red-500 hover:bg-red-50 text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors">
+                              CANCEL REQUEST
+                            </button>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-[15px] font-semibold text-[#152d5a]">Checkout Flight</p>
-                            {b.booking_reference && (
-                              <span className="text-[10px] font-mono text-[#4b6390] bg-[#f0f4ff] border border-[#152d5a]/10 px-1.5 py-0.5 rounded">{b.booking_reference}</span>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </section>
+
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px] text-[#1a4fd6]">flight_land</span>
+                  <span className="text-[13px] font-semibold text-[#152d5a] tracking-[0.05em] uppercase">Flight History</span>
+                </div>
+              </div>
+
+              {completedFlights.length > 0 ? (
+                <div className="flex flex-col gap-4">
+                  {completedFlights.map((booking) => {
+                    const aircraft = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
+                    const checkoutOutcome = booking.booking_type === 'checkout' ? checkoutOutcomeMap[booking.id] ?? null : null
+                    return (
+                      <div key={booking.id} className="bg-white border border-[#152d5a]/10 rounded-2xl overflow-hidden flex">
+                        <div
+                          className="w-[220px] min-h-[160px] flex-shrink-0 bg-cover bg-center hidden sm:block"
+                          style={{ backgroundImage: `url('/Cessna-172.webp')` }}
+                        />
+                        <div className="flex-1 min-w-0 p-5 flex flex-col justify-between gap-3">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className={`text-[11px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full ${
+                              booking.booking_type === 'checkout'
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                : 'bg-[#f0f6ff] text-[#4b6390] border border-[#152d5a]/10'
+                            }`}>
+                              {booking.booking_type === 'checkout' ? 'Checkout Flight' : 'Rental Booking'}
+                            </span>
+                            <StatusBadge status={booking.status} />
+                          </div>
+                          <div>
+                            <p className="text-[18px] font-semibold text-[#152d5a] leading-snug">
+                              {(booking.aircraft_name ?? 'Cessna 172N').replace(/Cessna 172(?!N)/g, 'Cessna 172N')}
+                            </p>
+                            <p className="text-[12px] text-[#4b6390] mt-0.5">{booking.aircraft_registration ?? aircraft?.registration ?? 'VH-KZG'}</p>
+                            {booking.booking_type === 'checkout' && checkoutOutcome && (
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="material-symbols-outlined text-[13px] text-[#4b6390]">assignment_turned_in</span>
+                                <span className={`text-[12px] font-semibold ${
+                                  checkoutOutcome === 'cleared_to_fly'
+                                    ? 'text-green-600'
+                                    : checkoutOutcome === 'additional_checkout_required' || checkoutOutcome === 'not_currently_eligible'
+                                    ? 'text-red-500'
+                                    : 'text-amber-600'
+                                }`}>
+                                  {checkoutOutcome === 'cleared_to_fly' ? 'Outcome: Cleared to fly' :
+                                   checkoutOutcome === 'additional_checkout_required' ? 'Outcome: Additional checkout required' :
+                                   checkoutOutcome === 'not_currently_eligible' ? 'Outcome: Not currently eligible' :
+                                   checkoutOutcome === 'checkout_reschedule_required' ? 'Outcome: Reschedule required' :
+                                   `Outcome: ${checkoutOutcome.replace(/_/g, ' ')}`}
+                                </span>
+                              </div>
                             )}
                           </div>
-                          <p className="text-[12px] text-[#4b6390] mt-1">Cessna 172N · {aircraft?.registration ?? 'VH-KZG'}</p>
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
-                            <div className="flex items-center gap-1.5">
-                              <span className="material-symbols-outlined text-[#94a3b8] text-[13px]">calendar_today</span>
-                              <span className="text-[12px] text-[#4b6390]">{formatDateFromISO(b.scheduled_start)}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="material-symbols-outlined text-[#94a3b8] text-[13px]">schedule</span>
-                              <span className="text-[12px] text-[#4b6390] tabular-nums">{formatSydTime(b.scheduled_start)} – {formatSydTime(b.scheduled_end)}</span>
-                            </div>
+                          <div className="flex items-center gap-3 text-[12px] text-[#4b6390] flex-wrap">
+                            {booking.scheduled_start && (
+                              <span className="flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[13px]">calendar_today</span>
+                                {new Date(booking.scheduled_start).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </span>
+                            )}
+                            {booking.scheduled_start && booking.scheduled_end && (
+                              <>
+                                <span className="text-[#152d5a]/20">•</span>
+                                <span className="flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-[13px]">schedule</span>
+                                  {new Date(booking.scheduled_start).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                  {' – '}
+                                  {new Date(booking.scheduled_end).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                </span>
+                              </>
+                            )}
+                            {booking.estimated_hours && (
+                              <>
+                                <span className="text-[#152d5a]/20">•</span>
+                                <span className="flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-[13px]">timer</span>
+                                  {booking.estimated_hours} hrs
+                                </span>
+                              </>
+                            )}
                           </div>
                         </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-3 flex-shrink-0">
-                        <StatusBadge status={b.status} bookingType={b.booking_type} checkoutOutcome={checkoutOutcomeMap[b.id]} isAwaitingManualPayment={b.status === 'checkout_payment_required' ? isAwaitingManualPayment : undefined} />
-                        <div className="w-8 h-8 rounded-full border border-[#152d5a]/10 bg-[#f0f4ff] flex items-center justify-center group-hover:border-[#1a4fd6]/30 group-hover:bg-[#1a4fd6]/10 transition-all">
-                          <span className="material-symbols-outlined text-[#64748b] text-[14px] group-hover:text-[#1a4fd6] transition-colors">arrow_forward</span>
+                        <div className="flex flex-col gap-2 p-4 justify-center border-l border-[#152d5a]/[0.07] w-[180px] flex-shrink-0">
+                          <Link
+                            href={`/dashboard/bookings/${booking.id}`}
+                            className="flex items-center justify-between whitespace-nowrap bg-[#152d5a] hover:bg-[#1a3a6e] text-white text-[13px] font-bold px-4 py-2.5 rounded-xl transition-colors"
+                          >
+                            VIEW DETAILS
+                            <span className="material-symbols-outlined text-[16px] ml-2">chevron_right</span>
+                          </Link>
+                          {booking.booking_type !== 'checkout' && (
+                            <>
+                              <Link
+                                href={`/dashboard/bookings/${booking.id}`}
+                                className="flex items-center justify-center whitespace-nowrap border border-[#152d5a]/20 text-[#152d5a] hover:bg-[#f0f6ff] text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors"
+                              >
+                                DOWNLOAD INVOICE
+                              </Link>
+                              <Link
+                                href={`/dashboard/bookings/${booking.id}`}
+                                className="flex items-center justify-center whitespace-nowrap border border-[#152d5a]/20 text-[#152d5a] hover:bg-[#f0f6ff] text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors"
+                              >
+                                DOWNLOAD RECEIPT
+                              </Link>
+                            </>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  </Link>
-                )
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* ── Upcoming Flights ────────────────────────────────────────── */}
-        <section className="mb-8">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-2.5">
-              <span className="material-symbols-outlined text-[#1a4fd6]/60 text-[20px]" style={{ fontVariationSettings: "'wght' 300" }}>flight_takeoff</span>
-              <h2 className="text-[13px] font-bold uppercase tracking-widest text-[#152d5a]">
-                {isCleared ? 'Upcoming Flights' : 'Upcoming Aircraft Bookings'}
-              </h2>
-            </div>
-            {isCleared && (
-              <Link
-                href="/dashboard/bookings/new"
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#e8a020] hover:bg-[#d4911a] text-white rounded-xl text-[12px] font-semibold transition-colors"
-              >
-                <span className="material-symbols-outlined text-[16px]">add</span>
-                New Booking
-              </Link>
-            )}
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-8 flex flex-col items-center gap-4 text-center">
+                  <div className="w-14 h-14 rounded-full bg-[#f0f6ff] flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[28px] text-[#1a4fd6]">flight_land</span>
+                  </div>
+                  <div>
+                    <p className="text-[16px] font-semibold text-[#152d5a]">No flight history yet</p>
+                    <p className="text-[13px] text-[#4b6390] mt-1 max-w-[320px]">
+                      {clearanceStatus === 'cleared_to_fly'
+                        ? 'Your completed flights will appear here after each booking.'
+                        : 'Complete your checkout flight to start building your flight history.'}
+                    </p>
+                  </div>
+                  {clearanceStatus !== 'cleared_to_fly' && (
+                    <Link
+                      href="/dashboard/bookings/new"
+                      className="inline-flex items-center gap-2 bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e] font-semibold text-[13px] px-5 py-2.5 rounded-xl transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">flight_takeoff</span>
+                      Get Started
+                    </Link>
+                  )}
+                </div>
+              )}
+            </section>
           </div>
 
-          {upcomingAircraft.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-[#152d5a]/10 p-12 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-[#f0f4ff] flex items-center justify-center mx-auto mb-4">
-                <span className="material-symbols-outlined text-3xl text-[#1a4fd6]/40" style={{ fontVariationSettings: "'wght' 100" }}>flight_land</span>
-              </div>
-              <h3 className="text-base font-semibold text-[#152d5a] mb-2">No upcoming flights</h3>
-              <p className="text-[#6b7ea8] text-[13px] mb-6 max-w-sm mx-auto leading-relaxed">
-                {isCleared
-                  ? 'Request your first aircraft booking and our team will confirm it for you.'
-                  : 'Aircraft bookings become available once your checkout flight is completed and you are cleared to fly.'}
-              </p>
-              {isCleared && (
-                <Link href="/dashboard/bookings/new" className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#e8a020] hover:bg-[#d4911a] text-white rounded-xl text-sm font-semibold transition-colors">
-                  <span className="material-symbols-outlined text-[16px]">flight_takeoff</span>
-                  Book a Flight
-                </Link>
-              )}
-            </div>
-          ) : (
-            <div className="bg-white rounded-2xl border border-[#152d5a]/10 overflow-hidden" style={{ boxShadow: '0 4px 24px rgba(2,10,22,0.06)' }}>
-              {upcomingAircraft.map((b, i) => {
-                const aircraft = Array.isArray(b.aircraft) ? b.aircraft[0] : b.aircraft
-                return (
+          <div className="w-full lg:w-[300px] flex-shrink-0 flex flex-col gap-4">
+            {clearanceStatus === 'checkout_payment_required' ? (
+              paymentSubmittedAwaitingConfirmation ? (
+                <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="material-symbols-outlined text-[16px] text-blue-500">hourglass_empty</span>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#4b6390]">Payment Status</span>
+                  </div>
+                  <p className="text-[15px] font-semibold text-[#1a4fd6]">Payment proof submitted</p>
+                  <p className="text-[12px] text-[#4b6390] mt-1">Our team is reviewing your payment. We'll confirm within 2–24 hours.</p>
+                </div>
+              ) : (
+                <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="material-symbols-outlined text-[16px] text-amber-500">payments</span>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#4b6390]">Payment Status</span>
+                  </div>
+                  <p className="text-[15px] font-semibold text-amber-600">Checkout payment required</p>
+                  <p className="text-[12px] text-[#4b6390] mt-1 mb-3">Your checkout invoice is ready. Pay now to unlock aircraft bookings.</p>
                   <Link
-                    key={b.id}
-                    href={`/dashboard/bookings/${b.id}`}
-                    className={`flex items-center gap-4 px-5 py-4 hover:bg-[#f8fbff] transition-colors group ${i > 0 ? 'border-t border-[#152d5a]/6' : ''}`}
+                    href={allUpcoming[0]?.id ? `/dashboard/bookings/${allUpcoming[0].id}` : '/dashboard/bookings'}
+                    className="inline-flex items-center gap-2 bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e] font-semibold text-[13px] px-4 py-2.5 rounded-xl transition-colors w-full justify-center"
                   >
-                    {/* Aircraft thumbnail */}
-                    <div className="relative w-16 h-16 md:w-20 md:h-14 rounded-xl overflow-hidden flex-shrink-0 border border-[#152d5a]/8">
-                      <div
-                        className="absolute inset-0 bg-cover bg-center"
-                        style={{ backgroundImage: "url('/Cessna-172.webp')" }}
-                      />
-                      <div className="absolute inset-0 bg-[#061427]/40" />
-                    </div>
-
-                    {/* Details */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                        <p className="text-[14px] font-semibold text-[#152d5a]">Cessna 172N</p>
-                        <span className="text-[10px] font-mono text-[#4b6390] bg-[#f0f4ff] border border-[#152d5a]/8 px-1.5 py-0.5 rounded">{aircraft?.registration ?? 'VH-KZG'}</span>
-                        {b.booking_reference && (
-                          <span className="text-[10px] font-mono text-[#64748b]">{b.booking_reference}</span>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
-                        <div className="flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[#94a3b8] text-[12px]">calendar_today</span>
-                          <span className="text-[12px] text-[#4b6390]">{formatDateFromISO(b.scheduled_start)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[#94a3b8] text-[12px]">schedule</span>
-                          <span className="text-[12px] text-[#4b6390] tabular-nums">{formatSydTime(b.scheduled_start)} – {formatSydTime(b.scheduled_end)}</span>
-                        </div>
-                        {b.estimated_hours && (
-                          <span className="text-[12px] text-[#64748b]">{b.estimated_hours}h</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Status + arrow */}
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <StatusBadge status={b.status} bookingType={b.booking_type} checkoutOutcome={checkoutOutcomeMap[b.id]} isAwaitingManualPayment={b.status === 'checkout_payment_required' ? isAwaitingManualPayment : undefined} />
-                      <div className="w-8 h-8 rounded-full border border-[#152d5a]/10 bg-[#f0f4ff] flex items-center justify-center group-hover:border-[#1a4fd6]/30 group-hover:bg-[#1a4fd6]/10 transition-all">
-                        <span className="material-symbols-outlined text-[#64748b] text-[13px] group-hover:text-[#1a4fd6] transition-colors">arrow_forward</span>
-                      </div>
-                    </div>
+                    <span className="material-symbols-outlined text-[15px]">credit_card</span>
+                    Pay Invoice
                   </Link>
-                )
-              })}
-            </div>
-          )}
-        </section>
-
-        {/* ── Flight History ──────────────────────────────────────────── */}
-        {completedFlights.length > 0 && (
-          <section className="mb-8">
-            <div className="flex items-center gap-2.5 mb-5">
-              <span className="material-symbols-outlined text-[#1a4fd6]/60 text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>history</span>
-              <h2 className="text-[13px] font-bold uppercase tracking-widest text-[#152d5a]">Flight History</h2>
-            </div>
-            <div className="bg-white rounded-2xl border border-[#152d5a]/10 overflow-hidden" style={{ boxShadow: '0 4px 24px rgba(2,10,22,0.06)' }}>
-              {/* Table header — desktop only */}
-              <div className="hidden md:grid grid-cols-[1fr_160px_100px_80px_80px] gap-4 px-5 py-3 border-b border-[#152d5a]/6 bg-[#f8fbff]">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-[#94a3b8]">Aircraft</span>
-                <span className="text-[11px] font-bold uppercase tracking-widest text-[#94a3b8]">Date</span>
-                <span className="text-[11px] font-bold uppercase tracking-widest text-[#94a3b8]">Time</span>
-                <span className="text-[11px] font-bold uppercase tracking-widest text-[#94a3b8]">Hours</span>
-                <span className="text-[11px] font-bold uppercase tracking-widest text-[#94a3b8]">Status</span>
+                </div>
+              )
+            ) : (
+              <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">payments</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#4b6390]">Payment Status</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-[15px] font-semibold text-green-700">No outstanding payments</p>
+                    <p className="text-[12px] text-[#4b6390] mt-0.5">All booked flights are paid in full.</p>
+                  </div>
+                  <span className="material-symbols-outlined text-[28px] text-green-500">check_circle</span>
+                </div>
               </div>
-              {completedFlights.map((b, i) => {
-                const aircraft = Array.isArray(b.aircraft) ? b.aircraft[0] : b.aircraft
-                return (
-                  <Link
-                    key={b.id}
-                    href={`/dashboard/bookings/${b.id}`}
-                    className={`flex md:grid md:grid-cols-[1fr_160px_100px_80px_80px] gap-4 items-center px-5 py-4 hover:bg-[#f8fbff] transition-colors group ${i > 0 ? 'border-t border-[#152d5a]/5' : ''}`}
-                  >
-                    {/* Aircraft col */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-[13px] font-medium text-[#152d5a]">Cessna 172N</p>
-                        <span className="text-[10px] font-mono text-[#4b6390] bg-[#f0f4ff] px-1.5 py-0.5 rounded border border-[#152d5a]/8">{aircraft?.registration ?? 'VH-KZG'}</span>
-                      </div>
-                      {b.booking_reference && (
-                        <p className="text-[11px] font-mono text-[#94a3b8] mt-0.5">{b.booking_reference}</p>
-                      )}
-                      {/* Mobile: show date inline */}
-                      <p className="md:hidden text-[11px] text-[#64748b] mt-0.5 tabular-nums">
-                        {formatDateFromISO(b.scheduled_start)} · {formatSydTime(b.scheduled_start)} – {formatSydTime(b.scheduled_end)}
-                      </p>
-                    </div>
-                    {/* Date col — desktop */}
-                    <span className="hidden md:block text-[12px] text-[#4b6390] tabular-nums">{formatDateFromISO(b.scheduled_start)}</span>
-                    {/* Time col — desktop */}
-                    <span className="hidden md:block text-[12px] text-[#4b6390] tabular-nums">{formatSydTime(b.scheduled_start)} – {formatSydTime(b.scheduled_end)}</span>
-                    {/* Hours col — desktop */}
-                    <span className="hidden md:block text-[12px] text-[#4b6390] tabular-nums">{b.estimated_hours?.toFixed(1) ?? '0.0'}</span>
-                    {/* Status col */}
-                    <div className="flex items-center gap-3 flex-shrink-0 md:justify-self-end">
-                      <StatusBadge status={b.status} bookingType={b.booking_type} checkoutOutcome={checkoutOutcomeMap[b.id]} />
-                    </div>
-                  </Link>
-                )
-              })}
+            )}
+
+            <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">headset_mic</span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#4b6390]">OPS Contact</span>
+              </div>
+              <p className="text-[14px] font-semibold text-[#152d5a]">Need assistance?</p>
+              <p className="text-[12px] text-[#4b6390] mt-1 mb-3">Our operations team is here to help.</p>
+              <a href="tel:+61395800555" className="block text-[13px] font-semibold text-[#1a4fd6] hover:underline">+61 3 9580 0555</a>
+              <a href="mailto:ops@ozrentaplane.com.au" className="block text-[13px] text-[#1a4fd6] hover:underline mt-0.5">ops@ozrentaplane.com.au</a>
             </div>
-          </section>
-        )}
+
+            <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">history</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#4b6390]">Recent Activity</span>
+                </div>
+                <Link href="/dashboard/bookings" className="text-[12px] text-[#1a4fd6] hover:underline font-medium">View all</Link>
+              </div>
+              {rows.slice(0, 4).map((row) => (
+                <div key={row.id} className="py-3 border-b border-[#152d5a]/[0.06] last:border-0">
+                  <div className="mb-1.5">
+                    <StatusBadge
+                      status={row.status}
+                      isAwaitingManualPayment={row.status === 'checkout_payment_required' ? paymentSubmittedAwaitingConfirmation : false}
+                    />
+                  </div>
+                  <p className="text-[12px] font-semibold text-[#152d5a] leading-snug mb-1">
+                    {row.booking_type === 'checkout' ? 'Checkout request submitted' : 'Rental booking confirmed'}
+                  </p>
+                  <p className="text-[11px] text-[#4b6390]">
+                    {(row.aircraft_name ?? 'Cessna 172N').replace(/Cessna 172(?!N)/g, 'Cessna 172N')} · {row.aircraft_registration ?? 'VH-KZG'}
+                  </p>
+                  {row.scheduled_start && (
+                    <p className="text-[11px] text-[#4b6390]">
+                      {new Date(row.scheduled_start).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {row.scheduled_start ? ` · ${formatSydTime(row.scheduled_start)}` : ''}
+                    </p>
+                  )}
+                  {(row.status === 'checkout_payment_required' || row.status === 'payment_pending') && (
+                    paymentSubmittedAwaitingConfirmation ? (
+                      <span className="text-[11px] text-[#1a4fd6] mt-1 block">Awaiting confirmation</span>
+                    ) : (
+                      <Link
+                        href={`/dashboard/bookings/${row.id}`}
+                        className="text-[11px] font-semibold text-[#f59e0b] hover:underline mt-1 block"
+                      >
+                        Pay invoice →
+                      </Link>
+                    )
+                  )}
+                </div>
+              ))}
+              <Link href="/dashboard/bookings" className="block text-center text-[12px] font-semibold text-[#1a4fd6] hover:underline mt-3 pt-3 border-t border-[#152d5a]/[0.06]">
+                View all activity
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
     </>
   )

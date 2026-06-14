@@ -112,18 +112,18 @@ function BookingReadinessGate({
   return (
     <CustomerBookingShell user={user} profile={profile}>
       <div className="px-6 md:px-10 py-10 max-w-3xl mx-auto w-full" data-testid="booking-readiness-gate">
-        <Link href="/dashboard/bookings" className="inline-flex items-center gap-1 text-oz-blue hover:text-blue-300 text-sm mb-6 transition-colors">
+        <Link href="/dashboard/bookings" className="inline-flex items-center gap-1 text-[#1a4fd6] hover:text-[#1540a8] text-sm mb-6 transition-colors">
           <span className="material-symbols-outlined text-base">arrow_back</span>
           My Bookings
         </Link>
 
-        <div className="rounded-[1.25rem] border border-blue-500/20 bg-blue-500/10 p-7 md:p-8">
-          <h2 className="text-2xl font-serif text-white">Complete your pilot file before booking</h2>
-          <p className="mt-3 text-sm text-oz-muted leading-relaxed">
+        <div className="rounded-2xl border border-[#152d5a]/10 bg-white p-7 md:p-8 shadow-sm">
+          <h2 className="text-2xl font-serif text-[#152d5a]">Complete your pilot file before booking</h2>
+          <p className="mt-3 text-sm text-[#4b6390] leading-relaxed">
             Your checkout has already been marked as completed by the OZ Rent A Plane team. Before your first aircraft hire booking, we need to complete your pilot file.
           </p>
           {hasHistoricalClearance ? (
-            <p className="mt-2 text-xs text-blue-200/90">Checkout source: Historical/manual checkout completion.</p>
+            <p className="mt-2 text-xs text-[#1a4fd6]">Checkout source: Historical/manual checkout completion.</p>
           ) : null}
 
           <BookingReadinessInlinePanel
@@ -187,7 +187,7 @@ export default async function NewBookingPage() {
         profile={typedProfile}
         icon="how_to_reg"
         iconColor="text-blue-400"
-        colorCls="bg-blue-500/10 border-blue-500/20"
+        colorCls="bg-white border-[#152d5a]/10"
         heading="Complete Your Checkout Flight First"
         body="Before you can book the aircraft, you need to submit a checkout flight request. Once your checkout flight has been completed, approved, and paid, you'll be able to make aircraft bookings."
         primaryLabel="Book Checkout Flight"
@@ -214,7 +214,7 @@ export default async function NewBookingPage() {
         profile={typedProfile}
         icon="payments"
         iconColor="text-orange-400"
-        colorCls="bg-orange-500/[0.08] border-orange-500/20"
+        colorCls="bg-white border-[#152d5a]/10"
         heading="Checkout Payment Required"
         body="Your checkout flight has been approved. Please pay your checkout invoice before booking the aircraft."
         primaryLabel="Pay Checkout Invoice"
@@ -240,7 +240,7 @@ export default async function NewBookingPage() {
         profile={typedProfile}
         icon="pending_actions"
         iconColor="text-amber-400"
-        colorCls="bg-amber-500/[0.08] border-amber-500/20"
+        colorCls="bg-white border-[#152d5a]/10"
         heading="Checkout Flight In Progress"
         body="Your checkout flight request is currently in progress. Once your checkout flight is completed and approved by the operations team, you'll receive your checkout invoice. After that invoice is paid, aircraft booking will become available."
         primaryLabel="View My Bookings"
@@ -338,7 +338,7 @@ export default async function NewBookingPage() {
           profile={typedProfile}
           icon="error"
           iconColor="text-red-400"
-          colorCls="bg-red-500/10 border-red-500/20"
+          colorCls="bg-white border-[#152d5a]/10"
           heading="System Error: Missing Checkout Invoice"
           body="Your profile is cleared to fly, but we could not find a paid checkout invoice on file. Please contact the operations team to resolve this issue."
           primaryLabel="Message Team"
@@ -357,7 +357,7 @@ export default async function NewBookingPage() {
           profile={typedProfile}
           icon="error"
           iconColor="text-red-400"
-          colorCls="bg-red-500/10 border-red-500/20"
+          colorCls="bg-white border-[#152d5a]/10"
           heading="Booking access requires checkout clearance"
           body="We could not verify a valid checkout completion path for your account. Please contact the operations team so we can resolve this quickly."
           primaryLabel="Message Team"

@@ -786,7 +786,7 @@ export default function FlightLogClient({
                       <option value="">None</option>
                       {createContext.recentBookings.map(b => (
                         <option key={b.id} value={b.id}>
-                          {b.booking_reference ?? b.id.slice(0, 8)} · {new Date(b.scheduled_start).toLocaleDateString('en-AU')} · {b.pic_name ?? 'PIC'}
+                          {b.booking_reference ?? b.id.slice(0, 8)} · {new Date(b.scheduled_start).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' })} · {b.pic_name ?? 'PIC'}
                         </option>
                       ))}
                     </select>

@@ -543,7 +543,16 @@ function ProgressStrip({ completedCount, total }: { completedCount: number; tota
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function CheckoutDocumentsStep({
-  checkoutGate, checkoutGateLoading, checkoutGateError, onRefresh, onContinue, onBackToStep1, onNoteChange,
+  checkoutGate,
+  checkoutGateLoading,
+  checkoutGateError,
+  onRefresh,
+  onContinue,
+  onBackToStep1,
+  onNoteChange,
+  initialFlightDate,
+  initialRedCardMonth,
+  initialRedCardYear,
 }: {
   checkoutGate: CheckoutDocumentGateState | null
   checkoutGateLoading: boolean
@@ -552,12 +561,15 @@ export default function CheckoutDocumentsStep({
   onContinue: () => void
   onBackToStep1: () => void
   onNoteChange: (note: string) => void
+  initialFlightDate: string
+  initialRedCardMonth: number | null
+  initialRedCardYear: number | null
 }) {
   const [modalDocType, setModalDocType] = useState<DocumentType | null>(null)
   const [termsChecked, setTermsChecked] = useState(false)
   const [termsAccepting, setTermsAccepting] = useState(false)
   const [termsError, setTermsError] = useState<string | null>(null)
-  const [flightDate, setFlightDate] = useState(checkoutGate?.lastFlightDate ?? '')
+  const [flightDate, setFlightDate] = useState(initialFlightDate ?? checkoutGate?.lastFlightDate ?? '')
   const [flightDateSaving, setFlightDateSaving] = useState(false)
   const [flightDateSaved, setFlightDateSaved] = useState(false)
   const [flightDateError, setFlightDateError] = useState<string | null>(null)
@@ -574,8 +586,8 @@ export default function CheckoutDocumentsStep({
   const [nightVfrSaving, setNightVfrSaving] = useState(false)
   const [nightVfrError, setNightVfrError] = useState<string | null>(null)
   const pilotDoc = checkoutGate?.pilotLicenceDoc ?? null
-  const [redCardMonth, setRedCardMonth] = useState<number | null>(pilotDoc?.red_card_expiry_month ?? null)
-  const [redCardYear, setRedCardYear] = useState<number | null>(pilotDoc?.red_card_expiry_year ?? null)
+  const [redCardMonth, setRedCardMonth] = useState<number | null>(initialRedCardMonth ?? pilotDoc?.red_card_expiry_month ?? null)
+  const [redCardYear, setRedCardYear] = useState<number | null>(initialRedCardYear ?? pilotDoc?.red_card_expiry_year ?? null)
   const [redCardSaving, setRedCardSaving] = useState(false)
   const [redCardSaved, setRedCardSaved] = useState(false)
   const [redCardError, setRedCardError] = useState<string | null>(null)

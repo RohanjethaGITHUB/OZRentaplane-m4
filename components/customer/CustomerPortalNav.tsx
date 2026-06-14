@@ -88,7 +88,7 @@ export default function CustomerPortalNav({ firstName, email, hideCheckout = fal
           borderBottom: '1px solid rgba(167, 200, 255, 0.12)',
         }}
       >
-        <div className="max-w-[1400px] mx-auto h-[64px] px-6 md:px-10 flex items-center justify-between gap-6">
+        <div className="relative max-w-[1400px] mx-auto h-[64px] px-6 md:px-10 flex items-center justify-between gap-6">
           <Link
             href="/"
             className="shrink-0 flex items-center gap-3 select-none"
@@ -132,7 +132,7 @@ export default function CustomerPortalNav({ firstName, email, hideCheckout = fal
             </div>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-6">
+          <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-6">
             {portalLinks.map((link) => {
               const active = isActive(pathname, link.href, link.exact)
               return (

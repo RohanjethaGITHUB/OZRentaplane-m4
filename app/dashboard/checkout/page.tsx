@@ -7,7 +7,7 @@ import CustomerBookingShell from '../bookings/CustomerBookingShell'
 import CheckoutFlow from './CheckoutFlow'
 import { deriveJourneyState } from '@/lib/customer-journey'
 import type { User } from '@supabase/supabase-js'
-import type { Profile, UserDocument } from '@/lib/supabase/types'
+import type { PilotClearanceStatus, Profile, UserDocument } from '@/lib/supabase/types'
 import { ADMIN_CONTACT_PHONE_DISPLAY, ADMIN_CONTACT_PHONE_TEL } from '@/lib/contact'
 
 export const metadata = { title: 'Checkout Onboarding | Pilot Dashboard' }
@@ -58,12 +58,16 @@ function CheckoutSetupUnavailable() {
   )
 }
 
-function CheckoutHero() {
+function CheckoutHero({ clearanceStatus }: { clearanceStatus: PilotClearanceStatus }) {
   return (
     <PortalPageHero
-      eyebrow="CHECKOUT"
-      title="Book Your Checkout Flight"
-      subtitle="Select your checkout flight details below. Our instructors will review your request and confirm your flight."
+      eyebrow="CHECKOUT STATUS"
+      title="Your Checkout Flight"
+      subtitle={
+        clearanceStatus === 'cleared_to_fly'
+          ? "Your checkout flight has been approved. You're cleared to book and fly solo."
+          : "Before you can hire an aircraft independently, you'll need to complete a one-time checkout flight with a member of our team. They'll assess your flying skills and provide a result. Once cleared, you're free to book solo flights anytime."
+      }
       backgroundImage="/CustomerDashboard/CustomerDashboard-CheckoutHero.png"
     />
   )
@@ -119,7 +123,7 @@ export default async function CheckoutPage() {
   if (noShowLocked) {
     return (
       <CustomerBookingShell user={user as User} profile={typedProfile}>
-        <CheckoutHero />
+        <CheckoutHero clearanceStatus={clearanceStatus} />
         <section className="space-y-5 mt-5">
           <section className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-5">
             <p className="text-sm font-semibold text-rose-100">
@@ -253,7 +257,7 @@ export default async function CheckoutPage() {
   if (!aircraft || !activeCheckoutTerms) {
     return (
       <CustomerBookingShell user={user as User} profile={typedProfile}>
-        <CheckoutHero />
+        <CheckoutHero clearanceStatus={clearanceStatus} />
         <div className="space-y-5 mt-5">
           <CheckoutSetupUnavailable />
         </div>
@@ -269,7 +273,7 @@ export default async function CheckoutPage() {
   })
   return (
     <CustomerBookingShell user={user as User} profile={typedProfile}>
-      <CheckoutHero />
+      <CheckoutHero clearanceStatus={clearanceStatus} />
       <div className="space-y-5 mt-5">
         <CheckoutFlow
           firstName={firstName}

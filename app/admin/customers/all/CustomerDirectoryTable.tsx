@@ -19,10 +19,11 @@ type Row = {
 const FILTERS: Array<{ key: CustomerFilterKey; label: string }> = [
   { key: 'all', label: 'All' },
   { key: 'checkout_not_requested', label: 'Checkout Not Requested' },
+  { key: 'payment_required', label: 'Payment Required' },
   { key: 'in_checkout', label: 'In Checkout' },
   { key: 'cleared_to_fly', label: 'Cleared to Fly' },
   { key: 'blocked', label: 'Blocked' },
-  { key: 'needs_attention', label: 'Needs Attention' },
+  { key: 'needs_attention', label: 'Needs Review' },
 ]
 
 
@@ -38,10 +39,20 @@ export default function CustomerDirectoryTable({
   const [query, setQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState<CustomerFilterKey>(getStatusFromQuery(initialFilter))
 
+  const formatPhone = (phone?: string | null) => {
+    const raw = phone ?? ''
+    // Strip duplicated AU country-code prefixes before rendering in the list.
+    const cleaned = raw.replace(/^\+\+61\s?/, '').replace(/^\+61\s?/, '').trim()
+    return cleaned || '—'
+  }
+
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase()
     return rows.filter((r) => {
-      if (activeFilter === 'needs_attention' && !r.needsAttention) return false
+      if (
+        activeFilter === 'needs_attention' &&
+        !['additional_checkout_required', 'checkout_reschedule_required', 'not_currently_eligible'].includes(r.lifecycleStatus)
+      ) return false
       if (activeFilter !== 'all' && activeFilter !== 'needs_attention' && r.lifecycleStatus !== activeFilter) return false
       if (!q) return true
       return r.fullName.toLowerCase().includes(q) || r.email.toLowerCase().includes(q)
@@ -128,7 +139,7 @@ export default function CustomerDirectoryTable({
                   {activeFilter === 'needs_attention' ? (
                     <td className="px-5 py-[16px] text-[14px] text-[var(--admin-text-muted)]">{r.attentionReason || 'Status inconsistency, review customer record'}</td>
                   ) : null}
-                  <td className="px-5 py-[16px] text-[14px] text-[var(--admin-text)]">{r.phone || <span className="text-slate-400">—</span>}</td>
+                  <td className="px-5 py-[16px] text-right font-mono text-[13px] text-[#152d5a]">{formatPhone(r.phone)}</td>
                 </tr>
               )
             })
@@ -200,7 +211,7 @@ export default function CustomerDirectoryTable({
 
                 <div className="flex items-center justify-between border-t border-[#152d5a]/8 pt-2.5">
                   <span className="text-[11px] text-[#4b6390]/70">
-                    {r.phone || <span className="text-slate-400">—</span>}
+                    {formatPhone(r.phone)}
                   </span>
                   <span className="text-[11px] font-medium text-[#1a4fd6] flex items-center gap-0.5">
                     View profile →

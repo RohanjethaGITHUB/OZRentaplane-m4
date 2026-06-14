@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import CustomerBookingShell from '../CustomerBookingShell'
+import PortalPageHero from '@/components/PortalPageHero'
 import ClarificationResponseForm from './ClarificationResponseForm'
 import FlightRecordForm from './FlightRecordForm'
 import PostFlightHero from './PostFlightHero'
@@ -329,7 +330,7 @@ function NextActionCard({
 
   if (status === 'pending_confirmation') {
     return (
-      <div className="bg-[#07111f] border border-[rgba(245,158,11,0.18)] rounded-[1.25rem] p-6 sm:p-8 shadow-[0_0_24px_rgba(245,158,11,0.05)]">
+      <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6 sm:p-8 shadow-[0_4px_30px_rgba(2,10,22,0.08)]">
         <div className="flex items-center gap-2 mb-6">
           <span className="material-symbols-outlined text-amber-400/60 text-sm">bolt</span>
           <h3 className="text-[11px] font-bold uppercase tracking-widest text-amber-400/70">Next Action</h3>
@@ -340,13 +341,13 @@ function NextActionCard({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-2">
-              <p className="text-[18px] font-semibold text-white">Booking Confirmed</p>
+              <p className="text-[18px] font-semibold text-[#152d5a]">Booking Confirmed</p>
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest text-blue-400 bg-blue-500/10 border border-blue-500/20">
                 <span className="material-symbols-outlined text-[11px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                 Confirmed
               </span>
             </div>
-            <p className="text-[13px] text-oz-muted leading-relaxed">
+            <p className="text-[13px] text-[#4b6390] leading-relaxed">
               Your booking is confirmed. Please arrive at the aircraft at least 30 minutes before your scheduled departure for pre-flight checks.
             </p>
           </div>
@@ -360,7 +361,7 @@ function NextActionCard({
     (status === 'confirmed' || status === 'ready_for_dispatch' || status === 'dispatched')
   ) {
     return (
-      <div className="bg-[#07111f] border border-[rgba(245,158,11,0.22)] rounded-[1.25rem] p-6 sm:p-8 shadow-[0_0_28px_rgba(245,158,11,0.06)]">
+      <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6 sm:p-8 shadow-[0_4px_30px_rgba(2,10,22,0.08)]">
         <div className="flex items-center gap-2 mb-6">
           <span className="material-symbols-outlined text-amber-400/60 text-sm">bolt</span>
           <h3 className="text-[11px] font-bold uppercase tracking-widest text-amber-400/70">Next Action</h3>
@@ -371,13 +372,13 @@ function NextActionCard({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-3 mb-3">
-              <p className="text-[20px] font-semibold text-white">Enjoy your flight!</p>
+              <p className="text-[20px] font-semibold text-[#152d5a]">Enjoy your flight!</p>
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest text-blue-400 bg-blue-500/10 border border-blue-500/20">
                 <span className="material-symbols-outlined text-[11px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                 Confirmed
               </span>
             </div>
-            <p className="text-[13px] text-oz-muted leading-relaxed mb-5 max-w-2xl">
+            <p className="text-[13px] text-[#4b6390] leading-relaxed mb-5 max-w-2xl">
               Once you have completed your flight, submit the post flight records. Our team will verify these records and generate the final invoice for payment.
             </p>
             {showFlightRecordButton && (
@@ -391,7 +392,7 @@ function NextActionCard({
               />
             )}
           </div>
-          <span className="material-symbols-outlined text-white/12 text-2xl flex-shrink-0 self-center hidden sm:block">chevron_right</span>
+          <span className="material-symbols-outlined text-[#4b6390]/30 text-2xl flex-shrink-0 self-center hidden sm:block">chevron_right</span>
         </div>
       </div>
     )
@@ -441,33 +442,33 @@ function NextActionCard({
     const isResubmitted = flightRecord?.status === 'resubmitted'
     const attCount = postFlightAttachments?.length ?? 0
     return (
-      <div className={`rounded-[1.25rem] p-6 space-y-4 ${isResubmitted ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-purple-500/10 border border-purple-500/20'}`}>
+      <div className={`rounded-[1.25rem] p-6 space-y-4 bg-white border border-[#152d5a]/10`}>
         <div className="flex items-center gap-3">
-          <span className={`material-symbols-outlined text-lg ${isResubmitted ? 'text-emerald-400' : 'text-purple-400'}`}>
+          <span className={`material-symbols-outlined text-lg ${isResubmitted ? 'text-emerald-500' : 'text-purple-500'}`}>
             {isResubmitted ? 'refresh' : 'rate_review'}
           </span>
-          <h3 className={`text-xs font-bold uppercase tracking-widest ${isResubmitted ? 'text-emerald-400' : 'text-purple-400'}`}>
+          <h3 className={`text-xs font-bold uppercase tracking-widest ${isResubmitted ? 'text-emerald-600' : 'text-purple-600'}`}>
             {isResubmitted ? 'Resubmitted — Under Review' : 'Under Review'}
           </h3>
         </div>
-        <p className="text-sm text-oz-muted leading-relaxed">
+        <p className="text-sm text-[#4b6390] leading-relaxed">
           {isResubmitted
             ? 'Your updated flight record has been submitted and is back with the operations team for review.'
             : 'Your flight record has been submitted and is currently being reviewed by the operations team.'}
         </p>
         {attCount > 0 && (
-          <div className="pt-3 border-t border-white/[0.06]">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">
+          <div className="pt-3 border-t border-[#152d5a]/10">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#4b6390] mb-3">
               Submitted Evidence
-              <span className="ml-2 font-normal text-slate-600">({attCount} photo{attCount !== 1 ? 's' : ''})</span>
+              <span className="ml-2 font-normal text-[#4b6390]/70">({attCount} photo{attCount !== 1 ? 's' : ''})</span>
             </p>
             <div className="flex flex-wrap gap-2">
               {(postFlightAttachments ?? []).map(att => (
-                <div key={att.id} className="w-16 h-16 rounded-lg overflow-hidden border border-white/10 bg-[#050c17] flex-shrink-0">
+                <div key={att.id} className="w-16 h-16 rounded-lg overflow-hidden border border-[#152d5a]/10 bg-[#f0f6ff] flex-shrink-0">
                   {att.signedUrl
                     /* eslint-disable-next-line @next/next/no-img-element */
                     ? <img src={att.signedUrl} alt={att.file_name} className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined text-slate-700 text-lg">image</span></div>
+                    : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined text-[#4b6390] text-lg">image</span></div>
                   }
                 </div>
               ))}
@@ -504,12 +505,12 @@ function NextActionCard({
     if (bookingType === 'checkout') {
       if (checkoutOutcome === 'cleared_to_fly') {
         return (
-          <div className="bg-green-500/10 border border-green-500/20 rounded-[1.25rem] p-6">
+          <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
             <div className="flex items-center gap-3 mb-3">
-              <span className="material-symbols-outlined text-green-400 text-lg">verified</span>
-              <h3 className="text-xs font-bold uppercase tracking-widest text-green-400">Checkout Complete</h3>
+              <span className="material-symbols-outlined text-emerald-500 text-lg">verified</span>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-600">Checkout Complete</h3>
             </div>
-            <p className="text-sm text-oz-muted">
+            <p className="text-sm text-[#4b6390]">
               Your checkout flight has been completed and you have been cleared for aircraft booking.
             </p>
           </div>
@@ -517,15 +518,15 @@ function NextActionCard({
       }
       if (checkoutOutcome === 'additional_checkout_required') {
         return (
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-[1.25rem] p-6">
+          <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
             <div className="flex items-center gap-3 mb-3">
-              <span className="material-symbols-outlined text-amber-400 text-lg">schedule</span>
-              <h3 className="text-xs font-bold uppercase tracking-widest text-amber-400">Additional Checkout Required</h3>
+              <span className="material-symbols-outlined text-amber-500 text-lg">schedule</span>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-amber-600">Additional Checkout Required</h3>
             </div>
-            <p className="text-sm text-oz-muted mb-4">
+            <p className="text-sm text-[#4b6390] mb-4">
               Your checkout flight has been completed, but an additional checkout session is required before you can book aircraft independently.
             </p>
-            <Link href="/dashboard/checkout" className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/15 border border-amber-400/30 text-amber-300 hover:bg-amber-500/25 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all">
+            <Link href="/dashboard/checkout" className="inline-flex items-center gap-2 px-4 py-2 bg-[#f0f6ff] border border-[#152d5a]/10 text-[#1a4fd6] hover:bg-[#e8f0fe] rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all">
               <span className="material-symbols-outlined text-sm">flight_takeoff</span>
               Book Another Checkout
             </Link>
@@ -534,15 +535,15 @@ function NextActionCard({
       }
       if (checkoutOutcome === 'checkout_reschedule_required') {
         return (
-          <div className="bg-blue-500/10 border border-blue-500/20 rounded-[1.25rem] p-6">
+          <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
             <div className="flex items-center gap-3 mb-3">
-              <span className="material-symbols-outlined text-blue-400 text-lg">event_repeat</span>
-              <h3 className="text-xs font-bold uppercase tracking-widest text-blue-400">Checkout Reschedule Required</h3>
+              <span className="material-symbols-outlined text-blue-500 text-lg">event_repeat</span>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600">Checkout Reschedule Required</h3>
             </div>
-            <p className="text-sm text-oz-muted mb-4">
+            <p className="text-sm text-[#4b6390] mb-4">
               Your checkout could not be completed as planned. Please book another checkout time or contact support.
             </p>
-            <Link href="/dashboard/checkout" className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/15 border border-blue-400/30 text-blue-300 hover:bg-blue-500/25 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all">
+            <Link href="/dashboard/checkout" className="inline-flex items-center gap-2 px-4 py-2 bg-[#f0f6ff] border border-[#152d5a]/10 text-[#1a4fd6] hover:bg-[#e8f0fe] rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all">
               <span className="material-symbols-outlined text-sm">flight_takeoff</span>
               Book Another Checkout
             </Link>
@@ -551,12 +552,12 @@ function NextActionCard({
       }
       if (checkoutOutcome === 'not_currently_eligible') {
         return (
-          <div className="bg-red-500/10 border border-red-500/20 rounded-[1.25rem] p-6">
+          <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
             <div className="flex items-center gap-3 mb-3">
-              <span className="material-symbols-outlined text-red-400 text-lg">block</span>
-              <h3 className="text-xs font-bold uppercase tracking-widest text-red-400">Not Currently Eligible</h3>
+              <span className="material-symbols-outlined text-red-500 text-lg">block</span>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-red-600">Not Currently Eligible</h3>
             </div>
-            <p className="text-sm text-oz-muted">
+            <p className="text-sm text-[#4b6390]">
               Your checkout flight has been reviewed, and you are not currently eligible for solo aircraft booking. Please contact the team if you would like to discuss next steps.
             </p>
           </div>
@@ -564,12 +565,12 @@ function NextActionCard({
       }
       // Awaiting outcome or outcome not yet recorded
       return (
-        <div className="bg-white/5 border border-white/10 rounded-[1.25rem] p-6">
+        <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
           <div className="flex items-center gap-3 mb-3">
-            <span className="material-symbols-outlined text-slate-400 text-lg">how_to_reg</span>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">Checkout Status</h3>
+            <span className="material-symbols-outlined text-[#1a4fd6] text-lg">how_to_reg</span>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-[#4b6390]">Checkout Status</h3>
           </div>
-          <p className="text-sm text-oz-muted">
+          <p className="text-sm text-[#4b6390]">
             Your checkout flight has been completed. Contact the operations team if you have any questions.
           </p>
         </div>
@@ -577,37 +578,37 @@ function NextActionCard({
     }
 
     return (
-      <div className="bg-green-500/10 border border-green-500/20 rounded-[1.25rem] p-6">
+      <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
         <div className="flex items-center gap-3 mb-3">
-          <span className="material-symbols-outlined text-green-400 text-lg">verified</span>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-green-400">
+          <span className="material-symbols-outlined text-emerald-500 text-lg">verified</span>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-600">
             {status === 'completed' ? 'Booking Complete' : 'Flight Approved'}
           </h3>
         </div>
-        <p className="text-sm text-oz-muted">
+        <p className="text-sm text-[#4b6390]">
           {status === 'completed'
             ? 'This booking is fully closed. Thank you for flying with OZRentAPlane.'
             : 'Your post-flight records have been reviewed and approved.'}
         </p>
 
         {status === 'completed' && bookingType === 'standard' && standardBilling != null && (
-          <div className="mt-6 space-y-2 p-4 rounded-xl bg-green-500/[0.05] border border-green-500/15 text-sm">
-            <div className="flex justify-between text-slate-300">
+          <div className="mt-6 space-y-2 p-4 rounded-xl bg-[#f0f6ff] border border-[#152d5a]/10 text-sm">
+            <div className="flex justify-between text-[#152d5a]">
               <span>Flight Total</span>
               <span>${(standardBilling.subtotal_cents / 100).toFixed(2)}</span>
             </div>
             {standardBilling.advance_applied_cents > 0 && (
-              <div className="flex justify-between text-green-400">
+              <div className="flex justify-between text-emerald-600">
                 <span>Advance Credit Applied</span>
                 <span>-${(standardBilling.advance_applied_cents / 100).toFixed(2)}</span>
               </div>
             )}
-            <div className="flex justify-between font-bold text-green-400 pt-2 border-t border-green-500/20">
+            <div className="flex justify-between font-bold text-emerald-600 pt-2 border-t border-[#152d5a]/10">
               <span>Total Due</span>
               <span>${(standardBilling.amount_due_cents / 100).toFixed(2)}</span>
             </div>
             {standardBilling.amount_due_cents === 0 && (
-              <div className="text-[10px] text-green-400/60 uppercase tracking-widest mt-2 flex items-center justify-end gap-1">
+              <div className="text-[10px] text-emerald-600/70 uppercase tracking-widest mt-2 flex items-center justify-end gap-1">
                 <span className="material-symbols-outlined text-[12px]">check</span> Settled by customer credit
               </div>
             )}
@@ -618,7 +619,7 @@ function NextActionCard({
   }
 
   return (
-    <div className="bg-white/5 border border-white/5 rounded-[1.25rem] p-6">
+    <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
       <p className="text-sm text-oz-muted">
         Need to make a change?{' '}
         <span className="text-oz-blue">Contact the operations team.</span>
@@ -824,6 +825,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
   const aircraft    = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
   const status      = deriveBookingStatusForFlightRecord(booking)
   const bookingType = (booking as { booking_type?: string }).booking_type ?? 'standard'
+  const isCheckout  = bookingType === 'checkout'
   const { data: termsAcceptanceRow } = await supabase
     .from('booking_terms_acceptances')
     .select('accepted_at, terms_version, terms_document_id')
@@ -1158,29 +1160,29 @@ export default async function BookingDetailPage({ params }: PageProps) {
               <div className="space-y-4">
 
                 {/* Flight Details */}
-                <div className="bg-[#0c121e] border border-white/[0.07] rounded-[1.25rem] p-6">
-                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-oz-blue mb-5">
+                <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#1a4fd6] mb-5">
                     Flight Details
                   </h3>
                   <div className="space-y-4">
                     <div className="flex justify-between items-start gap-4">
-                      <span className="text-xs text-slate-500 uppercase tracking-wide flex-shrink-0">Aircraft</span>
-                      <span className="text-sm text-white font-medium text-right">
+                      <span className="text-xs text-[#4b6390] uppercase tracking-wide flex-shrink-0">Aircraft</span>
+                      <span className="text-sm text-[#152d5a] font-medium text-right">
                         {aircraft?.registration ?? '—'}
                         {aircraftTypeShort ? ` (${aircraftTypeShort})` : ''}
                       </span>
                     </div>
                     <div className="flex justify-between items-start gap-4">
-                      <span className="text-xs text-slate-500 uppercase tracking-wide flex-shrink-0">Pilot In Command</span>
-                      <span className="text-sm text-white text-right">{booking.pic_name ?? '—'}</span>
+                      <span className="text-xs text-[#4b6390] uppercase tracking-wide flex-shrink-0">Pilot In Command</span>
+                      <span className="text-sm text-[#152d5a] text-right">{booking.pic_name ?? '—'}</span>
                     </div>
                     <div className="flex justify-between items-start gap-4">
-                      <span className="text-xs text-slate-500 uppercase tracking-wide flex-shrink-0">ARN</span>
-                      <span className="text-sm text-white font-mono text-right">{booking.pic_arn ?? '—'}</span>
+                      <span className="text-xs text-[#4b6390] uppercase tracking-wide flex-shrink-0">ARN</span>
+                      <span className="text-sm text-[#152d5a] font-mono text-right">{booking.pic_arn ?? '—'}</span>
                     </div>
                     <div className="flex justify-between items-start gap-4">
-                      <span className="text-xs text-slate-500 uppercase tracking-wide flex-shrink-0">Date</span>
-                      <span className="text-sm text-white text-right">
+                      <span className="text-xs text-[#4b6390] uppercase tracking-wide flex-shrink-0">Date</span>
+                      <span className="text-sm text-[#152d5a] text-right">
                         {formatDateFromISO(booking.scheduled_start)}
                       </span>
                     </div>
@@ -1188,8 +1190,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
                 </div>
 
                 {/* Status Journey */}
-                <div className="bg-[#0c121e] border border-white/[0.07] rounded-[1.25rem] p-6">
-                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-oz-blue mb-5">
+                <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#1a4fd6] mb-5">
                     Status Journey
                   </h3>
                   <ol className="space-y-0">
@@ -1205,10 +1207,10 @@ export default async function BookingDetailPage({ params }: PageProps) {
                         <div
                           className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center border-2 mt-0.5 z-10 ${
                             step.state === 'done'
-                              ? 'bg-oz-blue border-oz-blue'
+                              ? 'bg-[#1a4fd6] border-[#1a4fd6]'
                               : step.state === 'active'
                               ? 'border-amber-400 bg-transparent'
-                              : 'border-white/20 bg-transparent'
+                              : 'border-[#152d5a]/20 bg-transparent'
                           }`}
                         >
                           {step.state === 'done' && (
@@ -1226,10 +1228,10 @@ export default async function BookingDetailPage({ params }: PageProps) {
                         <div className="pt-0.5">
                           <p className={`text-sm ${
                             step.state === 'done'
-                              ? 'text-oz-blue'
+                              ? 'text-[#1a4fd6]'
                               : step.state === 'active'
-                              ? 'text-amber-300'
-                              : 'text-slate-600'
+                              ? 'text-amber-600'
+                              : 'text-[#4b6390]'
                           }`}>
                             {step.label}
                           </p>
@@ -1240,8 +1242,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
                 </div>
 
                 {/* Next Steps */}
-                <div className="bg-[#0c121e] border border-white/[0.07] rounded-[1.25rem] p-6">
-                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-oz-blue mb-4">
+                <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#1a4fd6] mb-4">
                     Next Steps
                   </h3>
                   <ul className="space-y-3">
@@ -1251,10 +1253,10 @@ export default async function BookingDetailPage({ params }: PageProps) {
                       'Final billing will be processed upon approval.',
                     ].map((item, i) => (
                       <li key={i} className="flex items-start gap-2.5">
-                        <span className="material-symbols-outlined text-oz-blue/50 text-sm mt-0.5 flex-shrink-0">
+                        <span className="material-symbols-outlined text-[#1a4fd6]/50 text-sm mt-0.5 flex-shrink-0">
                           chevron_right
                         </span>
-                        <span className="text-sm text-oz-muted leading-relaxed">{item}</span>
+                        <span className="text-sm text-[#4b6390] leading-relaxed">{item}</span>
                       </li>
                     ))}
                   </ul>
@@ -1300,120 +1302,36 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
   return (
     <CustomerBookingShell user={user as User} profile={profile as Profile | null}>
-      <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-10 xl:px-12 py-6 pb-16">
+      <div className="w-full pb-16 pt-0">
 
-        {/* ─── Back link ──────────────────────────────────────────────────── */}
-        <Link
-          href="/dashboard/bookings"
-          className="inline-flex items-center gap-1.5 text-[#4b8be8]/70 hover:text-[#4b8be8] text-sm mb-6 transition-colors"
-        >
-          <span className="material-symbols-outlined text-base">arrow_back</span>
-          My Bookings
-        </Link>
-
-        {/* ─── Hero card ──────────────────────────────────────────────────── */}
-        <header
-          className="relative overflow-hidden rounded-[1.5rem] border border-[rgba(59,130,246,0.18)] mb-8"
-          style={{
-            background: 'linear-gradient(90deg, rgba(3,12,27,0.96) 0%, rgba(3,12,27,0.82) 42%, rgba(3,12,27,0.38) 72%, rgba(3,12,27,0.82) 100%), url("/Customer-booking-bg.png") center right / cover no-repeat',
-            boxShadow: '0 0 0 1px rgba(59,130,246,0.08), 0 8px 48px rgba(0,0,0,0.55)',
-            minHeight: '260px',
+        <PortalPageHero
+          eyebrow="BOOKING DETAIL"
+          title={isCheckout ? 'Checkout Flight' : 'Flight Booking'}
+          subtitle={`${((aircraft as { aircraft_type?: string } | null)?.aircraft_type ?? 'Cessna 172N').replace(/Cessna 172(?!N)/g, 'Cessna 172N')} · ${aircraft?.registration ?? 'VH-KZG'}`}
+          backgroundImage="/CustomerDashboard/CustomerDashboard-CheckoutHero.png"
+          backgroundPosition="center"
+          backHref="/dashboard/bookings"
+          backLabel="My Bookings"
+          statusPill={{
+            label: bookingRef ?? 'Booking',
+            color: 'blue',
           }}
-        >
-          <div className="relative z-10 p-7 sm:p-10">
-            {/* Reference row + status badge top-right */}
-            <div className="flex items-start justify-between gap-4 mb-5">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-blue-400/55 mb-1">
-                  Booking Reference
-                </p>
-                <p className="text-base font-mono font-bold text-white/75 tracking-wider">
-                  {bookingRef ?? booking.id.split('-')[0].toUpperCase()}
-                </p>
-              </div>
-              <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                <span className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[11px] font-bold uppercase tracking-widest border ${cfg.color} ${cfg.bg} ${cfg.border}`}>
-                  <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>{cfg.icon}</span>
-                  {cfg.label}
-                </span>
-                {cfg.sublabel && (
-                  <p className={`text-[10px] ${cfg.color} opacity-60`}>{cfg.sublabel}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Aircraft name + type */}
-            {bookingType === 'checkout' ? (
-              <>
-                <h1 className="font-serif text-[42px] md:text-[52px] leading-none text-white mb-1 tracking-tight">
-                  Checkout Flight
-                </h1>
-                <p className="text-white/50 text-sm capitalize mb-6">
-                  {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/_/g, ' ') ?? ''}
-                  {aircraft?.registration ? ` · ${aircraft.registration}` : ''}
-                </p>
-              </>
-            ) : (
-              <>
-                <h1 className="font-serif italic text-[52px] md:text-[68px] leading-[0.88] text-white mb-1.5 tracking-tight">
-                  {aircraft?.registration ?? '—'}
-                </h1>
-                <p className="text-white/50 text-sm capitalize mb-6">
-                  {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/_/g, ' ') ?? '—'}
-                </p>
-              </>
-            )}
-
-            {/* Buttons below aircraft type */}
-            {(showFlightRecordButton || showCancelButton) && (
-              <CustomerBookingActions
-                bookingId={booking.id}
-                showCancelButton={showCancelButton}
-                showFlightRecordButton={showFlightRecordButton}
-                isWithin24Hours={isWithin24Hours}
-                departureSydney={departureSydney}
-                heroLayout
-                yellowPrimary
-              />
-            )}
-            {bookingType === 'checkout' && (
-              <CheckoutChangeActions
-                checkout={{
-                  id: booking.id,
-                  booking_type: bookingType,
-                  status,
-                  scheduled_start: booking.scheduled_start,
-                  checkout_lifecycle_status: (booking as { checkout_lifecycle_status?: string | null }).checkout_lifecycle_status ?? null,
-                }}
-                aircraftId={booking.aircraft_id}
-                pendingRescheduleRequest={pendingRescheduleRequest
-                  ? {
-                      id: pendingRescheduleRequest.id,
-                      status: pendingRescheduleRequest.status,
-                      requested_scheduled_start: pendingRescheduleRequest.requested_scheduled_start,
-                      requested_scheduled_end: pendingRescheduleRequest.requested_scheduled_end,
-                    }
-                  : null}
-                latestRescheduleRequest={latestRescheduleRequest
-                  ? {
-                      id: latestRescheduleRequest.id,
-                      status: latestRescheduleRequest.status,
-                      requested_scheduled_start: latestRescheduleRequest.requested_scheduled_start,
-                      requested_scheduled_end: latestRescheduleRequest.requested_scheduled_end,
-                    }
-                  : null}
-              />
-            )}
-          </div>
-        </header>
+          cta={showFlightRecordButton || showCancelButton
+            ? {
+                label: isCheckout ? 'View Booking' : 'My Bookings',
+                href: '/dashboard/bookings',
+                icon: 'chevron_right',
+              }
+            : undefined}
+        />
 
         {/* ─── Middle row: Journey · Flight Details · Booking Status ──────── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[2.1fr_1.75fr_1.55fr] gap-5 items-stretch mb-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[2.1fr_1.75fr_1.55fr] gap-4 items-stretch mb-6 mt-6">
 
           {/* ── Booking Journey ─────────────────────────────────────────── */}
           {!isCancelled && (isStandardPipeline || isCheckoutPipeline) ? (
-            <div className="bg-[#07111f] border border-[rgba(59,130,246,0.12)] rounded-[1.25rem] p-7">
-              <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#4b8be8]/65 mb-7">
+            <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-7">
+              <h3 className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#4b6390] mb-3">
                 Booking Journey
               </h3>
               <ol className="relative space-y-0">
@@ -1440,7 +1358,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
                         <div className={`absolute left-[15px] top-8 bottom-0 w-[2px] ${
                           stepState === 'done'
                             ? 'bg-gradient-to-b from-[rgba(74,139,232,0.45)] to-[rgba(74,139,232,0.12)]'
-                            : 'bg-white/[0.06]'
+                            : 'bg-[#152d5a]/10'
                         }`} />
                       )}
                       <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center z-10 mt-0.5 ${
@@ -1448,7 +1366,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
                           ? 'bg-[rgba(59,130,246,0.15)] border border-[rgba(59,130,246,0.40)]'
                           : stepState === 'active'
                           ? 'bg-[rgba(245,158,11,0.12)] border border-[rgba(245,158,11,0.58)] shadow-[0_0_16px_rgba(245,158,11,0.22)]'
-                          : 'bg-transparent border border-white/[0.08]'
+                          : 'bg-transparent border border-[#152d5a]/10'
                       }`}>
                         {stepState === 'done' && (
                           <span className="material-symbols-outlined text-blue-400 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>
@@ -1460,35 +1378,35 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
                       <div className="flex-1 pt-1 min-w-0">
                         <p className={`text-[13px] font-semibold leading-snug ${
-                          stepState === 'active' ? 'text-white' :
-                          stepState === 'done'   ? 'text-blue-300/80' :
-                                                   'text-white/22'
+                          stepState === 'active' ? 'text-[#152d5a]' :
+                          stepState === 'done'   ? 'text-[#1a4fd6]' :
+                                                   'text-[#4b6390]/60'
                         }`}>
                           {step.label}
                         </p>
                         {histRow && (
-                          <p className="text-[10px] text-slate-500 mt-0.5 font-mono tabular-nums">
+                          <p className="text-[10px] text-[#4b6390] mt-0.5 font-mono tabular-nums">
                             {new Date(histRow.created_at).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' })}
                             {isStandardPipeline && STEP_DESCRIPTIONS[step.key] && ` · ${STEP_DESCRIPTIONS[step.key]}`}
                           </p>
                         )}
                         {stepState === 'active' && isStandardPipeline && STEP_DESCRIPTIONS[step.key] && (
-                          <p className="text-[11px] mt-0.5 text-amber-400/65 leading-relaxed">
+                          <p className="text-[11px] mt-0.5 text-amber-600/70 leading-relaxed">
                             {STEP_DESCRIPTIONS[step.key]}
                           </p>
                         )}
                         {stepState === 'pending' && isStandardPipeline && STEP_DESCRIPTIONS[step.key] && (
-                          <p className="text-[11px] mt-0.5 text-white/18 leading-relaxed">
+                          <p className="text-[11px] mt-0.5 text-[#4b6390]/40 leading-relaxed">
                             {STEP_DESCRIPTIONS[step.key]}
                           </p>
                         )}
                         {stepState === 'active' && step.key === 'checkout_payment_required' && isAwaitingManualPayment && (
-                          <p className="text-[10px] text-blue-400/60 mt-0.5">
+                          <p className="text-[10px] text-blue-600/70 mt-0.5">
                             Bank transfer submitted. Awaiting admin verification.
                           </p>
                         )}
                         {stepState === 'pending' && step.key === 'completed' && isCheckoutPipeline && currentIdx === 3 && (
-                          <p className="text-[10px] text-white/15 mt-0.5">Pending payment completion</p>
+                          <p className="text-[10px] text-[#4b6390]/40 mt-0.5">Pending payment completion</p>
                         )}
                       </div>
                     </li>
@@ -1497,110 +1415,103 @@ export default async function BookingDetailPage({ params }: PageProps) {
               </ol>
             </div>
           ) : (
-            <div className="bg-[#07111f] border border-[rgba(59,130,246,0.12)] rounded-[1.25rem] p-7 flex items-center justify-center">
-              <p className="text-sm text-oz-muted text-center">Journey not available for this booking.</p>
+            <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-7 flex items-center justify-center">
+              <p className="text-sm text-[#4b6390] text-center">Journey not available for this booking.</p>
             </div>
           )}
 
           {/* ── Flight Details ──────────────────────────────────────────── */}
-          <div className="bg-[#07111f] border border-[rgba(59,130,246,0.12)] rounded-[1.25rem] p-6">
-            <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#4b8be8]/65 mb-5">
+            <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
+              <h3 className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#4b6390] mb-3">
               Flight Details
             </h3>
             <div className="grid grid-cols-2 gap-2.5">
-              <div className="bg-[#0a1628] border border-white/[0.05] rounded-xl p-3.5">
+              <div className="bg-[#f0f6ff] border border-[#152d5a]/10 rounded-xl p-3.5">
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <span className="material-symbols-outlined text-[#4b8be8]/45 text-[12px]">calendar_today</span>
-                  <p className="text-[8px] uppercase tracking-widest text-slate-600 font-bold">Date</p>
+                  <span className="material-symbols-outlined text-[#1a4fd6]/45 text-[12px]">calendar_today</span>
+                  <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#4b6390] mb-1">Date</p>
                 </div>
-                <p className="text-[13px] text-white font-medium">{formatDateFromISO(booking.scheduled_start)}</p>
+                <p className="text-[15px] font-semibold text-[#152d5a]">{formatDateFromISO(booking.scheduled_start)}</p>
               </div>
-              <div className="bg-[#0a1628] border border-white/[0.05] rounded-xl p-3.5">
+              <div className="bg-[#f0f6ff] border border-[#152d5a]/10 rounded-xl p-3.5">
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <span className="material-symbols-outlined text-[#4b8be8]/45 text-[12px]">schedule</span>
-                  <p className="text-[8px] uppercase tracking-widest text-slate-600 font-bold">Time (Sydney)</p>
+                  <span className="material-symbols-outlined text-[#1a4fd6]/45 text-[12px]">schedule</span>
+                  <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#4b6390] mb-1">Time (Sydney)</p>
                 </div>
-                <p className="text-[12px] text-white font-medium tabular-nums leading-snug">
+                <p className="text-[15px] font-semibold text-[#152d5a] tabular-nums leading-snug">
                   {new Date(booking.scheduled_start).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}
                   {' – '}
                   {new Date(booking.scheduled_end).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}
                 </p>
-                <p className="text-[9px] text-slate-600 mt-0.5">(AEST)</p>
+                <p className="text-[9px] text-[#4b6390] mt-0.5">(AEST)</p>
               </div>
-              <div className="bg-[#0a1628] border border-white/[0.05] rounded-xl p-3.5">
+              <div className="bg-[#f0f6ff] border border-[#152d5a]/10 rounded-xl p-3.5">
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <span className="material-symbols-outlined text-[#4b8be8]/45 text-[12px]">flight</span>
-                  <p className="text-[8px] uppercase tracking-widest text-slate-600 font-bold">Aircraft</p>
+                  <span className="material-symbols-outlined text-[#1a4fd6]/45 text-[12px]">flight</span>
+                  <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#4b6390] mb-1">Aircraft</p>
                 </div>
-                <p className="text-[13px] text-white font-medium">{aircraft?.registration ?? '—'}</p>
-                <p className="text-[9px] text-slate-600 mt-0.5 capitalize">
+                <p className="text-[15px] font-semibold text-[#152d5a]">{aircraft?.registration ?? '—'}</p>
+                <p className="text-[9px] text-[#4b6390] mt-0.5 capitalize">
                   {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/_/g, ' ') ?? ''}
                 </p>
               </div>
               {booking.estimated_hours != null && (
-                <div className="bg-[#0a1628] border border-white/[0.05] rounded-xl p-3.5">
+                <div className="bg-[#f0f6ff] border border-[#152d5a]/10 rounded-xl p-3.5">
                   <div className="flex items-center gap-1.5 mb-1.5">
-                    <span className="material-symbols-outlined text-[#4b8be8]/45 text-[12px]">timer</span>
-                    <p className="text-[8px] uppercase tracking-widest text-slate-600 font-bold">Est. Duration</p>
+                    <span className="material-symbols-outlined text-[#1a4fd6]/45 text-[12px]">timer</span>
+                    <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#4b6390] mb-1">Est. Duration</p>
                   </div>
-                  <p className="text-[13px] text-white font-medium">{booking.estimated_hours.toFixed(1)} h</p>
+                  <p className="text-[15px] font-semibold text-[#152d5a]">{booking.estimated_hours.toFixed(1)} h</p>
                 </div>
               )}
               {booking.pic_name && (
-                <div className="bg-[#0a1628] border border-white/[0.05] rounded-xl p-3.5">
+                <div className="bg-[#f0f6ff] border border-[#152d5a]/10 rounded-xl p-3.5">
                   <div className="flex items-center gap-1.5 mb-1.5">
-                    <span className="material-symbols-outlined text-[#4b8be8]/45 text-[12px]">person</span>
-                    <p className="text-[8px] uppercase tracking-widest text-slate-600 font-bold">Pilot in Command</p>
+                    <span className="material-symbols-outlined text-[#1a4fd6]/45 text-[12px]">person</span>
+                    <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#4b6390] mb-1">Pilot in Command</p>
                   </div>
-                  <p className="text-[13px] text-white font-medium">{booking.pic_name}</p>
+                  <p className="text-[15px] font-semibold text-[#152d5a]">{booking.pic_name}</p>
                 </div>
               )}
               {booking.pic_arn && (
-                <div className="bg-[#0a1628] border border-white/[0.05] rounded-xl p-3.5">
+                <div className="bg-[#f0f6ff] border border-[#152d5a]/10 rounded-xl p-3.5">
                   <div className="flex items-center gap-1.5 mb-1.5">
-                    <span className="material-symbols-outlined text-[#4b8be8]/45 text-[12px]">badge</span>
-                    <p className="text-[8px] uppercase tracking-widest text-slate-600 font-bold">ARN</p>
+                    <span className="material-symbols-outlined text-[#1a4fd6]/45 text-[12px]">badge</span>
+                    <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#4b6390] mb-1">ARN</p>
                   </div>
-                  <p className="text-[13px] text-white font-medium font-mono">{booking.pic_arn}</p>
+                  <p className="text-[15px] font-semibold text-[#152d5a] font-mono">{booking.pic_arn}</p>
                 </div>
               )}
               {bookingType === 'checkout' && booking.estimated_amount != null && (
-                <div className="bg-[#0a1628] border border-white/[0.05] rounded-xl p-3.5">
+                <div className="bg-[#f0f6ff] border border-[#152d5a]/10 rounded-xl p-3.5">
                   <div className="flex items-center gap-1.5 mb-1.5">
-                    <span className="material-symbols-outlined text-[#4b8be8]/45 text-[12px]">payments</span>
-                    <p className="text-[8px] uppercase tracking-widest text-slate-600 font-bold">Checkout Fee</p>
+                    <span className="material-symbols-outlined text-[#1a4fd6]/45 text-[12px]">payments</span>
+                    <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#4b6390] mb-1">Checkout Fee</p>
                   </div>
-                  <p className="text-[13px] text-white font-medium">${booking.estimated_amount.toFixed(0)}</p>
-                  <p className="text-[9px] text-slate-600 mt-0.5">Invoiced after checkout</p>
+                  <p className="text-[15px] font-semibold text-[#152d5a]">${booking.estimated_amount.toFixed(0)}</p>
+                  <p className="text-[9px] text-[#4b6390] mt-0.5">Invoiced after checkout</p>
                 </div>
               )}
             </div>
             {booking.customer_notes && (
-              <div className="mt-3 bg-[#0a1628] border border-white/[0.05] rounded-xl p-3.5">
+              <div className="mt-3 bg-[#f0f6ff] border border-[#152d5a]/10 rounded-xl p-3.5">
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <span className="material-symbols-outlined text-[#4b8be8]/45 text-[12px]">notes</span>
-                  <p className="text-[8px] uppercase tracking-widest text-slate-600 font-bold">Your Notes</p>
+                  <span className="material-symbols-outlined text-[#1a4fd6]/45 text-[12px]">notes</span>
+                  <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#4b6390] mb-1">Your Notes</p>
                 </div>
-                <p className="text-[12px] text-oz-muted leading-relaxed">{booking.customer_notes}</p>
+                <p className="text-[15px] font-semibold text-[#152d5a] leading-relaxed">{booking.customer_notes}</p>
               </div>
             )}
           </div>
 
           {/* ── Booking Status ──────────────────────────────────────────── */}
-          <div
-            className="border border-[rgba(59,130,246,0.12)] rounded-[1.25rem] p-6 relative overflow-hidden"
-            style={{
-              backgroundImage: "linear-gradient(rgba(4,11,24,0.82), rgba(4,11,24,0.88)), url('/Customer-Booking-Status.png')",
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-            }}
-          >
+          <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6 relative overflow-hidden">
             <div className="flex items-center gap-2 mb-4">
               <span className={`material-symbols-outlined text-[13px] ${cfg.color}`} style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-              <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#4b8be8]/65">Booking Status</h3>
+              <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#4b6390]">Booking Status</h3>
             </div>
-            <p className={`text-[20px] font-semibold mb-3 ${cfg.color}`}>{cfg.label}</p>
-            <p className="text-[13px] text-oz-muted leading-relaxed relative z-10">
+            <p className="text-[18px] font-semibold text-[#152d5a] mb-3">{cfg.label}</p>
+            <p className="text-[13px] text-[#4b6390] leading-relaxed relative z-10">
               {(status === 'confirmed' || status === 'ready_for_dispatch' || status === 'dispatched')
                 ? 'Your booking is confirmed. Please arrive at the aircraft at least 30 minutes before your scheduled departure for pre-flight checks.'
                 : status === 'awaiting_flight_record'
@@ -1648,17 +1559,17 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
         {/* Terms accepted — shown at the bottom if present */}
         {termsAcceptanceRow && (
-          <div className="mt-5 bg-[#07111f] border border-[rgba(59,130,246,0.12)] rounded-[1.25rem] p-6 space-y-3">
-            <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#4b8be8]/65">Terms Accepted</h3>
-            <p className="text-sm text-slate-300">
-              Accepted: {termsAcceptanceRow.accepted_at ? formatDateTime(termsAcceptanceRow.accepted_at) : '—'}
-            </p>
-            <p className="text-sm text-slate-300">Version: {termsAcceptanceRow.terms_version ?? '—'}</p>
-            {acceptedTermsPublicUrl && (
-              <a href={acceptedTermsPublicUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-400 hover:underline">
-                View terms
-              </a>
-            )}
+      <div className="mt-5 bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6 space-y-3">
+        <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#4b6390]">Terms Accepted</h3>
+        <p className="text-sm text-[#4b6390]">
+          Accepted: {termsAcceptanceRow.accepted_at ? formatDateTime(termsAcceptanceRow.accepted_at) : '—'}
+        </p>
+        <p className="text-sm text-[#4b6390]">Version: {termsAcceptanceRow.terms_version ?? '—'}</p>
+        {acceptedTermsPublicUrl && (
+          <a href={acceptedTermsPublicUrl} target="_blank" rel="noreferrer" className="text-sm text-[#1a4fd6] hover:underline">
+            View terms
+          </a>
+        )}
           </div>
         )}
 

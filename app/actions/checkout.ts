@@ -311,7 +311,7 @@ export async function submitCheckoutRequest(
 
   for (const type of ['pilot_licence', 'medical_certificate', 'photo_id'] as const) {
     const doc = docMap[type]
-    if (!doc || doc.status !== 'approved') {
+    if (!doc || doc.status === 'rejected') {
       missing.push(requiredDocLabels[type])
     }
   }
@@ -370,7 +370,7 @@ export async function submitCheckoutRequest(
     return {
       ok: false,
       type: 'validation',
-      message: 'Your documents must be approved by our team before you can request a checkout flight. Please visit your Documents page.',
+      message: "Please upload all required documents before submitting. Documents don't need to be approved first — our team will review them alongside your request.",
     }
   }
 

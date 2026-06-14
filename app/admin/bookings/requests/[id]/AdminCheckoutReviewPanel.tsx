@@ -123,11 +123,11 @@ function DocRow({
   }
 
   return (
-    <div className="py-3 border-b border-white/[0.05] last:border-0">
+    <div className="py-3 border-b border-[#152d5a]/[0.06] pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-[11px] font-medium ${ok ? 'text-slate-300' : 'text-slate-600'}`}>{label}</span>
+            <span className="text-[14px] font-semibold text-[#152d5a]">{label}</span>
             {/* Status chip */}
             {!doc
               ? <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600 border border-white/10 px-1.5 py-0.5 rounded">Missing</span>
@@ -144,16 +144,16 @@ function DocRow({
           </div>
           {doc && (
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-              {doc.licence_number  && <span className="text-[9px] text-slate-500">ARN: {doc.licence_number}</span>}
-              {doc.document_number && <span className="text-[9px] text-slate-500">#{doc.document_number}</span>}
-              {doc.issue_date      && <span className="text-[9px] text-slate-600">Issued: {doc.issue_date}</span>}
+              {doc.licence_number  && <span className="text-[12px] text-[#4b6390] mt-0.5">ARN: {doc.licence_number}</span>}
+              {doc.document_number && <span className="text-[12px] text-[#4b6390] mt-0.5">#{doc.document_number}</span>}
+              {doc.issue_date      && <span className="text-[12px] text-[#4b6390] mt-0.5">Issued: {doc.issue_date}</span>}
               {doc.expiry_date && (
-                <span className={`text-[9px] ${expired ? 'text-red-400' : 'text-slate-600'}`}>
+                <span className={`text-[12px] mt-0.5 ${expired ? 'text-red-400' : 'text-[#4b6390]'}`}>
                   {expired ? 'Expired' : 'Expires'}: {doc.expiry_date}
                 </span>
               )}
               {doc.uploaded_at && (
-                <span className="text-[9px] text-slate-700">
+                <span className="text-[12px] text-[#4b6390] mt-0.5">
                   Uploaded: {new Date(doc.uploaded_at).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' })}
                 </span>
               )}
@@ -166,13 +166,13 @@ function DocRow({
           <button
             onClick={handleView}
             disabled={viewLoading}
-            className="flex-shrink-0 flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors disabled:opacity-40"
+            className="text-[13px] font-semibold text-[#1a4fd6] hover:text-[#1540a8] flex items-center gap-1 transition-colors disabled:opacity-40"
           >
             {viewLoading
-              ? <span className="material-symbols-outlined text-[12px] animate-spin">progress_activity</span>
-              : <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'wght' 300" }}>open_in_new</span>
+              ? <span className="material-symbols-outlined text-[15px] animate-spin">progress_activity</span>
+              : <span className="material-symbols-outlined text-[15px]" style={{ fontVariationSettings: "'wght' 300" }}>open_in_new</span>
             }
-            View
+            VIEW
           </button>
         )}
       </div>
@@ -404,7 +404,7 @@ export default function AdminCheckoutReviewPanel({
     <div className="space-y-6">
 
       {/* ── 1. Checkout request summary ───────────────────────────────────────── */}
-      <div className="bg-white/5 border border-white/5 rounded-2xl p-6 space-y-5">
+      <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-6 space-y-5">
         <h2 className="text-[10px] uppercase tracking-widest font-bold text-blue-400/80 flex items-center gap-2">
           <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'wght' 300" }}>how_to_reg</span>
           Checkout Request Review
@@ -413,10 +413,10 @@ export default function AdminCheckoutReviewPanel({
         {/* Customer row */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">Customer</p>
+            <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#4b6390] mb-2">Customer</p>
             <p className="text-sm font-medium text-white">{customerName || 'Unknown'}</p>
-            <p className="text-[11px] text-slate-500">{customerEmail || '—'}</p>
-            {pilotArn && <p className="text-[10px] text-slate-600 font-mono mt-0.5">ARN: {pilotArn}</p>}
+            <p className="text-[14px] font-medium text-[#152d5a]">{customerEmail || '—'}</p>
+            {pilotArn && <p className="text-[14px] font-medium text-[#152d5a] mt-0.5">ARN: {pilotArn}</p>}
           </div>
           <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider border ${clearanceColor} ${clearanceBg} ${clearanceBorder} flex-shrink-0`}>
             {clearanceLabel}
@@ -426,7 +426,7 @@ export default function AdminCheckoutReviewPanel({
         {/* Documents */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[9px] uppercase tracking-widest text-slate-600">Pilot Documents</p>
+            <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#4b6390] mb-2">Pilot Documents</p>
             {allDocsOk
               ? <span className="text-[9px] font-bold text-green-400 uppercase tracking-widest flex items-center gap-1">
                   <span className="material-symbols-outlined text-[11px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
@@ -441,7 +441,7 @@ export default function AdminCheckoutReviewPanel({
           {/* Night VFR */}
           <div className="pt-3 mt-1 border-t border-white/[0.05]">
             <div className="flex items-center gap-2 mb-2">
-              <p className="text-[9px] uppercase tracking-widest text-slate-600">Night VFR</p>
+              <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#4b6390]">Night VFR</p>
               {nightVfrEvidenceDoc
                 ? <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400 border border-amber-400/30 bg-amber-500/10 px-1.5 py-0.5 rounded">Claimed</span>
                 : <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600 border border-white/10 px-1.5 py-0.5 rounded">Not provided</span>
@@ -455,13 +455,13 @@ export default function AdminCheckoutReviewPanel({
 
         {/* Requested time */}
         <div>
-          <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-2">Requested Checkout Time</p>
-          <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-4 py-3">
-            <p className="text-sm text-white font-medium">{formatDateTime(scheduledStart)}</p>
-            <p className="text-[11px] text-slate-500 mt-0.5">{formatDateTime(scheduledEnd)}</p>
+          <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#4b6390] mb-2">Requested Checkout Time</p>
+          <div className="bg-[#f8fbff] border border-[#152d5a]/10 rounded-lg px-4 py-3">
+            <p className="text-[14px] font-medium text-[#152d5a]">{formatDateTime(scheduledStart)}</p>
+            <p className="text-[11px] text-[#4b6390] mt-0.5">{formatDateTime(scheduledEnd)}</p>
             <div className="flex gap-4 mt-2">
-              <span className="text-[10px] text-slate-600">Duration: varies (typically 1–2 hours)</span>
-              <span className="text-[10px] text-slate-600">Rate: $290 / hour</span>
+              <span className="text-[14px] font-medium text-[#152d5a]">Duration: varies (typically 1–2 hours)</span>
+              <span className="text-[14px] font-medium text-[#152d5a]">Rate: $290 / hour</span>
             </div>
           </div>
         </div>
@@ -469,16 +469,16 @@ export default function AdminCheckoutReviewPanel({
         {/* Last flight date */}
         {lastFlightDate && (
           <div>
-            <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">Last Flight Date</p>
-            <p className="text-[11px] text-slate-300">{lastFlightDate}</p>
+            <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#4b6390] mb-2">Last Flight Date</p>
+            <p className="text-[14px] font-medium text-[#152d5a]">{lastFlightDate}</p>
           </div>
         )}
 
         {/* Customer notes */}
         {customerNotes && (
           <div>
-            <p className="text-[9px] uppercase tracking-widest text-slate-600 mb-1">Customer Notes</p>
-            <p className="text-[11px] text-slate-300 leading-relaxed italic">
+            <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#4b6390] mb-2">Customer Notes</p>
+            <p className="text-[14px] font-medium text-[#152d5a] leading-relaxed italic">
               &quot;{customerNotes}&quot;
             </p>
           </div>
@@ -488,13 +488,13 @@ export default function AdminCheckoutReviewPanel({
       </div>
 
       {/* ── 2. Message thread ─────────────────────────────────────────────────── */}
-      <div className="bg-white/5 border border-white/5 rounded-2xl p-6">
-        <h2 className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-4">
+      <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-6">
+        <h2 className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#4b6390] mb-4">
           Customer Messages
         </h2>
 
         {chatEvents.length === 0 ? (
-          <p className="text-[11px] text-slate-600 leading-relaxed mb-4">
+          <p className="text-[11px] text-[#4b6390] leading-relaxed mb-4">
             No messages yet. Use this to propose a different time, clarify documents, or communicate with the customer before confirming.
           </p>
         ) : (
@@ -504,28 +504,28 @@ export default function AdminCheckoutReviewPanel({
               return (
                 <div key={ev.id} className={`flex gap-2.5 ${isAdmin ? 'justify-end' : 'justify-start'}`}>
                   {!isAdmin && (
-                    <div className="w-6 h-6 rounded-full bg-blue-900/40 border border-blue-300/15 flex items-center justify-center flex-shrink-0 mt-1">
-                      <span className="material-symbols-outlined text-[11px] text-blue-300/70" style={{ fontVariationSettings: "'wght' 300" }}>person</span>
+                    <div className="w-6 h-6 rounded-full bg-[#f0f6ff] border border-[#152d5a]/10 flex items-center justify-center flex-shrink-0 mt-1">
+                      <span className="material-symbols-outlined text-[11px] text-[#1a4fd6]" style={{ fontVariationSettings: "'wght' 300" }}>person</span>
                     </div>
                   )}
                   <div className={`max-w-[75%] space-y-1 flex flex-col ${isAdmin ? 'items-end' : 'items-start'}`}>
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                    <span className="text-[11px] font-semibold text-[#1a4fd6] uppercase tracking-wide">
                       {isAdmin ? 'Admin' : (customerName || 'Customer')}
                     </span>
                     <div className={`px-3 py-2.5 rounded-2xl text-[11px] leading-relaxed whitespace-pre-wrap ${
                       isAdmin
-                        ? 'bg-blue-600/15 border border-blue-400/15 text-blue-100 rounded-tr-sm'
-                        : 'bg-[#1e2023]/80 border border-white/8 text-[#e2e2e6] rounded-tl-sm'
+                        ? 'bg-[#f8fbff] border border-[#152d5a]/10 text-[#152d5a] rounded-tr-sm'
+                        : 'bg-[#f0f6ff] text-[#152d5a] rounded-tl-sm'
                     }`}>
                       {ev.body}
                     </div>
-                    <span className="text-[9px] text-slate-600 font-mono">
+                    <span className="text-[11px] text-[#4b6390]">
                       {formatDateTime(ev.created_at)}
                     </span>
                   </div>
                   {isAdmin && (
-                    <div className="w-6 h-6 rounded-full bg-blue-600/20 border border-blue-400/15 flex items-center justify-center flex-shrink-0 mt-1">
-                      <span className="material-symbols-outlined text-[11px] text-blue-400/70" style={{ fontVariationSettings: "'wght' 300" }}>admin_panel_settings</span>
+                    <div className="w-6 h-6 rounded-full bg-[#f0f6ff] border border-[#152d5a]/10 flex items-center justify-center flex-shrink-0 mt-1">
+                      <span className="material-symbols-outlined text-[11px] text-[#1a4fd6]" style={{ fontVariationSettings: "'wght' 300" }}>admin_panel_settings</span>
                     </div>
                   )}
                 </div>
@@ -535,7 +535,7 @@ export default function AdminCheckoutReviewPanel({
           </div>
         )}
 
-        <div className="bg-[#1e2023]/60 border border-blue-300/8 rounded-xl p-3 space-y-2">
+        <div className="bg-white border border-[#152d5a]/10 rounded-xl p-3 space-y-2">
           <textarea
             value={message}
             onChange={e => setMessage(e.target.value)}
@@ -543,21 +543,18 @@ export default function AdminCheckoutReviewPanel({
             disabled={msgLoading}
             placeholder="Message the customer — e.g. propose a different time, request documents…"
             rows={3}
-            className="w-full bg-transparent focus:outline-none text-xs text-[#e2e2e6] placeholder:text-slate-600 resize-none"
+            className="w-full bg-[#f8fbff] border border-[#152d5a]/20 rounded-xl text-[#152d5a] placeholder:text-[#152d5a]/40 resize-none px-4 py-3 focus:outline-none"
           />
           {msgError && <p className="text-[10px] text-red-400">{msgError}</p>}
-          <div className="flex items-center justify-between border-t border-white/5 pt-2">
-            <p className="text-[9px] text-slate-600 italic">⌘ + Enter to send · Visible to customer</p>
+          <div className="flex items-center justify-between border-t border-[#152d5a]/10 pt-2">
+            <p className="text-[11px] text-[#4b6390]">⌘ + Enter to send · Visible to customer</p>
             <button
               type="button"
               onClick={handleSendMessage}
               disabled={msgLoading || !message.trim()}
-              className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600/20 border border-blue-400/20 text-blue-300 hover:bg-blue-600/30 rounded-full text-[9px] font-bold uppercase tracking-[0.15em] transition-all disabled:opacity-40"
+              className="bg-[#1a4fd6] hover:bg-[#1540a8] text-white rounded-lg px-4 py-1.5 text-[13px] font-semibold transition-colors disabled:opacity-40"
             >
-              <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'wght' 300" }}>
-                {msgLoading ? 'progress_activity' : 'send'}
-              </span>
-              Send
+              {msgLoading ? 'Sending…' : 'SEND'}
             </button>
           </div>
         </div>

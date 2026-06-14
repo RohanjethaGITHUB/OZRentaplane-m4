@@ -10,6 +10,7 @@ import AdminManualCheckoutCompletion from './AdminManualCheckoutCompletion'
 import AdminClarificationForm from './AdminClarificationForm'
 import AdminOperationalActions from './AdminOperationalActions'
 import AdminBankTransferPanel from './AdminBankTransferPanel'
+import AdminBankTransferReviewPanel from './AdminBankTransferReviewPanel'
 import AdminStandardBillingPanel from './AdminStandardBillingPanel'
 import AdminCancellationReviewCard from './AdminCancellationReviewCard'
 import AdminHoldBookingActions from './AdminHoldBookingActions'
@@ -246,6 +247,12 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     `)
     .eq('booking_id', booking.id)
     .maybeSingle()
+  // Invoice was sent via Stripe if checkoutInvoice exists with a status of 'open' or 'paid'
+  const invoiceSentViaStripe = !!(
+    checkoutInvoice &&
+    checkoutInvoice.stripe_amount_due_cents &&
+    checkoutInvoice.stripe_amount_due_cents > 0
+  )
 
   // Sort airports so Sydney Bankstown (YSBK) appears first, then alphabetically.
   const rawAirports = (airportRows ?? []) as { id: string; icao_code: string; name: string; default_landing_fee_cents: number }[]
@@ -667,12 +674,33 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         <div className="lg:col-span-2 space-y-6 order-last lg:order-first">
 
           {/* ── Checkout bank transfer panel — shown when checkout payment required ── */}
-          {isPaymentRequired && (
+          {isPaymentRequired && !invoiceSentViaStripe && (
             <AdminBankTransferPanel
               bookingId={booking.id}
               bookingType="checkout"
               amountCents={checkoutInvoice?.stripe_amount_due_cents ?? 0}
             />
+          )}
+
+          {isPaymentRequired && invoiceSentViaStripe && (
+            <div className="bg-[#f0f6ff] border border-[#1a4fd6]/20 rounded-2xl p-5 flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full bg-[#e8f0fe] flex items-center justify-center flex-shrink-0">
+                <span className="material-symbols-outlined text-[20px] text-[#1a4fd6]">receipt_long</span>
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold text-[#152d5a]">Invoice sent to customer</p>
+                <p className="text-[12px] text-[#4b6390] mt-1">
+                  A payment invoice has been issued. Awaiting customer payment.
+                  {checkoutInvoice?.stripe_amount_due_cents
+                    ? ` Amount due: $${(checkoutInvoice.stripe_amount_due_cents / 100).toFixed(2)}`
+                    : ''}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {isPaymentRequired && invoiceSentViaStripe && latestBankTransferSub && isAwaitingManualPayment && (
+            <AdminBankTransferReviewPanel bookingId={booking.id} submission={latestBankTransferSub} />
           )}
 
           {/* ── Standard booking manual payment panel ────────────────────────── */}
@@ -733,7 +761,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               <h2 className="text-[13px] font-semibold text-deep-ink">
                 Customer & flight
               </h2>
-              <a href={`/admin/customers/${customer?.id}`}
+              <a href={`/admin/users/${customer?.id}`}
                 className="text-[11px] text-[#1a4fd6] flex items-center gap-0.5">
                 Full profile →
               </a>
@@ -790,20 +818,24 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                   {formatDateTime(booking.scheduled_end)}
                 </div>
               </div>
-              <div>
-                <div className="text-[9px] uppercase tracking-widest font-semibold text-[#4b6390] mb-0.5">VDO duration</div>
-                <div className={`text-[13px] ${checkoutInvoice?.checkout_duration_hours ? 'text-deep-ink' : 'text-orange-600'}`}>
-                  {checkoutInvoice?.checkout_duration_hours
-                    ? `${checkoutInvoice.checkout_duration_hours} hrs`
-                    : 'Not recorded'}
-                </div>
-              </div>
-              <div>
-                <div className="text-[9px] uppercase tracking-widest font-semibold text-[#4b6390] mb-0.5">Pilot in command</div>
-                <div className="text-[13px] text-deep-ink">
-                  {booking.pic_name ?? '—'}
-                </div>
-              </div>
+              {['awaiting_outcome', 'payment_required', 'completed'].includes(booking.status) && (
+                <>
+                  <div>
+                    <div className="text-[9px] uppercase tracking-widest font-semibold text-[#4b6390] mb-0.5">VDO duration</div>
+                    <div className={`text-[13px] ${checkoutInvoice?.checkout_duration_hours ? 'text-deep-ink' : 'text-orange-600'}`}>
+                      {checkoutInvoice?.checkout_duration_hours
+                        ? `${checkoutInvoice.checkout_duration_hours} hrs`
+                        : 'Not recorded'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase tracking-widest font-semibold text-[#4b6390] mb-0.5">Pilot in command</div>
+                    <div className="text-[13px] text-deep-ink">
+                      {booking.pic_name ?? '—'}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -924,78 +956,105 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               </div>
             )}
 
-            {/* CHARGES & PAYMENT CARD */}
-            <div className="rounded-2xl bg-white border border-[#152d5a]/10 p-4">
-              <div className="text-[13px] font-semibold text-deep-ink mb-3">
-                Charges & payment
-              </div>
-              {[
-                {
-                  label: 'Aircraft',
-                  value: `${(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/^Cessna 172$/, 'Cessna 172N')?.replace(/^Cessna 172N$/, 'Cessna 172N') ?? 'Cessna 172N'} · ${(aircraft as { registration?: string } | null)?.registration ?? '—'}`
-                },
-                {
-                  label: 'Hourly rate',
-                  value: checkoutInvoice?.checkout_rate_cents_per_hour
-                    ? `$${(checkoutInvoice.checkout_rate_cents_per_hour / 100).toFixed(2)}/hr`
-                    : '—'
-                },
-                {
-                  label: 'VDO duration',
-                  value: checkoutInvoice?.checkout_duration_hours
-                    ? `${checkoutInvoice.checkout_duration_hours} hrs`
-                    : null,
-                  missing: !checkoutInvoice?.checkout_duration_hours
-                },
-              ].map(r => (
-                <div key={r.label} className="flex justify-between items-baseline py-1">
-                  <span className="text-xs text-[#4b6390]">
-                    {r.label}
-                  </span>
-                  <span className={`text-xs font-medium ${r.missing ? 'text-orange-600' : 'text-deep-ink'}`}>
-                    {r.missing ? 'Not recorded' : r.value}
-                  </span>
-                </div>
-              ))}
-              <div className="border-t border-[#152d5a]/10 my-2.5" />
-              <div className="flex justify-between items-baseline py-1">
-                <span className="text-xs font-semibold text-deep-ink">Total charged</span>
-                <span className="text-[15px] font-semibold text-deep-ink">
-                  {checkoutInvoice?.checkout_final_amount_cents
-                    ? `$${(checkoutInvoice.checkout_final_amount_cents / 100).toFixed(2)}`
-                    : '$—'}
-                </span>
-              </div>
-              {checkoutInvoice?.total_paid_cents && checkoutInvoice.total_paid_cents > 0 ? (
-                <div className="bg-[#e8f5e9] rounded-xl p-3 mt-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-semibold text-green-700 flex items-center gap-1">
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
-                        <circle cx="7" cy="7" r="6.5" stroke="#2e7d32" fill="#e8f5e9"/>
-                        <path d="M4.5 7l2 2 3-3" stroke="#2e7d32" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                      Paid in full
-                    </span>
-                    <span className="text-sm font-semibold text-green-700">
-                      ${(checkoutInvoice.total_paid_cents / 100).toFixed(2)}
+            {['awaiting_outcome', 'payment_required', 'completed'].includes(booking.status) && (
+              <>
+                {/* CHARGES & PAYMENT CARD */}
+                <div className="rounded-2xl bg-white border border-[#152d5a]/10 p-4">
+                  <div className="text-[13px] font-semibold text-deep-ink mb-3">
+                    Charges & payment
+                  </div>
+                  {[
+                    {
+                      label: 'Aircraft',
+                      value: `${(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/^Cessna 172$/, 'Cessna 172N')?.replace(/^Cessna 172N$/, 'Cessna 172N') ?? 'Cessna 172N'} · ${(aircraft as { registration?: string } | null)?.registration ?? '—'}`
+                    },
+                    {
+                      label: 'Hourly rate',
+                      value: checkoutInvoice?.checkout_rate_cents_per_hour
+                        ? `$${(checkoutInvoice.checkout_rate_cents_per_hour / 100).toFixed(2)}/hr`
+                        : '—'
+                    },
+                    {
+                      label: 'VDO duration',
+                      value: checkoutInvoice?.checkout_duration_hours
+                        ? `${checkoutInvoice.checkout_duration_hours} hrs`
+                        : null,
+                      missing: !checkoutInvoice?.checkout_duration_hours
+                    },
+                  ].map(r => (
+                    <div key={r.label} className="flex justify-between items-baseline py-1">
+                      <span className="text-xs text-[#4b6390]">
+                        {r.label}
+                      </span>
+                      <span className={`text-xs font-medium ${r.missing ? 'text-orange-600' : 'text-deep-ink'}`}>
+                        {r.missing ? 'Not recorded' : r.value}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="border-t border-[#152d5a]/10 my-2.5" />
+                  <div className="flex justify-between items-baseline py-1">
+                    <span className="text-xs font-semibold text-deep-ink">Total charged</span>
+                    <span className="text-[15px] font-semibold text-deep-ink">
+                      {checkoutInvoice?.checkout_final_amount_cents
+                        ? `$${(checkoutInvoice.checkout_final_amount_cents / 100).toFixed(2)}`
+                        : '$—'}
                     </span>
                   </div>
-                  <div className="text-[10px] text-green-600 mt-1">
-                    Bank transfer · in person · {formatDateTime(booking.updated_at)}
+                  {checkoutInvoice?.total_paid_cents && checkoutInvoice.total_paid_cents > 0 ? (
+                    <div className="bg-[#e8f5e9] rounded-xl p-3 mt-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-semibold text-green-700 flex items-center gap-1">
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
+                            <circle cx="7" cy="7" r="6.5" stroke="#2e7d32" fill="#e8f5e9"/>
+                            <path d="M4.5 7l2 2 3-3" stroke="#2e7d32" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          Paid in full
+                        </span>
+                        <span className="text-sm font-semibold text-green-700">
+                          ${(checkoutInvoice.total_paid_cents / 100).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-green-600 mt-1">
+                        Bank transfer · in person · {formatDateTime(booking.updated_at)}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-amber-50 rounded-xl p-3 mt-2">
+                      <div className="flex items-center gap-1.5">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
+                          <circle cx="7" cy="7" r="6.5" stroke="#d97706" fill="#fffbeb"/>
+                          <path d="M7 4v3.5l2 1.5" stroke="#d97706" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                        <span className="text-xs font-semibold text-amber-700">Awaiting payment</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+            {['checkout_requested', 'checkout_confirmed'].includes(booking.status) && (
+              <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">payments</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#4b6390]">Charges & payment</span>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <div className="flex justify-between text-[13px]">
+                    <span className="text-[#4b6390]">Aircraft</span>
+                    <span className="text-[#152d5a] font-medium">Cessna 172N · VH-KZG</span>
+                  </div>
+                  <div className="flex justify-between text-[13px]">
+                    <span className="text-[#4b6390]">Hourly rate</span>
+                    <span className="text-[#152d5a] font-medium">$250 / hr</span>
+                  </div>
+                  <div className="border-t border-[#152d5a]/[0.06] pt-3 mt-1">
+                    <p className="text-[12px] text-[#4b6390] italic">
+                      Final charges will be calculated once the checkout flight is completed and VDO readings are recorded.
+                    </p>
                   </div>
                 </div>
-              ) : (
-                <div className="bg-amber-50 rounded-xl p-3 mt-2">
-                  <div className="flex items-center gap-1.5">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
-                      <circle cx="7" cy="7" r="6.5" stroke="#d97706" fill="#fffbeb"/>
-                      <path d="M7 4v3.5l2 1.5" stroke="#d97706" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                    <span className="text-xs font-semibold text-amber-700">Awaiting payment</span>
-                  </div>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* DATES CARD */}
             <div className="rounded-2xl bg-white border border-[#152d5a]/10 px-4 py-3 mt-2.5">

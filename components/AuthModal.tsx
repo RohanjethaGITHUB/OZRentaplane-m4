@@ -39,7 +39,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
           className="absolute inset-0 bg-[#03070f]/72 backdrop-blur-md"
         />
         <div
-          className="relative z-10 w-full flex items-center justify-center"
+          className="relative z-10 w-full max-w-[1100px] mx-auto flex items-center justify-center"
           onClick={(e) => e.stopPropagation()}
         >
           <LoginContent presentation="modal" onRequestClose={onClose} onBusyChange={setBusy} />
