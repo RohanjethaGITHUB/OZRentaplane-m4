@@ -24,6 +24,10 @@ const SCENE_BOUNDARIES = [
   { start: 50, end: 89 },
   { start: 90, end: 159 },
 ] as const
+const IS_SAFARI =
+  typeof navigator !== 'undefined' &&
+  /Safari\//.test(navigator.userAgent) &&
+  !/Chrome\//.test(navigator.userAgent)
 
 const HERO_TEXT = { line1: 'FLY', line2: 'YOUR WAY', showCta: true } as const
 
@@ -50,6 +54,7 @@ export default function HomeHeroScrollSequence() {
   const videoMobileRef = useRef<HTMLVideoElement | null>(null)
   const videoReadyRef = useRef(false)
   const lastAppliedTimeRef = useRef(0)
+  const safariSeekTickRef = useRef(0)
   const isMobileViewportRef = useRef(false)
   const cloudWrapRef = useRef<HTMLDivElement | null>(null)
   const ctaWrapRef = useRef<HTMLDivElement | null>(null)
@@ -201,14 +206,21 @@ export default function HomeHeroScrollSequence() {
     if (!vid) return
 
     const frameIndex = clamp(
-      Math.round(playhead),
-      0,
-      TOTAL_FRAMES - 1,
+      Math.round(playhead), 0, TOTAL_FRAMES - 1
     )
     const targetTime =
       (frameIndex / (TOTAL_FRAMES - 1)) * VIDEO_DURATION
 
-    if (Math.abs(targetTime - lastAppliedTimeRef.current) < 0.001) return
+    if (Math.abs(targetTime - lastAppliedTimeRef.current) < 0.001)
+      return
+
+    // Safari: throttle seeks to every 3rd RAF tick
+    // Gives decoder 48ms per seek instead of 16ms
+    if (IS_SAFARI) {
+      safariSeekTickRef.current += 1
+      if (safariSeekTickRef.current % 3 !== 0) return
+    }
+
     lastAppliedTimeRef.current = targetTime
     vid.currentTime = targetTime
   }
