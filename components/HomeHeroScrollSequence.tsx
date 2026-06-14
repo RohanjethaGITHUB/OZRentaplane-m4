@@ -387,14 +387,20 @@ export default function HomeHeroScrollSequence() {
     setVideoReady(false)
     setVideoError(false)
 
+    const mountTime = Date.now()
     const activate = () => {
-      vid.pause()
-      vid.currentTime = 0
-      videoReadyRef.current = true
-      setVideoReady(true)
-      if (rafRef.current === null) {
-        rafRef.current = window.requestAnimationFrame(renderLoop)
-      }
+      // Ensure overlay shows for minimum 1 second
+      const elapsed = Date.now() - mountTime
+      const remaining = Math.max(0, 1000 - elapsed)
+      window.setTimeout(() => {
+        vid.pause()
+        vid.currentTime = 0
+        videoReadyRef.current = true
+        setVideoReady(true)
+        if (rafRef.current === null) {
+          rafRef.current = window.requestAnimationFrame(renderLoop)
+        }
+      }, remaining)
     }
 
     const onError = () => {
@@ -697,10 +703,22 @@ export default function HomeHeroScrollSequence() {
               SCROLL
             </span>
             <span
-              className="material-symbols-outlined text-white/50 animate-bounce"
-              style={{ fontSize: '20px' }}
+              className="text-white/50"
+              aria-hidden="true"
             >
-              keyboard_arrow_down
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="animate-bounce"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </span>
           </div>
         </div>
