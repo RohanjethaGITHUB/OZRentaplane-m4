@@ -1,10 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { HOME_HERO_SCROLL_FRAMES } from '@/lib/homeHeroScrollFrames'
-import { HOME_HERO_SCROLL_MOBILE_FRAMES } from '@/lib/homeHeroScrollMobileFrames'
-import { HOME_HERO_SCROLL_FRAMES_JPEG } from '@/lib/homeHeroScrollFramesJPEG'
-import { HOME_HERO_SCROLL_MOBILE_FRAMES_JPEG } from '@/lib/homeHeroScrollMobileFramesJPEG'
 import HeroCloudLayers from '@/components/HeroCloudLayers'
 
 const SCROLL_HEIGHT_VH = 430
@@ -21,43 +17,15 @@ const WORD_WAY_DELAY_MS = 1120
 const UNDERLINE_DELAY_MS = 1500
 const CLOUD_FADE_START_FRAME = 22
 const CLOUD_FADE_END_FRAME = 34
+const VIDEO_DURATION = 6.625
+const TOTAL_FRAMES = 160
+const SCENE_BOUNDARIES = [
+  { start: 0, end: 49 },
+  { start: 50, end: 89 },
+  { start: 90, end: 159 },
+] as const
 
 const HERO_TEXT = { line1: 'FLY', line2: 'YOUR WAY', showCta: true } as const
-
-const INITIAL_PRELOAD_COUNT = 30
-const MOBILE_INITIAL_PRELOAD_COUNT = 50
-const PRELOAD_AHEAD = 40
-const PRELOAD_BEHIND = 12
-const SCENE_BOUNDARY_TRIGGER = 18
-const SCENE_WARMUP_COUNT = 45
-const SAFARI_SCENE_BOUNDARY_TRIGGER = 35
-const SAFARI_SCENE_WARMUP_COUNT = 45
-const MOBILE_FRAME_SWAP_INTERVAL_MS = 33
-const MIN_VISIBLE_FRAME_DELTA = 0.5
-const MIN_TARGET_FRAME_DELTA = 0.08
-const SETTLE_EPSILON_FRAMES = 0.25
-const SETTLE_DIFF_EPS = 0.01
-const BACKGROUND_PRELOAD_BATCH = 3
-const MOBILE_BACKGROUND_PRELOAD_BATCH = 2
-
-type ActiveSequence = {
-  key: 'mobile' | 'desktop'
-  frames: readonly string[]
-  scenes: { start: number; end: number }[]
-  totalFrames: number
-}
-
-function deriveSceneMetadata(frames: readonly string[]) {
-  return {
-    scenes: [
-      { start: 0, end: 49 },
-      { start: 50, end: 89 },
-      { start: 90, end: 159 },
-    ],
-    totalFrames: frames.length,
-  }
-}
-
 
 type MotionMode = 'full' | 'reduced'
 type ScrollLockSnapshot = {
@@ -76,15 +44,13 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
 }
 
-const IS_SAFARI =
-  typeof navigator !== 'undefined' &&
-  /Safari\//.test(navigator.userAgent) &&
-  !/Chrome\//.test(navigator.userAgent)
-
 export default function HomeHeroScrollSequence() {
   const sectionRef = useRef<HTMLElement | null>(null)
-  const imgRef = useRef<HTMLImageElement | null>(null)
-  const imgBufferRef = useRef<HTMLImageElement | null>(null)
+  const videoDesktopRef = useRef<HTMLVideoElement | null>(null)
+  const videoMobileRef = useRef<HTMLVideoElement | null>(null)
+  const videoReadyRef = useRef(false)
+  const lastAppliedTimeRef = useRef(0)
+  const isMobileViewportRef = useRef(false)
   const cloudWrapRef = useRef<HTMLDivElement | null>(null)
   const ctaWrapRef = useRef<HTMLDivElement | null>(null)
   const sceneHeadingRef = useRef<HTMLDivElement | null>(null)
@@ -92,39 +58,19 @@ export default function HomeHeroScrollSequence() {
   const rafRef = useRef<number | null>(null)
   const scrollTickRef = useRef<number | null>(null)
   const introTimerRef = useRef<number | null>(null)
-  const backgroundPreloadRafRef = useRef<number | null>(null)
 
   const [introDone, setIntroDone] = useState(false)
   const [sceneIndex, setSceneIndex] = useState(0)
-  const [preloadProgress, setPreloadProgress] = useState(0)
-  const [preloadComplete, setPreloadComplete] = useState(false)
+  const [videoReady, setVideoReady] = useState(false)
+  const [videoError, setVideoError] = useState(false)
   
   const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false
     return window.matchMedia('(max-width: 767px)').matches
   })
-
-  const activeSequence = useMemo<ActiveSequence>(() => {
-    const frames = isMobileViewport
-      ? (IS_SAFARI 
-          ? HOME_HERO_SCROLL_MOBILE_FRAMES_JPEG 
-          : HOME_HERO_SCROLL_MOBILE_FRAMES)
-      : (IS_SAFARI 
-          ? HOME_HERO_SCROLL_FRAMES_JPEG 
-          : HOME_HERO_SCROLL_FRAMES)
-    const meta = deriveSceneMetadata(frames)
-    return {
-      key: isMobileViewport ? 'mobile' : 'desktop',
-      frames,
-      scenes: meta.scenes,
-      totalFrames: meta.totalFrames,
-    }
-  }, [isMobileViewport])
-
-  const activeSequenceRef = useRef(activeSequence)
   useEffect(() => {
-    activeSequenceRef.current = activeSequence
-  }, [activeSequence])
+    isMobileViewportRef.current = isMobileViewport
+  }, [isMobileViewport])
 
   const introDoneRef = useRef(false)
   const sceneIndexRef = useRef(0)
@@ -135,13 +81,6 @@ export default function HomeHeroScrollSequence() {
   const previousTargetFrameRef = useRef(0)
   const directionRef = useRef<1 | -1>(1)
   const lastRafTimeRef = useRef<number | null>(null)
-
-  const loadedRef = useRef<Set<number>>(new Set())
-  const loadingRef = useRef<Set<number>>(new Set())
-  const shownFrameRef = useRef<number>(0)
-  const lastVisibleSwapTsRef = useRef<number>(0)
-  const preloadCompleteRef = useRef(false)
-  const lastFallbackUsedRef = useRef(false)
 
   const sectionTopRef = useRef(0)
   const sectionScrollableRef = useRef(1)
@@ -164,7 +103,7 @@ export default function HomeHeroScrollSequence() {
   const scrollLockSnapshotRef = useRef<ScrollLockSnapshot | null>(null)
   const sceneHeadings = useMemo(
     () =>
-      activeSequence.scenes.map((scene, idx) => ({
+      SCENE_BOUNDARIES.map((scene, idx) => ({
         line1: idx === 0 ? HERO_TEXT.line1 : '',
         line2: idx === 0 ? HERO_TEXT.line2 : '',
         showCta: idx === 0 ? HERO_TEXT.showCta : false,
@@ -203,8 +142,6 @@ export default function HomeHeroScrollSequence() {
     sectionScrollableRef.current = Math.max(1, rect.height - vh)
     viewportRef.current = { width: window.innerWidth || 0, height: vh }
   }
-
-
 
   function updateCloudVisibility(playhead: number) {
     const el = cloudWrapRef.current
@@ -252,249 +189,29 @@ export default function HomeHeroScrollSequence() {
   }
 
   function getSceneIndex(frame: number): number {
-    const scenes = activeSequenceRef.current.scenes
-    if (frame <= scenes[0].end) return 0
-    if (frame <= scenes[1].end) return 1
+    if (frame <= SCENE_BOUNDARIES[0].end) return 0
+    if (frame <= SCENE_BOUNDARIES[1].end) return 1
     return 2
   }
+  function applyBestFrame(playhead: number, _nowTs: number) {
+    if (!videoReadyRef.current) return
+    const vid = isMobileViewportRef.current
+      ? videoMobileRef.current
+      : videoDesktopRef.current
+    if (!vid) return
 
+    const frameIndex = clamp(
+      Math.round(playhead),
+      0,
+      TOTAL_FRAMES - 1,
+    )
+    const targetTime =
+      (frameIndex / (TOTAL_FRAMES - 1)) * VIDEO_DURATION
 
-  function markLoaded(index: number) {
-    loadedRef.current.add(index)
-    loadingRef.current.delete(index)
-    const total = activeSequenceRef.current.totalFrames
-    const loaded = loadedRef.current.size
-    const pct = Math.min(100, Math.round((loaded / total) * 100))
-    setPreloadProgress(pct)
-    if (pct >= 100 && !preloadCompleteRef.current) {
-      preloadCompleteRef.current = true
-      setPreloadComplete(true)
-      // Ensure intro is done when preload completes
-      // so scroll is immediately available after overlay fades
-      if (!introDoneRef.current) {
-        introDoneRef.current = true
-        setIntroDone(true)
-        unlockPageScroll()
-      }
-    }
+    if (Math.abs(targetTime - lastAppliedTimeRef.current) < 0.001) return
+    lastAppliedTimeRef.current = targetTime
+    vid.currentTime = targetTime
   }
-
-  function preloadFrame(index: number) {
-    const sequence = activeSequenceRef.current
-    const frameTotal = sequence.totalFrames
-    if (index < 0 || index >= frameTotal) return
-    if (loadedRef.current.has(index) || loadingRef.current.has(index)) return
-    const src = sequence.frames[index]
-    if (!src) return
-    const sequenceKeyAtStart = sequence.key
-    loadingRef.current.add(index)
-    const img = new Image()
-    img.onload = () => {
-      if (sequenceKeyAtStart !== activeSequenceRef.current.key) return
-      markLoaded(index)
-      // On Safari, force browser to decode the image immediately
-      // by drawing it to a temporary canvas — this pre-warms
-      // the image decoder so src swaps are instant
-      if (IS_SAFARI) {
-        const offscreen = document.createElement('canvas')
-        offscreen.width = 1
-        offscreen.height = 1
-        const ctx = offscreen.getContext('2d')
-        if (ctx) ctx.drawImage(img, 0, 0, 1, 1)
-      }
-    }
-    img.onerror = () => {
-      if (sequenceKeyAtStart !== activeSequenceRef.current.key) return
-      loadingRef.current.delete(index)
-    }
-    img.src = src
-  }
-
-  function findDirectionalLoaded(desired: number): number {
-    const sequence = activeSequenceRef.current
-    const frameTotal = sequence.totalFrames
-    const dir = directionRef.current
-    for (let offset = 1; offset < frameTotal; offset++) {
-      const fwd = clamp(desired + offset * dir, 0, frameTotal - 1)
-      if (loadedRef.current.has(fwd)) return fwd
-      const bwd = clamp(desired - offset * dir, 0, frameTotal - 1)
-      if (loadedRef.current.has(bwd)) return bwd
-    }
-    return 0
-  }
-
-  function preloadRange(center: number) {
-    const frameTotal = activeSequenceRef.current.totalFrames
-    const behind = directionRef.current > 0 ? PRELOAD_BEHIND : PRELOAD_AHEAD
-    const ahead = directionRef.current > 0 ? PRELOAD_AHEAD : PRELOAD_BEHIND
-    const from = clamp(center - behind, 0, frameTotal - 1)
-    const to = clamp(center + ahead, 0, frameTotal - 1)
-    for (let i = from; i <= to; i += 1) preloadFrame(i)
-  }
-
-  function preloadSceneWarmup(center: number) {
-    const boundaryTrigger = IS_SAFARI 
-      ? SAFARI_SCENE_BOUNDARY_TRIGGER 
-      : SCENE_BOUNDARY_TRIGGER
-    const warmupCount = IS_SAFARI
-      ? SAFARI_SCENE_WARMUP_COUNT
-      : SCENE_WARMUP_COUNT
-
-    const scenes = activeSequenceRef.current.scenes
-    if (directionRef.current > 0) {
-      const scene1 = scenes[0]
-      const scene2 = scenes[1]
-      const scene3 = scenes[2]
-      if (center >= scene1.end - boundaryTrigger && 
-          center <= scene1.end) {
-        for (let i = scene2.start; 
-             i < Math.min(scene2.start + warmupCount, scene2.end + 1); 
-             i++) preloadFrame(i)
-      }
-      if (center >= scene2.end - boundaryTrigger && 
-          center <= scene2.end) {
-        for (let i = scene3.start; 
-             i < Math.min(scene3.start + warmupCount, scene3.end + 1); 
-             i++) preloadFrame(i)
-      }
-    } else {
-      const scene1 = scenes[0]
-      const scene2 = scenes[1]
-      const scene3 = scenes[2]
-      if (center >= scene2.start && 
-          center <= scene2.start + boundaryTrigger) {
-        for (let i = Math.max(scene1.end - warmupCount + 1, 
-                              scene1.start); 
-             i <= scene1.end; i++) preloadFrame(i)
-      }
-      if (center >= scene3.start && 
-          center <= scene3.start + boundaryTrigger) {
-        for (let i = Math.max(scene2.end - warmupCount + 1, 
-                              scene2.start); 
-             i <= scene2.end; i++) preloadFrame(i)
-      }
-    }
-  }
-
-  function preloadRemainingInBackground() {
-    const sequenceKeyAtStart = activeSequenceRef.current.key
-    let start = 0
-    const scheduleIdle =
-      typeof window.requestIdleCallback === 'function'
-        ? (cb: () => void) => 
-            window.requestIdleCallback(() => cb(), { timeout: 180 })
-        : (cb: () => void) => window.setTimeout(cb, 80)
-    function tick() {
-      if (sequenceKeyAtStart !== activeSequenceRef.current.key) {
-        backgroundPreloadRafRef.current = null
-        return
-      }
-      const frameTotal = activeSequenceRef.current.totalFrames
-      let done = true
-      let loadedInBatch = 0
-      const preloadBatch = activeSequenceRef.current.key === 'mobile' 
-        ? MOBILE_BACKGROUND_PRELOAD_BATCH 
-        : BACKGROUND_PRELOAD_BATCH
-      for (let i = start; i < frameTotal && loadedInBatch < preloadBatch; i++) {
-        if (!loadedRef.current.has(i) && !loadingRef.current.has(i)) {
-          preloadFrame(i)
-          loadedInBatch++
-          done = false
-        }
-      }
-      while (start < frameTotal && 
-             (loadedRef.current.has(start) || 
-              loadingRef.current.has(start))) start++
-      if (!done && start < frameTotal) {
-        scheduleIdle(() => {
-          backgroundPreloadRafRef.current = 
-            window.requestAnimationFrame(tick)
-        })
-      } else {
-        backgroundPreloadRafRef.current = null
-      }
-    }
-    if (backgroundPreloadRafRef.current === null) {
-      backgroundPreloadRafRef.current = 
-        window.requestAnimationFrame(tick)
-    }
-  }
-
-  function applyBestFrame(playhead: number, nowTs: number) {
-    const sequence = activeSequenceRef.current
-    const imgEl = imgRef.current
-    const bufferEl = imgBufferRef.current
-    if (!imgEl) return
-
-    const desiredFloat = clamp(playhead, 0, sequence.totalFrames - 1)
-    const shown = shownFrameRef.current
-    const remainingToTarget = Math.abs(targetFrameRef.current - desiredFloat)
-    const shouldSettleNow = remainingToTarget <= SETTLE_EPSILON_FRAMES
-
-    if (!shouldSettleNow && 
-        Math.abs(desiredFloat - shown) < MIN_VISIBLE_FRAME_DELTA) return
-
-    let desired = shown
-    if (shouldSettleNow) {
-      desired = clamp(
-        Math.round(targetFrameRef.current), 
-        0, sequence.totalFrames - 1
-      )
-    } else if (directionRef.current > 0) {
-      desired = clamp(Math.floor(desiredFloat), 0, sequence.totalFrames - 1)
-    } else {
-      desired = clamp(Math.ceil(desiredFloat), 0, sequence.totalFrames - 1)
-    }
-
-    const best = loadedRef.current.has(desired) 
-      ? desired 
-      : findDirectionalLoaded(desired)
-    const src = sequence.frames[best]
-    if (!src) return
-    lastFallbackUsedRef.current = best !== desired
-    if (!loadedRef.current.has(best) && 
-        shownFrameRef.current !== best) return
-
-    const shouldThrottleMobileSwap =
-      sequence.key === 'mobile' &&
-      !shouldSettleNow &&
-      nowTs - lastVisibleSwapTsRef.current < MOBILE_FRAME_SWAP_INTERVAL_MS
-    if (shouldThrottleMobileSwap) return
-
-    if (shownFrameRef.current === best) return
-
-    shownFrameRef.current = best
-    lastVisibleSwapTsRef.current = nowTs
-
-    // Safari: skip decode() entirely — direct src swap is faster
-    // since frames are already in browser memory from preload
-    if (IS_SAFARI) {
-      imgEl.src = src
-    } else if (bufferEl && typeof bufferEl.decode === 'function') {
-      bufferEl.src = src
-      let settled = false
-      const timeout = window.setTimeout(() => {
-        if (settled) return
-        settled = true
-        imgEl.src = src
-      }, 12)
-      bufferEl.decode().then(() => {
-        if (settled) return
-        settled = true
-        window.clearTimeout(timeout)
-        if (shownFrameRef.current !== best) return
-        imgEl.src = src
-      }).catch(() => {
-        if (settled) return
-        settled = true
-        window.clearTimeout(timeout)
-        imgEl.src = src
-      })
-    } else {
-      imgEl.src = src
-    }
-  }
-
 
   function readScrollAndSetTarget() {
     const scrollY = window.scrollY || window.pageYOffset
@@ -502,9 +219,9 @@ export default function HomeHeroScrollSequence() {
     const progress = clamp(raw, 0, 1)
     scrollProgressRawRef.current = raw
     scrollProgressClampedRef.current = progress
-    const nextTarget = progress * (activeSequenceRef.current.totalFrames - 1)
+    const nextTarget = progress * (TOTAL_FRAMES - 1)
     const diff = nextTarget - previousTargetFrameRef.current
-    if (Math.abs(diff) < MIN_TARGET_FRAME_DELTA) return
+    if (Math.abs(diff) < 0.08) return
     targetFrameRef.current = nextTarget
     if (Math.abs(diff) > 0.001) directionRef.current = diff > 0 ? 1 : -1
     previousTargetFrameRef.current = targetFrameRef.current
@@ -578,8 +295,9 @@ export default function HomeHeroScrollSequence() {
     }
 
     const diff = targetFrameRef.current - currentFrameRef.current
+    const mobileViewport = isMobileViewportRef.current
     const smoothingTauMs =
-      activeSequenceRef.current.key === 'mobile'
+      mobileViewport
         ? (motionModeRef.current === 'reduced'
           ? MOBILE_REDUCED_MOTION_SMOOTHING_TAU_MS
           : MOBILE_FULL_MOTION_SMOOTHING_TAU_MS)
@@ -587,9 +305,9 @@ export default function HomeHeroScrollSequence() {
           ? REDUCED_MOTION_SMOOTHING_TAU_MS
           : FULL_MOTION_SMOOTHING_TAU_MS)
 
-    const maxFrameStep = 
-      activeSequenceRef.current.key === 'mobile' 
-        ? MOBILE_MAX_FRAME_STEP_PER_TICK 
+    const maxFrameStep =
+      mobileViewport
+        ? MOBILE_MAX_FRAME_STEP_PER_TICK
         : DESKTOP_MAX_FRAME_STEP_PER_TICK
     const alpha = 1 - Math.exp(-dt / smoothingTauMs)
     const proposed = currentFrameRef.current + diff * alpha
@@ -607,10 +325,7 @@ export default function HomeHeroScrollSequence() {
     }
 
     applyBestFrame(currentFrameRef.current, ts)
-    const preloadCenter = Math.round(currentFrameRef.current)
-    preloadRange(preloadCenter)
-    preloadSceneWarmup(preloadCenter)
-    const sceneFrame = clamp(Math.round(currentFrameRef.current), 0, activeSequenceRef.current.totalFrames - 1)
+    const sceneFrame = clamp(Math.round(currentFrameRef.current), 0, TOTAL_FRAMES - 1)
     updateCloudVisibility(sceneFrame)
     updateCtaVisibility(sceneFrame)
     const nextSceneIndex = getSceneIndex(sceneFrame)
@@ -651,6 +366,58 @@ export default function HomeHeroScrollSequence() {
     media.addListener(sync)
     return () => media.removeListener(sync)
   }, [])
+
+  useEffect(() => {
+    const vd = videoDesktopRef.current
+    const vm = videoMobileRef.current
+
+    if (vd) {
+      vd.pause()
+      vd.currentTime = 0
+    }
+    if (vm) {
+      vm.pause()
+      vm.currentTime = 0
+    }
+
+    const vid = isMobileViewport ? vm : vd
+    if (!vid) return
+
+    videoReadyRef.current = false
+    setVideoReady(false)
+    setVideoError(false)
+
+    const activate = () => {
+      vid.pause()
+      vid.currentTime = 0
+      videoReadyRef.current = true
+      setVideoReady(true)
+      if (rafRef.current === null) {
+        rafRef.current = window.requestAnimationFrame(renderLoop)
+      }
+    }
+
+    const onError = () => {
+      setVideoError(true)
+      videoReadyRef.current = true
+      setVideoReady(true)
+    }
+
+    if (vid.readyState >= 3) {
+      activate()
+    } else {
+      vid.addEventListener('canplaythrough', activate, { once: true })
+      vid.addEventListener('error', onError, { once: true })
+      const fallback = window.setTimeout(() => {
+        if (!videoReadyRef.current) activate()
+      }, 8000)
+      return () => {
+        vid.removeEventListener('canplaythrough', activate)
+        vid.removeEventListener('error', onError)
+        window.clearTimeout(fallback)
+      }
+    }
+  }, [isMobileViewport])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -724,19 +491,13 @@ export default function HomeHeroScrollSequence() {
       rafRef.current = null
     }
 
-    if (backgroundPreloadRafRef.current !== null) {
-      window.cancelAnimationFrame(backgroundPreloadRafRef.current)
-      backgroundPreloadRafRef.current = null
-    }
-
     updateSectionMetrics()
     const scrollY = window.scrollY || window.pageYOffset
     const raw = (scrollY - sectionTopRef.current) / sectionScrollableRef.current
     const progress = clamp(raw, 0, 1)
-    const frameCount = activeSequence.totalFrames
     const startFrame = clamp(
-      Math.round(progress * (frameCount - 1)), 
-      0, frameCount - 1
+      Math.round(progress * (TOTAL_FRAMES - 1)), 
+      0, TOTAL_FRAMES - 1
     )
     
     sceneIndexRef.current = getSceneIndex(startFrame)
@@ -744,29 +505,6 @@ export default function HomeHeroScrollSequence() {
     targetFrameRef.current = startFrame
     currentFrameRef.current = startFrame
     previousTargetFrameRef.current = startFrame
-
-    loadedRef.current.clear()
-    loadingRef.current.clear()
-    preloadCompleteRef.current = false
-    setPreloadComplete(false)
-    setPreloadProgress(0)
-
-    const initialPreloadCount = 
-      activeSequence.key === 'mobile' 
-        ? MOBILE_INITIAL_PRELOAD_COUNT 
-        : INITIAL_PRELOAD_COUNT
-    for (let i = 0; i < Math.min(frameCount, initialPreloadCount); i++) {
-      preloadFrame(i)
-    }
-
-    preloadRemainingInBackground()
-    shownFrameRef.current = startFrame
-    lastVisibleSwapTsRef.current = performance.now()
-
-    const frameZero = activeSequence.frames[0]
-    if (imgRef.current && frameZero) {
-      imgRef.current.src = frameZero
-    }
 
     const onScroll = () => {
       if (scrollTickRef.current !== null) return
@@ -793,14 +531,13 @@ export default function HomeHeroScrollSequence() {
       window.removeEventListener('scroll', onScroll)
       if (rafRef.current !== null) window.cancelAnimationFrame(rafRef.current)
       if (scrollTickRef.current !== null) window.cancelAnimationFrame(scrollTickRef.current)
-      if (backgroundPreloadRafRef.current !== null) window.cancelAnimationFrame(backgroundPreloadRafRef.current)
     }
-  }, [isMobileViewport, motionMode, activeSequence])
+  }, [isMobileViewport, motionMode])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
 
-    const shouldLock = motionMode !== 'reduced' && !introDone
+    const shouldLock = motionMode !== 'reduced' && (!introDone || !videoReadyRef.current)
     if (!shouldLock) {
       unlockPageScroll()
       return
@@ -834,7 +571,7 @@ export default function HomeHeroScrollSequence() {
       window.removeEventListener('keydown', onKeyDown)
       unlockPageScroll()
     }
-  }, [introDone, motionMode])
+  }, [introDone, motionMode, videoReady])
 
   useEffect(() => {
     const onScrollKick = () => {
@@ -847,26 +584,30 @@ export default function HomeHeroScrollSequence() {
   return (
     <section ref={sectionRef} className="relative bg-deep-ink" style={{ height: `${SCROLL_HEIGHT_VH}dvh` }} data-motion-mode={motionMode}>
       <div className="sticky top-0 overflow-hidden min-h-[100svh] min-h-[100dvh] bg-deep-ink">
-                <img
-          ref={imgRef}
-          src=""
-          alt="Aircraft flying through Sydney twilight"
-          className={`absolute inset-0 h-full w-full object-cover ${
-            isMobileViewport ? 'object-[50%_38%]' : 'object-center'
-          }`}
-          loading="eager"
-          decoding="async"
-        />
-        <img
-          ref={imgBufferRef}
-          src=""
-          alt=""
+        <video
+          ref={videoDesktopRef}
+          className={`absolute inset-0 h-full w-full object-cover object-center ${isMobileViewport ? 'hidden' : 'block'}`}
+          muted
+          playsInline
+          preload="auto"
+          disablePictureInPicture
           aria-hidden="true"
-          className="absolute inset-0 h-full w-full object-cover pointer-events-none"
-          style={{ opacity: 0, visibility: 'hidden' }}
-          decoding="async"
-        />
-
+        >
+          <source src="/hero-desktop.webm" type="video/webm" />
+          <source src="/hero-desktop.mp4" type="video/mp4" />
+        </video>
+        <video
+          ref={videoMobileRef}
+          className={`absolute inset-0 h-full w-full object-cover object-[50%_38%] ${isMobileViewport ? 'block' : 'hidden'}`}
+          muted
+          playsInline
+          preload="auto"
+          disablePictureInPicture
+          aria-hidden="true"
+        >
+          <source src="/hero-mobile.webm" type="video/webm" />
+          <source src="/hero-mobile.mp4" type="video/mp4" />
+        </video>
 
 
         <div className="absolute inset-0 bg-gradient-to-b from-[#091421]/35 via-[#091421]/25 to-[#091421]/70 pointer-events-none" />
@@ -943,7 +684,7 @@ export default function HomeHeroScrollSequence() {
           <div
             className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 z-20 pointer-events-none"
             style={{
-              opacity: preloadComplete ? 1 : 0,
+              opacity: videoReady ? 1 : 0,
               transition: 'opacity 0.5s ease-out 0.3s',
             }}
           >
@@ -980,34 +721,31 @@ export default function HomeHeroScrollSequence() {
             <div>FPS: {avgFpsRef.current.toFixed(0)}</div>
             <div>Scene: {sceneIndex + 1}</div>
             <div>Device: {browserLabel}</div>
-            <div>Frame: {Math.round(currentFrameRef.current) + 1}/{activeSequenceRef.current.totalFrames}</div>
+            <div>Frame: {Math.round(currentFrameRef.current) + 1}/{TOTAL_FRAMES}</div>
             <div className="hidden">{debugTick}</div>
           </div>
         )}
 
-        {/* Full overlay loader — covers hero while frames preload */}
         <div
-          className="absolute inset-0 z-40 flex flex-col items-center justify-center transition-opacity duration-700 ease-out"
+          className="absolute inset-0 z-40 flex flex-col items-center justify-center"
           style={{
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
-            backgroundColor: 'rgba(10, 20, 50, 0.75)',
-            opacity: preloadComplete ? 0 : 1,
-            pointerEvents: preloadComplete ? 'none' : 'auto',
+            backgroundColor: 'rgba(10, 20, 50, 0.85)',
+            opacity: videoReady ? 0 : 1,
+            pointerEvents: videoReady ? 'none' : 'auto',
+            transition: 'opacity 800ms ease-out',
           }}
           aria-hidden="true"
         >
-          {/* Logo */}
           <img
             src="/Logo/ozrentaplane-transparent-bg.png"
             alt=""
             style={{ height: '140px', width: 'auto', marginBottom: '48px' }}
           />
-
-          {/* Progress bar track */}
           <div
             style={{
-              width: '280px',
+              width: '200px',
               height: '2px',
               backgroundColor: 'rgba(255,255,255,0.12)',
               borderRadius: '999px',
@@ -1018,25 +756,23 @@ export default function HomeHeroScrollSequence() {
             <div
               style={{
                 height: '100%',
-                width: `${preloadProgress}%`,
+                width: videoReady ? '100%' : '0%',
                 backgroundColor: '#f59e0b',
                 borderRadius: '999px',
-                transition: 'width 0.2s ease-out',
+                transition: 'width 300ms ease-out',
               }}
             />
           </div>
-
-          {/* Loading text */}
           <span
             style={{
-              color: 'rgba(255,255,255,0.45)',
-              fontSize: '12px',
-              letterSpacing: '0.25em',
+              color: 'rgba(255,255,255,0.4)',
+              fontSize: '11px',
+              letterSpacing: '0.2em',
               textTransform: 'uppercase',
               fontFamily: 'var(--font-manrope, sans-serif)',
             }}
           >
-            Loading {preloadProgress}%
+            {videoError ? 'READY' : 'LOADING'}
           </span>
         </div>
 
