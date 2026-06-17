@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import HeroCloudLayers from '@/components/HeroCloudLayers'
-import MobileHeroCanvas from '@/components/MobileHeroCanvas'
 
 const SCROLL_HEIGHT_VH = 430
 const FULL_MOTION_SMOOTHING_TAU_MS = 110
@@ -70,7 +69,6 @@ export default function HomeHeroScrollSequence() {
   const [sceneIndex, setSceneIndex] = useState(0)
   const [videoReady, setVideoReady] = useState(false)
   const [videoError, setVideoError] = useState(false)
-  const canvasFrameCallbackRef = useRef<((frame: number) => void) | null>(null)
   
   // Always start as false on SSR — useEffect immediately corrects on client
   // before any video/canvas mounts, avoiding hydration mismatch
@@ -214,15 +212,11 @@ export default function HomeHeroScrollSequence() {
       : videoDesktopRef.current
     if (!vid) return
 
-    const totalFrames = isMobileViewportRef.current ? 160 : 159
-    const frameIndex = clamp(
-      Math.round(playhead), 0, totalFrames - 1
-    )
+    const frameIndex = clamp(Math.round(playhead), 0, TOTAL_FRAMES - 1)
     const videoDuration = isMobileViewportRef.current
       ? VIDEO_DURATION_MOBILE
       : VIDEO_DURATION_DESKTOP
-    const targetTime =
-      (frameIndex / (totalFrames - 1)) * videoDuration
+    const targetTime = (frameIndex / (TOTAL_FRAMES - 1)) * videoDuration
 
     if (Math.abs(targetTime - lastAppliedTimeRef.current) < 0.001)
       return
@@ -353,10 +347,6 @@ export default function HomeHeroScrollSequence() {
     const sceneFrame = clamp(Math.round(currentFrameRef.current), 0, TOTAL_FRAMES - 1)
     updateCloudVisibility(sceneFrame)
     updateCtaVisibility(sceneFrame)
-    // Drive canvas frame for mobile image sequence — via ref to avoid re-render
-    if (isMobileViewportRef.current && canvasFrameCallbackRef.current) {
-      canvasFrameCallbackRef.current(sceneFrame)
-    }
     const nextSceneIndex = getSceneIndex(sceneFrame)
     if (nextSceneIndex !== sceneIndexRef.current) {
       sceneIndexRef.current = nextSceneIndex
@@ -398,16 +388,20 @@ export default function HomeHeroScrollSequence() {
 
   useEffect(() => {
     const vd = videoDesktopRef.current
+    const vm = videoMobileRef.current
 
     if (vd) {
       vd.pause()
       vd.currentTime = 0
     }
+    if (vm) {
+      vm.pause()
+      vm.currentTime = 0
+    }
 
-    // On mobile, canvas handles rendering — no video element to set up
-    if (isMobileViewport || !viewportReady) return
+    if (!viewportReady) return
 
-    const vid = vd
+    const vid = isMobileViewport ? vm : vd
     if (!vid) return
 
     videoReadyRef.current = false
@@ -435,17 +429,22 @@ export default function HomeHeroScrollSequence() {
       videoReadyRef.current = true
       setVideoReady(true)
     }
+    const onLoadedData = () => {
+      if (!videoReadyRef.current) activate()
+    }
 
     if (vid.readyState >= 3) {
       activate()
     } else {
       vid.addEventListener('canplaythrough', activate, { once: true })
+      vid.addEventListener('loadeddata', onLoadedData, { once: true })
       vid.addEventListener('error', onError, { once: true })
       const fallback = window.setTimeout(() => {
         if (!videoReadyRef.current) activate()
       }, 8000)
       return () => {
         vid.removeEventListener('canplaythrough', activate)
+        vid.removeEventListener('loadeddata', onLoadedData)
         vid.removeEventListener('error', onError)
         window.clearTimeout(fallback)
       }
@@ -629,22 +628,20 @@ export default function HomeHeroScrollSequence() {
             <source src="/hero-desktop.mp4" type="video/mp4" />
           </video>
         )}
-        {viewportReady && isMobileViewport && (
-          <MobileHeroCanvas
-            onFrameCallback={(cb) => { canvasFrameCallbackRef.current = cb }}
-            onReady={() => {
-              videoReadyRef.current = true
-              setVideoReady(true)
-              if (rafRef.current === null) {
-                rafRef.current = window.requestAnimationFrame(renderLoop)
-              }
-            }}
-            onError={() => {
-              setVideoError(true)
-              videoReadyRef.current = true
-              setVideoReady(true)
-            }}
-          />
+        {isMobileViewport && (
+          <video
+            ref={videoMobileRef}
+            className="absolute inset-0 h-full w-full object-cover object-[50%_38%]"
+            style={{ willChange: 'transform' }}
+            muted
+            playsInline
+            preload="auto"
+            disablePictureInPicture
+            aria-hidden="true"
+          >
+            <source src="/hero-mobile.webm" type="video/webm" />
+            <source src="/hero-mobile.mp4" type="video/mp4" />
+          </video>
         )}
 
 
