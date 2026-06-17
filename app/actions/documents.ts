@@ -5,40 +5,64 @@ import { createClient } from '@/lib/supabase/server'
 import type { DocumentType } from '@/lib/supabase/types'
 
 /**
- * Generate a short-lived signed URL so a customer can view their
- * own verification document in a new tab. The URL expires after
- * 60 seconds — long enough to open the file, short enough to
- * prevent unintended sharing.
+ * Generate short-lived signed URLs so a customer can view their
+ * own verification document files in a new tab.
  */
-export async function getDocumentSignedUrl(docType: DocumentType): Promise<string> {
+export async function getDocumentSignedUrlsForType(
+  docType: DocumentType
+): Promise<{ fileName: string; url: string }[]> {
   const supabase = await createClient()
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) throw new Error('Unauthorized')
 
+  // Find the latest parent document for this type
   const { data: latestDoc, error: docErr } = await supabase
     .from('user_documents')
-    .select('storage_path')
+    .select('id')
     .eq('user_id', user.id)
     .eq('document_type', docType)
     .order('uploaded_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
-  if (docErr || !latestDoc?.storage_path) {
+  if (docErr || !latestDoc?.id) {
     throw new Error('Could not find a document to open.')
   }
 
-  const { data, error } = await supabase.storage
-    .from('verification_documents')
-    .createSignedUrl(latestDoc.storage_path, 60)
+  // Fetch all child files for that document
+  const { data: files, error: filesErr } = await supabase
+    .from('user_document_files')
+    .select('file_name, storage_path')
+    .eq('document_id', latestDoc.id)
+    .order('uploaded_at', { ascending: true })
 
-  if (error || !data?.signedUrl) {
-    console.error('[getDocumentSignedUrl]', error)
-    throw new Error('Could not generate a view link. Please try again.')
+  if (filesErr || !files || files.length === 0) {
+    throw new Error('No files found for this document.')
   }
 
-  return data.signedUrl
+  // Generate a signed URL for each file
+  const results: { fileName: string; url: string }[] = []
+  for (const file of files) {
+    const { data, error } = await supabase.storage
+      .from('verification_documents')
+      .createSignedUrl(file.storage_path, 60)
+    if (error || !data?.signedUrl) {
+      console.error('[getDocumentSignedUrlsForType] Signed URL error:', error)
+      throw new Error('Could not generate a view link. Please try again.')
+    }
+    results.push({ fileName: file.file_name, url: data.signedUrl })
+  }
+
+  return results
+}
+
+export async function getDocumentSignedUrl(docType: DocumentType): Promise<string> {
+  const files = await getDocumentSignedUrlsForType(docType)
+  if (!files[0]?.url) {
+    throw new Error('Could not generate a view link. Please try again.')
+  }
+  return files[0].url
 }
 
 export async function saveCheckoutRedCardDetails(input: {

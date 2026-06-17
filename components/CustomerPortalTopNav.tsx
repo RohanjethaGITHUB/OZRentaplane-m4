@@ -227,7 +227,7 @@ export default function CustomerPortalTopNav({ displayName, notificationCount, r
                             {n.body && (
                               <p className="text-[11px] text-slate-500 leading-relaxed line-clamp-2 pl-5">{n.body}</p>
                             )}
-                            <p className="text-[10px] text-slate-600 mt-1 pl-5 font-mono">{relativeTime(n.created_at)}</p>
+                            <p className="text-[10px] text-slate-600 mt-1 pl-5 font-mono" suppressHydrationWarning>{relativeTime(n.created_at)}</p>
                           </div>
                         </>
                       )

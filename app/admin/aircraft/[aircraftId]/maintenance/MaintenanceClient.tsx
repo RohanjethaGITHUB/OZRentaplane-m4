@@ -8,6 +8,7 @@ import {
   mark100HrMaintenanceDone,
 } from '@/app/actions/aircraft-maintenance'
 import type { MaintenanceInfo, MaintenanceStatus } from '@/app/actions/aircraft-maintenance'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 
 type Props = {
   aircraftId: string
@@ -48,6 +49,7 @@ export default function MaintenanceClient({ aircraftId, aircraftRegistration, in
   const [editing, setEditing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [confirmAction, setConfirmAction] = useState<'oil' | '100hr' | null>(null)
 
   const s = info.settings
 
@@ -98,13 +100,11 @@ export default function MaintenanceClient({ aircraftId, aircraftRegistration, in
   }
 
   function handleMarkOilDone() {
-    if (!window.confirm(`Mark oil change completed at current MR (${fmt1(info.current_mr)})? This will set the next oil change due to current MR + interval.`)) return
-    run(() => markOilChangeDone(aircraftId), 'Oil change marked complete. Next due MR updated.')
+    setConfirmAction('oil')
   }
 
   function handleMark100HrDone() {
-    if (!window.confirm(`Mark 100-hour maintenance completed at current MR (${fmt1(info.current_mr)})? This will set the next maintenance due to current MR + interval.`)) return
-    run(() => mark100HrMaintenanceDone(aircraftId), '100-hour maintenance marked complete. Next due MR updated.')
+    setConfirmAction('100hr')
   }
 
   const oilMsg         = statusMessage(aircraftRegistration, 'oil',   info.oil_change_status,        info.oil_change_hours_remaining)
@@ -262,6 +262,34 @@ export default function MaintenanceClient({ aircraftId, aircraftRegistration, in
 
       {error   && <div className="rounded-xl border border-red-500/30 bg-red-500/[0.06] p-4 text-sm text-red-300">{error}</div>}
       {success && <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.06] p-4 text-sm text-emerald-300">{success}</div>}
+
+      <ConfirmModal
+        open={confirmAction === 'oil'}
+        title="Mark oil change complete?"
+        description={`Mark oil change completed at current MR (${fmt1(info.current_mr)}). This will set the next oil change due to current MR + interval.`}
+        confirmLabel={isPending ? 'Saving…' : 'Yes, mark complete'}
+        cancelLabel="Back"
+        variant="primary"
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => {
+          setConfirmAction(null)
+          run(() => markOilChangeDone(aircraftId), 'Oil change marked complete. Next due MR updated.')
+        }}
+      />
+
+      <ConfirmModal
+        open={confirmAction === '100hr'}
+        title="Mark 100-hour maintenance complete?"
+        description={`Mark 100-hour maintenance completed at current MR (${fmt1(info.current_mr)}). This will set the next maintenance due to current MR + interval.`}
+        confirmLabel={isPending ? 'Saving…' : 'Yes, mark complete'}
+        cancelLabel="Back"
+        variant="primary"
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => {
+          setConfirmAction(null)
+          run(() => mark100HrMaintenanceDone(aircraftId), '100-hour maintenance marked complete. Next due MR updated.')
+        }}
+      />
     </div>
   )
 }

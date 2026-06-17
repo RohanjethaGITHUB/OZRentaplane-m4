@@ -688,7 +688,19 @@ export function DocumentReviewCards({
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="min-w-0">
                     {doc ? (
-                      <OpenFileButton storagePath={doc.storage_path} fileName={doc.file_name} />
+                      doc.user_document_files && doc.user_document_files.length > 0 ? (
+                        <div className="flex flex-col gap-1">
+                          {doc.user_document_files.map((file, index) => (
+                            <OpenFileButton
+                              key={file.id}
+                              storagePath={file.storage_path}
+                              fileName={doc.user_document_files!.length === 1 ? file.file_name : `File ${index + 1} — ${file.file_name}`}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-[12px] text-[#94a3b8]">No files uploaded</span>
+                      )
                     ) : (
                       <p className="text-base text-[var(--admin-text-secondary)]">No file available yet.</p>
                     )}

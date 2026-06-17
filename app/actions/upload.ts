@@ -22,6 +22,7 @@ function getHumanReadableDocumentType(docType: DocumentType): string {
 export async function uploadVerificationDocument(formData: FormData) {
   const file       = formData.get('file')    as File   | null
   const docType    = formData.get('docType') as DocumentType | null
+  const isFirstFile = formData.get('isFirstFile') === 'true'
 
   if (!file || !docType) throw new Error('Missing file or document type.')
 
@@ -106,8 +107,6 @@ export async function uploadVerificationDocument(formData: FormData) {
   const documentPayload = {
     user_id:               user.id,
     document_type:         docType,
-    file_name:             file.name,
-    storage_path:          storagePath,
     status:                'uploaded' as const,
     review_notes:          null,
     reviewed_at:           null,
@@ -125,7 +124,8 @@ export async function uploadVerificationDocument(formData: FormData) {
     red_card_expiry_year:  redCardExpiryYear,
   }
 
-  const { error: dbError } = existingDoc?.id
+  let documentId: string
+  const { data: createdDoc, error: dbError } = existingDoc?.id
     ? await supabase
         .from('user_documents')
         .update(documentPayload)
@@ -133,46 +133,132 @@ export async function uploadVerificationDocument(formData: FormData) {
     : await supabase
         .from('user_documents')
         .insert(documentPayload)
+        .select('id')
+        .single()
+
+  documentId = existingDoc?.id ?? createdDoc!.id
 
   if (dbError) {
     console.error('[uploadVerificationDocument] DB error:', dbError)
     throw new Error('Failed to save document metadata. Please try again.')
   }
 
-  const documentLabel = getHumanReadableDocumentType(docType)
-  const isReupload = existingDoc?.status === 'rejected'
+  const { error: fileRecordError } = await supabase
+    .from('user_document_files')
+    .insert({
+      document_id: documentId,
+      file_name: file.name,
+      storage_path: storagePath,
+    })
 
-  const { error: notificationError } = await supabase.from('verification_events').insert({
-    user_id:         user.id,
-    actor_user_id:   user.id,
-    actor_role:      'customer',
-    event_type:      'document_uploaded',
-    title:           `${documentLabel} uploaded — awaiting review`,
-    body:            isReupload
-      ? `Customer has re-uploaded their ${documentLabel} after rejection. Please review and approve or reject.`
-      : `Customer has uploaded their ${documentLabel}. Please review and approve or reject.`,
-    is_read:         false,
-    email_status:    'pending',
-  })
-
-  if (notificationError) {
-    console.error('[uploadVerificationDocument] verification_events insert failed:', notificationError)
+  if (fileRecordError) {
+    console.error('[uploadVerificationDocument] user_document_files insert failed:', fileRecordError)
+    throw new Error('Failed to save file record. Please try again.')
   }
 
-  // When a pilot licence is uploaded, sync ARN and ratings to the customer's profile.
-  if (docType === 'pilot_licence') {
-    const profileUpdate: Record<string, unknown> = {
-      has_instrument_rating: hasInstrumentRating,
+  if (isFirstFile) {
+    const documentLabel = getHumanReadableDocumentType(docType)
+    const isReupload = existingDoc?.status === 'rejected'
+
+    const { error: notificationError } = await supabase.from('verification_events').insert({
+      user_id:         user.id,
+      actor_user_id:   user.id,
+      actor_role:      'customer',
+      event_type:      'document_uploaded',
+      title:           `${documentLabel} uploaded — awaiting review`,
+      body:            isReupload
+        ? `Customer has re-uploaded their ${documentLabel} after rejection. Please review and approve or reject.`
+        : `Customer has uploaded their ${documentLabel}. Please review and approve or reject.`,
+      is_read:         false,
+      email_status:    'pending',
+    })
+
+    if (notificationError) {
+      console.error('[uploadVerificationDocument] verification_events insert failed:', notificationError)
     }
-    if (hasNightVfrRating !== null) profileUpdate.has_night_vfr_rating = hasNightVfrRating
-    if (licenceNumber?.trim()) profileUpdate.pilot_arn = licenceNumber.trim()
 
-    await supabase
-      .from('profiles')
-      .update(profileUpdate)
-      .eq('id', user.id)
-    // Non-throwing — profile sync failure is not critical; document is already saved.
+    // When a pilot licence is uploaded, sync ARN and ratings to the customer's profile.
+    if (docType === 'pilot_licence') {
+      const profileUpdate: Record<string, unknown> = {
+        has_instrument_rating: hasInstrumentRating,
+      }
+      if (hasNightVfrRating !== null) profileUpdate.has_night_vfr_rating = hasNightVfrRating
+      if (licenceNumber?.trim()) profileUpdate.pilot_arn = licenceNumber.trim()
+
+      await supabase
+        .from('profiles')
+        .update(profileUpdate)
+        .eq('id', user.id)
+      // Non-throwing — profile sync failure is not critical; document is already saved.
+    }
   }
+
+  return { success: true }
+}
+
+export async function replaceVerificationDocument(
+  docType: string
+): Promise<{ success: true }> {
+  const supabase = await createClient()
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) throw new Error('Unauthorized')
+
+  // Find the existing parent document row
+  const { data: existingDoc, error: docErr } = await supabase
+    .from('user_documents')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('document_type', docType)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (docErr) throw new Error('Failed to find existing document.')
+
+  // Nothing to replace — no-op
+  if (!existingDoc?.id) return { success: true }
+
+  // Fetch all child file paths so we can delete from storage
+  const { data: existingFiles, error: filesErr } = await supabase
+    .from('user_document_files')
+    .select('id, storage_path')
+    .eq('document_id', existingDoc.id)
+
+  if (filesErr) throw new Error('Failed to fetch existing files.')
+
+  // Delete files from Supabase Storage
+  if (existingFiles && existingFiles.length > 0) {
+    const paths = existingFiles.map(f => f.storage_path)
+    const { error: storageErr } = await supabase.storage
+      .from('verification_documents')
+      .remove(paths)
+    if (storageErr) {
+      console.error('[replaceVerificationDocument] Storage delete error:', storageErr)
+      // Non-throwing — orphaned storage files are acceptable; DB cleanup is critical
+    }
+  }
+
+  // Delete all child file rows (cascade would handle this but we do it explicitly)
+  const { error: deleteFilesErr } = await supabase
+    .from('user_document_files')
+    .delete()
+    .eq('document_id', existingDoc.id)
+
+  if (deleteFilesErr) throw new Error('Failed to remove existing file records.')
+
+  // Reset parent document status to uploaded so admin sees a fresh submission
+  const { error: resetErr } = await supabase
+    .from('user_documents')
+    .update({
+      status: 'uploaded',
+      review_notes: null,
+      reviewed_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', existingDoc.id)
+
+  if (resetErr) throw new Error('Failed to reset document status.')
 
   return { success: true }
 }

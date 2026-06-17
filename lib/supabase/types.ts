@@ -87,6 +87,12 @@ export type UserDocument = {
   has_red_card: boolean | null
   red_card_expiry_month: number | null
   red_card_expiry_year: number | null
+  user_document_files?: {
+    id: string
+    file_name: string
+    storage_path: string
+    uploaded_at: string
+  }[]
 }
 
 // ─── Verification events ──────────────────────────────────────────────────────

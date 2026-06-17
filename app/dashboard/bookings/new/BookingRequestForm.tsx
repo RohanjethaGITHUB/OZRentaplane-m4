@@ -1,137 +1,167 @@
-'use client'
+"use client";
 
-import { useState, useEffect, useTransition, useCallback, useMemo } from 'react'
-import Link from 'next/link'
-import { createBooking } from '@/app/actions/booking'
+import {
+  useState,
+  useEffect,
+  useTransition,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
+import Link from "next/link";
+import { createBooking } from "@/app/actions/booking";
 import {
   checkCustomerAvailability,
   type SafeConflict,
   type AvailabilityCheckResult,
-} from '@/app/actions/customer-availability'
-import type { CreateBookingInput } from '@/lib/supabase/booking-types'
-import {
-  sydneyInputToUTC,
-  formatSydTime,
-} from '@/lib/utils/sydney-time'
-import { validateFlightReviewDate } from '@/lib/utils/flight-review'
-import { formatDate, formatDateTime } from '@/lib/formatDateTime'
-import CalendarDateField from '@/components/CalendarDateField'
-
+} from "@/app/actions/customer-availability";
+import type { CreateBookingInput } from "@/lib/supabase/booking-types";
+import { sydneyInputToUTC, formatSydTime } from "@/lib/utils/sydney-time";
+import { validateFlightReviewDate } from "@/lib/utils/flight-review";
+import { formatDate, formatDateTime } from "@/lib/formatDateTime";
+import CalendarDateField from "@/components/CalendarDateField";
+import PortalPageHero from "@/components/PortalPageHero";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type AvailabilityState =
-  | { status: 'idle' }
-  | { status: 'checking' }
-  | { status: 'available';   message: string; debugError?: string }
-  | { status: 'unavailable'; message: string; conflicts: SafeConflict[]; debugError?: string }
+  | { status: "idle" }
+  | { status: "checking" }
+  | { status: "available"; message: string; debugError?: string }
+  | {
+      status: "unavailable";
+      message: string;
+      conflicts: SafeConflict[];
+      debugError?: string;
+    };
 
 type SuccessState = {
-  bookingId:        string
-  bookingReference: string
-  bookingStatus:    string
-  startDT:          string
-  endDT:            string
-  estimatedHours:   number | null
-}
+  bookingId: string;
+  bookingReference: string;
+  bookingStatus: string;
+  startDT: string;
+  endDT: string;
+  estimatedHours: number | null;
+};
 
-type TimeOption = { value: string; label: string }
+type TimeOption = { value: string; label: string };
 
 type Props = {
-  aircraftId:              string
-  aircraftRegistration:    string
-  aircraftType:            string
-  aircraftStatus:          string
-  hourlyRate:              number
-  picName:                 string | null
-  picArn:                  string | null
-  eligibilityBlocked:      boolean
-  eligibilityWarnings:     string[]
-  initialLastFlightDate:   string
-}
+  aircraftId: string;
+  aircraftRegistration: string;
+  aircraftType: string;
+  aircraftStatus: string;
+  hourlyRate: number;
+  picName: string | null;
+  picArn: string | null;
+  eligibilityBlocked: boolean;
+  eligibilityWarnings: string[];
+  initialLastFlightDate: string;
+};
 
 // ── Time options (full day, 15-min increments) ────────────────────────────────
 
 const ALL_TIME_OPTIONS: TimeOption[] = (() => {
-  const opts: TimeOption[] = []
+  const opts: TimeOption[] = [];
   for (let h = 0; h < 24; h++) {
     for (let m = 0; m < 60; m += 15) {
-      const value  = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-      const period = h < 12 ? 'AM' : 'PM'
-      const h12    = h === 0 ? 12 : h > 12 ? h - 12 : h
-      opts.push({ value, label: `${h12}:${String(m).padStart(2, '0')} ${period}` })
+      const value = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      const period = h < 12 ? "AM" : "PM";
+      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      opts.push({
+        value,
+        label: `${h12}:${String(m).padStart(2, "0")} ${period}`,
+      });
     }
   }
-  return opts
-})()
+  return opts;
+})();
+
+function rotateTimeOptionsTo(
+  options: TimeOption[],
+  startValue: string,
+): TimeOption[] {
+  const idx = options.findIndex((o) => o.value === startValue);
+  if (idx <= 0) return options;
+  return [...options.slice(idx), ...options.slice(0, idx)];
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function formatDateDisplay(dateStr: string): string {
-  return formatDate(dateStr)
+  return formatDate(dateStr);
+}
+
+function formatLongDateDisplay(dateStr: string): string {
+  return new Date(`${dateStr}T12:00:00`).toLocaleDateString("en-AU", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function formatShortDateDisplay(dateStr: string): string {
+  return new Date(`${dateStr}T12:00:00`).toLocaleDateString("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function shiftDateByDays(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
 }
 
 function formatInputAsAU(dtLocal: string): string {
-  if (!dtLocal) return '—'
-  const utc = sydneyInputToUTC(dtLocal)
-  if (!utc) return '—'
-  return formatDateTime(utc)
+  if (!dtLocal) return "—";
+  const utc = sydneyInputToUTC(dtLocal);
+  if (!utc) return "—";
+  return formatDateTime(utc);
+}
+
+function parseTimeToMinutes(time: string): number {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function sydIsoToMinutes(isoUTC: string): number {
+  return parseTimeToMinutes(formatSydTime(isoUTC));
+}
+
+function formatTimeLabel(time: string): string {
+  const [hours, minutes] = time.split(":").map(Number);
+  const ampm = hours >= 12 ? "PM" : "AM";
+  const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  return `${hour12}:${String(minutes).padStart(2, "0")} ${ampm}`;
+}
+
+function formatDurationLabelFromMinutes(minutes: number): string {
+  if (minutes <= 0) return "—";
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
 function formatDuration(hours: number): string {
-  const h = Math.floor(hours)
-  const m = Math.round((hours - h) * 60)
-  if (m === 0) return `${h}h`
-  return `${h}h ${m}m`
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
 }
 
+function getVdoHourlyRate(hours: number): number {
+  if (hours < 10) return 330;
+  if (hours < 25) return 320;
+  if (hours < 50) return 310;
+  if (hours < 100) return 300;
+  return 290;
+}
 
-// ── Step indicator ─────────────────────────────────────────────────────────────
-
-function StepIndicator({ requirementsOk }: { requirementsOk: boolean }) {
-  const steps = [
-    { label: 'Requirements', state: requirementsOk ? 'done' : 'warn', num: 1 },
-    { label: 'Flight Time',  state: 'active',   num: 2 },
-    { label: 'Review & Submit', state: 'upcoming', num: 3 },
-  ] as const
-
-  return (
-    <div className="flex items-center gap-8 sm:gap-12">
-      {steps.map((step, idx) => (
-        <div key={step.label} className="flex items-center">
-          <div className="flex items-center gap-2.5">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold
-              ${step.state === 'done'     ? 'bg-green-500/15 border border-green-500/40 text-green-400' : ''}
-              ${step.state === 'warn'     ? 'bg-amber-500/15 border border-amber-500/40 text-amber-400' : ''}
-              ${step.state === 'active'   ? 'bg-blue-600/20 border border-blue-500/50 text-blue-400' : ''}
-              ${step.state === 'upcoming' ? 'bg-white/[0.04] border border-white/10 text-slate-600' : ''}
-            `}>
-              {step.state === 'done' ? (
-                <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 600" }}>check</span>
-              ) : step.state === 'warn' ? (
-                <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'wght' 400" }}>warning</span>
-              ) : (
-                step.num
-              )}
-            </div>
-            <span className={`text-[11px] font-semibold uppercase tracking-widest hidden sm:block
-              ${step.state === 'done'     ? 'text-green-400/70' : ''}
-              ${step.state === 'warn'     ? 'text-amber-400/70' : ''}
-              ${step.state === 'active'   ? 'text-white' : ''}
-              ${step.state === 'upcoming' ? 'text-slate-600' : ''}
-            `}>
-              {step.label}
-            </span>
-          </div>
-          {idx < steps.length - 1 && (
-            <div className={`w-8 sm:w-16 h-px mx-3 flex-shrink-0
-              ${idx === 0 && requirementsOk ? 'bg-green-500/25' : 'bg-white/[0.07]'}
-            `} />
-          )}
-        </div>
-      ))}
-    </div>
-  )
+function formatMoney(amount: number): string {
+  return `$${Math.round(amount).toLocaleString()}`;
 }
 
 // ── Date input ─────────────────────────────────────────────────────────────────
@@ -143,14 +173,18 @@ function DateInput({
   disabled,
   onChange,
 }: {
-  value: string
-  min?: string
-  max?: string
-  disabled?: boolean
-  onChange: (v: string) => void
+  value: string;
+  min?: string;
+  max?: string;
+  disabled?: boolean;
+  onChange: (v: string) => void;
 }) {
-  const minYear = min ? Number(min.slice(0, 4)) || (new Date().getFullYear() - 20) : (new Date().getFullYear() - 20)
-  const maxYear = max ? Number(max.slice(0, 4)) || (new Date().getFullYear() + 5) : (new Date().getFullYear() + 5)
+  const minYear = min
+    ? Number(min.slice(0, 4)) || new Date().getFullYear() - 20
+    : new Date().getFullYear() - 20;
+  const maxYear = max
+    ? Number(max.slice(0, 4)) || new Date().getFullYear() + 5
+    : new Date().getFullYear() + 5;
   return (
     <CalendarDateField
       value={value}
@@ -161,13 +195,13 @@ function DateInput({
       disabled={disabled}
       onChange={onChange}
       className={`
-        w-full px-4 py-3.5 bg-[#05080f] border border-white/[0.09]
-        focus:border-blue-500/60 focus:outline-none rounded-lg
-        text-white text-sm transition-colors
-        ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:border-white/20'}
+        w-full px-4 py-3 bg-white border border-[#d1d5db]
+        focus:border-[#1a4fd6] focus:ring-2 focus:ring-[#1a4fd6]/20 focus:outline-none rounded-xl
+        text-[#152d5a] text-sm transition-colors shadow-sm
+        ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:border-[#cbd5e1]"}
       `}
     />
-  )
+  );
 }
 
 // ── Time select ────────────────────────────────────────────────────────────────
@@ -179,29 +213,37 @@ function TimeSelect({
   placeholder,
   onChange,
 }: {
-  value: string
-  options: TimeOption[]
-  disabled?: boolean
-  placeholder: string
-  onChange: (v: string) => void
+  value: string;
+  options: TimeOption[];
+  disabled?: boolean;
+  placeholder: string;
+  onChange: (v: string) => void;
 }) {
   return (
     <div className="relative">
       <select
         value={value}
         disabled={disabled}
-        onChange={e => onChange(e.target.value)}
+        onFocus={(e) => {
+          if (!value) e.currentTarget.selectedIndex = 0;
+        }}
+        onChange={(e) => onChange(e.target.value)}
         className={`
-          w-full pl-4 pr-9 py-3.5 bg-[#05080f] border border-white/[0.09]
-          focus:border-blue-500/60 focus:outline-none rounded-lg
+          w-full pl-4 pr-9 py-3 bg-white border border-[#d1d5db]
+          focus:border-[#1a4fd6] focus:ring-2 focus:ring-[#1a4fd6]/20 focus:outline-none rounded-xl
           text-sm transition-colors appearance-none
-          ${disabled ? 'opacity-40 cursor-not-allowed text-slate-500' : 'cursor-pointer text-white hover:border-white/20'}
-          ${!value ? 'text-slate-500' : ''}
+          shadow-sm
+          ${disabled ? "opacity-40 cursor-not-allowed text-[#94a3b8]" : "cursor-pointer text-[#152d5a] hover:border-[#cbd5e1]"}
+          ${!value ? "text-[#94a3b8]" : ""}
         `}
       >
-        <option value="" disabled>{placeholder}</option>
-        {options.map(o => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+        <option value="" disabled>
+          {placeholder}
+        </option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
         ))}
       </select>
       <span
@@ -211,7 +253,7 @@ function TimeSelect({
         expand_more
       </span>
     </div>
-  )
+  );
 }
 
 // ── Availability status ────────────────────────────────────────────────────────
@@ -222,60 +264,73 @@ function AvailabilityStatus({
   endDT,
   endIsBeforeStart,
 }: {
-  availability: AvailabilityState
-  startDT: string
-  endDT: string
-  endIsBeforeStart: boolean
+  availability: AvailabilityState;
+  startDT: string;
+  endDT: string;
+  endIsBeforeStart: boolean;
 }) {
   // Only show once the user has started entering times
-  if (!startDT) return null
+  if (!startDT) return null;
 
-  if (availability.status === 'idle') {
+  if (availability.status === "idle") {
     return (
-      <div className="flex items-center gap-3 px-4 py-3.5 bg-white/[0.025] border border-white/[0.05] rounded-xl">
-        <span className="material-symbols-outlined text-slate-600 text-base flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>
+      <div className="flex items-center gap-3 px-4 py-3.5 bg-[#f8fbff] border border-[#e2e8f0] rounded-xl">
+        <span
+          className="material-symbols-outlined text-[#94a3b8] text-base flex-shrink-0"
+          style={{ fontVariationSettings: "'wght' 300" }}
+        >
           info
         </span>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-[#64748b]">
           {!endDT || endIsBeforeStart
-            ? 'Select an estimated return time to check availability.'
-            : 'Select a departure and return time to check availability.'}
+            ? "Select an estimated return time to check availability."
+            : "Select a departure and return time to check availability."}
         </p>
       </div>
-    )
+    );
   }
 
-  if (availability.status === 'checking') {
+  if (availability.status === "checking") {
     return (
-      <div className="flex items-center gap-3 px-4 py-3.5 bg-white/[0.025] border border-white/[0.05] rounded-xl">
-        <span className="material-symbols-outlined text-blue-500 text-base animate-spin flex-shrink-0">progress_activity</span>
-        <p className="text-xs text-blue-400">Checking aircraft availability…</p>
+      <div className="flex items-center gap-3 px-4 py-3.5 bg-[#f0f6ff] border border-[#c7d8f5] rounded-xl">
+        <span className="material-symbols-outlined text-[#1a4fd6] text-base animate-spin flex-shrink-0">
+          progress_activity
+        </span>
+        <p className="text-xs text-[#1a4fd6]">
+          Checking aircraft availability…
+        </p>
       </div>
-    )
+    );
   }
 
-  if (availability.status === 'available') {
+  if (availability.status === "available") {
     return (
-      <div className="flex items-center gap-3 bg-green-500/[0.07] border border-green-500/20 rounded-xl px-4 py-3.5">
+      <div className="flex items-center gap-3 bg-[#f0fff7] border border-[#a7f3d0] rounded-xl px-4 py-3.5">
         <span
-          className="material-symbols-outlined text-green-400 text-base flex-shrink-0"
+          className="material-symbols-outlined text-[#10b981] text-base flex-shrink-0"
           style={{ fontVariationSettings: "'FILL' 1" }}
         >
           check_circle
         </span>
-        <p className="text-sm text-green-300 font-medium">Aircraft is available for the selected time.</p>
+        <p className="text-sm text-[#047857] font-medium">
+          Aircraft is available for the selected time.
+        </p>
       </div>
-    )
+    );
   }
 
-  if (availability.status === 'unavailable') {
+  if (availability.status === "unavailable") {
     return (
-      <div className="bg-red-500/[0.07] border border-red-500/20 rounded-xl px-4 py-3.5 space-y-2.5">
+      <div className="bg-[#fff1f2] border border-[#fecdd3] rounded-xl px-4 py-3.5 space-y-2.5">
         <div className="flex items-start gap-3">
-          <span className="material-symbols-outlined text-red-400 text-base flex-shrink-0 mt-0.5">error</span>
+          <span className="material-symbols-outlined text-[#e11d48] text-base flex-shrink-0 mt-0.5">
+            error
+          </span>
           <div>
-            <p className="text-sm text-red-300 font-medium">Selected time is unavailable.</p>
-            <p className="text-xs text-red-400/60 mt-1 leading-relaxed">
+            <p className="text-sm text-[#be123c] font-medium">
+              Selected time is unavailable.
+            </p>
+            <p className="text-xs text-[#e11d48]/70 mt-1 leading-relaxed">
               Try adjusting your departure or estimated return time.
             </p>
           </div>
@@ -284,9 +339,9 @@ function AvailabilityStatus({
           <div className="space-y-1.5 ml-7">
             {availability.conflicts.map((c, i) => (
               <div key={i} className="flex items-center gap-2 text-[11px]">
-                <span className="w-1 h-1 rounded-full bg-red-400 flex-shrink-0" />
-                <span className="text-red-300/70">{c.label}</span>
-                <span className="text-slate-500 font-mono ml-auto tabular-nums">
+                <span className="w-1 h-1 rounded-full bg-[#e11d48] flex-shrink-0" />
+                <span className="text-[#be123c]/80">{c.label}</span>
+                <span className="text-[#64748b] font-mono ml-auto tabular-nums">
                   {formatSydTime(c.start_time)}–{formatSydTime(c.end_time)}
                 </span>
               </div>
@@ -294,12 +349,11 @@ function AvailabilityStatus({
           </div>
         )}
       </div>
-    )
+    );
   }
 
-  return null
+  return null;
 }
-
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
@@ -315,135 +369,320 @@ export default function BookingRequestForm({
   eligibilityWarnings,
   initialLastFlightDate,
 }: Props) {
-  const [isSubmitting, startSubmit] = useTransition()
+  const [isSubmitting, startSubmit] = useTransition();
+  const [bookingMode, setBookingMode] = useState<
+    "single" | "multi" | null
+  >(null);
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [dragging, setDragging] = useState<"start" | "end" | null>(null);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    summary: true,
+    pricing: true,
+    notes: true,
+  });
+  const trackRef = useRef<HTMLDivElement>(null);
 
   // ── Split date/time state ─────────────────────────────────────────────────
-  const [startDate,      setStartDate]      = useState('')
-  const [startTime,      setStartTime]      = useState('')
-  const [endDate,        setEndDate]        = useState('')
-  const [endTime,        setEndTime]        = useState('')
-  const [lastFlightDate, setLastFlightDate] = useState(initialLastFlightDate)
-  const [notes,          setNotes]          = useState('')
-  const [medical,        setMedical]        = useState(false)
-  const [submitError,    setSubmitError]    = useState<string | null>(null)
-  const [successState,   setSuccessState]   = useState<SuccessState | null>(null)
+  const [startDate, setStartDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [returnDate, setReturnDate] = useState("");
+  const [returnTime, setReturnTime] = useState("");
+  const [lastFlightDate, setLastFlightDate] = useState(initialLastFlightDate);
+  const [notes, setNotes] = useState("");
+  const [medical] = useState(true);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [successState, setSuccessState] = useState<SuccessState | null>(null);
+
+  const timeToPct = (t: string): number => {
+    if (!t) return 0;
+    const [h, m] = t.split(":").map(Number);
+    return ((h * 60 + m) / 1440) * 100;
+  };
+
+  const pctToTime = (pct: number): string => {
+    const totalMins =
+      Math.round(((Math.min(100, Math.max(0, pct)) / 100) * 1440) / 15) * 15;
+    // Cap at 23:45 - dragging to the far right must not wrap to 00:00
+    const cappedMins = Math.min(totalMins, 1425);
+    const h = Math.floor(cappedMins / 60);
+    const m = cappedMins % 60;
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+  };
+
+  const fmtTime = (t: string): string => {
+    if (!t) return "";
+    const [h, m] = t.split(":").map(Number);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${hr}:${m.toString().padStart(2, "0")} ${ampm}`;
+  };
+
+  const getPctFromPointer = (
+    e: React.PointerEvent,
+    ref: React.RefObject<HTMLDivElement>,
+  ): number => {
+    if (!ref.current) return 0;
+    const rect = ref.current.getBoundingClientRect();
+    return ((e.clientX - rect.left) / rect.width) * 100;
+  };
+
+  const toggleSection = (key: string) =>
+    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
 
   // Flight review validation (silent — no UI for editing, value comes from profile)
-  const flightReviewError = lastFlightDate ? validateFlightReviewDate(lastFlightDate) : null
-  const flightReviewValid = !!lastFlightDate && !flightReviewError
+  const flightReviewError = lastFlightDate
+    ? validateFlightReviewDate(lastFlightDate)
+    : null;
+  const flightReviewValid = !!lastFlightDate && !flightReviewError;
 
   // ── Derived combined datetime strings ─────────────────────────────────────
-  const startDT = startDate && startTime ? `${startDate}T${startTime}` : ''
-  const endDT   = endDate   && endTime   ? `${endDate}T${endTime}`     : ''
+  const startDT = startDate && startTime ? `${startDate}T${startTime}` : "";
+  const bookingReturnDate = bookingMode === "multi" ? returnDate : startDate;
+  const bookingReturnTime = bookingMode === "multi" ? returnTime : endTime;
+  const endDT =
+    bookingReturnDate && bookingReturnTime
+      ? `${bookingReturnDate}T${bookingReturnTime}`
+      : "";
 
   // ── Availability state ────────────────────────────────────────────────────
-  const [availability, setAvailability] = useState<AvailabilityState>({ status: 'idle' })
+  const [availability, setAvailability] = useState<AvailabilityState>({
+    status: "idle",
+  });
 
   // ── Min date/time (1 hour from now in Sydney) ─────────────────────────────
   const { minDate, minTimeToday } = useMemo(() => {
-    const d = new Date(Date.now() + 60 * 60 * 1000)
+    const d = new Date(Date.now() + 60 * 60 * 1000);
     return {
-      minDate:      d.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }),
-      minTimeToday: d.toLocaleTimeString('sv-SE', { timeZone: 'Australia/Sydney' }).slice(0, 5),
-    }
-  }, [])
+      minDate: d.toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" }),
+      minTimeToday: d
+        .toLocaleTimeString("sv-SE", { timeZone: "Australia/Sydney" })
+        .slice(0, 5),
+    };
+  }, []);
 
   // ── Filtered time options ─────────────────────────────────────────────────
   const startTimeOptions = useMemo(() => {
-    if (startDate === minDate) return ALL_TIME_OPTIONS.filter(o => o.value >= minTimeToday)
-    return ALL_TIME_OPTIONS
-  }, [startDate, minDate, minTimeToday])
+    if (startDate === minDate) {
+      return ALL_TIME_OPTIONS.filter((o) => o.value >= minTimeToday);
+    }
+    return rotateTimeOptionsTo(ALL_TIME_OPTIONS, "09:00");
+  }, [startDate, minDate, minTimeToday]);
 
   const endTimeOptions = useMemo(() => {
-    if (endDate && startDate && endDate === startDate && startTime) {
-      return ALL_TIME_OPTIONS.filter(o => o.value > startTime)
+    // Single-day: always same date as startDate, filter times after startTime
+    if (bookingMode === "single" && startDate && startTime) {
+      return ALL_TIME_OPTIONS.filter((o) => o.value > startTime);
     }
-    return ALL_TIME_OPTIONS
-  }, [endDate, startDate, startTime])
+    // Multi-day fallback (if return is same date as start)
+    if (endDate && startDate && endDate === startDate && startTime) {
+      return ALL_TIME_OPTIONS.filter((o) => o.value > startTime);
+    }
+    return ALL_TIME_OPTIONS;
+  }, [bookingMode, endDate, startDate, startTime]);
+
+  const returnTimeOptions = useMemo(() => {
+    if (
+      bookingMode === "multi" &&
+      returnDate &&
+      startDate &&
+      returnDate === startDate &&
+      startTime
+    ) {
+      return ALL_TIME_OPTIONS.filter((o) => o.value > startTime);
+    }
+    return ALL_TIME_OPTIONS;
+  }, [bookingMode, returnDate, startDate, startTime]);
+
+  const multiReturnMinDate = useMemo(() => {
+    if (!startDate) return minDate;
+    return shiftDateByDays(startDate, 1);
+  }, [startDate, minDate]);
 
   // ── Cascade handlers ──────────────────────────────────────────────────────
 
   function handleStartDateChange(date: string) {
-    setStartDate(date)
+    setStartDate(date);
     if (date === minDate && startTime && startTime < minTimeToday) {
-      setStartTime('')
+      setStartTime("");
     }
-    if (endDate && date > endDate) {
-      setEndDate('')
-      setEndTime('')
+    if (bookingMode === "single") {
+      if (endDate && date > endDate) {
+        setEndDate("");
+        setEndTime("");
+      }
+    } else if (returnDate && date >= returnDate) {
+      setReturnDate("");
+      setReturnTime("");
     }
   }
 
   function handleStartTimeChange(time: string) {
-    setStartTime(time)
-    if (endDate && startDate && endDate === startDate && endTime && endTime <= time) {
-      setEndTime('')
+    setStartTime(time);
+    if (bookingMode === "single") {
+      if (
+        endDate &&
+        startDate &&
+        endDate === startDate &&
+        endTime &&
+        endTime <= time
+      ) {
+        setEndTime("");
+      }
+    } else if (
+      returnDate &&
+      startDate &&
+      returnDate === startDate &&
+      returnTime &&
+      returnTime <= time
+    ) {
+      setReturnTime("");
     }
   }
 
-  function handleEndDateChange(date: string) {
-    setEndDate(date)
-    if (date === startDate && endTime && startTime && endTime <= startTime) {
-      setEndTime('')
+  function handleReturnDateChange(date: string) {
+    setReturnDate(date);
+    if (
+      date === startDate &&
+      returnTime &&
+      startTime &&
+      returnTime <= startTime
+    ) {
+      setReturnTime("");
     }
+  }
+
+  function handleBookingModeChange(mode: "single" | "multi" | null) {
+    setBookingMode(mode);
+    setSubmitError(null);
+    setAvailability({ status: "idle" });
   }
 
   // ── Live availability check (debounced 600ms) ─────────────────────────────
   const runAvailabilityCheck = useCallback(
     async (start: string, end: string) => {
-      const startUTC = sydneyInputToUTC(start)
-      const endUTC   = sydneyInputToUTC(end)
-      if (!startUTC || !endUTC) return
-      if (new Date(endUTC) <= new Date(startUTC)) return
+      const startUTC = sydneyInputToUTC(start);
+      const endUTC = sydneyInputToUTC(end);
+      if (!startUTC || !endUTC) return;
+      if (new Date(endUTC) <= new Date(startUTC)) return;
 
-      setAvailability({ status: 'checking' })
+      setAvailability({ status: "checking" });
 
-      let result: AvailabilityCheckResult
+      let result: AvailabilityCheckResult;
       try {
-        result = await checkCustomerAvailability(aircraftId, startUTC, endUTC)
+        result = await checkCustomerAvailability(aircraftId, startUTC, endUTC);
       } catch {
         setAvailability({
-          status: 'unavailable',
-          message: 'Unable to check availability. Please try again.',
+          status: "unavailable",
+          message: "Unable to check availability. Please try again.",
           conflicts: [],
-        })
-        return
+        });
+        return;
       }
 
       if (result.available) {
-        setAvailability({ status: 'available', message: result.message, debugError: result.debugError })
+        setAvailability({
+          status: "available",
+          message: result.message,
+          debugError: result.debugError,
+        });
       } else {
         setAvailability({
-          status: 'unavailable',
+          status: "unavailable",
           message: result.message,
           conflicts: result.conflicts,
           debugError: result.debugError,
-        })
+        });
       }
     },
     [aircraftId],
-  )
+  );
 
   useEffect(() => {
     if (!startDT || !endDT) {
-      setAvailability({ status: 'idle' })
-      return
+      setAvailability({ status: "idle" });
+      return;
     }
-    const timer = setTimeout(() => runAvailabilityCheck(startDT, endDT), 600)
-    return () => clearTimeout(timer)
-  }, [startDT, endDT, runAvailabilityCheck])
+    const timer = setTimeout(() => runAvailabilityCheck(startDT, endDT), 600);
+    return () => clearTimeout(timer);
+  }, [startDT, endDT, runAvailabilityCheck]);
 
   // ── Estimated duration ────────────────────────────────────────────────────
   const estimatedHours = useMemo(() => {
-    const s = sydneyInputToUTC(startDT)
-    const e = sydneyInputToUTC(endDT)
-    if (!s || !e) return null
-    const mins = (new Date(e).getTime() - new Date(s).getTime()) / 60000
-    return mins > 0 ? mins / 60 : null
-  }, [startDT, endDT])
+    const s = sydneyInputToUTC(startDT);
+    const e = sydneyInputToUTC(endDT);
+    if (!s || !e) return null;
+    const mins = (new Date(e).getTime() - new Date(s).getTime()) / 60000;
+    return mins > 0 ? mins / 60 : null;
+  }, [startDT, endDT]);
+
+  const bookingDurationMinutes = useMemo(() => {
+    const s = sydneyInputToUTC(startDT);
+    const e = sydneyInputToUTC(endDT);
+    if (!s || !e) return 0;
+    return Math.max(
+      0,
+      Math.round((new Date(e).getTime() - new Date(s).getTime()) / 60000),
+    );
+  }, [startDT, endDT]);
+
+  const bookingSummaryDurationLabel = useMemo(() => {
+    if (bookingDurationMinutes <= 0) return "—";
+    return formatDurationLabelFromMinutes(bookingDurationMinutes);
+  }, [bookingDurationMinutes]);
+
+  const estimatedRate = useMemo(() => {
+    if (estimatedHours == null) return hourlyRate;
+    return getVdoHourlyRate(estimatedHours);
+  }, [estimatedHours, hourlyRate]);
+
+  const estimatedTotal = useMemo(() => {
+    if (estimatedHours == null) return null;
+    return estimatedHours * estimatedRate;
+  }, [estimatedHours, estimatedRate]);
+
+  const multiDayMinimumVdoHours = useMemo(() => {
+    if (
+      bookingMode !== "multi" ||
+      estimatedHours == null ||
+      estimatedHours <= 0
+    ) {
+      return null;
+    }
+    return Math.max(4, Math.ceil(estimatedHours / 24) * 4);
+  }, [bookingMode, estimatedHours]);
+
+  const multiDayMinimumEstimate = useMemo(() => {
+    if (multiDayMinimumVdoHours == null) return null;
+    const rate = getVdoHourlyRate(multiDayMinimumVdoHours);
+    return multiDayMinimumVdoHours * rate;
+  }, [multiDayMinimumVdoHours]);
+
+  const bookingDayCount = useMemo(() => {
+    if (bookingMode !== "multi" || !startDate || !bookingReturnDate) return 0;
+    const start = new Date(`${startDate}T12:00:00`);
+    const end = new Date(`${bookingReturnDate}T12:00:00`);
+    if (
+      Number.isNaN(start.getTime()) ||
+      Number.isNaN(end.getTime()) ||
+      end < start
+    )
+      return 0;
+    return (
+      Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    );
+  }, [bookingMode, startDate, bookingReturnDate]);
+
+  const activeBookingDate = startDate;
 
   // ── Submit gate ───────────────────────────────────────────────────────────
-  const endIsBeforeStart = !!(startDT && endDT && endDT <= startDT)
+  const endIsBeforeStart = !!(startDT && endDT && endDT <= startDT);
+  const hasInvalidMultiDayRange =
+    bookingMode === "multi" &&
+    !!startDate &&
+    !!bookingReturnDate &&
+    bookingReturnDate <= startDate;
 
   const canSubmit =
     !isSubmitting &&
@@ -451,164 +690,227 @@ export default function BookingRequestForm({
     !!startDT &&
     !!endDT &&
     !endIsBeforeStart &&
-    availability.status === 'available' &&
+    !hasInvalidMultiDayRange &&
+    availability.status === "available" &&
     flightReviewValid &&
-    medical
+    medical;
 
   function getDisabledReason(): string | null {
-    if (eligibilityBlocked) return 'Booking access is suspended. See the eligibility notice above.'
-    if (!startDate || !startTime) return 'Choose an available time and complete the required confirmations to continue.'
-    if (!endDate || !endTime) return 'Select an estimated return date and time.'
-    if (endIsBeforeStart) return 'Estimated return must be after departure.'
-    if (availability.status === 'checking') return 'Checking availability…'
-    if (availability.status === 'unavailable') return 'Selected time is unavailable.'
-    if (!lastFlightDate) return 'Your flight review date is not on file. Please contact operations.'
-    if (flightReviewError) return flightReviewError
-    if (!medical) return 'Please complete the required confirmations.'
-    return null
+    if (eligibilityBlocked)
+      return "Booking access is suspended. See the eligibility notice above.";
+    if (!startDate || !startTime)
+      return "Choose an available time and complete the required confirmations to continue.";
+    if (bookingMode === "single") {
+      if (!endDate || !endTime)
+        return "Select an estimated return date and time.";
+    } else {
+      if (!returnDate || !returnTime) return "Select a return date and time.";
+      if (hasInvalidMultiDayRange)
+        return "Return date must be after the departure date.";
+    }
+    if (endIsBeforeStart) return "Estimated return must be after departure.";
+    if (availability.status === "checking") return "Checking availability…";
+    if (availability.status === "unavailable")
+      return "Selected time is unavailable.";
+    if (!lastFlightDate)
+      return "Your flight review date is not on file. Please contact operations.";
+    if (flightReviewError) return flightReviewError;
+    return null;
   }
 
   // ── Handle submit ─────────────────────────────────────────────────────────
   function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setSubmitError(null)
+    e.preventDefault();
+    setSubmitError(null);
 
     if (!startDT || !endDT) {
-      setSubmitError('Please select a departure and estimated return time.')
-      return
+      setSubmitError("Please select a departure and estimated return time.");
+      return;
     }
-    const startUTC = sydneyInputToUTC(startDT)
-    const endUTC   = sydneyInputToUTC(endDT)
+    const startUTC = sydneyInputToUTC(startDT);
+    const endUTC = sydneyInputToUTC(endDT);
     if (!startUTC || !endUTC) {
-      setSubmitError('Invalid date/time values.')
-      return
+      setSubmitError("Invalid date/time values.");
+      return;
     }
     if (new Date(endUTC) <= new Date(startUTC)) {
-      setSubmitError('Estimated return time must be after departure.')
-      return
+      setSubmitError("Estimated return time must be after departure.");
+      return;
+    }
+    if (hasInvalidMultiDayRange) {
+      setSubmitError("Return date must be after the departure date.");
+      return;
     }
     if (eligibilityBlocked) {
-      setSubmitError('Booking access is currently unavailable. Please review the eligibility notice above.')
-      return
+      setSubmitError(
+        "Booking access is currently unavailable. Please review the eligibility notice above.",
+      );
+      return;
     }
-    if (availability.status !== 'available') {
-      setSubmitError('Please wait for the availability check to complete, or choose a different time.')
-      return
-    }
-    if (!medical) {
-      setSubmitError('You must complete the required confirmations.')
-      return
+    if (availability.status !== "available") {
+      setSubmitError(
+        "Please wait for the availability check to complete, or choose a different time.",
+      );
+      return;
     }
 
-    const flightReviewErr = validateFlightReviewDate(lastFlightDate)
+    const flightReviewErr = validateFlightReviewDate(lastFlightDate);
     if (flightReviewErr) {
-      setSubmitError(flightReviewErr)
-      return
+      setSubmitError(flightReviewErr);
+      return;
     }
 
-    const input: CreateBookingInput = {
-      aircraft_id:                    aircraftId,
-      scheduled_start:                startUTC,
-      scheduled_end:                  endUTC,
-      last_flight_date:               lastFlightDate,
-      pic_name:                       picName  ?? undefined,
-      pic_arn:                        picArn   ?? undefined,
-      customer_notes:                 notes || null,
-      risk_acknowledgement_accepted:  medical,
-    }
+    const input = {
+      aircraft_id: aircraftId,
+      scheduled_start: startUTC,
+      scheduled_end: endUTC,
+      last_flight_date: lastFlightDate,
+      pic_name: picName ?? undefined,
+      pic_arn: picArn ?? undefined,
+      customer_notes: notes || null,
+      risk_acknowledgement_accepted: medical,
+      bookingMode,
+      returnDate: bookingMode === "multi" ? returnDate : null,
+      returnTime: bookingMode === "multi" ? returnTime : null,
+    } as CreateBookingInput & {
+      bookingMode: "single" | "multi";
+      returnDate: string | null;
+      returnTime: string | null;
+    };
 
     startSubmit(async () => {
       try {
-        const result = await createBooking(input)
+        const result = await createBooking(input as CreateBookingInput);
         setSuccessState({
-          bookingId:        result.bookingId,
+          bookingId: result.bookingId,
           bookingReference: result.bookingReference,
-          bookingStatus:    result.bookingStatus,
+          bookingStatus: result.bookingStatus,
           startDT,
           endDT,
           estimatedHours,
-        })
-        window.scrollTo({ top: 0, behavior: 'smooth' })
+        });
+        window.scrollTo({ top: 0, behavior: "smooth" });
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Something went wrong.'
-        if (msg.includes('AVAILABILITY') || msg.includes('conflict') || msg.includes('unavailable')) {
-          setSubmitError('This time was just taken or blocked. Please choose another window.')
-        } else if (msg.includes('VALIDATION')) {
-          setSubmitError(msg.replace('VALIDATION:', '').trim())
-        } else if (msg.includes('CLEARANCE_REQUIRED') || msg.includes('VERIFICATION_REQUIRED')) {
-          setSubmitError('You must complete your checkout flight and be cleared before booking aircraft.')
+        const msg =
+          err instanceof Error ? err.message : "Something went wrong.";
+        if (
+          msg.includes("AVAILABILITY") ||
+          msg.includes("conflict") ||
+          msg.includes("unavailable")
+        ) {
+          setSubmitError(
+            "This time was just taken or blocked. Please choose another window.",
+          );
+        } else if (msg.includes("VALIDATION")) {
+          setSubmitError(msg.replace("VALIDATION:", "").trim());
+        } else if (
+          msg.includes("CLEARANCE_REQUIRED") ||
+          msg.includes("VERIFICATION_REQUIRED")
+        ) {
+          setSubmitError(
+            "You must complete your checkout flight and be cleared before booking aircraft.",
+          );
+        } else if (msg.includes("READINESS_REQUIRED")) {
+          setSubmitError(
+            "Your pilot documents are incomplete or still under review. Please check your Documents page and ensure all required files have been uploaded.",
+          );
         } else {
-          setSubmitError(msg)
+          setSubmitError(msg);
         }
       }
-    })
+    });
   }
-
-  const disabledReason = getDisabledReason()
 
   // ── Success state ─────────────────────────────────────────────────────────
 
   if (successState) {
-    const isConfirmed = successState.bookingStatus === 'confirmed'
+    const isConfirmed = successState.bookingStatus === "confirmed";
 
     return (
       <div className="min-h-[70vh] flex items-center justify-center px-6 py-20">
         <div className="max-w-lg w-full text-center">
-
-          <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-8 ${
-            isConfirmed
-              ? 'bg-green-500/15 border border-green-500/20'
-              : 'bg-blue-500/15 border border-blue-500/20'
-          }`}>
+          <div
+            className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-8 ${
+              isConfirmed
+                ? "bg-green-500/15 border border-green-500/20"
+                : "bg-blue-500/15 border border-blue-500/20"
+            }`}
+          >
             <span
-              className={`material-symbols-outlined text-4xl ${isConfirmed ? 'text-green-400' : 'text-blue-400'}`}
+              className={`material-symbols-outlined text-4xl ${isConfirmed ? "text-green-400" : "text-blue-400"}`}
               style={{ fontVariationSettings: "'FILL' 1, 'wght' 400" }}
             >
-              {isConfirmed ? 'check_circle' : 'pending_actions'}
+              {isConfirmed ? "check_circle" : "pending_actions"}
             </span>
           </div>
 
-          <p className={`text-[10px] font-bold uppercase tracking-[0.35em] mb-3 ${isConfirmed ? 'text-green-400/70' : 'text-blue-400/70'}`}>
-            {isConfirmed ? 'Booking Confirmed' : 'Request Received'}
+          <p
+            className={`text-[10px] font-bold uppercase tracking-[0.35em] mb-3 ${isConfirmed ? "text-green-400/70" : "text-blue-400/70"}`}
+          >
+            {isConfirmed ? "Booking Confirmed" : "Request Received"}
           </p>
           <h1 className="text-3xl md:text-4xl font-serif text-white mb-4 leading-tight">
-            {isConfirmed ? 'Your Booking Is Confirmed' : 'Booking Request Submitted'}
+            {isConfirmed
+              ? "Your Booking Is Confirmed"
+              : "Booking Request Submitted"}
           </h1>
           <p className="text-slate-400 text-sm leading-relaxed mb-8 max-w-sm mx-auto">
             {isConfirmed
-              ? 'Your aircraft booking has been confirmed. Please arrive at the aircraft at least 30 minutes before departure for pre-flight checks.'
-              : 'Your request has been submitted and is awaiting review by our operations team.'}
+              ? "Your aircraft booking has been confirmed. Please arrive at the aircraft at least 30 minutes before departure for pre-flight checks."
+              : "Your request has been submitted and is awaiting review by our operations team."}
           </p>
 
           <div className="bg-gradient-to-br from-[#0f1d38] to-[#080e1c] border-t border-white/[0.13] border-x border-b border-x-white/[0.06] border-b-white/[0.06] rounded-xl p-7 mb-6 relative overflow-hidden">
             <div
               className="absolute inset-0 rounded-xl pointer-events-none"
-              style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.12) 0%, transparent 70%)' }}
+              style={{
+                background:
+                  "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.12) 0%, transparent 70%)",
+              }}
             />
             <div className="relative">
-              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-blue-400/70 mb-3">Booking Reference</p>
-              <p className="text-3xl font-mono font-bold text-white tracking-[0.18em] mb-2">{successState.bookingReference}</p>
-              <p className="text-[11px] text-slate-600">Save this reference for your records</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-blue-400/70 mb-3">
+                Booking Reference
+              </p>
+              <p className="text-3xl font-mono font-bold text-white tracking-[0.18em] mb-2">
+                {successState.bookingReference}
+              </p>
+              <p className="text-[11px] text-slate-600">
+                Save this reference for your records
+              </p>
             </div>
           </div>
 
           {isConfirmed ? (
             <div className="bg-green-500/[0.07] border border-green-500/20 rounded-xl px-5 py-4 mb-6 flex items-start gap-3 text-left">
-              <span className="material-symbols-outlined text-green-400 text-base flex-shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+              <span
+                className="material-symbols-outlined text-green-400 text-base flex-shrink-0 mt-0.5"
+                style={{ fontVariationSettings: "'FILL' 1" }}
+              >
+                check_circle
+              </span>
               <div>
-                <p className="text-sm font-semibold text-green-300 mb-1">Booking confirmed</p>
+                <p className="text-sm font-semibold text-green-300 mb-1">
+                  Booking confirmed
+                </p>
                 <p className="text-xs text-green-300/70 leading-relaxed">
-                  Your booking is confirmed. Please arrive at the aircraft at least 30 minutes before your scheduled departure.
+                  Your booking is confirmed. Please arrive at the aircraft at
+                  least 30 minutes before your scheduled departure.
                 </p>
               </div>
             </div>
           ) : (
             <div className="bg-blue-500/[0.07] border border-blue-500/20 rounded-xl px-5 py-4 mb-6 flex items-start gap-3 text-left">
-              <span className="material-symbols-outlined text-blue-400 text-base flex-shrink-0 mt-0.5">pending_actions</span>
+              <span className="material-symbols-outlined text-blue-400 text-base flex-shrink-0 mt-0.5">
+                pending_actions
+              </span>
               <div>
-                <p className="text-sm font-semibold text-blue-300 mb-1">Awaiting review</p>
+                <p className="text-sm font-semibold text-blue-300 mb-1">
+                  Awaiting review
+                </p>
                 <p className="text-xs text-blue-300/70 leading-relaxed">
-                  Our operations team will review your request and confirm the booking shortly.
+                  Our operations team will review your request and confirm the
+                  booking shortly.
                 </p>
               </div>
             </div>
@@ -619,19 +921,25 @@ export default function BookingRequestForm({
               {successState.startDT && (
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-slate-500">Departure</span>
-                  <span className="text-xs text-white font-medium">{formatInputAsAU(successState.startDT)}</span>
+                  <span className="text-xs text-white font-medium">
+                    {formatInputAsAU(successState.startDT)}
+                  </span>
                 </div>
               )}
               {successState.endDT && (
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-slate-500">Est. Return</span>
-                  <span className="text-xs text-white font-medium">{formatInputAsAU(successState.endDT)}</span>
+                  <span className="text-xs text-white font-medium">
+                    {formatInputAsAU(successState.endDT)}
+                  </span>
                 </div>
               )}
               {successState.estimatedHours != null && (
                 <div className="flex justify-between items-center border-t border-white/[0.05] pt-3">
                   <span className="text-xs text-slate-500">Est. Duration</span>
-                  <span className="text-xs text-blue-400 font-semibold">{formatDuration(successState.estimatedHours)}</span>
+                  <span className="text-xs text-blue-400 font-semibold">
+                    {formatDuration(successState.estimatedHours)}
+                  </span>
                 </div>
               )}
             </div>
@@ -642,345 +950,1629 @@ export default function BookingRequestForm({
               href={`/dashboard/bookings/${successState.bookingId}`}
               className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-[0.2em] rounded-lg transition-all flex items-center justify-center gap-2 shadow-[0_0_24px_rgba(37,99,235,0.25)]"
             >
-              <span className="material-symbols-outlined text-sm">receipt_long</span>
+              <span className="material-symbols-outlined text-sm">
+                receipt_long
+              </span>
               View Booking
             </Link>
             <Link
               href="/dashboard/bookings"
               className="flex-1 py-4 bg-white/[0.06] hover:bg-white/[0.09] text-white font-bold text-xs uppercase tracking-[0.2em] rounded-lg transition-all flex items-center justify-center gap-2 border border-white/[0.08]"
             >
-              <span className="material-symbols-outlined text-sm">format_list_bulleted</span>
+              <span className="material-symbols-outlined text-sm">
+                format_list_bulleted
+              </span>
               My Bookings
             </Link>
           </div>
-
         </div>
       </div>
-    )
+    );
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div data-testid="booking-form">
+    <div
+      data-testid="booking-form"
+      className="min-h-screen bg-white text-[#152d5a]"
+    >
+      <PortalPageHero
+        eyebrow="FLEET BOOKING"
+        title="Book a Flight"
+        subtitle="Choose your preferred time and we'll take care of the rest."
+        note="All times are shown in Sydney time (AEST/AEDT)."
+        backgroundImage="/CustomerDashboard/booking-hero.png"
+        backgroundPosition="center bottom"
+        variant="dark"
+      />
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          COMPACT BOOKING HERO
-      ══════════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-14 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0a1428] via-[#071020] to-[#060d18]" />
-        <div
-          className="absolute inset-0 opacity-[0.15]"
-          style={{
-            backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(255,255,255,0.04) 40px, rgba(255,255,255,0.04) 41px)',
-          }}
-        />
-        <div
-          className="absolute inset-0"
-          style={{ background: 'radial-gradient(ellipse at 50% 70%, rgba(59,130,246,0.13) 0%, transparent 65%)' }}
-        />
-        <div className="absolute right-0 top-1/2 -translate-y-1/2 opacity-[0.045] pointer-events-none select-none hidden lg:block pr-8">
-          <span
-            className="material-symbols-outlined"
-            style={{ fontSize: '210px', fontVariationSettings: "'wght' 100, 'FILL' 0" }}
+      <div className="w-full px-3 sm:px-4 lg:px-6 py-6 pb-28 bg-[#f5f7fb]">
+        <Link
+          href="/dashboard/bookings"
+          className="inline-flex items-center gap-1.5 text-sm text-[#6b7280] hover:text-[#152d5a] mb-5 transition-colors"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
           >
-            flight_takeoff
-          </span>
-        </div>
-        <div className="absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-[#060d18] to-transparent" />
-        <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-2xl mx-auto">
-          <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-blue-400/70 mb-4">Fleet Booking</p>
-          <h1 className="text-4xl md:text-5xl font-serif tracking-tight text-white mb-3 leading-tight">Book a Flight</h1>
-          <p className="text-slate-400 text-base leading-relaxed mb-2">
-            Choose your preferred time and submit your request for review.
-          </p>
-          <p className="text-[11px] text-slate-600">All times are shown in Sydney time (AEST/AEDT).</p>
-        </div>
-      </section>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+          My Bookings
+        </Link>
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          STEP INDICATOR BAR
-      ══════════════════════════════════════════════════════════════════════ */}
-      <div className="border-b border-white/[0.06] bg-[#05090f] py-5">
-        <div className="max-w-[1280px] mx-auto px-6 md:px-10 xl:px-12 flex justify-center">
-          <StepIndicator requirementsOk={!eligibilityBlocked} />
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════════════════
-          PILOT + AIRCRAFT INFO STRIP
-      ══════════════════════════════════════════════════════════════════════ */}
-      <div className="bg-[#070c19] border-b border-white/[0.05]">
-        <div className="max-w-[1280px] mx-auto px-6 md:px-10 xl:px-12 py-5">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-5">
-
-            {/* Pilot */}
-            <div>
-              <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-1.5 block">Pilot</span>
-              {picName ? (
-                <span className="text-sm font-semibold text-white leading-snug">{picName}</span>
-              ) : (
-                <span className="flex items-center gap-1 text-sm font-semibold text-amber-300 leading-snug">
-                  <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 400" }}>warning</span>
-                  Missing
+        <form id="booking-request-form" onSubmit={handleSubmit}>
+              <div className="space-y-5">
+            {aircraftStatus !== "available" && (
+              <div className="flex items-center gap-3 bg-[#fff7ed] border border-[#fed7aa] rounded-xl px-5 py-3.5">
+                <span className="material-symbols-outlined text-[#f59e0b] text-lg flex-shrink-0">
+                  warning
                 </span>
-              )}
-            </div>
-
-            {/* ARN */}
-            <div>
-              <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-1.5 block">ARN</span>
-              {picArn ? (
-                <span className="text-sm font-semibold font-mono text-white leading-snug">{picArn}</span>
-              ) : (
-                <span className="flex items-center gap-1 text-sm font-semibold text-amber-300 leading-snug">
-                  <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 400" }}>warning</span>
-                  Missing
-                </span>
-              )}
-            </div>
-
-            {/* Aircraft — combined registration + type */}
-            <div className="col-span-2 sm:col-span-1">
-              <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-1.5 block">Aircraft</span>
-              <span className="text-sm font-semibold text-white leading-snug">
-                {[aircraftRegistration, aircraftType || 'Unavailable'].filter(Boolean).join(' ')}
-              </span>
-            </div>
-
-          </div>
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════════════════
-          MAIN CONTENT AREA
-      ══════════════════════════════════════════════════════════════════════ */}
-      <div className="max-w-[1280px] mx-auto px-6 md:px-10 xl:px-12 py-10 pb-24">
-
-        <div className="max-w-3xl mx-auto">
-          <Link
-            href="/dashboard/bookings"
-            className="inline-flex items-center gap-1.5 text-blue-500/70 hover:text-blue-400 text-sm mb-8 transition-colors"
-          >
-            <span className="material-symbols-outlined text-base">arrow_back</span>
-            My Bookings
-          </Link>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="max-w-3xl mx-auto space-y-6">
-
-            {/* Aircraft status warning */}
-            {aircraftStatus !== 'available' && (
-              <div className="flex items-center gap-3 bg-amber-500/8 border border-amber-500/20 rounded-xl px-5 py-3.5">
-                <span className="material-symbols-outlined text-amber-400 text-lg flex-shrink-0">warning</span>
-                <p className="text-sm text-amber-300">
-                  {aircraftRegistration} is currently <strong>{aircraftStatus}</strong>. Requests may be delayed.
+                <p className="text-sm text-[#9a3412]">
+                  {aircraftRegistration} is currently{" "}
+                  <strong>{aircraftStatus}</strong>. Requests may be delayed.
                 </p>
               </div>
             )}
 
-            {/* Eligibility warnings */}
             {eligibilityBlocked && eligibilityWarnings.length > 0 && (
-              <div className="bg-amber-500/8 border border-amber-500/20 rounded-xl px-5 py-4 flex items-start gap-3">
-                <span className="material-symbols-outlined text-amber-400 mt-0.5 flex-shrink-0">notification_important</span>
+              <div className="bg-[#fff7ed] border border-[#fed7aa] rounded-xl px-5 py-4 flex items-start gap-3">
+                <span className="material-symbols-outlined text-[#f59e0b] mt-0.5 flex-shrink-0">
+                  notification_important
+                </span>
                 <div>
-                  <p className="text-sm font-bold text-amber-400 mb-1.5">Booking Access Suspended</p>
-                  <ul className="text-xs text-amber-300/80 space-y-1 list-disc list-inside">
-                    {eligibilityWarnings.map((w, i) => <li key={i}>{w}</li>)}
+                  <p className="text-sm font-bold text-[#92400e] mb-1.5">
+                    Booking Access Suspended
+                  </p>
+                  <ul className="text-xs text-[#9a3412]/80 space-y-1 list-disc list-inside">
+                    {eligibilityWarnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
                   </ul>
                 </div>
               </div>
             )}
 
-            {/* ── Choose your flight time ────────────────────────────────── */}
-            <section className="relative bg-gradient-to-br from-[#0f1d38] to-[#080e1c] border-t border-white/[0.13] border-x border-b border-x-white/[0.06] border-b-white/[0.06] rounded-xl p-8 md:p-10 shadow-[0_8px_60px_rgba(0,0,0,0.45)] overflow-hidden">
-
-              <div className="absolute left-0 top-8 bottom-8 w-[3px] bg-blue-500/65 rounded-r-full" />
-              <div
-                className="absolute inset-0 rounded-xl pointer-events-none"
-                style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(37,99,235,0.09) 0%, transparent 65%)' }}
-              />
-
-              <div className="relative space-y-8">
-
-                <div>
-                  <h2 className="text-2xl md:text-3xl font-serif text-white mb-2 leading-tight">
-                    Choose your flight time
-                  </h2>
-                  <p className="text-slate-400 text-sm leading-relaxed">
-                    Start by selecting your departure and estimated return time.
-                  </p>
-                </div>
-
-                {/* Departure */}
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-400/70 mb-3 flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 400" }}>flight_takeoff</span>
-                    Departure
-                  </p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600 mb-2">Date</label>
-                      <DateInput value={startDate} min={minDate} onChange={handleStartDateChange} />
-                      {startDate && (
-                        <p className="text-[11px] text-blue-400/50 mt-1.5">{formatDateDisplay(startDate)}</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600 mb-2">Time</label>
-                      <TimeSelect
-                        value={startTime}
-                        options={startTimeOptions}
-                        disabled={!startDate}
-                        placeholder="Select time"
-                        onChange={handleStartTimeChange}
-                      />
-                    </div>
-                  </div>
-                  {startDT && (
-                    <p className="text-xs text-blue-400/70 mt-2 font-medium">{formatInputAsAU(startDT)}</p>
-                  )}
-                </div>
-
-                {/* Estimated return */}
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-400/70 mb-3 flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'wght' 400" }}>flight_land</span>
-                    Estimated Return
-                  </p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600 mb-2">Date</label>
-                      <DateInput
-                        value={endDate}
-                        min={startDate || minDate}
-                        disabled={!startDate}
-                        onChange={handleEndDateChange}
-                      />
-                      {endDate && (
-                        <p className="text-[11px] text-blue-400/50 mt-1.5">{formatDateDisplay(endDate)}</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-[9px] font-bold uppercase tracking-[0.15em] text-slate-600 mb-2">Time</label>
-                      <TimeSelect
-                        value={endTime}
-                        options={endTimeOptions}
-                        disabled={!endDate}
-                        placeholder="Select time"
-                        onChange={setEndTime}
-                      />
-                      {endIsBeforeStart && (
-                        <p className="text-[11px] text-red-400 mt-1.5">Must be after departure</p>
-                      )}
-                    </div>
-                  </div>
-                  {endDT && !endIsBeforeStart && (
-                    <p className="text-xs text-blue-400/70 mt-2 font-medium">{formatInputAsAU(endDT)}</p>
-                  )}
-                </div>
-
-                {/* Availability status — inline, below return fields */}
-                <AvailabilityStatus
-                  availability={availability}
-                  startDT={startDT}
-                  endDT={endDT}
-                  endIsBeforeStart={endIsBeforeStart}
-                />
-
-                {/* Estimated duration chip */}
-                {estimatedHours != null && estimatedHours > 0 && (
-                  <div className="flex items-center gap-3 px-4 py-3 bg-blue-600/8 border border-blue-500/15 rounded-xl">
-                    <span className="material-symbols-outlined text-blue-500 text-base flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>timer</span>
-                    <span className="text-sm text-white">
-                      Estimated duration:{' '}
-                      <span className="text-blue-400 font-semibold">{formatDuration(estimatedHours)}</span>
-                    </span>
-                    <span className="text-[10px] text-slate-600 ml-auto hidden sm:block">Subject to actual meter time</span>
-                  </div>
-                )}
-
-              </div>
-            </section>
-
-            {/* ── Flight Notes, confirmation & submit ───────────────────── */}
-            <section className="bg-[#080e1c] border border-white/[0.07] rounded-xl p-7 md:p-8 space-y-6">
-
-              {/* Notes */}
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-300 mb-1.5">Flight Notes</h3>
-                <p className="text-[11px] text-slate-600 mb-4">Optional. Visible to the operations team only.</p>
-                <textarea
-                  rows={3}
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  placeholder="Add any specific requests, route intentions, or passenger details here…"
-                  className="w-full px-4 py-3.5 bg-[#05080f] border border-white/[0.07] focus:border-blue-500/50 focus:outline-none rounded-lg text-white text-sm placeholder:text-slate-700 transition-colors resize-none leading-relaxed"
+            <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center gap-5 md:gap-6">
+              <div className="w-24 h-20 rounded-xl overflow-hidden flex-shrink-0 border border-[#e2e8f0]">
+                <img
+                  src="/Logo/ozrentaplane-logo.png"
+                  alt="VH-KZG Cessna 172"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display =
+                      "none";
+                    (
+                      e.currentTarget.parentElement as HTMLElement
+                    ).classList.add(
+                      "bg-[#dde8f5]",
+                      "flex",
+                      "items-center",
+                      "justify-center",
+                    );
+                  }}
                 />
               </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-[#6b7280] uppercase tracking-wider mb-0.5">
+                  Aircraft
+                </p>
+                <p className="text-lg font-semibold text-[#152d5a] truncate">
+                  {aircraftRegistration} / {aircraftType}
+                </p>
+                <p className="text-sm text-[#6b7280]">4 seats</p>
+              </div>
+              <div className="hidden md:block w-px h-12 bg-[#e2e8f0]" />
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-[#dde8f5] flex items-center justify-center">
+                  <svg
+                    className="w-5 h-5 text-[#1a4fd6]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-[#6b7280] uppercase tracking-wider mb-0.5">
+                    Pilot
+                  </p>
+                  <p className="text-base font-semibold text-[#152d5a] truncate">
+                    {picName || "Pilot unavailable"}
+                  </p>
+                  {picArn && picArn.length > 2 && (
+                    <p className="text-xs text-[#6b7280]">ARN {picArn}</p>
+                  )}
+                </div>
+              </div>
+            </div>
 
-              <div className="border-t border-white/[0.06]" />
-
-              {/* Confirmation + submit */}
-              <div className="space-y-5">
-
-                <label className="flex items-start gap-3.5 cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={medical}
-                    onChange={e => setMedical(e.target.checked)}
-                    className="mt-0.5 w-5 h-5 accent-blue-500 rounded cursor-pointer flex-shrink-0"
-                  />
-                  <span className="text-sm text-slate-500 group-hover:text-slate-300 transition-colors leading-relaxed">
-                    I confirm that I hold a valid medical certificate and will ensure it is carried during the flight.
-                  </span>
-                </label>
-
-                <button
-                  type="submit"
-                  disabled={!canSubmit}
-                  className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/15 disabled:cursor-not-allowed text-white font-bold text-xs uppercase tracking-[0.2em] rounded-lg transition-all shadow-[0_0_24px_rgba(37,99,235,0.25)] disabled:shadow-none flex items-center justify-center gap-2"
+            {/* Booking mode selector */}
+            <div>
+              {/* Ruled section header */}
+              <div className="mb-5 text-center">
+                <p className="text-[11px] font-bold text-[#94a3b8] uppercase tracking-widest mb-2">
+                  Booking type
+                </p>
+                <p
+                  className="text-xl font-bold text-[#152d5a]"
+                  style={{ fontFamily: "Newsreader, serif", fontWeight: 400 }}
                 >
-                  {isSubmitting ? (
-                    <>
-                      <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-                      Submitting…
-                    </>
-                  ) : availability.status === 'checking' ? (
-                    <>
-                      <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-                      Checking…
-                    </>
-                  ) : (
-                    <>
-                      <span className="material-symbols-outlined text-sm">send</span>
-                      Submit Booking Request
-                    </>
+                  How long do you need the aircraft?
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* ── Single day ── */}
+                <button
+                  type="button"
+                  onClick={() => handleBookingModeChange("single")}
+                  className={`cursor-pointer relative flex flex-col items-start text-left rounded-2xl border-2 p-5 transition-all duration-150 ${
+                    bookingMode === "single"
+                      ? "border-[#1a4fd6] bg-[#eef4ff]"
+                      : "border-dashed border-[#c7d8f5] bg-[#eef6ff] hover:border-[#1a4fd6] hover:bg-[#e0edff] hover:shadow-sm"
+                  }`}
+                >
+                  {bookingMode === "single" && (
+                    <span className="absolute top-4 right-4 w-5 h-5 rounded-full bg-[#1a4fd6] flex items-center justify-center">
+                      <svg
+                        className="w-3 h-3 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={3.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    </span>
+                  )}
+
+                  <div className="w-10 h-10 rounded-xl bg-[#1a4fd6] flex items-center justify-center mb-3 flex-shrink-0">
+                    <svg
+                      className="w-5 h-5 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.8}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                  </div>
+
+                  <p
+                    className={`text-lg font-extrabold tracking-tight leading-tight mb-1.5 ${
+                      bookingMode === "single"
+                        ? "text-[#152d5a]"
+                        : "text-[#374151]"
+                    }`}
+                  >
+                    Single day
+                  </p>
+                  <p className="text-xs text-[#6b7280] leading-relaxed mb-4">
+                    Depart and return on the same date. Billed on actual hours
+                    flown.
+                  </p>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#dde8f5] text-[#1640b0]">
+                      Same-day return
+                    </span>
+                    <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#dde8f5] text-[#1640b0]">
+                      No min. hours
+                    </span>
+                    <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#dde8f5] text-[#1640b0]">
+                      $320/hr
+                    </span>
+                  </div>
+                  {bookingMode !== "single" && (
+                    <p className="mt-4 text-[11px] font-semibold text-[#1a4fd6] flex items-center gap-1">
+                      <svg
+                        className="w-3 h-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"
+                        />
+                      </svg>
+                      Tap to select
+                    </p>
                   )}
                 </button>
 
-                {disabledReason && !canSubmit && (
-                  <p className="text-[11px] text-slate-600 text-center leading-snug">{disabledReason}</p>
-                )}
+                {/* ── Multi-day ── */}
+                  <button
+                    type="button"
+                    onClick={() => handleBookingModeChange("multi")}
+                    className={`cursor-pointer relative flex flex-col items-start text-left rounded-2xl border-2 p-5 transition-all duration-150 ${
+                      bookingMode === "multi"
+                      ? "border-2 border-[#d97706] bg-[#fffbf0] shadow-sm"
+                      : "border-dashed border-[#e9d5a1] bg-[#fffbf0] hover:border-[#f59e0b] hover:shadow-sm"
+                    }`}
+                  >
+                  {bookingMode === "multi" && (
+                    <span className="absolute top-4 right-4 w-5 h-5 rounded-full bg-[#d97706] flex items-center justify-center">
+                      <svg
+                        className="w-3 h-3 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={3.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    </span>
+                  )}
 
-                {submitError && (
-                  <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
-                    <span className="material-symbols-outlined text-red-400 text-base flex-shrink-0 mt-0.5">error</span>
-                    <p className="text-xs text-red-300">{submitError}</p>
+                  <div className="w-10 h-10 rounded-xl bg-[#fef3c7] flex items-center justify-center mb-3 flex-shrink-0">
+                    <svg
+                      className="w-5 h-5 text-[#92400e]"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.8}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                  </div>
+
+                  <p
+                    className={`text-lg font-extrabold tracking-tight leading-tight mb-1.5 ${
+                      bookingMode === "multi"
+                        ? "text-[#152d5a]"
+                        : "text-[#374151]"
+                    }`}
+                  >
+                    Multi-day
+                  </p>
+                  <p className="text-xs text-[#6b7280] leading-relaxed mb-4">
+                    Aircraft stays with you overnight across multiple
+                    consecutive days.
+                  </p>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#fef3c7] text-[#92400e]">
+                      4 VDO hrs min. per 24h
+                    </span>
+                    <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#fee2e2] text-[#991b1b]">
+                      Parking not included
+                    </span>
+                  </div>
+                  {bookingMode !== "multi" && (
+                    <p className="mt-4 text-[11px] font-semibold text-[#92400e] flex items-center gap-1">
+                      <svg
+                        className="w-3 h-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"
+                        />
+                      </svg>
+                      Tap to select
+                    </p>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className={
+              bookingMode === null
+                ? "hidden"
+                : ""
+            }
+          >
+            {bookingMode === "single" ? (
+              <section className="bg-white border border-[#e2e8f0] rounded-2xl p-5 shadow-sm space-y-5">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="w-7 h-7 rounded-full bg-[#1a4fd6] flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                  1
+                </div>
+                <span className="text-sm font-semibold text-[#152d5a]">
+                  Choose your time
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <div className="flex items-baseline justify-between mb-1.5">
+                    <label className="text-xs font-medium text-[#6b7280]">
+                      Booking date
+                    </label>
+                    <span className="text-[10px] text-[#9ca3af]">
+                      Sydney time (AEST/AEDT)
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]">
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={1.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                      </svg>
+                    </span>
+                    <DateInput
+                      value={startDate}
+                      min={minDate}
+                      onChange={handleStartDateChange}
+                    />
+                  </div>
+                  {startDate && (
+                    <p className="text-[11px] text-[#64748b] mt-1.5">
+                      {formatDateDisplay(startDate)}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#6b7280] mb-1.5">
+                    Start time
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]">
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={1.5}
+                      >
+                        <circle cx="12" cy="12" r="9" />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 7v5l3 2"
+                        />
+                      </svg>
+                    </span>
+                    <TimeSelect
+                      value={startTime}
+                      options={startTimeOptions}
+                      disabled={!startDate}
+                      placeholder="Select time"
+                      onChange={handleStartTimeChange}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#6b7280] mb-1.5">
+                    End time
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]">
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={1.5}
+                      >
+                        <circle cx="12" cy="12" r="9" />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 7v5l3 2"
+                        />
+                      </svg>
+                    </span>
+                    <TimeSelect
+                      value={endTime}
+                      options={endTimeOptions}
+                      disabled={!startDate}
+                      placeholder="Select time"
+                      onChange={setEndTime}
+                    />
+                  </div>
+                  {endIsBeforeStart && (
+                    <p className="text-[11px] text-[#e11d48] mt-1.5">
+                      Must be after departure
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <AvailabilityStatus
+                availability={availability}
+                startDT={startDT}
+                endDT={endDT}
+                endIsBeforeStart={endIsBeforeStart}
+              />
+
+              {activeBookingDate && (
+                <div className="bg-[#f8faff] border border-[#e2e8f0] rounded-2xl p-5 mb-4">
+                  <div className="flex items-center justify-between mb-5">
+                    <div>
+                      <p className="text-[11px] font-semibold text-[#94a3b8] uppercase tracking-wider mb-0.5">
+                        Same-day booking
+                      </p>
+                      <p className="text-base font-semibold text-[#152d5a]">
+                        Select your time on{" "}
+                        {new Date(
+                          `${activeBookingDate}T00:00:00`,
+                        ).toLocaleDateString("en-AU", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between mb-2">
+                    {["12 AM", "6 AM", "12 PM", "6 PM", "12 AM"].map(
+                      (lbl, i) => (
+                        <span key={i} className="text-[10px] text-[#94a3b8]">
+                          {lbl}
+                        </span>
+                      ),
+                    )}
+                  </div>
+
+                  {(() => {
+                    const startPct = timeToPct(startTime || "00:00");
+                    const endPct = timeToPct(endTime || "00:00");
+                    const tooClose = Math.abs(endPct - startPct) < 10;
+                    const conflictSegments =
+                      availability.status === "unavailable"
+                        ? availability.conflicts
+                        : [];
+
+                    return (
+                      <div
+                        ref={trackRef}
+                        className="relative h-14 sm:h-10 rounded-lg overflow-hidden border bg-[#f0fdf4] border-green-200 select-none mb-5"
+                        style={{
+                          cursor: dragging ? "grabbing" : "default",
+                          touchAction: "none",
+                        }}
+                        onPointerMove={(e) => {
+                          if (!dragging) return;
+                          const pct = getPctFromPointer(e, trackRef);
+                          const newTime = pctToTime(pct);
+                          if (dragging === "start") {
+                            if (pct < timeToPct(endTime || "17:00") - 2) {
+                              setStartTime(newTime);
+                            }
+                          } else if (
+                            pct >
+                            timeToPct(startTime || "09:00") + 2
+                          ) {
+                            setEndTime(newTime);
+                          }
+                        }}
+                        onPointerUp={() => {
+                          if (trackRef.current) {
+                            try {
+                              trackRef.current.releasePointerCapture(
+                                (window as any).__timelineCapturedPointerId,
+                              );
+                            } catch {}
+                          }
+                          setDragging(null);
+                        }}
+                      >
+                        {conflictSegments.map((segment, i) => {
+                          const startMins = sydIsoToMinutes(segment.start_time);
+                          const endMins = sydIsoToMinutes(segment.end_time);
+                          return (
+                            <div
+                              key={`${segment.start_time}-${segment.end_time}-${i}`}
+                              className="absolute inset-y-0 bg-red-500/60"
+                              style={{
+                                left: `${(startMins / 1440) * 100}%`,
+                                width: `${Math.max(0, ((endMins - startMins) / 1440) * 100)}%`,
+                              }}
+                              title={segment.label}
+                            />
+                          );
+                        })}
+                        {startTime && endTime && (
+                          <>
+                            <div
+                              className="absolute inset-y-0 bg-[#1a4fd6]/20 border-2 border-[#1a4fd6] rounded-lg"
+                              style={{
+                                left: `${startPct}%`,
+                                width: `${Math.max(0, endPct - startPct)}%`,
+                              }}
+                            />
+
+                            <div
+                              className="absolute flex flex-col items-center"
+                              style={{
+                                left: `${startPct}%`,
+                                top: "50%",
+                                transform: "translate(-50%, -50%)",
+                              }}
+                            >
+                              <div
+                                className="bg-[#1a4fd6] text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg whitespace-nowrap shadow-sm mb-1 pointer-events-none"
+                                style={{ marginLeft: tooClose ? -32 : 0 }}
+                              >
+                                {fmtTime(startTime)}
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-t-[4px] border-transparent border-t-[#1a4fd6]" />
+                              </div>
+                              <div
+                                className={`w-4 h-4 rounded-full bg-[#1a4fd6] border-2 border-white shadow-md transition-transform ${
+                                  dragging === "start"
+                                    ? "scale-125"
+                                    : "hover:scale-110"
+                                }`}
+                                style={{ cursor: "grab", marginTop: 2 }}
+                                onPointerDown={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (trackRef.current) {
+                                    trackRef.current.setPointerCapture(
+                                      e.pointerId,
+                                    );
+                                    (window as any).__timelineCapturedPointerId =
+                                      e.pointerId;
+                                  }
+                                  setDragging("start");
+                                }}
+                              />
+                            </div>
+
+                            <div
+                              className="absolute flex flex-col items-center"
+                              style={{
+                                left: `${endPct}%`,
+                                top: "50%",
+                                transform: "translate(-50%, -50%)",
+                              }}
+                            >
+                              <div
+                                className="bg-[#1a4fd6] text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg whitespace-nowrap shadow-sm mb-1 pointer-events-none"
+                                style={{ marginLeft: tooClose ? 32 : 0 }}
+                              >
+                                {fmtTime(endTime)}
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-t-[4px] border-transparent border-t-[#1a4fd6]" />
+                              </div>
+                              <div
+                                className={`w-4 h-4 rounded-full bg-[#1a4fd6] border-2 border-white shadow-md transition-transform ${
+                                  dragging === "end"
+                                    ? "scale-125"
+                                    : "hover:scale-110"
+                                }`}
+                                style={{ cursor: "grab", marginTop: 2 }}
+                                onPointerDown={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (trackRef.current) {
+                                    trackRef.current.setPointerCapture(
+                                      e.pointerId,
+                                    );
+                                    (window as any).__timelineCapturedPointerId =
+                                      e.pointerId;
+                                  }
+                                  setDragging("end");
+                                }}
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {(!startTime || !endTime) && (
+                          <div
+                            className="absolute inset-0 flex items-center justify-center"
+                            style={{ top: 0 }}
+                          >
+                            <p className="text-xs text-[#9ca3af]">
+                              Select start and end time above to see your slot
+                              on the timeline
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  <div className="flex items-start gap-3 bg-[#f0f6ff] border border-[#dde8f5] rounded-xl px-4 py-3">
+                    <svg
+                      className="w-4 h-4 text-[#1a4fd6] flex-shrink-0 mt-0.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                    <p className="text-sm text-[#1a4fd6]">
+                      Aircraft reserved{" "}
+                      <strong>{fmtTime(startTime || "09:00")}</strong> to{" "}
+                      <strong>{fmtTime(endTime || "17:00")}</strong>
+                      {startDate
+                        ? ` on ${new Date(`${startDate}T00:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}.`
+                        : "."}{" "}
+                      Drag the handles to adjust.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                {/* Section 2 — Booking summary */}
+                <div className="bg-white border border-[#e2e8f0] rounded-2xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleSection("summary")}
+                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#fafafa] transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                        openSections.summary
+                          ? "bg-[#1a4fd6] text-white"
+                          : "bg-[#f0f6ff] border border-[#c7d8f5] text-[#1a4fd6]"
+                      }`}
+                    >
+                      2
+                    </div>
+                    <span className="text-sm font-semibold text-[#152d5a]">
+                      Booking summary
+                    </span>
+                  </div>
+                  <svg
+                    className={`w-4 h-4 text-[#94a3b8] transition-transform ${
+                      openSections.summary ? "rotate-180" : ""
+                    }`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+                {openSections.summary && (
+                  <div className="px-5 pb-5 border-t border-[#f1f5f9]">
+                    <div className="flex items-center gap-3 py-4 border-b border-[#f1f5f9]">
+                      <svg
+                        className="w-4 h-4 text-[#94a3b8] flex-shrink-0"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={1.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                      </svg>
+                      <div>
+                        <div className="text-sm font-semibold text-[#152d5a]">
+                          {activeBookingDate
+                            ? formatShortDateDisplay(activeBookingDate)
+                            : "—"}
+                        </div>
+                        <div className="text-xs text-[#6b7280]">
+                          {activeBookingDate
+                            ? `${new Date(`${activeBookingDate}T12:00:00`).toLocaleDateString("en-AU", { weekday: "long" })}, Single day`
+                            : ""}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 py-4 border-b border-[#f1f5f9]">
+                      <svg
+                        className="w-4 h-4 text-[#94a3b8] flex-shrink-0"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={1.5}
+                      >
+                        <circle cx="12" cy="12" r="9" />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 7v5l3 2"
+                        />
+                      </svg>
+                      <div>
+                        <div className="text-sm font-semibold text-[#152d5a]">
+                          {fmtTime(startTime) || "—"}
+                        </div>
+                        <div className="text-xs text-[#94a3b8]">Start</div>
+                      </div>
+                      <svg
+                        className="w-4 h-4 text-[#94a3b8]"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={1.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M5 12h14"
+                        />
+                      </svg>
+                      <div>
+                        <div className="text-sm font-semibold text-[#152d5a]">
+                          {fmtTime(endTime) || "—"}
+                        </div>
+                        <div className="text-xs text-[#94a3b8]">End</div>
+                      </div>
+                      <div className="ml-auto">
+                        <div className="text-sm font-bold text-[#1a4fd6]">
+                          {bookingSummaryDurationLabel}
+                        </div>
+                        <div className="text-xs text-[#94a3b8]">Duration</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 pt-3">
+                      <svg
+                        className="w-3.5 h-3.5 text-[#22c55e]"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <span className="text-xs text-[#6b7280]">
+                        Same-day booking
+                      </span>
+                    </div>
                   </div>
                 )}
+                </div>
 
+                {/* Section 3 — Pricing summary */}
+                <div className="bg-white border border-[#e2e8f0] rounded-2xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleSection("pricing")}
+                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#fafafa] transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                        openSections.pricing
+                          ? "bg-[#1a4fd6] text-white"
+                          : "bg-[#f0f6ff] border border-[#c7d8f5] text-[#1a4fd6]"
+                      }`}
+                    >
+                      3
+                    </div>
+                    <span className="text-sm font-semibold text-[#152d5a]">
+                      Pricing summary
+                    </span>
+                  </div>
+                  <svg
+                    className={`w-4 h-4 text-[#94a3b8] transition-transform ${
+                      openSections.pricing ? "rotate-180" : ""
+                    }`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+                {openSections.pricing && (
+                  <div className="px-5 pb-5 border-t border-[#f1f5f9] space-y-3 pt-4">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-sm text-[#6b7280]">
+                        Billing type
+                      </span>
+                      <span className="text-sm font-semibold text-[#152d5a]">
+                        Actual VDO hours flown
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-sm text-[#6b7280]">Hire type</span>
+                      <span className="text-sm font-semibold text-[#152d5a]">
+                        Wet hire · GST incl.
+                      </span>
+                    </div>
+                    <div className="border-t border-[#f1f5f9] pt-3 flex justify-between items-baseline">
+                      <span className="text-sm text-[#6b7280]">Rate</span>
+                      <span className="text-lg font-bold text-[#152d5a]">
+                        {estimatedHours != null
+                          ? `$${getVdoHourlyRate(estimatedHours)}/hr`
+                          : "From $290–$330/hr"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center pt-1">
+                      <p className="text-[11px] text-[#94a3b8]">
+                        +$25 per landing · Final invoice after flight record
+                        submitted.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowPricingModal(true)}
+                        className="text-xs text-[#1a4fd6] font-medium hover:underline whitespace-nowrap ml-3"
+                      >
+                        Full pricing →
+                      </button>
+                    </div>
+                  </div>
+                )}
+                </div>
               </div>
             </section>
+          ) : (
+            <>
+              <section className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-7 h-7 rounded-full bg-[#1a4fd6] flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                    1
+                  </div>
+                  <h2
+                    className="text-xl font-semibold text-[#152d5a]"
+                    style={{ fontFamily: "Newsreader, serif" }}
+                  >
+                    Your multi-day booking
+                  </h2>
+                </div>
+                <p className="text-sm text-[#6b7280] mb-4">
+                  Choose your start and return date &amp; time. Full days in
+                  between are reserved automatically.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-start">
+                  <div className="flex flex-col">
+                    <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[32px]">
+                      <label className="text-xs font-medium text-[#6b7280]">
+                        Start date
+                      </label>
+                      <span className="text-[10px] text-[#9ca3af] leading-tight text-right">
+                        Sydney time (AEST/AEDT)
+                      </span>
+                    </div>
+                    <DateInput
+                      value={startDate}
+                      min={minDate}
+                      onChange={handleStartDateChange}
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="block text-xs font-medium text-[#6b7280] mb-1.5 min-h-[32px]">
+                      Start time
+                    </label>
+                    <TimeSelect
+                      value={startTime}
+                      options={startTimeOptions}
+                      disabled={!startDate}
+                      placeholder="Select time"
+                      onChange={handleStartTimeChange}
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="block text-xs font-medium text-[#6b7280] mb-1.5 min-h-[32px]">
+                      Return date
+                    </label>
+                    <DateInput
+                      value={returnDate}
+                      min={multiReturnMinDate}
+                      disabled={!startDate}
+                      onChange={handleReturnDateChange}
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="block text-xs font-medium text-[#6b7280] mb-1.5 min-h-[32px]">
+                      Return time
+                    </label>
+                    <TimeSelect
+                      value={returnTime}
+                      options={returnTimeOptions}
+                      disabled={!returnDate}
+                      placeholder="Select time"
+                      onChange={setReturnTime}
+                    />
+                  </div>
+                </div>
+              </section>
 
-            <p className="text-[10px] font-serif italic text-center text-slate-600 px-3 leading-relaxed pb-6">
-              Booking requests are reviewed and confirmed by the operations team. You will be notified of the outcome.
-            </p>
+              {startDate && returnDate && bookingDayCount >= 2 && (
+                <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6">
+                  <div className={`mb-3 ${bookingDayCount > 4 ? "overflow-x-auto pb-2" : ""}`}>
+                    <div className={`flex items-stretch gap-2 ${bookingDayCount > 4 ? "min-w-max" : "justify-between"}`}>
+                    {(() => {
+                      const dates: Date[] = [];
+                      const cur = new Date(`${startDate}T12:00:00`);
+                      const end = new Date(`${returnDate}T12:00:00`);
+                      while (cur <= end) {
+                        dates.push(new Date(cur));
+                        cur.setDate(cur.getDate() + 1);
+                      }
+                      return dates.map((date, i) => {
+                        const isFirst = i === 0;
+                        const isLast = i === dates.length - 1;
+                        const isMiddle = !isFirst && !isLast;
+                        const dayLabel = date
+                          .toLocaleDateString("en-AU", {
+                            day: "numeric",
+                            month: "short",
+                          })
+                          .toUpperCase();
+                        return (
+                          <div
+                            key={`${date.toISOString()}-${i}`}
+                            className={`rounded-xl border p-3 text-center ${bookingDayCount > 4 ? "w-[96px] sm:w-[112px] flex-shrink-0" : "flex-1"} ${isFirst || isLast ? "border-[#1a4fd6] bg-[#f0f6ff]" : "border-[#e2e8f0] bg-[#f8fafc]"}`}
+                          >
+                            <div className="text-xs font-bold text-[#152d5a] mb-0.5">
+                              {dayLabel}
+                            </div>
+                            {isFirst && (
+                              <>
+                                <div className="text-[11px] text-[#6b7280]">
+                                  Start day
+                                </div>
+                                <div className="text-xs font-semibold text-[#152d5a]">
+                                  {formatTimeLabel(startTime || "09:00")}
+                                </div>
+                              </>
+                            )}
+                            {isMiddle && (
+                              <>
+                                <div className="flex items-center justify-center gap-1 text-[11px] text-[#6b7280]">
+                                  <svg
+                                    className="w-3 h-3 text-[#94a3b8]"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                                    />
+                                  </svg>
+                                  Full day
+                                </div>
+                                <div className="text-xs text-[#94a3b8]">
+                                  Reserved
+                                </div>
+                              </>
+                            )}
+                            {isLast && (
+                              <>
+                                <div className="text-[11px] text-[#6b7280]">
+                                  Return day
+                                </div>
+                                <div className="text-xs font-semibold text-[#152d5a]">
+                                  {formatTimeLabel(returnTime || "17:00")}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      });
+                    })()}
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-4 py-3">
+                    <svg
+                      className="w-4 h-4 text-[#6b7280] flex-shrink-0 mt-0.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <div className="text-sm text-[#6b7280]">
+                      <div>
+                        Bookings over 24 hours are reserved continuously for
+                        this period.
+                      </div>
+                      <div>
+                        Billing is based on actual VDO hours flown, with a
+                        minimum of 4 VDO hours per 24 hours booked.
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <AvailabilityStatus
+                      availability={availability}
+                      startDT={startDT}
+                      endDT={endDT}
+                      endIsBeforeStart={endIsBeforeStart}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-white border border-[#e2e8f0] rounded-2xl px-6 py-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-7 h-7 rounded-full bg-[#1a4fd6] flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                    2
+                  </div>
+                  <span className="text-sm font-semibold text-[#152d5a]">
+                    Pricing summary
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <svg
+                      className="w-5 h-5 text-[#94a3b8]"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z"
+                      />
+                    </svg>
+                    <div>
+                      <div className="text-xs text-[#6b7280]">Booking type</div>
+                      <div className="text-sm font-semibold text-[#152d5a]">
+                        Multi-day hire
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <svg
+                      className="w-5 h-5 text-[#94a3b8]"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <div>
+                      <div className="text-xs text-[#6b7280]">
+                        Minimum billable VDO
+                      </div>
+                      <div className="text-sm font-semibold text-[#152d5a]">
+                        {multiDayMinimumVdoHours
+                          ? `${multiDayMinimumVdoHours} VDO hours`
+                          : "—"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <svg
+                      className="w-5 h-5 text-[#94a3b8]"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"
+                      />
+                    </svg>
+                    <div>
+                      <div className="text-xs text-[#6b7280]">
+                        Final billing
+                      </div>
+                      <div className="text-sm font-semibold text-[#152d5a]">
+                        Based on actual VDO hours flown
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <svg
+                      className="w-5 h-5 text-[#94a3b8]"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    <div>
+                      <div className="text-xs text-[#6b7280]">
+                        Minimum estimate
+                      </div>
+                      <div className="text-sm font-semibold text-[#152d5a]">
+                        {multiDayMinimumEstimate == null
+                          ? "—"
+                          : formatMoney(multiDayMinimumEstimate)}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPricingModal(true)}
+                    className="text-sm text-[#1a4fd6] font-medium border border-[#1a4fd6]/30 rounded-lg px-3 py-1 text-xs hover:bg-[#f0f6ff] transition-colors flex items-center gap-1 ml-auto"
+                  >
+                    View full pricing
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {hasInvalidMultiDayRange && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
+                  Return date must be after the departure date.
+                </div>
+              )}
+
+            </>
+          )}
+
+          <div className="bg-white border border-[#e2e8f0] rounded-2xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection("notes")}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#fafafa] transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                    openSections.notes
+                      ? "bg-[#1a4fd6] text-white"
+                          : "bg-[#f0f6ff] border border-[#c7d8f5] text-[#1a4fd6]"
+                  }`}
+                >
+                  {bookingMode === "single" ? 4 : 3}
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-[#152d5a]">
+                    Optional notes
+                  </div>
+                  {!openSections.notes && notes && (
+                    <div className="text-xs text-[#6b7280] truncate max-w-[200px]">
+                      {notes}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <svg
+                className={`w-4 h-4 text-[#94a3b8] transition-transform ${
+                  openSections.notes ? "rotate-180" : ""
+                }`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </button>
+            {openSections.notes && (
+              <div className="px-5 pb-5 border-t border-[#f1f5f9] pt-4">
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add any special requests, route intentions, or passenger details here..."
+                  maxLength={300}
+                  rows={3}
+                  className="w-full border border-[#e2e8f0] rounded-xl px-4 py-3 text-sm text-[#152d5a] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#1a4fd6]/20 focus:border-[#1a4fd6] resize-none"
+                />
+                <p className="text-[11px] text-[#94a3b8] text-right mt-1">
+                  {notes.length} / 300
+                </p>
+              </div>
+            )}
+          </div>
 
           </div>
         </form>
+
+        {/* ── Sticky booking summary footer ── */}
+        {bookingMode !== null && (
+          <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] md:bottom-0 left-0 right-0 z-[60] bg-white border-t border-[#e2e8f0] shadow-[0_-4px_24px_rgba(0,0,0,0.08)] pb-[env(safe-area-inset-bottom,0px)]">
+            <div className="max-w-4xl mx-auto px-4 pt-3 pb-3 sm:pb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+              {/* Aircraft thumbnail + name */}
+              <div className="hidden sm:flex items-center gap-3 flex-shrink-0">
+                <div className="w-10 h-10 rounded-xl overflow-hidden border border-[#e2e8f0] bg-[#f0f4fa] flex items-center justify-center">
+                  <img
+                    src="/Logo/ozrentaplane-logo.png"
+                    alt="VH-KZG"
+                    className="w-full h-full object-contain p-1"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                  />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-[#152d5a] leading-tight">{aircraftRegistration}</p>
+                  <p className="text-[10px] text-[#6b7280]">4 seats</p>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="hidden sm:block w-px h-8 bg-[#e2e8f0] flex-shrink-0" />
+
+              {/* Booking details */}
+              <div className="flex-1 flex flex-wrap items-center gap-x-4 gap-y-2 min-w-0 overflow-visible">
+                {bookingMode === "single" && startDate && (
+                  <>
+                    <div className="flex-shrink-0">
+                      <p className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">Date</p>
+                      <p className="text-base font-semibold text-[#152d5a]">
+                        {new Date(`${startDate}T12:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+                      </p>
+                    </div>
+                    {startTime && (
+                      <>
+                        <svg className="w-3.5 h-3.5 text-[#d1d5db] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                        <div className="flex-shrink-0">
+                          <p className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">Start</p>
+                          <p className="text-base font-semibold text-[#152d5a]">{fmtTime(startTime)}</p>
+                        </div>
+                      </>
+                    )}
+                    {endTime && (
+                      <>
+                        <svg className="w-3.5 h-3.5 text-[#d1d5db] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                        <div className="flex-shrink-0">
+                          <p className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">End</p>
+                          <p className="text-base font-semibold text-[#152d5a]">{fmtTime(endTime)}</p>
+                        </div>
+                        {estimatedHours && (
+                          <>
+                            <div className="w-px h-6 bg-[#e2e8f0] flex-shrink-0" />
+                            <div className="flex-shrink-0">
+                              <p className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">Duration</p>
+                              <p className="text-base font-semibold text-[#1a4fd6]">{formatDuration(estimatedHours)}</p>
+                            </div>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+
+                {bookingMode === "multi" && startDate && (
+                  <>
+                    <div className="flex-shrink-0">
+                      <p className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">Start</p>
+                      <p className="text-base font-semibold text-[#152d5a]">
+                        {new Date(`${startDate}T12:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
+                        {startTime && <span className="text-[#6b7280] font-normal ml-1">{fmtTime(startTime)}</span>}
+                      </p>
+                    </div>
+                    {returnDate && (
+                      <>
+                        <svg className="w-3.5 h-3.5 text-[#d1d5db] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                        <div className="flex-shrink-0">
+                          <p className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">Return</p>
+                          <p className="text-base font-semibold text-[#152d5a]">
+                            {new Date(`${returnDate}T12:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
+                            {returnTime && <span className="text-[#6b7280] font-normal ml-1">{fmtTime(returnTime)}</span>}
+                          </p>
+                        </div>
+                        {bookingDayCount >= 2 && (
+                          <>
+                            <div className="w-px h-6 bg-[#e2e8f0] flex-shrink-0" />
+                            <div className="flex-shrink-0">
+                              <p className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">Duration</p>
+                              <p className="text-base font-semibold text-[#1a4fd6]">{bookingDayCount} day{bookingDayCount !== 1 ? "s" : ""}</p>
+                            </div>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+
+                {((bookingMode === "single" && !startDate) || (bookingMode === "multi" && !startDate)) && (
+                  <p className="text-sm text-[#9ca3af]">Select your dates to see a summary here</p>
+                )}
+              </div>
+
+              {/* CTA button */}
+              <button
+                type="submit"
+                form="booking-request-form"
+                disabled={!canSubmit}
+                className="w-full sm:w-auto flex-shrink-0 flex items-center justify-center gap-2 bg-[#1a4fd6] hover:bg-[#1540b0] disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-7 py-3.5 rounded-xl transition-colors text-base whitespace-nowrap"
+              >
+                Continue to Review
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Trust line + error */}
+            {(submitError || canSubmit) && (
+              <div className="max-w-4xl mx-auto px-4 pb-2 flex items-center justify-center sm:justify-end gap-2">
+                {submitError ? (
+                  <p className="text-xs text-rose-600 flex items-center gap-1.5">
+                    <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    {submitError}
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-[#6b7280] flex items-center gap-1.5">
+                    <svg className="w-3 h-3 text-[#22c55e]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    Your booking request will be reviewed by our operations team.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {showPricingModal && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setShowPricingModal(false)}
+            />
+
+            <div className="relative z-10 w-full sm:max-w-lg mx-4 bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                <div className="w-10 h-1 rounded-full bg-[#e2e8f0]" />
+              </div>
+
+              <div className="px-6 pt-4 pb-8">
+                <div className="flex items-start justify-between mb-5">
+                  <div>
+                    <p className="text-xs font-semibold text-[#1a4fd6] uppercase tracking-widest mb-1">
+                      Pricing breakdown
+                    </p>
+                    <h2
+                      className="text-xl font-semibold text-[#152d5a]"
+                      style={{ fontFamily: "Newsreader, serif" }}
+                    >
+                      How aircraft hire is priced
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPricingModal(false)}
+                    className="w-8 h-8 rounded-full bg-[#f1f5f9] flex items-center justify-center text-[#6b7280] hover:bg-[#e2e8f0] transition-colors flex-shrink-0 mt-1"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-5">
+                  {[
+                    "Wet hire — fuel included",
+                    "GST included",
+                    "$25 per landing",
+                  ].map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-[#1a4fd6] bg-[#f0f6ff] border border-[#dde8f5] px-3 py-1.5 rounded-full"
+                    >
+                      <svg
+                        className="w-3 h-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="rounded-2xl overflow-hidden border border-[#e2e8f0] mb-5">
+                  <div className="bg-[#152d5a] px-4 py-3 flex justify-between">
+                    <span className="text-xs font-bold text-white/70 uppercase tracking-widest">
+                      VDO tier
+                    </span>
+                    <span className="text-xs font-bold text-white/70 uppercase tracking-widest">
+                      Hourly rate
+                    </span>
+                  </div>
+                  {[
+                    { label: "Less than 10 VDO hours", rate: "$330" },
+                    { label: "10 to 24.9 VDO hours", rate: "$320" },
+                    { label: "25 to 49.9 VDO hours", rate: "$310" },
+                    { label: "50 to 99.9 VDO hours", rate: "$300" },
+                    { label: "100+ VDO hours", rate: "$290" },
+                  ].map(({ label, rate }, i) => (
+                    <div
+                      key={i}
+                      className={`flex justify-between items-center px-4 py-3.5 ${i % 2 === 0 ? "bg-white" : "bg-[#f8fafc]"} ${i < 4 ? "border-b border-[#f1f5f9]" : ""}`}
+                    >
+                      <span className="text-sm text-[#374151]">{label}</span>
+                      <span className="text-base font-bold text-[#152d5a]">
+                        {rate}
+                        <span className="text-xs font-normal text-[#6b7280]">
+                          /hr
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="bg-[#f0f6ff] border border-[#dde8f5] rounded-2xl px-4 py-4 mb-4">
+                  <p className="text-xs font-semibold text-[#1a4fd6] uppercase tracking-widest mb-1">
+                    Single-day hire
+                  </p>
+                  <p className="text-2xl font-bold text-[#152d5a]">
+                    No minimum VDO requirement
+                  </p>
+                  <p className="text-sm text-[#6b7280] mt-1">
+                    Billed on actual VDO hours flown for same-day bookings.
+                  </p>
+                </div>
+
+                <div className="bg-[#152d5a] rounded-2xl px-4 py-4 mb-4">
+                  <p className="text-xs font-semibold text-white/60 uppercase tracking-widest mb-3">
+                    Multi-day hire minimum
+                  </p>
+                  <p className="text-sm text-white/80 mb-3">
+                    For every 24 hours booked, a minimum of 4 VDO hours is
+                    billable.
+                  </p>
+                  <div className="space-y-2">
+                    {[
+                      { hrs: "24 hrs booked", min: "4 VDO hrs minimum" },
+                      { hrs: "48 hrs booked", min: "8 VDO hrs minimum" },
+                      { hrs: "72 hrs booked", min: "12 VDO hrs minimum" },
+                      { hrs: "96 hrs booked", min: "16 VDO hrs minimum" },
+                    ].map(({ hrs, min }) => (
+                      <div
+                        key={hrs}
+                        className="flex justify-between items-center bg-white/10 rounded-xl px-3 py-2.5"
+                      >
+                        <span className="text-sm text-white">{hrs}</span>
+                        <span className="text-xs font-semibold text-[#f59e0b] flex items-center gap-1.5">
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                          {min}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-white/50 mt-3">
+                    If you fly more than the minimum, billing is based on actual
+                    VDO hours.
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-3 bg-[#fffbeb] border border-[#fde68a] rounded-xl px-4 py-3">
+                  <svg
+                    className="w-4 h-4 text-[#f59e0b] flex-shrink-0 mt-0.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                  <p className="text-sm text-[#92400e]">
+                    Overnight aircraft parking at airports other than Bankstown
+                    is not included and is the pilot&apos;s responsibility.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
-  )
+  );
 }

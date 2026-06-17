@@ -18,6 +18,7 @@ type Props = {
   eyebrow: string
   title: string
   subtitle?: string
+  note?: string
   backgroundImage?: string
   backgroundPosition?: string
   statusPill?: StatusPill
@@ -25,6 +26,7 @@ type Props = {
   backLabel?: string
   cta?: CtaButton
   secondaryCta?: { label: string; href: string }
+  variant?: 'dark' | 'light'
 }
 
 const PILL_CLASSES: Record<StatusPillColor, string> = {
@@ -43,32 +45,43 @@ const DOT_CLASSES: Record<StatusPillColor, string> = {
   slate: 'bg-slate-500',
 }
 
-export default function PortalPageHero({ eyebrow, title, subtitle, backgroundImage, backgroundPosition = 'top right', statusPill, backHref, backLabel, cta, secondaryCta }: Props) {
+export default function PortalPageHero({ eyebrow, title, subtitle, note, backgroundImage, backgroundPosition, statusPill, backHref, backLabel, cta, secondaryCta, variant = 'dark' }: Props) {
+  const isLight = variant === 'light'
+  const hasPhotoBackground = Boolean(backgroundImage)
+  const useLightText = isLight && !hasPhotoBackground
   return (
     <section
       className="relative overflow-hidden -mt-6"
       style={{
-        minHeight: '460px',
+        minHeight: hasPhotoBackground ? '460px' : isLight ? '360px' : '460px',
         marginLeft: 'calc(-50vw + 50%)',
         marginRight: 'calc(-50vw + 50%)',
         width: '100vw',
         ...(backgroundImage
-          ? { backgroundImage: `url(${backgroundImage})`, backgroundSize: 'cover', backgroundPosition }
-          : { background: 'linear-gradient(135deg, #0d1b3e 0%, #1a3a6b 50%, #0f2654 100%)' }),
+          ? {
+              backgroundImage: `url(${backgroundImage})`,
+              backgroundSize: 'cover',
+              backgroundPosition: backgroundPosition ?? 'center bottom',
+            }
+          : isLight
+            ? { background: 'linear-gradient(180deg, #dde8f5 0%, #f0f4fa 100%)' }
+            : { background: 'linear-gradient(135deg, #0d1b3e 0%, #1a3a6b 50%, #0f2654 100%)' }),
       }}
     >
 
       {/* Runway lines texture */}
-      <div
-        className="absolute inset-0 opacity-[0.10]"
-        style={{
-          backgroundImage:
-            'repeating-linear-gradient(90deg, transparent, transparent 60px, rgba(255,255,255,0.035) 60px, rgba(255,255,255,0.035) 61px)',
-        }}
-      />
+      {!hasPhotoBackground && (
+        <div
+          className={`absolute inset-0 ${isLight ? 'opacity-[0.04]' : 'opacity-[0.10]'}`}
+          style={{
+            backgroundImage:
+              'repeating-linear-gradient(90deg, transparent, transparent 60px, rgba(255,255,255,0.035) 60px, rgba(255,255,255,0.035) 61px)',
+          }}
+        />
+      )}
 
       {/* Primary radial glow — centred and deep */}
-      {!backgroundImage && (
+      {!hasPhotoBackground && !isLight && (
         <>
           <div
             className="absolute inset-0"
@@ -82,53 +95,55 @@ export default function PortalPageHero({ eyebrow, title, subtitle, backgroundIma
       )}
 
       {/* Aircraft silhouette — right edge, very faint */}
-      <div className="absolute right-0 top-1/2 -translate-y-1/2 opacity-[0.035] pointer-events-none select-none hidden lg:block pr-8">
-        <span
-          className="material-symbols-outlined"
-          style={{ fontSize: '220px', fontVariationSettings: "'wght' 100, 'FILL' 0" }}
-        >
-          flight_takeoff
-        </span>
-      </div>
-
-      {/* Bottom fade */}
-      <div className="absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-[#060d18] to-transparent" />
-
-      {/* Content */}
-      {backgroundImage ? (
-        /* Light directional scrim - keeps left-side text readable without killing the photo */
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(8,20,50,0.72) 0%, rgba(8,20,50,0.45) 55%, rgba(8,20,50,0.15) 100%)' }} />
-      ) : (
-        /* Heavy overlay for gradient-only fallback - no photo underneath */
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(8,20,50,0.88) 0%, rgba(8,20,50,0.70) 50%, rgba(8,20,50,0.25) 100%)' }} />
+      {!hasPhotoBackground && (
+        <div className={`absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none select-none hidden lg:block pr-8 ${isLight ? 'opacity-[0.05]' : 'opacity-[0.035]'}`}>
+          <span
+            className="material-symbols-outlined"
+            style={{ fontSize: '220px', fontVariationSettings: "'wght' 100, 'FILL' 0" }}
+          >
+            flight_takeoff
+          </span>
+        </div>
       )}
 
-      <div className="relative z-10 max-w-[1440px] mx-auto px-4 md:px-5 lg:px-6 py-16 md:py-20">
+      {/* Bottom fade */}
+      {!hasPhotoBackground && (
+        <div className={`absolute bottom-0 inset-x-0 h-12 ${isLight ? 'bg-gradient-to-t from-[#f0f4fa] to-transparent' : 'bg-gradient-to-t from-[#060d18] to-transparent'}`} />
+      )}
+
+      {/* Content */}
+      {!backgroundImage && (
+        /* Heavy overlay for gradient-only fallback - no photo underneath */
+        <div className="absolute inset-0" style={{ background: isLight ? 'linear-gradient(180deg, rgba(221,232,245,0.35) 0%, rgba(240,244,250,0.08) 100%)' : 'linear-gradient(90deg, rgba(8,20,50,0.88) 0%, rgba(8,20,50,0.70) 50%, rgba(8,20,50,0.25) 100%)' }} />
+      )}
+
+      <div className={`relative z-10 max-w-[1440px] mx-auto px-4 md:px-5 lg:px-6 ${isLight ? 'py-12 md:py-16' : 'py-16 md:py-20'}`}>
         {backHref && (
           <Link
             href={backHref}
-            className="inline-flex items-center gap-1.5 text-white/70 hover:text-white text-[13px] font-medium mb-4 transition-colors"
+            className={useLightText ? 'inline-flex items-center gap-1.5 text-[#6b7280] hover:text-[#152d5a] text-[13px] font-medium mb-4 transition-colors' : 'inline-flex items-center gap-1.5 text-white/70 hover:text-white text-[13px] font-medium mb-4 transition-colors'}
           >
             <span className="material-symbols-outlined text-[15px]">arrow_back</span>
             {backLabel ?? 'Back'}
           </Link>
         )}
         {eyebrow && (
-          <div className="text-[11px] font-semibold tracking-[0.2em] uppercase text-[#f59e0b] mb-4 font-sans">
+          <div className={`text-[11px] font-semibold tracking-[0.2em] uppercase mb-4 font-sans ${useLightText ? 'text-[#1a4fd6]' : 'text-white/70'}`}>
             {eyebrow}
           </div>
         )}
         <h1
-          className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-4 max-w-2xl"
+          className={`text-4xl md:text-5xl lg:text-6xl font-normal leading-tight mb-4 max-w-2xl ${useLightText ? 'text-[#152d5a]' : 'text-white font-bold'}`}
           style={{ fontFamily: 'Newsreader, Georgia, serif' }}
         >
           {title}
         </h1>
         {subtitle && (
-          <p className="text-[15px] text-white/80 max-w-lg leading-relaxed">
+          <p className={`text-[15px] max-w-lg leading-relaxed ${useLightText ? 'text-[#4a5568]' : 'text-white/80'}`}>
             {subtitle}
           </p>
         )}
+        {note && <p className={`mt-3 text-xs ${useLightText ? 'text-[#64748b]' : 'text-white/60'}`}>{note}</p>}
 
         {statusPill && (
           <div className={`mt-5 inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-[10px] font-bold uppercase tracking-widest ${PILL_CLASSES[statusPill.color]}`}>

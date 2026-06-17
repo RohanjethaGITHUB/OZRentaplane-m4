@@ -123,7 +123,7 @@ export async function getCheckoutDocumentGateState(): Promise<
     const [documentsRes, profileRes] = await Promise.all([
       supabase
         .from('user_documents')
-        .select('*')
+        .select('*, user_document_files(id, file_name, storage_path, uploaded_at)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false }),
       supabase

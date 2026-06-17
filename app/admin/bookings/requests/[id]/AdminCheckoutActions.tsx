@@ -14,6 +14,7 @@ import {
   type TotalOnlyFormValues,
   validateTotalOnlyReadings,
 } from '@/lib/aircraft-readings'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 
 type CheckoutStatus =
   | 'checkout_confirmed'
@@ -167,6 +168,8 @@ export default function AdminCheckoutActions({
   const [manualAmount, setManualAmount] = useState('')
   const [manualPaymentNote, setManualPaymentNote] = useState('')
   const [submissionConfirmation, setSubmissionConfirmation] = useState<SubmissionConfirmation>(null)
+  const [noShowConfirmOpen, setNoShowConfirmOpen] = useState(false)
+  const [unlockNoShowConfirmOpen, setUnlockNoShowConfirmOpen] = useState(false)
 
   function run(fn: () => Promise<void>) {
     setError(null)
@@ -384,8 +387,12 @@ export default function AdminCheckoutActions({
 
   if (status === 'checkout_confirmed') {
     const startPassed = new Date(scheduledStart).getTime() <= Date.now()
+    const noShowDescription = startPassed
+      ? 'Mark this checkout as no-show and lock the customer account.'
+      : 'This checkout start time has not passed yet. Mark it as no-show anyway and lock the customer account.'
     return (
-      <div className="space-y-3">
+      <>
+        <div className="space-y-3">
         <button onClick={() => run(() => markCheckoutFlightCompleted(bookingId))} disabled={isPending} className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50">
           <span className="material-symbols-outlined text-[18px]">flight_land</span>
           {isPending ? 'Updating…' : 'Mark Checkout Completed'}
@@ -396,13 +403,7 @@ export default function AdminCheckoutActions({
           Cancel Checkout
         </button>
         <button
-          onClick={() => {
-            const warning = startPassed
-              ? 'Mark this checkout as no-show and lock the customer account?'
-              : 'This checkout start time has not passed yet. Mark as no-show anyway and lock the customer account?'
-            if (!window.confirm(warning)) return
-            run(() => markCheckoutNoShow(bookingId))
-          }}
+          onClick={() => setNoShowConfirmOpen(true)}
           disabled={isPending}
           className="w-full flex items-center justify-center gap-2 bg-transparent border border-amber-500/30 text-amber-300 hover:bg-amber-500/10 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
         >
@@ -411,10 +412,7 @@ export default function AdminCheckoutActions({
         </button>
         {noShowLocked && (
           <button
-            onClick={() => {
-              if (!window.confirm('Unlock this customer account from checkout no-show lock?')) return
-              run(() => unlockCheckoutNoShowLock(customerId))
-            }}
+            onClick={() => setUnlockNoShowConfirmOpen(true)}
             disabled={isPending}
             className="w-full flex items-center justify-center gap-2 bg-transparent border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
           >
@@ -423,7 +421,36 @@ export default function AdminCheckoutActions({
           </button>
         )}
         {error && <p className="text-[10px] text-rose-400 leading-tight text-center">{error}</p>}
-      </div>
+        </div>
+
+      <ConfirmModal
+        open={noShowConfirmOpen}
+        title="Mark this checkout as no-show?"
+        description={noShowDescription}
+        confirmLabel={isPending ? 'Saving…' : 'Yes, mark no-show'}
+        cancelLabel="Back"
+        variant="danger"
+        onCancel={() => setNoShowConfirmOpen(false)}
+        onConfirm={() => {
+          setNoShowConfirmOpen(false)
+          run(() => markCheckoutNoShow(bookingId))
+        }}
+      />
+
+      <ConfirmModal
+        open={unlockNoShowConfirmOpen}
+        title="Unlock no-show lock?"
+        description="This will restore the customer's ability to proceed with checkout bookings."
+        confirmLabel={isPending ? 'Unlocking…' : 'Yes, unlock'}
+        cancelLabel="Back"
+        variant="primary"
+        onCancel={() => setUnlockNoShowConfirmOpen(false)}
+        onConfirm={() => {
+          setUnlockNoShowConfirmOpen(false)
+          run(() => unlockCheckoutNoShowLock(customerId))
+        }}
+      />
+      </>
     )
   }
 

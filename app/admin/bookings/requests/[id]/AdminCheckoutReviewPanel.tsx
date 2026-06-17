@@ -8,14 +8,28 @@ import {
   adminUpdateCheckoutTime,
 } from '@/app/actions/admin-booking'
 import { sendAdminChatMessage, markAdminChatRead, getSignedDocumentUrl } from '@/app/actions/admin'
+import { updateDocumentStatus } from '@/app/actions/verification'
 import { sydneyInputToUTC } from '@/lib/utils/sydney-time'
 import { formatDate, formatDateTime } from '@/lib/formatDateTime'
 import CalendarDateField from '@/components/CalendarDateField'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 import type { VerificationEvent } from '@/lib/supabase/types'
+import {
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  Clock,
+  DollarSign,
+  Eye,
+  FileText,
+  HelpCircle,
+  XCircle,
+} from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export type DocSummary = {
+  id?:              string | null
   document_type:   string
   status:          string
   expiry_date:     string | null
@@ -27,6 +41,7 @@ export type DocSummary = {
   id_type?:        string | null
   document_number?: string | null
   uploaded_at?:    string | null
+  files?:          { id: string; file_name: string; storage_path: string }[]
 }
 
 type Props = {
@@ -40,6 +55,7 @@ type Props = {
   customerId:         string
   customerName:       string | null
   customerEmail:      string | null
+  customerPhone:      string | null
   pilotArn:           string | null
   clearanceLabel:     string
   clearanceColor:     string
@@ -89,6 +105,23 @@ function isChatEvent(ev: VerificationEvent): boolean {
   return ev.event_type === 'message' || (ev.event_type === 'on_hold' && !!ev.body)
 }
 
+function formatRequestedTimeLabel(utcISO: string): string {
+  const date = new Date(utcISO)
+  const day = date.toLocaleDateString('en-GB', {
+    timeZone: 'Australia/Sydney',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+  const time = date.toLocaleTimeString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).replace(/\s?(am|pm)$/i, (_, suffix) => ` ${suffix.toUpperCase()}`)
+  return `${day}, ${time} / Sydney time (AEST)`
+}
+
 // ── Doc row with view button ───────────────────────────────────────────────────
 
 function DocRow({
@@ -96,87 +129,168 @@ function DocRow({
   doc,
   docType,
   customerId,
+  statusOverride,
 }: {
   label:      string
   doc:        DocSummary | undefined
   docType:    string
   customerId: string
+  statusOverride?: string
 }) {
   const today   = new Date().toISOString().split('T')[0]!
   const expired = doc?.expiry_date && doc.expiry_date < today
-  const ok      = doc && !expired && doc.status !== 'rejected'
-  const [viewLoading, setViewLoading] = useState(false)
-  const [viewError,   setViewError]   = useState('')
+  const [viewLoadingIndex, setViewLoadingIndex] = useState<number | null>(null)
+  const [viewError, setViewError] = useState<string | null>(null)
+  const [actionPending, setActionPending] = useState<'approved' | 'rejected' | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [currentStatus, setCurrentStatus] = useState(doc?.status ?? '')
 
-  async function handleView() {
-    setViewLoading(true)
-    setViewError('')
+  async function handleViewFile(index: number, storagePath: string) {
+    setViewLoadingIndex(index)
+    setViewError(null)
     try {
-      const storagePath = `${customerId}/${docType}`
       const url = await getSignedDocumentUrl(storagePath)
       window.open(url, '_blank', 'noopener,noreferrer')
     } catch {
       setViewError('Could not open file.')
     } finally {
-      setViewLoading(false)
+      setViewLoadingIndex(null)
     }
   }
 
+  async function handleDocAction(newStatus: 'approved' | 'rejected') {
+    if (!doc?.id) return
+    setActionPending(newStatus)
+    setActionError(null)
+    const result = await updateDocumentStatus({
+      documentId: doc.id,
+      userId: customerId,
+      status: newStatus,
+    })
+    if (result.success) {
+      setCurrentStatus(newStatus)
+    } else {
+      setActionError(result.error ?? 'Action failed.')
+    }
+    setActionPending(null)
+  }
+
+  const resolvedStatus = statusOverride ?? currentStatus
+  const statusLabel = statusOverride ?? (
+    resolvedStatus === 'approved'
+      ? 'Approved'
+      : resolvedStatus === 'rejected'
+        ? 'Rejected'
+        : !doc
+          ? 'Not uploaded'
+          : expired
+            ? 'Expired'
+            : doc.status === 'rejected'
+              ? 'Rejected'
+              : 'Uploaded'
+  )
+
+  const statusClass = statusOverride
+    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+    : resolvedStatus === 'approved'
+      ? 'bg-green-50 text-green-700 border border-green-200'
+      : resolvedStatus === 'rejected'
+        ? 'bg-red-50 text-red-700 border border-red-200'
+        : !doc
+          ? 'bg-gray-50 text-gray-500 border border-gray-200'
+          : expired
+            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+            : doc.status === 'rejected'
+              ? 'bg-red-50 text-red-700 border border-red-200'
+              : 'bg-green-50 text-green-700 border border-green-200'
+
   return (
-    <div className="py-3 border-b border-[#152d5a]/[0.06] pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
-      <div className="flex items-start justify-between gap-3">
+    <>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 py-4 border-b border-gray-100 last:border-b-0">
+        <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center flex-shrink-0">
+          <FileText className="w-5 h-5 text-gray-400" />
+        </div>
+
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[14px] font-semibold text-[#152d5a]">{label}</span>
-            {/* Status chip */}
-            {!doc
-              ? <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600 border border-white/10 px-1.5 py-0.5 rounded">Missing</span>
-              : expired
-              ? <span className="text-[9px] font-bold uppercase tracking-widest text-red-400 border border-red-400/30 bg-red-500/10 px-1.5 py-0.5 rounded">Expired</span>
-              : doc.status === 'rejected'
-              ? <span className="text-[9px] font-bold uppercase tracking-widest text-red-400 border border-red-400/30 bg-red-500/10 px-1.5 py-0.5 rounded">Rejected</span>
-              : <span className="text-[9px] font-bold uppercase tracking-widest text-green-400 border border-green-400/30 bg-green-500/10 px-1.5 py-0.5 rounded">Uploaded</span>
-            }
-            {/* Metadata chips */}
-            {doc?.licence_type   && <span className="text-[9px] text-blue-400/70 bg-blue-500/10 border border-blue-500/15 px-1.5 py-0.5 rounded">{doc.licence_type}</span>}
-            {doc?.medical_class  && <span className="text-[9px] text-blue-400/70 bg-blue-500/10 border border-blue-500/15 px-1.5 py-0.5 rounded">{doc.medical_class}</span>}
-            {doc?.id_type        && <span className="text-[9px] text-blue-400/70 bg-blue-500/10 border border-blue-500/15 px-1.5 py-0.5 rounded">{doc.id_type}</span>}
+            <span className="text-sm font-semibold text-[#152d5a]">{label}</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusClass}`}>
+              {statusLabel}
+            </span>
+            {doc?.licence_type   && <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs px-2 py-0.5 rounded-full font-medium">{doc.licence_type}</span>}
+            {doc?.medical_class  && <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs px-2 py-0.5 rounded-full font-medium">{doc.medical_class}</span>}
+            {doc?.id_type        && <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs px-2 py-0.5 rounded-full font-medium">{doc.id_type}</span>}
           </div>
+
           {doc && (
-            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-              {doc.licence_number  && <span className="text-[12px] text-[#4b6390] mt-0.5">ARN: {doc.licence_number}</span>}
-              {doc.document_number && <span className="text-[12px] text-[#4b6390] mt-0.5">#{doc.document_number}</span>}
-              {doc.issue_date      && <span className="text-[12px] text-[#4b6390] mt-0.5">Issued: {doc.issue_date}</span>}
-              {doc.expiry_date && (
-                <span className={`text-[12px] mt-0.5 ${expired ? 'text-red-400' : 'text-[#4b6390]'}`}>
-                  {expired ? 'Expired' : 'Expires'}: {doc.expiry_date}
-                </span>
-              )}
-              {doc.uploaded_at && (
-                <span className="text-[12px] text-[#4b6390] mt-0.5">
-                  Uploaded: {new Date(doc.uploaded_at).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' })}
-                </span>
-              )}
+            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-gray-400">
+              {doc.licence_number  && <span>ARN: {doc.licence_number}</span>}
+              {doc.document_number && <span>#{doc.document_number}</span>}
+              {doc.issue_date      && <span>Issued: {doc.issue_date}</span>}
+              {doc.expiry_date     && <span>{expired ? 'Expired' : 'Expires'}: {doc.expiry_date}</span>}
+              {doc.uploaded_at     && <span>Uploaded: {new Date(doc.uploaded_at).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' })}</span>}
             </div>
           )}
-          {viewError && <p className="text-[9px] text-red-400 mt-0.5">{viewError}</p>}
         </div>
-        {/* View button */}
+
         {doc && (
-          <button
-            onClick={handleView}
-            disabled={viewLoading}
-            className="text-[13px] font-semibold text-[#1a4fd6] hover:text-[#1540a8] flex items-center gap-1 transition-colors disabled:opacity-40"
-          >
-            {viewLoading
-              ? <span className="material-symbols-outlined text-[15px] animate-spin">progress_activity</span>
-              : <span className="material-symbols-outlined text-[15px]" style={{ fontVariationSettings: "'wght' 300" }}>open_in_new</span>
-            }
-            VIEW
-          </button>
+          <div className="flex items-center gap-3 sm:gap-4 justify-between sm:justify-end flex-shrink-0 w-full sm:w-auto">
+            <div className="flex items-center gap-2">
+              {(doc.files && doc.files.length > 0)
+                ? doc.files.map((f, i) => (
+                    <button
+                      key={f.id}
+                      onClick={() => handleViewFile(i, f.storage_path)}
+                      disabled={viewLoadingIndex === i}
+                      title={f.file_name ?? `File ${i + 1}`}
+                      className="inline-flex items-center gap-1 text-xs text-[#1a4fd6] hover:text-[#152d5a] font-medium transition-colors disabled:opacity-40 whitespace-nowrap underline-offset-2 hover:underline"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      {doc.files!.length > 1 ? `File ${i + 1}` : 'View'}
+                    </button>
+                  ))
+                : <span className="text-xs text-gray-300 italic">No file</span>
+              }
+            </div>
+
+            <div className="flex items-center gap-1.5 w-[180px] justify-end">
+              {currentStatus === 'approved' ? (
+                <span className="inline-flex items-center gap-1 text-xs text-green-600 font-semibold bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
+                  <CheckCircle2 className="w-3 h-3" /> Approved
+                </span>
+              ) : currentStatus === 'rejected' ? (
+                <span className="inline-flex items-center gap-1 text-xs text-red-500 font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
+                  <XCircle className="w-3 h-3" /> Rejected
+                </span>
+              ) : (
+                <>
+                  <button
+                    onClick={() => handleDocAction('approved')}
+                    disabled={!!actionPending}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-green-50 text-green-700 border border-green-200 font-semibold hover:bg-green-100 transition-colors disabled:opacity-40 whitespace-nowrap"
+                  >
+                    {actionPending === 'approved' ? '…' : 'Approve'}
+                  </button>
+                  <button
+                    onClick={() => handleDocAction('rejected')}
+                    disabled={!!actionPending}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600 border border-red-200 font-semibold hover:bg-red-100 transition-colors disabled:opacity-40 whitespace-nowrap"
+                  >
+                    {actionPending === 'rejected' ? '…' : 'Reject'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
         )}
       </div>
-    </div>
+
+      {(viewError || actionError) && (
+        <p className="text-xs text-red-500 mt-1">
+          {viewError ?? actionError}
+        </p>
+      )}
+    </>
   )
 }
 
@@ -217,18 +331,18 @@ function TimeDropdown({
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="w-full bg-[#0d1c33] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/60 transition-colors hover:border-white/25 flex items-center justify-between"
+        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#152d5a] focus:outline-none focus:border-[#1a4fd6] appearance-none cursor-pointer transition-colors hover:border-gray-300 flex items-center justify-between"
       >
         <span>{selectedLabel}</span>
         <span
-          className={`material-symbols-outlined text-[16px] text-slate-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+          className={`material-symbols-outlined text-[16px] text-gray-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
           style={{ fontVariationSettings: "'wght' 300" }}
         >
           expand_more
         </span>
       </button>
       {open && (
-        <div className="absolute z-50 mt-1 w-full bg-[#0c1220] border border-white/10 rounded-lg shadow-2xl overflow-hidden">
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-2xl overflow-hidden">
           <div ref={listRef} className="max-h-52 overflow-y-auto overscroll-contain">
             {options.map(o => (
               <button
@@ -238,8 +352,8 @@ function TimeDropdown({
                 onClick={() => { onChange(o.value); setOpen(false) }}
                 className={`w-full px-3 py-2 text-xs text-left transition-colors ${
                   o.value === value
-                    ? 'bg-blue-500/20 text-blue-200 font-medium'
-                    : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+                    ? 'bg-blue-50 text-[#1a4fd6] font-medium'
+                    : 'text-[#152d5a] hover:bg-gray-50 hover:text-[#152d5a]'
                 }`}
               >
                 {o.label}
@@ -257,7 +371,7 @@ function TimeDropdown({
 export default function AdminCheckoutReviewPanel({
   bookingId, aircraftId, bookingReference,
   scheduledStart, scheduledEnd,
-  customerNotes, lastFlightDate, customerId, customerName, customerEmail, pilotArn,
+  customerNotes, lastFlightDate, customerId, customerName, customerEmail, customerPhone, pilotArn,
   clearanceLabel, clearanceColor, clearanceBg, clearanceBorder,
   documents, messages,
 }: Props) {
@@ -278,15 +392,19 @@ export default function AdminCheckoutReviewPanel({
 
   // ── Confirm/cancel state ─────────────────────────────────────────────────────
   const [confirmPending, startConfirmTransition] = useTransition()
+  const [confirmCheckoutOpen, setConfirmCheckoutOpen] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [cancelPending, startCancelTransition] = useTransition()
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
   // ── Message state ────────────────────────────────────────────────────────────
   const [message, setMessage]     = useState('')
   const [msgLoading, setMsgLoading] = useState(false)
   const [msgError, setMsgError]   = useState('')
+  const messageTextareaRef        = useRef<HTMLTextAreaElement>(null)
+  const timeSectionRef            = useRef<HTMLDivElement>(null)
   const bottomRef                 = useRef<HTMLDivElement>(null)
 
   const chatEvents = messages
@@ -329,9 +447,11 @@ export default function AdminCheckoutReviewPanel({
   }
 
   function handleConfirm() {
-    if (!window.confirm(`Confirm checkout request for ${formatDate(newStartUTC ?? scheduledStart)} at ${ALL_TIME_OPTIONS.find((o) => o.value === newStartTime)?.label ?? newStartTime} (Sydney time)?`)) {
-      return
-    }
+    setConfirmCheckoutOpen(true)
+  }
+
+  function handleConfirmCheckout() {
+    setConfirmCheckoutOpen(false)
     setActionError(null)
     startConfirmTransition(async () => {
       try {
@@ -345,7 +465,11 @@ export default function AdminCheckoutReviewPanel({
 
   function handleCancel() {
     if (!cancelReason.trim()) return
-    if (!window.confirm('Cancel this checkout request? The customer will be returned to checkout required / not scheduled state.')) return
+    setCancelConfirmOpen(true)
+  }
+
+  function handleCancelCheckout() {
+    setCancelConfirmOpen(false)
     setActionError(null)
     startCancelTransition(async () => {
       try {
@@ -354,6 +478,20 @@ export default function AdminCheckoutReviewPanel({
       } catch (e) {
         setActionError(e instanceof Error ? e.message.replace(/^VALIDATION: /, '') : 'Failed to cancel.')
       }
+    })
+  }
+
+  function handleRequestDocuments() {
+    messageTextareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    messageTextareaRef.current?.focus()
+  }
+
+  function handleProposeDifferentTime() {
+    setEditingTime(true)
+    setTimeUpdateStatus('idle')
+    setTimeError(null)
+    window.requestAnimationFrame(() => {
+      timeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
   }
 
@@ -393,6 +531,7 @@ export default function AdminCheckoutReviewPanel({
   })
 
   const endTimeLabel = ALL_TIME_OPTIONS.find(o => o.value === newEndTime)?.label ?? newEndTime
+  const requestedTimeLabel = formatRequestedTimeLabel(scheduledStart)
   const now = new Date()
   const sydToday = now.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
   const sydNowHm = `${now.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', hour12: false }).slice(-2)}:${now.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', minute: '2-digit' }).padStart(2, '0')}`
@@ -401,197 +540,119 @@ export default function AdminCheckoutReviewPanel({
     : ALL_TIME_OPTIONS
 
   return (
-    <div className="space-y-6">
-
-      {/* ── 1. Checkout request summary ───────────────────────────────────────── */}
-      <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-6 space-y-5">
-        <h2 className="text-[10px] uppercase tracking-widest font-bold text-blue-400/80 flex items-center gap-2">
-          <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'wght' 300" }}>how_to_reg</span>
-          Checkout Request Review
-        </h2>
-
-        {/* Customer row */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#4b6390] mb-2">Customer</p>
-            <p className="text-sm font-medium text-white">{customerName || 'Unknown'}</p>
-            <p className="text-[14px] font-medium text-[#152d5a]">{customerEmail || '—'}</p>
-            {pilotArn && <p className="text-[14px] font-medium text-[#152d5a] mt-0.5">ARN: {pilotArn}</p>}
+    <div className="space-y-4 pb-24">
+      <section className="bg-white border-t border-r border-b border-gray-100 border-l-4 border-l-[#1a4fd6] rounded-xl p-6 mb-4 shadow-sm">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-8 h-8 rounded-full bg-[#152d5a] text-white text-sm font-semibold flex items-center justify-center flex-shrink-0">
+            1
           </div>
-          <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider border ${clearanceColor} ${clearanceBg} ${clearanceBorder} flex-shrink-0`}>
-            {clearanceLabel}
-          </span>
+          <h2 className="text-lg font-semibold text-[#152d5a]">Customer Snapshot</h2>
+          <ChevronDown className="ml-auto w-5 h-5 text-gray-400" />
         </div>
 
-        {/* Documents */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#4b6390] mb-2">Pilot Documents</p>
-            {allDocsOk
-              ? <span className="text-[9px] font-bold text-green-400 uppercase tracking-widest flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[11px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                  All uploaded
-                </span>
-              : <span className="text-[9px] font-bold text-amber-400 uppercase tracking-widest">Incomplete</span>
-            }
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Name</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-medium text-[#152d5a]">{customerName || 'Unknown'}</p>
+            </div>
           </div>
-          <DocRow label="Pilot Licence"       doc={licenceDoc} docType="pilot_licence"       customerId={customerId} />
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Email</p>
+            <p className="text-sm font-medium text-[#152d5a] break-all">{customerEmail || '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">ARN</p>
+            <p className="text-sm font-medium text-[#152d5a]">{pilotArn || '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Phone</p>
+            <p className="text-sm font-medium text-[#152d5a]">{customerPhone ?? '—'}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white border-t border-r border-b border-gray-100 border-l-4 border-l-[#059669] rounded-xl p-6 mb-4 shadow-sm">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-8 h-8 rounded-full bg-[#152d5a] text-white text-sm font-semibold flex items-center justify-center flex-shrink-0">
+            2
+          </div>
+          <h2 className="text-lg font-semibold text-[#152d5a]">Documents</h2>
+          <ChevronDown className="ml-auto w-5 h-5 text-gray-400" />
+        </div>
+
+        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-3 py-1 mb-4">
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          {allDocsOk ? 'All uploaded' : 'Incomplete'}
+        </div>
+
+        <div className="space-y-0">
+          <DocRow label="Pilot Licence" doc={licenceDoc} docType="pilot_licence" customerId={customerId} />
           <DocRow label="Medical Certificate" doc={medicalDoc} docType="medical_certificate" customerId={customerId} />
-          <DocRow label="Photo ID"            doc={photoIdDoc} docType="photo_id"            customerId={customerId} />
-          {/* Night VFR */}
-          <div className="pt-3 mt-1 border-t border-white/[0.05]">
-            <div className="flex items-center gap-2 mb-2">
-              <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#4b6390]">Night VFR</p>
-              {nightVfrEvidenceDoc
-                ? <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400 border border-amber-400/30 bg-amber-500/10 px-1.5 py-0.5 rounded">Claimed</span>
-                : <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600 border border-white/10 px-1.5 py-0.5 rounded">Not provided</span>
-              }
-            </div>
-            {nightVfrEvidenceDoc && (
-              <DocRow label="Night VFR" doc={nightVfrEvidenceDoc} docType="night_vfr_evidence" customerId={customerId} />
-            )}
-          </div>
-        </div>
-
-        {/* Requested time */}
-        <div>
-          <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#4b6390] mb-2">Requested Checkout Time</p>
-          <div className="bg-[#f8fbff] border border-[#152d5a]/10 rounded-lg px-4 py-3">
-            <p className="text-[14px] font-medium text-[#152d5a]">{formatDateTime(scheduledStart)}</p>
-            <p className="text-[11px] text-[#4b6390] mt-0.5">{formatDateTime(scheduledEnd)}</p>
-            <div className="flex gap-4 mt-2">
-              <span className="text-[14px] font-medium text-[#152d5a]">Duration: varies (typically 1–2 hours)</span>
-              <span className="text-[14px] font-medium text-[#152d5a]">Rate: $290 / hour</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Last flight date */}
-        {lastFlightDate && (
-          <div>
-            <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#4b6390] mb-2">Last Flight Date</p>
-            <p className="text-[14px] font-medium text-[#152d5a]">{lastFlightDate}</p>
-          </div>
-        )}
-
-        {/* Customer notes */}
-        {customerNotes && (
-          <div>
-            <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#4b6390] mb-2">Customer Notes</p>
-            <p className="text-[14px] font-medium text-[#152d5a] leading-relaxed italic">
-              &quot;{customerNotes}&quot;
-            </p>
-          </div>
-        )}
-
-
-      </div>
-
-      {/* ── 2. Message thread ─────────────────────────────────────────────────── */}
-      <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-6">
-        <h2 className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#4b6390] mb-4">
-          Customer Messages
-        </h2>
-
-        {chatEvents.length === 0 ? (
-          <p className="text-[11px] text-[#4b6390] leading-relaxed mb-4">
-            No messages yet. Use this to propose a different time, clarify documents, or communicate with the customer before confirming.
-          </p>
-        ) : (
-          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1 mb-4">
-            {chatEvents.map(ev => {
-              const isAdmin = ev.actor_role === 'admin'
-              return (
-                <div key={ev.id} className={`flex gap-2.5 ${isAdmin ? 'justify-end' : 'justify-start'}`}>
-                  {!isAdmin && (
-                    <div className="w-6 h-6 rounded-full bg-[#f0f6ff] border border-[#152d5a]/10 flex items-center justify-center flex-shrink-0 mt-1">
-                      <span className="material-symbols-outlined text-[11px] text-[#1a4fd6]" style={{ fontVariationSettings: "'wght' 300" }}>person</span>
-                    </div>
-                  )}
-                  <div className={`max-w-[75%] space-y-1 flex flex-col ${isAdmin ? 'items-end' : 'items-start'}`}>
-                    <span className="text-[11px] font-semibold text-[#1a4fd6] uppercase tracking-wide">
-                      {isAdmin ? 'Admin' : (customerName || 'Customer')}
-                    </span>
-                    <div className={`px-3 py-2.5 rounded-2xl text-[11px] leading-relaxed whitespace-pre-wrap ${
-                      isAdmin
-                        ? 'bg-[#f8fbff] border border-[#152d5a]/10 text-[#152d5a] rounded-tr-sm'
-                        : 'bg-[#f0f6ff] text-[#152d5a] rounded-tl-sm'
-                    }`}>
-                      {ev.body}
-                    </div>
-                    <span className="text-[11px] text-[#4b6390]">
-                      {formatDateTime(ev.created_at)}
-                    </span>
-                  </div>
-                  {isAdmin && (
-                    <div className="w-6 h-6 rounded-full bg-[#f0f6ff] border border-[#152d5a]/10 flex items-center justify-center flex-shrink-0 mt-1">
-                      <span className="material-symbols-outlined text-[11px] text-[#1a4fd6]" style={{ fontVariationSettings: "'wght' 300" }}>admin_panel_settings</span>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-            <div ref={bottomRef} />
-          </div>
-        )}
-
-        <div className="bg-white border border-[#152d5a]/10 rounded-xl p-3 space-y-2">
-          <textarea
-            value={message}
-            onChange={e => setMessage(e.target.value)}
-            onKeyDown={handleMsgKeyDown}
-            disabled={msgLoading}
-            placeholder="Message the customer — e.g. propose a different time, request documents…"
-            rows={3}
-            className="w-full bg-[#f8fbff] border border-[#152d5a]/20 rounded-xl text-[#152d5a] placeholder:text-[#152d5a]/40 resize-none px-4 py-3 focus:outline-none"
+          <DocRow label="Photo ID" doc={photoIdDoc} docType="photo_id" customerId={customerId} />
+          <DocRow
+            label="Night VFR"
+            doc={nightVfrEvidenceDoc}
+            docType="night_vfr_evidence"
+            customerId={customerId}
+            statusOverride={nightVfrEvidenceDoc ? 'Claimed' : undefined}
           />
-          {msgError && <p className="text-[10px] text-red-400">{msgError}</p>}
-          <div className="flex items-center justify-between border-t border-[#152d5a]/10 pt-2">
-            <p className="text-[11px] text-[#4b6390]">⌘ + Enter to send · Visible to customer</p>
-            <button
-              type="button"
-              onClick={handleSendMessage}
-              disabled={msgLoading || !message.trim()}
-              className="bg-[#1a4fd6] hover:bg-[#1540a8] text-white rounded-lg px-4 py-1.5 text-[13px] font-semibold transition-colors disabled:opacity-40"
-            >
-              {msgLoading ? 'Sending…' : 'SEND'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 3. Edit checkout time ─────────────────────────────────────────────── */}
-      <div className="bg-white/5 border border-white/5 rounded-2xl p-6 space-y-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[10px] uppercase tracking-widest font-bold text-slate-500">
-            Adjust Checkout Time
-          </h2>
-          {!editingTime && (
-            <button
-              onClick={() => { setEditingTime(true); setTimeUpdateStatus('idle'); setTimeError(null) }}
-              className="text-[10px] font-bold uppercase tracking-widest text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-[12px]">edit</span>
-              Edit
-            </button>
-          )}
         </div>
 
-        {!editingTime ? (
-          <div className="space-y-1">
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              The customer&apos;s requested time is shown above. If it doesn&apos;t work, click Edit to propose a different time, message the customer, then confirm once agreed.
-            </p>
-            {timeUpdateStatus === 'saved' && (
-              <p className="text-[10px] text-green-400 flex items-center gap-1">
-                <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                Time updated successfully.
-              </p>
-            )}
+        {!allDocsOk && (
+          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            One or more required documents are not yet approved. Review document status before proceeding.
           </div>
-        ) : (
+        )}
+      </section>
+
+      <section ref={timeSectionRef} className="bg-white border-t border-r border-b border-gray-100 border-l-4 border-l-[#f59e0b] rounded-xl p-6 mb-4 shadow-sm">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-8 h-8 rounded-full bg-[#152d5a] text-white text-sm font-semibold flex items-center justify-center flex-shrink-0">
+            3
+          </div>
+          <h2 className="text-lg font-semibold text-[#152d5a]">Schedule Review</h2>
+          <ChevronDown className="ml-auto w-5 h-5 text-gray-400" />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-5">
+          <div>
+            <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center mb-2">
+              <CalendarDays className="w-4 h-4 text-gray-500" />
+            </div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Requested Time</p>
+            <p className="text-sm font-semibold text-[#152d5a]">{requestedTimeLabel}</p>
+          </div>
+          <div>
+            <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center mb-2">
+              <Clock className="w-4 h-4 text-gray-500" />
+            </div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Duration</p>
+            <p className="text-sm font-semibold text-[#152d5a]">1–2 hours (varies)</p>
+          </div>
+          <div>
+            <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center mb-2">
+              <DollarSign className="w-4 h-4 text-gray-500" />
+            </div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Rate</p>
+            <p className="text-sm font-semibold text-[#152d5a]">$290 / hour</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleProposeDifferentTime}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#152d5a] text-[#152d5a] text-sm font-medium hover:bg-[#152d5a] hover:text-white transition-colors"
+          >
+            <CalendarDays className="w-4 h-4" />
+            Propose Different Time
+          </button>
+        </div>
+
+        <div className={`mt-5 border-t border-gray-100 pt-5 ${editingTime ? '' : 'hidden'}`}>
           <div className="space-y-4">
-            <p className="text-[11px] text-slate-500">
+            <p className="text-sm text-gray-500">
               Duration is fixed at 2 hours. Select the departure date and time.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -603,7 +664,7 @@ export default function AdminCheckoutReviewPanel({
                   minYear={new Date().getFullYear() - 20}
                   maxYear={new Date().getFullYear() + 20}
                   minDate={sydToday}
-                  className="w-full bg-[#0d1c33] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/60 text-left flex items-center justify-between"
+                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs text-[#152d5a] focus:outline-none focus:border-[#1a4fd6] text-left flex items-center justify-between"
                 />
               </div>
               <div className="space-y-1">
@@ -616,22 +677,19 @@ export default function AdminCheckoutReviewPanel({
               </div>
             </div>
 
-            {/* Computed return */}
-            <div className="flex items-center justify-between bg-white/[0.03] border border-white/[0.05] rounded-lg px-3 py-2">
-              <span className="text-[10px] text-slate-500">Return (auto)</span>
-              <span className="text-[10px] text-white/70">{endTimeLabel} <span className="text-slate-600">(fixed 2 hours)</span></span>
+            <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+              <span className="text-[10px] text-gray-500">Return (auto)</span>
+              <span className="text-[10px] text-[#152d5a]">{endTimeLabel} <span className="text-gray-400">(fixed 2 hours)</span></span>
             </div>
 
-            {timeError && (
-              <p className="text-[10px] text-red-400 leading-relaxed">{timeError}</p>
-            )}
+            {timeError && <p className="text-xs text-red-500 leading-relaxed">{timeError}</p>}
 
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => { setEditingTime(false); setTimeError(null) }}
                 disabled={timeUpdateStatus === 'saving'}
-                className="flex-1 px-3 py-2 rounded-lg text-[11px] font-medium bg-white/5 text-slate-300 hover:bg-white/10 transition-colors"
+                className="flex-1 px-3 py-2 rounded-lg text-xs font-medium border border-gray-200 bg-white text-[#152d5a] hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
@@ -639,40 +697,33 @@ export default function AdminCheckoutReviewPanel({
                 type="button"
                 onClick={handleSaveTime}
                 disabled={timeUpdateStatus === 'saving' || !newStartUTC}
-                className="flex-1 px-3 py-2 rounded-lg text-[11px] font-medium bg-blue-700 hover:bg-blue-600 text-white transition-colors disabled:opacity-50"
-              >
-                {timeUpdateStatus === 'saving' ? 'Checking…' : 'Save New Time'}
-              </button>
+                className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-[#152d5a] hover:bg-[#1a4fd6] text-white transition-colors disabled:opacity-50"
+                >
+                  {timeUpdateStatus === 'saving' ? 'Checking…' : 'Save New Time'}
+                </button>
             </div>
           </div>
-        )}
-        <div className="border-t border-white/10 pt-4">
-          <h2 className="text-[9px] uppercase tracking-widest font-bold text-[#a7c8ff]/50 mb-2">
-            Checkout Request Actions
-          </h2>
-
-        {!allDocsOk && (
-          <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-            One or more required documents are not yet approved. Review document status before proceeding.
-          </div>
-        )}
+        </div>
 
         {isCancelling ? (
-          <div className="space-y-3">
-            <textarea
-              value={cancelReason}
-              onChange={e => setCancelReason(e.target.value)}
-              rows={3}
-              placeholder="Reason for cancellation (recorded in audit trail)…"
-              className="w-full bg-[#0a0b0d] border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none resize-none"
-              disabled={cancelPending}
-            />
+          <div className="mt-5 border-t border-gray-100 pt-5 space-y-3">
+            <div>
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 block">Cancel reason</label>
+              <textarea
+                value={cancelReason}
+                onChange={e => setCancelReason(e.target.value)}
+                rows={3}
+                placeholder="Reason for cancellation (recorded in audit trail)…"
+                className="w-full border border-gray-200 rounded-xl p-4 text-sm text-[#152d5a] placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-[#1a4fd6]/20 focus:border-[#1a4fd6] bg-white"
+                disabled={cancelPending}
+              />
+            </div>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => { setIsCancelling(false); setActionError(null) }}
                 disabled={cancelPending}
-                className="flex-1 px-3 py-2 rounded-lg text-xs bg-white/5 text-slate-300 hover:bg-white/10 transition-colors"
+                className="flex-1 px-3 py-2 rounded-lg text-xs border border-gray-200 bg-white text-[#152d5a] hover:bg-gray-50 transition-colors"
               >
                 Back
               </button>
@@ -680,39 +731,167 @@ export default function AdminCheckoutReviewPanel({
                 type="button"
                 onClick={handleCancel}
                 disabled={cancelPending || !cancelReason.trim()}
-                className="flex-1 px-3 py-2 rounded-lg text-xs bg-rose-700 hover:bg-rose-600 text-white transition-colors disabled:opacity-50"
+                className="flex-1 px-3 py-2 rounded-lg text-xs bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50"
               >
                 {cancelPending ? 'Cancelling…' : 'Cancel Request'}
               </button>
             </div>
           </div>
-        ) : (
-          <>
-            <div className="flex gap-2">
+        ) : null}
+      </section>
+
+      <section className="bg-white border-t border-r border-b border-gray-100 border-l-4 border-l-[#8b5cf6] rounded-xl p-6 mb-4 shadow-sm">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-8 h-8 rounded-full bg-[#152d5a] text-white text-sm font-semibold flex items-center justify-center flex-shrink-0">
+            4
+          </div>
+          <h2 className="text-lg font-semibold text-[#152d5a]">Notes & Communication</h2>
+          <ChevronDown className="ml-auto w-5 h-5 text-gray-400" />
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Customer Note</p>
+          {customerNotes ? (
+            <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 border border-gray-100">
+              {customerNotes}
+            </p>
+          ) : (
+            <p className="text-sm text-gray-400 italic">No note provided.</p>
+          )}
+        </div>
+
+        <div className="mt-5">
+          <h3 className="text-sm font-semibold text-[#152d5a] mb-2">Send a message to the customer</h3>
+          <div className="space-y-2">
+            {chatEvents.length === 0 ? (
+              <p className="text-sm text-gray-400">No messages yet.</p>
+            ) : (
+              <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+                {chatEvents.map((ev) => {
+                  const isAdmin = ev.actor_role === 'admin'
+                  return (
+                    <div key={ev.id} className="bg-gray-50 rounded-lg p-3 border border-gray-100 mb-2 text-sm text-[#152d5a]">
+                      <div className="flex items-center justify-between gap-3 mb-1">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-[#1a4fd6]">
+                          {isAdmin ? 'Admin' : (customerName || 'Customer')}
+                        </span>
+                        <span className="text-[11px] text-gray-400">{formatDateTime(ev.created_at)}</span>
+                      </div>
+                      <p className="text-sm text-[#152d5a] whitespace-pre-wrap">{ev.body}</p>
+                    </div>
+                  )
+                })}
+                <div ref={bottomRef} />
+              </div>
+            )}
+
+            <textarea
+              ref={messageTextareaRef}
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              onKeyDown={handleMsgKeyDown}
+              disabled={msgLoading}
+              placeholder="Write your message..."
+              rows={4}
+              className="w-full border border-gray-200 rounded-xl p-4 text-sm text-[#152d5a] placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-[#1a4fd6]/20 focus:border-[#1a4fd6] min-h-[100px] bg-white"
+            />
+            {msgError && <p className="text-xs text-red-500">{msgError}</p>}
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-400">⌘ + Enter to send · Visible to customer</p>
               <button
-                onClick={handleConfirm}
-                disabled={confirmPending}
-                className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+                type="button"
+                onClick={handleSendMessage}
+                disabled={msgLoading || !message.trim()}
+                className="bg-[#1a4fd6] hover:bg-[#1540a8] text-white rounded-lg px-4 py-1.5 text-[13px] font-semibold transition-colors disabled:opacity-40"
               >
-                <span className="material-symbols-outlined text-[18px]">how_to_reg</span>
-                {confirmPending ? 'Confirming…' : 'Confirm Checkout'}
-              </button>
-              <button
-                onClick={() => setIsCancelling(true)}
-                disabled={confirmPending}
-                className="flex-1 flex items-center justify-center gap-2 border border-rose-500/25 text-rose-400 hover:bg-rose-500/10 px-4 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                <span className="material-symbols-outlined text-[16px]">cancel</span>
-                Cancel Checkout
+                {msgLoading ? 'Sending…' : 'SEND'}
               </button>
             </div>
-          </>
-        )}
+          </div>
+        </div>
+      </section>
 
-        {actionError && <p className="text-[10px] text-rose-400 text-center leading-tight">{actionError}</p>}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] px-4 py-3 md:px-6 md:py-4">
+        <div className="mx-auto max-w-7xl flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="hidden sm:flex items-center gap-3 bg-[#eef2ff] rounded-xl px-4 py-2.5 border border-[#c7d2fe]">
+            <div className="w-7 h-7 rounded-lg bg-[#4f46e5] flex items-center justify-center flex-shrink-0">
+              <HelpCircle className="w-3.5 h-3.5 text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[#3730a3] leading-none">
+                Ready to decide?
+              </p>
+              <p className="text-xs text-[#6366f1] mt-0.5">
+                Choose the best action for this request.
+              </p>
+            </div>
+            {actionError && <p className="mt-1 text-xs text-rose-500">{actionError}</p>}
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-end w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setIsCancelling(true)
+                timeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }}
+              disabled={confirmPending || cancelPending}
+              className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border border-red-200 text-red-600 text-xs font-medium hover:bg-red-50 transition-colors disabled:opacity-50"
+            >
+              <XCircle className="w-4 h-4" />
+              Cancel Request
+            </button>
+            <button
+              type="button"
+              onClick={handleRequestDocuments}
+              disabled={msgLoading}
+              className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border border-gray-200 bg-white text-[#152d5a] text-xs font-medium hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
+            >
+              <FileText className="w-4 h-4" />
+              Request Documents
+            </button>
+            <button
+              type="button"
+              onClick={handleProposeDifferentTime}
+              disabled={timeUpdateStatus === 'saving'}
+              className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border border-gray-200 bg-white text-[#152d5a] text-xs font-medium hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
+            >
+              <CalendarDays className="w-4 h-4" />
+              Propose New Time
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={confirmPending}
+              className="inline-flex items-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-[#152d5a] text-white text-xs font-semibold hover:bg-[#1a4fd6] transition-colors shadow-md disabled:opacity-50"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              {confirmPending ? 'Confirming…' : 'Confirm Checkout'}
+            </button>
+          </div>
         </div>
       </div>
 
+      <ConfirmModal
+        open={confirmCheckoutOpen}
+        title="Confirm checkout request?"
+        description={`Confirm checkout request for ${formatDate(newStartUTC ?? scheduledStart)} at ${ALL_TIME_OPTIONS.find((o) => o.value === newStartTime)?.label ?? newStartTime} (Sydney time).`}
+        confirmLabel={confirmPending ? 'Confirming…' : 'Confirm Checkout'}
+        variant="primary"
+        onCancel={() => setConfirmCheckoutOpen(false)}
+        onConfirm={handleConfirmCheckout}
+      />
+
+      <ConfirmModal
+        open={cancelConfirmOpen}
+        title="Cancel this checkout request?"
+        description="The customer will be returned to checkout required / not scheduled state."
+        confirmLabel={cancelPending ? 'Cancelling…' : 'Yes, cancel request'}
+        cancelLabel="Back"
+        variant="danger"
+        onCancel={() => setCancelConfirmOpen(false)}
+        onConfirm={handleCancelCheckout}
+      />
     </div>
   )
 }

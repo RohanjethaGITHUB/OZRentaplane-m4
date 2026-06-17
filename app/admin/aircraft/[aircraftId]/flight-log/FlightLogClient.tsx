@@ -9,6 +9,7 @@ import {
 import type { FlightLogSource } from '@/lib/aircraft-flight-log'
 import { searchCustomers } from '@/app/actions/admin'
 import CalendarDateField from '@/components/CalendarDateField'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -331,6 +332,8 @@ export default function FlightLogClient({
   const [open, setOpen]               = useState(false)
   const [editing, setEditing]         = useState<LogRow | null>(null)
   const [error, setError]             = useState<string | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId]     = useState<string | null>(null)
   // Initialize with all fields as strings so num(draft.x) never receives undefined.
   const [draft, setDraft]             = useState<Draft>(() => ({
     flight_date: new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }),
@@ -497,7 +500,15 @@ export default function FlightLogClient({
   }
 
   function removeRow(id: string) {
-    if (!window.confirm('Delete this flight log record? This action cannot be undone.')) return
+    setPendingDeleteId(id)
+    setDeleteConfirmOpen(true)
+  }
+
+  function confirmRemoveRow() {
+    if (!pendingDeleteId) return
+    const id = pendingDeleteId
+    setDeleteConfirmOpen(false)
+    setPendingDeleteId(null)
     setOpen(false)
     startTransition(async () => {
       try {
@@ -1034,6 +1045,20 @@ export default function FlightLogClient({
           </form>
         </div>
       )}
+
+      <ConfirmModal
+        open={deleteConfirmOpen}
+        title="Delete this flight log record?"
+        description="This action cannot be undone."
+        confirmLabel={pending ? 'Deleting…' : 'Yes, delete'}
+        cancelLabel="Back"
+        variant="danger"
+        onCancel={() => {
+          setDeleteConfirmOpen(false)
+          setPendingDeleteId(null)
+        }}
+        onConfirm={confirmRemoveRow}
+      />
     </>
   )
 }

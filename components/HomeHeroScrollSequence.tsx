@@ -525,10 +525,13 @@ export default function HomeHeroScrollSequence() {
     previousTargetFrameRef.current = startFrame
 
     const onScroll = () => {
-      if (scrollTickRef.current !== null) return
-      scrollTickRef.current = window.requestAnimationFrame(() => {
-        scrollTickRef.current = null
-      })
+      // Don't update target during intro/loading — prevents frame jump
+      // when overlay fades and avoids fighting the scroll lock touchmove listener
+      if (!introDoneRef.current || !videoReadyRef.current) return
+      readScrollAndSetTarget()
+      if (rafRef.current === null) {
+        rafRef.current = window.requestAnimationFrame(renderLoop)
+      }
     }
 
     const onResize = () => updateSectionMetrics()
@@ -537,6 +540,7 @@ export default function HomeHeroScrollSequence() {
     window.addEventListener('resize', onResize)
     window.addEventListener('orientationchange', onResize)
     window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('touchmove', onScroll, { passive: true })
 
     rafRef.current = window.requestAnimationFrame(renderLoop)
 
@@ -547,6 +551,7 @@ export default function HomeHeroScrollSequence() {
       window.removeEventListener('resize', onResize)
       window.removeEventListener('orientationchange', onResize)
       window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('touchmove', onScroll)
       if (rafRef.current !== null) window.cancelAnimationFrame(rafRef.current)
       if (scrollTickRef.current !== null) window.cancelAnimationFrame(scrollTickRef.current)
     }
@@ -590,14 +595,6 @@ export default function HomeHeroScrollSequence() {
       unlockPageScroll()
     }
   }, [introDone, motionMode, videoReady])
-
-  useEffect(() => {
-    const onScrollKick = () => {
-      if (rafRef.current === null) rafRef.current = window.requestAnimationFrame(renderLoop)
-    }
-    window.addEventListener('scroll', onScrollKick, { passive: true })
-    return () => window.removeEventListener('scroll', onScrollKick)
-  }, [])
 
   return (
     <section ref={sectionRef} className="relative bg-deep-ink" style={{ height: `${SCROLL_HEIGHT_VH}dvh` }} data-motion-mode={motionMode}>

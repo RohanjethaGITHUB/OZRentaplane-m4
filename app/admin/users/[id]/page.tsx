@@ -103,7 +103,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
   ] = await Promise.all([
     supabase
       .from('user_documents')
-      .select('*')
+      .select('*, user_document_files(id, file_name, storage_path, uploaded_at)')
       .eq('user_id', params.id)
       .order('uploaded_at', { ascending: false }),
     supabase

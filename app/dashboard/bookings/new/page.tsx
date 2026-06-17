@@ -30,49 +30,50 @@ function LockedGate({
   secondaryHref,
   testId,
 }: {
-  user:           User
-  profile:        Profile | null
-  icon:           string
-  iconColor:      string
-  colorCls:       string
-  heading:        string
-  body:           string
-  primaryLabel:   string
-  primaryHref:    string
+  user:            User
+  profile:         Profile | null
+  icon:            string
+  iconColor:       string
+  colorCls:        string
+  heading:         string
+  body:            string
+  primaryLabel:    string
+  primaryHref:     string
   secondaryLabel?: string
   secondaryHref?:  string
-  testId?: string
+  testId?:         string
 }) {
   return (
     <CustomerBookingShell user={user} profile={profile}>
       <div className="px-6 md:px-10 py-10 max-w-2xl mx-auto w-full" data-testid={testId}>
         <Link
           href="/dashboard/bookings"
-          className="inline-flex items-center gap-1 text-oz-blue hover:text-blue-300 text-sm mb-6 transition-colors"
+          className="inline-flex items-center gap-1 text-[#1a4fd6] hover:text-[#1540a8] text-sm mb-6 transition-colors"
         >
           <span className="material-symbols-outlined text-base">arrow_back</span>
           My Bookings
         </Link>
-        <div className={`border rounded-[1.25rem] p-10 text-center ${colorCls}`}>
+
+        <div className={`rounded-2xl border p-10 text-center shadow-sm ${colorCls}`}>
           <span
-            className={`material-symbols-outlined text-4xl mb-4 block ${iconColor}`}
+            className={`material-symbols-outlined text-5xl mb-5 block ${iconColor}`}
             style={{ fontVariationSettings: "'wght' 200" }}
           >
             {icon}
           </span>
-          <h2 className="text-xl font-serif text-white mb-3">{heading}</h2>
-          <p className="text-oz-muted text-sm leading-relaxed mb-6">{body}</p>
-          <div className={`flex flex-col ${secondaryLabel ? 'sm:flex-row gap-3' : ''} justify-center`}>
+          <h2 className="font-serif text-2xl font-normal text-[#152d5a] mb-3">{heading}</h2>
+          <p className="text-sm text-[#4b6390] leading-relaxed mb-8 max-w-sm mx-auto">{body}</p>
+          <div className={`flex flex-col ${secondaryLabel ? 'sm:flex-row gap-3' : ''} items-center justify-center`}>
             <Link
               href={primaryHref}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-oz-blue hover:bg-blue-400 text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-[#f59e0b] hover:bg-[#d97706] text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors shadow-sm"
             >
               {primaryLabel}
             </Link>
             {secondaryLabel && secondaryHref && (
               <Link
                 href={secondaryHref}
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 border border-white/20 hover:border-white/35 text-white/70 hover:text-white rounded-full text-xs font-bold uppercase tracking-widest transition-colors"
+                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 border border-[#152d5a]/20 hover:border-[#152d5a]/40 text-[#4b6390] hover:text-[#152d5a] rounded-full text-xs font-bold uppercase tracking-widest transition-colors"
               >
                 {secondaryLabel}
               </Link>
@@ -403,7 +404,9 @@ export default async function NewBookingPage() {
       console.info('[booking-eligibility]', { customerId: user.id, ...decision })
     }
 
-    const requiresPilotFileReadiness = !hasManualClearance
+    const requiresPilotFileReadiness =
+      !hasManualClearance &&
+      pilotClearanceStatus !== 'cleared_to_fly'
 
     if (requiresPilotFileReadiness && !decision.bookingReady) {
       return (

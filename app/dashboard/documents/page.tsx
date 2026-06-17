@@ -21,7 +21,7 @@ export default async function CustomerDocumentsPage() {
       .single(),
     supabase
       .from('user_documents')
-      .select('*')
+      .select('*, user_document_files(id, file_name, storage_path, uploaded_at)')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false }),
   ])

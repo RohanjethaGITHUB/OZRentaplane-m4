@@ -732,6 +732,12 @@ export default function CheckoutFlow({
 
   // Last flight date — pre-filled from profile so it stays in sync with Documents page
   const [lastFlightDate, setLastFlightDate] = useState(initialLastFlightDate)
+  // Sync lastFlightDate from checkoutGate whenever gate refreshes
+  useEffect(() => {
+    if (checkoutGate?.lastFlightDate) {
+      setLastFlightDate(checkoutGate.lastFlightDate)
+    }
+  }, [checkoutGate?.lastFlightDate])
   const pilotLicenceDocument = useMemo(() => {
     const latestByType: Partial<Record<string, UserDocument>> = {}
     for (const doc of documents) {
