@@ -614,23 +614,21 @@ export default function HomeHeroScrollSequence() {
   return (
     <section ref={sectionRef} className="relative bg-deep-ink" style={{ height: `${SCROLL_HEIGHT_VH}dvh` }} data-motion-mode={motionMode}>
       <div className="sticky top-0 overflow-hidden min-h-[100svh] min-h-[100dvh] bg-deep-ink">
-        <video
-          ref={videoDesktopRef}
-          className="absolute inset-0 h-full w-full object-cover object-center"
-          style={{
-            display: (!viewportReady || isMobileViewport) ? 'none' : 'block',
-            willChange: 'transform',
-            visibility: (!viewportReady || isMobileViewport) ? 'hidden' : 'visible',
-          }}
-          muted
-          playsInline
-          preload={isMobileViewport ? 'none' : 'auto'}
-          disablePictureInPicture
-          aria-hidden="true"
-        >
-          <source src="/hero-desktop.webm" type="video/webm" />
-          <source src="/hero-desktop.mp4" type="video/mp4" />
-        </video>
+        {!isMobileViewport && (
+          <video
+            ref={videoDesktopRef}
+            className="absolute inset-0 h-full w-full object-cover object-center"
+            style={{ willChange: 'transform' }}
+            muted
+            playsInline
+            preload="auto"
+            disablePictureInPicture
+            aria-hidden="true"
+          >
+            <source src="/hero-desktop.webm" type="video/webm" />
+            <source src="/hero-desktop.mp4" type="video/mp4" />
+          </video>
+        )}
         {viewportReady && isMobileViewport && (
           <MobileHeroCanvas
             onFrameCallback={(cb) => { canvasFrameCallbackRef.current = cb }}
