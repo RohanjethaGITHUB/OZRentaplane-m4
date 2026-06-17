@@ -17,7 +17,8 @@ const WORD_WAY_DELAY_MS = 1120
 const UNDERLINE_DELAY_MS = 1500
 const CLOUD_FADE_START_FRAME = 22
 const CLOUD_FADE_END_FRAME = 34
-const VIDEO_DURATION = 6.625
+const VIDEO_DURATION_DESKTOP = 6.625  // 159 frames at 24fps
+const VIDEO_DURATION_MOBILE = 6.666667  // 160 frames at 24fps
 const TOTAL_FRAMES = 160
 const SCENE_BOUNDARIES = [
   { start: 0, end: 49 },
@@ -205,11 +206,15 @@ export default function HomeHeroScrollSequence() {
       : videoDesktopRef.current
     if (!vid) return
 
+    const totalFrames = isMobileViewportRef.current ? 160 : 159
     const frameIndex = clamp(
-      Math.round(playhead), 0, TOTAL_FRAMES - 1
+      Math.round(playhead), 0, totalFrames - 1
     )
+    const videoDuration = isMobileViewportRef.current
+      ? VIDEO_DURATION_MOBILE
+      : VIDEO_DURATION_DESKTOP
     const targetTime =
-      (frameIndex / (TOTAL_FRAMES - 1)) * VIDEO_DURATION
+      (frameIndex / (totalFrames - 1)) * videoDuration
 
     if (Math.abs(targetTime - lastAppliedTimeRef.current) < 0.001)
       return
@@ -223,14 +228,6 @@ export default function HomeHeroScrollSequence() {
 
     lastAppliedTimeRef.current = targetTime
     vid.currentTime = targetTime
-    // Force repaint on Chrome Android — paused video inside a sticky
-    // container doesn't always update the displayed frame after a seek
-    if (!IS_SAFARI) {
-      vid.style.transform = 'translateZ(0)'
-      requestAnimationFrame(() => {
-        vid.style.transform = ''
-      })
-    }
   }
 
   function readScrollAndSetTarget() {
