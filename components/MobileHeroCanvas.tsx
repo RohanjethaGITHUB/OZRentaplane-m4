@@ -48,9 +48,12 @@ export default function MobileHeroCanvas({ onFrameCallback, onReady, onError }: 
   // Paint a specific frame to the canvas
   const paintFrame = useCallback((frameIndex: number) => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    if (!canvas) { console.log('[MHC] paintFrame: no canvas'); return }
     const img = imagesRef.current[frameIndex]
-    if (!img || !img.complete || img.naturalWidth === 0) return
+    if (!img || img.naturalWidth === 0) {
+      console.log(`[MHC] paintFrame(${frameIndex}): img not ready`, { img: !!img, naturalWidth: img?.naturalWidth })
+      return
+    }
     if (lastPaintedFrameRef.current === frameIndex) return
 
     const ctx = canvas.getContext('2d')
@@ -90,10 +93,17 @@ export default function MobileHeroCanvas({ onFrameCallback, onReady, onError }: 
 
           // Paint frame 0 as soon as it's ready
           if (i === 0 && !onReadyCalledRef.current) {
-            paintFrame(0)
-            isReadyRef.current = true
-            onReadyCalledRef.current = true
-            onReady()
+            // Defer one rAF to ensure canvas setSize has run first
+            requestAnimationFrame(() => {
+              if (cancelled) return
+              console.log('[MHC] frame 0 rAF — canvas:', canvasRef.current?.width, 'x', canvasRef.current?.height)
+              paintFrame(0)
+              console.log('[MHC] paintFrame(0) done, lastPainted:', lastPaintedFrameRef.current)
+              isReadyRef.current = true
+              onReadyCalledRef.current = true
+              onReady()
+              console.log('[MHC] onReady() called')
+            })
           }
         }
         img.onerror = () => {
@@ -130,20 +140,22 @@ export default function MobileHeroCanvas({ onFrameCallback, onReady, onError }: 
     }
   }, [onReady, onError, paintFrame])
 
-  // Register paint callback with parent so renderLoop drives us directly
-  useEffect(() => {
-    onFrameCallback((frame: number) => {
-      if (!isReadyRef.current) return
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = null
-        paintFrame(frame)
-      })
+  // Register callback immediately via ref so it's available before
+  // any useEffect fires — prevents missed frames during first paint
+  const paintCallbackRef = useRef<(frame: number) => void>(() => {})
+  paintCallbackRef.current = (frame: number) => {
+    if (!isReadyRef.current) return
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null
+      paintFrame(frame)
     })
-    return () => {
-      onFrameCallback(() => {})
-    }
-  }, [onFrameCallback, paintFrame])
+  }
+
+  useEffect(() => {
+    onFrameCallback((frame: number) => paintCallbackRef.current(frame))
+    return () => onFrameCallback(() => {})
+  }, [onFrameCallback])
 
   // Size canvas to device pixel ratio for sharp rendering
   useEffect(() => {
@@ -151,10 +163,17 @@ export default function MobileHeroCanvas({ onFrameCallback, onReady, onError }: 
     if (!canvas) return
     const setSize = () => {
       const dpr = window.devicePixelRatio || 1
-      canvas.width = canvas.offsetWidth * dpr
-      canvas.height = canvas.offsetHeight * dpr
+      // Use window dimensions directly — offsetWidth/Height is 0 at mount
+      // because the sticky container hasn't painted yet
+      const w = window.innerWidth || 375
+      const h = window.innerHeight || 812
+      canvas.width = w * dpr
+      canvas.height = h * dpr
       const ctx = canvas.getContext('2d')
-      if (ctx) ctx.scale(dpr, dpr)
+      if (ctx) {
+        ctx.resetTransform()
+        ctx.scale(dpr, dpr)
+      }
       // Repaint after resize
       const lastFrame = lastPaintedFrameRef.current
       lastPaintedFrameRef.current = -1
@@ -162,7 +181,11 @@ export default function MobileHeroCanvas({ onFrameCallback, onReady, onError }: 
     }
     setSize()
     window.addEventListener('resize', setSize)
-    return () => window.removeEventListener('resize', setSize)
+    window.addEventListener('orientationchange', setSize)
+    return () => {
+      window.removeEventListener('resize', setSize)
+      window.removeEventListener('orientationchange', setSize)
+    }
   }, [paintFrame])
 
   return (
