@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import HeroCloudLayers from '@/components/HeroCloudLayers'
+import MobileHeroCanvas from '@/components/MobileHeroCanvas'
 
 const SCROLL_HEIGHT_VH = 430
 const FULL_MOTION_SMOOTHING_TAU_MS = 110
@@ -69,6 +70,7 @@ export default function HomeHeroScrollSequence() {
   const [sceneIndex, setSceneIndex] = useState(0)
   const [videoReady, setVideoReady] = useState(false)
   const [videoError, setVideoError] = useState(false)
+  const canvasFrameCallbackRef = useRef<((frame: number) => void) | null>(null)
   
   const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false
@@ -345,6 +347,10 @@ export default function HomeHeroScrollSequence() {
     const sceneFrame = clamp(Math.round(currentFrameRef.current), 0, TOTAL_FRAMES - 1)
     updateCloudVisibility(sceneFrame)
     updateCtaVisibility(sceneFrame)
+    // Drive canvas frame for mobile image sequence — via ref to avoid re-render
+    if (isMobileViewportRef.current && canvasFrameCallbackRef.current) {
+      canvasFrameCallbackRef.current(sceneFrame)
+    }
     const nextSceneIndex = getSceneIndex(sceneFrame)
     if (nextSceneIndex !== sceneIndexRef.current) {
       sceneIndexRef.current = nextSceneIndex
@@ -386,18 +392,16 @@ export default function HomeHeroScrollSequence() {
 
   useEffect(() => {
     const vd = videoDesktopRef.current
-    const vm = videoMobileRef.current
 
     if (vd) {
       vd.pause()
       vd.currentTime = 0
     }
-    if (vm) {
-      vm.pause()
-      vm.currentTime = 0
-    }
 
-    const vid = isMobileViewport ? vm : vd
+    // On mobile, canvas handles rendering — no video element to set up
+    if (isMobileViewport) return
+
+    const vid = vd
     if (!vid) return
 
     videoReadyRef.current = false
@@ -621,23 +625,23 @@ export default function HomeHeroScrollSequence() {
           <source src="/hero-desktop.webm" type="video/webm" />
           <source src="/hero-desktop.mp4" type="video/mp4" />
         </video>
-        <video
-          ref={videoMobileRef}
-          className="absolute inset-0 h-full w-full object-cover object-[50%_38%]"
-          style={{
-            display: isMobileViewport ? 'block' : 'none',
-            willChange: 'transform',
-            visibility: isMobileViewport ? 'visible' : 'hidden',
-          }}
-          muted
-          playsInline
-          preload={isMobileViewport ? 'auto' : 'none'}
-          disablePictureInPicture
-          aria-hidden="true"
-        >
-          <source src="/hero-mobile.webm" type="video/webm" />
-          <source src="/hero-mobile.mp4" type="video/mp4" />
-        </video>
+        {isMobileViewport && (
+          <MobileHeroCanvas
+            onFrameCallback={(cb) => { canvasFrameCallbackRef.current = cb }}
+            onReady={() => {
+              videoReadyRef.current = true
+              setVideoReady(true)
+              if (rafRef.current === null) {
+                rafRef.current = window.requestAnimationFrame(renderLoop)
+              }
+            }}
+            onError={() => {
+              setVideoError(true)
+              videoReadyRef.current = true
+              setVideoReady(true)
+            }}
+          />
+        )}
 
 
         <div className="absolute inset-0 bg-gradient-to-b from-[#091421]/35 via-[#091421]/25 to-[#091421]/70 pointer-events-none" />
