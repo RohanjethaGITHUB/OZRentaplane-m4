@@ -72,10 +72,16 @@ export default function HomeHeroScrollSequence() {
   const [videoError, setVideoError] = useState(false)
   const canvasFrameCallbackRef = useRef<((frame: number) => void) | null>(null)
   
-  const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false
-    return window.matchMedia('(max-width: 767px)').matches
-  })
+  // Always start as false on SSR — useEffect immediately corrects on client
+  // before any video/canvas mounts, avoiding hydration mismatch
+  const [isMobileViewport, setIsMobileViewport] = useState(false)
+  const [viewportReady, setViewportReady] = useState(false)
+  useEffect(() => {
+    const mobile = window.matchMedia('(max-width: 767px)').matches
+    setIsMobileViewport(mobile)
+    isMobileViewportRef.current = mobile
+    setViewportReady(true)
+  }, [])
   useEffect(() => {
     isMobileViewportRef.current = isMobileViewport
   }, [isMobileViewport])
@@ -399,7 +405,7 @@ export default function HomeHeroScrollSequence() {
     }
 
     // On mobile, canvas handles rendering — no video element to set up
-    if (isMobileViewport) return
+    if (isMobileViewport || !viewportReady) return
 
     const vid = vd
     if (!vid) return
@@ -444,7 +450,7 @@ export default function HomeHeroScrollSequence() {
         window.clearTimeout(fallback)
       }
     }
-  }, [isMobileViewport])
+  }, [isMobileViewport, viewportReady])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -612,9 +618,9 @@ export default function HomeHeroScrollSequence() {
           ref={videoDesktopRef}
           className="absolute inset-0 h-full w-full object-cover object-center"
           style={{
-            display: isMobileViewport ? 'none' : 'block',
+            display: (!viewportReady || isMobileViewport) ? 'none' : 'block',
             willChange: 'transform',
-            visibility: isMobileViewport ? 'hidden' : 'visible',
+            visibility: (!viewportReady || isMobileViewport) ? 'hidden' : 'visible',
           }}
           muted
           playsInline
@@ -625,7 +631,7 @@ export default function HomeHeroScrollSequence() {
           <source src="/hero-desktop.webm" type="video/webm" />
           <source src="/hero-desktop.mp4" type="video/mp4" />
         </video>
-        {isMobileViewport && (
+        {viewportReady && isMobileViewport && (
           <MobileHeroCanvas
             onFrameCallback={(cb) => { canvasFrameCallbackRef.current = cb }}
             onReady={() => {
