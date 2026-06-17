@@ -223,6 +223,14 @@ export default function HomeHeroScrollSequence() {
 
     lastAppliedTimeRef.current = targetTime
     vid.currentTime = targetTime
+    // Force repaint on Chrome Android — paused video inside a sticky
+    // container doesn't always update the displayed frame after a seek
+    if (!IS_SAFARI) {
+      vid.style.transform = 'translateZ(0)'
+      requestAnimationFrame(() => {
+        vid.style.transform = ''
+      })
+    }
   }
 
   function readScrollAndSetTarget() {
