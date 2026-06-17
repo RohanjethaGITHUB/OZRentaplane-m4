@@ -606,12 +606,16 @@ export default function HomeHeroScrollSequence() {
       <div className="sticky top-0 overflow-hidden min-h-[100svh] min-h-[100dvh] bg-deep-ink">
         <video
           ref={videoDesktopRef}
-          className={`absolute inset-0 h-full w-full object-cover object-center ${isMobileViewport ? 'hidden' : 'block'}`}
+          className="absolute inset-0 h-full w-full object-cover object-center"
+          style={{
+            display: isMobileViewport ? 'none' : 'block',
+            willChange: 'transform',
+            visibility: isMobileViewport ? 'hidden' : 'visible',
+          }}
           muted
           playsInline
           preload={isMobileViewport ? 'none' : 'auto'}
           disablePictureInPicture
-          style={{ willChange: 'transform' }}
           aria-hidden="true"
         >
           <source src="/hero-desktop.webm" type="video/webm" />
@@ -619,12 +623,16 @@ export default function HomeHeroScrollSequence() {
         </video>
         <video
           ref={videoMobileRef}
-          className={`absolute inset-0 h-full w-full object-cover object-[50%_38%] ${isMobileViewport ? 'block' : 'hidden'}`}
+          className="absolute inset-0 h-full w-full object-cover object-[50%_38%]"
+          style={{
+            display: isMobileViewport ? 'block' : 'none',
+            willChange: 'transform',
+            visibility: isMobileViewport ? 'visible' : 'hidden',
+          }}
           muted
           playsInline
           preload={isMobileViewport ? 'auto' : 'none'}
           disablePictureInPicture
-          style={{ willChange: 'transform' }}
           aria-hidden="true"
         >
           <source src="/hero-mobile.webm" type="video/webm" />
