@@ -14,6 +14,11 @@ type CtaButton = {
   icon?: string
 }
 
+type MetaCard = {
+  label: string
+  value: string
+}
+
 type Props = {
   eyebrow: string
   title: string
@@ -26,6 +31,7 @@ type Props = {
   backLabel?: string
   cta?: CtaButton
   secondaryCta?: { label: string; href: string }
+  metaCards?: MetaCard[]
   variant?: 'dark' | 'light'
 }
 
@@ -45,7 +51,7 @@ const DOT_CLASSES: Record<StatusPillColor, string> = {
   slate: 'bg-slate-500',
 }
 
-export default function PortalPageHero({ eyebrow, title, subtitle, note, backgroundImage, backgroundPosition, statusPill, backHref, backLabel, cta, secondaryCta, variant = 'dark' }: Props) {
+export default function PortalPageHero({ eyebrow, title, subtitle, note, backgroundImage, backgroundPosition, statusPill, backHref, backLabel, cta, secondaryCta, metaCards, variant = 'dark' }: Props) {
   const isLight = variant === 'light'
   const hasPhotoBackground = Boolean(backgroundImage)
   const useLightText = isLight && !hasPhotoBackground
@@ -144,6 +150,27 @@ export default function PortalPageHero({ eyebrow, title, subtitle, note, backgro
           </p>
         )}
         {note && <p className={`mt-3 text-xs ${useLightText ? 'text-[#64748b]' : 'text-white/60'}`}>{note}</p>}
+
+        {metaCards && metaCards.length > 0 && (
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 max-w-2xl">
+            {metaCards.map((card) => (
+              <div
+                key={card.label}
+                className={useLightText
+                  ? 'rounded-2xl border border-[#dbe7f4] bg-white/85 px-4 py-3 shadow-[0_8px_24px_rgba(21,45,90,0.06)]'
+                  : 'rounded-2xl border border-white/15 bg-white/10 backdrop-blur-sm px-4 py-3 shadow-[0_8px_24px_rgba(8,20,50,0.18)]'
+                }
+              >
+                <p className={useLightText ? 'text-[10px] font-semibold uppercase tracking-[0.18em] text-[#4b6390] mb-1' : 'text-[10px] font-semibold uppercase tracking-[0.18em] text-white/60 mb-1'}>
+                  {card.label}
+                </p>
+                <p className={useLightText ? 'text-sm font-medium text-[#152d5a] font-mono break-all' : 'text-sm font-medium text-white break-all'}>
+                  {card.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {statusPill && (
           <div className={`mt-5 inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-[10px] font-bold uppercase tracking-widest ${PILL_CLASSES[statusPill.color]}`}>

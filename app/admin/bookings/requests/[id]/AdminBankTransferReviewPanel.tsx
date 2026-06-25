@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { adminApproveBankTransfer, adminRejectBankTransfer } from "@/app/actions/payment"
+import DocumentViewerModal from "@/components/ui/DocumentViewerModal"
+import type { DocumentFile } from "@/components/ui/DocumentViewerModal"
 
 type Submission = {
   id: string
@@ -25,6 +27,9 @@ export default function AdminBankTransferReviewPanel({ bookingId, submission }: 
   const [loading, setLoading] = useState<"approve" | "reject" | null>(null)
   const [rejectNote, setRejectNote] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [viewerFiles, setViewerFiles] = useState<DocumentFile[]>([])
+  const [viewerTitle, setViewerTitle] = useState('')
 
   const handleApprove = async () => {
     setError(null)
@@ -81,15 +86,18 @@ export default function AdminBankTransferReviewPanel({ bookingId, submission }: 
       {submission.signedReceiptUrl && (
         <div className="mb-4">
           <p className="text-[#4b6390] text-[11px] uppercase tracking-wide mb-2">Receipt</p>
-          <a
-            href={submission.signedReceiptUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={() => {
+              setViewerFiles([{ url: submission.signedReceiptUrl!, name: 'Bank Transfer Receipt' }])
+              setViewerTitle('Bank Transfer Receipt')
+              setViewerOpen(true)
+            }}
             className="inline-flex items-center gap-2 text-[#1a4fd6] text-[13px] font-semibold hover:underline"
           >
             <span className="material-symbols-outlined text-[15px]">open_in_new</span>
             View receipt
-          </a>
+          </button>
         </div>
       )}
 
@@ -123,6 +131,13 @@ export default function AdminBankTransferReviewPanel({ bookingId, submission }: 
           </button>
         </div>
       </div>
+
+      <DocumentViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        files={viewerFiles}
+        title={viewerTitle}
+      />
     </div>
   )
 }

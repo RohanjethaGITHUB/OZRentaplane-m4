@@ -10,6 +10,8 @@ import { acceptTermsAndConditions } from '@/app/actions/terms'
 import { saveLastFlightDate } from '@/app/actions/verification'
 import { saveNightVfrRatingFromReadiness } from '@/app/actions/booking-readiness'
 import { getFlightReviewCutoff } from '@/lib/utils/flight-review'
+import DocumentViewerModal from '@/components/ui/DocumentViewerModal'
+import type { DocumentFile } from '@/components/ui/DocumentViewerModal'
 import {
   TERMS_END_TEXT, TERMS_LAST_UPDATED, TERMS_MODAL_SUBTITLE,
   TERMS_MODAL_TITLE, TERMS_NOTICE, TERMS_SECTIONS,
@@ -454,20 +456,22 @@ export function UploadModal({ docType, existingDoc, onClose, onSuccess }: {
 
 // ─── MiniDocCard ──────────────────────────────────────────────────────────────
 
-function MiniDocCard({ def, doc, docState, onOpen, replacing }: {
-  def: DocDef; doc: UserDocument | undefined; docState: DocUiState; onOpen: () => void; replacing: boolean
+function MiniDocCard({ def, doc, docState, onOpen, replacing, onViewDocument }: {
+  def: DocDef
+  doc: UserDocument | undefined
+  docState: DocUiState
+  onOpen: () => void
+  replacing: boolean
+  onViewDocument: (docType: DocumentType, title: string, index: number) => Promise<void>
 }) {
   const [viewLoadingIndex, setViewLoadingIndex] = useState<number | null>(null)
   const [viewError, setViewError] = useState('')
 
-  async function handleViewFile(index: number, storagePath: string) {
+  async function handleViewFile(index: number) {
     setViewLoadingIndex(index)
     setViewError('')
     try {
-      const files = await getDocumentSignedUrlsForType(def.type)
-      const file = files[index]
-      if (!file) throw new Error('File not found.')
-      window.open(file.url, '_blank', 'noopener,noreferrer')
+      await onViewDocument(def.type, def.label, index)
     } catch {
       setViewError('Could not open document.')
     } finally {
@@ -530,7 +534,7 @@ function MiniDocCard({ def, doc, docState, onOpen, replacing }: {
             {files.map((file, index) => (
               <button
                 key={file.id}
-                onClick={() => handleViewFile(index, file.storage_path)}
+                onClick={() => void handleViewFile(index)}
                 disabled={viewLoadingIndex === index}
                 className="flex items-center gap-1.5 text-[12px] font-semibold text-[#1a4fd6] hover:text-[#152d5a] transition-colors disabled:opacity-50 text-left"
               >
@@ -589,6 +593,10 @@ export default function DocumentUploadPanel({
 
   const [modalDocType, setModalDocType] = useState<DocumentType | null>(null)
   const [replacing, setReplacing] = useState(false)
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [viewerFiles, setViewerFiles] = useState<DocumentFile[]>([])
+  const [viewerInitialIndex, setViewerInitialIndex] = useState(0)
+  const [viewerTitle, setViewerTitle] = useState('')
 
   const [flightDate, setFlightDate] = useState(lastFlightDate ?? '')
   const [flightDateSaving, setFlightDateSaving] = useState(false)
@@ -616,6 +624,13 @@ export default function DocumentUploadPanel({
   const [isScrolledToBottom, setIsScrolledToBottom] = useState(false)
   const termsScrollRef = useRef<HTMLDivElement>(null)
 
+  useEffect(() => {
+    if (termsAcceptedAt) {
+      setTermsError('')
+      setValidationErrors(p => ({ ...p, s4: undefined }))
+    }
+  }, [termsAcceptedAt])
+
   const [customerNote, setCustomerNote] = useState('')
   const [validationErrors, setValidationErrors] = useState<{ s1?: string; s2?: string; s3?: string; s4?: string }>({})
 
@@ -627,6 +642,14 @@ export default function DocumentUploadPanel({
   const docChecks = useMemo(() => DOC_TYPES.map(def => ({
     def, doc: docMap[def.type] as UserDocument | undefined, state: getDocUiState(docMap[def.type]),
   })), [docMap])
+
+  async function openDocumentViewer(docType: DocumentType, title: string, startIndex: number) {
+    const files = await getDocumentSignedUrlsForType(docType)
+    setViewerFiles(files.map(file => ({ url: file.url, name: file.fileName })))
+    setViewerInitialIndex(startIndex)
+    setViewerTitle(title)
+    setViewerOpen(true)
+  }
 
   const hasPilotDoc = Boolean(docMap['pilot_licence'])
   const allDocsUploaded = docChecks.every(({ state }) => state !== 'missing')
@@ -699,7 +722,7 @@ export default function DocumentUploadPanel({
       if (!result.ok) { setTermsError(result.error); return }
       onSuccess()
     } catch (e: unknown) {
-      setTermsError(e instanceof Error ? e.message : 'Could not save your terms acceptance.')
+      setTermsError(e instanceof Error ? e.message : 'Failed to save your acceptance. Please try again.')
     } finally { setIsAcceptingTerms(false) }
   }
 
@@ -720,6 +743,11 @@ export default function DocumentUploadPanel({
     if (errors.s2) { section2Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return false }
     if (errors.s3) { section3Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return false }
     if (errors.s4) { section4Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return false }
+    if (termsChecked && !termsAcceptedAt) {
+      setTermsError('Please accept the Terms & Conditions and wait for confirmation before continuing.')
+      section4Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return false
+    }
     return true
   }
 
@@ -734,7 +762,7 @@ export default function DocumentUploadPanel({
             status={s1} error={validationErrors.s1}>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
               {docChecks.map(({ def, doc, state }) => (
-                <MiniDocCard key={def.type} def={def} doc={doc} docState={state} replacing={replacing} onOpen={async () => {
+                <MiniDocCard key={def.type} def={def} doc={doc} docState={state} replacing={replacing} onViewDocument={openDocumentViewer} onOpen={async () => {
                   if (docMap[def.type]) {
                     setReplacing(true)
                     try { await replaceVerificationDocument(def.type) } catch (e) { console.error(e) }
@@ -943,6 +971,27 @@ export default function DocumentUploadPanel({
                       I have read and agree to the terms and conditions
                     </span>
                   </label>
+                  {termsChecked && !termsAcceptedAt && (
+                    <div className="flex justify-center pt-1">
+                      <button
+                        onClick={handleAcceptTerms}
+                        disabled={isAcceptingTerms}
+                        className="px-8 py-3 rounded-xl bg-[#152d5a] hover:bg-[#1a3a6e] text-white text-[13px] font-semibold disabled:opacity-40 flex items-center gap-2 transition-colors"
+                      >
+                        {isAcceptingTerms && <span className="material-symbols-outlined text-[15px] animate-spin">progress_activity</span>}
+                        {isAcceptingTerms ? 'Saving…' : 'Accept Terms & Conditions'}
+                      </button>
+                    </div>
+                  )}
+                  {termsAcceptedAt && (
+                    <div className="flex items-center gap-3 bg-green-500/5 border border-green-500/20 rounded-xl px-4 py-3">
+                      <span className="material-symbols-outlined text-green-600 text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                      <div>
+                        <p className="text-[14px] font-semibold text-green-700">Terms accepted</p>
+                        <p className="text-[13px] text-green-600">Accepted on {fmtDate(termsAcceptedAt)}</p>
+                      </div>
+                    </div>
+                  )}
                   {termsError && (
                     <p className="text-[13px] text-red-600 flex items-center gap-1">
                       <span className="material-symbols-outlined text-[14px]">error</span>{termsError}
@@ -984,6 +1033,14 @@ export default function DocumentUploadPanel({
           </div>
         </div>
       )}
+
+      <DocumentViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        files={viewerFiles}
+        initialIndex={viewerInitialIndex}
+        title={viewerTitle}
+      />
 
       {onSubmit && (
         <div className="space-y-3">

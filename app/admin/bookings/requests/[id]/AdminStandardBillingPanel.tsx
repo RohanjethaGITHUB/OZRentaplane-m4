@@ -32,6 +32,7 @@ type Props = {
   customerCreditCents: number
   initialFlightRecord: FlightRecord
   startSuggestions: AircraftContinuityBaseline
+  defaultHourlyRate?: number
   redirectAfterSuccess?: string
 }
 
@@ -56,12 +57,13 @@ export default function AdminStandardBillingPanel({
   customerCreditCents,
   initialFlightRecord,
   startSuggestions,
+  defaultHourlyRate = 290,
   redirectAfterSuccess,
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [hourlyRate, setHourlyRate] = useState('290')
+  const [hourlyRate, setHourlyRate] = useState(String(defaultHourlyRate))
   const [adminNotes, setAdminNotes] = useState(initialFlightRecord.customer_notes ?? '')
   const [landings, setLandings] = useState(numberInputValue(initialFlightRecord.landings))
   const [readings, setReadings] = useState<AircraftReadingsFormValues>({
@@ -91,7 +93,8 @@ export default function AdminStandardBillingPanel({
       try {
         await fn()
         if (redirectAfterSuccess) {
-          router.push(redirectAfterSuccess)
+          router.replace(redirectAfterSuccess)
+          return
         }
         router.refresh()
       } catch (actionError) {
@@ -204,17 +207,14 @@ export default function AdminStandardBillingPanel({
   }
 
   return (
-    <div className="bg-white/5 border border-white/5 rounded-2xl p-6 md:p-8 space-y-8">
-
-      {/* Header */}
+    <div className="rounded-2xl border border-[var(--admin-border)] bg-white p-6 md:p-8 space-y-8 shadow-[var(--admin-shadow-panel)]">
       <div>
-        <h2 className="text-base font-semibold text-white mb-1">Flight Billing</h2>
-        <p className="text-sm text-slate-500 leading-relaxed">
+        <h2 className="text-base font-semibold text-[var(--admin-text)] mb-1">Flight Billing</h2>
+        <p className="text-sm text-[var(--admin-text-muted)] leading-relaxed">
           Review and finalise the pilot-submitted aircraft readings. The calculated VDO total is the billing source of truth.
         </p>
       </div>
 
-      {/* ── A. Aircraft Readings ──────────────────────────────────────────────── */}
       <section className="space-y-4">
         <SectionHeading>A. Aircraft Readings</SectionHeading>
         <AircraftReadingsForm
@@ -230,25 +230,22 @@ export default function AdminStandardBillingPanel({
           disabled={isPending}
         />
         {readingsError && (
-          <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {readingsError}
           </div>
         )}
       </section>
 
-      {/* ── B. Billing Rate & Landing Charges ────────────────────────────────── */}
       <section className="space-y-5">
         <SectionHeading>B. Billing Rate &amp; Landing Charges</SectionHeading>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-          {/* Hourly Rate */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-[var(--admin-text)] mb-2">
               Hourly rate
             </label>
             <div className="relative max-w-xs">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--admin-text-muted)]">$</span>
               <input
                 type="number"
                 min="0.01"
@@ -256,23 +253,22 @@ export default function AdminStandardBillingPanel({
                 value={hourlyRate}
                 onChange={(e) => setHourlyRate(e.target.value)}
                 disabled={isPending}
-                className="w-full bg-[#0a0b0d] border border-white/10 rounded-lg pl-7 pr-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-slate-500/50 min-h-[40px]"
+                className="w-full bg-white border border-[var(--admin-border)] rounded-lg pl-7 pr-3 py-2.5 text-sm text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)] min-h-[40px]"
               />
             </div>
           </div>
 
-          {/* Airport Landing Charges */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-slate-300">
+              <label className="text-sm font-medium text-[var(--admin-text)]">
                 Airport landings
-                <span className="ml-1.5 text-[10px] text-slate-600 font-normal">(optional)</span>
+                <span className="ml-1.5 text-[10px] text-[var(--admin-text-muted)] font-normal">(optional)</span>
               </label>
               <button
                 type="button"
                 onClick={addLandingRow}
                 disabled={isPending || airports.length === 0}
-                className="flex items-center gap-1 text-[11px] text-[#a7c8ff]/60 hover:text-[#a7c8ff] transition-colors disabled:opacity-40"
+                className="flex items-center gap-1 text-[11px] text-[#1a4fd6] hover:text-[#152d5a] transition-colors disabled:opacity-40"
               >
                 <span className="material-symbols-outlined text-[14px]">add_circle</span>
                 Add Airport
@@ -282,7 +278,7 @@ export default function AdminStandardBillingPanel({
             <div className="space-y-2">
               {landingRows.map((row, index) => {
                 const rowError = landingRowErrors[index]
-                const count    = Number(row.landingCount)
+                const count = Number(row.landingCount)
                 const rowTotal = row.airportId && Number.isInteger(count) && count > 0
                   ? LANDING_FEE_CENTS * count
                   : 0
@@ -294,7 +290,7 @@ export default function AdminStandardBillingPanel({
                         value={row.airportId}
                         onChange={(e) => handleLandingChange(row.id, 'airportId', e.target.value)}
                         disabled={isPending}
-                        className="flex-1 bg-[#0a0b0d] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-slate-500/50 min-w-0 min-h-[40px]"
+                        className="flex-1 bg-white border border-[var(--admin-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)] min-w-0 min-h-[40px]"
                       >
                         <option value="">Select airport…</option>
                         {airports.map((airport) => (
@@ -310,10 +306,10 @@ export default function AdminStandardBillingPanel({
                         value={row.landingCount}
                         onChange={(e) => handleLandingChange(row.id, 'landingCount', e.target.value)}
                         disabled={isPending}
-                        className="w-16 bg-[#0a0b0d] border border-white/10 rounded-lg px-2 py-2.5 text-sm text-slate-200 text-center focus:outline-none focus:border-slate-500/50 min-h-[40px]"
+                        className="w-16 bg-white border border-[var(--admin-border)] rounded-lg px-2 py-2.5 text-sm text-[var(--admin-text)] text-center focus:outline-none focus:border-[rgba(26,79,214,0.35)] min-h-[40px]"
                       />
                       <div className="w-16 text-right flex-shrink-0 py-2.5">
-                        <span className="text-sm font-mono text-slate-400">
+                        <span className="text-sm font-mono text-[var(--admin-text-muted)]">
                           {rowTotal > 0 ? `$${(rowTotal / 100).toFixed(2)}` : '—'}
                         </span>
                       </div>
@@ -321,13 +317,13 @@ export default function AdminStandardBillingPanel({
                         type="button"
                         onClick={() => removeLandingRow(row.id)}
                         disabled={isPending || landingRows.length <= 1}
-                        className="flex-shrink-0 p-2 text-slate-600 hover:text-rose-400 transition-colors disabled:opacity-30"
+                        className="flex-shrink-0 p-2 text-[var(--admin-text-muted)] hover:text-rose-500 transition-colors disabled:opacity-30"
                       >
                         <span className="material-symbols-outlined text-[16px]">remove_circle</span>
                       </button>
                     </div>
                     {rowError && (
-                      <p className="text-xs text-rose-400/80 pl-1">{rowError}</p>
+                      <p className="text-xs text-rose-500/80 pl-1">{rowError}</p>
                     )}
                   </div>
                 )
@@ -337,46 +333,45 @@ export default function AdminStandardBillingPanel({
         </div>
       </section>
 
-      {/* ── C. Invoice Summary ────────────────────────────────────────────────── */}
       {totals && validHourlyRate && (
         <section className="space-y-4">
           <SectionHeading>C. Invoice Summary</SectionHeading>
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-5 py-4 space-y-3">
+          <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] px-5 py-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-500">Calculated VDO total</span>
-              <span className="text-sm font-mono tabular-nums text-slate-300">
+              <span className="text-sm text-[var(--admin-text-muted)]">Calculated VDO total</span>
+              <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
                 {vdoReading?.toFixed(1) ?? '—'} h
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-500">Aircraft hire</span>
-              <span className="text-sm font-mono tabular-nums text-slate-300">
+              <span className="text-sm text-[var(--admin-text-muted)]">Aircraft hire</span>
+              <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
                 ${(vdoBaseCents / 100).toFixed(2)}
               </span>
             </div>
             {landingSubtotalCents > 0 && (
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Landing charges</span>
-                <span className="text-sm font-mono tabular-nums text-slate-300">
+                <span className="text-sm text-[var(--admin-text-muted)]">Landing charges</span>
+                <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
                   ${(landingSubtotalCents / 100).toFixed(2)}
                 </span>
               </div>
             )}
-            <div className="border-t border-white/[0.06] pt-3 flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-300">Invoice total</span>
-              <span className="text-base font-bold font-mono tabular-nums text-white">
+            <div className="border-t border-[var(--admin-border)] pt-3 flex items-center justify-between">
+              <span className="text-sm font-medium text-[var(--admin-text)]">Invoice total</span>
+              <span className="text-base font-bold font-mono tabular-nums text-[#1a4fd6]">
                 ${(subtotalCents / 100).toFixed(2)}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-500">Credit applied</span>
-              <span className={`text-sm font-mono tabular-nums ${creditApplicable > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
+              <span className="text-sm text-[var(--admin-text-muted)]">Credit applied</span>
+              <span className={`text-sm font-mono tabular-nums ${creditApplicable > 0 ? 'text-emerald-600' : 'text-[var(--admin-text-muted)]'}`}>
                 ${((creditApplicable ?? 0) / 100).toFixed(2)}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-300">Estimated amount due</span>
-              <span className="text-lg font-bold font-mono tabular-nums text-white">
+              <span className="text-sm font-semibold text-[var(--admin-text)]">Estimated amount due</span>
+              <span className="text-lg font-bold font-mono tabular-nums text-[#152d5a]">
                 ${(estimatedAmountDue / 100).toFixed(2)}
               </span>
             </div>
@@ -384,23 +379,20 @@ export default function AdminStandardBillingPanel({
         </section>
       )}
 
-      {/* Error */}
       {error && (
-        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       )}
 
-      {/* Submit */}
       <button
         type="button"
         onClick={handleSubmit}
         disabled={isPending}
-        className="w-full rounded-xl bg-blue-600 hover:bg-blue-500 text-white px-4 py-3.5 text-sm font-semibold transition-colors disabled:opacity-50"
+        className="w-full rounded-xl bg-[#1a4fd6] hover:bg-[#1540a8] text-white px-4 py-3.5 text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm"
       >
         {isPending ? 'Finalising…' : 'Finalise Flight Billing'}
       </button>
-
     </div>
   )
 }
@@ -408,10 +400,10 @@ export default function AdminStandardBillingPanel({
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-3">
-      <p className="text-[11px] font-bold uppercase tracking-widest text-[#a7c8ff]/60 whitespace-nowrap">
+      <p className="text-[11px] font-bold uppercase tracking-widest text-[#4b6390] whitespace-nowrap">
         {children}
       </p>
-      <div className="flex-1 h-px bg-white/[0.06]" />
+      <div className="flex-1 h-px bg-[rgba(12,35,64,0.08)]" />
     </div>
   )
 }

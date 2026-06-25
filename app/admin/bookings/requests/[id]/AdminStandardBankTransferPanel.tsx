@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import { adminConfirmStandardBankTransfer, adminRejectStandardBankTransfer } from "@/app/actions/admin-booking"
+import DocumentViewerModal from "@/components/ui/DocumentViewerModal"
+import type { DocumentFile } from "@/components/ui/DocumentViewerModal"
 
 type Submission = {
   id: string
@@ -24,6 +26,9 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [rejectNote, setRejectNote] = useState("")
   const [error, setError]           = useState<string | null>(null)
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [viewerFiles, setViewerFiles] = useState<DocumentFile[]>([])
+  const [viewerTitle, setViewerTitle] = useState('')
 
   const latestSubmission = submissions[0]
   if (!latestSubmission) return null
@@ -115,35 +120,18 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
           {sub.signedReceiptUrl ? (
             <div className="space-y-2">
               <p className="text-[9px] text-slate-600 uppercase tracking-widest">Receipt</p>
-              {sub.signedReceiptUrl.includes(".pdf") ? (
-                <a
-                  href={sub.signedReceiptUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs text-[#a7c8ff] hover:underline"
-                >
-                  <span className="material-symbols-outlined text-[14px]">picture_as_pdf</span>
-                  View PDF Receipt
-                </a>
-              ) : (
-                <div className="relative rounded-lg overflow-hidden border border-white/10 bg-[#050c17] max-h-48">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={sub.signedReceiptUrl}
-                    alt="Bank transfer receipt"
-                    className="w-full object-contain max-h-48"
-                  />
-                  <a
-                    href={sub.signedReceiptUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="absolute bottom-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded bg-black/60 text-[10px] text-white hover:bg-black/80 transition-colors"
-                  >
-                    <span className="material-symbols-outlined text-[12px]">open_in_new</span>
-                    Full size
-                  </a>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setViewerFiles([{ url: sub.signedReceiptUrl!, name: "Bank Transfer Receipt" }])
+                  setViewerTitle("Bank Transfer Receipt")
+                  setViewerOpen(true)
+                }}
+                className="inline-flex items-center gap-1.5 text-xs text-[#a7c8ff] hover:underline"
+              >
+                <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                View Receipt
+              </button>
             </div>
           ) : (
             <p className="text-xs text-slate-600">Receipt URL unavailable</p>
@@ -156,7 +144,7 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
             </div>
           )}
 
-          {sub.status === "pending_review" && (
+      {sub.status === "pending_review" && (
             <div className="pt-3 border-t border-amber-500/15 space-y-3">
               {error && <p className="text-xs text-red-400">{error}</p>}
 
@@ -209,6 +197,13 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
           )}
         </div>
       ))}
+
+      <DocumentViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        files={viewerFiles}
+        title={viewerTitle}
+      />
     </div>
   )
 }

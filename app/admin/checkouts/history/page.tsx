@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { unstable_noStore as noStore } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import {
@@ -78,6 +79,7 @@ export default async function CheckoutHistoryPage() {
     const payment = inv?.status ? inv.status.replace(/_/g, ' ') : 'No Payment Record'
     return {
       id: b.id,
+      ownerId: b.booking_owner_user_id,
       bookingRef: b.booking_reference ?? b.id.slice(0, 8).toUpperCase(),
       customer: fullName(owner, b.pic_name),
       submitted: b.created_at,
@@ -123,8 +125,12 @@ export default async function CheckoutHistoryPage() {
             return (
               <tr key={r.id} className="border-t border-[var(--admin-divider)] hover:bg-[var(--admin-row-hover)] transition-colors">
                 <td className="px-5 py-[16px]">
-                  <p className="text-lg leading-tight font-semibold text-[var(--admin-text)]">{r.customer}</p>
-                  <p className="text-sm text-[var(--admin-text-muted)] mt-1">{r.bookingRef}</p>
+                  <Link href={`/admin/users/${r.ownerId}`} className="text-lg leading-tight font-semibold text-[var(--admin-text)] hover:underline hover:text-blue-400 transition-colors">
+                    {r.customer}
+                  </Link>
+                  <Link href={`/admin/bookings/requests/${r.id}`} className="text-sm text-[var(--admin-text-muted)] mt-1 hover:underline hover:text-blue-400 transition-colors font-mono">
+                    {r.bookingRef}
+                  </Link>
                 </td>
                 <td className="px-5 py-[16px] text-[14px] text-[var(--admin-text)]">{new Date(r.submitted).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
                 <td className="px-5 py-[16px] text-[14px] text-[var(--admin-text)]">{r.scheduled ? new Date(r.scheduled).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '-'}</td>

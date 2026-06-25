@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import AdminPortalHero from '@/components/AdminPortalHero'
 import RequestClarificationFormWrapper from './RequestClarificationFormWrapper'
+import AttachmentViewer from './AttachmentViewer'
 import AdminStandardBillingPanel from '@/app/admin/bookings/requests/[id]/AdminStandardBillingPanel'
 import { formatDateTime } from '@/lib/formatDateTime'
 import type { FlightRecordClarification, FlightRecordAttachment } from '@/lib/supabase/booking-types'
@@ -35,7 +36,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
     .single()
 
   if (!record) {
-    return <div className="p-10 text-white">Record not found.</div>
+    return <div className="p-10 text-[var(--admin-text)]">Record not found.</div>
   }
 
   const aircraft   = Array.isArray(record.aircraft) ? record.aircraft[0] : record.aircraft
@@ -71,7 +72,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
 
   const statusBadge = STATUS_BADGE[record.status] ?? {
     label: record.status,
-    cls:   'bg-white/5 text-slate-400 border-white/10',
+    cls:   'bg-slate-100 text-slate-600 border-slate-200',
   }
 
   // Fetch evidence attachments + generate signed URLs (1-hour expiry)
@@ -130,7 +131,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
 
   return (
     <div>
-      <Link href="/admin/bookings/post-flight" className="text-blue-400 hover:text-blue-300 text-sm mb-6 inline-flex items-center gap-1">
+      <Link href="/admin/bookings/post-flight" className="text-[#1a4fd6] hover:text-[#152d5a] text-sm mb-6 inline-flex items-center gap-1.5 font-medium">
         <span className="material-symbols-outlined text-[16px]">arrow_back</span>
         Back to Queue
       </Link>
@@ -164,23 +165,23 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
 
       {/* Awaiting customer banner */}
       {awaitingCustomer && latestOpen && (
-        <div className="mb-8 p-5 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex gap-4">
+        <div className="mb-8 p-5 bg-amber-50 border border-amber-200 rounded-2xl flex gap-4 shadow-sm">
           <span className="material-symbols-outlined text-amber-400 text-xl flex-shrink-0 mt-0.5">hourglass_empty</span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-amber-300 mb-1">Awaiting customer response</p>
-            <p className="text-xs text-slate-400 mb-3">
+            <p className="text-sm font-medium text-amber-700 mb-1">Awaiting customer response</p>
+            <p className="text-xs text-[var(--admin-text-muted)] mb-3">
               A clarification request was sent. The flight record is locked until the customer resubmits.
             </p>
-            <div className="bg-amber-500/[0.06] border border-amber-500/15 rounded-xl p-4 space-y-2">
+            <div className="bg-white border border-amber-100 rounded-xl p-4 space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400/60">Category</span>
-                <span className="text-xs text-amber-300/80 font-medium">{latestOpen.category}</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">Category</span>
+                <span className="text-xs text-amber-700 font-medium">{latestOpen.category}</span>
               </div>
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400/60 block mb-1">Message sent</span>
-                <p className="text-sm text-slate-300 leading-relaxed">{latestOpen.message}</p>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500 block mb-1">Message sent</span>
+                <p className="text-sm text-[var(--admin-text)] leading-relaxed">{latestOpen.message}</p>
               </div>
-              <p className="text-[10px] text-slate-600">
+              <p className="text-[10px] text-[var(--admin-text-muted)]">
                 Sent {new Date(latestOpen.created_at).toLocaleDateString('en-AU', {
                   timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric',
                 })}
@@ -192,9 +193,9 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
 
       {/* Resubmitted banner */}
       {record.status === 'resubmitted' && (
-        <div className="mb-8 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center gap-3">
+        <div className="mb-8 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 shadow-sm">
           <span className="material-symbols-outlined text-emerald-400 text-lg">refresh</span>
-          <p className="text-sm text-emerald-300">
+          <p className="text-sm text-emerald-700">
             Customer has resubmitted this flight record for review. Please check the updated readings below.
           </p>
         </div>
@@ -202,23 +203,23 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
 
       {/* Clarification history */}
       {clarifications && clarifications.length > 0 && (
-        <div className="mb-8 bg-white/5 border border-white/5 rounded-2xl p-6">
-          <h3 className="text-xs font-light tracking-widest text-slate-400 uppercase mb-4">Clarification History</h3>
+        <div className="mb-8 rounded-2xl border border-[var(--admin-border)] bg-white p-6 shadow-[var(--admin-shadow-panel)]">
+          <h3 className="text-xs font-semibold tracking-widest text-[var(--admin-text-muted)] uppercase mb-4">Clarification History</h3>
           <div className="space-y-3">
             {(clarifications as FlightRecordClarification[]).map((c, i) => (
-              <div key={c.id} className={`p-4 rounded-xl border text-sm ${c.is_resolved ? 'bg-white/[0.02] border-white/5 opacity-60' : 'bg-amber-500/[0.04] border-amber-500/15'}`}>
+              <div key={c.id} className={`p-4 rounded-xl border text-sm ${c.is_resolved ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-amber-50 border-amber-100'}`}>
                 <div className="flex items-center justify-between gap-3 mb-2">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider ${c.is_resolved ? 'text-slate-500' : 'text-amber-400'}`}>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${c.is_resolved ? 'text-[var(--admin-text-muted)]' : 'text-amber-600'}`}>
                     {i === 0 ? 'Latest' : `Cycle ${clarifications.length - i}`} · {c.category}
                   </span>
                   {c.is_resolved && (
-                    <span className="text-[10px] text-emerald-500/70 flex items-center gap-1">
+                    <span className="text-[10px] text-emerald-600 flex items-center gap-1">
                       <span className="material-symbols-outlined text-[12px]">check</span>
                       Resolved
                     </span>
                   )}
                 </div>
-                <p className="text-slate-300">{c.message}</p>
+                <p className="text-[var(--admin-text)]">{c.message}</p>
               </div>
             ))}
           </div>
@@ -228,45 +229,45 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
       <div className="space-y-6">
 
         {/* Flight Summary */}
-        <div className="bg-white/5 border border-white/5 rounded-2xl p-6">
-          <h3 className="text-lg font-light tracking-wide text-white mb-6">Flight Summary</h3>
+        <div className="rounded-2xl border border-[var(--admin-border)] bg-white p-6 shadow-[var(--admin-shadow-panel)]">
+          <h3 className="text-lg font-semibold tracking-wide text-[var(--admin-text)] mb-6">Flight Summary</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div>
-              <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Date</p>
-              <p className="text-sm border-b border-white/10 pb-2 tabular-nums">{record.date}</p>
+              <p className="text-[10px] uppercase tracking-widest text-[var(--admin-text-muted)] mb-1">Date</p>
+              <p className="text-sm border-b border-[var(--admin-border)] pb-2 tabular-nums text-[var(--admin-text)]">{record.date}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">PIC Name</p>
-              <p className="text-sm border-b border-white/10 pb-2">{record.pic_name || '—'}</p>
+              <p className="text-[10px] uppercase tracking-widest text-[var(--admin-text-muted)] mb-1">PIC Name</p>
+              <p className="text-sm border-b border-[var(--admin-border)] pb-2 text-[var(--admin-text)]">{record.pic_name || '—'}</p>
             </div>
             <div className="col-span-2">
-              <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Scheduled Window</p>
-              <p className="text-sm border-b border-white/10 pb-2 tabular-nums text-slate-300">
+              <p className="text-[10px] uppercase tracking-widest text-[var(--admin-text-muted)] mb-1">Scheduled Window</p>
+              <p className="text-sm border-b border-[var(--admin-border)] pb-2 tabular-nums text-[var(--admin-text)]">
                 {startStr} &mdash; {endStr}
               </p>
             </div>
           </div>
           {record.customer_notes && (
-            <div className="mt-6 p-4 rounded-xl bg-white/[0.02] border border-white/5">
-              <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500 mb-2">Customer Remarks</p>
-              <p className="text-sm text-slate-300 italic">&quot;{record.customer_notes}&quot;</p>
+            <div className="mt-6 p-4 rounded-xl bg-[#f7f9fc] border border-[var(--admin-border)]">
+              <p className="text-[10px] font-medium uppercase tracking-widest text-[var(--admin-text-muted)] mb-2">Customer Remarks</p>
+              <p className="text-sm text-[var(--admin-text)] italic">&quot;{record.customer_notes}&quot;</p>
             </div>
           )}
         </div>
 
         {/* Meter Readings */}
-        <div className="bg-white/5 border border-white/5 rounded-2xl overflow-hidden">
-          <h3 className="text-lg font-light tracking-wide text-white px-6 py-5 bg-white/[0.02] border-b border-white/5">Meter Readings</h3>
+        <div className="rounded-2xl border border-[var(--admin-border)] bg-white overflow-hidden shadow-[var(--admin-shadow-panel)]">
+          <h3 className="text-lg font-semibold tracking-wide text-[var(--admin-text)] px-6 py-5 bg-[#f7f9fc] border-b border-[var(--admin-border)]">Meter Readings</h3>
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-[#111316]/50">
-              <tr className="border-b border-white/5 text-slate-500">
+            <thead className="bg-[#f7f9fc]">
+              <tr className="border-b border-[var(--admin-border)] text-[var(--admin-text-muted)]">
                 <th className="px-6 py-4 font-normal">Type</th>
                 <th className="px-6 py-4 font-normal text-right">Start</th>
                 <th className="px-6 py-4 font-normal text-right">Stop</th>
                 <th className="px-6 py-4 font-normal text-right">Total</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-[var(--admin-border)]">
               {[
                 { label: 'Tacho',      start: record.tacho_start,      stop: record.tacho_stop,      total: record.tacho_total      },
                 { label: 'VDO',        start: record.vdo_start,        stop: record.vdo_stop,        total: record.vdo_total        },
@@ -274,10 +275,10 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
                 { label: 'MR',         start: record.mr_start,         stop: record.mr_stop,         total: record.mr_total         },
               ].map(row => (
                 <tr key={row.label}>
-                  <td className="px-6 py-4 font-medium text-slate-300">{row.label}</td>
-                  <td className="px-6 py-4 text-right tabular-nums">{row.start ?? '—'}</td>
-                  <td className="px-6 py-4 text-right tabular-nums">{row.stop ?? '—'}</td>
-                  <td className="px-6 py-4 text-right tabular-nums font-bold text-blue-200">{row.total ?? '—'}</td>
+                  <td className="px-6 py-4 font-medium text-[var(--admin-text)]">{row.label}</td>
+                  <td className="px-6 py-4 text-right tabular-nums text-[var(--admin-text)]">{row.start ?? '—'}</td>
+                  <td className="px-6 py-4 text-right tabular-nums text-[var(--admin-text)]">{row.stop ?? '—'}</td>
+                  <td className="px-6 py-4 text-right tabular-nums font-bold text-[#1a4fd6]">{row.total ?? '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -292,78 +293,26 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
             customerCreditCents={customerCreditCents}
             initialFlightRecord={record}
             startSuggestions={flightLogStartSuggestions}
+            defaultHourlyRate={(aircraft as { default_hourly_rate?: number } | null)?.default_hourly_rate ?? undefined}
             redirectAfterSuccess="/admin/bookings/post-flight"
           />
         )}
 
-        {/* Billing locked notice */}
-        {awaitingCustomer && !isStandardBillingReady && (
-          <div className="bg-amber-500/[0.06] border border-amber-500/20 rounded-2xl p-6 flex items-start gap-3">
-            <span className="material-symbols-outlined text-amber-400 text-[20px] flex-shrink-0 mt-0.5">lock</span>
-            <div>
-              <p className="text-sm font-medium text-amber-300 mb-1">Billing Locked</p>
-              <p className="text-sm text-slate-500 leading-relaxed">
-                A clarification request is open. Billing is locked until the customer resubmits the flight record.
-              </p>
-            </div>
+      {/* Billing locked notice */}
+      {awaitingCustomer && !isStandardBillingReady && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex items-start gap-3 shadow-sm">
+          <span className="material-symbols-outlined text-amber-500 text-[20px] flex-shrink-0 mt-0.5">lock</span>
+          <div>
+            <p className="text-sm font-medium text-amber-700 mb-1">Billing Locked</p>
+            <p className="text-sm text-[var(--admin-text-muted)] leading-relaxed">
+              A clarification request is open. Billing is locked until the customer resubmits the flight record.
+            </p>
           </div>
-        )}
-
-        {/* Evidence Photos */}
-        <div className="bg-white/5 border border-white/5 rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-xs font-light tracking-widest text-slate-400 uppercase">Evidence Photos</h3>
-            <span className="text-[10px] text-slate-600 uppercase tracking-widest">
-              {attachments.length} file{attachments.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-          {attachments.length === 0 ? (
-            <div className="h-20 flex items-center justify-center text-sm text-slate-600 bg-white/[0.02] rounded-xl border border-white/5">
-              No evidence photos uploaded.
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {attachments.map(att => (
-                <div key={att.id} className="group relative aspect-square rounded-xl overflow-hidden border border-white/10 bg-[#0a0c10]">
-                  {att.signedUrl ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={att.signedUrl}
-                      alt={att.file_name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <span className="material-symbols-outlined text-slate-600 text-3xl">image_not_supported</span>
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-end">
-                    <div className="w-full p-2 translate-y-full group-hover:translate-y-0 transition-transform">
-                      <p className="text-[9px] text-white/80 truncate leading-tight">{att.file_name}</p>
-                      <p className="text-[8px] text-white/40">
-                        {new Date(att.created_at).toLocaleDateString('en-AU', {
-                          timeZone: 'Australia/Sydney',
-                          day: 'numeric', month: 'short',
-                        })}
-                        {att.file_size != null && ` · ${(att.file_size / 1024).toFixed(0)} KB`}
-                      </p>
-                    </div>
-                  </div>
-                  {att.signedUrl && (
-                    <a
-                      href={att.signedUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-lg bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <span className="material-symbols-outlined text-white text-[13px]">open_in_new</span>
-                    </a>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
+      )}
+
+      {/* Evidence Photos */}
+      <AttachmentViewer attachments={(attachments as AttachmentWithUrl[]).filter((att): att is AttachmentWithUrl & { signedUrl: string } => !!att.signedUrl)} />
 
         {/* Request Clarification */}
         {!awaitingCustomer && canRequestClarification && customerId && bookingId && (

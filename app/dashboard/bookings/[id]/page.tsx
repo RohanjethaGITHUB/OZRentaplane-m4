@@ -1153,36 +1153,36 @@ export default async function BookingDetailPage({ params }: PageProps) {
           />
 
           {/* Content grid — same container as dashboard content section */}
-          <div className="max-w-[1280px] mx-auto px-6 md:px-10 xl:px-12 pt-8 pb-16">
-            <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6 items-start">
+          <div className="max-w-[1280px] mx-auto px-4 sm:px-6 md:px-8 xl:px-12 pt-8 pb-16">
+            <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 items-start">
 
               {/* ── Left column ─────────────────────────────────────────── */}
-              <div className="space-y-4">
+              <div className="space-y-4 lg:sticky lg:top-6">
 
                 {/* Flight Details */}
-                <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
-                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#1a4fd6] mb-5">
+                <div className="bg-white border border-[#dbe7f4] rounded-[1.5rem] p-6 shadow-[0_8px_24px_rgba(21,45,90,0.06)]">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] mb-5">
                     Flight Details
                   </h3>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-start gap-4">
-                      <span className="text-xs text-[#4b6390] uppercase tracking-wide flex-shrink-0">Aircraft</span>
-                      <span className="text-sm text-[#152d5a] font-medium text-right">
+                  <div className="space-y-3">
+                    <div className="rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] p-3.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#4b6390] block mb-1">Aircraft</span>
+                      <span className="text-sm text-[#152d5a] font-medium">
                         {aircraft?.registration ?? '—'}
                         {aircraftTypeShort ? ` (${aircraftTypeShort})` : ''}
                       </span>
                     </div>
-                    <div className="flex justify-between items-start gap-4">
-                      <span className="text-xs text-[#4b6390] uppercase tracking-wide flex-shrink-0">Pilot In Command</span>
-                      <span className="text-sm text-[#152d5a] text-right">{booking.pic_name ?? '—'}</span>
+                    <div className="rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] p-3.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#4b6390] block mb-1">Pilot In Command</span>
+                      <span className="text-sm text-[#152d5a]">{booking.pic_name ?? '—'}</span>
                     </div>
-                    <div className="flex justify-between items-start gap-4">
-                      <span className="text-xs text-[#4b6390] uppercase tracking-wide flex-shrink-0">ARN</span>
-                      <span className="text-sm text-[#152d5a] font-mono text-right">{booking.pic_arn ?? '—'}</span>
+                    <div className="rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] p-3.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#4b6390] block mb-1">ARN</span>
+                      <span className="text-sm text-[#152d5a] font-mono">{booking.pic_arn ?? '—'}</span>
                     </div>
-                    <div className="flex justify-between items-start gap-4">
-                      <span className="text-xs text-[#4b6390] uppercase tracking-wide flex-shrink-0">Date</span>
-                      <span className="text-sm text-[#152d5a] text-right">
+                    <div className="rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] p-3.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#4b6390] block mb-1">Date</span>
+                      <span className="text-sm text-[#152d5a]">
                         {formatDateFromISO(booking.scheduled_start)}
                       </span>
                     </div>
@@ -1190,17 +1190,17 @@ export default async function BookingDetailPage({ params }: PageProps) {
                 </div>
 
                 {/* Status Journey */}
-                <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
-                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#1a4fd6] mb-5">
+                <div className="bg-white border border-[#dbe7f4] rounded-[1.5rem] p-6 shadow-[0_8px_24px_rgba(21,45,90,0.06)]">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] mb-5">
                     Status Journey
                   </h3>
                   <ol className="space-y-0">
                     {JOURNEY.map((step, idx) => (
-                      <li key={step.label} className="flex gap-3 pb-5 last:pb-0 relative">
+                      <li key={step.label} className="flex gap-4 pb-5 last:pb-0 relative">
                         {idx < JOURNEY.length - 1 && (
                           <div
                             className={`absolute left-[11px] top-6 bottom-0 w-[2px] ${
-                              step.state === 'done' ? 'bg-oz-blue/40' : 'bg-white/10'
+                              step.state === 'done' ? 'bg-gradient-to-b from-blue-400/60 to-blue-200/20' : 'bg-[#dbe7f4]'
                             }`}
                           />
                         )}
@@ -1209,8 +1209,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
                             step.state === 'done'
                               ? 'bg-[#1a4fd6] border-[#1a4fd6]'
                               : step.state === 'active'
-                              ? 'border-amber-400 bg-transparent'
-                              : 'border-[#152d5a]/20 bg-transparent'
+                              ? 'border-amber-400 bg-amber-50'
+                              : 'border-[#cbdcf0] bg-white'
                           }`}
                         >
                           {step.state === 'done' && (
@@ -1226,11 +1226,11 @@ export default async function BookingDetailPage({ params }: PageProps) {
                           )}
                         </div>
                         <div className="pt-0.5">
-                          <p className={`text-sm ${
+                          <p className={`text-sm font-medium ${
                             step.state === 'done'
                               ? 'text-[#1a4fd6]'
                               : step.state === 'active'
-                              ? 'text-amber-600'
+                              ? 'text-amber-700'
                               : 'text-[#4b6390]'
                           }`}>
                             {step.label}
@@ -1242,8 +1242,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
                 </div>
 
                 {/* Next Steps */}
-                <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
-                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#1a4fd6] mb-4">
+                <div className="bg-white border border-[#dbe7f4] rounded-[1.5rem] p-6 shadow-[0_8px_24px_rgba(21,45,90,0.06)]">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] mb-4">
                     Next Steps
                   </h3>
                   <ul className="space-y-3">
@@ -1252,7 +1252,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
                       'Discrepancies may delay the finalization of the flight record.',
                       'Final billing will be processed upon approval.',
                     ].map((item, i) => (
-                      <li key={i} className="flex items-start gap-2.5">
+                      <li key={i} className="flex items-start gap-2.5 rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] px-3 py-2.5">
                         <span className="material-symbols-outlined text-[#1a4fd6]/50 text-sm mt-0.5 flex-shrink-0">
                           chevron_right
                         </span>
@@ -1265,7 +1265,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
               </div>
 
               {/* ── Right column — form ──────────────────────────────────── */}
-              <div>
+              <div className="lg:pt-0">
                 <FlightRecordForm
                   bookingId={booking.id}
                   picName={booking.pic_name}

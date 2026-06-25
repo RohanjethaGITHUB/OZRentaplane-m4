@@ -11,6 +11,8 @@ import { getDocumentSignedUrl } from '@/app/actions/documents'
 import { saveLastFlightDate } from '@/app/actions/verification'
 import { acceptCurrentBookingTermsFromReadiness, saveNightVfrRatingFromReadiness } from '@/app/actions/booking-readiness'
 import { validateFlightReviewDate, getFlightReviewCutoff } from '@/lib/utils/flight-review'
+import DocumentViewerModal from '@/components/ui/DocumentViewerModal'
+import type { DocumentFile } from '@/components/ui/DocumentViewerModal'
 import {
   TERMS_END_TEXT,
   TERMS_LAST_UPDATED,
@@ -265,6 +267,10 @@ export default function BookingReadinessInlinePanel({
   const [termsError, setTermsError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const [isTermsPending, startTermsTransition] = useTransition()
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [viewerFiles, setViewerFiles] = useState<DocumentFile[]>([])
+  const [viewerInitialIndex, setViewerInitialIndex] = useState(0)
+  const [viewerTitle, setViewerTitle] = useState('')
 
   const today = new Date().toISOString().slice(0, 10)
   const docMap = useMemo(() => {
@@ -280,7 +286,11 @@ export default function BookingReadinessInlinePanel({
     setViewLoadingType(docType)
     try {
       const url = await getDocumentSignedUrl(docType)
-      window.open(url, '_blank', 'noopener,noreferrer')
+      const def = DOC_DEFS.find((item) => item.type === docType)
+      setViewerFiles([{ url, name: def?.label ?? 'Document' }])
+      setViewerInitialIndex(0)
+      setViewerTitle(def?.label ?? 'Document')
+      setViewerOpen(true)
     } catch {
       setSaveError('Could not open document. Please try again.')
     } finally {
@@ -423,6 +433,14 @@ export default function BookingReadinessInlinePanel({
       ) : null}
       {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
       {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
+
+      <DocumentViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        files={viewerFiles}
+        initialIndex={viewerInitialIndex}
+        title={viewerTitle}
+      />
 
       <div className="flex flex-wrap gap-3">
         {awaitingAdminOnly ? (

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import AdminPortalHero from '@/components/AdminPortalHero'
 import { TabLink } from '@/app/admin/components/AdminUi'
+import { AdminRowActionButton, AdminStatusBadge } from '@/app/admin/components/AdminListView'
 
 type Tab = 'all' | 'payment_required' | 'manual_review' | 'pending' | 'paid' | 'refunded' | 'cancelled'
 
@@ -13,18 +14,50 @@ function getTab(v?: string): Tab {
 
 export const metadata = { title: 'Booking Payments | Admin' }
 
+function formatCurrency(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`
+}
+
+function paymentStatusMeta(status: string) {
+  switch (status) {
+    case 'payment_required':
+      return { label: 'Payment Required', tone: 'amber' as const }
+    case 'bank_transfer_pending_review':
+    case 'manual_review':
+      return { label: 'Manual Review', tone: 'amber' as const }
+    case 'pending':
+      return { label: 'Pending', tone: 'blue' as const }
+    case 'paid':
+      return { label: 'Paid', tone: 'emerald' as const }
+    case 'refunded':
+    case 'void':
+      return { label: 'Refunded', tone: 'red' as const }
+    case 'cancelled':
+      return { label: 'Cancelled', tone: 'slate' as const }
+    default:
+      return { label: status.replace(/_/g, ' '), tone: 'slate' as const }
+  }
+}
+
+function methodLabel(method: string) {
+  return method.replace(/_/g, ' ')
+}
+
 export default async function BookingPaymentsPage({ searchParams }: { searchParams: { tab?: string } }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const tab = getTab(searchParams.tab)
-  const [{ data: invoices }, { data: manualSubs }] = await Promise.all([
+  const [{ data: invoices }, { data: manualReviewInvoices }] = await Promise.all([
     supabase.from('booking_invoices').select('id, booking_id, status, payment_method, subtotal_cents, stripe_amount_due_cents, total_paid_cents, created_at, updated_at, paid_at').order('updated_at', { ascending: false }),
-    supabase.from('booking_bank_transfer_submissions').select('id, booking_id, status, amount, submitted_at').order('submitted_at', { ascending: false }),
+    supabase.from('booking_invoices').select('id, booking_id, status, payment_method, subtotal_cents, stripe_amount_due_cents, total_paid_cents, created_at, updated_at, paid_at').eq('status', 'bank_transfer_pending_review').order('updated_at', { ascending: false }),
   ])
 
-  const bookingIds = Array.from(new Set([...(invoices ?? []).map((i) => i.booking_id).filter(Boolean), ...(manualSubs ?? []).map((s) => s.booking_id).filter(Boolean)]))
+  const bookingIds = Array.from(new Set([
+    ...(invoices ?? []).map((i) => i.booking_id).filter(Boolean),
+    ...(manualReviewInvoices ?? []).map((i) => i.booking_id).filter(Boolean),
+  ]))
   const { data: bookingRows } = bookingIds.length ? await supabase.from('bookings').select('id, booking_reference, pic_name, booking_owner_user_id, scheduled_start').in('id', bookingIds) : { data: [] }
   const customerIds = Array.from(new Set((bookingRows ?? []).map((b: any) => b.booking_owner_user_id).filter(Boolean)))
   const { data: customerRows } = customerIds.length ? await supabase.from('profiles').select('id, first_name, last_name, full_name, email').in('id', customerIds) : { data: [] }
@@ -41,21 +74,22 @@ export default async function BookingPaymentsPage({ searchParams }: { searchPara
   }
 
   const rows = (tab === 'manual_review'
-    ? (manualSubs ?? []).filter((s) => s.status === 'pending_review').map((s) => {
-        const customer = customerForBooking(s.booking_id)
-        const b: any = bookingMap.get(s.booking_id)
+    ? (manualReviewInvoices ?? []).map((i) => {
+        const customer = customerForBooking(i.booking_id)
+        const b: any = bookingMap.get(i.booking_id)
         return {
-          id: s.id,
+          id: i.id,
+          ownerId: b?.booking_owner_user_id ?? null,
           customer: customer.name,
           email: customer.email,
-          booking_ref: b?.booking_reference ?? (s.booking_id ? s.booking_id.slice(0, 8).toUpperCase() : '—'),
+          booking_ref: b?.booking_reference ?? (i.booking_id ? i.booking_id.slice(0, 8).toUpperCase() : '—'),
           flight_date: b?.scheduled_start,
-          amount_cents: Math.round((Number(s.amount) || 0) * 100),
-          status: 'manual_review',
-          method: 'bank_transfer',
-          created: s.submitted_at,
-          updated: s.submitted_at,
-          href: s.booking_id ? `/admin/bookings/requests/${s.booking_id}` : '/admin/bookings/payments',
+          amount_cents: i.stripe_amount_due_cents ?? i.subtotal_cents ?? 0,
+          status: i.status,
+          method: i.payment_method ?? 'bank_transfer',
+          created: i.created_at,
+          updated: i.updated_at,
+          href: i.booking_id ? `/admin/bookings/requests/${i.booking_id}` : '/admin/bookings/payments',
         }
       })
     : (invoices ?? [])
@@ -71,11 +105,12 @@ export default async function BookingPaymentsPage({ searchParams }: { searchPara
         .map((i) => {
           const customer = customerForBooking(i.booking_id)
           const b: any = bookingMap.get(i.booking_id)
-          return {
-            id: i.id,
-            customer: customer.name,
-            email: customer.email,
-            booking_ref: b?.booking_reference ?? (i.booking_id ? i.booking_id.slice(0, 8).toUpperCase() : '—'),
+        return {
+          id: i.id,
+          ownerId: b?.booking_owner_user_id ?? null,
+          customer: customer.name,
+          email: customer.email,
+          booking_ref: b?.booking_reference ?? (i.booking_id ? i.booking_id.slice(0, 8).toUpperCase() : '—'),
             flight_date: b?.scheduled_start,
             amount_cents: i.status === 'paid' ? (i.total_paid_cents ?? 0) : (i.stripe_amount_due_cents ?? i.subtotal_cents ?? 0),
             status: i.status,
@@ -88,7 +123,7 @@ export default async function BookingPaymentsPage({ searchParams }: { searchPara
 
   const totalCollected = (invoices ?? []).filter((i) => i.status === 'paid').reduce((sum, i) => sum + (i.total_paid_cents ?? 0), 0)
   const outstanding = (invoices ?? []).filter((i) => ['payment_required', 'pending'].includes(i.status)).reduce((sum, i) => sum + (i.stripe_amount_due_cents ?? 0), 0)
-  const manualReviewCount = (manualSubs ?? []).filter((s) => s.status === 'pending_review').length
+  const manualReviewCount = (manualReviewInvoices ?? []).length
   const refunds = (invoices ?? []).filter((i) => ['refunded', 'void'].includes(i.status)).length
 
   const tabs: Array<{ key: Tab; label: string }> = [
@@ -105,37 +140,103 @@ export default async function BookingPaymentsPage({ searchParams }: { searchPara
     <>
       <AdminPortalHero eyebrow="Bookings" title="Booking Payments" subtitle="Payment operations for standard flight bookings." />
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24 space-y-5">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-slate-300">Total collected: <span className="text-emerald-300">${(totalCollected / 100).toFixed(2)}</span></div>
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-slate-300">Outstanding: <span className="text-amber-300">${(outstanding / 100).toFixed(2)}</span></div>
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-slate-300">Manual review: <span className="text-orange-300">{manualReviewCount}</span></div>
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-slate-300">Refunded items: <span className="text-rose-300">{refunds}</span></div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="rounded-[var(--admin-radius-xl)] border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-5 shadow-[var(--admin-shadow-panel)]">
+            <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--admin-text-muted)] font-semibold">Total collected</p>
+            <p className="mt-4 text-3xl font-semibold text-[var(--admin-text)]">{formatCurrency(totalCollected)}</p>
+            <p className="mt-1 text-sm text-[var(--admin-text-muted)]">Settled payments across booking invoices.</p>
+          </div>
+          <div className="rounded-[var(--admin-radius-xl)] border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-5 shadow-[var(--admin-shadow-panel)]">
+            <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--admin-text-muted)] font-semibold">Outstanding</p>
+            <p className="mt-4 text-3xl font-semibold text-[var(--admin-warning)]">{formatCurrency(outstanding)}</p>
+            <p className="mt-1 text-sm text-[var(--admin-text-muted)]">Amount still awaiting customer payment.</p>
+          </div>
+          <div className="rounded-[var(--admin-radius-xl)] border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-5 shadow-[var(--admin-shadow-panel)]">
+            <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--admin-text-muted)] font-semibold">Manual review</p>
+            <p className="mt-4 text-3xl font-semibold text-[#b45309]">{manualReviewCount}</p>
+            <p className="mt-1 text-sm text-[var(--admin-text-muted)]">Bank transfer submissions pending review.</p>
+          </div>
+          <div className="rounded-[var(--admin-radius-xl)] border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-5 shadow-[var(--admin-shadow-panel)]">
+            <p className="text-[10px] uppercase tracking-[0.22em] text-[var(--admin-text-muted)] font-semibold">Refunded items</p>
+            <p className="mt-4 text-3xl font-semibold text-[#991b1b]">{refunds}</p>
+            <p className="mt-1 text-sm text-[var(--admin-text-muted)]">Invoices marked refunded or void.</p>
+          </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 flex flex-wrap gap-2">
+        <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 flex flex-wrap gap-2 shadow-[var(--admin-shadow-panel)]">
           {tabs.map((t) => <TabLink key={t.key} active={tab === t.key} href={`/admin/bookings/payments?tab=${t.key}`} label={t.label} />)}
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]">
-          <table className="w-full text-sm">
-            <thead className="bg-[#111316] text-slate-400"><tr><th className="px-4 py-3 text-left">Customer</th><th className="px-4 py-3 text-left">Email</th><th className="px-4 py-3 text-left">Booking Reference</th><th className="px-4 py-3 text-left">Flight Date</th><th className="px-4 py-3 text-left">Amount</th><th className="px-4 py-3 text-left">Payment Status</th><th className="px-4 py-3 text-left">Method</th><th className="px-4 py-3 text-left">Created / Updated</th><th className="px-4 py-3 text-right">Action</th></tr></thead>
-            <tbody className="divide-y divide-white/10">
-              {rows.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No payment records for this filter.</td></tr>}
-              {rows.map((r) => (
-                <tr key={r.id} className="hover:bg-white/[0.03] text-slate-200">
-                  <td className="px-4 py-3">{r.customer}</td>
-                  <td className="px-4 py-3 text-slate-300">{r.email}</td>
-                  <td className="px-4 py-3">{r.booking_ref}</td>
-                  <td className="px-4 py-3">{r.flight_date ? new Date(r.flight_date).toLocaleString('en-AU') : '—'}</td>
-                  <td className="px-4 py-3">${(r.amount_cents / 100).toFixed(2)}</td>
-                  <td className="px-4 py-3 capitalize">{r.status.replace(/_/g, ' ')}</td>
-                  <td className="px-4 py-3 capitalize">{r.method.replace(/_/g, ' ')}</td>
-                  <td className="px-4 py-3 text-slate-400">{r.created ? new Date(r.created).toLocaleString('en-AU') : '—'} · {r.updated ? new Date(r.updated).toLocaleString('en-AU') : '—'}</td>
-                  <td className="px-4 py-3 text-right"><Link href={r.href} className="text-blue-300 hover:text-blue-200">View</Link></td>
+        <div className="overflow-hidden rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] shadow-[var(--admin-shadow-panel)]">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm whitespace-nowrap">
+              <thead className="bg-white/70 text-[var(--admin-text-muted)]">
+                <tr className="border-b border-[var(--admin-divider)]">
+                  <th className="px-5 py-4 text-left font-semibold uppercase tracking-[0.12em] text-[11px]">Customer</th>
+                  <th className="px-5 py-4 text-left font-semibold uppercase tracking-[0.12em] text-[11px]">Email</th>
+                  <th className="px-5 py-4 text-left font-semibold uppercase tracking-[0.12em] text-[11px]">Booking Reference</th>
+                  <th className="px-5 py-4 text-left font-semibold uppercase tracking-[0.12em] text-[11px]">Flight Date</th>
+                  <th className="px-5 py-4 text-left font-semibold uppercase tracking-[0.12em] text-[11px]">Amount</th>
+                  <th className="px-5 py-4 text-left font-semibold uppercase tracking-[0.12em] text-[11px]">Payment Status</th>
+                  <th className="px-5 py-4 text-left font-semibold uppercase tracking-[0.12em] text-[11px]">Method</th>
+                  <th className="px-5 py-4 text-left font-semibold uppercase tracking-[0.12em] text-[11px]">Created / Updated</th>
+                  <th className="px-5 py-4 text-right font-semibold uppercase tracking-[0.12em] text-[11px]">Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[var(--admin-divider)]">
+                {rows.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="px-5 py-14 text-center text-[var(--admin-text-muted)]">
+                      No payment records for this filter.
+                    </td>
+                  </tr>
+                )}
+                {rows.map((r) => {
+                  const statusMeta = paymentStatusMeta(r.status)
+                  return (
+                    <tr key={r.id} className="text-[var(--admin-text-muted)] hover:bg-[#f6f9fd] transition-colors">
+                      <td className="px-5 py-4 font-medium text-[var(--admin-text)]">
+                        {r.ownerId ? (
+                          <Link href={`/admin/users/${r.ownerId}`} className="hover:underline hover:text-blue-400 transition-colors">
+                            {r.customer}
+                          </Link>
+                        ) : (
+                          r.customer
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-[var(--admin-text-muted)]">{r.email}</td>
+                      <td className="px-5 py-4 font-medium text-[var(--admin-text)]">
+                        <Link href={`/admin/bookings/requests/${r.id}`} className="hover:underline hover:text-blue-400 transition-colors font-mono">
+                          {r.booking_ref}
+                        </Link>
+                      </td>
+                      <td className="px-5 py-4 text-[var(--admin-text)]">{r.flight_date ? new Date(r.flight_date).toLocaleString('en-AU') : '—'}</td>
+                      <td className="px-5 py-4 font-medium text-[var(--admin-text)]">{formatCurrency(r.amount_cents)}</td>
+                      <td className="px-5 py-4">
+                        <AdminStatusBadge label={statusMeta.label} tone={statusMeta.tone} />
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className="inline-flex items-center rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel-bg-soft)] px-2.5 py-1 text-xs font-medium text-[var(--admin-text)]">
+                          {methodLabel(r.method)}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-[var(--admin-text)]">
+                        <div>{r.created ? new Date(r.created).toLocaleString('en-AU') : '—'}</div>
+                        <div className="mt-1 text-[11px] text-[var(--admin-text-muted)]">
+                          Updated: {r.updated ? new Date(r.updated).toLocaleString('en-AU') : '—'}
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <div className="inline-flex justify-end">
+                          <AdminRowActionButton href={r.href} label="View" />
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </>

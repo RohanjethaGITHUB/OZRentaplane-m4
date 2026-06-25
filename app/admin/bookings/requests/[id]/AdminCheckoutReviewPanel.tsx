@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   confirmCheckoutBooking,
@@ -12,6 +13,8 @@ import { updateDocumentStatus } from '@/app/actions/verification'
 import { sydneyInputToUTC } from '@/lib/utils/sydney-time'
 import { formatDate, formatDateTime } from '@/lib/formatDateTime'
 import CalendarDateField from '@/components/CalendarDateField'
+import DocumentViewerModal from '@/components/ui/DocumentViewerModal'
+import type { DocumentFile } from '@/components/ui/DocumentViewerModal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import type { VerificationEvent } from '@/lib/supabase/types'
 import {
@@ -130,12 +133,14 @@ function DocRow({
   docType,
   customerId,
   statusOverride,
+  onOpenDocumentViewer,
 }: {
   label:      string
   doc:        DocSummary | undefined
   docType:    string
   customerId: string
   statusOverride?: string
+  onOpenDocumentViewer: (files: NonNullable<DocSummary['files']>, index: number, title: string) => void
 }) {
   const today   = new Date().toISOString().split('T')[0]!
   const expired = doc?.expiry_date && doc.expiry_date < today
@@ -144,19 +149,6 @@ function DocRow({
   const [actionPending, setActionPending] = useState<'approved' | 'rejected' | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [currentStatus, setCurrentStatus] = useState(doc?.status ?? '')
-
-  async function handleViewFile(index: number, storagePath: string) {
-    setViewLoadingIndex(index)
-    setViewError(null)
-    try {
-      const url = await getSignedDocumentUrl(storagePath)
-      window.open(url, '_blank', 'noopener,noreferrer')
-    } catch {
-      setViewError('Could not open file.')
-    } finally {
-      setViewLoadingIndex(null)
-    }
-  }
 
   async function handleDocAction(newStatus: 'approved' | 'rejected') {
     if (!doc?.id) return
@@ -236,21 +228,23 @@ function DocRow({
         {doc && (
           <div className="flex items-center gap-3 sm:gap-4 justify-between sm:justify-end flex-shrink-0 w-full sm:w-auto">
             <div className="flex items-center gap-2">
-              {(doc.files && doc.files.length > 0)
-                ? doc.files.map((f, i) => (
+              {(() => {
+                const documentFiles = doc.files ?? []
+                return documentFiles.length > 0
+                  ? documentFiles.map((f, fileIndex) => (
                     <button
                       key={f.id}
-                      onClick={() => handleViewFile(i, f.storage_path)}
-                      disabled={viewLoadingIndex === i}
-                      title={f.file_name ?? `File ${i + 1}`}
+                      onClick={() => onOpenDocumentViewer(documentFiles, fileIndex, label)}
+                      disabled={viewLoadingIndex === fileIndex}
+                      title={f.file_name ?? `File ${fileIndex + 1}`}
                       className="inline-flex items-center gap-1 text-xs text-[#1a4fd6] hover:text-[#152d5a] font-medium transition-colors disabled:opacity-40 whitespace-nowrap underline-offset-2 hover:underline"
                     >
                       <Eye className="w-3.5 h-3.5" />
-                      {doc.files!.length > 1 ? `File ${i + 1}` : 'View'}
+                      {documentFiles.length > 1 ? `File ${fileIndex + 1}` : 'View'}
                     </button>
                   ))
-                : <span className="text-xs text-gray-300 italic">No file</span>
-              }
+                  : <span className="text-xs text-gray-300 italic">No file</span>
+              })()}
             </div>
 
             <div className="flex items-center gap-1.5 w-[180px] justify-end">
@@ -406,6 +400,10 @@ export default function AdminCheckoutReviewPanel({
   const messageTextareaRef        = useRef<HTMLTextAreaElement>(null)
   const timeSectionRef            = useRef<HTMLDivElement>(null)
   const bottomRef                 = useRef<HTMLDivElement>(null)
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [viewerFiles, setViewerFiles] = useState<DocumentFile[]>([])
+  const [viewerInitialIndex, setViewerInitialIndex] = useState(0)
+  const [viewerTitle, setViewerTitle] = useState('')
 
   const chatEvents = messages
     .filter(isChatEvent)
@@ -517,6 +515,23 @@ export default function AdminCheckoutReviewPanel({
     }
   }
 
+  async function openDocumentViewer(
+    files: NonNullable<DocSummary['files']>,
+    index: number,
+    title: string,
+  ) {
+    const viewerDocs = await Promise.all(
+      files.map(async (file) => ({
+        url: await getSignedDocumentUrl(file.storage_path),
+        name: file.file_name,
+      })),
+    )
+    setViewerFiles(viewerDocs)
+    setViewerInitialIndex(index)
+    setViewerTitle(title)
+    setViewerOpen(true)
+  }
+
   // ── Derived doc lookups ───────────────────────────────────────────────────────
   const licenceDoc        = documents.find(d => d.document_type === 'pilot_licence')
   const medicalDoc        = documents.find(d => d.document_type === 'medical_certificate')
@@ -554,7 +569,9 @@ export default function AdminCheckoutReviewPanel({
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Name</p>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-medium text-[#152d5a]">{customerName || 'Unknown'}</p>
+              <Link href={`/admin/users/${customerId}`} className="text-sm font-medium text-[#152d5a] underline decoration-[#152d5a]/20 underline-offset-2 hover:text-blue-400">
+                {customerName || 'Unknown'}
+              </Link>
             </div>
           </div>
           <div>
@@ -587,15 +604,16 @@ export default function AdminCheckoutReviewPanel({
         </div>
 
         <div className="space-y-0">
-          <DocRow label="Pilot Licence" doc={licenceDoc} docType="pilot_licence" customerId={customerId} />
-          <DocRow label="Medical Certificate" doc={medicalDoc} docType="medical_certificate" customerId={customerId} />
-          <DocRow label="Photo ID" doc={photoIdDoc} docType="photo_id" customerId={customerId} />
+          <DocRow label="Pilot Licence" doc={licenceDoc} docType="pilot_licence" customerId={customerId} onOpenDocumentViewer={openDocumentViewer} />
+          <DocRow label="Medical Certificate" doc={medicalDoc} docType="medical_certificate" customerId={customerId} onOpenDocumentViewer={openDocumentViewer} />
+          <DocRow label="Photo ID" doc={photoIdDoc} docType="photo_id" customerId={customerId} onOpenDocumentViewer={openDocumentViewer} />
           <DocRow
             label="Night VFR"
             doc={nightVfrEvidenceDoc}
             docType="night_vfr_evidence"
             customerId={customerId}
             statusOverride={nightVfrEvidenceDoc ? 'Claimed' : undefined}
+            onOpenDocumentViewer={openDocumentViewer}
           />
         </div>
 
@@ -891,6 +909,14 @@ export default function AdminCheckoutReviewPanel({
         variant="danger"
         onCancel={() => setCancelConfirmOpen(false)}
         onConfirm={handleCancelCheckout}
+      />
+
+      <DocumentViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        files={viewerFiles}
+        initialIndex={viewerInitialIndex}
+        title={viewerTitle}
       />
     </div>
   )

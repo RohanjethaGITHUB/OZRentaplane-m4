@@ -36,12 +36,12 @@ function numericString(value: string): number | null {
 
 function inputClass(compact = false) {
   return compact
-    ? 'w-full bg-[#0a0b0d] border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50'
-    : 'w-full bg-[#0a0b0d] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50'
+    ? 'w-full bg-white border border-[var(--admin-border)] rounded-lg px-3 py-2 text-sm text-[var(--admin-text)] placeholder:text-[var(--admin-text-muted)] focus:outline-none focus:border-[rgba(26,79,214,0.35)]'
+    : 'w-full bg-white border border-[var(--admin-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--admin-text)] placeholder:text-[var(--admin-text-muted)] focus:outline-none focus:border-[rgba(26,79,214,0.35)]'
 }
 
 const wideInput =
-  'w-full bg-[#0a0b0d] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 min-h-[40px]'
+  'w-full bg-white border border-[var(--admin-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--admin-text)] placeholder:text-[var(--admin-text-muted)] focus:outline-none focus:border-[rgba(26,79,214,0.35)] min-h-[40px]'
 
 export default function AircraftReadingsForm({
   values,
@@ -56,34 +56,28 @@ export default function AircraftReadingsForm({
   compact = false,
   tableLayout = false,
 }: Props) {
-
-  // ── Wide table layout (used in admin billing panel) ──────────────────────────
   if (tableLayout) {
     return (
       <div className="space-y-6">
-
-        {/* ── Meter Readings ─────────────────────────────────────────────── */}
         <div>
-          {/* Desktop table */}
-          <div className="hidden md:block rounded-xl border border-white/10 overflow-hidden">
-            {/* Header row */}
+          <div className="hidden md:block rounded-xl border border-[var(--admin-border)] overflow-hidden bg-white shadow-sm">
             <div
-              className="grid bg-white/[0.04] border-b border-white/10 px-4 py-3"
+              className="grid bg-[#f6f9fd] border-b border-[var(--admin-border)] px-4 py-3"
               style={{ gridTemplateColumns: '120px 130px 1fr 1fr 100px' }}
             >
-              <span className="text-[10px] uppercase tracking-widest text-slate-500 font-medium">Reading</span>
-              <span className="text-[10px] uppercase tracking-widest text-slate-500 font-medium">Prev. Stop</span>
-              <span className="text-[10px] uppercase tracking-widest text-slate-500 font-medium">Start</span>
-              <span className="text-[10px] uppercase tracking-widest text-slate-500 font-medium">Stop</span>
-              <span className="text-[10px] uppercase tracking-widest text-slate-500 font-medium text-right">Total</span>
+              <span className="text-[10px] uppercase tracking-widest text-[var(--admin-text-muted)] font-medium">Reading</span>
+              <span className="text-[10px] uppercase tracking-widest text-[var(--admin-text-muted)] font-medium">Prev. Stop</span>
+              <span className="text-[10px] uppercase tracking-widest text-[var(--admin-text-muted)] font-medium">Start</span>
+              <span className="text-[10px] uppercase tracking-widest text-[var(--admin-text-muted)] font-medium">Stop</span>
+              <span className="text-[10px] uppercase tracking-widest text-[var(--admin-text-muted)] font-medium text-right">Total</span>
             </div>
 
             {METER_GROUPS.map(({ label, prefix }, idx) => {
               const startField = `${prefix}_start` as keyof AircraftReadingsFormValues
-              const stopField  = `${prefix}_stop`  as keyof AircraftReadingsFormValues
+              const stopField = `${prefix}_stop` as keyof AircraftReadingsFormValues
               const startValue = values[startField] ?? ''
-              const stopValue  = values[stopField]  ?? ''
-              const total      = calcReadingTotal(numericString(startValue), numericString(stopValue))
+              const stopValue = values[stopField] ?? ''
+              const total = calcReadingTotal(numericString(startValue), numericString(stopValue))
               const baselineValue = startBaseline?.[startField as keyof AircraftContinuityBaseline]
               const hasMismatch =
                 showContinuityWarnings &&
@@ -94,12 +88,12 @@ export default function AircraftReadingsForm({
               return (
                 <div key={prefix}>
                   <div
-                    className={`grid items-center px-4 py-3 border-b border-white/[0.05] ${idx % 2 === 0 ? 'bg-white/[0.015]' : ''}`}
+                    className={`grid items-center px-4 py-3 border-b border-[var(--admin-border)] ${idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fbfe]'}`}
                     style={{ gridTemplateColumns: '120px 130px 1fr 1fr 100px' }}
                   >
-                    <span className="text-sm font-medium text-slate-200">{label}</span>
-                    <span className="text-sm text-slate-500 font-mono tabular-nums pr-4">
-                      {baselineValue != null ? baselineValue.toFixed(1) : <span className="text-slate-700">—</span>}
+                    <span className="text-sm font-medium text-[var(--admin-text)]">{label}</span>
+                    <span className="text-sm text-[var(--admin-text-muted)] font-mono tabular-nums pr-4">
+                      {baselineValue != null ? baselineValue.toFixed(1) : <span className="text-[var(--admin-text-muted)]">—</span>}
                     </span>
                     <div className="pr-3">
                       <input
@@ -124,7 +118,7 @@ export default function AircraftReadingsForm({
                       />
                     </div>
                     <div className="text-right">
-                      <span className={`text-sm font-mono tabular-nums ${total == null ? 'text-slate-700' : 'text-white font-semibold'}`}>
+                      <span className={`text-sm font-mono tabular-nums ${total == null ? 'text-[var(--admin-text-muted)]' : 'text-[var(--admin-text)] font-semibold'}`}>
                         {total == null ? '—' : total.toFixed(1)}
                       </span>
                     </div>
@@ -148,14 +142,13 @@ export default function AircraftReadingsForm({
             })}
           </div>
 
-          {/* Mobile cards */}
           <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-3">
             {METER_GROUPS.map(({ label, prefix }) => {
               const startField = `${prefix}_start` as keyof AircraftReadingsFormValues
-              const stopField  = `${prefix}_stop`  as keyof AircraftReadingsFormValues
+              const stopField = `${prefix}_stop` as keyof AircraftReadingsFormValues
               const startValue = values[startField] ?? ''
-              const stopValue  = values[stopField]  ?? ''
-              const total      = calcReadingTotal(numericString(startValue), numericString(stopValue))
+              const stopValue = values[stopField] ?? ''
+              const total = calcReadingTotal(numericString(startValue), numericString(stopValue))
               const baselineValue = startBaseline?.[startField as keyof AircraftContinuityBaseline]
               const hasMismatch =
                 showContinuityWarnings &&
@@ -164,18 +157,18 @@ export default function AircraftReadingsForm({
                 Number(startValue) !== baselineValue
 
               return (
-                <div key={prefix} className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
+                <div key={prefix} className="rounded-xl border border-[var(--admin-border)] bg-white p-4 space-y-3 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-slate-200">{label}</p>
+                    <p className="text-sm font-semibold text-[var(--admin-text)]">{label}</p>
                     {baselineValue != null && (
-                      <span className="text-[10px] text-slate-600 font-mono tabular-nums">
+                      <span className="text-[10px] text-[var(--admin-text-muted)] font-mono tabular-nums">
                         prev. {baselineValue.toFixed(1)}
                       </span>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
-                      <span className="text-[11px] text-slate-400 block mb-1.5">Start</span>
+                      <span className="text-[11px] text-[var(--admin-text-muted)] block mb-1.5">Start</span>
                       <input
                         type="number"
                         step="0.1"
@@ -187,7 +180,7 @@ export default function AircraftReadingsForm({
                       />
                     </label>
                     <label className="block">
-                      <span className="text-[11px] text-slate-400 block mb-1.5">Stop</span>
+                      <span className="text-[11px] text-[var(--admin-text-muted)] block mb-1.5">Stop</span>
                       <input
                         type="number"
                         step="0.1"
@@ -199,9 +192,9 @@ export default function AircraftReadingsForm({
                       />
                     </label>
                   </div>
-                  <div className="flex items-center justify-between pt-0.5 border-t border-white/5">
-                    <span className="text-[11px] text-slate-500">Total</span>
-                    <span className={`text-sm font-mono tabular-nums ${total == null ? 'text-slate-700' : 'text-white font-semibold'}`}>
+                  <div className="flex items-center justify-between pt-0.5 border-t border-[var(--admin-border)]">
+                    <span className="text-[11px] text-[var(--admin-text-muted)]">Total</span>
+                    <span className={`text-sm font-mono tabular-nums ${total == null ? 'text-[var(--admin-text-muted)]' : 'text-[var(--admin-text)] font-semibold'}`}>
                       {total == null ? '—' : total.toFixed(1)}
                     </span>
                   </div>
@@ -224,16 +217,17 @@ export default function AircraftReadingsForm({
           </div>
         </div>
 
-        {/* ── Consumables & Landings ─────────────────────────────────────── */}
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--admin-text-muted)] mb-3">
             Consumables & Landings
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <label className="block">
-              <span className="text-[11px] text-slate-400 block mb-1.5">Oil Added</span>
+              <span className="text-[11px] text-[var(--admin-text-muted)] block mb-1.5">Oil Added</span>
               <input
-                type="number" step="0.1" min="0"
+                type="number"
+                step="0.1"
+                min="0"
                 value={values['oil_added'] ?? ''}
                 onChange={(e) => onChange('oil_added' as keyof AircraftReadingsFormValues, e.target.value)}
                 disabled={disabled}
@@ -241,9 +235,11 @@ export default function AircraftReadingsForm({
               />
             </label>
             <label className="block">
-              <span className="text-[11px] text-slate-400 block mb-1.5">Oil Total</span>
+              <span className="text-[11px] text-[var(--admin-text-muted)] block mb-1.5">Oil Total</span>
               <input
-                type="number" step="0.1" min="0"
+                type="number"
+                step="0.1"
+                min="0"
                 value={values['oil_total'] ?? ''}
                 onChange={(e) => onChange('oil_total' as keyof AircraftReadingsFormValues, e.target.value)}
                 disabled={disabled}
@@ -251,9 +247,11 @@ export default function AircraftReadingsForm({
               />
             </label>
             <label className="block">
-              <span className="text-[11px] text-slate-400 block mb-1.5">Fuel Added</span>
+              <span className="text-[11px] text-[var(--admin-text-muted)] block mb-1.5">Fuel Added</span>
               <input
-                type="number" step="0.1" min="0"
+                type="number"
+                step="0.1"
+                min="0"
                 value={values['fuel_added'] ?? ''}
                 onChange={(e) => onChange('fuel_added' as keyof AircraftReadingsFormValues, e.target.value)}
                 disabled={disabled}
@@ -261,9 +259,11 @@ export default function AircraftReadingsForm({
               />
             </label>
             <label className="block">
-              <span className="text-[11px] text-slate-400 block mb-1.5">Fuel Returned</span>
+              <span className="text-[11px] text-[var(--admin-text-muted)] block mb-1.5">Fuel Returned</span>
               <input
-                type="number" step="0.1" min="0"
+                type="number"
+                step="0.1"
+                min="0"
                 value={values['fuel_returned'] ?? ''}
                 onChange={(e) => onChange('fuel_returned' as keyof AircraftReadingsFormValues, e.target.value)}
                 disabled={disabled}
@@ -274,9 +274,11 @@ export default function AircraftReadingsForm({
           {onLandingsChange && (
             <div className="mt-3">
               <label className="block max-w-[160px]">
-                <span className="text-[11px] text-slate-400 block mb-1.5">Landings</span>
+                <span className="text-[11px] text-[var(--admin-text-muted)] block mb-1.5">Landings</span>
                 <input
-                  type="number" min="0" step="1"
+                  type="number"
+                  min="0"
+                  step="1"
                   value={landings ?? ''}
                   onChange={(e) => onLandingsChange(e.target.value)}
                   disabled={disabled}
@@ -287,10 +289,9 @@ export default function AircraftReadingsForm({
           )}
         </div>
 
-        {/* ── Admin Notes ────────────────────────────────────────────────── */}
         {onNotesChange && (
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--admin-text-muted)] mb-3">
               Admin Notes
             </p>
             <textarea
@@ -299,25 +300,23 @@ export default function AircraftReadingsForm({
               onChange={(e) => onNotesChange(e.target.value)}
               disabled={disabled}
               placeholder="Optional notes for internal reference…"
-              className="w-full bg-[#0a0b0d] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50"
+              className="w-full bg-white border border-[var(--admin-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--admin-text)] placeholder:text-[var(--admin-text-muted)] focus:outline-none focus:border-[rgba(26,79,214,0.35)]"
             />
           </div>
         )}
-
       </div>
     )
   }
 
-  // ── Default compact / normal card layout ─────────────────────────────────────
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
         {METER_GROUPS.map(({ label, prefix }) => {
           const startField = `${prefix}_start` as keyof AircraftReadingsFormValues
-          const stopField  = `${prefix}_stop`  as keyof AircraftReadingsFormValues
+          const stopField = `${prefix}_stop` as keyof AircraftReadingsFormValues
           const startValue = values[startField] ?? ''
-          const stopValue  = values[stopField]  ?? ''
-          const total      = calcReadingTotal(numericString(startValue), numericString(stopValue))
+          const stopValue = values[stopField] ?? ''
+          const total = calcReadingTotal(numericString(startValue), numericString(stopValue))
           const baselineValue = startBaseline?.[startField as keyof AircraftContinuityBaseline]
           const hasContinuityMismatch =
             showContinuityWarnings &&
@@ -326,10 +325,10 @@ export default function AircraftReadingsForm({
             Number(startValue) !== baselineValue
 
           return (
-            <div key={prefix} className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2">
-              <p className="text-xs uppercase tracking-widest text-slate-400">{label}</p>
+            <div key={prefix} className="rounded-xl border border-[var(--admin-border)] bg-white p-3 space-y-2 shadow-sm">
+              <p className="text-xs uppercase tracking-widest text-[var(--admin-text-muted)]">{label}</p>
               <label className="block">
-                <span className="text-[11px] text-slate-400 block mb-1">Start</span>
+                <span className="text-[11px] text-[var(--admin-text-muted)] block mb-1">Start</span>
                 <input
                   type="number"
                   step="0.1"
@@ -341,7 +340,7 @@ export default function AircraftReadingsForm({
                 />
               </label>
               <label className="block">
-                <span className="text-[11px] text-slate-400 block mb-1">Stop</span>
+                <span className="text-[11px] text-[var(--admin-text-muted)] block mb-1">Stop</span>
                 <input
                   type="number"
                   step="0.1"
@@ -353,11 +352,11 @@ export default function AircraftReadingsForm({
                 />
               </label>
               <label className="block">
-                <span className="text-[11px] text-slate-400 block mb-1">Total</span>
+                <span className="text-[11px] text-[var(--admin-text-muted)] block mb-1">Total</span>
                 <input
                   value={total == null ? '' : total.toFixed(1)}
                   readOnly
-                  className="w-full bg-slate-800/30 border border-white/5 rounded-lg px-3 py-2.5 text-sm text-slate-400"
+                  className="w-full bg-[#f7f9fc] border border-[var(--admin-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--admin-text-muted)]"
                 />
               </label>
               {hasContinuityMismatch && (
@@ -371,13 +370,13 @@ export default function AircraftReadingsForm({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
-        <Field label="Oil added"      name="oil_added"      values={values} onChange={onChange} disabled={disabled} compact={compact} />
-        <Field label="Oil Total"      name="oil_total"      values={values} onChange={onChange} disabled={disabled} compact={compact} />
-        <Field label="Fuel added"     name="fuel_added"     values={values} onChange={onChange} disabled={disabled} compact={compact} />
-        <Field label="Fuel Returned"  name="fuel_returned"  values={values} onChange={onChange} disabled={disabled} compact={compact} />
+        <Field label="Oil added" name="oil_added" values={values} onChange={onChange} disabled={disabled} compact={compact} />
+        <Field label="Oil Total" name="oil_total" values={values} onChange={onChange} disabled={disabled} compact={compact} />
+        <Field label="Fuel added" name="fuel_added" values={values} onChange={onChange} disabled={disabled} compact={compact} />
+        <Field label="Fuel Returned" name="fuel_returned" values={values} onChange={onChange} disabled={disabled} compact={compact} />
         {onLandingsChange ? (
           <label className="block">
-            <span className="text-[11px] text-slate-400 block mb-1">Landings</span>
+            <span className="text-[11px] text-[var(--admin-text-muted)] block mb-1">Landings</span>
             <input
               type="number"
               min="0"
@@ -393,12 +392,12 @@ export default function AircraftReadingsForm({
 
       {onNotesChange ? (
         <label className="block">
-          <span className="text-[11px] text-slate-400 block mb-1">Notes</span>
+          <span className="text-[11px] text-[var(--admin-text-muted)] block mb-1">Notes</span>
           <textarea
             rows={3}
             value={notes ?? ''}
             onChange={(event) => onNotesChange(event.target.value)}
-            className="w-full bg-[#0a0b0d] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50"
+            className="w-full bg-white border border-[var(--admin-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--admin-text)] placeholder:text-[var(--admin-text-muted)] focus:outline-none focus:border-[rgba(26,79,214,0.35)]"
             disabled={disabled}
           />
         </label>
@@ -424,7 +423,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="text-[11px] text-slate-400 block mb-1">{label}</span>
+      <span className="text-[11px] text-[var(--admin-text-muted)] block mb-1">{label}</span>
       <input
         type="number"
         step="0.1"

@@ -750,7 +750,7 @@ export default function CustomerProfileTabs({
       </section>
 
       <section className="sticky top-0 z-10 mb-4 rounded-b-2xl bg-white">
-        <div className="flex border-b-2 border-slate-200 bg-white">
+        <div className="flex overflow-x-auto border-b-2 border-slate-200 bg-white scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             {([
               { key: 'overview', label: 'Overview' },
               { key: 'documents', label: 'Documents' },

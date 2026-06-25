@@ -52,26 +52,26 @@ export default function RequestClarificationForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5 mt-6 pt-6 border-t border-white/10">
-      <h4 className="text-sm font-medium text-amber-300 uppercase tracking-widest">
+    <form onSubmit={handleSubmit} className="space-y-5 mt-6 pt-6 border-t border-[var(--admin-border)]">
+      <h4 className="text-sm font-semibold text-[#152d5a] uppercase tracking-widest">
         Request Clarification
       </h4>
 
       {error && (
-        <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-xs">
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs">
           {error}
         </div>
       )}
 
       {/* Category */}
       <div>
-        <label className="block text-xs font-medium text-slate-400 uppercase tracking-widest mb-2">
+        <label className="block text-xs font-medium text-[var(--admin-text-muted)] uppercase tracking-widest mb-2">
           Category <span className="text-rose-400">*</span>
         </label>
         <select
           value={category}
           onChange={e => setCategory(e.target.value as ClarificationCategory)}
-          className="w-full bg-[#111316] border border-white/10 rounded-lg px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 appearance-none"
+          className="w-full bg-white border border-[var(--admin-border)] rounded-lg px-4 py-2.5 text-sm text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)] focus:ring-1 focus:ring-blue-200 appearance-none"
           required
         >
           <option value="" disabled>Select a category…</option>
@@ -83,7 +83,7 @@ export default function RequestClarificationForm({
 
       {/* Message */}
       <div>
-        <label className="block text-xs font-medium text-slate-400 uppercase tracking-widest mb-2">
+        <label className="block text-xs font-medium text-[var(--admin-text-muted)] uppercase tracking-widest mb-2">
           Message to Customer <span className="text-rose-400">*</span>
         </label>
         <textarea
@@ -91,10 +91,10 @@ export default function RequestClarificationForm({
           onChange={e => setMessage(e.target.value)}
           rows={4}
           placeholder="Describe exactly what the customer needs to provide or correct…"
-          className="w-full bg-[#111316] border border-white/10 rounded-lg px-4 py-3 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 resize-none"
+          className="w-full bg-white border border-[var(--admin-border)] rounded-lg px-4 py-3 text-sm text-[var(--admin-text)] placeholder:text-[var(--admin-text-muted)] focus:outline-none focus:border-[rgba(26,79,214,0.35)] focus:ring-1 focus:ring-blue-200 resize-none"
           required
         />
-        <p className="mt-1 text-[10px] text-slate-600">
+        <p className="mt-1 text-[10px] text-[var(--admin-text-muted)]">
           This message will be emailed to the customer and posted in their messages inbox.
         </p>
       </div>
@@ -103,14 +103,14 @@ export default function RequestClarificationForm({
         <button
           type="submit"
           disabled={loading}
-          className="flex-1 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 disabled:opacity-50 text-amber-300 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"
+          className="flex-1 bg-[#1a4fd6] hover:bg-[#1540a8] border border-[#1a4fd6] disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-colors shadow-sm"
         >
           {loading ? 'Sending…' : 'Send Clarification Request'}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2.5 border border-white/10 hover:border-white/20 text-slate-400 hover:text-white rounded-xl text-xs font-medium transition-colors"
+          className="px-4 py-2.5 border border-[var(--admin-border)] hover:border-[rgba(26,79,214,0.2)] text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] rounded-xl text-xs font-medium transition-colors bg-white"
         >
           Cancel
         </button>

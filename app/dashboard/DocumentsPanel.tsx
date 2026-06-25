@@ -9,7 +9,7 @@ import type {
 } from '@/lib/supabase/types'
 import { uploadVerificationDocument } from '@/app/actions/upload'
 import { acceptTermsAndConditions } from '@/app/actions/terms'
-import { getDocumentSignedUrl, saveRedCardDetails } from '@/app/actions/documents'
+import { getDocumentSignedUrlsForType, saveRedCardDetails } from '@/app/actions/documents'
 import { saveLastFlightDate } from '@/app/actions/verification'
 import { saveNightVfrRatingFromReadiness } from '@/app/actions/booking-readiness'
 import { fmtDate } from '@/lib/utils/format'
@@ -24,6 +24,8 @@ import {
 } from '@/lib/checkout-terms-content'
 import CalendarDateField from '@/components/CalendarDateField'
 import ModalPortal from '@/components/ModalPortal'
+import DocumentViewerModal from '@/components/ui/DocumentViewerModal'
+import type { DocumentFile } from '@/components/ui/DocumentViewerModal'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -596,6 +598,7 @@ function DocumentCard({
   idx,
   canModify,
   onOpen,
+  onViewDocument,
   hasNightVfrRating,
   hasInstrumentRating,
 }: {
@@ -605,6 +608,7 @@ function DocumentCard({
   idx:                  number
   canModify:            boolean
   onOpen:               () => void
+  onViewDocument:       (docType: DocumentType, title: string) => Promise<void>
   hasNightVfrRating?:   boolean | null
   hasInstrumentRating?: boolean | null
   }) {
@@ -615,8 +619,7 @@ function DocumentCard({
     setViewLoading(true)
     setViewError('')
     try {
-      const url = await getDocumentSignedUrl(def.type)
-      window.open(url, '_blank', 'noopener,noreferrer')
+      await onViewDocument(def.type, def.label)
     } catch {
       setViewError('Could not open document. Please try again.')
     } finally {
@@ -869,6 +872,10 @@ export default function DocumentsPanel({
   // status is derived locally — not needed from parent since we no longer gate on verification_status
   const router = useRouter()
   const [modalDocType, setModalDocType] = useState<DocumentType | null>(null)
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const [viewerFiles, setViewerFiles] = useState<DocumentFile[]>([])
+  const [viewerInitialIndex, setViewerInitialIndex] = useState(0)
+  const [viewerTitle, setViewerTitle] = useState('')
   const [nightVfrRating, setNightVfrRating] = useState<boolean | null>(hasNightVfrRating)
   const [nightVfrSaving, setNightVfrSaving] = useState(false)
   const [nightVfrError, setNightVfrError] = useState('')
@@ -989,6 +996,14 @@ export default function DocumentsPanel({
     setModalDocType(docType)
   }
 
+  async function openDocumentViewer(docType: DocumentType, title: string) {
+    const files = await getDocumentSignedUrlsForType(docType)
+    setViewerFiles(files.map((file) => ({ url: file.url, name: file.fileName })))
+    setViewerInitialIndex(0)
+    setViewerTitle(title)
+    setViewerOpen(true)
+  }
+
   function closeModal() {
     setModalDocType(null)
   }
@@ -1098,6 +1113,14 @@ export default function DocumentsPanel({
           onSuccess={handleUploadSuccess}
         />
       )}
+
+      <DocumentViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        files={viewerFiles}
+        initialIndex={viewerInitialIndex}
+        title={viewerTitle}
+      />
 
       <div className="space-y-10 animate-fade-in flex-1 max-w-4xl mx-auto">
 
@@ -1324,6 +1347,7 @@ export default function DocumentsPanel({
               idx={idx}
               canModify={canModify}
               onOpen={() => openModal(def.type)}
+              onViewDocument={openDocumentViewer}
               hasNightVfrRating={def.type === 'pilot_licence' ? hasNightVfrRating : undefined}
               hasInstrumentRating={def.type === 'pilot_licence' ? hasInstrumentRating : undefined}
             />

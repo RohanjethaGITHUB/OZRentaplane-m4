@@ -16,6 +16,7 @@ export default function CheckoutDocumentsStep({
   checkoutGate,
   checkoutGateLoading,
   checkoutGateError,
+  checkoutActionError,
   onRefresh,
   onContinue,
   onBackToStep1,
@@ -27,6 +28,7 @@ export default function CheckoutDocumentsStep({
   checkoutGate: CheckoutDocumentGateState | null
   checkoutGateLoading: boolean
   checkoutGateError: string | null
+  checkoutActionError: string | null
   onRefresh: () => void
   onContinue: () => void
   onBackToStep1: () => void
@@ -55,17 +57,25 @@ export default function CheckoutDocumentsStep({
   const pilotDoc = checkoutGate?.pilotLicenceDoc ?? null
 
   return (
-    <DocumentUploadPanel
-      documents={checkoutGate?.documents ?? []}
-      pilotLicenceDocument={pilotDoc}
-      lastFlightDate={checkoutGate?.lastFlightDate ?? null}
-      hasNightVfrRating={checkoutGate?.hasNightVfrRating ?? null}
-      termsAcceptedAt={checkoutGate?.termsAcceptedAt ?? null}
-      initialRedCardMonth={initialRedCardMonth ?? pilotDoc?.red_card_expiry_month ?? null}
-      initialRedCardYear={initialRedCardYear ?? pilotDoc?.red_card_expiry_year ?? null}
-      onSuccess={onRefresh}
-      onSubmit={(note) => { onNoteChange(note); onContinue() }}
-      onBackToStep1={onBackToStep1}
-    />
+    <div className="space-y-3">
+      {checkoutActionError && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <span className="material-symbols-outlined text-amber-600 text-[18px]">error</span>
+          <p className="text-[13px] text-amber-800">{checkoutActionError}</p>
+        </div>
+      )}
+      <DocumentUploadPanel
+        documents={checkoutGate?.documents ?? []}
+        pilotLicenceDocument={pilotDoc}
+        lastFlightDate={checkoutGate?.lastFlightDate ?? null}
+        hasNightVfrRating={checkoutGate?.hasNightVfrRating ?? null}
+        termsAcceptedAt={checkoutGate?.termsAcceptedAt ?? null}
+        initialRedCardMonth={initialRedCardMonth ?? pilotDoc?.red_card_expiry_month ?? null}
+        initialRedCardYear={initialRedCardYear ?? pilotDoc?.red_card_expiry_year ?? null}
+        onSuccess={onRefresh}
+        onSubmit={(note) => { onNoteChange(note); onContinue() }}
+        onBackToStep1={onBackToStep1}
+      />
+    </div>
   )
 }

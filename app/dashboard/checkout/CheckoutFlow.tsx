@@ -718,6 +718,7 @@ export default function CheckoutFlow({
   const [submitError, setSubmitError]   = useState<string | null>(null)
   const [isPending, startTransition]    = useTransition()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [docsContinueError, setDocsContinueError] = useState<string | null>(null)
 
   // Result state
   const [checkoutResult, setCheckoutResult] = useState<CheckoutBookingResult | null>(null)
@@ -821,6 +822,12 @@ export default function CheckoutFlow({
     }
   })
   const docsGateReady = requiredDocChecks.every((entry) => entry.approved || (!entry.missing && entry.doc?.status !== 'rejected')) && Boolean(currentGateTermAcceptedAt)
+
+  useEffect(() => {
+    if (docsGateReady) {
+      setDocsContinueError(null)
+    }
+  }, [docsGateReady])
 
   // ── Derived time values ────────────────────────────────────────────────────
   // end is always exactly 2 hours after start — never submitted from the client.
@@ -926,7 +933,13 @@ export default function CheckoutFlow({
   }
 
   function handleDocsCheckContinue() {
-    if (!docsGateReady) return
+    if (!docsGateReady) {
+      if (!currentGateTermAcceptedAt) {
+        setDocsContinueError('Please accept the Terms & Conditions before continuing. Tick the checkbox and wait for confirmation before clicking Continue.')
+      }
+      return
+    }
+    setDocsContinueError(null)
     setStep('review')
   }
 
@@ -1418,6 +1431,7 @@ export default function CheckoutFlow({
                 checkoutGate={checkoutGate}
                 checkoutGateLoading={checkoutGateLoading}
                 checkoutGateError={checkoutGateError}
+                checkoutActionError={docsContinueError}
                 onRefresh={() => refreshCheckoutGate(true)}
                 onContinue={handleDocsCheckContinue}
                 onBackToStep1={() => setStep('time')}

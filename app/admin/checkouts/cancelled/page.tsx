@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import {
@@ -29,7 +30,7 @@ export default async function CheckoutCancelledPage() {
         id, checkout_request_id, status, created_at, customer_id,
         original_scheduled_start,
         bookings (
-          id, status, checkout_lifecycle_status, updated_at,
+          id, status, checkout_lifecycle_status, updated_at, booking_owner_user_id, aircraft_id,
           scheduled_start, scheduled_end,
           aircraft ( registration ),
           profiles:booking_owner_user_id ( first_name, last_name, full_name, email )
@@ -40,7 +41,7 @@ export default async function CheckoutCancelledPage() {
     supabase
       .from('bookings')
       .select(`
-        id, status, checkout_lifecycle_status, updated_at,
+        id, status, checkout_lifecycle_status, updated_at, booking_owner_user_id, aircraft_id,
         scheduled_start, scheduled_end,
         aircraft ( registration ),
         profiles:booking_owner_user_id ( first_name, last_name, full_name, email )
@@ -52,6 +53,8 @@ export default async function CheckoutCancelledPage() {
 
   const rows = new Map<string, {
     key: string
+    ownerId: string | null
+    aircraftId: string | null
     customerName: string
     aircraftReg: string
     originalScheduledStart: string | null
@@ -75,6 +78,8 @@ export default async function CheckoutCancelledPage() {
 
     rows.set(row.checkout_request_id, {
       key: row.checkout_request_id,
+      ownerId: booking?.booking_owner_user_id ?? null,
+      aircraftId: booking?.aircraft_id ?? null,
       customerName,
       aircraftReg: aircraft?.registration ?? '—',
       originalScheduledStart: row.original_scheduled_start,
@@ -102,6 +107,8 @@ export default async function CheckoutCancelledPage() {
 
     rows.set(booking.id, {
       key: booking.id,
+      ownerId: booking.booking_owner_user_id ?? null,
+      aircraftId: booking.aircraft_id ?? null,
       customerName,
       aircraftReg: aircraft?.registration ?? '—',
       originalScheduledStart: booking.scheduled_start,
@@ -142,8 +149,24 @@ export default async function CheckoutCancelledPage() {
           >
             {normalized.map((row) => (
               <tr key={row.key} className="border-t border-[var(--admin-divider)] align-top">
-                <td className="px-5 py-4"><div className="text-[var(--admin-text)] font-medium">{row.customerName}</div></td>
-                <td className="px-5 py-4 text-[var(--admin-text-muted)]">{row.aircraftReg}</td>
+                <td className="px-5 py-4">
+                  {row.ownerId ? (
+                    <Link href={`/admin/users/${row.ownerId}`} className="text-[var(--admin-text)] font-medium hover:underline hover:text-blue-400 transition-colors">
+                      {row.customerName}
+                    </Link>
+                  ) : (
+                    <div className="text-[var(--admin-text)] font-medium">{row.customerName}</div>
+                  )}
+                </td>
+                <td className="px-5 py-4 text-[var(--admin-text-muted)]">
+                  {row.aircraftId ? (
+                    <Link href={`/admin/aircraft/${row.aircraftId}`} className="font-mono hover:underline hover:text-blue-400 transition-colors">
+                      {row.aircraftReg}
+                    </Link>
+                  ) : (
+                    <span className="font-mono">{row.aircraftReg}</span>
+                  )}
+                </td>
                 <td className="px-5 py-4 text-[var(--admin-text)]">{formatSydneyDateTime(row.originalScheduledStart)}</td>
                 <td className="px-5 py-4">
                   <AdminStatusBadge

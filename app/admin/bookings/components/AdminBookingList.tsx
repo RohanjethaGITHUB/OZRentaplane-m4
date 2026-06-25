@@ -234,12 +234,20 @@ export default async function AdminBookingList({
                     const actionLabel = basePath.includes('/awaiting-outcome') ? 'Record Outcome' : basePath.includes('/new-requests') ? 'Review' : 'View'
                     return (
                       <tr key={booking.id} className="text-slate-200 hover:bg-white/[0.03]">
-                        <td className="px-4 py-3 text-white font-medium">{customerName}</td>
+                        <td className="px-4 py-3 text-white font-medium">
+                          <Link href={`/admin/users/${booking.booking_owner_user_id}`} className="hover:underline hover:text-blue-400 transition-colors">
+                            {customerName}
+                          </Link>
+                        </td>
                         <td className="px-4 py-3 text-slate-300">{email}</td>
                         <td className="px-4 py-3">{aircraft?.registration ?? 'VH-KZG'}</td>
                         <td className="px-4 py-3">{formatDateTime(booking.scheduled_start)}</td>
                         <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs border ${badge.className}`}>{badge.label}</span></td>
-                        <td className="px-4 py-3 text-slate-400">{booking.booking_reference || booking.id.slice(0, 8).toUpperCase()}</td>
+                        <td className="px-4 py-3 text-slate-400">
+                          <Link href={`/admin/bookings/requests/${booking.id}`} className="hover:underline hover:text-blue-400 transition-colors font-mono">
+                            {booking.booking_reference || booking.id.slice(0, 8).toUpperCase()}
+                          </Link>
+                        </td>
                         <td className="px-4 py-3 text-right"><Link href={`/admin/bookings/requests/${booking.id}`} className="inline-flex items-center rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-1.5 text-xs text-blue-200 hover:bg-blue-500/25">{actionLabel}</Link></td>
                       </tr>
                     )

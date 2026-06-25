@@ -132,14 +132,14 @@ export default function CustomerBookingActions({
 
           {/* ── Case A: Immediate cancel (>24 h) ──────────────────────── */}
           {activeModal === 'cancel_immediate' && (
-            <div className="relative z-10 w-full max-w-md bg-[#0c1525] border border-white/10 rounded-2xl p-7 shadow-2xl">
+            <div className="relative z-10 w-full max-w-md bg-white border border-[#dbe7f4] rounded-2xl p-7 shadow-[0_8px_24px_rgba(21,45,90,0.08)]">
               <div className="flex items-center gap-3 mb-4">
                 <span className="material-symbols-outlined text-red-400 text-xl">cancel</span>
-                <h2 className="text-sm font-bold uppercase tracking-widest text-red-300">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-red-700">
                   Cancel booking?
                 </h2>
               </div>
-              <p className="text-sm text-slate-300 leading-relaxed mb-6">
+              <p className="text-sm text-[#4b6390] leading-relaxed mb-6">
                 Your booking will be cancelled and you will not be charged because it is more than 24 hours before your scheduled departure time.
               </p>
               {error && <ErrorLine message={error} />}
@@ -147,14 +147,14 @@ export default function CustomerBookingActions({
                 <button
                   onClick={closeModal}
                   disabled={isPending}
-                  className="flex-1 py-2.5 border border-white/15 hover:border-white/25 text-slate-400 hover:text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-colors disabled:opacity-50"
+                  className="flex-1 py-2.5 border border-[#dbe7f4] hover:border-[#bfd5ee] text-[#4b6390] hover:text-[#152d5a] rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors disabled:opacity-50 bg-white"
                 >
                   Keep booking
                 </button>
                 <button
                   onClick={handleConfirmImmediateCancel}
                   disabled={isPending}
-                  className="flex-1 py-2.5 bg-red-700 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-colors"
+                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors"
                 >
                   {isPending ? 'Cancelling…' : 'Cancel booking'}
                 </button>
@@ -164,19 +164,19 @@ export default function CustomerBookingActions({
 
           {/* ── Case B: Late cancel request (≤24 h) ───────────────────── */}
           {activeModal === 'cancel_late' && (
-            <div className="relative z-10 w-full max-w-md bg-[#0c1525] border border-white/10 rounded-2xl p-7 shadow-2xl">
+            <div className="relative z-10 w-full max-w-md bg-white border border-[#dbe7f4] rounded-2xl p-7 shadow-[0_8px_24px_rgba(21,45,90,0.08)]">
               <div className="flex items-center gap-3 mb-4">
                 <span className="material-symbols-outlined text-amber-400 text-xl">warning</span>
-                <h2 className="text-sm font-bold uppercase tracking-widest text-amber-300">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-amber-700">
                   Request cancellation?
                 </h2>
               </div>
-              <p className="text-sm text-slate-300 leading-relaxed mb-5">
+              <p className="text-sm text-[#4b6390] leading-relaxed mb-5">
                 This booking starts at{' '}
-                <span className="text-white font-medium">{departureSydney}</span>, which is less than 24 hours away. As per the cancellation terms, you may still be charged for the booked time. If you would like the operations team to consider waiving the cancellation charge, please provide a reason below.
+                <span className="text-[#152d5a] font-medium">{departureSydney}</span>, which is less than 24 hours away. As per the cancellation terms, you may still be charged for the booked time. If you would like the operations team to consider waiving the cancellation charge, please provide a reason below.
               </p>
               <div className="mb-5">
-                <label className="block text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-2">
+                <label className="block text-[9px] font-semibold uppercase tracking-[0.16em] text-[#4b6390] mb-2">
                   Reason for cancellation
                 </label>
                 <textarea
@@ -185,7 +185,7 @@ export default function CustomerBookingActions({
                   onChange={e => setReason(e.target.value)}
                   disabled={isPending}
                   placeholder="Add a short note for the operations team..."
-                  className="w-full px-4 py-3 bg-[#05080f] border border-white/[0.07] focus:border-amber-500/40 focus:outline-none rounded-xl text-white text-sm placeholder:text-slate-700 transition-colors resize-none leading-relaxed"
+                  className="w-full px-4 py-3 bg-white border border-[#dbe7f4] focus:border-amber-400/50 focus:outline-none focus:ring-1 focus:ring-amber-200 rounded-xl text-[#152d5a] text-sm placeholder:text-[#94a3b8] transition-colors resize-none leading-relaxed shadow-[0_1px_0_rgba(255,255,255,0.8)]"
                 />
               </div>
               {error && <ErrorLine message={error} />}
@@ -193,14 +193,14 @@ export default function CustomerBookingActions({
                 <button
                   onClick={closeModal}
                   disabled={isPending}
-                  className="flex-1 py-2.5 border border-white/15 hover:border-white/25 text-slate-400 hover:text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-colors disabled:opacity-50"
+                  className="flex-1 py-2.5 border border-[#dbe7f4] hover:border-[#bfd5ee] text-[#4b6390] hover:text-[#152d5a] rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors disabled:opacity-50 bg-white"
                 >
                   Keep booking
                 </button>
                 <button
                   onClick={handleConfirmLateCancel}
                   disabled={isPending}
-                  className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-colors"
+                  className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors"
                 >
                   {isPending ? 'Submitting…' : 'Submit cancellation request'}
                 </button>
@@ -210,14 +210,14 @@ export default function CustomerBookingActions({
 
           {/* ── Submit Post Flight Records confirmation ────────────────── */}
           {activeModal === 'flight_record' && (
-            <div className="relative z-10 w-full max-w-md bg-[#0c1525] border border-white/10 rounded-2xl p-7 shadow-2xl">
+            <div className="relative z-10 w-full max-w-md bg-white border border-[#dbe7f4] rounded-2xl p-7 shadow-[0_8px_24px_rgba(21,45,90,0.08)]">
               <div className="flex items-center gap-3 mb-4">
                 <span className="material-symbols-outlined text-blue-400 text-xl">assignment</span>
-                <h2 className="text-sm font-bold uppercase tracking-widest text-blue-300">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">
                   Submit Post Flight Records?
                 </h2>
               </div>
-              <p className="text-sm text-slate-300 leading-relaxed mb-6">
+              <p className="text-sm text-[#4b6390] leading-relaxed mb-6">
                 You are about to start the post flight records submission process for this booking. Please continue only if the aircraft has returned and you are ready to enter the required post-flight readings.
               </p>
               {error && <ErrorLine message={error} />}
@@ -225,14 +225,14 @@ export default function CustomerBookingActions({
                 <button
                   onClick={closeModal}
                   disabled={isPending}
-                  className="flex-1 py-2.5 border border-white/15 hover:border-white/25 text-slate-400 hover:text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-colors disabled:opacity-50"
+                  className="flex-1 py-2.5 border border-[#dbe7f4] hover:border-[#bfd5ee] text-[#4b6390] hover:text-[#152d5a] rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors disabled:opacity-50 bg-white"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmFlightRecord}
                   disabled={isPending}
-                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-colors"
+                  className="flex-1 py-2.5 bg-[#1a4fd6] hover:bg-[#1540a8] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors"
                 >
                   {isPending ? 'Proceeding…' : 'Proceed to flight record'}
                 </button>

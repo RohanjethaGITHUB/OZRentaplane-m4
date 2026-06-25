@@ -35,6 +35,13 @@ export default function FlightRecordForm({
   bookingId, picName, picArn, flightDate, airports = [],
 }: Props) {
   const router = useRouter()
+  const airportOptions = (() => {
+    const bankstown = airports.find(
+      a => a.icao_code === 'YSBK' || a.name.toLowerCase().includes('bankstown'),
+    )
+    if (!bankstown) return airports
+    return [bankstown, ...airports.filter(a => a.id !== bankstown.id)]
+  })()
 
   const [loading,         setLoading]         = useState(false)
   const [error,           setError]           = useState<string | null>(null)
@@ -61,8 +68,34 @@ export default function FlightRecordForm({
   const [notes, setNotes] = useState('')
 
   // Landing row helpers
-  function updateLandingRow(idx: number, field: keyof LandingRow, value: string) {
-    setLandingRows(rows => rows.map((r, i) => i === idx ? { ...r, [field]: value } : r))
+  function updateLandingAirport(idx: number, airportId: string) {
+    setLandingRows(rows => rows.map((r, i) => {
+      if (i !== idx) return r
+      return {
+        ...r,
+        airport_id: airportId,
+        landing_count: airportId ? '1' : '',
+      }
+    }))
+  }
+  function updateLandingCount(idx: number, value: string) {
+    setLandingRows(rows => rows.map((r, i) => {
+      if (i !== idx) return r
+      if (!r.airport_id) {
+        return { ...r, landing_count: value }
+      }
+
+      const nextValue = value.trim()
+      const parsed = Number(nextValue)
+      if (!nextValue || !Number.isFinite(parsed) || parsed < 1) {
+        return { ...r, landing_count: '1' }
+      }
+
+      return {
+        ...r,
+        landing_count: String(Math.max(1, Math.floor(parsed))),
+      }
+    }))
   }
   function addLandingRow() {
     setLandingRows(rows => [...rows, { airport_id: '', landing_count: '' }])
@@ -77,7 +110,11 @@ export default function FlightRecordForm({
     return null
   }
   const hasLandingErrors    = landingRows.some(r => getLandingRowError(r) !== null)
-  const allLandingsFilled   = landingRows.length > 0 && landingRows.every(r => r.airport_id && r.landing_count)
+  const allLandingsFilled   = landingRows.length > 0 && landingRows.every(r => {
+    if (!r.airport_id) return false
+    const n = Number(r.landing_count)
+    return Number.isInteger(n) && n >= 1
+  })
   const isSubmitBlocked     = loading || !declaration || hasLandingErrors || !allLandingsFilled
 
   // File helpers
@@ -200,38 +237,38 @@ export default function FlightRecordForm({
     const failedUploads    = uploadResults.filter(r => !r.success)
     const succeededUploads = uploadResults.filter(r =>  r.success)
     return (
-      <div className="bg-[#0c121e] border border-white/[0.07] rounded-[1.5rem] p-10 space-y-6">
+      <div className="bg-white border border-[#dbe7f4] rounded-[1.5rem] p-8 md:p-10 space-y-6 shadow-[0_8px_24px_rgba(21,45,90,0.06)]">
         <div className="flex flex-col items-center text-center gap-4">
-          <span className="material-symbols-outlined text-5xl text-emerald-400" style={{ fontVariationSettings: "'FILL' 1" }}>
+          <span className="material-symbols-outlined text-5xl text-emerald-500" style={{ fontVariationSettings: "'FILL' 1" }}>
             check_circle
           </span>
-          <h3 className="text-2xl font-serif text-white">Record Submitted</h3>
-          <p className="text-sm text-oz-muted max-w-sm leading-relaxed">
+          <h3 className="text-2xl font-serif text-[#152d5a]">Record Submitted</h3>
+          <p className="text-sm text-[#4b6390] max-w-sm leading-relaxed">
             Your meter readings have been sent to operations for review.
             You will be notified once the review is complete.
           </p>
         </div>
         {uploadResults.length > 0 && (
-          <div className="border-t border-white/[0.05] pt-5 space-y-2">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-3">Evidence Photos</p>
+          <div className="border-t border-[#e5eef8] pt-5 space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#4b6390] mb-3">Evidence Photos</p>
             {succeededUploads.map((r, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs text-emerald-400/80">
+              <div key={i} className="flex items-center gap-2 text-xs text-emerald-700">
                 <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>cloud_done</span>
                 <span className="truncate">{r.name}</span>
-                <span className="text-emerald-400/40 ml-auto flex-shrink-0">saved</span>
+                <span className="text-emerald-600/50 ml-auto flex-shrink-0">saved</span>
               </div>
             ))}
             {failedUploads.map((r, i) => (
-              <div key={i} className="p-2.5 rounded-lg bg-red-500/[0.08] border border-red-500/20 flex items-start gap-2 text-xs text-red-400/80">
+              <div key={i} className="p-2.5 rounded-lg bg-red-50 border border-red-200 flex items-start gap-2 text-xs text-red-600">
                 <span className="material-symbols-outlined text-[14px] flex-shrink-0 mt-0.5">cloud_off</span>
                 <div>
                   <span className="font-medium block truncate">{r.name}</span>
-                  <span className="text-red-400/60">{r.error}</span>
+                  <span className="text-red-500/80">{r.error}</span>
                 </div>
               </div>
             ))}
             {failedUploads.length > 0 && (
-              <p className="text-[11px] text-slate-600 pt-1">Failed uploads can be shared via Messages or described in your flight notes.</p>
+              <p className="text-[11px] text-[#6b7280] pt-1">Failed uploads can be shared via Messages or described in your flight notes.</p>
             )}
           </div>
         )}
@@ -242,18 +279,18 @@ export default function FlightRecordForm({
   // ── Form ──────────────────────────────────────────────────────────────────────
 
   return (
-    <form onSubmit={handleSubmit} className="bg-[#0c121e] border border-white/[0.07] rounded-[1.5rem] overflow-hidden">
+    <form onSubmit={handleSubmit} className="bg-white border border-[#dbe7f4] rounded-[1.5rem] overflow-hidden shadow-[0_8px_24px_rgba(21,45,90,0.06)]">
 
-      <div className="px-8 pt-8 pb-6 border-b border-white/[0.05]">
-        <h2 className="text-2xl font-serif text-white mb-1.5">Submit Flight Record</h2>
-        <p className="text-sm text-oz-muted">Enter the total hours for each meter and upload evidence photos.</p>
+      <div className="px-6 sm:px-8 pt-8 pb-6 border-b border-[#e5eef8]">
+        <h2 className="text-2xl font-serif text-[#152d5a] mb-1.5">Submit Flight Record</h2>
+        <p className="text-sm text-[#4b6390]">Enter the total hours for each meter and upload evidence photos.</p>
       </div>
 
-      <div className="px-8 py-8 space-y-10">
+      <div className="px-6 sm:px-8 py-8 space-y-10">
 
         {/* Aircraft Readings — total-only */}
         <section>
-          <p className="text-[11px] font-bold uppercase tracking-widest text-oz-blue mb-5">Aircraft Readings</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] mb-5">Aircraft Readings</p>
           <TotalOnlyReadingsForm
             values={readings}
             onChange={(field, value) => setReadings(prev => ({ ...prev, [field]: value }))}
@@ -266,13 +303,13 @@ export default function FlightRecordForm({
         {/* Landing Details */}
         <section>
           <div className="flex items-center justify-between mb-5">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-oz-blue">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6]">
               Landing Details <span className="text-amber-400/70 normal-case tracking-normal font-medium ml-1">required</span>
             </p>
             <button
               type="button"
               onClick={addLandingRow}
-              className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-blue-400 hover:text-blue-300 transition-colors"
+              className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#1a4fd6] hover:text-[#1540a8] transition-colors"
             >
               <span className="material-symbols-outlined text-[14px]">add</span>
               Add Airport
@@ -286,15 +323,15 @@ export default function FlightRecordForm({
                   <div className="flex-1 grid grid-cols-[1fr_120px] gap-3">
                     <select
                       value={row.airport_id}
-                      onChange={e => updateLandingRow(idx, 'airport_id', e.target.value)}
-                      className={`w-full bg-[#050c17] border rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 transition-colors ${
+                      onChange={e => updateLandingAirport(idx, e.target.value)}
+                      className={`w-full bg-white border rounded-lg px-3 py-2.5 text-sm text-[#152d5a] focus:outline-none focus:ring-1 transition-colors shadow-[0_1px_0_rgba(255,255,255,0.8)] ${
                         touched && !row.airport_id
-                          ? 'border-amber-400/40 focus:border-amber-400/60 focus:ring-amber-400/15'
-                          : 'border-white/[0.08] focus:border-oz-blue/50 focus:ring-oz-blue/20 hover:border-white/15'
+                          ? 'border-amber-300 focus:border-amber-400/60 focus:ring-amber-200'
+                          : 'border-[#cbdcf0] focus:border-[#93c5fd] focus:ring-blue-200 hover:border-[#bfd5ee]'
                       }`}
                     >
                       <option value="">Select airport…</option>
-                      {airports.map(a => (
+                      {airportOptions.map(a => (
                         <option key={a.id} value={a.id}>{a.icao_code} — {a.name}</option>
                       ))}
                     </select>
@@ -304,11 +341,11 @@ export default function FlightRecordForm({
                       step="1"
                       placeholder="Landings"
                       value={row.landing_count}
-                      onChange={e => updateLandingRow(idx, 'landing_count', e.target.value)}
-                      className={`w-full bg-[#050c17] border rounded-lg px-3 py-2.5 text-sm text-white text-right placeholder:text-slate-700 focus:outline-none focus:ring-1 transition-colors ${
+                      onChange={e => updateLandingCount(idx, e.target.value)}
+                      className={`w-full bg-white border rounded-lg px-3 py-2.5 text-sm text-[#152d5a] text-right placeholder:text-[#94a3b8] focus:outline-none focus:ring-1 transition-colors shadow-[0_1px_0_rgba(255,255,255,0.8)] ${
                         touched && (!row.landing_count || Number(row.landing_count) < 1)
-                          ? 'border-amber-400/40 focus:border-amber-400/60 focus:ring-amber-400/15'
-                          : 'border-white/[0.08] focus:border-oz-blue/50 focus:ring-oz-blue/20 hover:border-white/15'
+                          ? 'border-amber-300 focus:border-amber-400/60 focus:ring-amber-200'
+                          : 'border-[#cbdcf0] focus:border-[#93c5fd] focus:ring-blue-200 hover:border-[#bfd5ee]'
                       }`}
                     />
                   </div>
@@ -316,7 +353,7 @@ export default function FlightRecordForm({
                     <button
                       type="button"
                       onClick={() => removeLandingRow(idx)}
-                      className="mt-2 text-slate-600 hover:text-red-400 transition-colors flex-shrink-0"
+                      className="mt-2 text-[#94a3b8] hover:text-red-500 transition-colors flex-shrink-0"
                     >
                       <span className="material-symbols-outlined text-[18px]">remove_circle</span>
                     </button>
@@ -325,34 +362,34 @@ export default function FlightRecordForm({
               )
             })}
           </div>
-          <p className="mt-3 text-[10px] text-slate-600 leading-relaxed">
+          <p className="mt-3 text-[10px] text-[#6b7280] leading-relaxed">
             Add one row per airport. Include touch-and-go landings at each location.
           </p>
         </section>
 
         {/* Evidence Upload */}
         <section>
-          <p className="text-[11px] font-bold uppercase tracking-widest text-oz-blue mb-5">Evidence Upload</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] mb-5">Evidence Upload</p>
           <div
             className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center gap-3 text-center cursor-pointer transition-colors ${
-              dragOver ? 'border-oz-blue/60 bg-oz-blue/[0.04]' : 'border-white/10 bg-[#050c17] hover:border-white/[0.18]'
+              dragOver ? 'border-[#1a4fd6]/60 bg-[#f0f6ff]' : 'border-[#cbdcf0] bg-[#f8fbff] hover:border-[#93c5fd]'
             }`}
             onDragOver={e => { e.preventDefault(); setDragOver(true) }}
             onDragLeave={() => setDragOver(false)}
             onDrop={e => { e.preventDefault(); setDragOver(false); addFiles(Array.from(e.dataTransfer.files)) }}
             onClick={() => fileInputRef.current?.click()}
           >
-            <div className="w-12 h-12 rounded-full bg-white/[0.06] flex items-center justify-center">
-              <span className="material-symbols-outlined text-white/40 text-2xl">upload</span>
+            <div className="w-12 h-12 rounded-full bg-white border border-[#dbe7f4] flex items-center justify-center shadow-sm">
+              <span className="material-symbols-outlined text-[#1a4fd6] text-2xl">upload</span>
             </div>
             <div>
-              <p className="text-sm text-white/70 font-medium">Drag and drop photos here, or click to browse</p>
-              <p className="text-xs text-slate-500 mt-1 leading-relaxed">JPEG or PNG only · Max 10 MB per file · Up to 10 files</p>
-              <p className="text-[11px] text-slate-600 mt-1">Files are uploaded and saved when you submit your record.</p>
+              <p className="text-sm text-[#152d5a] font-medium">Drag and drop photos here, or click to browse</p>
+              <p className="text-xs text-[#4b6390] mt-1 leading-relaxed">JPEG or PNG only · Max 10 MB per file · Up to 10 files</p>
+              <p className="text-[11px] text-[#6b7280] mt-1">Files are uploaded and saved when you submit your record.</p>
             </div>
             <button
               type="button"
-              className="mt-1 px-5 py-1.5 border border-white/20 rounded text-xs font-bold uppercase tracking-wider text-white/60 hover:border-white/40 hover:text-white/80 transition-colors"
+              className="mt-1 px-5 py-1.5 border border-[#cbdcf0] rounded text-xs font-semibold uppercase tracking-[0.14em] text-[#1a4fd6] hover:border-[#93c5fd] hover:bg-white transition-colors bg-white"
               onClick={e => { e.stopPropagation(); fileInputRef.current?.click() }}
             >
               Select Files
@@ -369,11 +406,11 @@ export default function FlightRecordForm({
           {uploadErrors.length > 0 && (
             <div className="mt-3 space-y-1.5">
               {uploadErrors.map((r, i) => (
-                <div key={i} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-500/[0.08] border border-red-500/20">
-                  <span className="material-symbols-outlined text-red-400 text-[14px] mt-0.5 flex-shrink-0">error</span>
+                <div key={i} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200">
+                  <span className="material-symbols-outlined text-red-500 text-[14px] mt-0.5 flex-shrink-0">error</span>
                   <div className="min-w-0">
-                    <span className="text-xs text-red-300/90 font-medium truncate block">{r.name}</span>
-                    <span className="text-[11px] text-red-400/70">{r.reason}</span>
+                    <span className="text-xs text-red-600 font-medium truncate block">{r.name}</span>
+                    <span className="text-[11px] text-red-500/80">{r.reason}</span>
                   </div>
                 </div>
               ))}
@@ -382,14 +419,14 @@ export default function FlightRecordForm({
           {files.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-3">
               {files.map((entry, idx) => (
-                <div key={idx} className="relative group w-20 h-20 rounded-lg overflow-hidden border border-white/10 bg-[#050c17] flex-shrink-0">
+                <div key={idx} className="relative group w-20 h-20 rounded-lg overflow-hidden border border-[#dbe7f4] bg-white flex-shrink-0 shadow-[0_1px_0_rgba(255,255,255,0.8)]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={entry.preview} alt={entry.file.name} className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors" />
-                  <button type="button" onClick={() => removeFile(idx)} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <span className="material-symbols-outlined text-white text-[12px]">close</span>
+                  <button type="button" onClick={() => removeFile(idx)} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/90 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+                    <span className="material-symbols-outlined text-[#152d5a] text-[12px]">close</span>
                   </button>
-                  <p className="absolute bottom-0 inset-x-0 bg-black/60 text-[8px] text-white/60 px-1 py-0.5 truncate">{entry.file.name}</p>
+                  <p className="absolute bottom-0 inset-x-0 bg-white/90 text-[8px] text-[#152d5a] px-1 py-0.5 truncate">{entry.file.name}</p>
                 </div>
               ))}
             </div>
@@ -399,7 +436,7 @@ export default function FlightRecordForm({
       </div>
 
       {/* Declaration + Submit */}
-      <div className="px-8 py-6 border-t border-white/[0.05] flex flex-col sm:flex-row items-start sm:items-center gap-5 justify-between">
+      <div className="px-6 sm:px-8 py-6 border-t border-[#e5eef8] flex flex-col sm:flex-row items-start sm:items-center gap-5 justify-between bg-[#f8fbff]">
         <label className="flex items-start gap-3 cursor-pointer select-none flex-1">
           <input
             type="checkbox"
@@ -407,21 +444,21 @@ export default function FlightRecordForm({
             onChange={e => setDeclaration(e.target.checked)}
             className="mt-0.5 accent-oz-blue flex-shrink-0"
           />
-          <span className="text-xs text-slate-400 leading-relaxed">
+          <span className="text-xs text-[#4b6390] leading-relaxed">
             I declare that the meter readings and information provided are accurate and correspond to the completed flight.
           </span>
         </label>
         <button
           type="submit"
           disabled={isSubmitBlocked}
-          className="flex-shrink-0 px-7 py-2.5 bg-oz-blue hover:bg-blue-400 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold uppercase tracking-widest rounded-lg transition-colors"
+          className="w-full sm:w-auto flex-shrink-0 px-7 py-2.5 bg-[#1a4fd6] hover:bg-[#1540a8] disabled:opacity-45 disabled:cursor-not-allowed text-white text-xs font-semibold uppercase tracking-[0.14em] rounded-lg transition-colors shadow-sm"
         >
           {loading ? 'Submitting…' : 'Submit Flight Record'}
         </button>
       </div>
 
       {error && (
-        <div className="mx-8 mb-6 p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2 text-xs text-red-400 leading-relaxed">
+        <div className="mx-6 sm:mx-8 mb-6 p-3 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2 text-xs text-red-600 leading-relaxed">
           <span className="material-symbols-outlined text-[14px] mt-0.5 flex-shrink-0">error</span>
           {error}
         </div>

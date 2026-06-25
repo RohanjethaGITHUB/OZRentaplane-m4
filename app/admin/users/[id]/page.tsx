@@ -388,7 +388,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
 
   return (
     <div
-      className="pt-8 pr-10 pb-20 pl-10"
+      className="pt-8 px-4 pb-20 sm:px-10"
       style={{
         backgroundImage: 'radial-gradient(at 0% 0%, rgba(183,200,222,0.04) 0, transparent 50%), radial-gradient(at 100% 0%, rgba(180,201,219,0.04) 0, transparent 50%)',
       }}

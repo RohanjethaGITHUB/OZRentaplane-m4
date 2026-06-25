@@ -54,6 +54,7 @@ export default async function CheckoutPaymentsPage({ searchParams }: { searchPar
         const customer = customerForBooking(inv?.booking_id ?? null)
         return {
           id: s.id,
+          ownerId: inv?.booking_id ? (bookingMap.get(inv.booking_id) as any)?.booking_owner_user_id ?? null : null,
           customer: customer.name,
           email: customer.email,
           booking_ref: inv?.booking_id ? (bookingMap.get(inv.booking_id) as any)?.booking_reference ?? inv.booking_id.slice(0, 8).toUpperCase() : '—',
@@ -70,6 +71,7 @@ export default async function CheckoutPaymentsPage({ searchParams }: { searchPar
         const customer = customerForBooking(i.booking_id)
         return {
           id: i.id,
+          ownerId: i.booking_id ? (bookingMap.get(i.booking_id) as any)?.booking_owner_user_id ?? null : null,
           customer: customer.name,
           email: customer.email,
           booking_ref: i.booking_id ? ((bookingMap.get(i.booking_id) as any)?.booking_reference ?? i.booking_id.slice(0, 8).toUpperCase()) : '—',
@@ -155,9 +157,21 @@ export default async function CheckoutPaymentsPage({ searchParams }: { searchPar
               {rows.length === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-400">No payment records for this filter.</td></tr>}
               {rows.map((r) => (
                 <tr key={r.id} className="hover:bg-white/[0.03] text-slate-200">
-                  <td className="px-4 py-3">{r.customer}</td>
+                  <td className="px-4 py-3">
+                    {r.ownerId ? (
+                      <Link href={`/admin/users/${r.ownerId}`} className="hover:underline hover:text-blue-400 transition-colors">
+                        {r.customer}
+                      </Link>
+                    ) : (
+                      r.customer
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-slate-300">{r.email}</td>
-                  <td className="px-4 py-3">{r.booking_ref}</td>
+                  <td className="px-4 py-3">
+                    <Link href={`/admin/bookings/requests/${r.id}`} className="hover:underline hover:text-blue-400 transition-colors font-mono">
+                      {r.booking_ref}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3 capitalize">{r.outcome}</td>
                   <td className="px-4 py-3">${(r.amount_cents / 100).toFixed(2)}</td>
                   <td className="px-4 py-3 capitalize">{r.payment_status.replace(/_/g, ' ')}</td>

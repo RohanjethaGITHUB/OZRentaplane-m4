@@ -152,6 +152,9 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   // state), also fetch airports list and customer credit balance for the
   // outcome form landing charges and credit display.
   const bookingType       = (booking as { booking_type?: string }).booking_type ?? 'standard'
+  const pageTitle = bookingType === 'checkout'
+    ? 'Review Checkout Request'
+    : 'Review Standard Booking Payment'
   const isOutcomePending  = booking.status === 'checkout_completed_under_review'
   const isPaymentRequired = booking.status === 'checkout_payment_required'
   const isCheckoutRequested = bookingType === 'checkout' && booking.status === 'checkout_requested'
@@ -371,6 +374,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       )
     }
   }
+  const standardPendingReviewSubmissions = standardBankTransferSubmissions.filter((sub) => sub.status === 'pending_review')
 
   // ── Derive manual payment pending state ───────────────────────────────────────
   const latestBankTransferSub = bankTransferSubmissions[0] ?? null
@@ -523,9 +527,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-[#152d5a]">
-              Review Checkout Request
-            </h1>
+            <h1 className="text-2xl font-semibold text-[#152d5a]">{pageTitle}</h1>
             <p className="text-sm text-gray-400 mt-1">
               Review the details below and confirm or take action.
             </p>
@@ -558,7 +560,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 <p className="mt-3 text-xs text-amber-100/70">
                   Customer:{' '}
                   <Link
-                    href={`/admin/customers/${customer?.id}`}
+                    href={`/admin/users/${customer?.id}`}
                     className="font-semibold text-amber-100 underline decoration-amber-100/30 underline-offset-2 hover:text-white"
                   >
                     {customer?.full_name ?? 'Unknown Customer'}
@@ -581,7 +583,9 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             </div>
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Customer</span>
           </div>
-          <p className="text-sm font-semibold text-[#152d5a]">{customer?.full_name ?? '—'}</p>
+          <Link href={`/admin/users/${customer?.id}`} className="text-sm font-semibold text-[#152d5a] hover:underline hover:text-blue-400 transition-colors">
+            {customer?.full_name ?? '—'}
+          </Link>
           <p className="text-xs text-gray-400 mt-0.5">{customer?.email ?? '—'}</p>
         </div>
         <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
@@ -658,13 +662,18 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           )}
 
           {/* ── Standard booking manual payment panel ────────────────────────── */}
-          {isStandardPaymentPending && (
+          {isStandardPaymentPending && standardPendingReviewSubmissions.length > 0 ? (
+            <AdminStandardBankTransferPanel
+              bookingId={booking.id}
+              submissions={standardPendingReviewSubmissions}
+            />
+          ) : isStandardPaymentPending ? (
             <AdminBankTransferPanel
               bookingId={booking.id}
               bookingType="standard"
               amountCents={standardInvoiceAmountDueCents}
             />
-          )}
+          ) : null}
 
           {/* ── Checkout request review panel — shown for checkout_requested ─── */}
           {isCheckoutRequestedStatus && (
@@ -918,6 +927,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             customerCreditCents={customerCreditCents}
             initialFlightRecord={flightRecordRow}
             startSuggestions={flightLogStartSuggestions}
+            defaultHourlyRate={(aircraft as { default_hourly_rate?: number } | null)?.default_hourly_rate ?? undefined}
           />
         </div>
       )}

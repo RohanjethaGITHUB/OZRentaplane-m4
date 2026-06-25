@@ -38,20 +38,20 @@ export default function ClarificationResponseForm({ bookingId }: { bookingId: st
 
   return (
     <form onSubmit={handleSubmit} className="mt-5 space-y-3">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-orange-400/60">Your response</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#4b6390]">Your response</p>
       <textarea
         name="response"
         required
         rows={4}
         placeholder="Type your response here…"
-        className="w-full bg-[#050b14] border border-orange-500/20 rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-orange-400/50 focus:ring-1 focus:ring-orange-400/20 resize-none"
+        className="w-full bg-white border border-[#dbe7f4] rounded-xl px-4 py-3 text-sm text-[#152d5a] placeholder:text-[#94a3b8] focus:outline-none focus:border-amber-400/50 focus:ring-1 focus:ring-amber-200 resize-none shadow-[0_1px_0_rgba(255,255,255,0.8)]"
         disabled={loading}
       />
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-xs text-red-500">{error}</p>}
       <button
         type="submit"
         disabled={loading}
-        className="w-full flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+        className="w-full flex items-center justify-center gap-2 bg-[#f59e0b] hover:bg-[#d97706] disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-sm"
       >
         <span className="material-symbols-outlined text-[16px]">send</span>
         {loading ? 'Submitting…' : 'Submit Response'}

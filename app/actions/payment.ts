@@ -452,7 +452,7 @@ export async function submitStandardBankTransferProof(
 
   await supabase
     .from("booking_invoices")
-    .update({ payment_method: "bank_transfer" })
+    .update({ payment_method: "bank_transfer", status: "bank_transfer_pending_review", updated_at: new Date().toISOString() })
     .eq("id", invoiceId);
 
   const { data: profile } = await supabase
@@ -593,6 +593,7 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
         customer_id: booking.booking_owner_user_id,
         booking_id: input.bookingId,
         invoice_id: invoice.id,
+        invoice_source_type: "checkout",
         amount_cents: input.amountCents,
         currency: "aud",
         entry_type: input.paymentMethod === "bank_transfer" ? "bank_transfer" : "manual_adjustment",
@@ -683,6 +684,7 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
         customer_id: booking.booking_owner_user_id,
         booking_id: input.bookingId,
         invoice_id: invoice.id,
+        invoice_source_type: "booking",
         amount_cents: input.amountCents,
         currency: "aud",
         entry_type: input.paymentMethod === "bank_transfer" ? "bank_transfer" : "manual_adjustment",

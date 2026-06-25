@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { formatDateTime } from '@/lib/formatDateTime'
 import { FLIGHT_RECORD_REVIEW_STATUSES } from '@/lib/booking/status-constants'
+import AdminPortalHero from '@/components/AdminPortalHero'
+import { StatusPill } from '@/app/admin/components/AdminUi'
 
 export const metadata = { title: 'Post-Flight Reviews | Admin' }
 
@@ -39,109 +41,112 @@ export default async function AdminPostFlightReviewsPage() {
     .order('submitted_at', { ascending: true })
 
   return (
-    <div className="p-10 max-w-7xl mx-auto">
-      <header className="mb-12">
-        <h2 className="font-serif text-4xl font-light text-[#e2e2e6] tracking-tight">Post-Flight Reviews</h2>
-        <p className="text-slate-400 mt-2 font-light tracking-wide">
-          Queue of submitted flight records requiring administrative verification and meter confirmation.
-        </p>
-        <div className="h-0.5 w-10 bg-[#44474c] mt-6" />
-      </header>
+    <>
+      <AdminPortalHero
+        eyebrow="Bookings"
+        title="Post-Flight Reviews"
+        subtitle="Queue of submitted flight records requiring administrative verification and meter confirmation."
+      />
 
-      {(!records || records.length === 0) ? (
-        <div className="p-12 text-center text-slate-500 border border-white/5 rounded-2xl bg-white/5">
-          <span className="material-symbols-outlined text-4xl mb-3 text-slate-600 block" style={{ fontVariationSettings: "'wght' 200" }}>assignment_turned_in</span>
-          All caught up. No pending reviews in the queue.
-        </div>
-      ) : (
-        <div className="bg-white/5 border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-[#111316]">
-                <tr className="border-b border-white/5 text-slate-500 font-medium">
-                  <th className="px-6 py-4 font-normal">Aircraft</th>
-                  <th className="px-6 py-4 font-normal">Status</th>
-                  <th className="px-6 py-4 font-normal">Date Submitted</th>
-                  <th className="px-6 py-4 font-normal">PIC</th>
-                  <th className="px-6 py-4 font-normal text-right">Tacho</th>
-                  <th className="px-6 py-4 font-normal text-right">VDO</th>
-                  <th className="px-6 py-4 font-normal text-right">Air Switch</th>
-                  <th className="px-6 py-4 font-normal text-right">Landings</th>
-                  <th className="px-6 py-4 font-normal text-center">Flags</th>
-                  <th className="px-6 py-4 font-normal text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {records.map(record => {
-                  const aircraft = Array.isArray(record.aircraft) ? record.aircraft[0] : record.aircraft
-                  const submittedStr = formatDateTime(record.submitted_at)
-                  
-                  // Parse flags
-                  let flagCount = 0
-                  if (Array.isArray(record.review_flags)) {
-                    flagCount = record.review_flags.length
-                  }
-
-                  return (
-                    <tr key={record.id} className="text-slate-300 hover:bg-white/[0.02] transition-colors">
-                      <td className="px-6 py-4 font-medium text-white">
-                        {aircraft?.registration || 'Unknown'}
-                      </td>
-                      <td className="px-6 py-4">
-                        {record.status === 'pending_review' && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                            Pending
-                          </span>
-                        )}
-                        {record.status === 'needs_clarification' && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                            <span className="material-symbols-outlined text-[11px]">hourglass_empty</span>
-                            Awaiting Customer
-                          </span>
-                        )}
-                        {record.status === 'resubmitted' && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            <span className="material-symbols-outlined text-[11px]">refresh</span>
-                            Resubmitted
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 tabular-nums">{submittedStr}</td>
-                      <td className="px-6 py-4">
-                        <div className="text-white">{record.pic_name || '—'}</div>
-                        {record.pic_arn && <div className="text-[10px] text-slate-500">ARN: {record.pic_arn}</div>}
-                      </td>
-                      <td className="px-6 py-4 text-right tabular-nums">{record.tacho_total != null ? record.tacho_total : '—'}</td>
-                      <td className="px-6 py-4 text-right tabular-nums">{record.vdo_total != null ? record.vdo_total : '—'}</td>
-                      <td className="px-6 py-4 text-right tabular-nums">{record.air_switch_total != null ? record.air_switch_total : '—'}</td>
-                      <td className="px-6 py-4 text-right tabular-nums">{record.landings != null ? record.landings : '—'}</td>
-                      
-                      <td className="px-6 py-4 text-center">
-                        {flagCount > 0 ? (
-                          <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                            {flagCount} Alert{flagCount > 1 ? 's' : ''}
-                          </span>
-                        ) : (
-                          <span className="text-emerald-500/50 material-symbols-outlined text-[16px]">check</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <Link 
-                          href={`/admin/bookings/post-flight/${record.id}`}
-                          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-xs font-medium transition-colors border border-blue-500"
-                        >
-                          Review
-                          <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                        </Link>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24">
+        {(!records || records.length === 0) ? (
+          <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] px-6 py-14 text-center shadow-[var(--admin-shadow-panel)]">
+            <span
+              className="material-symbols-outlined text-4xl mb-3 text-[var(--admin-text-muted)] block"
+              style={{ fontVariationSettings: "'wght' 200" }}
+            >
+              assignment_turned_in
+            </span>
+            <p className="text-[var(--admin-text)] font-medium">All caught up. No pending reviews in the queue.</p>
+            <p className="mt-2 text-sm text-[var(--admin-text-muted)]">
+              New post-flight records will appear here for administrative verification.
+            </p>
           </div>
-        </div>
-      )}
-    </div>
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] shadow-[var(--admin-shadow-panel)]">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-white/[0.02] text-[var(--admin-text-muted)]">
+                  <tr className="border-b border-[var(--admin-divider)] font-medium">
+                    <th className="px-5 py-4 font-medium">Aircraft</th>
+                    <th className="px-5 py-4 font-medium">Status</th>
+                    <th className="px-5 py-4 font-medium">Date Submitted</th>
+                    <th className="px-5 py-4 font-medium">PIC</th>
+                    <th className="px-5 py-4 font-medium text-right">Tacho</th>
+                    <th className="px-5 py-4 font-medium text-right">VDO</th>
+                    <th className="px-5 py-4 font-medium text-right">Air Switch</th>
+                    <th className="px-5 py-4 font-medium text-right">Landings</th>
+                    <th className="px-5 py-4 font-medium text-center">Flags</th>
+                    <th className="px-5 py-4 font-medium text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--admin-divider)]">
+                  {records.map(record => {
+                    const aircraft = Array.isArray(record.aircraft) ? record.aircraft[0] : record.aircraft
+                    const submittedStr = formatDateTime(record.submitted_at)
+
+                    const flagCount = Array.isArray(record.review_flags) ? record.review_flags.length : 0
+
+                    const statusPill =
+                      record.status === 'pending_review' ? <StatusPill label="Pending" tone="blue" /> :
+                      record.status === 'needs_clarification' ? <StatusPill label="Awaiting Customer" tone="amber" /> :
+                      record.status === 'resubmitted' ? <StatusPill label="Resubmitted" tone="green" /> :
+                      <StatusPill label={record.status.replace(/_/g, ' ')} tone="slate" />
+
+                    return (
+                      <tr key={record.id} className="text-[var(--admin-text-muted)] hover:bg-[#f6f9fd] transition-colors">
+                        <td className="px-5 py-4 font-medium text-[var(--admin-text)]">
+                          {aircraft?.registration || 'Unknown'}
+                          {aircraft?.aircraft_type ? (
+                            <div className="mt-1 text-[11px] font-normal text-[var(--admin-text-muted)]">
+                              {aircraft.aircraft_type}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="px-5 py-4">
+                          {statusPill}
+                        </td>
+                        <td className="px-5 py-4 tabular-nums text-[var(--admin-text)]">
+                          {submittedStr}
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="text-[var(--admin-text)]">{record.pic_name || '—'}</div>
+                          {record.pic_arn ? <div className="text-[11px] text-[var(--admin-text-muted)]">ARN: {record.pic_arn}</div> : null}
+                        </td>
+                        <td className="px-5 py-4 text-right tabular-nums text-[var(--admin-text)]">{record.tacho_total != null ? record.tacho_total : '—'}</td>
+                        <td className="px-5 py-4 text-right tabular-nums text-[var(--admin-text)]">{record.vdo_total != null ? record.vdo_total : '—'}</td>
+                        <td className="px-5 py-4 text-right tabular-nums text-[var(--admin-text)]">{record.air_switch_total != null ? record.air_switch_total : '—'}</td>
+                        <td className="px-5 py-4 text-right tabular-nums text-[var(--admin-text)]">{record.landings != null ? record.landings : '—'}</td>
+
+                        <td className="px-5 py-4 text-center">
+                          {flagCount > 0 ? (
+                            <span className="inline-flex items-center justify-center rounded-full border border-rose-400/25 bg-rose-500/10 px-2.5 py-1 text-[11px] font-medium text-rose-700">
+                              {flagCount} Alert{flagCount > 1 ? 's' : ''}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center justify-center text-emerald-600">
+                              <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                          <Link
+                            href={`/admin/bookings/post-flight/${record.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[rgba(26,79,214,0.22)] bg-[rgba(26,79,214,0.08)] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-[#1a4fd6] transition-colors hover:bg-[rgba(26,79,214,0.14)] hover:border-[rgba(26,79,214,0.32)]"
+                          >
+                            Review
+                            <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
+                          </Link>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   )
 }

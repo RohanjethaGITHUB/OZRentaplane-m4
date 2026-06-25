@@ -17,7 +17,7 @@ export default function RequestClarificationFormWrapper({ flightRecordId, bookin
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-amber-500/25 hover:border-amber-500/50 bg-amber-500/5 hover:bg-amber-500/10 text-amber-400 rounded-xl text-xs font-bold uppercase tracking-widest transition-colors"
+        className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-xs font-bold uppercase tracking-widest transition-colors shadow-sm"
       >
         <span className="material-symbols-outlined text-[15px]">help</span>
         Request Clarification
