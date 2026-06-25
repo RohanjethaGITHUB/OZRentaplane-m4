@@ -185,7 +185,9 @@ function Section({ num, title, desc, status, error, children }: {
 
 // ─── Progress strip ───────────────────────────────────────────────────────────
 
-function ProgressStrip({ completedCount, total }: { completedCount: number; total: number }) {
+function ProgressStrip({ statuses }: { statuses: SectionStatus[] }) {
+  const completedCount = statuses.filter(s => s === 'complete').length
+  const total = statuses.length
   const pct = Math.round((completedCount / total) * 100)
   const steps = [
     { label: 'Documents', num: 1 },
@@ -213,29 +215,34 @@ function ProgressStrip({ completedCount, total }: { completedCount: number; tota
         </div>
       </div>
       <div className="flex items-center gap-0">
-        {steps.map((s, i) => (
-          <div key={s.num} className="flex items-center flex-1 min-w-0">
-            <div className={`flex items-center gap-2 px-3 py-2 rounded-full text-[11px] font-semibold transition-all flex-shrink-0 ${
-              i < completedCount ? 'bg-green-500/20 text-green-300'
-              : i === completedCount ? 'bg-[#f59e0b]/20 text-[#f59e0b] ring-1 ring-[#f59e0b]/40'
-              : 'text-white/40'
-            }`}>
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${
-                i < completedCount ? 'bg-green-500/40 text-green-200'
-                : i === completedCount ? 'bg-[#f59e0b]/30 text-[#f59e0b]'
-                : 'bg-white/10 text-white/40'
+        {steps.map((s, i) => {
+          const status = statuses[i]
+          const isComplete = status === 'complete'
+          const isInProgress = status === 'in_progress'
+          return (
+            <div key={s.num} className="flex items-center flex-1 min-w-0">
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-full text-[11px] font-semibold transition-all flex-shrink-0 ${
+                isComplete ? 'bg-green-500/20 text-green-300'
+                : isInProgress ? 'bg-[#f59e0b]/20 text-[#f59e0b] ring-1 ring-[#f59e0b]/40'
+                : 'text-white/40'
               }`}>
-                {i < completedCount
-                  ? <span className="material-symbols-outlined text-[11px]" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>
-                  : s.num}
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${
+                  isComplete ? 'bg-green-500/40 text-green-200'
+                  : isInProgress ? 'bg-[#f59e0b]/30 text-[#f59e0b]'
+                  : 'bg-white/10 text-white/40'
+                }`}>
+                  {isComplete
+                    ? <span className="material-symbols-outlined text-[11px]" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>
+                    : s.num}
+                </div>
+                <span className="hidden sm:inline truncate">{s.label}</span>
               </div>
-              <span className="hidden sm:inline truncate">{s.label}</span>
+              {i < steps.length - 1 && (
+                <div className={`flex-1 h-px mx-1 ${isComplete ? 'bg-green-500/30' : 'bg-white/15'}`} />
+              )}
             </div>
-            {i < steps.length - 1 && (
-              <div className={`flex-1 h-px mx-1 ${i < completedCount ? 'bg-green-500/30' : 'bg-white/15'}`} />
-            )}
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -658,14 +665,14 @@ export default function DocumentUploadPanel({
   const docsGateReady = docChecks.every(({ state }) => state !== 'missing' && state !== 'rejected')
   const docsFullyApproved = allDocsApproved
 
-  const s1: SectionStatus = allDocsApproved ? 'complete' : allDocsUploaded ? 'in_progress' : docChecks.some(({ state }) => state !== 'missing') ? 'in_progress' : 'not_started'
+  const s1: SectionStatus = allDocsUploaded ? 'complete' : docChecks.some(({ state }) => state !== 'missing') ? 'in_progress' : 'not_started'
   const flightDateComplete = Boolean(flightDate)
   const redCardComplete = Boolean(redCardMonth && redCardYear)
   const s2: SectionStatus = flightDateComplete && redCardComplete ? 'complete' : flightDateComplete || redCardComplete ? 'in_progress' : 'not_started'
   const s3: SectionStatus = nightVfr === null ? 'not_started' : nightVfr === false ? 'complete' : docMap['night_vfr_evidence'] ? 'complete' : 'in_progress'
   const s4: SectionStatus = termsAccepted ? 'complete' : 'not_started'
   const completedCount = [s1, s2, s3, s4].filter(s => s === 'complete').length
-  const fullyReady = completedCount === 4
+  const fullyReady = allDocsApproved && s2 === 'complete' && s3 === 'complete' && s4 === 'complete'
 
   function handleFlightDateChange(val: string) {
     setFlightDate(val)
@@ -753,7 +760,7 @@ export default function DocumentUploadPanel({
 
   return (
     <div className="space-y-4">
-      <ProgressStrip completedCount={completedCount} total={4} />
+      <ProgressStrip statuses={[s1, s2, s3, s4]} />
 
       <div className="bg-[#dce3ed] rounded-2xl p-3 space-y-3">
         <div ref={section1Ref} className="scroll-mt-4">
@@ -996,16 +1003,6 @@ export default function DocumentUploadPanel({
                     <p className="text-[13px] text-red-600 flex items-center gap-1">
                       <span className="material-symbols-outlined text-[14px]">error</span>{termsError}
                     </p>
-                  )}
-                  {!onSubmit && (
-                    <div className="flex justify-center pt-1">
-                      <button onClick={handleAcceptTerms}
-                        disabled={isAcceptingTerms || !termsChecked || !isScrolledToBottom}
-                        className="px-8 py-3 rounded-xl bg-[#152d5a] hover:bg-[#1a3a6e] text-white text-[13px] font-semibold disabled:opacity-40 flex items-center gap-2 transition-colors">
-                        {isAcceptingTerms && <span className="material-symbols-outlined text-[15px] animate-spin">progress_activity</span>}
-                        {isAcceptingTerms ? 'Saving…' : 'Accept Terms & Conditions'}
-                      </button>
-                    </div>
                   )}
                 </>
               )}

@@ -445,7 +445,7 @@ export default async function CustomerBookingsPage() {
         backgroundPosition="center"
         {...(isCleared
           ? { cta: { label: 'Book New Flight', href: '/dashboard/bookings/new', icon: 'flight_takeoff' } }
-          : { cta: { label: 'Book a Flight', href: '/dashboard/checkout', icon: 'flight_takeoff' } })}
+          : { cta: { label: 'Book a Checkout', href: '/dashboard/checkout', icon: 'flight_takeoff' } })}
       />
 
       <div className="max-w-[1320px] mx-auto pt-0 pb-16">
@@ -587,7 +587,7 @@ export default async function CustomerBookingsPage() {
           } else {
             heading = 'Complete Your Checkout to Start Flying'
             body = 'A one-time checkout flight is required before you can hire an aircraft solo. Upload your documents and book your checkout to get started.'
-            ctaLabel = 'Book a Flight'
+            ctaLabel = 'Book a Checkout'
             ctaHref = '/dashboard/checkout'
           }
 

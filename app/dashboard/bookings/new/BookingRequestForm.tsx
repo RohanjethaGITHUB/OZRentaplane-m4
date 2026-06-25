@@ -1841,7 +1841,7 @@ export default function BookingRequestForm({
                     </div>
                     <div className="flex justify-between items-center pt-1">
                       <p className="text-[11px] text-[#94a3b8]">
-                        +$25 per landing · Final invoice after flight record
+                        +$28.95 per landing · Final invoice after flight record
                         submitted.
                       </p>
                       <button
@@ -2437,7 +2437,7 @@ export default function BookingRequestForm({
                   {[
                     "Wet hire — fuel included",
                     "GST included",
-                    "$25 per landing",
+                    "$28.95 per landing",
                   ].map((tag) => (
                     <span
                       key={tag}

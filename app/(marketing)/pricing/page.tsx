@@ -42,7 +42,7 @@ function FaqItem({ item }: { item: FaqItemType }) {
   )
 }
 
-const HERO_CHIPS = ['Wet Hire', 'GST Included', '$25 Per Landing', 'Billed by VDO Hours']
+const HERO_CHIPS = ['Wet Hire', 'GST Included', '$28.95 Per Landing', 'Billed by VDO Hours']
 
 const PRICING_TIERS = [
   { tier: 'Less than 10 VDO hours', rate: '$330', highlight: false },
@@ -80,8 +80,8 @@ const INCLUDED_CARDS = [
   },
   {
     icon: 'flight_land',
-    title: '$25 Per Landing',
-    copy: 'A flat $25 charge applies per landing.',
+    title: '$28.95 Per Landing',
+    copy: 'A flat $28.95 charge applies per landing.',
   },
   {
     icon: 'speed',
@@ -131,7 +131,7 @@ const FAQ_ITEMS: FaqItemType[] = [
   },
   {
     question: 'Are landing fees included?',
-    answer: 'No. A $25 charge applies per landing.',
+    answer: 'No. A $28.95 charge applies per landing.',
   },
   {
     question: 'How does the multi-day minimum work?',
@@ -181,7 +181,7 @@ export default function PricingPage() {
             </StaggerItem>
             <StaggerItem duration={1.05}>
               <p className="mb-10 max-w-lg font-sans text-base leading-relaxed text-white/80">
-                Simple hourly pricing based on VDO hours flown. Wet Hire and GST included. $25 per landing.
+                Simple hourly pricing based on VDO hours flown. Wet Hire and GST included. $28.95 per landing.
               </p>
             </StaggerItem>
           </StaggerContainer>
@@ -215,7 +215,7 @@ export default function PricingPage() {
                 <div className="rounded-xl border border-white/12 bg-mkt-lift p-4">
                   <p className="inline-flex items-center gap-2 font-sans text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-deep-ink">
                     <Icon name="verified" className="!text-[14px] text-runway-amber" />
-                    Wet Hire · GST Included · $25 Per Landing
+                    Wet Hire · GST Included · $28.95 Per Landing
                   </p>
                 </div>
                 <div className="rounded-xl border border-white/12 bg-mkt-lift p-4">
@@ -251,7 +251,7 @@ export default function PricingPage() {
                 </div>
               ))}
               <div className="flex flex-wrap justify-center gap-6 bg-brand-blue/30 px-6 py-2.5 md:px-8">
-                {['Wet Hire', 'GST Included', '$25 Landing Fee'].map((tag) => (
+                {['Wet Hire', 'GST Included', '$28.95 Landing Fee'].map((tag) => (
                   <span
                     key={tag}
                     className="font-sans text-[11px] font-semibold uppercase tracking-[0.06em] text-white/60"

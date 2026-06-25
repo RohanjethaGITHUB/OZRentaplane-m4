@@ -622,7 +622,7 @@ export default function AirshowPage() {
                     'First flight is a checkout flight with our team',
                     'Launch checkout rate: $290/hr VDO',
                     'Standard checkout rate is usually $330/hr',
-                    'Landing fees apply at $25 per landing',
+                    'Landing fees apply at $28.95 per landing',
                   ].map((item) => (
                     <li key={item} className="flex items-start gap-2.5">
                       <Icon name="info" className="text-[16px] mt-0.5 flex-shrink-0" color="#60a5fa" />
@@ -1025,7 +1025,7 @@ export default function AirshowPage() {
                 }}
               >
                 Launch checkout rate: $290/hr VDO. Fuel and GST included.
-                Plus $25 per landing.
+                Plus $28.95 per landing.
               </p>
 
               {/* CTAs — left-aligned below the text */}
