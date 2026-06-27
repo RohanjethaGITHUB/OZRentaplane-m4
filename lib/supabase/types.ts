@@ -31,6 +31,8 @@ export type Profile = {
   phone_country_code: string | null
   phone_number: string | null
   email: string | null
+  stripe_customer_id: string | null
+  default_payment_method_id: string | null
   role: Role
   account_status: AccountStatus           // active | blocked | archived
   account_lock_reason: 'checkout_no_show' | null

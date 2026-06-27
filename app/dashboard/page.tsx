@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createBlockTimePurchaseIntent } from '@/app/actions/payment'
 import DashboardContent from './DashboardContent'
 import type { FlightSnapshotBooking } from './DashboardContent'
 import type { Profile, UserDocument, VerificationEvent, PilotClearanceStatus } from '@/lib/supabase/types'
@@ -12,6 +13,71 @@ import { hasManualCheckoutClearance } from '@/lib/checkout-clearance'
 type MainBookingHeroState = {
   mode: 'post_flight_required' | 'post_flight_under_review' | 'upcoming_confirmed' | 'post_flight_payment_required' | 'post_flight_awaiting_payment_confirmation'
   bookingId: string
+}
+
+type BlockTimePackageRow = {
+  id: string
+  name: string
+  hours: number
+  rate_per_hour: number
+  validity_days: number
+  total_price: number
+}
+
+type BlockTimePackageRef = {
+  name: string
+  hours: number
+  rate_per_hour: number
+  validity_days: number
+}
+
+type BlockTimePurchaseRow = {
+  id: string
+  status: 'pending' | 'active' | 'exhausted' | 'expired' | 'refunded'
+  hours_purchased: number
+  hours_remaining: number
+  expires_at: string
+  purchased_at: string
+  activated_at: string | null
+  package: BlockTimePackageRef | BlockTimePackageRef[] | null
+}
+
+type BlockTimeSummary = {
+  totalActiveHoursRemaining: number
+  activePurchaseCount: number
+  pendingPurchaseCount: number
+  earliestExpiry: string | null
+  latestPurchase: {
+    packageName: string
+    hoursPurchased: number
+    purchasedAt: string
+    status: BlockTimePurchaseRow['status']
+  } | null
+}
+
+function normalizePackageSlug(input: string | string[] | undefined): string | null {
+  const value = Array.isArray(input) ? input[0] : input
+  if (!value) return null
+  return value.toLowerCase()
+}
+
+function slugifyPackageName(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, '-')
+}
+
+function formatHours(hours: number): string {
+  const rounded = Math.round(hours * 10) / 10
+  return Number.isInteger(rounded) ? `${rounded.toFixed(0)}h` : `${rounded.toFixed(1)}h`
+}
+
+function formatExpiryDate(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date)
 }
 
 export default async function DashboardPage({
@@ -55,6 +121,7 @@ export default async function DashboardPage({
   const passwordUpdated = searchParams?.passwordUpdated === '1'
   const mustChangePassword = Boolean((profile as Profile | null)?.must_change_password)
   const skipPasswordPrompt = searchParams?.skip_password_prompt === '1'
+  const selectedBlockTimePackageSlug = normalizePackageSlug(searchParams?.block_time_package)
 
   if (mustChangePassword && !skipPasswordPrompt) {
     redirect('/change-password')
@@ -390,26 +457,173 @@ export default async function DashboardPage({
     }
   }
 
+  const { data: blockTimePackageRows } = selectedBlockTimePackageSlug
+    ? await supabase
+        .from('block_time_packages')
+        .select('id, name, hours, rate_per_hour, validity_days, total_price')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true })
+    : { data: null }
+
+  const { data: blockTimePurchaseRows } = await supabase
+    .from('pilot_block_time_purchases')
+    .select(`
+      id,
+      status,
+      hours_purchased,
+      hours_remaining,
+      expires_at,
+      purchased_at,
+      activated_at,
+      package:block_time_packages (
+        name,
+        hours,
+        rate_per_hour,
+        validity_days
+      )
+    `)
+    .eq('user_id', user.id)
+    .order('purchased_at', { ascending: false })
+    .limit(10)
+
+  const selectedBlockTimePackage = ((blockTimePackageRows ?? []) as BlockTimePackageRow[]).find(
+    (pkg) => slugifyPackageName(pkg.name) === selectedBlockTimePackageSlug,
+  ) ?? null
+
+  const blockTimePurchases = ((blockTimePurchaseRows ?? []) as BlockTimePurchaseRow[]).map((purchase) => ({
+    ...purchase,
+    package: Array.isArray(purchase.package) ? purchase.package[0] ?? null : purchase.package,
+  }))
+
+  const activeBlockTimePurchases = blockTimePurchases.filter(
+    (purchase) => purchase.status === 'active' && Number(purchase.hours_remaining) > 0,
+  )
+  const pendingBlockTimePurchases = blockTimePurchases.filter((purchase) => purchase.status === 'pending')
+  const totalActiveHoursRemaining = activeBlockTimePurchases.reduce(
+    (sum, purchase) => sum + Number(purchase.hours_remaining || 0),
+    0,
+  )
+  const earliestExpiry = activeBlockTimePurchases
+    .map((purchase) => purchase.expires_at)
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0] ?? null
+  const latestPurchase = blockTimePurchases[0] ?? null
+  const latestPurchasePackageName = latestPurchase?.package?.name ?? 'Block Time'
+  const latestPurchaseHours = latestPurchase?.package?.hours ?? Number(latestPurchase?.hours_purchased ?? 0)
+  const showBlockTimeSummary = blockTimePurchases.length > 0
+  const blockTimeSummary: BlockTimeSummary | null = showBlockTimeSummary
+    ? {
+        totalActiveHoursRemaining,
+        activePurchaseCount: activeBlockTimePurchases.length,
+        pendingPurchaseCount: pendingBlockTimePurchases.length,
+        earliestExpiry,
+        latestPurchase: latestPurchase
+          ? {
+              packageName: latestPurchasePackageName,
+              hoursPurchased: latestPurchaseHours,
+              purchasedAt: latestPurchase.purchased_at,
+              status: latestPurchase.status,
+            }
+          : null,
+      }
+    : null
+
+  const purchaseSelectedBlockTime = selectedBlockTimePackage
+    ? async () => {
+        'use server'
+        await createBlockTimePurchaseIntent(selectedBlockTimePackage.id)
+      }
+    : null
+
+  let newlyPurchasedInvoicePdfUrl: string | null = null
+  if (searchParams?.block_time_purchase === 'success') {
+    const { data: recentInvoice } = await supabase
+      .from('invoices')
+      .select('pdf_url')
+      .eq('user_id', user.id)
+      .eq('type', 'block_time_purchase')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    newlyPurchasedInvoicePdfUrl = recentInvoice?.pdf_url ?? null
+  }
+
   return (
-    <DashboardContent
-      user={user}
-      profile={profile as Profile | null}
-      documents={(documents as UserDocument[]) || []}
-      events={(events as VerificationEvent[]) || []}
-      isFirstLogin={isFirstLogin}
-      mustChangePassword={mustChangePassword}
-      passwordUpdated={passwordUpdated}
-      checkoutBookingId={checkoutBookingId}
-      checkoutInvoice={checkoutInvoice}
-      activeBooking={activeBooking}
-      mainBookingHeroState={mainBookingHeroState}
-      flightSnapshotBooking={flightSnapshotBooking}
-      bookingReadiness={bookingReadiness}
-      flashNotice={passwordUpdated ? {
-        kind: 'success',
-        title: 'Password updated',
-        message: 'Your new password is now active.',
-      } : null}
-    />
+    <>
+      {selectedBlockTimePackage ? (
+        <section className="mx-auto mb-8 max-w-7xl px-4 pt-4 md:mb-10 md:px-6">
+          <div className="rounded-2xl border border-[#d8e5fb] bg-white p-5 shadow-[0_12px_38px_rgba(16,38,74,0.08)] md:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-3xl">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6]">
+                  Block Time Purchase
+                </p>
+                <h2 className="mt-2 font-serif text-3xl leading-tight text-[#152d5a] md:text-4xl">
+                  {selectedBlockTimePackage.name} selected
+                </h2>
+                <p className="mt-3 font-sans text-[0.95rem] leading-relaxed text-[#4b6390]">
+                  {selectedBlockTimePackage.hours} hours at ${selectedBlockTimePackage.rate_per_hour.toFixed(0)}/hr, valid for {Math.round(selectedBlockTimePackage.validity_days / 30)} months. Landing fees are always billed separately.
+                </p>
+              </div>
+
+              {clearanceStatus === 'cleared_to_fly' ? (
+                <form action={purchaseSelectedBlockTime ?? undefined} className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <button
+                     type="submit"
+                    className="inline-flex items-center justify-center rounded-xl bg-[#f59e0b] px-5 py-3.5 font-sans text-[0.8rem] font-bold uppercase tracking-[0.16em] text-white transition-colors hover:bg-[#e08f00]"
+                  >
+                    Purchase Block Time
+                  </button>
+                  <p className="max-w-[260px] font-sans text-[0.78rem] leading-relaxed text-[#64748b]">
+                    You will be sent to Stripe checkout to complete payment securely.
+                  </p>
+                </form>
+              ) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+                  <p className="font-sans text-sm font-semibold">Checkout clearance required</p>
+                  <p className="mt-1 font-sans text-sm leading-relaxed">
+                    Block Time can be purchased once your checkout is cleared. Your selected package has been preserved for later.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <DashboardContent
+        user={user}
+        profile={profile as Profile | null}
+        documents={(documents as UserDocument[]) || []}
+        events={(events as VerificationEvent[]) || []}
+        isFirstLogin={isFirstLogin}
+        mustChangePassword={mustChangePassword}
+        passwordUpdated={passwordUpdated}
+        checkoutBookingId={checkoutBookingId}
+        checkoutInvoice={checkoutInvoice}
+        activeBooking={activeBooking}
+        mainBookingHeroState={mainBookingHeroState}
+        flightSnapshotBooking={flightSnapshotBooking}
+        bookingReadiness={bookingReadiness}
+        blockTimeSummary={blockTimeSummary}
+        newlyPurchasedInvoicePdfUrl={newlyPurchasedInvoicePdfUrl}
+        flashNotice={
+          searchParams?.block_time_purchase === 'success'
+            ? {
+                kind: 'success',
+                title: 'Purchase Successful!',
+                message: 'Your block time package has been successfully activated.',
+                actionLabel: newlyPurchasedInvoicePdfUrl ? 'Download PDF Invoice' : undefined,
+                actionUrl: newlyPurchasedInvoicePdfUrl ?? undefined,
+              }
+            : passwordUpdated
+            ? {
+                kind: 'success',
+                title: 'Password updated',
+                message: 'Your new password is now active.',
+              }
+            : null
+        }
+      />
+    </>
   )
 }

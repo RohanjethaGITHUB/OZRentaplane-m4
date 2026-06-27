@@ -8,6 +8,11 @@ export type SendEmailInput = {
   subject: string
   html: string
   text?: string
+  attachments?: Array<{
+    filename: string
+    content: string
+    contentType?: string
+  }>
   eventType: string
   entityType: string
   entityId?: string | null
@@ -55,6 +60,7 @@ export async function sendEmail(input: SendEmailInput): Promise<{ status: 'sent'
       html: input.html,
       text: input.text,
       replyTo: replyTo || undefined,
+      attachments: input.attachments,
     })
     const resendEmailId = (data as { id?: string } | null)?.id ?? null
 

@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OZ Rent A Plane — Billing Flow Architecture</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    padding: 40px 24px;
+    min-height: 100vh;
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    color: #f0f6fc;
+    margin-bottom: 4px;
+    letter-spacing: -0.3px;
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: #7d8590;
+    margin-bottom: 40px;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-bottom: 40px;
+    padding: 16px 20px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #8b949e;
+  }
+
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  /* Column layout */
+  .columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .column-header {
+    text-align: center;
+    padding: 14px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .payf-header {
+    background: #1c2b3a;
+    border: 1.5px solid #1f6feb;
+    color: #58a6ff;
+  }
+
+  .block-header {
+    background: #2b1d0e;
+    border: 1.5px solid #d29922;
+    color: #e3b341;
+  }
+
+  /* Shared steps */
+  .shared-section {
+    max-width: 1200px;
+    margin: 0 auto 20px;
+  }
+
+  .shared-label {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #7d8590;
+    margin-bottom: 12px;
+  }
+
+  /* Nodes */
+  .node {
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    position: relative;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .node-start {
+    background: #1f2937;
+    border: 1.5px solid #374151;
+    color: #9ca3af;
+    text-align: center;
+    font-weight: 600;
+    border-radius: 50px;
+    font-size: 12px;
+    padding: 10px 20px;
+  }
+
+  .node-action {
+    background: #161b22;
+    border: 1.5px solid #30363d;
+    color: #c9d1d9;
+  }
+
+  .node-decision {
+    background: #1a1f2e;
+    border: 1.5px solid #3d4663;
+    color: #a5b4fc;
+    border-style: dashed;
+  }
+
+  .node-payf {
+    background: #0d1b2e;
+    border: 1.5px solid #1f6feb;
+    color: #79c0ff;
+  }
+
+  .node-block {
+    background: #1a0f00;
+    border: 1.5px solid #d29922;
+    color: #e3b341;
+  }
+
+  .node-upsell {
+    background: #0f2a1a;
+    border: 1.5px solid #2ea043;
+    color: #56d364;
+  }
+
+  .node-upsell-generic {
+    background: #0f2a1a;
+    border: 1.5px dashed #2ea043;
+    color: #56d364;
+  }
+
+  .node-billing {
+    background: #1f0a2e;
+    border: 1.5px solid #8b5cf6;
+    color: #c4b5fd;
+  }
+
+  .node-email {
+    background: #1a1205;
+    border: 1.5px solid #d97706;
+    color: #fbbf24;
+  }
+
+  .node-warn {
+    background: #2a1515;
+    border: 1.5px solid #f85149;
+    color: #ff7b72;
+  }
+
+  .node-success {
+    background: #0a2a1a;
+    border: 1.5px solid #238636;
+    color: #3fb950;
+  }
+
+  .node-admin {
+    background: #1a1205;
+    border: 1.5px solid #d97706;
+    color: #fbbf24;
+  }
+
+  .node-title {
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.2px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .node-body {
+    font-size: 11.5px;
+    color: inherit;
+    opacity: 0.85;
+    line-height: 1.55;
+  }
+
+  .node-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+    letter-spacing: 0.3px;
+    margin-bottom: 6px;
+  }
+
+  .tag-new { background: #0e4429; color: #56d364; }
+  .tag-returning { background: #0d1b2e; color: #79c0ff; }
+  .tag-block { background: #2b1d0e; color: #e3b341; }
+  .tag-both { background: #1f1f1f; color: #8b949e; }
+  .tag-payf { background: #0d1b2e; color: #58a6ff; }
+
+  /* Arrows */
+  .arrow {
+    text-align: center;
+    color: #484f58;
+    font-size: 18px;
+    line-height: 1;
+    margin: 2px 0;
+  }
+
+  .arrow-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 2px 0;
+  }
+
+  .arrow-label span {
+    font-size: 10px;
+    color: #6e7681;
+    background: #161b22;
+    border: 1px solid #30363d;
+    padding: 2px 8px;
+    border-radius: 20px;
+  }
+
+  /* Fork/join */
+  .fork {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 8px 0;
+  }
+
+  .fork-label {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .fork-label div {
+    text-align: center;
+    font-size: 10px;
+    color: #6e7681;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid #21262d;
+    margin: 32px 0;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #484f58;
+    margin-bottom: 16px;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 2px;
+  }
+
+  .spacer { height: 8px; }
+  .spacer-lg { height: 20px; }
+
+  /* Connector line between columns for shared nodes */
+  .shared-node {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .shared-node .node {
+    text-align: center;
+  }
+
+  .split-arrow {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    max-width: 1200px;
+    margin: 4px auto;
+    position: relative;
+  }
+
+  .split-arrow::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 25%;
+    right: 25%;
+    height: 1px;
+    background: #30363d;
+  }
+
+  .split-arm {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #484f58;
+    font-size: 14px;
+    gap: 2px;
+  }
+
+  .split-arm .arm-label {
+    font-size: 10px;
+    color: #6e7681;
+    font-weight: 600;
+  }
+
+  .join-arrow {
+    display: flex;
+    max-width: 1200px;
+    margin: 4px auto;
+  }
+
+  .join-arm {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #484f58;
+    font-size: 14px;
+  }
+
+  /* Payment fork */
+  .payment-fork {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .sub-node {
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 11.5px;
+    line-height: 1.5;
+  }
+
+  .sub-stripe {
+    background: #0d1b2e;
+    border: 1px solid #1f6feb;
+    color: #79c0ff;
+  }
+
+  .sub-bank {
+    background: #1a1205;
+    border: 1px solid #d97706;
+    color: #fbbf24;
+  }
+
+  .sub-title {
+    font-weight: 700;
+    font-size: 11px;
+    margin-bottom: 3px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .sub-body {
+    font-size: 11px;
+    opacity: 0.8;
+  }
+
+  /* Phase markers */
+  .phase {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 24px auto 12px;
+    max-width: 1200px;
+  }
+
+  .phase-pill {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: #21262d;
+    color: #8b949e;
+    border: 1px solid #30363d;
+    white-space: nowrap;
+  }
+
+  .phase-line {
+    flex: 1;
+    height: 1px;
+    background: #21262d;
+  }
+</style>
+</head>
+<body>
+
+<h1>OZ Rent A Plane — Billing Flow Architecture</h1>
+<p class="subtitle">Pay As You Fly &amp; Block Time · Full end-to-end with upsell logic</p>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#30363d"></div> Shared step (both modes)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#1f6feb"></div> Pay As You Fly</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#d29922"></div> Block Time</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#2ea043"></div> Upsell moment</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div> Billing / charge</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#d97706"></div> Admin action required</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f85149"></div> Warning / edge case</div>
+</div>
+
+<!-- ─── PHASE 1: ENTRY ─── -->
+<div class="phase"><div class="phase-pill">Phase 1 · Entry</div><div class="phase-line"></div></div>
+
+<div class="shared-node">
+  <div class="node node-start">🛫 Pilot starts a new booking</div>
+</div>
+
+<div class="arrow">↓</div>
+
+<div class="shared-node">
+  <div class="node node-decision">
+    <div class="node-title">⚡ System checks: Does pilot have an active Block Time balance?</div>
+    <div class="node-body">Query <code>pilot_block_time_purchases</code> for status = active, expires_at > now(), hours_remaining > 0</div>
+  </div>
+</div>
+
+<!-- Split -->
+<div class="split-arrow">
+  <div class="split-arm"><div class="arm-label">NO BALANCE</div>↓</div>
+  <div class="split-arm"><div class="arm-label">HAS BALANCE</div>↓</div>
+</div>
+
+<div class="columns">
+  <div>
+    <div class="node node-payf">
+      <div class="node-title">💳 Mode: Pay As You Fly</div>
+      <div class="node-body">No active Block Time. Pilot proceeds on PAYF. $330/hr charged after flight.</div>
+    </div>
+  </div>
+  <div>
+    <div class="node node-block">
+      <div class="node-title">⏱ Mode: Block Time (auto-selected)</div>
+      <div class="node-body">Active balance detected. Block Time used automatically — pilot cannot override to PAYF.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── PHASE 2: DATE & SLOT ─── -->
+<div class="phase"><div class="phase-pill">Phase 2 · Select Date &amp; Time Slot</div><div class="phase-line"></div></div>
+
+<div class="shared-node">
+  <div class="node node-action">
+    <div class="node-title">📅 Pilot selects date &amp; time slot</div>
+    <div class="node-body">Availability checked against existing bookings. Plane reserved for selected duration. No charge at this point.</div>
+  </div>
+</div>
+
+<!-- ─── PHASE 3: UPSELL INTERSTITIAL ─── -->
+<div class="phase"><div class="phase-pill">Phase 3 · Upsell Interstitial (before confirm)</div><div class="phase-line"></div></div>
+
+<div class="shared-node">
+  <div class="node node-decision">
+    <div class="node-title">🔍 System checks pilot flight history</div>
+    <div class="node-body">How many completed flights does this pilot have?</div>
+  </div>
+</div>
+
+<div class="split-arrow">
+  <div class="split-arm"><div class="arm-label">NEW PILOT (0 flights)</div>↓</div>
+  <div class="split-arm"><div class="arm-label">RETURNING PILOT (1+ flights)</div>↓</div>
+</div>
+
+<div class="columns">
+
+  <!-- NEW PILOT LEFT -->
+  <div>
+    <div class="node node-decision">
+      <div class="node-title">⚡ On PAYF or Block Time?</div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="fork">
+      <div>
+        <div class="node node-upsell-generic" style="font-size:11.5px">
+          <div class="node-tag tag-new">NEW · PAYF</div>
+          <div class="node-title">💡 Generic Block Time upsell</div>
+          <div class="node-body">"Flying regularly? Lock in hours at $320/hr and save on every flight."<br><br>No estimates — pure value prop. Non-blocking, can skip.</div>
+        </div>
+      </div>
+      <div>
+        <div class="node node-action" style="font-size:11.5px">
+          <div class="node-tag tag-new">NEW · BLOCK TIME</div>
+          <div class="node-title">✅ No upsell needed</div>
+          <div class="node-body">Pilot just purchased a package. Proceed directly to booking confirmation.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RETURNING PILOT RIGHT -->
+  <div>
+    <div class="node node-decision">
+      <div class="node-title">⚡ On PAYF or Block Time?</div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="fork">
+      <div>
+        <div class="node node-upsell" style="font-size:11.5px">
+          <div class="node-tag tag-returning">RETURNING · PAYF</div>
+          <div class="node-title">💡 Personalised upsell</div>
+          <div class="node-body">
+            Calc: avg VDO/flight from history.<br>
+            Projected total = historical VDO + avg VDO.<br><br>
+            If projected ≥ 70% of combo threshold:<br>
+            "You've flown ~7.5h recently. A 10h Block Time package would have saved you $75 already."<br><br>
+            Show dollar saving. Non-blocking.
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="node node-warn" style="font-size:11.5px">
+          <div class="node-tag tag-block">RETURNING · BLOCK TIME</div>
+          <div class="node-title">⚠️ Balance check against slot</div>
+          <div class="node-body">
+            If hours_remaining &lt; booked slot duration:<br><br>
+            "You have 2.5h left. This flight may exceed your balance. Top up now or overflow is charged at your block rate."<br><br>
+            [Top Up] [Continue anyway]
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ─── PHASE 4: BOOKING CONFIRM ─── -->
+<div class="phase"><div class="phase-pill">Phase 4 · Booking Confirmed</div><div class="phase-line"></div></div>
+
+<div class="shared-node">
+  <div class="node node-success">
+    <div class="node-title">✅ Booking confirmed — plane reserved</div>
+    <div class="node-body">Booking record created. billing_mode set (pay_as_you_fly or block_time). block_time_purchase_id linked if applicable. No charge fires yet.</div>
+  </div>
+</div>
+
+<!-- ─── PHASE 5: FLIGHT ─── -->
+<div class="phase"><div class="phase-pill">Phase 5 · Pilot Flies</div><div class="phase-line"></div></div>
+
+<div class="shared-node">
+  <div class="node node-action">
+    <div class="node-title">✈️ Pilot flies &amp; returns</div>
+    <div class="node-body">Pilot submits VDO meter reading after landing. Admin can also submit on pilot's behalf (Phase 4 admin feature).</div>
+  </div>
+</div>
+
+<!-- ─── PHASE 6: BILLING SPLIT ─── -->
+<div class="phase"><div class="phase-pill">Phase 6 · Billing</div><div class="phase-line"></div></div>
+
+<div class="shared-node">
+  <div class="node node-decision">
+    <div class="node-title">🔍 System reads billing_mode on booking</div>
+    <div class="node-body">Routes to the correct billing logic based on mode set at booking time.</div>
+  </div>
+</div>
+
+<div class="split-arrow">
+  <div class="split-arm"><div class="arm-label">PAY AS YOU FLY</div>↓</div>
+  <div class="split-arm"><div class="arm-label">BLOCK TIME</div>↓</div>
+</div>
+
+<div class="columns">
+
+  <!-- PAYF BILLING -->
+  <div>
+    <div class="node node-billing">
+      <div class="node-title">💳 Charge: VDO hours × $330/hr</div>
+      <div class="node-body">Amount = actual VDO hours × $330. GST + fuel included. Landing fees billed separately.</div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="node node-decision">
+      <div class="node-title">💳 Payment method?</div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="payment-fork">
+      <div class="sub-node sub-stripe">
+        <div class="sub-title">⚡ Stripe</div>
+        <div class="sub-body">PaymentIntent created. Auto-charged to saved card. Instant.</div>
+      </div>
+      <div class="sub-node sub-bank">
+        <div class="sub-title">🏦 Bank Transfer</div>
+        <div class="sub-body">Invoice sent. Admin confirms receipt manually. Status → paid.</div>
+      </div>
+    </div>
+    <div class="arrow">↓</div>
+    <!-- POST-FLIGHT UPSELL for PAYF -->
+    <div class="node node-upsell">
+      <div class="node-title">💡 Post-flight upsell (PAYF only)</div>
+      <div class="node-body">
+        <strong>New pilot (1st completed flight):</strong><br>
+        "You flew 2.5h today at $330/hr = $825. Flying once a week? A 10h package pays for itself in 4 flights."<br><br>
+        <strong>Returning pilot:</strong><br>
+        Show updated cumulative hours + personalised savings calc vs closest combo.
+      </div>
+    </div>
+  </div>
+
+  <!-- BLOCK TIME BILLING -->
+  <div>
+    <div class="node node-decision">
+      <div class="node-title">🔍 Does VDO hours ≤ hours_remaining?</div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="fork">
+      <div>
+        <div class="node node-block" style="font-size:11.5px">
+          <div class="node-title">✅ Normal deduction</div>
+          <div class="node-body">hours_remaining -= VDO hours.<br>Usage logged to <code>pilot_block_time_usage</code>.</div>
+        </div>
+      </div>
+      <div>
+        <div class="node node-warn" style="font-size:11.5px">
+          <div class="node-title">⚠️ Overflow</div>
+          <div class="node-body">Balance → 0.<br>Overflow hours charged at block rate (not $330).<br>Usage + overflow both logged.</div>
+        </div>
+      </div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="node node-decision">
+      <div class="node-title">🔍 Balance after deduction: how low?</div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="fork">
+      <div>
+        <div class="node node-upsell" style="font-size:11.5px">
+          <div class="node-title">💡 Low balance upsell</div>
+          <div class="node-body">&lt;20% remaining:<br>"You have 2h left. Top up to keep your $300/hr rate locked in."<br><br>[Top Up Now]</div>
+        </div>
+      </div>
+      <div>
+        <div class="node node-action" style="font-size:11.5px">
+          <div class="node-title">✅ Balance healthy</div>
+          <div class="node-body">No upsell. Show updated balance in receipt.</div>
+        </div>
+      </div>
+    </div>
+    <div class="arrow">↓</div>
+    <!-- Upgrade upsell -->
+    <div class="node node-upsell">
+      <div class="node-title">💡 Upgrade upsell (high burn rate)</div>
+      <div class="node-body">
+        If pilot exhausted their package faster than 50% of validity period:<br><br>
+        "You used your 10h package in 2 weeks. A 25h package at $310/hr saves you $10/hr — that's $250 on the same hours."<br><br>
+        [Upgrade to 25h] [Dismiss]
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ─── PHASE 7: RECEIPT & COMMS ─── -->
+<div class="phase"><div class="phase-pill">Phase 7 · Receipt &amp; Post-Flight Comms</div><div class="phase-line"></div></div>
+
+<div class="shared-node">
+  <div class="node node-email">
+    <div class="node-title">📧 Flight receipt email sent</div>
+    <div class="node-body">
+      PAYF: VDO hours flown · Amount charged · Payment method · Landing fees (if any)<br>
+      Block Time: VDO hours deducted · Remaining balance · Package expiry date · Overflow charge (if any)
+    </div>
+  </div>
+</div>
+
+<!-- ─── PHASE 8: EXPIRY & RENEWAL ─── -->
+<div class="phase"><div class="phase-pill">Phase 8 · Expiry &amp; Renewal (Block Time only)</div><div class="phase-line"></div></div>
+
+<div class="columns">
+  <div>
+    <div class="node node-email">
+      <div class="node-title">📧 7-day expiry reminder email</div>
+      <div class="node-body">"Your Block Time package expires on [date]. You have Xh remaining. Renew now to keep your rate."<br><br>[Renew Package]</div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="node node-block">
+      <div class="node-title">🔄 Renewal flow</div>
+      <div class="node-body">Pilot tops up hours at same block rate. expires_at extended by same validity period from today. New purchase record created.</div>
+    </div>
+  </div>
+  <div>
+    <div class="node node-warn">
+      <div class="node-title">⚠️ Package expires with hours remaining</div>
+      <div class="node-body">hours_remaining forfeited. Status → expired. No automatic refund.</div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="node node-email">
+      <div class="node-title">📧 Post-expiry win-back email</div>
+      <div class="node-body">Triggered on next PAYF flight after expiry:<br><br>"Your Block Time rate was $300/hr. Today's flight cost you $60 more than it needed to. Ready to lock in your next package?"</div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── PHASE 9: REFUND ─── -->
+<div class="phase"><div class="phase-pill">Phase 9 · Refund (Block Time only)</div><div class="phase-line"></div></div>
+
+<div class="shared-node">
+  <div class="node node-warn">
+    <div class="node-title">💸 Refund request</div>
+    <div class="node-body">
+      Pilot requests refund on unused Block Time hours.<br><br>
+      System recalculates: hours already flown × $330/hr (standard rate).<br>
+      Refund = amount originally paid − recalculated amount at $330.<br><br>
+      Example: Bought 50h @ $300/hr = $15,000. Flew 20h. Recalc: 20h × $330 = $6,600. Refund = $15,000 − $6,600 = $8,400.
+    </div>
+  </div>
+</div>
+
+<div class="arrow">↓</div>
+
+<div class="shared-node">
+  <div class="node node-admin">
+    <div class="node-title">🔧 Admin approves &amp; processes refund</div>
+    <div class="node-body">Admin reviews request, confirms calculation, issues Stripe refund or manual bank transfer. Package status → refunded.</div>
+  </div>
+</div>
+
+<!-- ─── ADMIN SURFACE ─── -->
+<div class="phase"><div class="phase-pill">Admin Surface — Always Available</div><div class="phase-line"></div></div>
+
+<div class="columns">
+  <div>
+    <div class="node node-admin">
+      <div class="node-title">🔧 Bank transfer confirmation queue</div>
+      <div class="node-body">All pending bank transfers (PAYF invoices + Block Time purchases) in one list. Admin confirms receipt → status flips to paid/active.</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="node node-admin">
+      <div class="node-title">🔧 Pilot profile → Block Time tab</div>
+      <div class="node-body">Active package · hours remaining · expiry · rate locked · full purchase history · usage ledger per flight · manual balance adjustment.</div>
+    </div>
+  </div>
+  <div>
+    <div class="node node-admin">
+      <div class="node-title">🔧 Billing flags &amp; alerts</div>
+      <div class="node-body">Packages expiring in &lt;7 days · Balances under 2h · Overflow charges pending · Refund requests awaiting approval.</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="node node-admin">
+      <div class="node-title">🔧 Flight record submission (Phase 4)</div>
+      <div class="node-body">Admin submits VDO hours on pilot's behalf. System auto-detects billing_mode from booking and fires correct billing path.</div>
+    </div>
+  </div>
+</div>
+
+<div class="spacer-lg"></div>
+
+</body>
+</html>

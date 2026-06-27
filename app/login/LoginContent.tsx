@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
@@ -49,6 +49,8 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
   const [suSuccess, setSuSuccess] = useState(false)
 
   const [loading, setLoading] = useState(false)
+  const searchParams = useSearchParams()
+  const nextPath = normalizeNextPath(searchParams?.get('next') ?? null)
 
   const anyLoading = loading || forgotLoading
   const isModal = presentation === 'modal'
@@ -71,6 +73,13 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
     setSuSuccess(false)
     clearForgotPasswordState()
     setMode(nextMode)
+  }
+
+  function normalizeNextPath(input: string | null): string {
+    if (!input) return '/dashboard'
+    if (!input.startsWith('/')) return '/dashboard'
+    if (input.startsWith('//')) return '/dashboard'
+    return input
   }
 
   function openForgotPassword() {
@@ -118,7 +127,7 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
       setSiError(error.message)
     } else {
       // keep loading=true until navigation completes to prevent double-submit
-      router.push('/dashboard')
+      router.push(nextPath)
     }
   }
 
@@ -177,7 +186,7 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
       setSuError(error.message)
     } else if (data.session) {
       // keep loading=true until navigation completes to prevent double-submit
-      router.push('/dashboard')
+      router.push(nextPath)
     } else {
       setLoading(false)
       setSuSuccess(true)

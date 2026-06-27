@@ -53,6 +53,19 @@ export type BookingReadinessSummary = {
   hasMissingOrExpired: boolean
 }
 
+export type BlockTimeSummary = {
+  totalActiveHoursRemaining: number
+  activePurchaseCount: number
+  pendingPurchaseCount: number
+  earliestExpiry: string | null
+  latestPurchase: {
+    packageName: string
+    hoursPurchased: number
+    purchasedAt: string
+    status: 'pending' | 'active' | 'exhausted' | 'expired' | 'refunded'
+  } | null
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 type Props = {
@@ -72,7 +85,9 @@ type Props = {
   } | null
   flightSnapshotBooking?: FlightSnapshotBooking | null
   bookingReadiness?: BookingReadinessSummary | null
-  flashNotice?: { kind: 'success'; title: string; message: string } | null
+  blockTimeSummary?: BlockTimeSummary | null
+  flashNotice?: { kind: 'success'; title: string; message: string; actionLabel?: string; actionUrl?: string } | null
+  newlyPurchasedInvoicePdfUrl?: string | null
 }
 
 // ── Status config (clearance-level) ──────────────────────────────────────────
@@ -746,7 +761,9 @@ export default function DashboardContent({
   mainBookingHeroState,
   flightSnapshotBooking,
   bookingReadiness,
+  blockTimeSummary,
   flashNotice,
+  newlyPurchasedInvoicePdfUrl,
 }: Props) {
   const router = useRouter()
   const [toastVisible, setToastVisible] = useState(Boolean(flashNotice) || passwordUpdated)
@@ -757,6 +774,8 @@ export default function DashboardContent({
           kind: 'success' as const,
           title: 'Password updated successfully',
           message: 'Welcome to OZ Rent A Plane.',
+          actionLabel: undefined,
+          actionUrl: undefined,
         }
       : null)
 
@@ -772,6 +791,17 @@ export default function DashboardContent({
       window.clearTimeout(stripTimer)
     }
   }, [toastNotice])
+
+  // Automatically open the invoice PDF in a new tab upon successful purchase
+  useEffect(() => {
+    if (newlyPurchasedInvoicePdfUrl) {
+      try {
+        window.open(newlyPurchasedInvoicePdfUrl, '_blank')
+      } catch (err) {
+        console.error("Popup blocker prevented automatic PDF launch:", err)
+      }
+    }
+  }, [newlyPurchasedInvoicePdfUrl])
 
   const displayName = profile?.full_name ?? user.email?.split('@')[0] ?? 'Pilot'
   const firstNameFromProfile = (profile?.first_name ?? '').trim()
@@ -893,9 +923,22 @@ export default function DashboardContent({
                 check_circle
               </span>
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-[#152d5a]">{toastNotice.title}</p>
               <p className="mt-1 text-sm text-[#4b6390]">{toastNotice.message}</p>
+              {toastNotice.actionUrl && toastNotice.actionLabel && (
+                <div className="mt-2.5">
+                  <a
+                    href={toastNotice.actionUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#1a4fd6] hover:text-[#153eb2] hover:underline"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">download</span>
+                    {toastNotice.actionLabel}
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1010,6 +1053,98 @@ export default function DashboardContent({
 
       {/* ─── SECTION 2: PILOT JOURNEY CARD ───────────────────────────────────── */}
       <PilotJourneyStrip clearanceStatus={clearanceStatus} />
+
+      {/* ─── SECTION 2.5: BLOCK TIME BALANCE BANNER ──────────────────────────── */}
+      {blockTimeSummary && (
+        <section
+          className="bg-white border border-[#152d5a]/10 rounded-2xl p-6 md:p-8 transition-all hover:shadow-[0_8px_30px_rgba(2,10,22,0.06)]"
+          style={{ boxShadow: '0 4px 40px rgba(2,10,22,0.08)' }}
+        >
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-[#1a4fd6] font-sans">
+                BLOCK TIME BALANCE
+              </p>
+              <h2
+                className="text-[32px] md:text-[38px] font-normal leading-tight text-[#152d5a] mt-2"
+                style={{ fontFamily: 'Newsreader, Georgia, serif' }}
+              >
+                {blockTimeSummary.totalActiveHoursRemaining.toFixed(0)} hours remaining
+              </h2>
+              <p className="text-[14px] text-[#4b6390] mt-1.5 font-sans">
+                You have {blockTimeSummary.totalActiveHoursRemaining.toFixed(1)} hours available across{' '}
+                <span className="font-semibold text-[#152d5a]">
+                  {blockTimeSummary.activePurchaseCount} active{' '}
+                  {blockTimeSummary.activePurchaseCount === 1 ? 'package' : 'packages'}
+                </span>
+                .
+              </p>
+            </div>
+
+            {/* Badges and Buy More CTA */}
+            <div className="flex flex-wrap items-center gap-2 md:mt-2 font-sans">
+              <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                {blockTimeSummary.activePurchaseCount} active
+              </span>
+
+              {blockTimeSummary.earliestExpiry && (
+                <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold text-[#4b6390] bg-[#f8fafc] border border-[#152d5a]/10 shadow-sm">
+                  <span className="material-symbols-outlined text-[13px]">event</span>
+                  Earliest expiry {formatDateFromISO(blockTimeSummary.earliestExpiry)}
+                </span>
+              )}
+
+              <Link
+                href="/dashboard/checkout"
+                className="inline-flex items-center gap-1 text-[12px] font-bold text-[#1a4fd6] hover:text-[#153eb2] px-3.5 py-1.5 bg-[#f0f6ff] hover:bg-[#e0eeff] rounded-full border border-[#1a4fd6]/10 transition-colors ml-1"
+              >
+                Buy More
+                <span className="material-symbols-outlined text-[14px]">add</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Inner Card: Latest Purchase details */}
+          {blockTimeSummary.latestPurchase && (
+            <div className="mt-6 border border-[#e2e8f0]/80 rounded-xl p-4 bg-[#f8fbff]/70 hover:bg-[#f8fbff] transition-colors flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="font-sans">
+                <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-[#1a4fd6]">
+                  LATEST PURCHASE
+                </p>
+                <h3 className="text-[17px] font-semibold text-[#152d5a] mt-1">
+                  {blockTimeSummary.latestPurchase.packageName}
+                </h3>
+                <p className="text-[12px] text-[#4b6390] mt-0.5">
+                  {blockTimeSummary.latestPurchase.hoursPurchased} hours bought on{' '}
+                  {formatDateFromISO(blockTimeSummary.latestPurchase.purchasedAt)}.
+                </p>
+              </div>
+
+              {/* Status Box */}
+              <div className="border border-[#e2e8f0] rounded-xl p-3 bg-white text-center min-w-[120px] shadow-sm flex flex-col items-center justify-center font-sans">
+                <p className="text-[9px] font-semibold tracking-[0.14em] uppercase text-[#64748b]">
+                  STATUS
+                </p>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      blockTimeSummary.latestPurchase.status === 'active'
+                        ? 'bg-emerald-500'
+                        : blockTimeSummary.latestPurchase.status === 'pending'
+                        ? 'bg-amber-400'
+                        : 'bg-slate-400'
+                    }`}
+                  />
+                  <span className="text-[13px] font-bold text-[#152d5a] capitalize">
+                    {blockTimeSummary.latestPurchase.status}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ─── SECTION 3: NEXT ACTION + UPCOMING BOOKING + DOCUMENT READINESS ─── */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">

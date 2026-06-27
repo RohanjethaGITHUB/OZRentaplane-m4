@@ -110,6 +110,59 @@ const INCLUDED_CARDS = [
   },
 ]
 
+const BLOCK_TIME_PACKAGES = [
+  {
+    name: 'Starter Block',
+    hours: '10 hours',
+    rate: '$320/hr',
+    total: '$3,200',
+    validity: 'Valid for 1 month',
+    description: 'Best for pilots who fly a few times a month and want a lower locked-in hourly rate.',
+    accent: 'from-[#f5b429] via-[#f2a51d] to-[#de8d12]',
+    featured: false,
+    badge: 'Entry package',
+  },
+  {
+    name: 'Regular Block',
+    hours: '25 hours',
+    rate: '$310/hr',
+    total: '$7,750',
+    validity: 'Valid for 3 months',
+    description: 'A balanced option for active pilots who want better value without a long commitment.',
+    accent: 'from-[#8ab3ff] via-[#5f86e9] to-[#315fd8]',
+    featured: true,
+    badge: 'Most popular',
+  },
+  {
+    name: 'Committed Block',
+    hours: '50 hours',
+    rate: '$300/hr',
+    total: '$15,000',
+    validity: 'Valid for 6 months',
+    description: 'Ideal for regular flying with stronger savings and enough runway for ongoing use.',
+    accent: 'from-[#9ad6ff] via-[#6fb7f8] to-[#2f7fd6]',
+    featured: false,
+    badge: 'Best value',
+  },
+  {
+    name: 'Pro Block',
+    hours: '100 hours',
+    rate: '$290/hr',
+    total: '$29,000',
+    validity: 'Valid for 9 months',
+    description: 'The strongest per-hour savings for pilots flying consistently throughout the year.',
+    accent: 'from-[#2d59d6] via-[#234ab2] to-[#17317a]',
+    featured: false,
+    badge: 'Top tier',
+  },
+]
+
+function buildBlockTimeLoginHref(packageName: string) {
+  const packageSlug = packageName.toLowerCase().replace(/\s+/g, '-')
+  const nextPath = `/dashboard?block_time_package=${packageSlug}`
+  return `/login?next=${encodeURIComponent(nextPath)}`
+}
+
 const FAQ_ITEMS: FaqItemType[] = [
   {
     question: 'How are VDO hours calculated?',
@@ -262,6 +315,130 @@ export default function PricingPage() {
               </div>
             </div>
           </div>
+          </div>
+        </FadeUp>
+      </section>
+
+      <section className="relative overflow-hidden bg-[#d9e7fb] px-6 py-24 md:px-12 lg:px-20">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-[0.12]"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 20% 20%, rgba(26,79,214,0.18) 0, transparent 24%), radial-gradient(circle at 80% 15%, rgba(224,177,59,0.14) 0, transparent 22%), radial-gradient(circle at 50% 80%, rgba(26,79,214,0.10) 0, transparent 28%)',
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:radial-gradient(circle_at_20%_30%,#5674aa_1px,transparent_1px),radial-gradient(circle_at_80%_60%,#5674aa_1px,transparent_1px)] [background-size:34px_34px,44px_44px]"
+        />
+        <FadeUp className="relative z-10 mx-auto max-w-7xl" duration={1.05} viewportMargin="-80px">
+          <div className="mb-8 max-w-3xl">
+            <p className="mb-3 font-sans text-[12px] font-semibold uppercase tracking-[0.16em] text-brand-blue">Block Time Packages</p>
+            <h2 className="font-serif text-4xl leading-tight text-deep-ink md:text-6xl">
+              Lock in a lower hourly rate with a pre-paid combo package
+            </h2>
+            <p className="mt-5 max-w-2xl font-sans text-[0.96rem] leading-relaxed text-muted-ink">
+              Choose a package that suits how often you fly. Your rate is locked at purchase, hours are deducted from your balance, and landing fees are always charged separately.
+            </p>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            {BLOCK_TIME_PACKAGES.map((pkg) => (
+              <article
+                key={pkg.name}
+                className={`group relative flex h-full flex-col overflow-hidden rounded-3xl border bg-white shadow-[0_18px_55px_rgba(16,38,74,0.12)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(16,38,74,0.16)] ${
+                  pkg.featured ? 'border-[#1a4fd6]/25 ring-1 ring-[#1a4fd6]/10' : 'border-white/80'
+                }`}
+              >
+                <div className={`h-2 w-full bg-gradient-to-r ${pkg.accent}`} />
+                <div className="flex flex-1 flex-col p-5 sm:p-6">
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="font-sans text-[0.64rem] font-semibold uppercase tracking-[0.22em] text-brand-blue/95">
+                      {pkg.badge}
+                    </p>
+                    <span
+                      className={`inline-flex shrink-0 rounded-full border px-3 py-1 font-sans text-[0.64rem] font-bold uppercase tracking-[0.14em] ${
+                        pkg.featured
+                          ? 'border-[#1a4fd6]/15 bg-[#edf3ff] text-[#1a4fd6]'
+                          : 'invisible border-transparent bg-transparent text-transparent'
+                      }`}
+                    >
+                      Featured
+                    </span>
+                  </div>
+
+                  <h3 className="mt-3 min-h-[3.25rem] font-serif text-[1.7rem] leading-[1.02] tracking-[-0.03em] text-deep-ink text-balance sm:min-h-[3.6rem] sm:text-[1.85rem]">
+                    {pkg.name}
+                  </h3>
+
+                  <div className="mt-5 rounded-[1.35rem] border border-[#dce8fb] bg-[linear-gradient(180deg,rgba(248,251,255,0.96)_0%,rgba(241,246,255,0.96)_100%)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-5">
+                    <div className="grid gap-4 sm:grid-cols-[minmax(0,1.15fr)_auto] sm:items-end">
+                      <div className="min-w-0">
+                        <p className="font-sans text-[0.61rem] font-semibold uppercase tracking-[0.22em] text-muted-ink/90">
+                          Rate Locked In
+                        </p>
+                        <p className="mt-2 font-sans text-[1.95rem] font-semibold leading-[0.92] tracking-[-0.05em] text-brand-blue sm:text-[2.15rem]">
+                          {pkg.rate}
+                        </p>
+                      </div>
+                      <div className="sm:text-right">
+                        <p className="font-sans text-[0.61rem] font-semibold uppercase tracking-[0.22em] text-muted-ink/90">
+                          Package Total
+                        </p>
+                        <p className="mt-2 font-sans text-[1.15rem] font-semibold leading-none tracking-[-0.03em] text-deep-ink sm:text-[1.3rem]">
+                          {pkg.total}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 space-y-3">
+                    <div className="flex items-center gap-3 rounded-[1.15rem] border border-[#e4ecfa] bg-[#f8fbff] px-4 py-3">
+                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#e8efff] text-[#1a4fd6] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+                        <Icon name="schedule" className="!text-[18px]" />
+                      </span>
+                      <div>
+                        <p className="font-sans text-[0.61rem] font-semibold uppercase tracking-[0.22em] text-muted-ink/90">Hours</p>
+                        <p className="font-sans text-[0.96rem] font-medium tracking-[-0.02em] text-deep-ink">{pkg.hours}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-[1.15rem] border border-[#e4ecfa] bg-[#f8fbff] px-4 py-3">
+                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#fdf0d5] text-runway-amber shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+                        <Icon name="calendar_month" className="!text-[18px]" />
+                      </span>
+                      <div>
+                        <p className="font-sans text-[0.61rem] font-semibold uppercase tracking-[0.22em] text-muted-ink/90">Validity</p>
+                        <p className="font-sans text-[0.96rem] font-medium tracking-[-0.02em] text-deep-ink">{pkg.validity}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="mt-5 font-sans text-[0.88rem] leading-relaxed text-muted-ink sm:text-[0.92rem]">
+                    {pkg.description}
+                  </p>
+
+                  <div className="mt-auto border-t border-[#e6edf9] pt-5">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                      <div>
+                        <p className="font-sans text-[0.61rem] font-semibold uppercase tracking-[0.22em] text-muted-ink/90">Landing fees</p>
+                        <p className="mt-1 font-sans text-[0.93rem] font-medium tracking-[-0.02em] text-deep-ink">Always billed separately</p>
+                      </div>
+                      <a
+                        href={buildBlockTimeLoginHref(pkg.name)}
+                        className={`inline-flex w-full justify-center rounded-xl px-4 py-3.5 text-center font-sans text-[0.69rem] font-bold uppercase tracking-[0.18em] transition-all duration-300 sm:w-auto ${
+                          pkg.featured
+                            ? 'bg-runway-amber text-deep-ink shadow-[0_10px_24px_rgba(224,177,59,0.25)] hover:bg-runway-amber-hot hover:shadow-[0_14px_30px_rgba(224,177,59,0.3)]'
+                            : 'bg-[#1a4fd6] text-white shadow-[0_10px_24px_rgba(26,79,214,0.22)] hover:bg-[#1642b3] hover:shadow-[0_14px_30px_rgba(26,79,214,0.28)]'
+                        }`}
+                      >
+                        Buy Now
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
           </div>
         </FadeUp>
       </section>

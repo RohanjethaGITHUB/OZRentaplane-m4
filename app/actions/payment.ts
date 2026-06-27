@@ -141,6 +141,162 @@ export async function createCheckoutPaymentSession(bookingId: string) {
   redirect(session.url);
 }
 
+export async function createBlockTimePurchaseIntent(packageId: string) {
+  const stripeSecret = process.env.STRIPE_SECRET_KEY;
+  if (!stripeSecret) {
+    throw new Error("Server misconfiguration");
+  }
+
+  const stripe = new Stripe(stripeSecret, {
+    apiVersion: "2023-10-16" as any,
+  });
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) throw new Error("Unauthorized");
+
+  const { data: profile, error: profileErr } = await supabase
+    .from("profiles")
+    .select("id, full_name, email, stripe_customer_id, default_payment_method_id")
+    .eq("id", user.id)
+    .single();
+
+  if (profileErr || !profile) {
+    throw new Error("Profile not found.");
+  }
+
+  const { data: pkg, error: pkgErr } = await supabase
+    .from("block_time_packages")
+    .select("id, name, hours, rate_per_hour, validity_days, total_price, is_active")
+    .eq("id", packageId)
+    .eq("is_active", true)
+    .single();
+
+  if (pkgErr || !pkg) {
+    throw new Error("Selected package is not available.");
+  }
+
+  let stripeCustomerId = profile.stripe_customer_id ?? null;
+  if (!stripeCustomerId) {
+    const customer = await stripe.customers.create({
+      email: profile.email ?? undefined,
+      name: profile.full_name ?? undefined,
+      metadata: {
+        supabase_user_id: user.id,
+      },
+    });
+
+    stripeCustomerId = customer.id;
+
+    const { error: updateCustomerErr } = await supabase
+      .from("profiles")
+      .update({ stripe_customer_id: stripeCustomerId })
+      .eq("id", user.id);
+
+    if (updateCustomerErr) {
+      throw new Error(updateCustomerErr.message || "Failed to save Stripe customer.");
+    }
+  }
+
+  const amountCents = Math.round(Number(pkg.total_price) * 100);
+  const placeholderExpiry = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: purchase, error: purchaseErr } = await supabase
+    .from("pilot_block_time_purchases")
+    .insert({
+      user_id: user.id,
+      package_id: pkg.id,
+      hours_purchased: pkg.hours,
+      hours_remaining: pkg.hours,
+      rate_per_hour: pkg.rate_per_hour,
+      amount_paid: pkg.total_price,
+      status: "pending",
+      purchased_at: new Date().toISOString(),
+      expires_at: placeholderExpiry,
+    })
+    .select("id")
+    .single();
+
+  if (purchaseErr || !purchase) {
+    throw new Error(purchaseErr?.message ?? "Failed to reserve the purchase.");
+  }
+
+  const appUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000";
+
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    customer: stripeCustomerId,
+    payment_method_types: ["card"],
+    line_items: [
+      {
+        price_data: {
+          currency: "aud",
+          product_data: {
+            name: `OZ Rent A Plane - ${pkg.name} Block Time`,
+            description: `${pkg.hours} hours at ${Number(pkg.rate_per_hour).toFixed(0)}/hr`,
+          },
+          unit_amount: amountCents,
+        },
+        quantity: 1,
+      },
+    ],
+    success_url: `${appUrl}/dashboard?block_time_purchase=success`,
+    cancel_url: `${appUrl}/dashboard?block_time_package=${encodeURIComponent(pkg.name.toLowerCase().replace(/\s+/g, "-"))}&block_time_purchase=cancelled`,
+    metadata: {
+      purchase_type: "block_time",
+      supabase_user_id: user.id,
+      purchase_id: purchase.id,
+      package_id: pkg.id,
+      package_name: pkg.name,
+      hours_purchased: String(pkg.hours),
+      rate_per_hour: String(pkg.rate_per_hour),
+      validity_days: String(pkg.validity_days),
+    },
+    payment_intent_data: {
+      metadata: {
+        purchase_type: "block_time",
+        supabase_user_id: user.id,
+        purchase_id: purchase.id,
+        package_id: pkg.id,
+        package_name: pkg.name,
+        hours_purchased: String(pkg.hours),
+        rate_per_hour: String(pkg.rate_per_hour),
+        validity_days: String(pkg.validity_days),
+      },
+      description: `OZ Rent A Plane - ${pkg.name} (${pkg.hours}h Block Time)`,
+    },
+  });
+
+  const paymentIntentId = typeof session.payment_intent === "string"
+    ? session.payment_intent
+    : (session.payment_intent as { id?: string } | null)?.id ?? null;
+
+  const { error: updatePurchaseErr } = await supabase
+    .from("pilot_block_time_purchases")
+    .update({
+      stripe_payment_intent_id: paymentIntentId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", purchase.id);
+
+  if (updatePurchaseErr) {
+    throw new Error(updatePurchaseErr.message || "Failed to link the payment intent.");
+  }
+
+  if (!session.url) {
+    throw new Error("Failed to create Stripe checkout session.");
+  }
+
+  redirect(session.url);
+}
+
 export async function submitBankTransferProof(
   invoiceId: string,
   bookingId: string,

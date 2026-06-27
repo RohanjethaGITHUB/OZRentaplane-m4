@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OZ Rent A Plane — Block Time Purchase & Invoice Architecture</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    padding: 40px 24px;
+    min-height: 100vh;
+  }
+
+  h1 { font-size: 22px; font-weight: 600; color: #f0f6fc; margin-bottom: 4px; letter-spacing: -0.3px; }
+  .subtitle { font-size: 13px; color: #7d8590; margin-bottom: 40px; }
+
+  /* Legend */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 40px;
+    padding: 16px 20px; background: #161b22; border: 1px solid #30363d; border-radius: 10px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8b949e; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+
+  /* Phase markers */
+  .phase {
+    display: flex; align-items: center; gap: 12px;
+    margin: 28px auto 14px; max-width: 1200px;
+  }
+  .phase-pill {
+    font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    padding: 4px 12px; border-radius: 20px; background: #21262d; color: #8b949e;
+    border: 1px solid #30363d; white-space: nowrap;
+  }
+  .phase-line { flex: 1; height: 1px; background: #21262d; }
+
+  /* Nodes */
+  .node {
+    border-radius: 10px; padding: 14px 16px; margin-bottom: 8px;
+    position: relative; font-size: 13px; line-height: 1.5;
+  }
+  .node-start {
+    background: #1f2937; border: 1.5px solid #374151; color: #9ca3af;
+    text-align: center; font-weight: 600; border-radius: 50px;
+    font-size: 12px; padding: 10px 20px;
+  }
+  .node-action { background: #161b22; border: 1.5px solid #30363d; color: #c9d1d9; }
+  .node-decision { background: #1a1f2e; border: 1.5px dashed #3d4663; color: #a5b4fc; }
+  .node-payf { background: #0d1b2e; border: 1.5px solid #1f6feb; color: #79c0ff; }
+  .node-block { background: #1a0f00; border: 1.5px solid #d29922; color: #e3b341; }
+  .node-upsell { background: #0f2a1a; border: 1.5px solid #2ea043; color: #56d364; }
+  .node-billing { background: #1f0a2e; border: 1.5px solid #8b5cf6; color: #c4b5fd; }
+  .node-email { background: #1a1205; border: 1.5px solid #d97706; color: #fbbf24; }
+  .node-warn { background: #2a1515; border: 1.5px solid #f85149; color: #ff7b72; }
+  .node-success { background: #0a2a1a; border: 1.5px solid #238636; color: #3fb950; }
+  .node-admin { background: #1a1205; border: 1.5px solid #d97706; color: #fbbf24; }
+  .node-stripe { background: #0d1a30; border: 1.5px solid #6366f1; color: #a5b4fc; }
+  .node-invoice { background: #1a0a2e; border: 1.5px solid #a855f7; color: #d8b4fe; }
+  .node-marketing { background: #0a1a0a; border: 1.5px solid #16a34a; color: #4ade80; }
+  .node-auth { background: #1a1a0a; border: 1.5px solid #ca8a04; color: #facc15; }
+  .node-dashboard { background: #0a1a2e; border: 1.5px solid #0ea5e9; color: #7dd3fc; }
+
+  .node-title {
+    font-weight: 700; font-size: 12.5px; letter-spacing: 0.2px;
+    margin-bottom: 5px; display: flex; align-items: center; gap: 6px;
+  }
+  .node-body { font-size: 11.5px; color: inherit; opacity: 0.85; line-height: 1.6; }
+
+  .node-tag {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: 20px; letter-spacing: 0.3px; margin-bottom: 6px;
+  }
+  .tag-stripe { background: #1e1b4b; color: #a5b4fc; }
+  .tag-admin { background: #2b1d0e; color: #e3b341; }
+  .tag-customer { background: #0d1b2e; color: #79c0ff; }
+  .tag-invoice { background: #2e1065; color: #d8b4fe; }
+  .tag-both { background: #1f1f1f; color: #8b949e; }
+
+  /* Layout helpers */
+  .max-w { max-width: 1200px; margin-left: auto; margin-right: auto; }
+  .arrow { text-align: center; color: #484f58; font-size: 18px; line-height: 1; margin: 3px 0; }
+  .arrow-label {
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; margin: 3px 0;
+  }
+  .arrow-label span {
+    font-size: 10px; color: #6e7681; background: #161b22;
+    border: 1px solid #30363d; padding: 2px 8px; border-radius: 20px;
+  }
+
+  .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1200px; margin: 0 auto; }
+  .columns-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; max-width: 1200px; margin: 0 auto; }
+
+  .split-arrow {
+    display: flex; align-items: flex-start; justify-content: center;
+    gap: 0; max-width: 1200px; margin: 4px auto; position: relative;
+  }
+  .split-arrow::before {
+    content: ''; position: absolute; top: 0;
+    left: 25%; right: 25%; height: 1px; background: #30363d;
+  }
+  .split-arm { flex: 1; display: flex; flex-direction: column; align-items: center; color: #484f58; font-size: 14px; gap: 2px; }
+  .split-arm .arm-label { font-size: 10px; color: #6e7681; font-weight: 600; }
+
+  .split-arrow-3::before { left: 16%; right: 16%; }
+
+  .divider { border: none; border-top: 1px solid #21262d; margin: 8px 0; }
+
+  .spacer { height: 8px; }
+  .spacer-lg { height: 24px; }
+
+  /* Invoice specimen */
+  .invoice-specimen {
+    background: #13111a; border: 1px solid #3d2e6e; border-radius: 10px;
+    padding: 18px 20px; max-width: 1200px; margin: 0 auto;
+  }
+  .invoice-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid #2a2040;
+  }
+  .invoice-brand { font-size: 15px; font-weight: 700; color: #d8b4fe; }
+  .invoice-meta { text-align: right; font-size: 11px; color: #9ca3af; line-height: 1.7; }
+  .invoice-meta strong { color: #d8b4fe; }
+  .invoice-table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-bottom: 14px; }
+  .invoice-table th {
+    text-align: left; padding: 6px 10px; font-size: 10px; font-weight: 700;
+    letter-spacing: 0.8px; text-transform: uppercase; color: #6e7681;
+    border-bottom: 1px solid #2a2040;
+  }
+  .invoice-table td { padding: 8px 10px; color: #c9d1d9; border-bottom: 1px solid #1e1a2e; vertical-align: top; }
+  .invoice-table tr:last-child td { border-bottom: none; }
+  .invoice-totals { border-top: 1px solid #2a2040; padding-top: 10px; }
+  .invoice-total-row { display: flex; justify-content: space-between; font-size: 11.5px; padding: 3px 10px; color: #9ca3af; }
+  .invoice-total-row.grand { font-weight: 700; font-size: 13px; color: #d8b4fe; padding-top: 6px; margin-top: 4px; border-top: 1px solid #3d2e6e; }
+  .invoice-footer { margin-top: 14px; padding-top: 10px; border-top: 1px solid #2a2040; font-size: 10.5px; color: #6e7681; line-height: 1.6; }
+
+  /* Package cards */
+  .package-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 1200px; margin: 0 auto; }
+  .pkg-card {
+    background: #161b22; border: 1.5px solid #30363d; border-radius: 10px;
+    padding: 14px; text-align: center;
+  }
+  .pkg-hours { font-size: 22px; font-weight: 700; color: #e3b341; }
+  .pkg-label { font-size: 10px; color: #7d8590; margin-bottom: 8px; }
+  .pkg-rate { font-size: 15px; font-weight: 700; color: #f0f6fc; }
+  .pkg-rate-label { font-size: 10px; color: #7d8590; }
+  .pkg-total { font-size: 11px; color: #8b949e; margin: 6px 0; }
+  .pkg-validity { font-size: 10.5px; color: #56d364; background: #0e4429; padding: 2px 8px; border-radius: 20px; display: inline-block; margin-top: 4px; }
+  .pkg-btn {
+    margin-top: 10px; width: 100%; padding: 7px; border-radius: 6px;
+    background: #d29922; color: #000; font-weight: 700; font-size: 11px;
+    border: none; cursor: pointer;
+  }
+
+  /* Admin table */
+  .admin-table { width: 100%; border-collapse: collapse; font-size: 11.5px; max-width: 1200px; margin: 0 auto; }
+  .admin-table th {
+    text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 700;
+    letter-spacing: 0.8px; text-transform: uppercase; color: #6e7681;
+    background: #161b22; border-bottom: 1px solid #21262d;
+  }
+  .admin-table td { padding: 9px 12px; color: #c9d1d9; border-bottom: 1px solid #161b22; }
+  .status-pill {
+    display: inline-block; padding: 2px 8px; border-radius: 20px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.3px;
+  }
+  .s-active { background: #0e4429; color: #56d364; }
+  .s-pending { background: #2b1d0e; color: #e3b341; }
+  .s-expired { background: #21262d; color: #6e7681; }
+  .s-refunded { background: #2a1515; color: #ff7b72; }
+  .s-paid { background: #0e4429; color: #56d364; }
+  .s-unpaid { background: #1f0a2e; color: #c4b5fd; }
+
+  /* Tracking columns */
+  .tracking-cols { display: grid; grid-template-columns: 1fr 1px 1fr; gap: 0; max-width: 1200px; margin: 0 auto; }
+  .tracking-divider { background: #21262d; }
+  .tracking-col { padding: 0 20px; }
+  .tracking-col-title {
+    font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #21262d;
+  }
+
+  code {
+    font-family: 'Courier New', monospace; font-size: 10.5px;
+    background: #21262d; padding: 1px 5px; border-radius: 3px; color: #79c0ff;
+  }
+</style>
+</head>
+<body>
+
+<h1>OZ Rent A Plane — Block Time Purchase &amp; Invoice Architecture</h1>
+<p class="subtitle">Package discovery · Purchase flow · Stripe processing · Invoice system · Admin tracking</p>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#16a34a"></div> Marketing / public</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ca8a04"></div> Auth gate</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#0ea5e9"></div> Customer dashboard</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div> Stripe</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#a855f7"></div> Invoice system</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#d29922"></div> Admin action</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#2ea043"></div> Upsell / success</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f85149"></div> Edge case / warning</div>
+</div>
+
+<!-- ─── PHASE 1: DISCOVERY ─── -->
+<div class="phase"><div class="phase-pill">Phase 1 · Discovery — Marketing Page (Public)</div><div class="phase-line"></div></div>
+
+<div class="max-w">
+  <div class="node node-marketing">
+    <div class="node-title">🌐 /block-time marketing page — fully public, zero restrictions, no lock icons</div>
+    <div class="node-body">Full package detail: hours, rate per hour, total cost, validity period, what's included (wet hire, GST, fuel). Clear comparison across all 4 tiers. "Buy Now" CTA on every package — open to everyone, no login required to browse. The goal of this page is purely conversion — never show gates, locks, or eligibility requirements here.</div>
+  </div>
+</div>
+
+<div class="spacer"></div>
+
+<div class="package-cards">
+  <div class="pkg-card">
+    <div class="pkg-hours">10h</div>
+    <div class="pkg-label">Starter Block</div>
+    <div class="pkg-rate">$320<span class="pkg-rate-label">/hr</span></div>
+    <div class="pkg-total">Total: $3,200</div>
+    <div class="pkg-validity">Valid 1 month</div>
+    <div class="pkg-btn">Buy Now</div>
+  </div>
+  <div class="pkg-card">
+    <div class="pkg-hours">25h</div>
+    <div class="pkg-label">Regular Block</div>
+    <div class="pkg-rate">$310<span class="pkg-rate-label">/hr</span></div>
+    <div class="pkg-total">Total: $7,750</div>
+    <div class="pkg-validity">Valid 3 months</div>
+    <div class="pkg-btn">Buy Now</div>
+  </div>
+  <div class="pkg-card">
+    <div class="pkg-hours">50h</div>
+    <div class="pkg-label">Committed Block</div>
+    <div class="pkg-rate">$300<span class="pkg-rate-label">/hr</span></div>
+    <div class="pkg-total">Total: $15,000</div>
+    <div class="pkg-validity">Valid 6 months</div>
+    <div class="pkg-btn">Buy Now</div>
+  </div>
+  <div class="pkg-card">
+    <div class="pkg-hours">100h</div>
+    <div class="pkg-label">Pro Block</div>
+    <div class="pkg-rate">$290<span class="pkg-rate-label">/hr</span></div>
+    <div class="pkg-total">Total: $29,000</div>
+    <div class="pkg-validity">Valid 9 months</div>
+    <div class="pkg-btn">Buy Now</div>
+  </div>
+</div>
+
+<!-- ─── PHASE 2: AUTH & CHECKOUT GATE ─── -->
+<div class="phase"><div class="phase-pill">Phase 2 · Auth &amp; Checkout Gate</div><div class="phase-line"></div></div>
+
+<div class="max-w">
+  <div class="node node-auth">
+    <div class="node-title">🔐 Pilot clicks "Buy Now" on marketing page — no lock shown, fully open CTA</div>
+    <div class="node-body">
+      Marketing page never shows restrictions. "Buy Now" works for everyone — logged in or not. Selected package stored in session / URL param so it's never lost through the auth flow.
+    </div>
+  </div>
+</div>
+
+<div class="split-arrow">
+  <div class="split-arm"><div class="arm-label">NOT LOGGED IN</div>↓</div>
+  <div class="split-arm"><div class="arm-label">ALREADY LOGGED IN</div>↓</div>
+</div>
+
+<div class="columns">
+  <div>
+    <div class="node node-auth">
+      <div class="node-title">🔐 Redirect to Register / Login</div>
+      <div class="node-body">
+        Pilot registers or logs in.<br>
+        After successful auth → redirected to dashboard Block Time section with selected package pre-loaded.<br><br>
+        Then enters checkout gate below.
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="node node-success">
+      <div class="node-title">✅ Redirect to dashboard Block Time section</div>
+      <div class="node-body">
+        Package pre-selected from marketing page.<br>
+        Enters checkout gate below.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow max-w" style="text-align:center">↓</div>
+
+<!-- CHECKOUT GATE — DASHBOARD ONLY -->
+<div class="max-w">
+  <div class="node node-decision">
+    <div class="node-title">⚡ Dashboard Block Time section — has pilot cleared their checkout flight?</div>
+    <div class="node-body">
+      Check <code>users.checkout_cleared = true</code>. This is the only place the gate is shown — inside the authenticated dashboard, never on the public marketing page.
+    </div>
+  </div>
+</div>
+
+<div class="split-arrow">
+  <div class="split-arm"><div class="arm-label">NOT CLEARED</div>↓</div>
+  <div class="split-arm"><div class="arm-label">CHECKOUT CLEARED</div>↓</div>
+</div>
+
+<div class="columns">
+  <div>
+    <div class="node node-warn">
+      <div class="node-title">🔒 Locked — shown inside dashboard only</div>
+      <div class="node-body">
+        Package cards visible with lock icon overlay — pilot can see what they're working toward.<br><br>
+        Message:<br>
+        <em>"Complete your checkout flight to unlock Block Time packages. After checkout you'll be able to lock in hours at $320/hr and save on every flight."</em><br><br>
+        CTA: <strong>[Book your checkout flight →]</strong><br><br>
+        <strong>Backend API:</strong> Hard 403 reject regardless — no PaymentIntent ever created for an uncleared pilot, even if UI is bypassed.
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="node node-success">
+      <div class="node-title">✅ Unlocked — proceed to package selection</div>
+      <div class="node-body">
+        Both gates passed. Pilot is authenticated and checkout-verified.<br>
+        Package pre-selected from marketing page click (if applicable).<br>
+        Proceed to Phase 3 — package selection and payment.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── PHASE 3: PACKAGE SELECTION ─── -->
+<div class="phase"><div class="phase-pill">Phase 3 · Package Selection &amp; Checkout</div><div class="phase-line"></div></div>
+
+<div class="max-w">
+  <div class="node node-dashboard">
+    <div class="node-title">📦 Package pre-selected (carried from marketing page) or pilot selects from dashboard</div>
+    <div class="node-body">
+      Show package summary: hours · rate per hour · total · validity from today's date · what's included.<br>
+      If pilot already has an active package → show current balance + expiry. Warn: "You already have an active package. Purchasing a new one will be queued and used after your current package is exhausted."
+    </div>
+  </div>
+</div>
+
+<div class="arrow">↓</div>
+
+<div class="max-w">
+  <div class="node node-decision">
+    <div class="node-title">⚡ Does pilot already have an active Block Time package?</div>
+  </div>
+</div>
+
+<div class="split-arrow">
+  <div class="split-arm"><div class="arm-label">NO ACTIVE PACKAGE</div>↓</div>
+  <div class="split-arm"><div class="arm-label">HAS ACTIVE PACKAGE</div>↓</div>
+</div>
+
+<div class="columns">
+  <div>
+    <div class="node node-success">
+      <div class="node-title">✅ Proceed to payment</div>
+      <div class="node-body">No conflict. Package will activate immediately on payment success.</div>
+    </div>
+  </div>
+  <div>
+    <div class="node node-warn">
+      <div class="node-title">⚠️ Concurrent package warning</div>
+      <div class="node-body">
+        "You currently have X hours remaining on your [package name], expiring [date].<br><br>
+        Your new package will activate automatically once your current one is exhausted. Hours from your current package will be used first (FIFO)."<br><br>
+        Pilot must acknowledge before proceeding.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── PHASE 4: STRIPE ─── -->
+<div class="phase"><div class="phase-pill">Phase 4 · Stripe Payment</div><div class="phase-line"></div></div>
+
+<div class="max-w">
+  <div class="node node-stripe">
+    <div class="node-title">⚡ Stripe Checkout initiated</div>
+    <div class="node-body">
+      Create Stripe PaymentIntent for total package amount.<br>
+      Metadata attached: <code>user_id</code> · <code>package_id</code> · <code>hours</code> · <code>rate_per_hour</code> · <code>purchase_type: block_time</code><br>
+      Pilot enters card details on Stripe-hosted or embedded checkout.
+    </div>
+  </div>
+</div>
+
+<div class="arrow">↓</div>
+
+<div class="max-w">
+  <div class="node node-decision">
+    <div class="node-title">⚡ Payment result?</div>
+  </div>
+</div>
+
+<div class="split-arrow">
+  <div class="split-arm"><div class="arm-label">PAYMENT FAILED</div>↓</div>
+  <div class="split-arm"><div class="arm-label">PAYMENT SUCCESS</div>↓</div>
+</div>
+
+<div class="columns">
+  <div>
+    <div class="node node-warn">
+      <div class="node-title">❌ Payment failed</div>
+      <div class="node-body">Stripe error surfaced to pilot. No record created. Pilot can retry with same or different card. Package not activated.</div>
+    </div>
+  </div>
+  <div>
+    <div class="node node-stripe">
+      <div class="node-title">⚡ Stripe webhook fires: <code>payment_intent.succeeded</code></div>
+      <div class="node-body">
+        Backend receives webhook. Verifies signature. Reads metadata.<br>
+        Creates <code>pilot_block_time_purchases</code> record:<br>
+        · status → <code>active</code><br>
+        · hours_remaining = hours_purchased<br>
+        · rate_per_hour locked in<br>
+        · purchased_at = now()<br>
+        · expires_at = now() + validity_days<br>
+        · stripe_payment_intent_id stored
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── PHASE 5: INVOICE CREATION ─── -->
+<div class="phase"><div class="phase-pill">Phase 5 · Invoice Creation — Block Time Purchase</div><div class="phase-line"></div></div>
+
+<div class="max-w">
+  <div class="node node-invoice">
+    <div class="node-title">🧾 Invoice record created — <code>invoices</code> table</div>
+    <div class="node-body">
+      invoice_number: <code>OZ-2026-00001</code> (sequential, global counter) · type: <code>block_time_purchase</code><br>
+      linked to: <code>pilot_block_time_purchases.id</code> · user_id · stripe_payment_intent_id<br>
+      status: <code>paid</code> · paid_at: now() · amount · GST component · subtotal
+    </div>
+  </div>
+</div>
+
+<div class="spacer"></div>
+
+<!-- Invoice specimen — BT purchase -->
+<div class="invoice-specimen">
+  <div class="invoice-header">
+    <div>
+      <div class="invoice-brand">OZ Rent A Plane</div>
+      <div style="font-size:11px;color:#6e7681;margin-top:4px">Bankstown Airport, Sydney NSW<br>ABN: XX XXX XXX XXX</div>
+    </div>
+    <div class="invoice-meta">
+      <strong>TAX INVOICE</strong><br>
+      Invoice No: OZ-2026-00001<br>
+      Date: 22 Jun 2026<br>
+      Status: <span style="color:#56d364;font-weight:700">PAID</span>
+    </div>
+  </div>
+  <div style="font-size:11px;color:#9ca3af;margin-bottom:12px">
+    <strong style="color:#c9d1d9">Bill To:</strong> Rohan Jetha · rohan@example.com
+  </div>
+  <table class="invoice-table">
+    <tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Amount</th></tr>
+    <tr>
+      <td>Block Time Package — 25 Hours<br><span style="color:#6e7681;font-size:10.5px">Valid: 22 Jun 2026 – 22 Sep 2026 · Wet hire incl. GST &amp; fuel</span></td>
+      <td>25 hrs</td><td>$310.00</td><td>$7,750.00</td>
+    </tr>
+    <tr><td colspan="3" style="text-align:right;color:#6e7681">Subtotal (excl. GST)</td><td>$7,045.45</td></tr>
+    <tr><td colspan="3" style="text-align:right;color:#6e7681">GST (10%)</td><td>$704.55</td></tr>
+    <tr><td colspan="3" style="text-align:right;font-weight:700;color:#d8b4fe">Total (incl. GST)</td><td style="font-weight:700;color:#d8b4fe">$7,750.00</td></tr>
+  </table>
+  <div class="invoice-footer">Payment processed via Stripe · Payment Intent: pi_3Nx... · Landing fees &amp; overnight parking billed separately per flight.</div>
+</div>
+
+<!-- ─── PHASE 6: POST-PURCHASE ─── -->
+<div class="phase"><div class="phase-pill">Phase 6 · Post-Purchase — Customer &amp; Admin</div><div class="phase-line"></div></div>
+
+<div class="columns">
+  <div>
+    <div class="node node-email">
+      <div class="node-tag tag-customer">CUSTOMER</div>
+      <div class="node-title">📧 Purchase confirmation email</div>
+      <div class="node-body">
+        Package details · hours credited · expiry date · rate locked in · invoice attached as PDF.<br><br>
+        CTA: "View your Block Time balance →" (links to dashboard).
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div class="node node-dashboard">
+      <div class="node-tag tag-customer">CUSTOMER DASHBOARD</div>
+      <div class="node-title">📊 Dashboard updated instantly</div>
+      <div class="node-body">
+        Block Time section shows:<br>
+        · Hours remaining · Expiry date · Rate locked<br>
+        · [View Usage] [Top Up] [Download Invoice]<br><br>
+        Mirrors the marketing page detail — same package breakdown visible.
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="node node-admin">
+      <div class="node-tag tag-admin">ADMIN</div>
+      <div class="node-title">🔧 Admin payment tracking updated</div>
+      <div class="node-body">
+        New row appears in Block Time Purchases table:<br>
+        Pilot name · Package · Amount · Date · Status: Active · Invoice link.<br><br>
+        No action required — Stripe confirmed automatically.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── PHASE 7: CUSTOMER DASHBOARD ─── -->
+<div class="phase"><div class="phase-pill">Phase 7 · Customer Dashboard — Block Time Detail Page</div><div class="phase-line"></div></div>
+
+<div class="max-w">
+  <div class="node node-dashboard">
+    <div class="node-title">📊 /dashboard/block-time — Full detail page</div>
+    <div class="node-body" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:8px">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#7dd3fc;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Active Package</div>
+        Hours remaining · Rate locked · Expiry date · Package name · Progress bar (hours used vs purchased) · [Top Up] button
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#7dd3fc;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Usage History</div>
+        Table: Date · Booking ref · VDO hours deducted · Balance after · Overflow (if any) · Link to flight invoice
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#7dd3fc;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Purchase History</div>
+        All packages ever bought · Status (active/expired/refunded) · Invoice download per purchase
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── PHASE 8: FLIGHT INVOICE ─── -->
+<div class="phase"><div class="phase-pill">Phase 8 · Flight Invoice — Created After Every VDO Submission</div><div class="phase-line"></div></div>
+
+<div class="max-w">
+  <div class="node node-invoice">
+    <div class="node-title">🧾 Flight invoice created on VDO submission (both PAYF and Block Time)</div>
+    <div class="node-body">
+      invoice_number: <code>OZ-2026-00002</code> · type: <code>flight</code><br>
+      linked to: <code>bookings.id</code> · user_id · billing_mode · block_time_purchase_id (if BT)<br>
+      Line items: flight hours + landing fees (if any) + overflow charge (if any)
+    </div>
+  </div>
+</div>
+
+<div class="spacer"></div>
+
+<!-- Invoice specimen — PAYF flight -->
+<div class="invoice-specimen">
+  <div class="invoice-header">
+    <div>
+      <div class="invoice-brand">OZ Rent A Plane</div>
+      <div style="font-size:11px;color:#6e7681;margin-top:4px">Bankstown Airport, Sydney NSW<br>ABN: XX XXX XXX XXX</div>
+    </div>
+    <div class="invoice-meta">
+      <strong>TAX INVOICE</strong><br>
+      Invoice No: OZ-2026-00002<br>
+      Date: 25 Jun 2026<br>
+      Booking Ref: BK-00089<br>
+      Status: <span style="color:#56d364;font-weight:700">PAID</span>
+    </div>
+  </div>
+  <div style="font-size:11px;color:#9ca3af;margin-bottom:12px">
+    <strong style="color:#c9d1d9">Bill To:</strong> Rohan Jetha · rohan@example.com · Billing mode: Pay As You Fly
+  </div>
+  <table class="invoice-table">
+    <tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Amount</th></tr>
+    <tr>
+      <td>Aircraft Hire — VH-OZA Cessna 172N<br><span style="color:#6e7681;font-size:10.5px">Flight date: 25 Jun 2026 · VDO: 3.5 hrs · Wet hire incl. GST &amp; fuel</span></td>
+      <td>3.5 hrs</td><td>$330.00</td><td>$1,155.00</td>
+    </tr>
+    <tr>
+      <td>Landing Fee — Bankstown (YSBK)<br><span style="color:#6e7681;font-size:10.5px">1 x touch &amp; go + 1 x full stop</span></td>
+      <td>2</td><td>$15.00</td><td>$30.00</td>
+    </tr>
+    <tr><td colspan="3" style="text-align:right;color:#6e7681">Subtotal (excl. GST)</td><td>$1,077.27</td></tr>
+    <tr><td colspan="3" style="text-align:right;color:#6e7681">GST (10%)</td><td>$107.73</td></tr>
+    <tr><td colspan="3" style="text-align:right;font-weight:700;color:#d8b4fe">Total (incl. GST)</td><td style="font-weight:700;color:#d8b4fe">$1,185.00</td></tr>
+  </table>
+  <div class="invoice-footer">Payment processed via Stripe · Booking ref: BK-00089 · Landing fees are subject to aerodrome charges and may vary.</div>
+</div>
+
+<!-- ─── PHASE 9: ADMIN TRACKING ─── -->
+<div class="phase"><div class="phase-pill">Phase 9 · Admin Payment Tracking — Two Separate Views</div><div class="phase-line"></div></div>
+
+<div class="tracking-cols">
+  <div class="tracking-col">
+    <div class="tracking-col-title" style="color:#e3b341">⏱ Block Time Purchases</div>
+    <table class="admin-table">
+      <tr><th>Pilot</th><th>Package</th><th>Amount</th><th>Date</th><th>Expires</th><th>Status</th><th>Invoice</th></tr>
+      <tr>
+        <td>Rohan J.</td><td>25h @ $310</td><td>$7,750</td><td>22 Jun</td><td>22 Sep</td>
+        <td><span class="status-pill s-active">Active</span></td><td style="color:#a5b4fc">OZ-2026-00001 ↗</td>
+      </tr>
+      <tr>
+        <td>Sam K.</td><td>10h @ $320</td><td>$3,200</td><td>18 Jun</td><td>18 Jul</td>
+        <td><span class="status-pill s-active">Active</span></td><td style="color:#a5b4fc">OZ-2026-00098 ↗</td>
+      </tr>
+      <tr>
+        <td>Priya M.</td><td>50h @ $300</td><td>$15,000</td><td>01 Jan</td><td>01 Jul</td>
+        <td><span class="status-pill s-expired">Expired</span></td><td style="color:#a5b4fc">OZ-2026-00012 ↗</td>
+      </tr>
+      <tr>
+        <td>Tom W.</td><td>10h @ $320</td><td>$3,200</td><td>20 Jun</td><td>20 Jul</td>
+        <td><span class="status-pill s-refunded">Refunded</span></td><td style="color:#a5b4fc">OZ-2026-00104 ↗</td>
+      </tr>
+    </table>
+    <div style="font-size:11px;color:#6e7681;margin-top:10px;padding:0 2px">
+      Filters: All · Active · Expired · Refunded · Date range<br>
+      Admin actions: View pilot · View invoice · Adjust balance · Process refund
+    </div>
+  </div>
+
+  <div class="tracking-divider"></div>
+
+  <div class="tracking-col">
+    <div class="tracking-col-title" style="color:#c4b5fd">🧾 Flight Invoices</div>
+    <table class="admin-table">
+      <tr><th>Invoice</th><th>Pilot</th><th>Mode</th><th>VDO hrs</th><th>Amount</th><th>Date</th><th>Status</th></tr>
+      <tr>
+        <td style="color:#a5b4fc">OZ-2026-00002</td><td>Rohan J.</td>
+        <td><span class="status-pill" style="background:#0d1b2e;color:#79c0ff">PAYF</span></td>
+        <td>3.5h</td><td>$1,185</td><td>25 Jun</td>
+        <td><span class="status-pill s-paid">Paid</span></td>
+      </tr>
+      <tr>
+        <td style="color:#a5b4fc">OZ-2026-00003</td><td>Sam K.</td>
+        <td><span class="status-pill" style="background:#2b1d0e;color:#e3b341">Block</span></td>
+        <td>2.0h</td><td>—</td><td>24 Jun</td>
+        <td><span class="status-pill s-paid">Deducted</span></td>
+      </tr>
+      <tr>
+        <td style="color:#a5b4fc">OZ-2026-00004</td><td>Lisa P.</td>
+        <td><span class="status-pill" style="background:#0d1b2e;color:#79c0ff">PAYF</span></td>
+        <td>4.0h</td><td>$1,350</td><td>23 Jun</td>
+        <td><span class="status-pill s-unpaid">Awaiting</span></td>
+      </tr>
+    </table>
+    <div style="font-size:11px;color:#6e7681;margin-top:10px;padding:0 2px">
+      Filters: All · PAYF · Block Time · Paid · Awaiting · Date range<br>
+      Admin actions: View invoice · Mark paid (bank transfer) · View booking · View pilot
+    </div>
+  </div>
+</div>
+
+<!-- ─── PHASE 10: TOP UP / RENEWAL ─── -->
+<div class="phase"><div class="phase-pill">Phase 10 · Top Up &amp; Renewal Flow</div><div class="phase-line"></div></div>
+
+<div class="max-w">
+  <div class="node node-dashboard">
+    <div class="node-title">📊 Pilot clicks [Top Up] from dashboard or renewal email CTA</div>
+    <div class="node-body">Same package selection UI. Current balance + expiry shown. Pilot selects same or larger package tier.</div>
+  </div>
+</div>
+
+<div class="arrow">↓</div>
+
+<div class="max-w">
+  <div class="node node-stripe">
+    <div class="node-title">⚡ New Stripe PaymentIntent created for top-up amount</div>
+    <div class="node-body">On success: new <code>pilot_block_time_purchases</code> record created. If existing package still active → FIFO queue (new package activates after current exhausted). If expired → activates immediately. New invoice generated: <code>OZ-2026-NNNNN</code>.</div>
+  </div>
+</div>
+
+<!-- ─── PHASE 11: REFUND ─── -->
+<div class="phase"><div class="phase-pill">Phase 11 · Refund Flow</div><div class="phase-line"></div></div>
+
+<div class="max-w">
+  <div class="node node-warn">
+    <div class="node-title">💸 Pilot requests refund on unused Block Time hours</div>
+    <div class="node-body">
+      System calculates: hours flown from this package × $330/hr (standard rate).<br>
+      Refund = amount paid − recalculated cost at $330.<br><br>
+      Example: 50h @ $300 = $15,000 paid. Flew 20h. Recalc: 20h × $330 = $6,600. Refund = <strong>$8,400</strong>.<br><br>
+      Refund summary shown to pilot before they confirm request.
+    </div>
+  </div>
+</div>
+
+<div class="arrow">↓</div>
+
+<div class="max-w">
+  <div class="node node-admin">
+    <div class="node-title">🔧 Admin reviews &amp; approves refund</div>
+    <div class="node-body">Admin sees refund request in queue with full calculation breakdown. Approves → Stripe refund API fires for calculated amount. Package status → <code>refunded</code>. New credit note invoice created referencing original invoice number.</div>
+  </div>
+</div>
+
+<div class="spacer-lg"></div>
+
+<!-- ─── DATA MODEL SUMMARY ─── -->
+<div class="phase"><div class="phase-pill">Data Model — New Tables &amp; Fields Required</div><div class="phase-line"></div></div>
+
+<div class="columns-3">
+  <div class="node node-invoice">
+    <div class="node-title">🗃 <code>invoices</code></div>
+    <div class="node-body">
+      id · invoice_number (OZ-YYYY-NNNNN)<br>
+      type (block_time_purchase / flight / credit_note)<br>
+      user_id · booking_id (nullable)<br>
+      block_time_purchase_id (nullable)<br>
+      status (paid / awaiting / refunded)<br>
+      subtotal · gst_amount · total<br>
+      stripe_payment_intent_id<br>
+      paid_at · created_at<br>
+      pdf_url (generated + stored in Supabase Storage)
+    </div>
+  </div>
+  <div class="node node-block">
+    <div class="node-title">🗃 <code>pilot_block_time_purchases</code></div>
+    <div class="node-body">
+      id · user_id · package_id<br>
+      hours_purchased · hours_remaining<br>
+      rate_per_hour (locked at purchase)<br>
+      status (active / exhausted / expired / refunded)<br>
+      purchased_at · expires_at<br>
+      stripe_payment_intent_id<br>
+      invoice_id · queue_position
+    </div>
+  </div>
+  <div class="node node-action">
+    <div class="node-title">🗃 <code>invoice_line_items</code></div>
+    <div class="node-body">
+      id · invoice_id<br>
+      description · quantity · unit_price<br>
+      amount · type<br>
+      (flight_hours / landing_fee / overflow / package_hours)
+    </div>
+  </div>
+</div>
+
+<div class="spacer-lg"></div>
+
+</body>
+</html>
