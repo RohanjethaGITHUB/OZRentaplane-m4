@@ -373,9 +373,9 @@ export async function POST(req: Request) {
           invoice_id: invoice.id,
           type: "block_time_hours",
           description: invoiceDescription,
-          quantity: 1,
-          unit_price: invoiceAmounts.subtotal,
-          amount: invoiceAmounts.subtotal,
+          quantity: packageHours,
+          unit_price: ratePerHour,
+          amount: amountPaid,
           display_order: 1,
         });
 

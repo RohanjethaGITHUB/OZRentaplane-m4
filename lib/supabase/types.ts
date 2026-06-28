@@ -151,3 +151,109 @@ export type VerificationEvent = {
   email_sent_at: string | null
   created_at: string
 }
+
+export type BlockTimePackageStatus = 'pending' | 'active' | 'exhausted' | 'expired' | 'refunded'
+
+export type BlockTimePackage = {
+  id: string
+  name: string
+  hours: number
+  rate_per_hour: number
+  total_price: number
+  validity_days: number
+  is_active: boolean
+  display_order: number
+  created_at: string
+  updated_at: string
+}
+
+export type BlockTimePurchase = {
+  id: string
+  user_id: string
+  package_id: string
+  hours_purchased: number
+  hours_remaining: number
+  rate_per_hour: number
+  amount_paid: number
+  status: BlockTimePackageStatus
+  purchased_at: string
+  activated_at: string | null
+  expires_at: string
+  stripe_payment_intent_id: string | null
+  queue_position: number | null
+  refund_amount: number | null
+  refunded_at: string | null
+  refund_stripe_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type InvoiceType = 'block_time_purchase' | 'flight' | 'credit_note'
+export type InvoiceStatus = 'draft' | 'paid' | 'awaiting' | 'void' | 'refunded'
+export type BillingMode = 'pay_as_you_fly' | 'block_time'
+export type InvoicePaymentMethod = 'stripe' | 'bank_transfer'
+
+export type Invoice = {
+  id: string
+  invoice_number: string
+  type: InvoiceType
+  user_id: string
+  booking_id: string | null
+  block_time_purchase_id: string | null
+  related_invoice_id: string | null
+  billing_mode: BillingMode | null
+  subtotal: number
+  gst_amount: number
+  total: number
+  status: InvoiceStatus
+  payment_method: InvoicePaymentMethod | null
+  stripe_payment_intent_id: string | null
+  bank_transfer_reference: string | null
+  bank_transfer_confirmed_at: string | null
+  bank_transfer_confirmed_by: string | null
+  pdf_url: string | null
+  paid_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type InvoiceLineItemType =
+  | 'flight_hours'
+  | 'block_time_hours'
+  | 'overflow_hours'
+  | 'landing_fee'
+  | 'overnight_parking'
+
+export type InvoiceLineItem = {
+  id: string
+  invoice_id: string
+  type: InvoiceLineItemType
+  description: string
+  quantity: number
+  unit_price: number
+  amount: number
+  display_order: number
+  created_at: string
+}
+
+export type BlockTimeUsage = {
+  id: string
+  purchase_id: string
+  user_id: string
+  booking_id: string
+  invoice_id: string | null
+  hours_deducted: number
+  overflow_hours: number
+  overflow_amount: number
+  hours_before: number
+  hours_after: number
+  deducted_at: string
+  created_at: string
+}
+
+export type BlockTimeSummary = {
+  hasActivePackage: boolean
+  totalHoursRemaining: number
+  activePackages: (BlockTimePurchase & { package?: BlockTimePackage })[]
+  earliestExpiry: string | null
+}
