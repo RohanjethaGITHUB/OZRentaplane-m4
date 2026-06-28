@@ -184,6 +184,7 @@ export type BlockTimePurchase = {
   refund_amount: number | null
   refunded_at: string | null
   refund_stripe_id: string | null
+  expiry_reminder_sent_at: string | null
   created_at: string
   updated_at: string
 }
