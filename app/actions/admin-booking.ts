@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
 import type {
   CreateAdminBlockInput,
@@ -18,6 +19,7 @@ import {
 import { sendEmail } from '@/lib/email/send-email'
 import { checkoutOutcomeEmail } from '@/lib/email/templates/checkout'
 import { paymentConfirmedEmail } from '@/lib/email/templates/payment'
+import { generateInvoicePdf } from '@/lib/invoices/pdf'
 import {
   type AircraftReadings,
   type TotalOnlyReadings,
@@ -2448,6 +2450,364 @@ export async function finaliseStandardBookingInvoice(input: {
     .eq('id', booking.booking_owner_user_id)
     .single()
 
+  const { data: pilotProfile, error: pilotProfileErr } = await supabase
+    .from('profiles')
+    .select('id, full_name, email, stripe_customer_id, default_payment_method_id')
+    .eq('id', booking.booking_owner_user_id)
+    .single()
+  if (pilotProfileErr) {
+    throw new Error('Failed to load pilot billing profile.')
+  }
+
+  const { data: activePackage, error: activePackageErr } = await supabase
+    .from('pilot_block_time_purchases')
+    .select('id, hours_remaining, rate_per_hour, expires_at, status')
+    .eq('user_id', booking.booking_owner_user_id)
+    .eq('status', 'active')
+    .gt('expires_at', new Date().toISOString())
+    .order('queue_position', { ascending: true, nullsFirst: false })
+    .order('activated_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (activePackageErr) {
+    throw new Error('Failed to determine block time billing mode.')
+  }
+
+  const billingMode = activePackage ? 'block_time' : 'pay_as_you_fly'
+
+  if (billingMode === 'block_time') {
+    let landingFeesTotal = 0
+    const landingCharges = input.landingCharges ?? []
+    if (landingCharges.length > 0) {
+      const airportIds = Array.from(new Set(landingCharges.map((row) => row.airportId)))
+      const { data: airports, error: airportsErr } = await supabase
+        .from('airports')
+        .select('id, is_active, default_landing_fee_cents')
+        .in('id', airportIds)
+      if (airportsErr) {
+        throw new Error('Failed to calculate landing fees for block time billing.')
+      }
+
+      const airportsById = new Map(
+        (airports ?? []).map((airport) => [airport.id, airport] as const),
+      )
+
+      for (const row of landingCharges) {
+        const airport = airportsById.get(row.airportId)
+        if (!airport) {
+          throw new Error(`Airport not found: ${row.airportId}`)
+        }
+        if (!airport.is_active) {
+          throw new Error(`Airport is not active: ${row.airportId}`)
+        }
+        const unitAmountCents = Number(airport.default_landing_fee_cents)
+        if (!Number.isFinite(unitAmountCents)) {
+          throw new Error(`Invalid landing fee for airport: ${row.airportId}`)
+        }
+        landingFeesTotal += (unitAmountCents * row.landingCount) / 100
+      }
+
+      landingFeesTotal = Math.round(landingFeesTotal * 100) / 100
+    }
+
+    const { data: drawdownRows, error: drawdownErr } = await supabase.rpc(
+      'process_block_time_flight',
+      {
+        p_user_id: booking.booking_owner_user_id,
+        p_booking_id: input.bookingId,
+        p_vdo_hours: vdoReading,
+        p_landing_fees: landingFeesTotal,
+      },
+    )
+
+    if (drawdownErr || !drawdownRows?.[0]) {
+      throw new Error(drawdownErr?.message ?? 'Block time drawdown failed.')
+    }
+
+    const drawdown = drawdownRows[0] as {
+      out_invoice_id: string
+      out_invoice_number: string
+      out_overflow_hours: number
+      out_overflow_amount: number
+      out_hours_after: number
+      out_needs_overflow_charge: boolean
+      out_needs_landing_charge: boolean
+      out_purchase_id: string
+      out_rate_per_hour: number
+    }
+
+    const stripeSecret = process.env.STRIPE_SECRET_KEY
+    if (stripeSecret) {
+      const stripe = new Stripe(stripeSecret, {
+        apiVersion: '2023-10-16' as any,
+      })
+
+      if (drawdown.out_needs_overflow_charge) {
+        try {
+          if (!pilotProfile?.stripe_customer_id || !pilotProfile.default_payment_method_id) {
+            throw new Error('Missing Stripe customer or payment method for overflow charge.')
+          }
+
+          await stripe.paymentIntents.create({
+            amount: Math.round(Number(drawdown.out_overflow_amount) * 100),
+            currency: 'aud',
+            customer: pilotProfile.stripe_customer_id,
+            confirm: true,
+            off_session: true,
+            payment_method: pilotProfile.default_payment_method_id,
+            metadata: {
+              purchase_type: 'block_time_overflow',
+              supabase_user_id: booking.booking_owner_user_id,
+              booking_id: input.bookingId,
+              purchase_id: drawdown.out_purchase_id,
+              overflow_hours: String(drawdown.out_overflow_hours),
+              rate_per_hour: String(drawdown.out_rate_per_hour),
+              invoice_id: drawdown.out_invoice_id,
+            },
+            description: 'OZ Rent A Plane — Block Time Overflow',
+          })
+        } catch (error) {
+          console.error('[finaliseStandardBookingInvoice] overflow charge failed:', error)
+        }
+      } else if (drawdown.out_needs_landing_charge) {
+        try {
+          if (!pilotProfile?.stripe_customer_id || !pilotProfile.default_payment_method_id) {
+            throw new Error('Missing Stripe customer or payment method for landing fee charge.')
+          }
+
+          await stripe.paymentIntents.create({
+            amount: Math.round(Number(landingFeesTotal) * 100),
+            currency: 'aud',
+            customer: pilotProfile.stripe_customer_id,
+            confirm: true,
+            off_session: true,
+            payment_method: pilotProfile.default_payment_method_id,
+            metadata: {
+              purchase_type: 'block_time_landing_fee',
+              supabase_user_id: booking.booking_owner_user_id,
+              booking_id: input.bookingId,
+              purchase_id: drawdown.out_purchase_id,
+              invoice_id: drawdown.out_invoice_id,
+              landing_fees_total: String(landingFeesTotal),
+            },
+            description: 'OZ Rent A Plane — Block Time Landing Fee',
+          })
+        } catch (error) {
+          console.error('[finaliseStandardBookingInvoice] landing fee charge failed:', error)
+        }
+      }
+    } else {
+      console.error('[finaliseStandardBookingInvoice] Missing STRIPE_SECRET_KEY; skipping block time charges.')
+    }
+
+    let pdfUrl: string | null = null
+    try {
+      const { data: invoice, error: invoiceErr } = await supabase
+        .from('invoices')
+        .select('id, invoice_number, type, user_id, booking_id, block_time_purchase_id, billing_mode, subtotal, gst_amount, total, status, created_at, paid_at')
+        .eq('id', drawdown.out_invoice_id)
+        .single()
+
+      if (invoiceErr || !invoice) {
+        throw new Error(invoiceErr?.message ?? 'Invoice not found for PDF generation.')
+      }
+
+      const { data: lineItems, error: lineItemsErr } = await supabase
+        .from('invoice_line_items')
+        .select('description, quantity, unit_price, amount')
+        .eq('invoice_id', invoice.id)
+        .order('display_order', { ascending: true })
+
+      if (lineItemsErr) {
+        throw new Error(lineItemsErr.message)
+      }
+
+      const pdfBuffer = await generateInvoicePdf({
+        invoiceNumber: invoice.invoice_number,
+        invoiceTypeLabel: 'TAX INVOICE',
+        statusLabel: String(invoice.status).toUpperCase(),
+        createdAt: invoice.created_at,
+        dueAt: invoice.paid_at ?? invoice.created_at,
+        billingModeLabel: 'Block Time',
+        bookingRefLabel: booking.booking_reference,
+        billToName: pilotProfile?.full_name?.trim() || snapshotProfile?.full_name?.trim() || 'Pilot',
+        billToEmail: pilotProfile?.email?.trim() || '—',
+        lineItems: (lineItems ?? []).map((lineItem) => ({
+          description: lineItem.description,
+          quantity: Number(lineItem.quantity),
+          unitPrice: Number(lineItem.unit_price),
+          amount: Number(lineItem.amount),
+        })),
+        subtotal: Number(invoice.subtotal),
+        gstAmount: Number(invoice.gst_amount),
+        total: Number(invoice.total),
+        footerNote: 'All prices include GST. Block time usage is deducted when the flight record is finalised.',
+      })
+
+      const storagePath = `${booking.booking_owner_user_id}/${drawdown.out_invoice_number}.pdf`
+      const uploadResult = await supabase.storage
+        .from('invoice_pdfs')
+        .upload(storagePath, pdfBuffer, {
+          contentType: 'application/pdf',
+          upsert: true,
+          cacheControl: '3600',
+        })
+
+      if (uploadResult.error) {
+        throw uploadResult.error
+      }
+
+      const { data: publicUrlData } = supabase.storage.from('invoice_pdfs').getPublicUrl(storagePath)
+      pdfUrl = publicUrlData.publicUrl
+
+      const { error: updateInvoiceErr } = await supabase
+        .from('invoices')
+        .update({ pdf_url: pdfUrl })
+        .eq('id', invoice.id)
+
+      if (updateInvoiceErr) {
+        throw updateInvoiceErr
+      }
+    } catch (error) {
+      console.error('[finaliseStandardBookingInvoice] block time PDF generation failed:', error)
+    }
+
+    const blockTimeMessage = drawdown.out_overflow_hours > 0
+      ? `Your flight of ${vdoReading}h has been recorded and ${vdoReading}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h. Overflow of ${drawdown.out_overflow_hours}h charged at $${Number(drawdown.out_rate_per_hour).toFixed(2)}/hr.`
+      : `Your flight of ${vdoReading}h has been recorded and ${vdoReading}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h.`
+
+    const now = new Date().toISOString()
+
+    const { error: flightRecordUpdateErr } = await supabase
+      .from('flight_records')
+      .update({
+        tacho_start: input.readings.tacho_start,
+        tacho_stop: input.readings.tacho_stop,
+        vdo_start: input.readings.vdo_start,
+        vdo_stop: input.readings.vdo_stop,
+        air_switch_start: input.readings.air_switch_start,
+        air_switch_stop: input.readings.air_switch_stop,
+        mr_start: input.readings.mr_start,
+        mr_stop: input.readings.mr_stop,
+        oil_added: input.readings.oil_added,
+        oil_total: input.readings.oil_total,
+        fuel_added: input.readings.fuel_added,
+        fuel_returned: input.readings.fuel_returned,
+        landings: input.readings.landings,
+        customer_notes: input.readings.notes,
+        status: hasReadingChanges ? 'approved_with_correction' : 'approved',
+        approved_by_user_id: adminId,
+        approved_at: now,
+        admin_notes: input.adminNotes ?? null,
+        correction_reason: hasReadingChanges ? 'Admin adjusted aircraft readings during billing finalisation.' : null,
+        updated_at: now,
+      })
+      .eq('id', flightRecord.id)
+
+    if (flightRecordUpdateErr) {
+      throw new Error('Failed to update the flight record with reviewed readings.')
+    }
+
+    const approvalBaseline = await getLastFinalizedLogStop(booking.aircraft_id)
+    const adminTotals = calculateAircraftReadingsTotals(input.readings)
+    const refreshedReadings = buildReadingsFromTotals(
+      {
+        vdo_total:        adminTotals.vdo_total        ?? 0,
+        tacho_total:      adminTotals.tacho_total      ?? 0,
+        air_switch_total: adminTotals.air_switch_total ?? 0,
+        mr_total:         adminTotals.mr_total         ?? 0,
+        oil_added:        input.readings.oil_added,
+        oil_total:        input.readings.oil_total,
+        fuel_added:       input.readings.fuel_added,
+        fuel_returned:       input.readings.fuel_returned,
+        landings:         input.readings.landings,
+        notes:            input.readings.notes,
+      },
+      approvalBaseline,
+    )
+
+    await upsertAircraftFlightLogRecord({
+      aircraft_id: booking.aircraft_id,
+      flight_date: new Date(booking.scheduled_start).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }),
+      pic_user_id: booking.booking_owner_user_id,
+      pic_name: booking.pic_name || snapshotProfile?.full_name || 'Pilot',
+      pic_arn: booking.pic_arn || snapshotProfile?.pilot_arn || null,
+      readings: refreshedReadings,
+      related_booking_id: input.bookingId,
+      source: 'booking_customer_post_flight',
+      review_status: hasReadingChanges ? 'admin_adjusted' : 'admin_confirmed',
+      updated_by: adminId,
+    })
+
+    await supabase.from('booking_status_history').insert({
+      booking_id:         input.bookingId,
+      old_status:         'pending_post_flight_review',
+      new_status:         'completed',
+      changed_by_user_id: adminId,
+      note: 'Flight record finalised using Block Time balance. Booking completed.',
+    })
+
+    await supabase.from('booking_audit_events').insert({
+      booking_id:    input.bookingId,
+      aircraft_id:   booking.aircraft_id,
+      actor_user_id: adminId,
+      actor_role:    'admin',
+      event_type:    'booking_invoice_finalised',
+      event_summary: `Admin finalised block time flight record. VDO: ${vdoReading}h @ $${input.ratePerHour}/hr. Final status: completed.`,
+      new_value: {
+        vdo_reading:     vdoReading,
+        rate_per_hour:   input.ratePerHour,
+        landing_charges: landingCharges,
+        booking_status:  'completed',
+        review_status:   hasReadingChanges ? 'admin_adjusted' : 'admin_confirmed',
+        billing_mode:    'block_time',
+        invoice_id:      drawdown.out_invoice_id,
+        overflow_hours:  drawdown.out_overflow_hours,
+      },
+    })
+
+    await supabase.from('verification_events').insert({
+      user_id:       booking.booking_owner_user_id,
+      actor_user_id: adminId,
+      actor_role:    'admin',
+      event_type:    'approved',
+      title:         'Flight record approved',
+      body:          drawdown.out_overflow_hours > 0
+        ? `${vdoReading}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h. Overflow of ${drawdown.out_overflow_hours}h charged at $${Number(drawdown.out_rate_per_hour).toFixed(2)}/hr.`
+        : `${vdoReading}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h.`,
+      is_read:       false,
+      email_status:  'skipped',
+    })
+
+    if (pilotProfile?.email) {
+      const template = paymentConfirmedEmail(blockTimeMessage, pdfUrl ?? undefined)
+      const emailText = pdfUrl
+        ? `${blockTimeMessage}\n\nInvoice PDF: ${pdfUrl}`
+        : blockTimeMessage
+      await sendEmail({
+        to: pilotProfile.email,
+        subject: template.subject,
+        html: template.html,
+        text: emailText,
+        eventType: 'block_time_flight_record',
+        entityType: 'booking',
+        entityId: input.bookingId,
+        metadata: {
+          billingMode: 'block_time',
+          invoiceId: drawdown.out_invoice_id,
+          overflowHours: drawdown.out_overflow_hours,
+          hoursAfter: drawdown.out_hours_after,
+          pdfUrl: pdfUrl ?? null,
+        },
+      }).catch((error) => console.error('[finaliseStandardBookingInvoice] block time email failed:', error))
+    }
+
+    revalidatePath('/admin')
+    revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
+    revalidatePath('/dashboard')
+    revalidatePath(`/dashboard/bookings/${input.bookingId}`)
+  } else {
+
   const rateCents = Math.round(input.ratePerHour * 100)
   const landingChargesJson = (input.landingCharges ?? [])
     .filter(lc => lc.airportId && lc.landingCount > 0)
@@ -2611,6 +2971,7 @@ export async function finaliseStandardBookingInvoice(input: {
   revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
   revalidatePath('/dashboard')
   revalidatePath(`/dashboard/bookings/${input.bookingId}`)
+  }
 }
 
 /**
