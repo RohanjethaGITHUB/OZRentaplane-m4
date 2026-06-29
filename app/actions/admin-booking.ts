@@ -2494,6 +2494,12 @@ export async function finaliseStandardBookingInvoice(input: {
   if (billingMode === 'block_time') {
     let landingFeesTotal = 0
     const landingCharges = input.landingCharges ?? []
+    const landingChargesJson = landingCharges.length
+      ? JSON.stringify(landingCharges.map((lc) => ({
+          airport_id: lc.airportId,
+          landing_count: lc.landingCount,
+        })))
+      : null
     if (landingCharges.length > 0) {
       const airportIds = Array.from(new Set(landingCharges.map((row) => row.airportId)))
       const { data: airports, error: airportsErr } = await supabase
@@ -2526,7 +2532,7 @@ export async function finaliseStandardBookingInvoice(input: {
       landingFeesTotal = Math.round(landingFeesTotal * 100) / 100
     }
 
-      const { data: drawdownRows, error: drawdownErr } = await supabase.rpc(
+    const { data: drawdownRows, error: drawdownErr } = await supabase.rpc(
       'process_block_time_flight',
       {
         p_user_id: booking.booking_owner_user_id,
@@ -2536,8 +2542,75 @@ export async function finaliseStandardBookingInvoice(input: {
       },
     )
 
-    if (drawdownErr || !drawdownRows?.[0]) {
-      throw new Error(drawdownErr?.message ?? 'Block time drawdown failed.')
+    if (drawdownErr) {
+      const isNoPackageError =
+        drawdownErr.message?.toLowerCase().includes('no active block time package') ||
+        drawdownErr.code === 'P0001'
+
+      if (isNoPackageError) {
+        console.warn(
+          '[finaliseStandardBookingInvoice] Block time package expired or exhausted.',
+          'Falling back to PAYF billing at $330/hr.',
+          { userId: booking.booking_owner_user_id, bookingId: input.bookingId },
+        )
+
+        const PAYF_FALLBACK_RATE = 330
+        const fallbackFlightTotal = Math.round(effectiveVdoHoursRounded * PAYF_FALLBACK_RATE * 100) / 100
+        const fallbackGrandTotal = Math.round((fallbackFlightTotal + landingFeesTotal) * 100) / 100
+        const fallbackSubtotal = Math.round((fallbackGrandTotal / 1.1) * 100) / 100
+        const fallbackGst = Math.round((fallbackGrandTotal - fallbackSubtotal) * 100) / 100
+
+        const { data: fallbackRows, error: fallbackErr } = await supabase.rpc(
+          'finalise_standard_booking_invoice_atomic',
+          {
+            p_booking_id: input.bookingId,
+            p_customer_id: booking.booking_owner_user_id,
+            p_vdo_reading: effectiveVdoHoursRounded,
+            p_rate_cents_per_hour: PAYF_FALLBACK_RATE * 100,
+            p_landing_charges: landingChargesJson ?? null,
+            p_admin_notes: `[AUTO FALLBACK] Pilot block time package expired or exhausted. Billed at Pay As You Fly rate ($${PAYF_FALLBACK_RATE}/hr). Original admin note: ${input.adminNotes ?? 'none'}`,
+          },
+        )
+
+        if (fallbackErr || !fallbackRows?.[0]) {
+          throw new Error(
+            `Block time package expired and PAYF fallback also failed: ${fallbackErr?.message ?? 'unknown error'}`,
+          )
+        }
+
+        await supabase
+          .from('verification_events')
+          .insert({
+            user_id: booking.booking_owner_user_id,
+            actor_role: 'system',
+            event_type: 'message',
+            title: 'Block time package expired -- billed at Pay As You Fly rate',
+            body: `Pilot's block time package had expired or was exhausted at the time of finalisation. Flight of ${effectiveVdoHoursRounded}h was billed at the standard Pay As You Fly rate of $${PAYF_FALLBACK_RATE}/hr instead. Please review with the pilot.`,
+            is_read: false,
+            email_status: 'pending',
+          })
+          .then(({ error: notifErr }) => {
+            if (notifErr) console.warn('[finaliseStandardBookingInvoice] fallback notif failed', notifErr.message)
+          })
+
+        revalidatePath('/admin/bookings')
+        revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
+        revalidatePath(`/dashboard/bookings/${input.bookingId}`)
+        revalidatePath('/dashboard')
+
+        return {
+          success: true,
+          invoiceNumber: (fallbackRows[0] as { v_invoice_number?: string | null }).v_invoice_number ?? null,
+          billingMode: 'pay_as_you_fly_fallback',
+          message: 'Block time package expired. Billed at Pay As You Fly rate.',
+        } as any
+      }
+
+      throw new Error(drawdownErr.message ?? 'Block time drawdown failed.')
+    }
+
+    if (!drawdownRows?.[0]) {
+      throw new Error('Block time drawdown returned no result.')
     }
 
     const drawdown = drawdownRows[0] as {
