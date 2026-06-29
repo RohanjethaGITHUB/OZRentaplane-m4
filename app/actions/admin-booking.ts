@@ -2655,8 +2655,24 @@ export async function finaliseStandardBookingInvoice(input: {
             },
             description: 'OZ Rent A Plane — Block Time Overflow',
           })
-        } catch (error) {
+        } catch (error: unknown) {
+          const overflowChargeError = error instanceof Error ? error : null
           console.error('[finaliseStandardBookingInvoice] overflow charge failed:', error)
+          try {
+            await supabase
+              .from('verification_events')
+              .insert({
+                user_id: booking.booking_owner_user_id,
+                actor_role: 'system',
+                event_type: 'message',
+                title: 'Stripe overflow charge failed -- manual follow-up required',
+                body: `Off-session Stripe charge for block time overflow failed for booking ${input.bookingId}. Overflow: ${drawdown.out_overflow_hours}h at $${drawdown.out_rate_per_hour}/hr = $${drawdown.out_overflow_amount}. Error: ${overflowChargeError?.message ?? 'unknown'}. Please collect payment manually or contact the pilot.`,
+                is_read: false,
+                email_status: 'pending',
+              })
+          } catch (notifErr: unknown) {
+            console.warn('[finaliseStandardBookingInvoice] overflow alert insert failed', notifErr)
+          }
         }
       } else if (drawdown.out_needs_landing_charge) {
         try {
@@ -2681,8 +2697,24 @@ export async function finaliseStandardBookingInvoice(input: {
             },
             description: 'OZ Rent A Plane — Block Time Landing Fee',
           })
-        } catch (error) {
+        } catch (error: unknown) {
+          const landingChargeError = error instanceof Error ? error : null
           console.error('[finaliseStandardBookingInvoice] landing fee charge failed:', error)
+          try {
+            await supabase
+              .from('verification_events')
+              .insert({
+                user_id: booking.booking_owner_user_id,
+                actor_role: 'system',
+                event_type: 'message',
+                title: 'Stripe landing fee charge failed -- manual follow-up required',
+                body: `Off-session Stripe charge for block time landing fees failed for booking ${input.bookingId}. Landing fees: $${landingFeesTotal}. Error: ${landingChargeError?.message ?? 'unknown'}. Please collect payment manually or contact the pilot.`,
+                is_read: false,
+                email_status: 'pending',
+              })
+          } catch (notifErr: unknown) {
+            console.warn('[finaliseStandardBookingInvoice] landing fee alert insert failed', notifErr)
+          }
         }
       }
     } else {
