@@ -2402,7 +2402,7 @@ export async function finaliseStandardBookingInvoice(input: {
 
   const { data: booking, error: fetchErr } = await supabase
     .from('bookings')
-    .select('status, booking_type, aircraft_id, booking_owner_user_id, booking_reference, scheduled_start, pic_name, pic_arn')
+    .select('status, booking_type, aircraft_id, booking_owner_user_id, booking_reference, scheduled_start, scheduled_end, pic_name, pic_arn')
     .eq('id', input.bookingId)
     .single()
 
@@ -2412,6 +2412,22 @@ export async function finaliseStandardBookingInvoice(input: {
   }
   if (booking.status !== 'pending_post_flight_review') {
     throw new Error(`VALIDATION: Can only finalise billing from pending_post_flight_review. Current: '${booking.status}'.`)
+  }
+
+  const scheduledStart = new Date(booking.scheduled_start)
+  const scheduledEnd = new Date(booking.scheduled_end)
+  const bookingSlotHours = (scheduledEnd.getTime() - scheduledStart.getTime()) / (1000 * 60 * 60)
+  const minimumVdoHours = bookingSlotHours >= 24 ? Math.floor(bookingSlotHours / 24) * 4 : 0
+  const effectiveVdoHours = Math.max(vdoReading, minimumVdoHours)
+  const effectiveVdoHoursRounded = Math.round(effectiveVdoHours * 100) / 100
+
+  if (effectiveVdoHoursRounded > vdoReading) {
+    console.log('[finaliseStandardBookingInvoice] 24h minimum applied', {
+      submitted: vdoReading,
+      minimum: minimumVdoHours,
+      effective: effectiveVdoHoursRounded,
+      bookingSlotHours,
+    })
   }
 
   const { data: flightRecord, error: flightRecordErr } = await supabase
@@ -2510,12 +2526,12 @@ export async function finaliseStandardBookingInvoice(input: {
       landingFeesTotal = Math.round(landingFeesTotal * 100) / 100
     }
 
-    const { data: drawdownRows, error: drawdownErr } = await supabase.rpc(
+      const { data: drawdownRows, error: drawdownErr } = await supabase.rpc(
       'process_block_time_flight',
       {
         p_user_id: booking.booking_owner_user_id,
         p_booking_id: input.bookingId,
-        p_vdo_hours: vdoReading,
+        p_vdo_hours: effectiveVdoHoursRounded,
         p_landing_fees: landingFeesTotal,
       },
     )
@@ -2619,13 +2635,16 @@ export async function finaliseStandardBookingInvoice(input: {
 
     try {
       const { data: authData } = await supabase.auth.getUser()
+      const blockTimeHistoryNote = effectiveVdoHoursRounded > vdoReading
+        ? `Block time flight finalised. 24h minimum applied: billed ${effectiveVdoHoursRounded}h (submitted ${vdoReading}h).`
+        : 'Block time flight finalised. Hours deducted from balance.'
       await supabase
         .from('booking_status_history')
         .insert({
           booking_id: input.bookingId,
           old_status: 'pending_post_flight_review',
           new_status: blockTimeBookingStatus,
-          note: 'Block time flight finalised. Hours deducted from balance.',
+          note: blockTimeHistoryNote,
           changed_by_user_id: authData.user?.id ?? null,
         })
     } catch (historyErr: any) {
@@ -2852,7 +2871,7 @@ export async function finaliseStandardBookingInvoice(input: {
     {
       p_booking_id:          input.bookingId,
       p_customer_id:         booking.booking_owner_user_id,
-      p_vdo_reading:         vdoReading,
+      p_vdo_reading:         effectiveVdoHoursRounded,
       p_rate_cents_per_hour: rateCents,
       p_landing_charges:     landingChargesJson.length > 0 ? landingChargesJson : null,
       p_admin_notes:         input.adminNotes ?? null,
