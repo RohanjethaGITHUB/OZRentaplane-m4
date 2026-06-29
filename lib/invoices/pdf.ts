@@ -1,6 +1,7 @@
 import 'server-only'
 
-import { chromium } from 'playwright'
+import { chromium } from 'playwright-core'
+import chromiumMin from '@sparticuz/chromium-min'
 
 type InvoiceLineItem = {
   description: string
@@ -326,7 +327,21 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
 }
 
 export async function generateInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
-  const browser = await chromium.launch({ headless: true })
+  const isVercel = process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME != null
+
+  const browser = await chromium.launch(
+    isVercel
+      ? {
+          args: chromiumMin.args,
+          executablePath: await chromiumMin.executablePath(
+            'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'
+          ),
+          headless: true,
+        }
+      : {
+          headless: true,
+        }
+  )
   try {
     const page = await browser.newPage({
       viewport: { width: 1280, height: 1800 },
