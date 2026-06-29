@@ -38,8 +38,10 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
     setLoading(submissionId)
     try {
       await adminConfirmStandardBankTransfer(submissionId, bookingId)
+      router.refresh()
     } catch (err: any) {
       setError(err.message || "Failed to confirm payment")
+    } finally {
       setLoading(null)
     }
   }
@@ -52,8 +54,10 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
       await adminRejectStandardBankTransfer(submissionId, bookingId, rejectNote)
       setRejectingId(null)
       setRejectNote("")
+      router.refresh()
     } catch (err: any) {
       setError(err.message || "Failed to reject payment")
+    } finally {
       setLoading(null)
     }
   }

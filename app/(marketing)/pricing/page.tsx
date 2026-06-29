@@ -343,7 +343,7 @@ export default function PricingPage() {
             </p>
           </div>
 
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-4">
             {BLOCK_TIME_PACKAGES.map((pkg) => (
               <article
                 key={pkg.name}
@@ -353,7 +353,7 @@ export default function PricingPage() {
               >
                 <div className={`h-2 w-full bg-gradient-to-r ${pkg.accent}`} />
                 <div className="flex flex-1 flex-col p-5 sm:p-6">
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="font-sans text-[0.64rem] font-semibold uppercase tracking-[0.22em] text-brand-blue/95">
                       {pkg.badge}
                     </p>
@@ -368,25 +368,25 @@ export default function PricingPage() {
                     </span>
                   </div>
 
-                  <h3 className="mt-3 min-h-[3.25rem] font-serif text-[1.7rem] leading-[1.02] tracking-[-0.03em] text-deep-ink text-balance sm:min-h-[3.6rem] sm:text-[1.85rem]">
+                  <h3 className="mt-3 min-h-[3.1rem] font-serif text-[1.55rem] leading-[1.06] tracking-[-0.03em] text-deep-ink text-balance sm:min-h-[3.35rem] sm:text-[1.8rem] lg:text-[1.85rem]">
                     {pkg.name}
                   </h3>
 
                   <div className="mt-5 rounded-[1.35rem] border border-[#dce8fb] bg-[linear-gradient(180deg,rgba(248,251,255,0.96)_0%,rgba(241,246,255,0.96)_100%)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-5">
-                    <div className="grid gap-4 sm:grid-cols-[minmax(0,1.15fr)_auto] sm:items-end">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                       <div className="min-w-0">
                         <p className="font-sans text-[0.61rem] font-semibold uppercase tracking-[0.22em] text-muted-ink/90">
                           Rate Locked In
                         </p>
-                        <p className="mt-2 font-sans text-[1.95rem] font-semibold leading-[0.92] tracking-[-0.05em] text-brand-blue sm:text-[2.15rem]">
+                        <p className="mt-2 whitespace-nowrap font-sans text-[1.55rem] font-semibold leading-none tracking-[-0.06em] text-brand-blue sm:text-[1.8rem] lg:text-[2rem]">
                           {pkg.rate}
                         </p>
                       </div>
-                      <div className="sm:text-right">
+                      <div className="min-w-0 sm:text-right">
                         <p className="font-sans text-[0.61rem] font-semibold uppercase tracking-[0.22em] text-muted-ink/90">
                           Package Total
                         </p>
-                        <p className="mt-2 font-sans text-[1.15rem] font-semibold leading-none tracking-[-0.03em] text-deep-ink sm:text-[1.3rem]">
+                        <p className="mt-2 whitespace-nowrap font-sans text-[1.02rem] font-semibold leading-none tracking-[-0.03em] text-deep-ink sm:text-[1.12rem] lg:text-[1.22rem]">
                           {pkg.total}
                         </p>
                       </div>
@@ -394,35 +394,35 @@ export default function PricingPage() {
                   </div>
 
                   <div className="mt-5 space-y-3">
-                    <div className="flex items-center gap-3 rounded-[1.15rem] border border-[#e4ecfa] bg-[#f8fbff] px-4 py-3">
+                    <div className="flex min-w-0 items-center gap-3 rounded-[1.15rem] border border-[#e4ecfa] bg-[#f8fbff] px-4 py-3">
                       <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#e8efff] text-[#1a4fd6] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
                         <Icon name="schedule" className="!text-[18px]" />
                       </span>
-                      <div>
+                      <div className="min-w-0">
                         <p className="font-sans text-[0.61rem] font-semibold uppercase tracking-[0.22em] text-muted-ink/90">Hours</p>
-                        <p className="font-sans text-[0.96rem] font-medium tracking-[-0.02em] text-deep-ink">{pkg.hours}</p>
+                        <p className="break-words font-sans text-[0.92rem] font-medium leading-snug tracking-[-0.02em] text-deep-ink sm:text-[0.96rem]">{pkg.hours}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 rounded-[1.15rem] border border-[#e4ecfa] bg-[#f8fbff] px-4 py-3">
+                    <div className="flex min-w-0 items-center gap-3 rounded-[1.15rem] border border-[#e4ecfa] bg-[#f8fbff] px-4 py-3">
                       <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#fdf0d5] text-runway-amber shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
                         <Icon name="calendar_month" className="!text-[18px]" />
                       </span>
-                      <div>
+                      <div className="min-w-0">
                         <p className="font-sans text-[0.61rem] font-semibold uppercase tracking-[0.22em] text-muted-ink/90">Validity</p>
-                        <p className="font-sans text-[0.96rem] font-medium tracking-[-0.02em] text-deep-ink">{pkg.validity}</p>
+                        <p className="break-words font-sans text-[0.92rem] font-medium leading-snug tracking-[-0.02em] text-deep-ink sm:text-[0.96rem]">{pkg.validity}</p>
                       </div>
                     </div>
                   </div>
 
-                  <p className="mt-5 font-sans text-[0.88rem] leading-relaxed text-muted-ink sm:text-[0.92rem]">
+                  <p className="mt-5 min-w-0 font-sans text-[0.88rem] leading-relaxed text-muted-ink sm:text-[0.92rem]">
                     {pkg.description}
                   </p>
 
                   <div className="mt-auto border-t border-[#e6edf9] pt-5">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                      <div>
+                      <div className="min-w-0">
                         <p className="font-sans text-[0.61rem] font-semibold uppercase tracking-[0.22em] text-muted-ink/90">Landing fees</p>
-                        <p className="mt-1 font-sans text-[0.93rem] font-medium tracking-[-0.02em] text-deep-ink">Always billed separately</p>
+                        <p className="mt-1 break-words font-sans text-[0.93rem] font-medium leading-snug tracking-[-0.02em] text-deep-ink">Always billed separately</p>
                       </div>
                       <a
                         href={buildBlockTimeLoginHref(pkg.name)}

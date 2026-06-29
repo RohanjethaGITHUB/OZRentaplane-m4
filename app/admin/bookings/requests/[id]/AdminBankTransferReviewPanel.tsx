@@ -39,6 +39,7 @@ export default function AdminBankTransferReviewPanel({ bookingId, submission }: 
       router.refresh()
     } catch (err: any) {
       setError(err?.message || "Failed to approve bank transfer.")
+    } finally {
       setLoading(null)
     }
   }
@@ -55,6 +56,7 @@ export default function AdminBankTransferReviewPanel({ bookingId, submission }: 
       router.refresh()
     } catch (err: any) {
       setError(err?.message || "Failed to reject bank transfer.")
+    } finally {
       setLoading(null)
     }
   }

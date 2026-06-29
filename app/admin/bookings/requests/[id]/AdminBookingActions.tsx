@@ -19,6 +19,7 @@ export default function AdminBookingActions({ bookingId }: { bookingId: string }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to confirm booking.'
       setError(msg)
+    } finally {
       setLoading(false)
     }
   }
@@ -35,8 +36,9 @@ export default function AdminBookingActions({ bookingId }: { bookingId: string }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to cancel booking.'
       setError(msg)
-      setLoading(false)
       setIsCancelling(false)
+    } finally {
+      setLoading(false)
     }
   }
 

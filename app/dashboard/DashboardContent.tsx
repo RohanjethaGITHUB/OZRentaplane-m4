@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -767,6 +767,7 @@ export default function DashboardContent({
 }: Props) {
   const router = useRouter()
   const [toastVisible, setToastVisible] = useState(Boolean(flashNotice) || passwordUpdated)
+  const openedInvoiceUrlRef = useRef<string | null>(null)
   const toastNotice =
     flashNotice ??
     (passwordUpdated
@@ -794,7 +795,11 @@ export default function DashboardContent({
 
   // Automatically open the invoice PDF in a new tab upon successful purchase
   useEffect(() => {
-    if (newlyPurchasedInvoicePdfUrl) {
+    if (
+      newlyPurchasedInvoicePdfUrl &&
+      openedInvoiceUrlRef.current !== newlyPurchasedInvoicePdfUrl
+    ) {
+      openedInvoiceUrlRef.current = newlyPurchasedInvoicePdfUrl
       try {
         window.open(newlyPurchasedInvoicePdfUrl, '_blank')
       } catch (err) {
@@ -916,7 +921,7 @@ export default function DashboardContent({
   return (
     <div className="space-y-5">
       {toastVisible && toastNotice ? (
-        <div className="fixed right-4 top-4 z-[80] w-[calc(100vw-2rem)] max-w-sm rounded-2xl border border-emerald-400/30 bg-white/95 p-4 shadow-[0_24px_80px_rgba(2,10,22,0.12)] backdrop-blur-xl md:right-6 md:top-6">
+        <div className="fixed right-4 top-[76px] z-[120] w-[calc(100vw-2rem)] max-w-sm rounded-2xl border border-emerald-400/30 bg-white/95 p-4 shadow-[0_24px_80px_rgba(2,10,22,0.12)] backdrop-blur-xl md:right-6 md:top-[84px]">
           <div className="flex items-start gap-3">
             <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
               <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>

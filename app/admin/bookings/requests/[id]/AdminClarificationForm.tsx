@@ -22,6 +22,7 @@ export default function AdminClarificationForm({ bookingId }: { bookingId: strin
       router.push('/admin/bookings/checkout')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to send clarification request.')
+    } finally {
       setLoading(false)
     }
   }

@@ -21,6 +21,7 @@ import { validateFlightReviewDate } from "@/lib/utils/flight-review";
 import { formatDate, formatDateTime } from "@/lib/formatDateTime";
 import CalendarDateField from "@/components/CalendarDateField";
 import PortalPageHero from "@/components/PortalPageHero";
+import type { BlockTimeSummary } from "./page";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,9 @@ type Props = {
   eligibilityBlocked: boolean;
   eligibilityWarnings: string[];
   initialLastFlightDate: string;
+  blockTimeSummary: BlockTimeSummary | null;
+  completedFlightsCount: number;
+  totalVdoHours: number;
 };
 
 // ── Time options (full day, 15-min increments) ────────────────────────────────
@@ -195,10 +199,10 @@ function DateInput({
       disabled={disabled}
       onChange={onChange}
       className={`
-        w-full px-4 py-3 bg-white border border-[#d1d5db]
-        focus:border-[#1a4fd6] focus:ring-2 focus:ring-[#1a4fd6]/20 focus:outline-none rounded-xl
-        text-[#152d5a] text-sm transition-colors shadow-sm
-        ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:border-[#cbd5e1]"}
+        w-full !bg-white !border-[#d1d5db] !text-[#152d5a]
+        focus:!border-[#1a4fd6] focus:ring-2 focus:ring-[#1a4fd6]/20 focus:outline-none rounded-xl
+        text-sm transition-colors shadow-sm py-3 pl-11 pr-10
+        ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:!border-[#cbd5e1]"}
       `}
     />
   );
@@ -229,7 +233,7 @@ function TimeSelect({
         }}
         onChange={(e) => onChange(e.target.value)}
         className={`
-          w-full pl-4 pr-9 py-3 bg-white border border-[#d1d5db]
+          w-full pl-10 pr-11 py-3 bg-white border border-[#d1d5db]
           focus:border-[#1a4fd6] focus:ring-2 focus:ring-[#1a4fd6]/20 focus:outline-none rounded-xl
           text-sm transition-colors appearance-none
           shadow-sm
@@ -247,7 +251,7 @@ function TimeSelect({
         ))}
       </select>
       <span
-        className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-base pointer-events-none"
+        className="material-symbols-outlined absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-base pointer-events-none"
         style={{ fontVariationSettings: "'wght' 300" }}
       >
         expand_more
@@ -368,6 +372,9 @@ export default function BookingRequestForm({
   eligibilityBlocked,
   eligibilityWarnings,
   initialLastFlightDate,
+  blockTimeSummary,
+  completedFlightsCount,
+  totalVdoHours,
 }: Props) {
   const [isSubmitting, startSubmit] = useTransition();
   const [bookingMode, setBookingMode] = useState<
@@ -393,6 +400,15 @@ export default function BookingRequestForm({
   const [notes, setNotes] = useState("");
   const [medical] = useState(true);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Interstitial states for Milestone 2
+  const [hasDismissedInterstitial, setHasDismissedInterstitial] = useState(false);
+  const [upsellState, setUpsellState] = useState<
+    | { type: "none" }
+    | { type: "new_pilot" }
+    | { type: "returning_pilot"; comboHours: number; rate: number; packageTotal: number; savingSoFar: number; savingRemaining: number; totalSaving: number; remainingHours: number }
+    | { type: "low_balance"; shortfall: number; overflowCost: number; hoursRemaining: number; bookedHours: number; blockRate: number }
+  >({ type: "none" });
   const [successState, setSuccessState] = useState<SuccessState | null>(null);
 
   const timeToPct = (t: string): number => {
@@ -632,15 +648,29 @@ export default function BookingRequestForm({
     return formatDurationLabelFromMinutes(bookingDurationMinutes);
   }, [bookingDurationMinutes]);
 
+  const isBlockTime = useMemo(() => {
+    return blockTimeSummary && blockTimeSummary.totalActiveHoursRemaining > 0;
+  }, [blockTimeSummary]);
+
   const estimatedRate = useMemo(() => {
-    if (estimatedHours == null) return hourlyRate;
-    return getVdoHourlyRate(estimatedHours);
-  }, [estimatedHours, hourlyRate]);
+    if (isBlockTime) {
+      return blockTimeSummary?.latestPurchase?.ratePerHour ?? 320;
+    }
+    return 330; // Flat PAYF rate
+  }, [isBlockTime, blockTimeSummary]);
 
   const estimatedTotal = useMemo(() => {
     if (estimatedHours == null) return null;
+    if (isBlockTime) {
+      const balance = blockTimeSummary?.totalActiveHoursRemaining ?? 0;
+      if (estimatedHours <= balance) {
+        return 0; // Fully covered by block time balance
+      }
+      const shortfall = estimatedHours - balance;
+      return shortfall * estimatedRate; // Only pay for the overflow hours at block rate
+    }
     return estimatedHours * estimatedRate;
-  }, [estimatedHours, estimatedRate]);
+  }, [estimatedHours, isBlockTime, estimatedRate, blockTimeSummary]);
 
   const multiDayMinimumVdoHours = useMemo(() => {
     if (
@@ -719,7 +749,7 @@ export default function BookingRequestForm({
   }
 
   // ── Handle submit ─────────────────────────────────────────────────────────
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitError(null);
 
@@ -760,6 +790,74 @@ export default function BookingRequestForm({
       return;
     }
 
+    // Interstitial checking logic for Milestone 2
+    if (!hasDismissedInterstitial) {
+      // 1. Block Time Warning
+      if (isBlockTime && blockTimeSummary) {
+        if (estimatedHours && blockTimeSummary.totalActiveHoursRemaining < estimatedHours) {
+          const shortfall = estimatedHours - blockTimeSummary.totalActiveHoursRemaining;
+          const rate = blockTimeSummary.latestPurchase?.ratePerHour ?? 320;
+          const overflowCost = shortfall * rate;
+          setUpsellState({
+            type: "low_balance",
+            shortfall,
+            overflowCost,
+            hoursRemaining: blockTimeSummary.totalActiveHoursRemaining,
+            bookedHours: estimatedHours,
+            blockRate: rate,
+          });
+          return;
+        }
+      }
+
+      // 2. PAYF Interstellar Upsells
+      if (!isBlockTime) {
+        if (completedFlightsCount === 0) {
+          setUpsellState({ type: "new_pilot" });
+          return;
+        } else if (completedFlightsCount >= 1 && estimatedHours != null) {
+          const projectedTotal = totalVdoHours + estimatedHours;
+          const thresholds = [
+            { hours: 10,  rate: 320, trigger: 7.0  },
+            { hours: 25,  rate: 310, trigger: 17.5 },
+            { hours: 50,  rate: 300, trigger: 35.0 },
+            { hours: 100, rate: 290, trigger: 70.0 },
+          ];
+          
+          let combo = null;
+          for (const t of thresholds) {
+            if (projectedTotal >= t.trigger) {
+              combo = t;
+            }
+          }
+
+          if (combo) {
+            const savingSoFar = totalVdoHours * (330 - combo.rate);
+            const remainingHours = combo.hours - totalVdoHours;
+            const savingRemaining = remainingHours * (330 - combo.rate);
+            const totalSaving = savingSoFar + savingRemaining;
+            const packageTotal = combo.hours * combo.rate;
+
+            setUpsellState({
+              type: "returning_pilot",
+              comboHours: combo.hours,
+              rate: combo.rate,
+              packageTotal,
+              savingSoFar,
+              savingRemaining,
+              totalSaving,
+              remainingHours,
+            });
+            return;
+          }
+        }
+      }
+    }
+
+    await executeFormSubmit(startUTC, endUTC);
+  }
+
+  const executeFormSubmit = async (startUTC: string, endUTC: string) => {
     const input = {
       aircraft_id: aircraftId,
       scheduled_start: startUTC,
@@ -811,155 +909,307 @@ export default function BookingRequestForm({
             "You must complete your checkout flight and be cleared before booking aircraft.",
           );
         } else if (msg.includes("READINESS_REQUIRED")) {
-          setSubmitError(
-            "Your pilot documents are incomplete or still under review. Please check your Documents page and ensure all required files have been uploaded.",
-          );
+          const lowerMsg = msg.toLowerCase();
+          if (lowerMsg.includes("under admin review") || lowerMsg.includes("awaiting review")) {
+            setSubmitError(
+              "Your pilot documents are currently under admin review. You can book once OZ Rent A Plane approves them.",
+            );
+          } else {
+            setSubmitError(
+              "Your pilot documents are incomplete. Please check your Documents page and upload any missing items before booking.",
+            );
+          }
         } else {
           setSubmitError(msg);
         }
       }
     });
-  }
+  };
+
+  const handleDismissInterstitialAndSubmit = async () => {
+    setHasDismissedInterstitial(true);
+    setUpsellState({ type: "none" });
+    
+    const startUTC = sydneyInputToUTC(startDT);
+    const endUTC = sydneyInputToUTC(endDT);
+    if (!startUTC || !endUTC) {
+      setSubmitError("Invalid date/time values.");
+      return;
+    }
+    
+    // Explicitly reconstruct state and input because state update is async
+    const input = {
+      aircraft_id: aircraftId,
+      scheduled_start: startUTC,
+      scheduled_end: endUTC,
+      last_flight_date: lastFlightDate,
+      pic_name: picName ?? undefined,
+      pic_arn: picArn ?? undefined,
+      customer_notes: notes || null,
+      risk_acknowledgement_accepted: medical,
+      bookingMode,
+      returnDate: bookingMode === "multi" ? returnDate : null,
+      returnTime: bookingMode === "multi" ? returnTime : null,
+    } as CreateBookingInput & {
+      bookingMode: "single" | "multi";
+      returnDate: string | null;
+      returnTime: string | null;
+    };
+
+    startSubmit(async () => {
+      try {
+        const result = await createBooking(input as CreateBookingInput);
+        setSuccessState({
+          bookingId: result.bookingId,
+          bookingReference: result.bookingReference,
+          bookingStatus: result.bookingStatus,
+          startDT,
+          endDT,
+          estimatedHours,
+        });
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Something went wrong.";
+        if (
+          msg.includes("AVAILABILITY") ||
+          msg.includes("conflict") ||
+          msg.includes("unavailable")
+        ) {
+          setSubmitError(
+            "This time was just taken or blocked. Please choose another window.",
+          );
+        } else if (msg.includes("VALIDATION")) {
+          setSubmitError(msg.replace("VALIDATION:", "").trim());
+        } else {
+          setSubmitError(msg);
+        }
+      }
+    });
+  };
 
   // ── Success state ─────────────────────────────────────────────────────────
 
   if (successState) {
     const isConfirmed = successState.bookingStatus === "confirmed";
+    const nextStepLabel = isConfirmed ? "Your aircraft is secured" : "Your request is in review";
 
     return (
-      <div className="min-h-[70vh] flex items-center justify-center px-6 py-20">
-        <div className="max-w-lg w-full text-center">
-          <div
-            className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-8 ${
-              isConfirmed
-                ? "bg-green-500/15 border border-green-500/20"
-                : "bg-blue-500/15 border border-blue-500/20"
-            }`}
-          >
-            <span
-              className={`material-symbols-outlined text-4xl ${isConfirmed ? "text-green-400" : "text-blue-400"}`}
-              style={{ fontVariationSettings: "'FILL' 1, 'wght' 400" }}
-            >
-              {isConfirmed ? "check_circle" : "pending_actions"}
-            </span>
-          </div>
+      <div className="relative min-h-[80vh] overflow-hidden bg-[#edf5ff] px-4 py-10 sm:py-14">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(26,79,214,0.10),transparent_28%),radial-gradient(circle_at_80%_0%,rgba(34,197,94,0.10),transparent_24%),radial-gradient(circle_at_50%_100%,rgba(245,158,11,0.10),transparent_28%)]" />
+        <div className="absolute inset-0 opacity-[0.28] [background-image:radial-gradient(rgba(26,79,214,0.18)_1px,transparent_1px)] [background-size:18px_18px]" />
 
-          <p
-            className={`text-[10px] font-bold uppercase tracking-[0.35em] mb-3 ${isConfirmed ? "text-green-400/70" : "text-blue-400/70"}`}
-          >
-            {isConfirmed ? "Booking Confirmed" : "Request Received"}
-          </p>
-          <h1 className="text-3xl md:text-4xl font-serif text-white mb-4 leading-tight">
-            {isConfirmed
-              ? "Your Booking Is Confirmed"
-              : "Booking Request Submitted"}
-          </h1>
-          <p className="text-slate-400 text-sm leading-relaxed mb-8 max-w-sm mx-auto">
-            {isConfirmed
-              ? "Your aircraft booking has been confirmed. Please arrive at the aircraft at least 30 minutes before departure for pre-flight checks."
-              : "Your request has been submitted and is awaiting review by our operations team."}
-          </p>
-
-          <div className="bg-gradient-to-br from-[#0f1d38] to-[#080e1c] border-t border-white/[0.13] border-x border-b border-x-white/[0.06] border-b-white/[0.06] rounded-xl p-7 mb-6 relative overflow-hidden">
+        <div className="relative mx-auto max-w-5xl">
+          <div className="mb-8 flex justify-center">
             <div
-              className="absolute inset-0 rounded-xl pointer-events-none"
-              style={{
-                background:
-                  "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.12) 0%, transparent 70%)",
-              }}
-            />
-            <div className="relative">
-              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-blue-400/70 mb-3">
-                Booking Reference
-              </p>
-              <p className="text-3xl font-mono font-bold text-white tracking-[0.18em] mb-2">
-                {successState.bookingReference}
-              </p>
-              <p className="text-[11px] text-slate-600">
-                Save this reference for your records
-              </p>
+              className={`w-24 h-24 rounded-full flex items-center justify-center border shadow-[0_20px_50px_rgba(26,79,214,0.12)] ${
+                isConfirmed
+                  ? "bg-[#eafff1] border-emerald-200"
+                  : "bg-[#eef4ff] border-[#c7d8f5]"
+              }`}
+            >
+              <span
+                className={`material-symbols-outlined text-4xl ${isConfirmed ? "text-emerald-500" : "text-[#1a4fd6]"}`}
+                style={{ fontVariationSettings: "'FILL' 1, 'wght' 500" }}
+              >
+                {isConfirmed ? "check_circle" : "pending_actions"}
+              </span>
             </div>
           </div>
 
-          {isConfirmed ? (
-            <div className="bg-green-500/[0.07] border border-green-500/20 rounded-xl px-5 py-4 mb-6 flex items-start gap-3 text-left">
-              <span
-                className="material-symbols-outlined text-green-400 text-base flex-shrink-0 mt-0.5"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                check_circle
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-green-300 mb-1">
-                  Booking confirmed
-                </p>
-                <p className="text-xs text-green-300/70 leading-relaxed">
-                  Your booking is confirmed. Please arrive at the aircraft at
-                  least 30 minutes before your scheduled departure.
-                </p>
+          <div className="text-center max-w-3xl mx-auto">
+            <p
+              className={`text-[10px] font-bold uppercase tracking-[0.45em] mb-4 ${isConfirmed ? "text-emerald-600" : "text-[#1a4fd6]"}`}
+            >
+              {isConfirmed ? "Booking Confirmed" : "Request Received"}
+            </p>
+            <h1 className="text-4xl md:text-6xl font-serif text-[#10254c] leading-[0.95] tracking-tight">
+              {isConfirmed
+                ? "Your Booking Is Confirmed"
+                : "Booking Request Submitted"}
+            </h1>
+            <p className="mt-5 text-base md:text-lg text-[#58709a] leading-relaxed max-w-2xl mx-auto">
+              {isConfirmed
+                ? "Your aircraft booking has been confirmed. Arrive 30 minutes early for pre-flight checks and a smooth handover."
+                : "Your request has been submitted and is awaiting review by our operations team."}
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
+            <div className="space-y-6">
+              <div className="relative overflow-hidden rounded-[2rem] border border-[#0f1d38]/10 bg-[#081122] p-6 md:p-8 text-white shadow-[0_24px_70px_rgba(8,17,34,0.22)]">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.18),transparent_55%)]" />
+                <div className="relative">
+                  <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.28em] text-[#8fb0ff]">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                    Booking Reference
+                  </div>
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                      <p className="text-3xl md:text-5xl font-mono font-bold tracking-[0.18em] text-white break-all">
+                        {successState.bookingReference}
+                      </p>
+                      <p className="mt-3 text-sm text-white/55">
+                        Save this reference for your records and for any future support requests.
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left">
+                      <p className="text-[10px] uppercase tracking-[0.32em] text-white/45">
+                        Status
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-white">
+                        {nextStepLabel}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-[1.5rem] border border-white/70 bg-white/80 p-5 shadow-[0_12px_30px_rgba(16,37,76,0.07)] backdrop-blur">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isConfirmed ? "bg-emerald-100 text-emerald-600" : "bg-[#eef4ff] text-[#1a4fd6]"}`}>
+                      <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1, 'wght' 500" }}>
+                        {isConfirmed ? "verified" : "schedule"}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-[#10254c]">
+                        {isConfirmed ? "Confirmed" : "Pending review"}
+                      </p>
+                      <p className="text-xs text-[#6f82a5]">
+                        {isConfirmed ? "Ready for departure" : "Operations will review shortly"}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="mt-4 text-sm leading-relaxed text-[#58709a]">
+                    {isConfirmed
+                      ? "Your slot is secured on the aircraft schedule."
+                      : "You can view the booking while our team reviews the request."}
+                  </p>
+                </div>
+
+                <div className="rounded-[1.5rem] border border-white/70 bg-white/80 p-5 shadow-[0_12px_30px_rgba(16,37,76,0.07)] backdrop-blur">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1, 'wght' 500" }}>
+                        support_agent
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-[#10254c]">Need a hand?</p>
+                      <p className="text-xs text-[#6f82a5]">Support is available if timings change.</p>
+                    </div>
+                  </div>
+                  <p className="mt-4 text-sm leading-relaxed text-[#58709a]">
+                    Please keep your booking reference handy if you need to contact the team.
+                  </p>
+                </div>
               </div>
             </div>
-          ) : (
-            <div className="bg-blue-500/[0.07] border border-blue-500/20 rounded-xl px-5 py-4 mb-6 flex items-start gap-3 text-left">
-              <span className="material-symbols-outlined text-blue-400 text-base flex-shrink-0 mt-0.5">
-                pending_actions
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-blue-300 mb-1">
-                  Awaiting review
+
+            <aside className="space-y-6 lg:sticky lg:top-6 self-start">
+              {successState.startDT || successState.estimatedHours != null ? (
+                <div className="rounded-[1.75rem] border border-white/70 bg-white/85 p-6 shadow-[0_18px_40px_rgba(16,37,76,0.08)] backdrop-blur">
+                  <div className="flex items-center justify-between border-b border-[#e8eef8] pb-4">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#6f82a5]">
+                        Flight Summary
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-[#10254c]">
+                        Your booking details
+                      </p>
+                    </div>
+                    <span className="material-symbols-outlined text-[#1a4fd6] text-[24px]" style={{ fontVariationSettings: "'FILL' 1, 'wght' 500" }}>
+                      flight_takeoff
+                    </span>
+                  </div>
+
+                  <div className="mt-4 space-y-4">
+                    {successState.startDT && (
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8aa0c2]">Departure</p>
+                          <p className="mt-1 text-sm font-semibold text-[#10254c]">
+                            {formatInputAsAU(successState.startDT)}
+                          </p>
+                        </div>
+                        <span className="material-symbols-outlined text-[#1a4fd6] text-[18px] mt-0.5">flight_takeoff</span>
+                      </div>
+                    )}
+                    {successState.endDT && (
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8aa0c2]">Est. Return</p>
+                          <p className="mt-1 text-sm font-semibold text-[#10254c]">
+                            {formatInputAsAU(successState.endDT)}
+                          </p>
+                        </div>
+                        <span className="material-symbols-outlined text-[#1a4fd6] text-[18px] mt-0.5">flight_land</span>
+                      </div>
+                    )}
+                    {successState.estimatedHours != null && (
+                      <div className="rounded-2xl bg-[#f4f8ff] px-4 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8aa0c2]">
+                          Estimated Duration
+                        </p>
+                        <p className="mt-1 text-2xl font-bold text-[#10254c]">
+                          {formatDuration(successState.estimatedHours)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="rounded-[1.75rem] border border-[#c7d8f5] bg-gradient-to-br from-white to-[#f3f7ff] p-6 shadow-[0_18px_40px_rgba(26,79,214,0.08)]">
+                <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-[#1a4fd6]">
+                  Next Steps
                 </p>
-                <p className="text-xs text-blue-300/70 leading-relaxed">
-                  Our operations team will review your request and confirm the
-                  booking shortly.
-                </p>
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <span className="material-symbols-outlined text-[#1a4fd6] text-[18px] mt-0.5" style={{ fontVariationSettings: "'FILL' 1, 'wght' 500" }}>
+                      calendar_today
+                    </span>
+                    <p className="text-sm text-[#58709a]">
+                      Arrive 30 minutes early for pre-flight checks.
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="material-symbols-outlined text-[#1a4fd6] text-[18px] mt-0.5" style={{ fontVariationSettings: "'FILL' 1, 'wght' 500" }}>
+                      id_card
+                    </span>
+                    <p className="text-sm text-[#58709a]">
+                      Keep your pilot documents accessible before departure.
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="material-symbols-outlined text-[#1a4fd6] text-[18px] mt-0.5" style={{ fontVariationSettings: "'FILL' 1, 'wght' 500" }}>
+                      support_agent
+                    </span>
+                    <p className="text-sm text-[#58709a]">
+                      Reach out if you need to adjust the booking.
+                    </p>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            </aside>
+          </div>
 
-          {(successState.startDT || successState.estimatedHours != null) && (
-            <div className="bg-[#080e1c] border border-white/[0.07] rounded-xl p-5 mb-8 text-left space-y-3">
-              {successState.startDT && (
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-slate-500">Departure</span>
-                  <span className="text-xs text-white font-medium">
-                    {formatInputAsAU(successState.startDT)}
-                  </span>
-                </div>
-              )}
-              {successState.endDT && (
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-slate-500">Est. Return</span>
-                  <span className="text-xs text-white font-medium">
-                    {formatInputAsAU(successState.endDT)}
-                  </span>
-                </div>
-              )}
-              {successState.estimatedHours != null && (
-                <div className="flex justify-between items-center border-t border-white/[0.05] pt-3">
-                  <span className="text-xs text-slate-500">Est. Duration</span>
-                  <span className="text-xs text-blue-400 font-semibold">
-                    {formatDuration(successState.estimatedHours)}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="mt-8 flex flex-col sm:flex-row gap-3">
             <Link
               href={`/dashboard/bookings/${successState.bookingId}`}
-              className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-[0.2em] rounded-lg transition-all flex items-center justify-center gap-2 shadow-[0_0_24px_rgba(37,99,235,0.25)]"
+              className="flex-1 rounded-2xl bg-[#1a4fd6] px-6 py-4 text-center text-xs font-bold uppercase tracking-[0.22em] text-white shadow-[0_16px_32px_rgba(26,79,214,0.24)] transition-transform hover:-translate-y-0.5 hover:bg-[#1540a8] flex items-center justify-center gap-2"
             >
-              <span className="material-symbols-outlined text-sm">
+              <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1, 'wght' 500" }}>
                 receipt_long
               </span>
               View Booking
             </Link>
             <Link
               href="/dashboard/bookings"
-              className="flex-1 py-4 bg-white/[0.06] hover:bg-white/[0.09] text-white font-bold text-xs uppercase tracking-[0.2em] rounded-lg transition-all flex items-center justify-center gap-2 border border-white/[0.08]"
+              className="flex-1 rounded-2xl border border-[#c7d8f5] bg-white/80 px-6 py-4 text-center text-xs font-bold uppercase tracking-[0.22em] text-[#10254c] shadow-[0_12px_30px_rgba(16,37,76,0.05)] transition-transform hover:-translate-y-0.5 hover:bg-white flex items-center justify-center gap-2"
             >
-              <span className="material-symbols-outlined text-sm">
+              <span className="material-symbols-outlined text-sm text-[#1a4fd6]" style={{ fontVariationSettings: "'FILL' 1, 'wght' 500" }}>
                 format_list_bulleted
               </span>
               My Bookings
@@ -1115,7 +1365,7 @@ export default function BookingRequestForm({
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-8 mb-8">
                 {/* ── Single day ── */}
                 <button
                   type="button"
@@ -1427,7 +1677,7 @@ export default function BookingRequestForm({
               />
 
               {activeBookingDate && (
-                <div className="bg-[#f8faff] border border-[#e2e8f0] rounded-2xl p-5 mb-4">
+                <div className="mt-5 bg-[#f8faff] border border-[#e2e8f0] rounded-2xl p-5 mb-4">
                   <div className="flex items-center justify-between mb-5">
                     <div>
                       <p className="text-[11px] font-semibold text-[#94a3b8] uppercase tracking-wider mb-0.5">
@@ -1816,33 +2066,62 @@ export default function BookingRequestForm({
                   </svg>
                 </button>
                 {openSections.pricing && (
-                  <div className="px-5 pb-5 border-t border-[#f1f5f9] space-y-3 pt-4">
+                  <div className="px-5 pb-5 border-t border-[#f1f5f9] space-y-3 pt-4 font-sans">
                     <div className="flex justify-between items-baseline">
-                      <span className="text-sm text-[#6b7280]">
-                        Billing type
-                      </span>
+                      <span className="text-sm text-[#6b7280]">Billing Mode</span>
                       <span className="text-sm font-semibold text-[#152d5a]">
-                        Actual VDO hours flown
+                        {isBlockTime ? 'Block Time Deduction' : 'Pay As You Fly'}
                       </span>
                     </div>
+                    {isBlockTime && blockTimeSummary && (
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-sm text-[#6b7280]">Available Block Balance</span>
+                        <span className="text-sm font-semibold text-emerald-600">
+                          {blockTimeSummary.totalActiveHoursRemaining.toFixed(1)}h remaining
+                        </span>
+                      </div>
+                    )}
                     <div className="flex justify-between items-baseline">
                       <span className="text-sm text-[#6b7280]">Hire type</span>
                       <span className="text-sm font-semibold text-[#152d5a]">
                         Wet hire · GST incl.
                       </span>
                     </div>
-                    <div className="border-t border-[#f1f5f9] pt-3 flex justify-between items-baseline">
+                    <div className="flex justify-between items-baseline">
                       <span className="text-sm text-[#6b7280]">Rate</span>
-                      <span className="text-lg font-bold text-[#152d5a]">
-                        {estimatedHours != null
-                          ? `$${getVdoHourlyRate(estimatedHours)}/hr`
-                          : "From $290–$330/hr"}
+                      <span className="text-sm font-semibold text-[#152d5a]">
+                        {isBlockTime ? `$${estimatedRate}/hr (Locked)` : `$330/hr (Flat)`}
                       </span>
                     </div>
+                    {estimatedHours != null && (
+                      <div className="border-t border-[#f1f5f9] pt-3 space-y-2">
+                        {isBlockTime && blockTimeSummary && (
+                          <div className="flex justify-between items-baseline text-xs text-[#6b7280]">
+                            <span>Deduction estimate:</span>
+                            <span>
+                              {Math.min(estimatedHours, blockTimeSummary.totalActiveHoursRemaining).toFixed(1)}h from balance
+                            </span>
+                          </div>
+                        )}
+                        {isBlockTime && blockTimeSummary && estimatedHours > blockTimeSummary.totalActiveHoursRemaining && (
+                          <div className="flex justify-between items-baseline text-xs text-[#b45309]">
+                            <span>Overflow estimate:</span>
+                            <span>
+                              {(estimatedHours - blockTimeSummary.totalActiveHoursRemaining).toFixed(1)}h @ ${estimatedRate}/hr
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-baseline pt-1">
+                          <span className="text-sm font-semibold text-[#6b7280]">Estimated Cost</span>
+                          <span className="text-lg font-bold text-[#152d5a]">
+                            {estimatedTotal === 0 ? "Fully Covered ($0.00)" : `$${estimatedTotal?.toFixed(2)}`}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex justify-between items-center pt-1">
                       <p className="text-[11px] text-[#94a3b8]">
-                        +$28.95 per landing · Final invoice after flight record
-                        submitted.
+                        +$25.00 per landing · Final invoice generated after flight.
                       </p>
                       <button
                         type="button"
@@ -1930,9 +2209,9 @@ export default function BookingRequestForm({
               </section>
 
               {startDate && returnDate && bookingDayCount >= 2 && (
-                <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6">
-                  <div className={`mb-3 ${bookingDayCount > 4 ? "overflow-x-auto pb-2" : ""}`}>
-                    <div className={`flex items-stretch gap-2 ${bookingDayCount > 4 ? "min-w-max" : "justify-between"}`}>
+                <div className="mt-5 bg-white border border-[#e2e8f0] rounded-2xl p-6">
+                  <div className={`mt-5 mb-6 ${bookingDayCount > 4 ? "overflow-x-auto px-2 pb-4" : "px-1"}`}>
+                    <div className={`flex items-stretch gap-5 md:gap-6 ${bookingDayCount > 4 ? "min-w-max" : "justify-start"}`}>
                     {(() => {
                       const dates: Date[] = [];
                       const cur = new Date(`${startDate}T12:00:00`);
@@ -1954,7 +2233,7 @@ export default function BookingRequestForm({
                         return (
                           <div
                             key={`${date.toISOString()}-${i}`}
-                            className={`rounded-xl border p-3 text-center ${bookingDayCount > 4 ? "w-[96px] sm:w-[112px] flex-shrink-0" : "flex-1"} ${isFirst || isLast ? "border-[#1a4fd6] bg-[#f0f6ff]" : "border-[#e2e8f0] bg-[#f8fafc]"}`}
+                            className={`rounded-xl border p-4 text-center mx-1.5 sm:mx-2 ${bookingDayCount > 4 ? "w-[108px] sm:w-[126px] flex-shrink-0" : "flex-1 min-w-[120px]" } ${isFirst || isLast ? "border-[#1a4fd6] bg-[#f0f6ff]" : "border-[#e2e8f0] bg-[#f8fafc]"}`}
                           >
                             <div className="text-xs font-bold text-[#152d5a] mb-0.5">
                               {dayLabel}
@@ -2044,7 +2323,7 @@ export default function BookingRequestForm({
                 </div>
               )}
 
-              <div className="bg-white border border-[#e2e8f0] rounded-2xl px-6 py-5">
+              <div className="mt-5 bg-white border border-[#e2e8f0] rounded-2xl px-6 py-5">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-7 h-7 rounded-full bg-[#1a4fd6] flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
                     2
@@ -2180,7 +2459,7 @@ export default function BookingRequestForm({
             </>
           )}
 
-          <div className="bg-white border border-[#e2e8f0] rounded-2xl overflow-hidden">
+          <div className="bg-white border border-[#e2e8f0] rounded-2xl overflow-hidden mt-6 md:mt-8">
             <button
               type="button"
               onClick={() => toggleSection("notes")}
@@ -2224,16 +2503,16 @@ export default function BookingRequestForm({
               </svg>
             </button>
             {openSections.notes && (
-              <div className="px-5 pb-5 border-t border-[#f1f5f9] pt-4">
+              <div className="px-5 pb-6 border-t border-[#f1f5f9] pt-5 space-y-4">
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Add any special requests, route intentions, or passenger details here..."
                   maxLength={300}
-                  rows={3}
-                  className="w-full border border-[#e2e8f0] rounded-xl px-4 py-3 text-sm text-[#152d5a] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#1a4fd6]/20 focus:border-[#1a4fd6] resize-none"
+                  rows={4}
+                  className="w-full min-h-[140px] border border-[#e2e8f0] rounded-xl px-4 py-3 text-sm text-[#152d5a] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#1a4fd6]/20 focus:border-[#1a4fd6] resize-none"
                 />
-                <p className="text-[11px] text-[#94a3b8] text-right mt-1">
+                <p className="text-[11px] text-[#94a3b8] text-right pr-1">
                   {notes.length} / 300
                 </p>
               </div>
@@ -2388,50 +2667,47 @@ export default function BookingRequestForm({
         )}
 
         {showPricingModal && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="fixed inset-0 z-[200] overflow-y-auto pt-[72px] sm:pt-[84px] pb-4">
             <div
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
               onClick={() => setShowPricingModal(false)}
             />
 
-            <div className="relative z-10 w-full sm:max-w-lg mx-4 bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="flex justify-center pt-3 pb-1 sm:hidden">
-                <div className="w-10 h-1 rounded-full bg-[#e2e8f0]" />
+            <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-col bg-white shadow-2xl max-h-[calc(100vh-6rem)] overflow-hidden rounded-none sm:rounded-3xl">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-[#e2e8f0] bg-white/95 backdrop-blur">
+                <div>
+                  <p className="text-xs font-semibold text-[#1a4fd6] uppercase tracking-widest mb-1">
+                    Pricing breakdown
+                  </p>
+                  <h2
+                    className="text-xl font-semibold text-[#152d5a]"
+                    style={{ fontFamily: "Newsreader, serif" }}
+                  >
+                    How aircraft hire is priced
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPricingModal(false)}
+                  className="w-9 h-9 rounded-full bg-[#f1f5f9] flex items-center justify-center text-[#6b7280] hover:bg-[#e2e8f0] transition-colors flex-shrink-0"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
               </div>
 
-              <div className="px-6 pt-4 pb-8">
-                <div className="flex items-start justify-between mb-5">
-                  <div>
-                    <p className="text-xs font-semibold text-[#1a4fd6] uppercase tracking-widest mb-1">
-                      Pricing breakdown
-                    </p>
-                    <h2
-                      className="text-xl font-semibold text-[#152d5a]"
-                      style={{ fontFamily: "Newsreader, serif" }}
-                    >
-                      How aircraft hire is priced
-                    </h2>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowPricingModal(false)}
-                    className="w-8 h-8 rounded-full bg-[#f1f5f9] flex items-center justify-center text-[#6b7280] hover:bg-[#e2e8f0] transition-colors flex-shrink-0 mt-1"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
-                </div>
+              <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
 
                 <div className="flex flex-wrap gap-2 mb-5">
                   {[
@@ -2573,6 +2849,140 @@ export default function BookingRequestForm({
           </div>
         )}
       </div>
+
+      {/* ── Interstitial Modals for Upsells / Warnings ── */}
+      {upsellState.type !== "none" && (
+        <div className="fixed inset-0 z-50 bg-[#0d1b3e]/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div
+            className="bg-white rounded-3xl max-w-lg w-full border border-[#152d5a]/10 p-6 md:p-8 shadow-[0_20px_50px_rgba(2,10,22,0.2)] relative overflow-hidden flex flex-col font-sans"
+            style={{
+              animation: "fadeIn 0.2s ease-out",
+            }}
+          >
+            <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-[#1a4fd6] to-[#f59e0b]" />
+
+            {upsellState.type === "new_pilot" && (
+              <div>
+                <div className="w-12 h-12 rounded-full bg-[#f0f6ff] text-[#1a4fd6] flex items-center justify-center mb-5">
+                  <span className="material-symbols-outlined text-[24px]">history_edu</span>
+                </div>
+                <h3 className="text-xl font-bold text-[#152d5a] mb-3">
+                  Flying regularly? Lock in your rate.
+                </h3>
+                <p className="text-sm text-[#4b6390] leading-relaxed mb-6">
+                  Instead of paying the standard <span className="font-semibold text-[#152d5a]">$330/hr</span> on Pay As You Fly, purchasing a <span className="font-semibold text-[#1a4fd6]">10-hour Starter Block</span> locks your rate at <span className="font-semibold text-[#152d5a]">$320/hr</span>—saving you <span className="font-semibold text-[#152d5a]">$10 on every single hour</span> you fly.
+                </p>
+                <div className="flex flex-col gap-3">
+                  <Link
+                    href="/dashboard?block_time_package=starter-block"
+                    className="w-full text-center bg-[#1a4fd6] hover:bg-[#153eb2] text-white rounded-xl py-3 px-6 text-sm font-semibold transition-colors shadow-sm"
+                  >
+                    Explore Block Time Packages
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleDismissInterstitialAndSubmit}
+                    className="w-full text-center text-sm font-semibold text-[#64748b] hover:text-[#475569] py-2.5 transition-colors"
+                  >
+                    Continue with Pay As You Fly
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {upsellState.type === "returning_pilot" && (
+              <div>
+                <div className="w-12 h-12 rounded-full bg-[#ecfdf5] text-emerald-600 flex items-center justify-center mb-5">
+                  <span className="material-symbols-outlined text-[24px]">savings</span>
+                </div>
+                <h3 className="text-xl font-bold text-[#152d5a] mb-3">
+                  Save on your future flights
+                </h3>
+                <div className="space-y-3 mb-6">
+                  <p className="text-sm text-[#4b6390] leading-relaxed">
+                    You have already flown <span className="font-semibold text-[#152d5a]">{totalVdoHours.toFixed(1)}h</span> with us.
+                  </p>
+                  <p className="text-sm text-[#4b6390] leading-relaxed">
+                    A <span className="font-semibold text-[#1a4fd6]">{upsellState.comboHours}h Block Package</span> at <span className="font-semibold text-[#152d5a]">${upsellState.rate}/hr</span> would have already saved you <span className="font-semibold text-emerald-600">${upsellState.savingSoFar.toFixed(0)}</span>.
+                  </p>
+                  <p className="text-sm text-[#4b6390] leading-relaxed">
+                    Lock in the remaining <span className="font-semibold text-[#1a4fd6]">{upsellState.remainingHours.toFixed(1)}h</span> at <span className="font-semibold text-[#152d5a]">${upsellState.rate}/hr</span> now to save an additional <span className="font-semibold text-emerald-600">${upsellState.savingRemaining.toFixed(0)}</span>!
+                  </p>
+                  <div className="bg-[#f0f9ff] border border-[#e0f2fe] rounded-xl p-4 mt-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-semibold text-[#0369a1] uppercase tracking-wider">Total Projected Savings</span>
+                      <span className="text-lg font-extrabold text-[#0369a1]">${upsellState.totalSaving.toFixed(0)}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <Link
+                    href={`/dashboard?block_time_package=${
+                      upsellState.comboHours === 10
+                        ? "starter-block"
+                        : upsellState.comboHours === 25
+                        ? "regular-block"
+                        : upsellState.comboHours === 50
+                        ? "committed-block"
+                        : "pro-block"
+                    }`}
+                    className="w-full text-center bg-[#1a4fd6] hover:bg-[#153eb2] text-white rounded-xl py-3 px-6 text-sm font-semibold transition-colors shadow-sm"
+                  >
+                    Buy {upsellState.comboHours}h Package — ${upsellState.packageTotal.toLocaleString()}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleDismissInterstitialAndSubmit}
+                    className="w-full text-center text-sm font-semibold text-[#64748b] hover:text-[#475569] py-2.5 transition-colors"
+                  >
+                    Continue with Pay As You Fly
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {upsellState.type === "low_balance" && (
+              <div>
+                <div className="w-12 h-12 rounded-full bg-[#fffbeb] text-amber-600 flex items-center justify-center mb-5">
+                  <span className="material-symbols-outlined text-[24px]">warning</span>
+                </div>
+                <h3 className="text-xl font-bold text-[#152d5a] mb-3">
+                  Block Time Balance Warning
+                </h3>
+                <div className="space-y-3 mb-6">
+                  <p className="text-sm text-[#4b6390] leading-relaxed">
+                    You have <span className="font-semibold text-[#152d5a]">{upsellState.hoursRemaining.toFixed(1)}h</span> remaining on your block balance, but this booking is for <span className="font-semibold text-[#152d5a]">{upsellState.bookedHours.toFixed(1)}h</span>.
+                  </p>
+                  <p className="text-sm text-[#4b6390] leading-relaxed">
+                    The shortfall of <span className="font-semibold text-[#b45309]">{upsellState.shortfall.toFixed(1)}h</span> will be billed as cash overflow at your locked rate of <span className="font-semibold text-[#152d5a]">${upsellState.blockRate}/hr</span>.
+                  </p>
+                  <div className="bg-[#fffbeb] border border-[#fef3c7] rounded-xl p-4 mt-2">
+                    <div className="flex justify-between items-center text-xs font-semibold text-[#b45309]">
+                      <span className="uppercase tracking-wider">Estimated Overflow Overage</span>
+                      <span className="text-base font-bold">${upsellState.overflowCost.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <Link
+                    href="/dashboard"
+                    className="w-full text-center bg-[#1a4fd6] hover:bg-[#153eb2] text-white rounded-xl py-3 px-6 text-sm font-semibold transition-colors shadow-sm"
+                  >
+                    Top Up My Hours
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleDismissInterstitialAndSubmit}
+                    className="w-full text-center text-sm font-semibold text-[#64748b] hover:text-[#475569] py-2.5 transition-colors"
+                  >
+                    Continue anyway
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

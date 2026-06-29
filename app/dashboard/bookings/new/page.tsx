@@ -12,6 +12,30 @@ import { evaluateBookingDocumentsReadiness, evaluateBookingReadinessDecision, ha
 import BookingReadinessInlinePanel from './BookingReadinessInlinePanel'
 import { hasManualCheckoutClearance } from '@/lib/checkout-clearance'
 
+type BlockTimePurchaseRow = {
+  id: string
+  status: 'pending' | 'active' | 'exhausted' | 'expired' | 'refunded'
+  hours_purchased: number
+  hours_remaining: number
+  expires_at: string
+  purchased_at: string
+  activated_at: string | null
+}
+
+export type BlockTimeSummary = {
+  totalActiveHoursRemaining: number
+  activePurchaseCount: number
+  pendingPurchaseCount: number
+  earliestExpiry: string | null
+  latestPurchase: {
+    packageName: string
+    hoursPurchased: number
+    purchasedAt: string
+    status: BlockTimePurchaseRow['status']
+    ratePerHour: number
+  } | null
+}
+
 export const metadata = { title: 'Book a Flight | Pilot Overview' }
 
 // ── Shared locked gate shell ─────────────────────────────────────────────────
@@ -110,6 +134,14 @@ function BookingReadinessGate({
   termsAccepted: boolean
   activeTerms: ReturnType<typeof normalizeActiveCheckoutTerms>
 }) {
+  const awaitingReviewOnly = documentsAwaitingReviewCount > 0 && missingDocumentsCount === 0 && flightRecencyComplete && termsAccepted
+  const heading = awaitingReviewOnly
+    ? 'Documents Under Review'
+    : 'Complete your pilot file before booking'
+  const body = awaitingReviewOnly
+    ? 'Your documents have been submitted and are currently under admin review. Booking will unlock once OZ Rent A Plane approves them.'
+    : 'Your checkout has already been marked as completed by the OZ Rent A Plane team. Before your first aircraft hire booking, we need to complete your pilot file.'
+
   return (
     <CustomerBookingShell user={user} profile={profile}>
       <div className="px-6 md:px-10 py-10 max-w-3xl mx-auto w-full" data-testid="booking-readiness-gate">
@@ -119,10 +151,8 @@ function BookingReadinessGate({
         </Link>
 
         <div className="rounded-2xl border border-[#152d5a]/10 bg-white p-7 md:p-8 shadow-sm">
-          <h2 className="text-2xl font-serif text-[#152d5a]">Complete your pilot file before booking</h2>
-          <p className="mt-3 text-sm text-[#4b6390] leading-relaxed">
-            Your checkout has already been marked as completed by the OZ Rent A Plane team. Before your first aircraft hire booking, we need to complete your pilot file.
-          </p>
+          <h2 className="text-2xl font-serif text-[#152d5a]">{heading}</h2>
+          <p className="mt-3 text-sm text-[#4b6390] leading-relaxed">{body}</p>
           {hasHistoricalClearance ? (
             <p className="mt-2 text-xs text-[#1a4fd6]">Checkout source: Historical/manual checkout completion.</p>
           ) : null}
@@ -452,6 +482,92 @@ export default async function NewBookingPage() {
 
     const BOOKING_HOURLY_RATE = 320
 
+    // Query active block time purchases
+    const { data: blockTimePurchaseRows } = await supabase
+      .from('pilot_block_time_purchases')
+      .select(`
+        id,
+        status,
+        hours_purchased,
+        hours_remaining,
+        expires_at,
+        purchased_at,
+        activated_at,
+        package:block_time_packages (
+          name,
+          hours,
+          rate_per_hour,
+          validity_days
+        )
+      `)
+      .eq('user_id', user.id)
+      .order('purchased_at', { ascending: false })
+      .limit(10)
+
+    const blockTimePurchases = ((blockTimePurchaseRows ?? []) as any[]).map((purchase) => ({
+      ...purchase,
+      package: Array.isArray(purchase.package) ? purchase.package[0] ?? null : purchase.package,
+    }))
+
+    const activeBlockTimePurchases = blockTimePurchases.filter(
+      (purchase) => purchase.status === 'active' && Number(purchase.hours_remaining) > 0,
+    )
+    const pendingBlockTimePurchases = blockTimePurchases.filter((purchase) => purchase.status === 'pending')
+    const totalActiveHoursRemaining = activeBlockTimePurchases.reduce(
+      (sum, purchase) => sum + Number(purchase.hours_remaining || 0),
+      0,
+    )
+    const earliestExpiry = activeBlockTimePurchases
+      .map((purchase) => purchase.expires_at)
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0] ?? null
+    const latestPurchase = blockTimePurchases[0] ?? null
+    const latestPurchasePackageName = latestPurchase?.package?.name ?? 'Block Time'
+    const latestPurchaseHours = latestPurchase?.package?.hours ?? Number(latestPurchase?.hours_purchased ?? 0)
+    
+    const blockTimeSummary: BlockTimeSummary | null = blockTimePurchases.length > 0
+      ? {
+          totalActiveHoursRemaining,
+          activePurchaseCount: activeBlockTimePurchases.length,
+          pendingPurchaseCount: pendingBlockTimePurchases.length,
+          earliestExpiry,
+          latestPurchase: latestPurchase
+            ? {
+                packageName: latestPurchasePackageName,
+                hoursPurchased: latestPurchaseHours,
+                purchasedAt: latestPurchase.purchased_at,
+                status: latestPurchase.status,
+                ratePerHour: Number(latestPurchase.rate_per_hour || latestPurchase.package?.rate_per_hour || 300),
+              }
+            : null,
+        }
+      : null
+
+    // Query past completed standard flights
+    const { data: pastBookings } = await supabase
+      .from('bookings')
+      .select(`
+        id,
+        status,
+        flight_records (
+          vdo_total
+        )
+      `)
+      .eq('booking_owner_user_id', user.id)
+      .eq('booking_type', 'standard')
+      .eq('status', 'completed')
+
+    let completedFlightsCount = 0
+    let totalVdoHours = 0
+    if (pastBookings) {
+      completedFlightsCount = pastBookings.length
+      totalVdoHours = pastBookings.reduce((sum, b) => {
+        const fr = Array.isArray(b.flight_records)
+          ? b.flight_records[0]
+          : b.flight_records
+        return sum + Number(fr?.vdo_total || 0)
+      }, 0)
+    }
+
     return (
       <CustomerBookingShell user={user as User} profile={typedProfile}>
         <BookingRequestForm
@@ -465,6 +581,9 @@ export default async function NewBookingPage() {
           eligibilityBlocked={eligibilityBlocked}
           eligibilityWarnings={eligibilityWarnings}
           initialLastFlightDate={typedProfile?.last_flight_date ?? ''}
+          blockTimeSummary={blockTimeSummary}
+          completedFlightsCount={completedFlightsCount}
+          totalVdoHours={totalVdoHours}
         />
       </CustomerBookingShell>
     )

@@ -17,7 +17,9 @@ import {
 } from '@/lib/booking/notifications'
 import { sendEmail } from '@/lib/email/send-email'
 import { checkoutOutcomeEmail } from '@/lib/email/templates/checkout'
-import { paymentConfirmedEmail } from '@/lib/email/templates/payment'
+import { paymentConfirmedEmail, flightReceiptPayfEmail, flightReceiptBlockTimeEmail } from '@/lib/email/templates/payment'
+import Stripe from 'stripe'
+import { generateInvoicePdf } from '@/lib/invoices/pdf'
 import {
   type AircraftReadings,
   type TotalOnlyReadings,
@@ -144,7 +146,7 @@ export async function approvePostFlightReview(
       tacho_start, tacho_stop, tacho_total,
       vdo_start, vdo_stop, vdo_total,
       air_switch_start, air_switch_stop, air_switch_total,
-      add_to_mr
+      add_to_mr, landings
     `)
     .eq('id', input.flight_record_id)
     .single()
@@ -218,18 +220,230 @@ export async function approvePostFlightReview(
     throw new Error('Failed to approve flight record.')
   }
 
-  // 2. Update booking & apply credit atomically
-  const subtotalCents = finalAmount != null ? Math.round(finalAmount * 100) : 0
-  const { error: bookingUpdateError } = await supabase.rpc('apply_credit_to_standard_booking_atomic', {
-    p_booking_id: flightRecord.booking_id,
-    p_subtotal_cents: subtotalCents,
-    p_final_amount: finalAmount,
-    p_new_status: 'post_flight_approved',
-    p_admin_notes: input.admin_booking_notes ?? null
-  })
+  // ── Unified Billing Engine (Milestone 2) ──
+  // Fetch booking owner user id & email & name
+  const { data: bookingRow, error: bookingErr } = await supabase
+    .from('bookings')
+    .select(`
+      booking_owner_user_id,
+      pic_name,
+      aircraft (
+        registration
+      )
+    `)
+    .eq('id', flightRecord.booking_id)
+    .single()
+  if (bookingErr || !bookingRow) {
+    throw new Error('Booking not found.')
+  }
+  const userId = bookingRow.booking_owner_user_id
+  const aircraftReg = (bookingRow.aircraft as any)?.registration ?? 'VH-XXX'
+
+  const { data: profileRow } = await supabase
+    .from('profiles')
+    .select('full_name, email, phone_number')
+    .eq('id', userId)
+    .single()
+  const customerName = profileRow?.full_name ?? bookingRow.pic_name ?? 'Pilot'
+  const customerEmail = profileRow?.email ?? ''
+
+  // Determine landing count (default to 1 if not entered)
+  const landingsCount = flightRecord.landings != null ? Math.max(0, flightRecord.landings) : 1
+  const landingFeeAmount = landingsCount * 25.00
+
+  // Check if pilot has active block time purchases
+  const { data: blockPurchases } = await supabase
+    .from('pilot_block_time_purchases')
+    .select('id, hours_remaining, rate_per_hour, status, purchased_at')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .gt('hours_remaining', 0)
+    .order('purchased_at', { ascending: true }) // FIFO!
+
+  const hasBlockTime = blockPurchases && blockPurchases.length > 0
+  const isBlockTimeMode = !!hasBlockTime
+
+  let finalBilledHours = billedHours || 0
+  let deductedHours = 0
+  let overflowHours = 0
+  let blockRate = 320 // default fall back
+
+  const usageRowsToInsert: any[] = []
+  const purchaseUpdates: any[] = []
+
+  if (isBlockTimeMode && blockPurchases) {
+    // FIFO Deduction
+    let remainingToDeduct = finalBilledHours
+    for (const purchase of blockPurchases) {
+      if (remainingToDeduct <= 0) break
+      const hoursBefore = Number(purchase.hours_remaining)
+      const deduct = Math.min(remainingToDeduct, hoursBefore)
+      if (deduct > 0) {
+        const hoursAfter = hoursBefore - deduct
+        remainingToDeduct -= deduct
+        deductedHours += deduct
+        blockRate = Number(purchase.rate_per_hour || 320)
+
+        purchaseUpdates.push({
+          id: purchase.id,
+          hours_remaining: hoursAfter,
+          status: hoursAfter === 0 ? 'exhausted' : 'active',
+        })
+
+        usageRowsToInsert.push({
+          purchase_id: purchase.id,
+          user_id: userId,
+          booking_id: flightRecord.booking_id,
+          hours_deducted: deduct,
+          hours_before: hoursBefore,
+          hours_after: hoursAfter,
+        })
+      }
+    }
+
+    if (remainingToDeduct > 0) {
+      overflowHours = remainingToDeduct
+      // Add overflow details to the last usage entry if exists
+      if (usageRowsToInsert.length > 0) {
+        const lastIdx = usageRowsToInsert.length - 1
+        usageRowsToInsert[lastIdx].overflow_hours = overflowHours
+        usageRowsToInsert[lastIdx].overflow_amount = overflowHours * blockRate
+      }
+    }
+  } else {
+    // PAYF mode
+    overflowHours = 0
+  }
+
+  // Construct line items
+  const lineItems: any[] = []
+  if (isBlockTimeMode) {
+    if (deductedHours > 0) {
+      lineItems.push({
+        type: 'block_time_hours',
+        description: `Block time deduction (${aircraftReg}) - ${deductedHours.toFixed(1)}h`,
+        quantity: deductedHours,
+        unit_price: 0,
+        amount: 0,
+      })
+    }
+    if (overflowHours > 0) {
+      const exGstRate = Math.round((blockRate / 1.1) * 100) / 100
+      lineItems.push({
+        type: 'overflow_hours',
+        description: `Block time overflow (${aircraftReg}) - ${overflowHours.toFixed(1)}h at locked rate $${blockRate}/hr`,
+        quantity: overflowHours,
+        unit_price: exGstRate,
+        amount: Math.round(overflowHours * exGstRate * 100) / 100,
+      })
+    }
+  } else {
+    // PAYF
+    const exGstRate = 300.00 // $330/hr flat rate / 1.1
+    lineItems.push({
+      type: 'flight_hours',
+      description: `Flight time hire (${aircraftReg}) - ${finalBilledHours.toFixed(1)}h`,
+      quantity: finalBilledHours,
+      unit_price: exGstRate,
+      amount: Math.round(finalBilledHours * exGstRate * 100) / 100,
+    })
+  }
+
+  if (landingsCount > 0) {
+    const landingFeeExGst = 22.73 // $25.00 / 1.1
+    lineItems.push({
+      type: 'landing_fee',
+      description: `Airport landing fees - ${landingsCount} landing(s)`,
+      quantity: landingsCount,
+      unit_price: landingFeeExGst,
+      amount: Math.round(landingsCount * landingFeeExGst * 100) / 100,
+    })
+  }
+
+  // Sum line items for invoice fields
+  const subtotal = lineItems.reduce((sum, item) => sum + item.amount, 0)
+  const gstAmount = Math.round((subtotal / 10) * 100) / 100
+  const total = Math.round((subtotal + gstAmount) * 100) / 100
+
+  // 1. Create the unified invoice in draft/awaiting status
+  const { data: invoiceRow, error: invoiceInsertError } = await supabase
+    .from('invoices')
+    .insert({
+      type: 'flight',
+      user_id: userId,
+      booking_id: flightRecord.booking_id,
+      billing_mode: isBlockTimeMode ? 'block_time' : 'pay_as_you_fly',
+      subtotal,
+      gst_amount: gstAmount,
+      total,
+      status: 'awaiting',
+    })
+    .select('id, invoice_number')
+    .single()
+
+  if (invoiceInsertError || !invoiceRow) {
+    console.error('[approvePostFlightReview] Invoice insert failed:', invoiceInsertError)
+    throw new Error('Failed to create unified invoice.')
+  }
+
+  const invoiceId = invoiceRow.id
+  const invoiceNumber = invoiceRow.invoice_number
+
+  // 2. Create the line items
+  const lineItemInserts = lineItems.map((li, idx) => ({
+    invoice_id: invoiceId,
+    type: li.type,
+    description: li.description,
+    quantity: li.quantity,
+    unit_price: li.unit_price,
+    amount: li.amount,
+    display_order: idx,
+  }))
+
+  const { error: liErr } = await supabase
+    .from('invoice_line_items')
+    .insert(lineItemInserts)
+
+  if (liErr) {
+    console.error('[approvePostFlightReview] Line items insert failed:', liErr)
+  }
+
+  // 3. Commit block purchases status updates and write usage entries
+  if (purchaseUpdates.length > 0) {
+    for (const update of purchaseUpdates) {
+      await supabase
+        .from('pilot_block_time_purchases')
+        .update({
+          hours_remaining: update.hours_remaining,
+          status: update.status,
+        })
+        .eq('id', update.id)
+    }
+  }
+
+  if (usageRowsToInsert.length > 0) {
+    const finalUsageInserts = usageRowsToInsert.map(row => ({
+      ...row,
+      invoice_id: invoiceId,
+    }))
+    await supabase
+      .from('pilot_block_time_usage')
+      .insert(finalUsageInserts)
+  }
+
+  // 4. Update the booking table status and payment details
+  const { error: bookingUpdateError } = await supabase
+    .from('bookings')
+    .update({
+      subtotal_cents: Math.round(total * 100),
+      final_amount: total,
+      payment_status: total > 0 ? 'final_pending' : 'paid',
+      status: 'post_flight_approved',
+      admin_notes: input.admin_booking_notes ?? null,
+    })
+    .eq('id', flightRecord.booking_id)
 
   if (bookingUpdateError) {
-    // Flight record approval already committed — log but don't throw
     console.error('[approvePostFlightReview] Booking update failed:', bookingUpdateError)
   } else {
     await supabase.from('booking_status_history').insert({
@@ -241,6 +455,194 @@ export async function approvePostFlightReview(
         ? `Admin approved post-flight review with correction. ${input.correction_reason ?? ''}`
         : 'Admin approved post-flight review.',
     })
+  }
+
+  // 5. Attempt off-session Stripe payment
+  let paymentSucceeded = false
+  if (total > 0) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('stripe_customer_id, default_payment_method_id')
+      .eq('id', userId)
+      .single()
+
+    if (profile?.stripe_customer_id && profile?.default_payment_method_id) {
+      try {
+        const stripeSecret = process.env.STRIPE_SECRET_KEY
+        if (stripeSecret) {
+          const stripe = new Stripe(stripeSecret, { apiVersion: '2023-10-16' as any })
+          const paymentIntent = await stripe.paymentIntents.create({
+            amount: Math.round(total * 100),
+            currency: 'aud',
+            customer: profile.stripe_customer_id,
+            payment_method: profile.default_payment_method_id,
+            off_session: true,
+            confirm: true,
+          })
+
+          if (paymentIntent.status === 'succeeded') {
+            paymentSucceeded = true
+            await supabase
+              .from('invoices')
+              .update({
+                status: 'paid',
+                payment_method: 'stripe',
+                stripe_payment_intent_id: paymentIntent.id,
+                paid_at: now,
+              })
+              .eq('id', invoiceId)
+
+            await supabase
+              .from('bookings')
+              .update({ payment_status: 'paid' })
+              .eq('id', flightRecord.booking_id)
+          }
+        }
+      } catch (stripeError) {
+        console.error('[approvePostFlightReview] Off-session Stripe charge failed:', stripeError)
+      }
+    }
+  } else {
+    // If invoice total is 0 (fully covered by block time), update invoice and booking status to paid
+    paymentSucceeded = true
+    await supabase
+      .from('invoices')
+      .update({
+        status: 'paid',
+        paid_at: now,
+      })
+      .eq('id', invoiceId)
+
+    await supabase
+      .from('bookings')
+      .update({ payment_status: 'paid' })
+      .eq('id', flightRecord.booking_id)
+  }
+
+  // 6. Generate Flight Invoice PDF & Store in Supabase Storage
+  let pdfUrl = ''
+  let pdfBuffer: Buffer | null = null
+  try {
+    const formattedLineItems = lineItems.map(item => ({
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: item.unit_price,
+      amount: item.amount,
+    }))
+
+    pdfBuffer = await generateInvoicePdf({
+      invoiceNumber,
+      invoiceTypeLabel: 'TAX INVOICE',
+      statusLabel: paymentSucceeded ? 'PAID' : 'AWAITING PAYMENT',
+      createdAt: now,
+      dueAt: now,
+      billingModeLabel: isBlockTimeMode ? 'Block Time' : 'Pay As You Fly',
+      billToName: customerName,
+      billToEmail: customerEmail,
+      billToPhone: profileRow?.phone_number || '',
+      lineItems: formattedLineItems,
+      subtotal,
+      gstAmount,
+      total,
+      footerNote: isBlockTimeMode
+        ? 'Thank you for flying with us. Prepaid block hours were deducted from your balance.'
+        : 'Thank you for flying with us. Payment was charged to your card on file.',
+    })
+
+    const storagePath = `${userId}/${invoiceNumber}.pdf`
+    const { error: uploadError } = await supabase.storage
+      .from('invoice_pdfs')
+      .upload(storagePath, pdfBuffer, {
+        contentType: 'application/pdf',
+        upsert: true,
+        cacheControl: '3600',
+      })
+
+    if (!uploadError) {
+      const { data: publicUrlData } = supabase.storage.from('invoice_pdfs').getPublicUrl(storagePath)
+      pdfUrl = publicUrlData.publicUrl
+      await supabase
+        .from('invoices')
+        .update({ pdf_url: pdfUrl })
+        .eq('id', invoiceId)
+    } else {
+      console.error('[approvePostFlightReview] PDF upload failed:', uploadError)
+    }
+  } catch (pdfError) {
+    console.error('[approvePostFlightReview] PDF generation failed:', pdfError)
+  }
+
+  // 7. Send Email Notifications
+  if (customerEmail) {
+    try {
+      if (isBlockTimeMode) {
+        // Calculate remaining block balance (sum of all active packages hours_remaining)
+        const { data: activeP } = await supabase
+          .from('pilot_block_time_purchases')
+          .select('hours_remaining')
+          .eq('user_id', userId)
+          .eq('status', 'active')
+        const remainingBalance = (activeP ?? []).reduce((sum, p) => sum + Number(p.hours_remaining), 0)
+
+        const emailTemplate = flightReceiptBlockTimeEmail({
+          customerName,
+          invoiceNumber,
+          aircraftReg,
+          vdoHours: finalBilledHours,
+          deductedHours,
+          remainingBalance,
+          overflowHours,
+          overflowAmount: overflowHours * blockRate,
+          landingFees: landingFeeAmount,
+          totalCharged: total,
+          pdfUrl: pdfUrl || undefined,
+        })
+
+        await sendEmail({
+          to: customerEmail,
+          subject: emailTemplate.subject,
+          html: emailTemplate.html,
+          attachments: pdfBuffer ? [
+            {
+              filename: `${invoiceNumber}.pdf`,
+              content: pdfBuffer.toString('base64'),
+              contentType: 'application/pdf',
+            }
+          ] : undefined,
+          eventType: 'flight_receipt',
+          entityType: 'invoice',
+          entityId: invoiceId,
+        })
+      } else {
+        const emailTemplate = flightReceiptPayfEmail({
+          customerName,
+          invoiceNumber,
+          aircraftReg,
+          vdoHours: finalBilledHours,
+          landingFees: landingFeeAmount,
+          totalCharged: total,
+          pdfUrl: pdfUrl || undefined,
+        })
+
+        await sendEmail({
+          to: customerEmail,
+          subject: emailTemplate.subject,
+          html: emailTemplate.html,
+          attachments: pdfBuffer ? [
+            {
+              filename: `${invoiceNumber}.pdf`,
+              content: pdfBuffer.toString('base64'),
+              contentType: 'application/pdf',
+            }
+          ] : undefined,
+          eventType: 'flight_receipt',
+          entityType: 'invoice',
+          entityId: invoiceId,
+        })
+      }
+    } catch (emailError) {
+      console.error('[approvePostFlightReview] Email notification failed:', emailError)
+    }
   }
 
   // 3. Write official aircraft_meter_history
@@ -2400,7 +2802,7 @@ export async function finaliseStandardBookingInvoice(input: {
 
   const { data: booking, error: fetchErr } = await supabase
     .from('bookings')
-    .select('status, booking_type, aircraft_id, booking_owner_user_id, booking_reference, scheduled_start, pic_name, pic_arn')
+    .select('status, booking_type, aircraft_id, booking_owner_user_id, booking_reference, scheduled_start, pic_name, pic_arn, aircraft ( registration )')
     .eq('id', input.bookingId)
     .single()
 
@@ -2444,7 +2846,7 @@ export async function finaliseStandardBookingInvoice(input: {
 
   const { data: snapshotProfile } = await supabase
     .from('profiles')
-    .select('full_name, pilot_arn')
+    .select('full_name, pilot_arn, email, phone_number')
     .eq('id', booking.booking_owner_user_id)
     .single()
 
@@ -2468,6 +2870,17 @@ export async function finaliseStandardBookingInvoice(input: {
   if (rpcErr || !rpcRows?.[0]) {
     console.error('[finaliseStandardBookingInvoice] RPC failed', rpcErr)
     throw new Error(rpcErr?.message ?? 'Failed to finalise invoice. Please try again.')
+  }
+
+  const { data: invoiceRow, error: invoiceFetchErr } = await supabase
+    .from('booking_invoices')
+    .select('id, invoice_number, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, status, pdf_url, created_at, booking_id, customer_id, vdo_reading, rate_cents_per_hour')
+    .eq('booking_id', input.bookingId)
+    .single()
+
+  if (invoiceFetchErr || !invoiceRow) {
+    console.error('[finaliseStandardBookingInvoice] Invoice fetch failed', invoiceFetchErr)
+    throw new Error('Failed to load booking invoice for PDF generation.')
   }
 
   const finalBookingStatus = rpcRows[0].out_final_booking_status as string
@@ -2567,6 +2980,90 @@ export async function finaliseStandardBookingInvoice(input: {
     },
   })
 
+  let pdfUrl = (invoiceRow as { pdf_url?: string | null }).pdf_url ?? ''
+  let pdfBuffer: Buffer | null = null
+  try {
+    const aircraftRow = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
+    const aircraftReg = (aircraftRow as { registration?: string } | null)?.registration ?? 'VH-XXX'
+
+    const { data: landingChargeRows } = await supabase
+      .from('booking_landing_charges')
+      .select('landing_count, unit_amount_cents, total_amount_cents, airports ( name )')
+      .eq('booking_invoice_id', invoiceRow.id)
+      .order('created_at', { ascending: true })
+
+    const baseAmountCents = Math.round(Number(invoiceRow.vdo_reading ?? vdoReading) * Number(invoiceRow.rate_cents_per_hour ?? 0))
+    const ratePerHour = Number(invoiceRow.rate_cents_per_hour ?? 0) / 100
+    const vdoHours = Number(invoiceRow.vdo_reading ?? vdoReading)
+
+    const lineItems = [
+      {
+        description: `Flight time hire (${aircraftReg}) - ${vdoHours.toFixed(1)}h`,
+        quantity: vdoHours,
+        unitPrice: ratePerHour,
+        amount: baseAmountCents / 100,
+      },
+      ...(landingChargeRows ?? []).map((row) => {
+        const airportName = Array.isArray(row.airports) ? row.airports[0]?.name : (row.airports as { name?: string } | null)?.name
+        return {
+          description: `Airport landing fee${airportName ? ` - ${airportName}` : ''} (${Number(row.landing_count ?? 0)} landing${Number(row.landing_count ?? 0) === 1 ? '' : 's'})`,
+          quantity: Number(row.landing_count ?? 0),
+          unitPrice: Number(row.unit_amount_cents ?? 0) / 100,
+          amount: Number(row.total_amount_cents ?? 0) / 100,
+        }
+      }),
+    ]
+
+    const subtotal = Number(invoiceRow.subtotal_cents ?? 0) / 100
+    const gstAmount = Math.round(subtotal * 0.1 * 100) / 100
+    const total = Math.round((subtotal + gstAmount) * 100) / 100
+
+    pdfBuffer = await generateInvoicePdf({
+      invoiceNumber: invoiceRow.invoice_number,
+      invoiceTypeLabel: 'TAX INVOICE',
+      statusLabel: finalBookingStatus === 'completed' ? 'PAID' : 'AWAITING PAYMENT',
+      createdAt: (invoiceRow as { created_at?: string | null }).created_at ?? now,
+      dueAt: (invoiceRow as { created_at?: string | null }).created_at ?? now,
+      billingModeLabel: 'Standard Booking',
+      bookingRefLabel: booking.booking_reference ?? input.bookingId.slice(0, 8).toUpperCase(),
+      billToName: snapshotProfile?.full_name ?? booking.pic_name ?? 'Pilot',
+      billToEmail: snapshotProfile?.email ?? '—',
+      billToPhone: snapshotProfile?.phone_number ?? null,
+      lineItems,
+      subtotal,
+      gstAmount,
+      total,
+      footerNote: finalBookingStatus === 'completed'
+        ? 'Thank you for flying with us. This invoice was settled using account credit.'
+        : 'Thank you for flying with us. Please complete payment from your dashboard.',
+    })
+
+    const storagePath = `${booking.booking_owner_user_id}/${invoiceRow.invoice_number}.pdf`
+    const { error: uploadError } = await supabase.storage
+      .from('invoice_pdfs')
+      .upload(storagePath, pdfBuffer, {
+        contentType: 'application/pdf',
+        upsert: true,
+        cacheControl: '3600',
+      })
+
+    if (uploadError) {
+      console.error('[finaliseStandardBookingInvoice] PDF upload failed:', uploadError)
+    } else {
+      const { data: publicUrlData } = supabase.storage.from('invoice_pdfs').getPublicUrl(storagePath)
+      pdfUrl = publicUrlData.publicUrl
+      const { error: updatePdfErr } = await supabase
+        .from('booking_invoices')
+        .update({ pdf_url: pdfUrl })
+        .eq('id', invoiceRow.id)
+      if (updatePdfErr) {
+        console.error('[finaliseStandardBookingInvoice] booking invoice PDF URL update failed:', updatePdfErr)
+      }
+    }
+  } catch (pdfError) {
+    console.error('[finaliseStandardBookingInvoice] PDF generation failed:', pdfError)
+  }
+
   const isSettledByCredit = finalBookingStatus === 'completed'
   await supabase.from('verification_events').insert({
     user_id:       booking.booking_owner_user_id,
@@ -2583,12 +3080,7 @@ export async function finaliseStandardBookingInvoice(input: {
     email_status: 'skipped',
   })
 
-  const { data: profileForInvoiceEmail } = await supabase
-    .from('profiles')
-    .select('email')
-    .eq('id', booking.booking_owner_user_id)
-    .single()
-  if (profileForInvoiceEmail?.email) {
+  if (snapshotProfile?.email) {
     const template = isSettledByCredit
       ? paymentConfirmedEmail('Payment has been recorded for your flight.')
       : checkoutOutcomeEmail(
@@ -2598,12 +3090,20 @@ export async function finaliseStandardBookingInvoice(input: {
           'Pay Now',
         )
     await sendEmail({
-      to: profileForInvoiceEmail.email,
+      to: snapshotProfile.email,
       subject: template.subject,
       html: template.html,
       eventType: isSettledByCredit ? 'post_flight_payment_received' : 'post_flight_payment_required',
       entityType: 'booking',
       entityId: input.bookingId,
+      attachments: pdfBuffer ? [
+        {
+          filename: `${invoiceRow.invoice_number}.pdf`,
+          content: pdfBuffer.toString('base64'),
+          contentType: 'application/pdf',
+        }
+      ] : undefined,
+      metadata: { pdfUrl: pdfUrl || null },
     }).catch((error) => console.error('[finaliseStandardBookingInvoice] email failed:', error))
   }
 

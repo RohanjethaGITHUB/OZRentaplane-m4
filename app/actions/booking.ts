@@ -147,6 +147,12 @@ async function requireClearedCustomer() {
     documents: (documents ?? []) as UserDocument[],
     hasNightVfrRating: profile.has_night_vfr_rating ?? null,
   })
+  const documentsAwaitingReview = docItems.filter((item) => item.state === 'needs_review')
+  if (documentsAwaitingReview.length > 0) {
+    throw new Error(
+      'READINESS_REQUIRED: Your pilot documents are currently under admin review. Booking will unlock once OZ Rent A Plane approves them.',
+    )
+  }
   if (docItems.some((item) => item.state !== 'complete')) {
     throw new Error('READINESS_REQUIRED: Required pilot file documents are incomplete.')
   }
