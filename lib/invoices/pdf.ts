@@ -265,7 +265,7 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
           <div class="brand">
             <div class="eyebrow">OZ Rent A Plane</div>
             <h1>Tax Invoice</h1>
-            <p>Bankstown Airport, Sydney NSW<br />ABN: To be confirmed</p>
+	            <p>Bankstown Airport, Sydney NSW<br />ABN: 69 679 543 198</p>
           </div>
           <div class="meta">
             <div class="type">${escapeHtml(input.invoiceTypeLabel)}</div>
