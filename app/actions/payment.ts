@@ -231,9 +231,10 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
     "http://localhost:3000";
 
   const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
     mode: "payment",
     customer: stripeCustomerId,
-    payment_method_types: ["card"],
+    setup_future_usage: "off_session",
     line_items: [
       {
         price_data: {
@@ -272,7 +273,7 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
       },
       description: `OZ Rent A Plane - ${pkg.name} (${pkg.hours}h Block Time)`,
     },
-  });
+  } as any);
 
   const paymentIntentId = typeof session.payment_intent === "string"
     ? session.payment_intent

@@ -299,6 +299,32 @@ export async function POST(req: Request) {
           return NextResponse.json({ error: "Payment processing failed" }, { status: 500 });
         }
 
+        try {
+          const paymentMethodId =
+            typeof paymentIntent.payment_method === "string"
+              ? paymentIntent.payment_method
+              : (paymentIntent.payment_method as { id?: string } | null)?.id ?? null;
+
+          if (paymentMethodId) {
+            const { error: pmUpdateErr } = await supabase
+              .from("profiles")
+              .update({ default_payment_method_id: paymentMethodId })
+              .eq("id", purchase.user_id);
+
+            if (pmUpdateErr) {
+              console.warn("[webhook] Failed to save default_payment_method_id (non-fatal)", {
+                message: pmUpdateErr.message,
+              });
+            } else {
+              console.log("[webhook] Saved default_payment_method_id for user", purchase.user_id);
+            }
+          }
+        } catch (pmErr: any) {
+          console.warn("[webhook] Failed to save default_payment_method_id (non-fatal)", {
+            message: pmErr?.message,
+          });
+        }
+
         console.log("[webhook] Block time purchase already invoiced; activation refreshed", {
           purchaseId: purchase.id,
           invoiceId: existingInvoice.id,
@@ -398,6 +424,32 @@ export async function POST(req: Request) {
       if (updatePurchaseErr) {
         logErr("activate block time purchase FAILED", updatePurchaseErr);
         return NextResponse.json({ error: "Payment processing failed" }, { status: 500 });
+      }
+
+      try {
+        const paymentMethodId =
+          typeof paymentIntent.payment_method === "string"
+            ? paymentIntent.payment_method
+            : (paymentIntent.payment_method as { id?: string } | null)?.id ?? null;
+
+        if (paymentMethodId) {
+          const { error: pmUpdateErr } = await supabase
+            .from("profiles")
+            .update({ default_payment_method_id: paymentMethodId })
+            .eq("id", purchase.user_id);
+
+          if (pmUpdateErr) {
+            console.warn("[webhook] Failed to save default_payment_method_id (non-fatal)", {
+              message: pmUpdateErr.message,
+            });
+          } else {
+            console.log("[webhook] Saved default_payment_method_id for user", purchase.user_id);
+          }
+        }
+      } catch (pmErr: any) {
+        console.warn("[webhook] Failed to save default_payment_method_id (non-fatal)", {
+          message: pmErr?.message,
+        });
       }
 
       try {
