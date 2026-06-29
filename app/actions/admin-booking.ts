@@ -2600,6 +2600,40 @@ export async function finaliseStandardBookingInvoice(input: {
       console.error('[finaliseStandardBookingInvoice] Missing STRIPE_SECRET_KEY; skipping block time charges.')
     }
 
+    const blockTimeBookingStatus = 'completed'
+
+    const { error: bookingStatusErr } = await supabase
+      .from('bookings')
+      .update({
+        status: blockTimeBookingStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.bookingId)
+
+    if (bookingStatusErr) {
+      console.error('[finaliseStandardBookingInvoice] booking status update failed', {
+        message: bookingStatusErr.message,
+      })
+      throw new Error('Failed to update booking status after block time finalisation.')
+    }
+
+    try {
+      const { data: authData } = await supabase.auth.getUser()
+      await supabase
+        .from('booking_status_history')
+        .insert({
+          booking_id: input.bookingId,
+          old_status: 'pending_post_flight_review',
+          new_status: blockTimeBookingStatus,
+          note: 'Block time flight finalised. Hours deducted from balance.',
+          changed_by_user_id: authData.user?.id ?? null,
+        })
+    } catch (historyErr: any) {
+      console.warn('[finaliseStandardBookingInvoice] booking_status_history insert failed (non-fatal)', {
+        message: historyErr?.message,
+      })
+    }
+
     let pdfUrl: string | null = null
     try {
       const { data: invoice, error: invoiceErr } = await supabase
