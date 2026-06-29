@@ -111,6 +111,92 @@ type StatusHistoryRow = {
   created_at: string
 }
 
+type ActiveBlockTimePackage = {
+  id: string
+  hours_remaining: number
+  rate_per_hour: number
+  expires_at: string
+  hours_purchased: number
+  package?: { name: string } | { name: string }[] | null
+}
+
+function BlockTimeInfoBanner({
+  activePackage,
+  bookingSlotHours,
+  is24HourBooking,
+  daysUntilExpiry,
+}: {
+  activePackage: ActiveBlockTimePackage | null
+  bookingSlotHours: number
+  is24HourBooking: boolean
+  daysUntilExpiry: number | null
+}) {
+  if (!activePackage) return null
+
+  const formattedExpiry = new Date(activePackage.expires_at).toLocaleDateString('en-AU', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+  const balanceText = `${activePackage.hours_remaining.toFixed(1)}h`
+  const rateText = `$${activePackage.rate_per_hour.toFixed(2)}/hr`
+
+  return (
+    <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6 sm:p-8 shadow-[0_4px_30px_rgba(2,10,22,0.08)]">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="material-symbols-outlined text-[#1a4fd6] text-lg">info</span>
+        <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#4b6390]">Block Time Balance</h3>
+      </div>
+      <div className="space-y-3">
+        <div className="flex items-start gap-3 rounded-xl bg-[#f8fbff] border border-[#dbe7f4] p-3.5">
+          <span className="material-symbols-outlined text-[#1a4fd6] text-[14px] mt-0.5 flex-shrink-0">info</span>
+          <p className="text-[13px] text-[#4b6390] leading-relaxed">
+            Your actual VDO hours will be deducted from your Block Time balance after you submit your post-flight reading.
+          </p>
+        </div>
+        <div className="flex items-start gap-3 rounded-xl bg-[#f8fbff] border border-[#dbe7f4] p-3.5">
+          <span className="material-symbols-outlined text-[#1a4fd6] text-[14px] mt-0.5 flex-shrink-0">info</span>
+          <p className="text-[13px] text-[#4b6390] leading-relaxed">
+            Current balance: {balanceText} remaining (expires {formattedExpiry}).
+          </p>
+        </div>
+        {is24HourBooking && (
+          <div className="flex items-start gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3.5">
+            <span className="material-symbols-outlined text-amber-400 text-[14px] mt-0.5 flex-shrink-0">warning</span>
+            <p className="text-[13px] text-amber-600/80 leading-relaxed">
+              A minimum of 4 VDO hours is charged for each 24-hour period booked.
+            </p>
+          </div>
+        )}
+        {activePackage.hours_remaining < bookingSlotHours && (
+          <div className="flex items-start gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3.5">
+            <span className="material-symbols-outlined text-amber-400 text-[14px] mt-0.5 flex-shrink-0">warning</span>
+            <p className="text-[13px] text-amber-600/80 leading-relaxed">
+              Your current balance of {activePackage.hours_remaining.toFixed(1)}h is less than this booking slot of {bookingSlotHours.toFixed(1)}h. Any overflow will be charged at your block rate of {rateText}.
+            </p>
+          </div>
+        )}
+        {activePackage.hours_remaining < 4 && is24HourBooking && (
+          <div className="flex items-start gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3.5">
+            <span className="material-symbols-outlined text-amber-400 text-[14px] mt-0.5 flex-shrink-0">warning</span>
+            <p className="text-[13px] text-amber-600/80 leading-relaxed">
+              Warning: Your balance of {activePackage.hours_remaining.toFixed(1)}h may not cover the 4h minimum VDO charge for this 24-hour booking.
+            </p>
+          </div>
+        )}
+        {daysUntilExpiry !== null && daysUntilExpiry <= 7 && (
+          <div className="flex items-start gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3.5">
+            <span className="material-symbols-outlined text-amber-400 text-[14px] mt-0.5 flex-shrink-0">warning</span>
+            <p className="text-[13px] text-amber-600/80 leading-relaxed">
+              Your Block Time package expires in {daysUntilExpiry} days on {formattedExpiry}. Unused hours will be forfeited.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Next action card ──────────────────────────────────────────────────────────
 
 function NextActionCard({
@@ -138,6 +224,8 @@ function NextActionCard({
   showFlightRecordButton,
   isWithin24Hours,
   departureSydney,
+  activePackage,
+  is24HourBooking,
 }: {
   status:                   string
   bookingType:              string
@@ -163,6 +251,8 @@ function NextActionCard({
   showFlightRecordButton?:  boolean
   isWithin24Hours?:         boolean
   departureSydney?:         string
+  activePackage?:           ActiveBlockTimePackage | null
+  is24HourBooking?:         boolean
 }) {
   const isCancelled             = status === 'cancelled' || status === 'no_show'
   const isCancellationRequested = status === 'cancellation_requested'
@@ -420,6 +510,8 @@ function NextActionCard({
           picName={picName}
           picArn={picArn}
           flightDate={flightDate}
+          activePackage={activePackage ?? null}
+          is24HourBooking={is24HourBooking ?? false}
         />
       </div>
     )
@@ -798,6 +890,23 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
   if (!booking) notFound()
 
+  const { data: activePackage } = await supabase
+    .from('pilot_block_time_purchases')
+    .select(`
+      id,
+      hours_remaining,
+      rate_per_hour,
+      expires_at,
+      hours_purchased,
+      package:block_time_packages(name)
+    `)
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .gt('expires_at', new Date().toISOString())
+    .order('activated_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
   const { data: latestRescheduleRequest } = await supabase
     .from('checkout_change_requests')
     .select('id, status, requested_scheduled_start, requested_scheduled_end, created_at')
@@ -826,6 +935,14 @@ export default async function BookingDetailPage({ params }: PageProps) {
   const status      = deriveBookingStatusForFlightRecord(booking)
   const bookingType = (booking as { booking_type?: string }).booking_type ?? 'standard'
   const isCheckout  = bookingType === 'checkout'
+  const bookingSlotHours = Math.max(
+    0,
+    (new Date(booking.scheduled_end).getTime() - new Date(booking.scheduled_start).getTime()) / (1000 * 60 * 60),
+  )
+  const is24HourBooking = bookingSlotHours >= 24
+  const daysUntilExpiry = activePackage
+    ? Math.ceil((new Date(activePackage.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null
   const { data: termsAcceptanceRow } = await supabase
     .from('booking_terms_acceptances')
     .select('accepted_at, terms_version, terms_document_id')
@@ -1152,6 +1269,17 @@ export default async function BookingDetailPage({ params }: PageProps) {
             aircraftReg={aircraft?.registration ?? undefined}
           />
 
+          {activePackage && (
+            <div className="max-w-[1280px] mx-auto px-4 sm:px-6 md:px-8 xl:px-12 mt-6">
+              <BlockTimeInfoBanner
+                activePackage={activePackage as ActiveBlockTimePackage | null}
+                bookingSlotHours={bookingSlotHours}
+                is24HourBooking={is24HourBooking}
+                daysUntilExpiry={daysUntilExpiry}
+              />
+            </div>
+          )}
+
           {/* Content grid — same container as dashboard content section */}
           <div className="max-w-[1280px] mx-auto px-4 sm:px-6 md:px-8 xl:px-12 pt-8 pb-16">
             <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 items-start">
@@ -1272,6 +1400,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
                   picArn={booking.pic_arn}
                   flightDate={flightDate}
                   airports={airports}
+                  activePackage={activePackage as ActiveBlockTimePackage | null}
+                  is24HourBooking={is24HourBooking}
                 />
               </div>
 
@@ -1324,6 +1454,17 @@ export default async function BookingDetailPage({ params }: PageProps) {
               }
             : undefined}
         />
+
+        {activePackage && (
+          <div className="max-w-[1280px] mx-auto px-4 sm:px-6 md:px-8 xl:px-12 mt-6">
+            <BlockTimeInfoBanner
+              activePackage={activePackage as ActiveBlockTimePackage | null}
+              bookingSlotHours={bookingSlotHours}
+              is24HourBooking={is24HourBooking}
+              daysUntilExpiry={daysUntilExpiry}
+            />
+          </div>
+        )}
 
         {/* ─── Middle row: Journey · Flight Details · Booking Status ──────── */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[2.1fr_1.75fr_1.55fr] gap-4 items-stretch mb-6 mt-6">
@@ -1555,6 +1696,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
           showFlightRecordButton={showFlightRecordButton}
           isWithin24Hours={isWithin24Hours}
           departureSydney={departureSydney}
+          activePackage={activePackage as ActiveBlockTimePackage | null}
+          is24HourBooking={is24HourBooking}
         />
 
         {/* Terms accepted — shown at the bottom if present */}

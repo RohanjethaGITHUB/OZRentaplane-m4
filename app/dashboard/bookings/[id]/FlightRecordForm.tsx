@@ -17,12 +17,23 @@ type LandingRow = {
   landing_count: string
 }
 
+type ActiveBlockTimePackage = {
+  id: string
+  hours_remaining: number
+  rate_per_hour: number
+  expires_at: string
+  hours_purchased: number
+  package?: { name: string } | { name: string }[] | null
+}
+
 type Props = {
   bookingId:  string
   picName?:   string | null
   picArn?:    string | null
   flightDate: string
   airports?:  Airport[]
+  activePackage?: ActiveBlockTimePackage | null
+  is24HourBooking?: boolean
 }
 
 type UploadedFile = { file: File; preview: string }
@@ -32,7 +43,7 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024
 const ALLOWED_TYPES  = new Set(['image/jpeg', 'image/png'])
 
 export default function FlightRecordForm({
-  bookingId, picName, picArn, flightDate, airports = [],
+  bookingId, picName, picArn, flightDate, airports = [], activePackage = null, is24HourBooking = false,
 }: Props) {
   const router = useRouter()
   const airportOptions = (() => {
@@ -144,6 +155,11 @@ export default function FlightRecordForm({
     const parsed = Number(v)
     return Number.isFinite(parsed) ? parsed : null
   }
+
+  const enteredVdoTotal = getNum('vdo_total')
+  const overflowHours = activePackage && enteredVdoTotal != null
+    ? Math.max(0, enteredVdoTotal - activePackage.hours_remaining)
+    : null
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -285,6 +301,43 @@ export default function FlightRecordForm({
         <h2 className="text-2xl font-serif text-[#152d5a] mb-1.5">Submit Flight Record</h2>
         <p className="text-sm text-[#4b6390]">Enter the total hours for each meter and upload evidence photos.</p>
       </div>
+
+      {activePackage && (
+        <div className="px-6 sm:px-8 pt-6">
+          <div className="bg-[#f8fbff] border border-[#dbe7f4] rounded-xl p-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <span className="material-symbols-outlined text-[#1a4fd6] text-[14px] mt-0.5 flex-shrink-0">info</span>
+              <p className="text-xs text-[#4b6390] leading-relaxed">
+                Hours entered below will be deducted from your Block Time balance on submission. Your current balance is {activePackage.hours_remaining.toFixed(1)}h.
+              </p>
+            </div>
+            {is24HourBooking && (
+              <div className="flex items-start gap-2">
+                <span className="material-symbols-outlined text-amber-400 text-[14px] mt-0.5 flex-shrink-0">warning</span>
+                <p className="text-xs text-amber-600/80 leading-relaxed">
+                  Minimum 4 VDO hours applies for each 24-hour period booked.
+                </p>
+              </div>
+            )}
+            {enteredVdoTotal != null && overflowHours != null && overflowHours > 0 && (
+              <div className="flex items-start gap-2">
+                <span className="material-symbols-outlined text-amber-400 text-[14px] mt-0.5 flex-shrink-0">warning</span>
+                <p className="text-xs text-amber-600/80 leading-relaxed">
+                  Your balance of {activePackage.hours_remaining.toFixed(1)}h will be exceeded. {overflowHours.toFixed(1)}h overflow will be charged at ${activePackage.rate_per_hour.toFixed(2)}/hr to your card on file.
+                </p>
+              </div>
+            )}
+            {enteredVdoTotal != null && overflowHours === 0 && enteredVdoTotal >= activePackage.hours_remaining && (
+              <div className="flex items-start gap-2">
+                <span className="material-symbols-outlined text-amber-400 text-[14px] mt-0.5 flex-shrink-0">warning</span>
+                <p className="text-xs text-amber-600/80 leading-relaxed">
+                  This flight will exhaust your Block Time balance. Future flights will be charged at Pay As You Fly rates unless you top up.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="px-6 sm:px-8 py-8 space-y-10">
 

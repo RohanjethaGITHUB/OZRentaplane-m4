@@ -22,6 +22,8 @@ type BlockTimePackageRow = {
   rate_per_hour: number
   validity_days: number
   total_price: number
+  created_at: string
+  updated_at: string
 }
 
 type BlockTimePackageRef = {
@@ -457,13 +459,11 @@ export default async function DashboardPage({
     }
   }
 
-  const { data: blockTimePackageRows } = selectedBlockTimePackageSlug
-    ? await supabase
-        .from('block_time_packages')
-        .select('id, name, hours, rate_per_hour, validity_days, total_price')
-        .eq('is_active', true)
-        .order('display_order', { ascending: true })
-    : { data: null }
+  const { data: blockTimePackageRows } = await supabase
+    .from('block_time_packages')
+    .select('id, name, hours, rate_per_hour, total_price, validity_days, is_active, display_order, created_at, updated_at')
+    .eq('is_active', true)
+    .order('display_order', { ascending: true })
 
   const { data: blockTimePurchaseRows } = await supabase
     .from('pilot_block_time_purchases')
@@ -603,10 +603,11 @@ export default async function DashboardPage({
         activeBooking={activeBooking}
         mainBookingHeroState={mainBookingHeroState}
         flightSnapshotBooking={flightSnapshotBooking}
-        bookingReadiness={bookingReadiness}
-        blockTimeSummary={blockTimeSummary}
-        newlyPurchasedInvoicePdfUrl={newlyPurchasedInvoicePdfUrl}
-        flashNotice={
+      bookingReadiness={bookingReadiness}
+      blockTimeSummary={blockTimeSummary}
+      allBlockTimePackages={blockTimePackageRows ?? []}
+      newlyPurchasedInvoicePdfUrl={newlyPurchasedInvoicePdfUrl}
+      flashNotice={
           searchParams?.block_time_purchase === 'success'
             ? {
                 kind: 'success',
