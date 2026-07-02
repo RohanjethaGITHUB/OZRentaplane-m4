@@ -7,7 +7,9 @@ const withBundleAnalyzer = bundleAnalyzer({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ['playwright-core', '@sparticuz/chromium-min'],
+  experimental: {
+    serverComponentsExternalPackages: ['playwright-core', '@sparticuz/chromium-min'],
+  },
   async redirects() {
     return [
       {

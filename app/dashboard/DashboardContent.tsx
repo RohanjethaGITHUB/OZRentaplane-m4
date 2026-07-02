@@ -10,6 +10,7 @@ import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import { formatSydTime } from '@/lib/utils/sydney-time'
 import { ADMIN_CONTACT_PHONE_DISPLAY, ADMIN_CONTACT_PHONE_TEL } from '@/lib/contact'
+import SuccessModal from '@/components/ui/SuccessModal'
 
 // ── Exported types ────────────────────────────────────────────────────────────
 
@@ -768,7 +769,7 @@ export default function DashboardContent({
   newlyPurchasedInvoicePdfUrl,
 }: Props) {
   const router = useRouter()
-  const [toastVisible, setToastVisible] = useState(Boolean(flashNotice) || passwordUpdated)
+  const [successModalOpen, setSuccessModalOpen] = useState(Boolean(flashNotice) || passwordUpdated)
   const [showPackageModal, setShowPackageModal] = useState(false)
   const [purchasing, setPurchasing] = useState(false)
   const toastNotice =
@@ -785,14 +786,13 @@ export default function DashboardContent({
 
   useEffect(() => {
     if (!toastNotice) return
-    setToastVisible(true)
-    const hideTimer = window.setTimeout(() => setToastVisible(false), 4200)
-    const stripTimer = window.setTimeout(() => {
-      window.history.replaceState({}, '', '/dashboard')
-    }, 1200)
-    return () => {
-      window.clearTimeout(hideTimer)
-      window.clearTimeout(stripTimer)
+    setSuccessModalOpen(true)
+
+    const url = new URL(window.location.href)
+    if (url.searchParams.has('block_time_purchase')) {
+      url.searchParams.delete('block_time_purchase')
+      const nextUrl = `${url.pathname}${url.search}${url.hash}`
+      window.history.replaceState({}, '', nextUrl === '/dashboard' ? '/dashboard' : nextUrl)
     }
   }, [toastNotice])
 
@@ -919,33 +919,15 @@ export default function DashboardContent({
 
   return (
     <div className="space-y-5">
-      {toastVisible && toastNotice ? (
-        <div className="fixed right-4 top-4 z-[80] w-[calc(100vw-2rem)] max-w-sm rounded-2xl border border-emerald-400/30 bg-white/95 p-4 shadow-[0_24px_80px_rgba(2,10,22,0.12)] backdrop-blur-xl md:right-6 md:top-6">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
-              <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                check_circle
-              </span>
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-[#152d5a]">{toastNotice.title}</p>
-              <p className="mt-1 text-sm text-[#4b6390]">{toastNotice.message}</p>
-              {toastNotice.actionUrl && toastNotice.actionLabel && (
-                <div className="mt-2.5">
-                  <a
-                    href={toastNotice.actionUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#1a4fd6] hover:text-[#153eb2] hover:underline"
-                  >
-                    <span className="material-symbols-outlined text-[15px]">download</span>
-                    {toastNotice.actionLabel}
-                  </a>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+      {toastNotice ? (
+        <SuccessModal
+          open={successModalOpen}
+          title={toastNotice.title}
+          message={toastNotice.message}
+          actionLabel={toastNotice.actionLabel}
+          actionUrl={toastNotice.actionUrl}
+          onClose={() => setSuccessModalOpen(false)}
+        />
       ) : null}
 
       {mustChangePassword && !passwordUpdated ? (

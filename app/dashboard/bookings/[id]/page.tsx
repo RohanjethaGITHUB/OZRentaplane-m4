@@ -349,7 +349,7 @@ function NextActionCard({
             {isConfirmed ? 'Checkout Confirmed' : isUnderReview ? 'Awaiting Outcome' : 'Under Review'}
           </h3>
         </div>
-        <p className="text-sm text-oz-muted leading-relaxed">
+        <p className="text-sm text-[#4b6390] leading-relaxed">
           Your checkout booking is currently in progress. Aircraft bookings will become available after your checkout is completed and paid.
         </p>
       </div>

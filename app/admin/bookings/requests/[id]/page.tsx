@@ -413,6 +413,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     isAwaitingManualPayment || isStandardAwaitingManualPayment
       ? { label: 'Manual Payment Submitted', color: 'text-[#1a4fd6]', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: 'account_balance' }
       : statusCfgBase
+  const statusBadgeLabel = statusCfg.label.toUpperCase()
   const clearanceStatus  = (customer as { pilot_clearance_status?: string } | null)?.pilot_clearance_status ?? 'checkout_required'
   const clearanceCfgBase = CLEARANCE_CFG[clearanceStatus] ?? CLEARANCE_CFG.checkout_required
   const clearanceCfg = isAwaitingManualPayment
@@ -535,9 +536,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           </div>
           <div className="flex flex-col items-end gap-1">
             <span className="inline-flex items-center px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold uppercase tracking-wide">
-              {booking.status === 'checkout_requested'
-                ? 'CHECKOUT REQUESTED'
-                : booking.status?.replace(/_/g, ' ').toUpperCase()}
+              {statusBadgeLabel}
             </span>
             <span className="text-xs text-gray-400">
               Submitted {formatDateTime(booking.created_at)}
@@ -622,8 +621,19 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             </div>
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</span>
           </div>
-          <p className="text-sm font-semibold text-[#152d5a]">Checkout Requested</p>
-          <p className="text-xs text-gray-400 mt-0.5">Awaiting review</p>
+          <p className="text-sm font-semibold text-[#152d5a]">{statusCfg.label}</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {bookingType === 'checkout'
+              ? (status === 'checkout_requested'
+                ? 'Awaiting review'
+                : status === 'checkout_confirmed'
+                  ? 'Confirmed by admin'
+                  : status === 'checkout_completed_under_review'
+                    ? 'Outcome pending'
+                    : 'Payment required'
+              )
+              : 'Current booking state'}
+          </p>
         </div>
       </div>
 
@@ -656,6 +666,23 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 </p>
               </div>
             </div>
+          )}
+
+          {isPaymentRequired && invoiceSentViaStripe && (
+            <details className="group">
+              <summary className="cursor-pointer text-[11px] font-semibold text-amber-600 uppercase tracking-wider select-none list-none flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[16px] group-open:rotate-90 transition-transform">chevron_right</span>
+                Payment received but customer hasn't submitted proof?
+              </summary>
+              <div className="mt-3">
+                <AdminBankTransferPanel
+                  bookingId={booking.id}
+                  bookingType="checkout"
+                  amountCents={checkoutInvoice?.stripe_amount_due_cents ?? 0}
+                  variant="admin_override"
+                />
+              </div>
+            </details>
           )}
 
           {isPaymentRequired && invoiceSentViaStripe && latestBankTransferSub && isAwaitingManualPayment && (

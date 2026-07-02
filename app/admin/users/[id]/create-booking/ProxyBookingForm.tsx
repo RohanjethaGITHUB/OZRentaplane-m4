@@ -246,6 +246,47 @@ function buildLocalDateTimeIso(dateString: string, timeString: string): string |
   ).toISOString()
 }
 
+function AvailabilityStatus({ availability }: { availability: AvailabilityState }) {
+  if (availability.status === 'idle') return null
+
+  if (availability.status === 'checking') {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3.5 bg-[#f0f6ff] border border-[#c7d8f5] rounded-xl">
+        <span className="material-symbols-outlined text-[#1a4fd6] text-base animate-spin flex-shrink-0">
+          progress_activity
+        </span>
+        <p className="text-xs text-[#1a4fd6]">Checking aircraft availability…</p>
+      </div>
+    )
+  }
+
+  if (availability.status === 'available') {
+    return (
+      <div className="flex items-center gap-3 bg-[#f0fff7] border border-[#a7f3d0] rounded-xl px-4 py-3.5">
+        <span
+          className="material-symbols-outlined text-[#10b981] text-base flex-shrink-0"
+          style={{ fontVariationSettings: "'FILL' 1" }}
+        >
+          check_circle
+        </span>
+        <p className="text-sm text-[#047857] font-medium">Aircraft is available for the selected time.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-[#fff1f2] border border-[#fecdd3] rounded-xl px-4 py-3.5 space-y-2.5">
+      <div className="flex items-start gap-3">
+        <span className="material-symbols-outlined text-[#e11d48] text-base flex-shrink-0 mt-0.5">error</span>
+        <div>
+          <p className="text-sm text-[#be123c] font-medium">Selected time is unavailable.</p>
+          <p className="text-xs text-[#e11d48]/70 mt-1 leading-relaxed">{availability.message}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function formatDocumentStatus(status: string | null | undefined): string {
   if (!status) return 'missing'
   if (status === 'under_review') return 'uploaded'
@@ -947,6 +988,8 @@ export default function ProxyBookingForm({
                   Estimated duration: <span className="font-semibold text-[#152d5a]">{estimatedHours.toFixed(2)} hours</span>
                 </p>
               )}
+
+              <AvailabilityStatus availability={availability} />
             </div>
           </div>
 

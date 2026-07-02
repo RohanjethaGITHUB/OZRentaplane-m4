@@ -8,6 +8,7 @@ type Props = {
   bookingId: string
   amountCents: number
   bookingType: "checkout" | "standard"
+  variant?: "pre_invoice" | "admin_override"
 }
 
 type PaymentMethod = "cash" | "card_in_person" | "bank_transfer"
@@ -18,7 +19,7 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
   bank_transfer: "Bank transfer",
 }
 
-export default function AdminBankTransferPanel({ bookingId, amountCents, bookingType }: Props) {
+export default function AdminBankTransferPanel({ bookingId, amountCents, bookingType, variant = "pre_invoice" }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [method, setMethod] = useState<PaymentMethod>("bank_transfer")
@@ -34,6 +35,11 @@ export default function AdminBankTransferPanel({ bookingId, amountCents, booking
     const parsed = Number(amount)
     if (!Number.isFinite(parsed) || parsed <= 0) {
       setError("Amount must be greater than zero.")
+      return
+    }
+
+    if (variant === "admin_override" && note.trim().length === 0) {
+      setError("A note is required when confirming payment without customer-submitted proof (e.g. bank statement reference, date sighted).")
       return
     }
 
@@ -61,22 +67,33 @@ export default function AdminBankTransferPanel({ bookingId, amountCents, booking
     })
   }
 
+  const isOverride = variant === "admin_override"
+
   return (
-    <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-6 space-y-5">
+    <div
+      className={`rounded-2xl p-6 space-y-5 border ${
+        isOverride ? "bg-amber-50 border-amber-300" : "bg-white border-[#152d5a]/10"
+      }`}
+    >
       <div className="flex items-center gap-2">
         <span
-          className="material-symbols-outlined text-amber-400 text-[18px]"
+          className={`material-symbols-outlined text-[18px] ${isOverride ? "text-amber-600" : "text-[#1a4fd6]"}`}
           style={{ fontVariationSettings: "'FILL' 1" }}
         >
           payments
         </span>
-        <h2 className="text-[9px] uppercase tracking-widest font-bold text-amber-400/70">
-          Manual Payment
+        <h2 className={`text-[11px] uppercase tracking-widest font-bold ${isOverride ? "text-amber-700" : "text-[#4b6390]"}`}>
+          {isOverride ? "Confirm Payment Without Portal Submission" : "Manual Payment"}
         </h2>
-        <span className="ml-auto px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
+        <span className="ml-auto px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-[#1a4fd6] border border-blue-500/20">
           {bookingType === "checkout" ? "Checkout" : "Standard"}
         </span>
       </div>
+      {isOverride && (
+        <p className="text-[14px] text-amber-800 -mt-2">
+          Use this only when the customer has paid directly (e.g. bank transfer sighted in the account) but has not logged in to submit proof. Adding a note is required.
+        </p>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
         {(["cash", "card_in_person", "bank_transfer"] as PaymentMethod[]).map((option) => {
@@ -87,10 +104,10 @@ export default function AdminBankTransferPanel({ bookingId, amountCents, booking
               type="button"
               onClick={() => setMethod(option)}
               disabled={isPending}
-              className={`rounded-lg border px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors ${
+              className={`rounded-lg border px-4 py-3 text-sm font-bold uppercase tracking-wider transition-colors ${
                 active
-                  ? "border-amber-400/40 bg-amber-500/20 text-amber-200"
-                  : "border-white/10 bg-white/[0.02] text-slate-300 hover:border-white/20"
+                  ? "border-[#1a4fd6]/40 bg-[#1a4fd6]/10 text-[#1a4fd6]"
+                  : "border-[#152d5a]/10 bg-white text-[#4b6390] hover:border-[#152d5a]/25"
               }`}
             >
               {METHOD_LABEL[option]}
@@ -101,7 +118,7 @@ export default function AdminBankTransferPanel({ bookingId, amountCents, booking
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <label className="block">
-          <span className="text-[10px] uppercase tracking-widest font-semibold text-slate-500 block mb-1.5">Amount</span>
+          <span className="text-[12px] uppercase tracking-widest font-semibold text-[#4b6390] block mb-2">Amount</span>
           <input
             type="number"
             min="0.01"
@@ -109,30 +126,32 @@ export default function AdminBankTransferPanel({ bookingId, amountCents, booking
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             disabled={isPending}
-            className="w-full bg-[#0a0b0d] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-white/20"
+            className="w-full bg-white border border-[#152d5a]/15 rounded-lg px-4 py-3 text-base text-[#152d5a] focus:outline-none focus:border-[#1a4fd6]/40"
           />
         </label>
         <label className="block">
-          <span className="text-[10px] uppercase tracking-widest font-semibold text-slate-500 block mb-1.5">Note (optional)</span>
+          <span className="text-[12px] uppercase tracking-widest font-semibold text-[#4b6390] block mb-2">
+            {isOverride ? "Note (required — payment reference / date sighted)" : "Note (optional)"}
+          </span>
           <input
             type="text"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             disabled={isPending}
             placeholder="Internal note"
-            className="w-full bg-[#0a0b0d] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-white/20"
+            className="w-full bg-white border border-[#152d5a]/15 rounded-lg px-4 py-3 text-base text-[#152d5a] placeholder:text-slate-400 focus:outline-none focus:border-[#1a4fd6]/40"
           />
         </label>
       </div>
 
-      {error ? <p className="text-xs text-red-400">{error}</p> : null}
-      {success ? <p className="text-xs text-green-400">{success}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {success ? <p className="text-sm text-green-600">{success}</p> : null}
 
       <button
         type="button"
         onClick={handleSubmit}
         disabled={isPending}
-        className="w-full md:w-auto px-4 py-2.5 rounded-lg bg-green-500/20 hover:bg-green-500/30 border border-green-500/20 text-green-300 text-[11px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50"
+        className="w-full md:w-auto px-6 py-3.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[13px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50"
       >
         {isPending ? "Recording..." : "Mark as paid"}
       </button>

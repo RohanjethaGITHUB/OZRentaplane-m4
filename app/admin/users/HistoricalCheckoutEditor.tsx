@@ -5,9 +5,7 @@ import { useRouter } from 'next/navigation'
 import CalendarDateField from '@/components/CalendarDateField'
 import { getHistoricalCheckoutLogBaseline, recordHistoricalCheckoutCompletion } from '@/app/actions/historical-checkout'
 
-// Temporarily hidden: checkout completion should go through the normal checkout
-// request → outcome flow (admin checkouts area), not directly from the customer detail page.
-const SHOW_ADMIN_DIRECT_CHECKOUT_COMPLETE_ACTION = false
+const SHOW_ADMIN_DIRECT_CHECKOUT_COMPLETE_ACTION = true
 
 type Outcome = 'cleared_to_fly' | 'additional_checkout_required' | 'not_currently_eligible'
 type LogMode = 'none' | 'link_existing' | 'create_new'

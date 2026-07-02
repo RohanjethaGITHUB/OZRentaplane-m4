@@ -204,6 +204,31 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
 
   const amountCents = Math.round(Number(pkg.total_price) * 100);
   const placeholderExpiry = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+  type ExistingPendingPurchase = {
+    id: string
+    package_id: string
+    purchased_at: string
+    status: 'pending'
+  }
+
+  const { data: existingPendingPurchaseRaw, error: existingPendingErr } = await supabase
+    .from("pilot_block_time_purchases")
+    .select("id, package_id, purchased_at, status")
+    .eq("user_id", user.id)
+    .eq("status", "pending")
+    .order("purchased_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const existingPendingPurchase = existingPendingPurchaseRaw as ExistingPendingPurchase | null;
+
+  if (existingPendingErr) {
+    throw new Error(existingPendingErr.message || "Failed to check for existing block time purchases.");
+  }
+
+  if (existingPendingPurchase) {
+    throw new Error("You already have a pending block time purchase. Please complete or cancel it before starting another.");
+  }
 
   const { data: purchase, error: purchaseErr } = await supabase
     .from("pilot_block_time_purchases")
@@ -234,7 +259,6 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
     payment_method_types: ["card"],
     mode: "payment",
     customer: stripeCustomerId,
-    setup_future_usage: "off_session",
     line_items: [
       {
         price_data: {
@@ -260,7 +284,8 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
       rate_per_hour: String(pkg.rate_per_hour),
       validity_days: String(pkg.validity_days),
     },
-    payment_intent_data: {
+    payment_intent_data: ({
+      setup_future_usage: "off_session",
       metadata: {
         purchase_type: "block_time",
         supabase_user_id: user.id,
@@ -272,8 +297,8 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
         validity_days: String(pkg.validity_days),
       },
       description: `OZ Rent A Plane - ${pkg.name} (${pkg.hours}h Block Time)`,
-    },
-  } as any);
+    } as any),
+  });
 
   const paymentIntentId = typeof session.payment_intent === "string"
     ? session.payment_intent

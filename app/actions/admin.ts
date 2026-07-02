@@ -811,6 +811,40 @@ export async function updatePilotClearanceStatus(
     throw new Error('Failed to update pilot clearance status.')
   }
 
+  // Deactivate any existing active historical checkout record so the
+  // override can become the new source of truth when appropriate.
+  const { error: deactivateError } = await supabase
+    .from('historical_checkout_completions')
+    .update({ is_active: false, updated_at: now })
+    .eq('customer_id', customerId)
+    .eq('is_active', true)
+
+  if (deactivateError) {
+    throw new Error(`Failed to deactivate prior historical checkout record: ${deactivateError.message}`)
+  }
+
+  // Only cleared_to_fly needs a fresh historical_checkout_completions row.
+  if (status === 'cleared_to_fly') {
+    const { error: insertError } = await supabase
+      .from('historical_checkout_completions')
+      .insert({
+        customer_id: customerId,
+        checkout_date: now.split('T')[0],
+        checkout_outcome: 'cleared_to_fly',
+        admin_notes: note?.trim() || 'Cleared via admin clearance override (no checkout flight on file).',
+        recorded_by_admin_id: adminId,
+        linked_aircraft_flight_log_id: null,
+        created_flight_log: false,
+        source: 'historical_admin',
+        is_active: true,
+        updated_at: now,
+      })
+
+    if (insertError) {
+      throw new Error(`Failed to record historical checkout clearance: ${insertError.message}`)
+    }
+  }
+
   revalidatePath('/admin/customers')
   revalidatePath('/admin/customers/all')
   revalidatePath(`/admin/users/${customerId}`)

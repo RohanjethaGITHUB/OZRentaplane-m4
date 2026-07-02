@@ -7,6 +7,7 @@ import { getCustomerCreditBalance, getCustomerCreditTransactions } from '@/app/a
 import { CLEARANCE_BADGE, CLEARANCE_LABEL, ACCOUNT_STATUS_BADGE, ACCOUNT_STATUS_LABEL } from '@/lib/pilot-status'
 import type { PilotClearanceStatus, AccountStatus } from '@/lib/supabase/types'
 import { getAttentionAssessment } from '@/app/admin/customers/attention-reason'
+import { hasActiveCheckoutBooking } from '@/app/admin/customers/customer-status'
 
 const DOC_META: Record<string, { label: string; icon: string }> = {
   pilot_licence:       { label: 'Commercial Pilot Licence',    icon: 'badge' },
@@ -52,6 +53,18 @@ const ACTION_REQUIRED: PilotClearanceStatus[] = [
   'checkout_payment_required',
   'not_currently_eligible',
 ]
+
+const ACTIVE_STANDARD_BOOKING_STATUSES = [
+  'pending_confirmation',
+  'confirmed',
+  'ready_for_dispatch',
+  'dispatched',
+  'awaiting_flight_record',
+  'flight_record_overdue',
+  'pending_post_flight_review',
+  'needs_clarification',
+  'post_flight_approved',
+] as const
 
 export default async function AdminUserPage({ params }: { params: { id: string } }) {
   const supabase = await createClient()
@@ -100,6 +113,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
     { data: historicalCheckoutRow },
     { data: aircraftRows },
     { data: aircraftLogRows },
+    { data: blockTimePurchaseRows },
   ] = await Promise.all([
     supabase
       .from('user_documents')
@@ -162,7 +176,31 @@ export default async function AdminUserPage({ params }: { params: { id: string }
       .select('id, aircraft_id, flight_date, pic_name, pic_arn, vdo_start, vdo_stop, vdo_total, tacho_start, tacho_stop, tacho_total, air_switch_start, air_switch_stop, air_switch_total, mr_start, mr_stop, mr_total, oil_added, oil_total, fuel_added, fuel_returned, landings, source, review_status, aircraft:aircraft_id (registration, display_name)')
       .order('flight_date', { ascending: false })
       .limit(200),
+    supabase
+      .from('pilot_block_time_purchases')
+      .select('id, status, hours_purchased, hours_remaining, rate_per_hour, amount_paid, purchased_at, expires_at, refund_amount, refunded_at, refund_stripe_id, stripe_payment_intent_id, package:block_time_packages ( name )')
+      .eq('user_id', params.id)
+      .order('purchased_at', { ascending: false }),
   ])
+
+  const blockTimePurchases = (blockTimePurchaseRows ?? []).map((row: any) => {
+    const pkg = Array.isArray(row.package) ? row.package[0] : row.package
+    return {
+      id: row.id,
+      status: row.status,
+      hours_purchased: Number(row.hours_purchased),
+      hours_remaining: Number(row.hours_remaining),
+      rate_per_hour: Number(row.rate_per_hour),
+      amount_paid: Number(row.amount_paid),
+      purchased_at: row.purchased_at,
+      expires_at: row.expires_at,
+      refund_amount: row.refund_amount === null ? null : Number(row.refund_amount),
+      refunded_at: row.refunded_at,
+      refund_stripe_id: row.refund_stripe_id,
+      stripe_payment_intent_id: row.stripe_payment_intent_id,
+      package_name: pkg?.name ?? 'Block Time',
+    }
+  })
 
   const { data: checkoutStatusHistoryRows } = checkoutBookingsRaw && checkoutBookingsRaw.length > 0
     ? await supabase
@@ -182,6 +220,16 @@ export default async function AdminUserPage({ params }: { params: { id: string }
 
   const checkoutBookings  = checkoutBookingsRaw ?? []
   const standardBookings  = standardBookingsRaw ?? []
+  const activeBookingRows = [
+    ...checkoutBookings.filter((booking: any) => hasActiveCheckoutBooking(booking)),
+    ...standardBookings.filter((booking: any) => ACTIVE_STANDARD_BOOKING_STATUSES.includes(booking.status)),
+  ]
+  const activeBookingsSummary = activeBookingRows.length > 0
+    ? {
+        count: activeBookingRows.length,
+        primaryBookingId: activeBookingRows[0]?.id ?? null,
+      }
+    : null
   const totalRevenueCents = (revenueInvoices ?? []).reduce(
     (sum, invoice: { total_paid_cents: number | null }) => sum + (invoice.total_paid_cents ?? 0),
     0,
@@ -403,6 +451,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
         events={events ?? []}
         checkoutBookings={checkoutBookings}
         standardBookings={standardBookings}
+        activeBookingsSummary={activeBookingsSummary}
         historicalCheckoutRow={
           historicalCheckoutRow ?? null
         }
@@ -417,6 +466,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
         }
         aircraftRows={aircraftRows ?? []}
         aircraftLogRows={aircraftLogRows ?? []}
+        blockTimePurchases={blockTimePurchases}
         balanceCents={balanceCents ?? 0}
         totalRevenueCents={totalRevenueCents}
         transactions={transactions ?? []}

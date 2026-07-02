@@ -7,10 +7,12 @@ import type { AccountStatus, PilotClearanceStatus, UserDocument, VerificationEve
 import CurrentActionSection from './CurrentActionSection'
 import CheckoutActivitySection from './CheckoutActivitySection'
 import HistoricalCheckoutEditor from './HistoricalCheckoutEditor'
+import { AdminActionsPanel } from './AdminActionsPanel'
 import AdminChatPanel from './AdminChatPanel'
 import UnblockCustomerButton from './UnblockCustomerButton'
 import { CLEARANCE_ACTION } from './clearance-actions'
 import { DocumentReviewCards } from './VerdictPanel'
+import BlockTimePurchasesSection, { type AdminBlockTimePurchase } from './BlockTimePurchasesSection'
 
 type TimelineEvent = {
   at: string
@@ -147,6 +149,7 @@ type Props = {
   checkoutStatusHistoryRows: CheckoutStatusHistoryRow[]
   aircraftRows: AircraftRow[]
   aircraftLogRows: AircraftLogRow[]
+  blockTimePurchases: AdminBlockTimePurchase[]
   balanceCents: number
   totalRevenueCents: number
   transactions: CreditTransaction[]
@@ -155,6 +158,10 @@ type Props = {
   standardBookingCount: number
   recordedByAdminProfile: RecordedByAdminProfile
   onHoldBookingCount: number
+  activeBookingsSummary: {
+    count: number
+    primaryBookingId: string | null
+  } | null
 }
 
 const REQUIRED_DOC_TYPES: UserDocument['document_type'][] = ['pilot_licence', 'medical_certificate', 'photo_id']
@@ -259,6 +266,7 @@ export default function CustomerProfileTabs({
   checkoutStatusHistoryRows,
   aircraftRows,
   aircraftLogRows,
+  blockTimePurchases,
   balanceCents,
   totalRevenueCents,
   transactions,
@@ -267,6 +275,7 @@ export default function CustomerProfileTabs({
   standardBookingCount,
   recordedByAdminProfile,
   onHoldBookingCount,
+  activeBookingsSummary,
 }: Props) {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -789,6 +798,11 @@ export default function CustomerProfileTabs({
             customerId={customerId}
           />
           <RecentActivityCard />
+          <AdminActionsPanel
+            customerId={customerId}
+            currentStatus={clearanceStatus}
+            activeBookingsSummary={activeBookingsSummary}
+          />
         </section>
       )}
 
@@ -880,6 +894,7 @@ export default function CustomerProfileTabs({
               )}
             </div>
           </div>
+          <BlockTimePurchasesSection purchases={blockTimePurchases} />
         </section>
       )}
 

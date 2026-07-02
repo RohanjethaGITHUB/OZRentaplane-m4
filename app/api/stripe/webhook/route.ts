@@ -18,6 +18,47 @@ function roundToCents(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+function getServiceClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) return null;
+  return createClient(supabaseUrl, serviceKey);
+}
+
+// Event-ID level dedupe (additive to the purchase/invoice-based checks below).
+// A lookup failure never blocks payment processing.
+async function isEventAlreadyProcessed(supabase: any, eventId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("stripe_webhook_events")
+    .select("event_id")
+    .eq("event_id", eventId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("[webhook] event dedupe lookup failed (continuing without dedupe)", {
+      message: error.message,
+    });
+    return false;
+  }
+
+  return Boolean(data);
+}
+
+async function markEventProcessed(supabase: any, event: Stripe.Event) {
+  const { error } = await supabase
+    .from("stripe_webhook_events")
+    .upsert(
+      { event_id: event.id, event_type: event.type },
+      { onConflict: "event_id", ignoreDuplicates: true }
+    );
+
+  if (error) {
+    console.warn("[webhook] failed to record processed event id (non-fatal)", {
+      message: error.message,
+    });
+  }
+}
+
 function buildGstBreakdown(totalAmount: number) {
   const total = roundToCents(totalAmount);
   const subtotal = roundToCents(total / 1.1);
@@ -191,6 +232,12 @@ export async function POST(req: Request) {
 
   console.log(`[webhook] Event received: type=${event.type} id=${event.id}`);
 
+  const dedupeClient = getServiceClient();
+  if (dedupeClient && (await isEventAlreadyProcessed(dedupeClient, event.id))) {
+    console.log(`[webhook] Event ${event.id} already processed — skipping (dedupe)`);
+    return NextResponse.json({ received: true, deduped: true });
+  }
+
   if (event.type === "payment_intent.succeeded") {
     const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
@@ -330,6 +377,8 @@ export async function POST(req: Request) {
           invoiceId: existingInvoice.id,
         });
 
+        await markEventProcessed(supabase, event);
+
         if (!existingInvoice.pdf_url) {
           try {
             const { data: profile } = await supabase
@@ -425,6 +474,8 @@ export async function POST(req: Request) {
         logErr("activate block time purchase FAILED", updatePurchaseErr);
         return NextResponse.json({ error: "Payment processing failed" }, { status: 500 });
       }
+
+      await markEventProcessed(supabase, event);
 
       try {
         const paymentMethodId =
@@ -628,6 +679,8 @@ export async function POST(req: Request) {
 
       console.log("[webhook] mark_booking_invoice_paid_atomic succeeded ✓");
 
+      await markEventProcessed(supabase, event);
+
       await supabase
         .from("booking_status_history")
         .insert({
@@ -695,6 +748,8 @@ export async function POST(req: Request) {
     }
 
     console.log("[webhook] mark_checkout_invoice_paid_atomic succeeded ✓");
+
+    await markEventProcessed(supabase, event);
 
     const { error: historyErr } = await supabase.from("booking_status_history").insert({
       booking_id: bookingId,

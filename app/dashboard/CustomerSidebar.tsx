@@ -41,10 +41,11 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Bookings',
     activeTabs: ['Bookings'],
-    activeRoutes: ['/dashboard/bookings'],
+    activeRoutes: ['/dashboard/bookings', '/dashboard/block-time'],
     items: [
       { label: 'My Bookings',      icon: 'calendar_month', href: '/dashboard/bookings',     requiresVerified: true },
       { label: 'Request a Flight', icon: 'flight_takeoff', href: '/dashboard/bookings/new', requiresVerified: true },
+      { label: 'Block Time',       icon: 'schedule',       href: '/dashboard/block-time',   requiresVerified: true },
     ],
   },
   {

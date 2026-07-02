@@ -55,42 +55,33 @@ function BookingRow({ booking, isCheckout }: { booking: BookingSummary; isChecko
   const scheduledStr = formatDateTime(booking.scheduled_start)
   const paymentLabel = PAYMENT_STATUS_LABEL[booking.payment_status] ?? booking.payment_status
 
-  const detailHref = isCheckout
-    ? `/admin/bookings/requests/${booking.id}`
-    : `/admin/bookings/requests/${booking.id}`
-
   return (
-    <div className="flex items-center gap-4 py-4 border-b border-[#152d5a]/8 last:border-0 flex-wrap">
-      <div className="flex-1 min-w-0 space-y-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${statusCfg.cls}`}>
+    <Link
+      href={`/admin/bookings/requests/${booking.id}`}
+      className="group flex items-center justify-between gap-4 py-4 px-2 -mx-2 rounded-lg border-b border-[#152d5a]/8 last:border-0 hover:bg-[#f0f6ff] transition-colors"
+    >
+      <div className="flex items-center gap-4 min-w-0 flex-wrap">
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border flex-shrink-0 ${statusCfg.cls}`}>
             {statusCfg.label}
           </span>
-          <span className="text-[10px] text-[#4b6390] uppercase tracking-wider">
-            {reg !== '—' ? `· ${reg}` : ''}
+        {reg !== '—' && (
+          <span className="text-[13px] font-semibold text-[#152d5a] flex-shrink-0">{reg}</span>
+        )}
+        <span className="flex items-center gap-1.5 text-[13px] text-[#4b6390]">
+          <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'wght' 300" }}>calendar_today</span>
+          {scheduledStr}
+        </span>
+        {booking.payment_status && booking.payment_status !== 'not_required' && (
+          <span className="flex items-center gap-1.5 text-[13px] text-[#4b6390]">
+            <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'wght' 300" }}>payments</span>
+            {paymentLabel}
           </span>
-        </div>
-        <div className="flex items-center gap-4 text-[13px] text-[#4b6390] flex-wrap">
-          <span className="flex items-center gap-1">
-            <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'wght' 300" }}>calendar_today</span>
-            {scheduledStr}
-          </span>
-          {booking.payment_status && booking.payment_status !== 'not_required' && (
-            <span className="flex items-center gap-1">
-              <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'wght' 300" }}>payments</span>
-              {paymentLabel}
-            </span>
-          )}
-        </div>
+        )}
       </div>
-      <Link
-        href={detailHref}
-        className="flex items-center gap-1.5 px-3 py-1.5 border border-blue-300/15 text-[#4b6390] hover:text-[#152d5a] hover:border-blue-300/30 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors flex-shrink-0"
-      >
-        View
-        <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'wght' 300" }}>arrow_forward</span>
-      </Link>
-    </div>
+      <span className="material-symbols-outlined text-[16px] text-[#4b6390]/40 group-hover:text-[#1a4fd6] group-hover:translate-x-0.5 transition-all flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>
+        arrow_forward
+      </span>
+    </Link>
   )
 }
 
@@ -111,17 +102,11 @@ export default function CheckoutActivitySection({ checkoutBookings, standardBook
       {/* Checkout bookings */}
       {hasCheckout && (
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 mb-4">
             <p className="text-[10px] text-[#4b6390] uppercase tracking-widest font-bold flex items-center gap-2">
               <span className="material-symbols-outlined text-[14px] text-[#1a4fd6]" style={{ fontVariationSettings: "'wght' 300" }}>how_to_reg</span>
               Checkout Flights
             </p>
-            <Link
-              href="/admin/bookings/checkout"
-              className="text-[10px] uppercase tracking-widest font-bold text-[#4b6390] hover:text-[#152d5a] transition-colors"
-            >
-              View All →
-            </Link>
           </div>
           <div className="bg-white border border-[#152d5a]/8 rounded-xl px-6">
             {checkoutBookings.map(b => (

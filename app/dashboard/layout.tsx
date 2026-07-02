@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import AtmoClouds from '@/components/AtmoClouds'
 import CustomerPortalNav from '@/components/customer/CustomerPortalNav'
@@ -7,7 +6,6 @@ import CustomerDashboardBackgroundOverlay from './CustomerDashboardBackgroundOve
 
 export default async function CustomerPortalLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
-  const requestHeaders = await headers()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
@@ -18,13 +16,6 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
     .single()
 
   if (profile?.role === 'admin') redirect('/admin')
-  const requestPath =
-    requestHeaders.get('x-matched-path') ??
-    requestHeaders.get('x-invoke-path') ??
-    requestHeaders.get('next-url') ??
-    ''
-  const isChangePasswordRoute = requestPath.startsWith('/dashboard/change-password')
-  if (profile?.must_change_password && !isChangePasswordRoute) redirect('/dashboard/change-password')
   const firstName = (profile as any)?.first_name ?? user.email?.split('@')[0] ?? 'Pilot'
   const email = user.email ?? ''
 

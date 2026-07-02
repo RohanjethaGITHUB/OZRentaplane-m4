@@ -14,6 +14,7 @@ export async function middleware(request: NextRequest) {
   }
 
   let supabaseResponse = NextResponse.next({ request })
+  const pathname = normalizePath(request.nextUrl.pathname)
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,7 +40,30 @@ export async function middleware(request: NextRequest) {
 
   // IMPORTANT: do not add any code between createServerClient and getUser().
   // A stale session would cause users to be randomly signed out.
-  await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return supabaseResponse
+
+  const isPasswordGatePath = pathname === '/change-password' || pathname === '/dashboard/change-password'
+  const isDashboardPath = pathname === '/dashboard' || pathname.startsWith('/dashboard/')
+
+  if (isDashboardPath && !isPasswordGatePath) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('must_change_password')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.must_change_password) {
+      const redirectResponse = NextResponse.redirect(new URL('/change-password', request.url))
+      supabaseResponse.cookies.getAll().forEach(({ name, value, ...options }) => {
+        redirectResponse.cookies.set(name, value, options)
+      })
+      return redirectResponse
+    }
+  }
 
   return supabaseResponse
 }
@@ -49,4 +73,10 @@ export const config = {
     // Run on all routes except Next.js internals and static files.
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
+}
+
+function normalizePath(pathname: string): string {
+  if (!pathname) return ''
+  if (pathname === '/') return '/'
+  return pathname.replace(/\/+$/, '')
 }

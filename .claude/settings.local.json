@@ -15,7 +15,13 @@
       "Bash(grep -oh 'bg-\\\\[#[0-9a-fA-F]\\\\{3,8\\\\}\\\\]\\\\|text-\\\\[#[0-9a-fA-F]\\\\{3,8\\\\}\\\\]\\\\|border-\\\\[#[0-9a-fA-F]\\\\{3,8\\\\}\\\\]' '/Users/rohanjetha/Documents/OZ/M2/OZRentaplane-m4/app/\\(marketing\\)/pricing/page.tsx')",
       "Bash(perl -i -pe 's/focus:ring-\\\\[#1a4fd6\\\\]\\\\/20/focus:ring-brand-blue\\\\/20/g' app/\\\\\\(marketing\\\\\\)/contact-us/page.tsx)",
       "Bash(perl -i -pe ' *)",
-      "Bash(node .claude/commands/impeccable/scripts/load-context.mjs)"
+      "Bash(node .claude/commands/impeccable/scripts/load-context.mjs)",
+      "Bash(supabase status *)",
+      "Bash(supabase migration *)",
+      "Read(//Users/rohanjetha/Library/Application Support/**)",
+      "Read(//Users/rohanjetha/Library/Application Support/supabase/**)",
+      "Bash(security find-generic-password *)",
+      "Bash(node scripts/test_block_time_suite.mjs)"
     ]
   }
 }
