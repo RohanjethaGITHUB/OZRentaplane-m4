@@ -204,11 +204,36 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
 
   const amountCents = Math.round(Number(pkg.total_price) * 100);
   const placeholderExpiry = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+  type ExistingActivePurchase = {
+    id: string
+    package_id: string
+    purchased_at: string
+    status: 'active'
+  }
   type ExistingPendingPurchase = {
     id: string
     package_id: string
     purchased_at: string
     status: 'pending'
+  }
+
+  const { data: existingActivePurchaseRaw, error: existingActiveErr } = await supabase
+    .from("pilot_block_time_purchases")
+    .select("id, package_id, purchased_at, status")
+    .eq("user_id", user.id)
+    .eq("status", "active")
+    .order("purchased_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const existingActivePurchase = existingActivePurchaseRaw as ExistingActivePurchase | null;
+
+  if (existingActiveErr) {
+    throw new Error(existingActiveErr.message || "Failed to check for existing block time purchases.");
+  }
+
+  if (existingActivePurchase) {
+    throw new Error("You already have an active block time package. Top up your existing package instead of buying a new one.");
   }
 
   const { data: existingPendingPurchaseRaw, error: existingPendingErr } = await supabase

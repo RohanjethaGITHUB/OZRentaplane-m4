@@ -1,3 +1,24 @@
+# Assumptions & Judgment Calls — Overage Invoice Gate + Combined Checkout (July 2026)
+
+## Prerequisite check — task stopped before Step 1
+
+- **The brief required the top-up feature (prior brief) to be complete and committed before starting. It is neither**, so per the brief the task was stopped before any code was written.
+- **What was actually found.** Since the top-up brief was first blocked (see the section below), someone has applied that brief's *prerequisites*: the live database now has the corrected validity periods (Starter 30 / Regular 60 / Committed 90 / Pro 180), the customer who held two active packages has been resolved (only one active purchase exists system-wide now), migration files 099 (single-active enforcement) and 100 (validity update) exist in the repo, and the purchase flow now refuses a second package with a "top up instead" message. But the top-up feature itself — the top-up history table, the `createBlockTimeTopupIntent` action, the webhook branch, the customer and admin UI, and its test suite — does not exist; the dashboard shows a "top-up coming soon" placeholder.
+- **None of that prerequisite work is committed either** — it sits as uncommitted/untracked changes on `feature/block-time-billing-v2`.
+- **Why this matters for this brief specifically:** the combined-checkout flow (Step 4) is defined as settling an outstanding overage invoice *inside a new purchase or top-up checkout*, and Step 2 modifies `createBlockTimePurchaseIntent` in ways that must compose with the top-up action. Building that against a purchase flow that is about to change under it would produce rework and merge conflicts, which is presumably why the brief ordered them this way.
+
+---
+
+# Assumptions & Judgment Calls — Block Time Top-Up (July 2026)
+
+## Prerequisite check — task stopped before Step 1
+
+- **The brief required two things to already be in place before building top-ups: single-active-package enforcement, and corrected package validity periods (Starter 30 / Regular 60 / Committed 90 / Pro 180 days). Neither is in place**, so per the brief the task was stopped before any code was written.
+- **How this was verified.** The live database (the source of truth, since schema changes are applied manually through the Supabase dashboard) was checked directly. The package validity periods still show the old values (Regular 90, Committed 180, Pro 270). For the single-active rule, a disposable probe user was created, two 'active' purchases were inserted for it, and the database accepted both — proving no enforcement exists. The probe user and its rows were deleted immediately afterwards.
+- **A real customer currently holds two active packages** (one of three active purchases in the system belongs to a user with two). This matters because whoever applies the single-active enforcement will have to decide what to do with that existing data first — a unique constraint cannot be applied while it's violated.
+
+---
+
 # Assumptions & Judgment Calls — Block Time Dashboard, Refunds, Webhook Dedupe
 
 This file logs every decision made during this task that wasn't explicitly spelled out in the brief, in plain language.

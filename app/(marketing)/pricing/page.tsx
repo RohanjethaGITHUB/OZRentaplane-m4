@@ -385,54 +385,58 @@ const BLOCK_TIME_PACKAGES = [
   {
     name: 'Starter Block',
     hours: '10 hours',
-    rate: '$320/hr',
+    rate: '$320',
+    rateSuffix: '/hr',
     total: '$3,200',
     savingsPerHr: '$10/hr',
-    validity: 'Valid for 1 month',
+    validityDays: 30,
     description: 'Best for pilots who fly a few times a month and want a lower locked-in hourly rate.',
     accent: 'from-[#f5b429] via-[#f2a51d] to-[#de8d12]',
     featured: false,
     badge: 'Entry package',
-    features: ['Ideal for getting started', 'Great for occasional training', 'Use within 12 months'],
+    features: ['Ideal for getting started', 'Great for occasional training', 'Use within 1 month'],
   },
   {
     name: 'Regular Block',
     hours: '25 hours',
-    rate: '$310/hr',
+    rate: '$310',
+    rateSuffix: '/hr',
     total: '$7,750',
     savingsPerHr: '$20/hr',
-    validity: 'Valid for 3 months',
+    validityDays: 60,
     description: 'A balanced option for active pilots who want better value without a long commitment.',
     accent: 'from-[#8ab3ff] via-[#5f86e9] to-[#315fd8]',
     featured: false,
     badge: 'Most popular',
-    features: ['Popular with regular flyers', 'Perfect for training', 'Use within 12 months'],
+    features: ['Popular with regular flyers', 'Perfect for training', 'Use within 2 months'],
   },
   {
     name: 'Committed Block',
     hours: '50 hours',
-    rate: '$300/hr',
+    rate: '$300',
+    rateSuffix: '/hr',
     total: '$15,000',
     savingsPerHr: '$30/hr',
-    validity: 'Valid for 6 months',
+    validityDays: 90,
     description: 'Ideal for regular flying with stronger savings and enough runway for ongoing use.',
     accent: 'from-[#9ad6ff] via-[#6fb7f8] to-[#2f7fd6]',
     featured: true,
     badge: 'Best value',
-    features: ['Best value for frequent flyers', 'Ideal for hour building', 'Use within 12 months'],
+    features: ['Best value for frequent flyers', 'Ideal for hour building', 'Use within 3 months'],
   },
   {
     name: 'Pro Block',
     hours: '100 hours',
-    rate: '$290/hr',
+    rate: '$290',
+    rateSuffix: '/hr',
     total: '$29,000',
     savingsPerHr: '$40/hr',
-    validity: 'Valid for 9 months',
+    validityDays: 180,
     description: 'The strongest per-hour savings for pilots flying consistently throughout the year.',
     accent: 'from-[#2d59d6] via-[#234ab2] to-[#17317a]',
     featured: false,
     badge: 'Top tier',
-    features: ['Maximum savings', 'Built for serious flyers', 'Use within 12 months'],
+    features: ['Maximum savings', 'Built for serious flyers', 'Use within 6 months'],
   },
 ]
 
@@ -442,6 +446,11 @@ function buildBlockTimeLoginHref(packageName: string) {
   const packageSlug = packageName.toLowerCase().replace(/\s+/g, '-')
   const nextPath = `/dashboard/block-time?package=${packageSlug}`
   return `/login?next=${encodeURIComponent(nextPath)}`
+}
+
+function formatValidityMonths(validityDays: number) {
+  const months = Math.round(validityDays / 30)
+  return `Valid for ${months} ${months === 1 ? 'month' : 'months'}`
 }
 
 function parseRateAmount(rate: string) {
@@ -754,13 +763,17 @@ export default function PricingPage() {
                     <div className="my-3 text-center">
                       <span className="font-serif text-7xl font-normal leading-none text-white">{hoursNum}</span>
                       <p className="mt-1 text-sm text-white/50">hours</p>
+                      <p className="mt-1 text-xs leading-relaxed text-white/50">{formatValidityMonths(pkg.validityDays)}</p>
                     </div>
 
                     <div className="my-4 border-t border-white/15" />
 
                     <div className="my-3 text-center">
                       <p className="mb-1 text-base text-white/40 line-through">$330/hr</p>
-                      <p className="font-serif text-3xl font-normal text-runway-amber">{pkg.rate}</p>
+                      <p className="inline-flex items-baseline gap-1">
+                        <span className="font-serif text-3xl font-normal text-runway-amber">{pkg.rate}</span>
+                        <span className="text-xs font-semibold text-white/50">{pkg.rateSuffix}</span>
+                      </p>
                     </div>
 
                     <div className="my-4 border-t border-white/15" />
@@ -821,7 +834,7 @@ export default function PricingPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-white">Use at your pace</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-white/50">No expiry. Use your hours when you're ready.</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-white/50">Each package has its own validity period.</p>
               </div>
             </div>
 

@@ -181,6 +181,7 @@ export default async function BlockTimePage({
       return new Date(a.activated_at ?? a.purchased_at).getTime() - new Date(b.activated_at ?? b.purchased_at).getTime()
     })
   const pendingPurchases = purchases.filter((p) => p.status === 'pending')
+  const hasActivePackage = activePurchases.length > 0
   const totalHoursRemaining = activePurchases.reduce((sum, p) => sum + Number(p.hours_remaining || 0), 0)
   const earliestExpiry = activePurchases
     .map((p) => p.expires_at)
@@ -236,13 +237,19 @@ export default async function BlockTimePage({
                 )}
               </p>
             </div>
-            <Link
-              href="#packages"
-              className="inline-flex items-center gap-1 self-start rounded-full border border-[#1a4fd6]/10 bg-[#f0f6ff] px-3.5 py-1.5 text-[12px] font-bold text-[#1a4fd6] transition-colors hover:bg-[#e0eeff] hover:text-[#153eb2]"
-            >
-              {activePurchases.length > 0 ? 'Buy more hours' : 'Get started'}
-              <span className="material-symbols-outlined text-[14px]">add</span>
-            </Link>
+            {hasActivePackage ? (
+              <span className="inline-flex items-center gap-1 self-start rounded-full border border-[#1a4fd6]/10 bg-[#f0f6ff] px-3.5 py-1.5 text-[12px] font-bold text-[#1a4fd6]">
+                You have an active package - top-up coming soon
+              </span>
+            ) : (
+              <Link
+                href="#packages"
+                className="inline-flex items-center gap-1 self-start rounded-full border border-[#1a4fd6]/10 bg-[#f0f6ff] px-3.5 py-1.5 text-[12px] font-bold text-[#1a4fd6] transition-colors hover:bg-[#e0eeff] hover:text-[#153eb2]"
+              >
+                Get started
+                <span className="material-symbols-outlined text-[14px]">add</span>
+              </Link>
+            )}
           </div>
 
           {activePurchases.length > 0 ? (
@@ -356,12 +363,18 @@ export default async function BlockTimePage({
                     }}
                     action={
                       isCleared ? (
-                        <BlockTimePurchaseButton
-                          packageId={pkg.id}
-                          packageHours={Number(pkg.hours)}
-                          featured={featured}
-                          pendingSectionId="pending-purchases"
-                        />
+                        hasActivePackage ? (
+                          <p className="rounded-xl border border-[#1a4fd6]/10 bg-[#f0f6ff] px-3 py-3 text-center text-[12px] font-semibold leading-relaxed text-[#1a4fd6]">
+                            You have an active package - top-up coming soon
+                          </p>
+                        ) : (
+                          <BlockTimePurchaseButton
+                            packageId={pkg.id}
+                            packageHours={Number(pkg.hours)}
+                            featured={featured}
+                            pendingSectionId="pending-purchases"
+                          />
+                        )
                       ) : (
                         <p className="text-center text-[11px] font-semibold uppercase tracking-wide text-[#4b6390]/70">
                           Available after checkout clearance

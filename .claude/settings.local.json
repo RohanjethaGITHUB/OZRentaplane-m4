@@ -21,7 +21,8 @@
       "Read(//Users/rohanjetha/Library/Application Support/**)",
       "Read(//Users/rohanjetha/Library/Application Support/supabase/**)",
       "Bash(security find-generic-password *)",
-      "Bash(node scripts/test_block_time_suite.mjs)"
+      "Bash(node scripts/test_block_time_suite.mjs)",
+      "Bash(node --input-type=module -e ' *)"
     ]
   }
 }
