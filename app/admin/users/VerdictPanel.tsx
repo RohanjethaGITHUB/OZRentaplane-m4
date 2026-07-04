@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { approveCustomer, rejectCustomer, placeCustomerOnHold } from '@/app/actions/admin'
-import { updateDocumentStatus } from '@/app/actions/verification'
-import { formatDateTime } from '@/lib/formatDateTime'
+import { bulkUpdateDocumentStatus, updateDocumentStatus } from '@/app/actions/verification'
+import { formatDateTime, formatDate } from '@/lib/formatDateTime'
 import type { RequestKind, UserDocument } from '@/lib/supabase/types'
 import OpenFileButton from './OpenFileButton'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 
 type DecisionAction = 'approve' | 'hold' | 'reject'
 
@@ -475,17 +477,6 @@ function formatUploadedTimestamp(value: string | null): string {
   return formatDateTime(value)
 }
 
-function formatShortDate(value: string | null): string {
-  if (!value) return '—'
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return '—'
-  return new Intl.DateTimeFormat('en-AU', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(parsed)
-}
-
 function getDocumentDetails(doc: UserDocument | null, documentType: DocumentCardType): string {
   if (!doc) return 'No document uploaded yet'
 
@@ -498,7 +489,7 @@ function getDocumentDetails(doc: UserDocument | null, documentType: DocumentCard
 
   if (documentType === 'medical_certificate') {
     const parts = [doc.medical_class ?? 'Class unavailable']
-    parts.push(doc.expiry_date ? `Expires ${formatShortDate(doc.expiry_date)}` : 'Expiry unavailable')
+    parts.push(doc.expiry_date ? `Expires ${formatDate(doc.expiry_date)}` : 'Expiry unavailable')
     return parts.join(' · ')
   }
 
@@ -554,6 +545,15 @@ export function DocumentReviewCards({
   const router = useRouter()
   const [loadingDocId, setLoadingDocId] = useState<string | null>(null)
   const [errorByDocId, setErrorByDocId] = useState<Record<string, string>>({})
+  const [bulkAction, setBulkAction] = useState<'approved' | 'rejected' | null>(null)
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [bulkMessage, setBulkMessage] = useState<{
+    status: 'approved' | 'rejected'
+    updatedCount: number
+    skippedCount: number
+    requiredCount: number
+  } | null>(null)
+  const [bulkError, setBulkError] = useState('')
 
   const resolvedNightVfrRating = customerProfile?.has_night_vfr_rating ?? hasNightVfrRating ?? false
   const displayNightVfrRating = customerProfile?.has_night_vfr_rating ?? hasNightVfrRating ?? null
@@ -607,6 +607,40 @@ export function DocumentReviewCards({
     }
   }
 
+  function openBulkConfirm(status: 'approved' | 'rejected') {
+    setBulkError('')
+    setBulkMessage(null)
+    setBulkAction(status)
+  }
+
+  async function handleBulkUpdate() {
+    if (!bulkAction) return
+    setBulkLoading(true)
+    setBulkError('')
+    try {
+      const result = await bulkUpdateDocumentStatus({
+        userId: customerId,
+        status: bulkAction,
+      })
+
+      if (!result.success) {
+        setBulkError(result.error)
+        return
+      }
+
+      setBulkMessage({
+        status: bulkAction,
+        updatedCount: result.updatedCount,
+        skippedCount: result.skippedCount,
+        requiredCount: result.requiredCount,
+      })
+      router.refresh()
+    } finally {
+      setBulkLoading(false)
+      setBulkAction(null)
+    }
+  }
+
   return (
     <section className="space-y-5">
       <div className={`flex flex-col gap-3 rounded-2xl border px-4 py-4 sm:flex-row sm:items-center sm:justify-between ${summaryTone}`}>
@@ -626,6 +660,58 @@ export function DocumentReviewCards({
           {onHoldBookingCount} booking{onHoldBookingCount === 1 ? '' : 's'} currently on hold pending document approval.
         </div>
       )}
+
+      {bulkMessage && (
+        <div className={`rounded-2xl border px-4 py-3 ${bulkMessage.status === 'rejected' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <p className={`text-sm font-semibold ${bulkMessage.status === 'rejected' ? 'text-amber-900' : 'text-emerald-900'}`}>
+                {bulkMessage.status === 'rejected' ? 'Documents rejected.' : 'Documents approved.'}
+              </p>
+              <p className={`text-xs ${bulkMessage.status === 'rejected' ? 'text-amber-800' : 'text-emerald-800'}`}>
+                {bulkMessage.updatedCount} of {bulkMessage.requiredCount} required documents updated{bulkMessage.skippedCount > 0 ? ` · ${bulkMessage.skippedCount} missing document${bulkMessage.skippedCount === 1 ? '' : 's'} skipped` : ''}.
+                {bulkMessage.status === 'rejected' ? ' Message the customer about this?' : ' The customer can now book again.'}
+              </p>
+            </div>
+            {bulkMessage.status === 'rejected' && (
+              <Link
+                href={`/admin/messages?userId=${customerId}`}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#1a4fd6] px-4 py-2 text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#1540a8]"
+              >
+                Message Customer
+                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+
+      {bulkError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {bulkError}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <button
+          type="button"
+          onClick={() => openBulkConfirm('approved')}
+          disabled={bulkLoading}
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-sm">verified_user</span>
+          Approve All Documents
+        </button>
+        <button
+          type="button"
+          onClick={() => openBulkConfirm('rejected')}
+          disabled={bulkLoading}
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-rose-600 px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-sm">person_off</span>
+          Reject All Documents
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 gap-4">
         {latestDocuments.map(({ documentType, doc }) => {
@@ -775,6 +861,23 @@ export function DocumentReviewCards({
           </div>
         </div>
       ) : null}
+
+      <ConfirmModal
+        open={bulkAction !== null}
+        title={bulkAction === 'approved' ? 'Approve all required documents?' : 'Reject all required documents?'}
+        description={
+          bulkAction === 'approved'
+            ? 'This will mark every required document as approved for this customer.'
+            : 'This will reject every required document for this customer and create a rejection event for each one.'
+        }
+        confirmLabel={bulkLoading ? (bulkAction === 'approved' ? 'Approving…' : 'Rejecting…') : bulkAction === 'approved' ? 'Approve All' : 'Reject All'}
+        variant={bulkAction === 'approved' ? 'primary' : 'danger'}
+        onCancel={() => {
+          if (bulkLoading) return
+          setBulkAction(null)
+        }}
+        onConfirm={handleBulkUpdate}
+      />
     </section>
   )
 }

@@ -374,6 +374,8 @@ export default async function NewBookingPage() {
       documents: (documents ?? []) as UserDocument[],
       hasNightVfrRating: typedProfile?.has_night_vfr_rating ?? null,
     })
+    const pilotLicenceDocument =
+      (documents as UserDocument[] | null)?.find((doc) => doc.document_type === 'pilot_licence') ?? null
     const authoritativeActiveTermsRow = activeTermsPrimary.data ?? (await admin
       .from('terms_documents')
       .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
@@ -462,6 +464,10 @@ export default async function NewBookingPage() {
           hourlyRate={BOOKING_HOURLY_RATE}
           picName={typedProfile?.full_name ?? null}
           picArn={typedProfile?.pilot_arn ?? null}
+          documentReadinessItems={docItems}
+          pilotLicenceDocument={pilotLicenceDocument}
+          hasNightVfrRating={typedProfile?.has_night_vfr_rating ?? null}
+          termsAccepted={termsAccepted}
           eligibilityBlocked={eligibilityBlocked}
           eligibilityWarnings={eligibilityWarnings}
           initialLastFlightDate={typedProfile?.last_flight_date ?? ''}

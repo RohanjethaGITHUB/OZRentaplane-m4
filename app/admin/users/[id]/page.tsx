@@ -114,6 +114,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
     { data: aircraftRows },
     { data: aircraftLogRows },
     { data: blockTimePurchaseRows },
+    { data: blockTimeTopupRows },
   ] = await Promise.all([
     supabase
       .from('user_documents')
@@ -181,6 +182,11 @@ export default async function AdminUserPage({ params }: { params: { id: string }
       .select('id, status, hours_purchased, hours_remaining, rate_per_hour, amount_paid, purchased_at, expires_at, refund_amount, refunded_at, refund_stripe_id, stripe_payment_intent_id, package:block_time_packages ( name )')
       .eq('user_id', params.id)
       .order('purchased_at', { ascending: false }),
+    supabase
+      .from('block_time_topups')
+      .select('id, purchase_id, hours_added, rate_per_hour, amount_paid, validity_extension_days, hours_remaining_before, hours_remaining_after, expires_at_after, created_at, purchase:pilot_block_time_purchases ( package:block_time_packages ( name ) )')
+      .eq('user_id', params.id)
+      .order('created_at', { ascending: false }),
   ])
 
   const blockTimePurchases = (blockTimePurchaseRows ?? []).map((row: any) => {
@@ -198,6 +204,24 @@ export default async function AdminUserPage({ params }: { params: { id: string }
       refunded_at: row.refunded_at,
       refund_stripe_id: row.refund_stripe_id,
       stripe_payment_intent_id: row.stripe_payment_intent_id,
+      package_name: pkg?.name ?? 'Block Time',
+    }
+  })
+
+  const blockTimeTopups = (blockTimeTopupRows ?? []).map((row: any) => {
+    const purchase = Array.isArray(row.purchase) ? row.purchase[0] : row.purchase
+    const pkg = Array.isArray(purchase?.package) ? purchase?.package[0] : purchase?.package
+    return {
+      id: row.id,
+      purchase_id: row.purchase_id,
+      hours_added: Number(row.hours_added),
+      rate_per_hour: Number(row.rate_per_hour),
+      amount_paid: Number(row.amount_paid),
+      validity_extension_days: Number(row.validity_extension_days),
+      hours_remaining_before: Number(row.hours_remaining_before),
+      hours_remaining_after: Number(row.hours_remaining_after),
+      expires_at_after: row.expires_at_after,
+      created_at: row.created_at,
       package_name: pkg?.name ?? 'Block Time',
     }
   })
@@ -467,6 +491,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
         aircraftRows={aircraftRows ?? []}
         aircraftLogRows={aircraftLogRows ?? []}
         blockTimePurchases={blockTimePurchases}
+        blockTimeTopups={blockTimeTopups}
         balanceCents={balanceCents ?? 0}
         totalRevenueCents={totalRevenueCents}
         transactions={transactions ?? []}

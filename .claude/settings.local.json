@@ -22,7 +22,12 @@
       "Read(//Users/rohanjetha/Library/Application Support/supabase/**)",
       "Bash(security find-generic-password *)",
       "Bash(node scripts/test_block_time_suite.mjs)",
-      "Bash(node --input-type=module -e ' *)"
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(echo \"exit code: $?\")",
+      "Bash(echo \"tsc exit: $?\")",
+      "Bash(node scripts/test_block_time_topup_suite.mjs)"
     ]
   }
 }

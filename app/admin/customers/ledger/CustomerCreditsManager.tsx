@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { searchCustomers, getCustomerCreditBalance, getCustomerCreditTransactions, recordAdvancePayment, reverseCreditEntry, recordRefund } from '@/app/actions/admin'
 import { createClient } from '@/lib/supabase/client'
+import { formatDateFromISO } from '@/lib/formatDateTime'
 
 type Customer = {
   id: string
@@ -363,7 +364,7 @@ export default function CustomerCreditsManager({ initialCustomerId }: { initialC
                         return (
                           <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors">
                             <td className="px-6 py-4 text-slate-400 whitespace-nowrap">
-                              {new Date(tx.created_at).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' })}
+                              {formatDateFromISO(tx.created_at)}
                             </td>
                             <td className="px-6 py-4">
                               <span className={`inline-flex items-center px-2 py-1 rounded text-[10px] uppercase tracking-wider font-semibold ${

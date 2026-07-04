@@ -15,12 +15,16 @@ import {
   type SafeConflict,
   type AvailabilityCheckResult,
 } from "@/app/actions/customer-availability";
+import type { BookingReadinessItem } from "@/lib/booking-readiness";
 import type { CreateBookingInput } from "@/lib/supabase/booking-types";
+import type { UserDocument } from "@/lib/supabase/types";
 import { sydneyInputToUTC, formatSydTime } from "@/lib/utils/sydney-time";
 import { validateFlightReviewDate } from "@/lib/utils/flight-review";
 import { formatDate, formatDateTime } from "@/lib/formatDateTime";
+import DocumentProgressCard from "@/components/DocumentProgressCard";
 import CalendarDateField from "@/components/CalendarDateField";
 import PortalPageHero from "@/components/PortalPageHero";
+import { getDocumentProgressSnapshot } from "@/lib/document-progress";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -54,6 +58,10 @@ type Props = {
   hourlyRate: number;
   picName: string | null;
   picArn: string | null;
+  documentReadinessItems: BookingReadinessItem[];
+  pilotLicenceDocument: UserDocument | null;
+  hasNightVfrRating: boolean | null;
+  termsAccepted: boolean;
   eligibilityBlocked: boolean;
   eligibilityWarnings: string[];
   initialLastFlightDate: string;
@@ -102,11 +110,7 @@ function formatLongDateDisplay(dateStr: string): string {
 }
 
 function formatShortDateDisplay(dateStr: string): string {
-  return new Date(`${dateStr}T12:00:00`).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDate(dateStr);
 }
 
 function shiftDateByDays(dateStr: string, days: number): string {
@@ -365,6 +369,10 @@ export default function BookingRequestForm({
   hourlyRate,
   picName,
   picArn,
+  documentReadinessItems,
+  pilotLicenceDocument,
+  hasNightVfrRating,
+  termsAccepted,
   eligibilityBlocked,
   eligibilityWarnings,
   initialLastFlightDate,
@@ -380,7 +388,21 @@ export default function BookingRequestForm({
     pricing: true,
     notes: true,
   });
+  const [lastFlightDate, setLastFlightDate] = useState(initialLastFlightDate);
   const trackRef = useRef<HTMLDivElement>(null);
+  const documentGate = useMemo(
+    () =>
+      getDocumentProgressSnapshot({
+        documentReadinessItems,
+        pilotLicenceDocument,
+        lastFlightDate: lastFlightDate,
+        hasNightVfrRating,
+        termsAccepted,
+      }),
+    [documentReadinessItems, pilotLicenceDocument, lastFlightDate, hasNightVfrRating, termsAccepted],
+  );
+  const bookingTypeLocked = !documentGate.allApproved;
+  const reviewTimeValue = documentGate.percent < 100 ? "After upload" : "Up to 24 hours";
 
   // ── Split date/time state ─────────────────────────────────────────────────
   const [startDate, setStartDate] = useState("");
@@ -389,7 +411,6 @@ export default function BookingRequestForm({
   const [endTime, setEndTime] = useState("");
   const [returnDate, setReturnDate] = useState("");
   const [returnTime, setReturnTime] = useState("");
-  const [lastFlightDate, setLastFlightDate] = useState(initialLastFlightDate);
   const [notes, setNotes] = useState("");
   const [medical] = useState(true);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -1022,24 +1043,6 @@ export default function BookingRequestForm({
               </div>
             )}
 
-            {eligibilityBlocked && eligibilityWarnings.length > 0 && (
-              <div className="bg-[#fff7ed] border border-[#fed7aa] rounded-xl px-5 py-4 flex items-start gap-3">
-                <span className="material-symbols-outlined text-[#f59e0b] mt-0.5 flex-shrink-0">
-                  notification_important
-                </span>
-                <div>
-                  <p className="text-sm font-bold text-[#92400e] mb-1.5">
-                    Booking Access Suspended
-                  </p>
-                  <ul className="text-xs text-[#9a3412]/80 space-y-1 list-disc list-inside">
-                    {eligibilityWarnings.map((w, i) => (
-                      <li key={i}>{w}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-
             <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center gap-5 md:gap-6">
               <div className="w-24 h-20 rounded-xl overflow-hidden flex-shrink-0 border border-[#e2e8f0]">
                 <img
@@ -1102,7 +1105,6 @@ export default function BookingRequestForm({
 
             {/* Booking mode selector */}
             <div>
-              {/* Ruled section header */}
               <div className="mb-5 text-center">
                 <p className="text-[11px] font-bold text-[#94a3b8] uppercase tracking-widest mb-2">
                   Booking type
@@ -1115,180 +1117,273 @@ export default function BookingRequestForm({
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div
+                className={`mb-5 rounded-2xl border px-6 py-5 shadow-sm ${
+                  documentGate.bannerState === 'unlocked'
+                    ? 'border-green-500/20 bg-green-500/5'
+                    : 'border-[#f2d28a] bg-[#fff6df]'
+                }`}
+              >
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="flex-1">
+                    <DocumentProgressCard
+                      variant="wizard"
+                      statuses={documentGate.statuses}
+                      heading="Complete all 4 steps to submit your documents"
+                      subheading="Our team will review and confirm your checkout request."
+                      className="shadow-sm"
+                    />
+                    <p
+                      className={`mt-4 text-lg md:text-xl font-bold mb-1.5 ${
+                        documentGate.bannerState === 'unlocked'
+                          ? 'text-green-700'
+                          : 'text-[#7c2d12]'
+                      }`}
+                    >
+                      {documentGate.bannerHeading}
+                    </p>
+                    <p
+                      className={`text-sm md:text-base leading-relaxed max-w-2xl ${
+                        documentGate.bannerState === 'unlocked'
+                          ? 'text-green-700/80'
+                          : 'text-[#8b5e34]'
+                      }`}
+                    >
+                      {documentGate.bannerBody}
+                    </p>
+                    <Link
+                      href="/dashboard/documents"
+                      className={`mt-4 inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-white transition-colors shadow-sm ${
+                        documentGate.bannerState === 'unlocked'
+                          ? 'bg-green-600 hover:bg-green-700'
+                          : 'bg-[#1a4fd6] hover:bg-[#1540a8]'
+                      }`}
+                    >
+                      {documentGate.ctaLabel}
+                      <span className="material-symbols-outlined text-sm">
+                        arrow_forward
+                      </span>
+                    </Link>
+                  </div>
+
+                  <div className={`lg:border-l lg:pl-6 ${documentGate.bannerState === 'unlocked' ? 'lg:border-green-500/20' : 'lg:border-[#e9c87b]'}`}>
+                    <div className={`flex items-start gap-2 ${documentGate.bannerState === 'unlocked' ? 'text-green-700' : 'text-[#b45309]'}`}>
+                      <span className="material-symbols-outlined text-[18px] mt-0.5">
+                        schedule
+                      </span>
+                      <div>
+                        <p className={`text-xs font-semibold uppercase tracking-wide ${documentGate.bannerState === 'unlocked' ? 'text-green-700/80' : 'text-[#a16207]'}`}>
+                          Typical review time
+                        </p>
+                        <p className={`text-sm md:text-base font-semibold ${documentGate.bannerState === 'unlocked' ? 'text-green-700' : 'text-[#7c2d12]'}`}>
+                          {reviewTimeValue}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+                <div
+                  className={`mt-5 grid grid-cols-1 lg:grid-cols-2 gap-3 ${
+                    bookingTypeLocked ? "pointer-events-none select-none" : ""
+                  }`}
+                >
                 {/* ── Single day ── */}
                 <button
                   type="button"
+                  disabled={bookingTypeLocked}
                   onClick={() => handleBookingModeChange("single")}
-                  className={`cursor-pointer relative flex flex-col items-start text-left rounded-2xl border-2 p-5 transition-all duration-150 ${
-                    bookingMode === "single"
-                      ? "border-[#1a4fd6] bg-[#eef4ff]"
-                      : "border-dashed border-[#c7d8f5] bg-[#eef6ff] hover:border-[#1a4fd6] hover:bg-[#e0edff] hover:shadow-sm"
+                  className={`relative overflow-hidden rounded-2xl border-2 p-5 text-left transition-all duration-150 disabled:cursor-not-allowed min-h-[320px] lg:min-h-[340px] ${
+                    bookingTypeLocked
+                      ? "border-[#b8c9dd] bg-[#dbeafe]"
+                      : bookingMode === "single"
+                        ? "border-[#1a4fd6] bg-[#eef4ff]"
+                        : "border-dashed border-[#c7d8f5] bg-[#eef6ff] hover:border-[#1a4fd6] hover:bg-[#e0edff] hover:shadow-sm"
                   }`}
                 >
-                  {bookingMode === "single" && (
-                    <span className="absolute top-4 right-4 w-5 h-5 rounded-full bg-[#1a4fd6] flex items-center justify-center">
-                      <svg
-                        className="w-3 h-3 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={3.5}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    </span>
-                  )}
-
-                  <div className="w-10 h-10 rounded-xl bg-[#1a4fd6] flex items-center justify-center mb-3 flex-shrink-0">
-                    <svg
-                      className="w-5 h-5 text-white"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={1.8}
+                  {bookingTypeLocked && <div className="absolute inset-0 bg-white/18" />}
+                    <div className={`relative z-10 flex h-full flex-col ${bookingTypeLocked ? "text-[#152d5a]" : ""}`}>
+                      <div
+                        className={`mb-4 flex h-14 w-14 items-center justify-center rounded-full border ${
+                          bookingTypeLocked
+                              ? "border-[#b9cae1] bg-white/70 text-[#1a4fd6]"
+                          : "border-[#c7d8f5] bg-white text-[#1a4fd6]"
+                      }`}
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
-                  </div>
-
-                  <p
-                    className={`text-lg font-extrabold tracking-tight leading-tight mb-1.5 ${
-                      bookingMode === "single"
-                        ? "text-[#152d5a]"
-                        : "text-[#374151]"
-                    }`}
-                  >
-                    Single day
-                  </p>
-                  <p className="text-xs text-[#6b7280] leading-relaxed mb-4">
-                    Depart and return on the same date. Billed on actual hours
-                    flown.
-                  </p>
-
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#dde8f5] text-[#1640b0]">
-                      Same-day return
-                    </span>
-                    <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#dde8f5] text-[#1640b0]">
-                      No min. hours
-                    </span>
-                    <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#dde8f5] text-[#1640b0]">
-                      $320/hr
-                    </span>
-                  </div>
-                  {bookingMode !== "single" && (
-                    <p className="mt-4 text-[11px] font-semibold text-[#1a4fd6] flex items-center gap-1">
-                      <svg
-                        className="w-3 h-3"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2.5}
+                      <span
+                        className="material-symbols-outlined text-[24px]"
+                        style={{ fontVariationSettings: "'wght' 300" }}
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"
-                        />
-                      </svg>
-                      Tap to select
+                        calendar_month
+                      </span>
+                    </div>
+
+                    <p
+                      className={`text-lg font-extrabold tracking-tight leading-tight mb-1.5 ${
+                        bookingTypeLocked ? "text-[#152d5a]" : bookingMode === "single" ? "text-[#152d5a]" : "text-[#374151]"
+                      }`}
+                    >
+                      Single day
                     </p>
-                  )}
+                    <p className={`text-xs leading-relaxed mb-4 ${bookingTypeLocked ? "text-[#4b6390]" : "text-[#6b7280]"}`}>
+                      Depart and return on the same date. Billed on actual hours flown.
+                    </p>
+
+                    <div className="flex flex-wrap gap-1.5">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          bookingTypeLocked
+                              ? "border border-[#b8c9dd] bg-white/75 text-[#1640b0]"
+                            : "bg-[#dde8f5] text-[#1640b0]"
+                        }`}
+                      >
+                        Same-day return
+                      </span>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          bookingTypeLocked
+                              ? "border border-[#b8c9dd] bg-white/75 text-[#1640b0]"
+                            : "bg-[#dde8f5] text-[#1640b0]"
+                        }`}
+                      >
+                        No min. hours
+                      </span>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          bookingTypeLocked
+                              ? "border border-[#b8c9dd] bg-white/75 text-[#1640b0]"
+                            : "bg-[#dde8f5] text-[#1640b0]"
+                        }`}
+                      >
+                        $320/hr
+                      </span>
+                    </div>
+
+                    {bookingTypeLocked ? (
+                      <div className="mt-auto pt-5 border-t border-[#b8c9dd] flex items-center justify-center gap-2 text-sm font-semibold text-[#152d5a]">
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#b8c9dd] bg-white/75">
+                          <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">
+                            lock
+                          </span>
+                        </span>
+                        <span>Locked until documents are approved</span>
+                      </div>
+                    ) : (
+                      bookingMode !== "single" && (
+                        <p className="mt-4 text-[11px] font-semibold text-[#1a4fd6] flex items-center gap-1">
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2.5}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"
+                            />
+                          </svg>
+                          Tap to select
+                        </p>
+                      )
+                    )}
+                  </div>
                 </button>
 
                 {/* ── Multi-day ── */}
-                  <button
-                    type="button"
-                    onClick={() => handleBookingModeChange("multi")}
-                    className={`cursor-pointer relative flex flex-col items-start text-left rounded-2xl border-2 p-5 transition-all duration-150 ${
-                      bookingMode === "multi"
-                      ? "border-2 border-[#d97706] bg-[#fffbf0] shadow-sm"
-                      : "border-dashed border-[#e9d5a1] bg-[#fffbf0] hover:border-[#f59e0b] hover:shadow-sm"
-                    }`}
-                  >
-                  {bookingMode === "multi" && (
-                    <span className="absolute top-4 right-4 w-5 h-5 rounded-full bg-[#d97706] flex items-center justify-center">
-                      <svg
-                        className="w-3 h-3 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={3.5}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    </span>
-                  )}
-
-                  <div className="w-10 h-10 rounded-xl bg-[#fef3c7] flex items-center justify-center mb-3 flex-shrink-0">
-                    <svg
-                      className="w-5 h-5 text-[#92400e]"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={1.8}
+                <button
+                  type="button"
+                  disabled={bookingTypeLocked}
+                  onClick={() => handleBookingModeChange("multi")}
+                  className={`relative overflow-hidden rounded-2xl border-2 p-5 text-left transition-all duration-150 disabled:cursor-not-allowed min-h-[320px] lg:min-h-[340px] ${
+                    bookingTypeLocked
+                      ? "border-[#b8c9dd] bg-[#dbeafe]"
+                      : bookingMode === "multi"
+                        ? "border-2 border-[#d97706] bg-[#fffbf0] shadow-sm"
+                        : "border-dashed border-[#e9d5a1] bg-[#fffbf0] hover:border-[#f59e0b] hover:shadow-sm"
+                  }`}
+                >
+                  {bookingTypeLocked && <div className="absolute inset-0 bg-white/18" />}
+                  <div className={`relative z-10 flex h-full flex-col ${bookingTypeLocked ? "text-[#152d5a]" : ""}`}>
+                    <div
+                      className={`mb-4 flex h-14 w-14 items-center justify-center rounded-full border ${
+                          bookingTypeLocked
+                              ? "border-[#b9cae1] bg-white/70 text-[#1a4fd6]"
+                          : "border-[#f1d58f] bg-white text-[#92400e]"
+                      }`}
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
-                  </div>
-
-                  <p
-                    className={`text-lg font-extrabold tracking-tight leading-tight mb-1.5 ${
-                      bookingMode === "multi"
-                        ? "text-[#152d5a]"
-                        : "text-[#374151]"
-                    }`}
-                  >
-                    Multi-day
-                  </p>
-                  <p className="text-xs text-[#6b7280] leading-relaxed mb-4">
-                    Aircraft stays with you overnight across multiple
-                    consecutive days.
-                  </p>
-
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#fef3c7] text-[#92400e]">
-                      4 VDO hrs min. per 24h
-                    </span>
-                    <span className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#fee2e2] text-[#991b1b]">
-                      Parking not included
-                    </span>
-                  </div>
-                  {bookingMode !== "multi" && (
-                    <p className="mt-4 text-[11px] font-semibold text-[#92400e] flex items-center gap-1">
-                      <svg
-                        className="w-3 h-3"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2.5}
+                      <span
+                        className="material-symbols-outlined text-[24px]"
+                        style={{ fontVariationSettings: "'wght' 300" }}
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"
-                        />
-                      </svg>
-                      Tap to select
+                        calendar_month
+                      </span>
+                    </div>
+
+                    <p
+                      className={`text-lg font-extrabold tracking-tight leading-tight mb-1.5 ${
+                        bookingTypeLocked ? "text-[#152d5a]" : bookingMode === "multi" ? "text-[#152d5a]" : "text-[#374151]"
+                      }`}
+                    >
+                      Multi-day
                     </p>
-                  )}
+                    <p className={`text-xs leading-relaxed mb-4 ${bookingTypeLocked ? "text-[#4b6390]" : "text-[#6b7280]"}`}>
+                      Aircraft stays with you overnight across multiple consecutive days.
+                    </p>
+
+                    <div className="flex flex-wrap gap-1.5">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          bookingTypeLocked
+                              ? "border border-[#b8c9dd] bg-white/75 text-[#1640b0]"
+                            : "bg-[#fef3c7] text-[#92400e]"
+                        }`}
+                      >
+                        4 VDO hrs min. per 24h
+                      </span>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          bookingTypeLocked
+                              ? "border border-[#b8c9dd] bg-white/75 text-[#1640b0]"
+                            : "bg-[#fee2e2] text-[#991b1b]"
+                        }`}
+                      >
+                        Parking not included
+                      </span>
+                    </div>
+
+                    {bookingTypeLocked ? (
+                      <div className="mt-auto pt-5 border-t border-[#b8c9dd] flex items-center justify-center gap-2 text-sm font-semibold text-[#152d5a]">
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#b8c9dd] bg-white/75">
+                          <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">
+                            lock
+                          </span>
+                        </span>
+                        <span>Locked until documents are approved</span>
+                      </div>
+                    ) : (
+                      bookingMode !== "multi" && (
+                        <p className="mt-4 text-[11px] font-semibold text-[#92400e] flex items-center gap-1">
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2.5}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"
+                            />
+                          </svg>
+                          Tap to select
+                        </p>
+                      )
+                    )}
+                  </div>
                 </button>
               </div>
             </div>
@@ -1634,7 +1729,7 @@ export default function BookingRequestForm({
                       <strong>{fmtTime(startTime || "09:00")}</strong> to{" "}
                       <strong>{fmtTime(endTime || "17:00")}</strong>
                       {startDate
-                        ? ` on ${new Date(`${startDate}T00:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}.`
+                        ? ` on ${formatDateDisplay(startDate)}.`
                         : "."}{" "}
                       Drag the handles to adjust.
                     </p>
@@ -2273,7 +2368,7 @@ export default function BookingRequestForm({
                     <div className="flex-shrink-0">
                       <p className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">Date</p>
                       <p className="text-base font-semibold text-[#152d5a]">
-                        {new Date(`${startDate}T12:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+                        {formatDateDisplay(startDate)}
                       </p>
                     </div>
                     {startTime && (

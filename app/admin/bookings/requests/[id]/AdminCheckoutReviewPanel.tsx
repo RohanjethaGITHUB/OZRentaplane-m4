@@ -9,7 +9,7 @@ import {
   adminUpdateCheckoutTime,
 } from '@/app/actions/admin-booking'
 import { sendAdminChatMessage, markAdminChatRead, getSignedDocumentUrl } from '@/app/actions/admin'
-import { updateDocumentStatus } from '@/app/actions/verification'
+import { bulkUpdateDocumentStatus, updateDocumentStatus } from '@/app/actions/verification'
 import { sydneyInputToUTC } from '@/lib/utils/sydney-time'
 import { formatDate, formatDateTime } from '@/lib/formatDateTime'
 import CalendarDateField from '@/components/CalendarDateField'
@@ -17,6 +17,7 @@ import DocumentViewerModal from '@/components/ui/DocumentViewerModal'
 import type { DocumentFile } from '@/components/ui/DocumentViewerModal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import type { VerificationEvent } from '@/lib/supabase/types'
+import { formatDateFromISO } from '@/lib/formatDateTime'
 import {
   CalendarDays,
   CheckCircle2,
@@ -220,7 +221,7 @@ function DocRow({
               {doc.document_number && <span>#{doc.document_number}</span>}
               {doc.issue_date      && <span>Issued: {doc.issue_date}</span>}
               {doc.expiry_date     && <span>{expired ? 'Expired' : 'Expires'}: {doc.expiry_date}</span>}
-              {doc.uploaded_at     && <span>Uploaded: {new Date(doc.uploaded_at).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+              {doc.uploaded_at     && <span>Uploaded: {formatDateFromISO(doc.uploaded_at)}</span>}
             </div>
           )}
         </div>
@@ -392,6 +393,15 @@ export default function AdminCheckoutReviewPanel({
   const [cancelPending, startCancelTransition] = useTransition()
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [bulkAction, setBulkAction] = useState<'approved' | 'rejected' | null>(null)
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [bulkMessage, setBulkMessage] = useState<{
+    status: 'approved' | 'rejected'
+    updatedCount: number
+    skippedCount: number
+    requiredCount: number
+  } | null>(null)
+  const [bulkError, setBulkError] = useState('')
 
   // ── Message state ────────────────────────────────────────────────────────────
   const [message, setMessage]     = useState('')
@@ -532,6 +542,40 @@ export default function AdminCheckoutReviewPanel({
     setViewerOpen(true)
   }
 
+  function openBulkConfirm(status: 'approved' | 'rejected') {
+    setBulkError('')
+    setBulkMessage(null)
+    setBulkAction(status)
+  }
+
+  async function handleBulkUpdate() {
+    if (!bulkAction) return
+    setBulkLoading(true)
+    setBulkError('')
+    try {
+      const result = await bulkUpdateDocumentStatus({
+        userId: customerId,
+        status: bulkAction,
+      })
+
+      if (!result.success) {
+        setBulkError(result.error)
+        return
+      }
+
+      setBulkMessage({
+        status: bulkAction,
+        updatedCount: result.updatedCount,
+        skippedCount: result.skippedCount,
+        requiredCount: result.requiredCount,
+      })
+      router.refresh()
+    } finally {
+      setBulkLoading(false)
+      setBulkAction(null)
+    }
+  }
+
   // ── Derived doc lookups ───────────────────────────────────────────────────────
   const licenceDoc        = documents.find(d => d.document_type === 'pilot_licence')
   const medicalDoc        = documents.find(d => d.document_type === 'medical_certificate')
@@ -622,6 +666,58 @@ export default function AdminCheckoutReviewPanel({
             One or more required documents are not yet approved. Review document status before proceeding.
           </div>
         )}
+
+        {bulkMessage && (
+          <div className={`mt-4 rounded-2xl border px-4 py-3 ${bulkMessage.status === 'rejected' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className={`text-sm font-semibold ${bulkMessage.status === 'rejected' ? 'text-amber-900' : 'text-emerald-900'}`}>
+                  {bulkMessage.status === 'rejected' ? 'Documents rejected.' : 'Documents approved.'}
+                </p>
+                <p className={`text-xs ${bulkMessage.status === 'rejected' ? 'text-amber-800' : 'text-emerald-800'}`}>
+                  {bulkMessage.updatedCount} of {bulkMessage.requiredCount} required documents updated{bulkMessage.skippedCount > 0 ? ` · ${bulkMessage.skippedCount} missing document${bulkMessage.skippedCount === 1 ? '' : 's'} skipped` : ''}.
+                  {bulkMessage.status === 'rejected' ? ' Message the customer about this?' : ' The customer can now proceed with booking review.'}
+                </p>
+              </div>
+              {bulkMessage.status === 'rejected' && (
+                <Link
+                  href={`/admin/messages?userId=${customerId}`}
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#1a4fd6] px-4 py-2 text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#1540a8]"
+                >
+                  Message Customer
+                  <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+
+        {bulkError && (
+          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {bulkError}
+          </div>
+        )}
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => openBulkConfirm('approved')}
+            disabled={bulkLoading}
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-sm">verified_user</span>
+            Approve All Documents
+          </button>
+          <button
+            type="button"
+            onClick={() => openBulkConfirm('rejected')}
+            disabled={bulkLoading}
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-rose-600 px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-sm">person_off</span>
+            Reject All Documents
+          </button>
+        </div>
       </section>
 
       <section ref={timeSectionRef} className="bg-white border-t border-r border-b border-gray-100 border-l-4 border-l-[#f59e0b] rounded-xl p-6 mb-4 shadow-sm">
@@ -909,6 +1005,23 @@ export default function AdminCheckoutReviewPanel({
         variant="danger"
         onCancel={() => setCancelConfirmOpen(false)}
         onConfirm={handleCancelCheckout}
+      />
+
+      <ConfirmModal
+        open={bulkAction !== null}
+        title={bulkAction === 'approved' ? 'Approve all required documents?' : 'Reject all required documents?'}
+        description={
+          bulkAction === 'approved'
+            ? 'This will mark every required document as approved for this customer.'
+            : 'This will reject every required document for this customer and create a rejection event for each one.'
+        }
+        confirmLabel={bulkLoading ? (bulkAction === 'approved' ? 'Approving…' : 'Rejecting…') : bulkAction === 'approved' ? 'Approve All' : 'Reject All'}
+        variant={bulkAction === 'approved' ? 'primary' : 'danger'}
+        onCancel={() => {
+          if (bulkLoading) return
+          setBulkAction(null)
+        }}
+        onConfirm={handleBulkUpdate}
       />
 
       <DocumentViewerModal

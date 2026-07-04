@@ -133,11 +133,7 @@ function BlockTimeInfoBanner({
 }) {
   if (!activePackage) return null
 
-  const formattedExpiry = new Date(activePackage.expires_at).toLocaleDateString('en-AU', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  })
+  const formattedExpiry = formatDateFromISO(activePackage.expires_at)
   const balanceText = `${activePackage.hours_remaining.toFixed(1)}h`
   const rateText = `$${activePackage.rate_per_hour.toFixed(2)}/hr`
 
@@ -769,7 +765,7 @@ function HistoryEvent({
               <div className="flex items-start justify-between gap-3">
                 <p className={`text-sm font-medium leading-snug ${cfg.color}`}>{cfg.label}</p>
                 <p className="text-[10px] text-slate-600 font-mono flex-shrink-0 mt-0.5 tabular-nums">
-                  {new Date(row.created_at).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' })}
+                  {formatDateFromISO(row.created_at)}
                 </p>
               </div>
               <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
@@ -1527,7 +1523,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
                         </p>
                         {histRow && (
                           <p className="text-[10px] text-[#4b6390] mt-0.5 font-mono tabular-nums">
-                            {new Date(histRow.created_at).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' })}
+                            {formatDateFromISO(histRow.created_at)}
                             {isStandardPipeline && STEP_DESCRIPTIONS[step.key] && ` · ${STEP_DESCRIPTIONS[step.key]}`}
                           </p>
                         )}

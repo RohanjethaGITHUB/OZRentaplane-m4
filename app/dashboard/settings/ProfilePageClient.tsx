@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { formatDateFromISO } from '@/lib/formatDateTime'
 import CustomerAccountForm from './CustomerAccountForm'
 import ChangePasswordInline from './ChangePasswordInline'
 
@@ -102,7 +103,7 @@ export default function ProfilePageClient({
   }).length
   const pct = REQUIRED_DOCS.length > 0 ? Math.round((readyCount / REQUIRED_DOCS.length) * 100) : 0
   const memberLabel  = memberSince
-    ? new Date(memberSince).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' })
+    ? formatDateFromISO(memberSince)
     : '—'
   const pilotLabel   = pilotType ?? 'Pilot'
 

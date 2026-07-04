@@ -793,7 +793,7 @@ export default async function CustomerBookingsPage() {
                             {booking.scheduled_start && (
                               <span className="flex items-center gap-1.5">
                                 <span className="material-symbols-outlined text-[13px]">calendar_today</span>
-                                {new Date(booking.scheduled_start).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                {formatDateFromISO(booking.scheduled_start)}
                               </span>
                             )}
                             {booking.scheduled_start && booking.scheduled_end && (
@@ -953,7 +953,7 @@ export default async function CustomerBookingsPage() {
                   </p>
                   {row.scheduled_start && (
                     <p className="text-[11px] text-[#4b6390]">
-                      {new Date(row.scheduled_start).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {formatDateFromISO(row.scheduled_start)}
                       {row.scheduled_start ? ` · ${formatSydTime(row.scheduled_start)}` : ''}
                     </p>
                   )}

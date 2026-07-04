@@ -15,6 +15,80 @@ type UpdateDocumentStatusInput = {
   reviewNotes?: string
 }
 
+type BulkUpdateDocumentStatusInput = {
+  userId: string
+  status: 'approved' | 'rejected'
+}
+
+type BulkUpdateDocumentStatusResult =
+  | { success: true; updatedCount: number; skippedCount: number; requiredCount: number }
+  | { success: false; error: string }
+
+type UserDocumentRow = {
+  id: string
+  document_type: string
+  created_at: string
+}
+
+const REQUIRED_DOCUMENT_TYPES = ['pilot_licence', 'medical_certificate', 'photo_id'] as const
+const OPTIONAL_NIGHT_VFR_TYPE = 'night_vfr_evidence' as const
+
+function revalidateVerificationPaths(userId: string) {
+  revalidatePath('/dashboard/documents')
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard/bookings/new')
+  revalidatePath('/dashboard/checkout')
+  revalidatePath(`/admin/users/${userId}`)
+  revalidatePath(`/admin/users/${userId}/documents`)
+}
+
+async function applyDocumentStatusUpdate(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  adminId: string,
+  input: UpdateDocumentStatusInput,
+): Promise<{ success: true } | { success: false; error: string }> {
+  const reviewNotes = input.reviewNotes?.trim() || null
+
+  const updatedRow = {
+    status: input.status,
+    review_notes: input.status === 'uploaded' ? null : reviewNotes,
+    reviewed_at: input.status === 'uploaded' ? null : new Date().toISOString(),
+  }
+
+  const { error: updateError } = await supabase
+    .from('user_documents')
+    .update(updatedRow)
+    .eq('id', input.documentId)
+    .eq('user_id', input.userId)
+
+  if (updateError) {
+    return { success: false, error: updateError.message || 'Failed to update document status.' }
+  }
+
+  if (input.status === 'rejected') {
+    const bodyBase = 'One of your documents has been rejected. Please upload a corrected version.'
+    const body = reviewNotes ? `${bodyBase} Note from admin: ${reviewNotes}` : bodyBase
+
+    const { error: eventError } = await supabase
+      .from('verification_events')
+      .insert({
+        event_type: 'rejected',
+        actor_role: 'admin',
+        actor_user_id: adminId,
+        user_id: input.userId,
+        title: 'A document requires your attention',
+        body,
+        email_status: 'pending',
+      })
+
+    if (eventError) {
+      return { success: false, error: eventError.message || 'Document was rejected, but notification failed.' }
+    }
+  }
+
+  return { success: true }
+}
+
 // ─── Submit for review ────────────────────────────────────────────────────────
 // Called when customer submits or resubmits their documents.
 // For on_hold clarification requests the doc check is relaxed — the customer
@@ -254,54 +328,88 @@ export async function updateDocumentStatus(
 ): Promise<{ success: true } | { success: false; error: string }> {
   try {
     const { supabase, adminId } = await requireAdmin()
+    const result = await applyDocumentStatusUpdate(supabase, adminId, input)
+    if (!result.success) return result
 
-    const reviewNotes = input.reviewNotes?.trim() || null
+    revalidateVerificationPaths(input.userId)
 
-    const updatedRow = {
-      status: input.status,
-      review_notes: input.status === 'uploaded' ? null : reviewNotes,
-      reviewed_at: input.status === 'uploaded' ? null : new Date().toISOString(),
+    return { success: true }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unexpected error'
+    if (message === 'Unauthorized') return { success: false, error: 'Unauthorized' }
+    if (message === 'Forbidden') return { success: false, error: 'Forbidden' }
+    return { success: false, error: message }
+  }
+}
+
+export async function bulkUpdateDocumentStatus(
+  input: BulkUpdateDocumentStatusInput,
+): Promise<BulkUpdateDocumentStatusResult> {
+  try {
+    if (!input.userId) {
+      return { success: false, error: 'VALIDATION: Customer is required.' }
     }
 
-    const { error: updateError } = await supabase
+    const { supabase, adminId } = await requireAdmin()
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('has_night_vfr_rating')
+      .eq('id', input.userId)
+      .single()
+
+    if (profileError) {
+      return { success: false, error: profileError.message || 'Failed to load customer profile.' }
+    }
+
+    const requiredTypes = profile?.has_night_vfr_rating
+      ? [...REQUIRED_DOCUMENT_TYPES, OPTIONAL_NIGHT_VFR_TYPE]
+      : [...REQUIRED_DOCUMENT_TYPES]
+
+    const { data: documents, error: docsError } = await supabase
       .from('user_documents')
-      .update(updatedRow)
-      .eq('id', input.documentId)
+      .select('id, document_type, created_at')
       .eq('user_id', input.userId)
+      .in('document_type', requiredTypes)
+      .order('created_at', { ascending: false })
 
-    if (updateError) {
-      return { success: false, error: updateError.message || 'Failed to update document status.' }
+    if (docsError) {
+      return { success: false, error: docsError.message || 'Failed to load documents.' }
     }
 
-    if (input.status === 'rejected') {
-      const bodyBase = 'One of your documents has been rejected. Please upload a corrected version.'
-      const body = reviewNotes ? `${bodyBase} Note from admin: ${reviewNotes}` : bodyBase
-
-      const { error: eventError } = await supabase
-        .from('verification_events')
-        .insert({
-          event_type: 'rejected',
-          actor_role: 'admin',
-          actor_user_id: adminId,
-          user_id: input.userId,
-          title: 'A document requires your attention',
-          body,
-          email_status: 'pending',
-        })
-
-      if (eventError) {
-        return { success: false, error: eventError.message || 'Document was rejected, but notification failed.' }
+    const latestByType = new Map<string, UserDocumentRow>()
+    for (const doc of documents ?? []) {
+      if (!latestByType.has(doc.document_type)) {
+        latestByType.set(doc.document_type, doc as UserDocumentRow)
       }
     }
 
-    revalidatePath('/dashboard/documents')
-    revalidatePath('/dashboard')
-    revalidatePath('/dashboard/bookings/new')
-    revalidatePath('/dashboard/checkout')
-    revalidatePath(`/admin/users/${input.userId}`)
-    revalidatePath(`/admin/users/${input.userId}/documents`)
+    let updatedCount = 0
+    let skippedCount = 0
 
-    return { success: true }
+    for (const documentType of requiredTypes) {
+      const doc = latestByType.get(documentType)
+      if (!doc) {
+        skippedCount += 1
+        continue
+      }
+
+      const result = await applyDocumentStatusUpdate(supabase, adminId, {
+        documentId: doc.id,
+        userId: input.userId,
+        status: input.status,
+      })
+
+      if (!result.success) {
+        return result
+      }
+
+      updatedCount += 1
+    }
+
+    revalidateVerificationPaths(input.userId)
+
+    return { success: true, updatedCount, skippedCount, requiredCount: requiredTypes.length }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unexpected error'
     if (message === 'Unauthorized') return { success: false, error: 'Unauthorized' }

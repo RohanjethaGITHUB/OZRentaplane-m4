@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { refundBlockTimePurchase } from '@/app/actions/block-time'
 
+import { formatDateFromISO } from '@/lib/formatDateTime'
+
 export type AdminBlockTimePurchase = {
   id: string
   status: string
@@ -31,9 +33,7 @@ const STATUS_PILL: Record<string, string> = {
 
 function shortDate(value: string | null | undefined): string {
   if (!value) return '—'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+  return formatDateFromISO(value)
 }
 
 function aud(value: number): string {

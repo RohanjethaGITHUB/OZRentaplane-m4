@@ -10,6 +10,8 @@ import { acceptTermsAndConditions } from '@/app/actions/terms'
 import { saveLastFlightDate } from '@/app/actions/verification'
 import { saveNightVfrRatingFromReadiness } from '@/app/actions/booking-readiness'
 import { getFlightReviewCutoff } from '@/lib/utils/flight-review'
+import { formatDateFromISO } from '@/lib/formatDateTime'
+import DocumentProgressCard, { type DocumentProgressStepStatus } from '@/components/DocumentProgressCard'
 import DocumentViewerModal from '@/components/ui/DocumentViewerModal'
 import type { DocumentFile } from '@/components/ui/DocumentViewerModal'
 import {
@@ -21,7 +23,6 @@ import CalendarDateField from '@/components/CalendarDateField'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type DocUiState = 'missing' | 'under_review' | 'approved' | 'rejected' | 'expired'
-type SectionStatus = 'not_started' | 'in_progress' | 'complete'
 type DocDef = { type: DocumentType; label: string; icon: string; desc: string }
 type UploadForm = {
   file: File[]; licenceType: string; licenceNumber: string
@@ -80,7 +81,7 @@ function getDocUiState(doc: UserDocument | undefined): DocUiState {
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return ''
-  return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+  return formatDateFromISO(iso)
 }
 
 const DOC_CHIP: Record<DocUiState, { label: string; cls: string }> = {
@@ -95,6 +96,8 @@ function DocChip({ state }: { state: DocUiState }) {
   const { label, cls } = DOC_CHIP[state]
   return <span className={`inline-flex items-center text-[11px] font-bold uppercase px-2 py-0.5 rounded-full tracking-widest whitespace-nowrap ${cls}`}>{label}</span>
 }
+
+type SectionStatus = DocumentProgressStepStatus
 
 const STATUS_BADGE: Record<SectionStatus, { label: string; cls: string }> = {
   not_started: { label: 'Not Started', cls: 'text-[#94a3b8] border border-[#152d5a]/10 bg-white' },
@@ -179,71 +182,6 @@ function Section({ num, title, desc, status, error, children }: {
           {children}
         </div>
       )}
-    </div>
-  )
-}
-
-// ─── Progress strip ───────────────────────────────────────────────────────────
-
-function ProgressStrip({ statuses }: { statuses: SectionStatus[] }) {
-  const completedCount = statuses.filter(s => s === 'complete').length
-  const total = statuses.length
-  const pct = Math.round((completedCount / total) * 100)
-  const steps = [
-    { label: 'Documents', num: 1 },
-    { label: 'Flight & Red Card', num: 2 },
-    { label: 'Night VFR', num: 3 },
-    { label: 'Terms & Submit', num: 4 },
-  ]
-  return (
-    <div className="bg-[#152d5a] rounded-2xl px-6 py-5">
-      <div className="flex items-center gap-5 mb-4">
-        <div className="relative w-24 h-24 flex-shrink-0">
-          <svg viewBox="0 0 36 36" className="w-24 h-24 -rotate-90">
-            <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="3" />
-            <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f59e0b" strokeWidth="3"
-              strokeDasharray={`${pct} ${100 - pct}`} strokeLinecap="round" />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-white text-[16px] font-bold leading-none">{pct}%</span>
-            <span className="text-white/50 text-[11px] mt-0.5">Complete</span>
-          </div>
-        </div>
-        <div>
-          <p className="text-white text-[16px] font-semibold leading-snug">Complete all {total} steps to submit your documents</p>
-          <p className="text-white/60 text-[13px] mt-1">Our team will review and confirm your checkout request.</p>
-        </div>
-      </div>
-      <div className="flex items-center gap-0">
-        {steps.map((s, i) => {
-          const status = statuses[i]
-          const isComplete = status === 'complete'
-          const isInProgress = status === 'in_progress'
-          return (
-            <div key={s.num} className="flex items-center flex-1 min-w-0">
-              <div className={`flex items-center gap-2 px-3 py-2 rounded-full text-[11px] font-semibold transition-all flex-shrink-0 ${
-                isComplete ? 'bg-green-500/20 text-green-300'
-                : isInProgress ? 'bg-[#f59e0b]/20 text-[#f59e0b] ring-1 ring-[#f59e0b]/40'
-                : 'text-white/40'
-              }`}>
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${
-                  isComplete ? 'bg-green-500/40 text-green-200'
-                  : isInProgress ? 'bg-[#f59e0b]/30 text-[#f59e0b]'
-                  : 'bg-white/10 text-white/40'
-                }`}>
-                  {isComplete
-                    ? <span className="material-symbols-outlined text-[11px]" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>
-                    : s.num}
-                </div>
-                <span className="hidden sm:inline truncate">{s.label}</span>
-              </div>
-              {i < steps.length - 1 && (
-                <div className={`flex-1 h-px mx-1 ${isComplete ? 'bg-green-500/30' : 'bg-white/15'}`} />
-              )}
-            </div>
-          )
-        })}
-      </div>
     </div>
   )
 }
@@ -624,7 +562,9 @@ export default function DocumentUploadPanel({
   const [nightVfrSaving, setNightVfrSaving] = useState(false)
   const [nightVfrError, setNightVfrError] = useState('')
 
-  const termsAccepted = Boolean(termsAcceptedAt)
+  const [localTermsAcceptedAt, setLocalTermsAcceptedAt] = useState<string | null>(termsAcceptedAt ?? null)
+  const [termsSuccess, setTermsSuccess] = useState('')
+  const termsAccepted = Boolean(localTermsAcceptedAt)
   const [termsChecked, setTermsChecked] = useState(false)
   const [termsError, setTermsError] = useState('')
   const [isAcceptingTerms, setIsAcceptingTerms] = useState(false)
@@ -632,11 +572,21 @@ export default function DocumentUploadPanel({
   const termsScrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (termsAcceptedAt) {
+    setLocalTermsAcceptedAt(termsAcceptedAt ?? null)
+  }, [termsAcceptedAt])
+
+  useEffect(() => {
+    if (localTermsAcceptedAt) {
       setTermsError('')
       setValidationErrors(p => ({ ...p, s4: undefined }))
     }
-  }, [termsAcceptedAt])
+  }, [localTermsAcceptedAt])
+
+  useEffect(() => {
+    if (!termsSuccess) return
+    const timeout = setTimeout(() => setTermsSuccess(''), 3000)
+    return () => clearTimeout(timeout)
+  }, [termsSuccess])
 
   const [customerNote, setCustomerNote] = useState('')
   const [validationErrors, setValidationErrors] = useState<{ s1?: string; s2?: string; s3?: string; s4?: string }>({})
@@ -723,10 +673,18 @@ export default function DocumentUploadPanel({
       setTermsError(!termsChecked ? 'Please check the box to accept.' : 'Please scroll through the full terms first.')
       return
     }
-    setTermsError(''); setIsAcceptingTerms(true)
+    setTermsError('')
+    setTermsSuccess('')
+    setIsAcceptingTerms(true)
     try {
       const result = await acceptTermsAndConditions()
-      if (!result.ok) { setTermsError(result.error); return }
+      if (!result.ok) {
+        setTermsError(result.error)
+        return
+      }
+      setLocalTermsAcceptedAt(result.acceptedAt)
+      setTermsSuccess('Terms accepted successfully. Your progress has been updated.')
+      setValidationErrors((p) => ({ ...p, s4: undefined }))
       onSuccess()
     } catch (e: unknown) {
       setTermsError(e instanceof Error ? e.message : 'Failed to save your acceptance. Please try again.')
@@ -750,7 +708,7 @@ export default function DocumentUploadPanel({
     if (errors.s2) { section2Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return false }
     if (errors.s3) { section3Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return false }
     if (errors.s4) { section4Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return false }
-    if (termsChecked && !termsAcceptedAt) {
+    if (termsChecked && !termsAccepted) {
       setTermsError('Please accept the Terms & Conditions and wait for confirmation before continuing.')
       section4Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       return false
@@ -760,7 +718,11 @@ export default function DocumentUploadPanel({
 
   return (
     <div className="space-y-4">
-      <ProgressStrip statuses={[s1, s2, s3, s4]} />
+      <DocumentProgressCard
+        statuses={[s1, s2, s3, s4]}
+        heading="Complete all 4 steps to submit your documents"
+        subheading="Our team will review and confirm your checkout request."
+      />
 
       <div className="bg-[#dce3ed] rounded-2xl p-3 space-y-3">
         <div ref={section1Ref} className="scroll-mt-4">
@@ -947,12 +909,18 @@ export default function DocumentUploadPanel({
             desc="Review and accept our terms to complete your document submission."
             status={s4} error={validationErrors.s4}>
             <div className="mt-3 space-y-3">
+              {termsSuccess && (
+                <div className="flex items-center gap-3 rounded-xl border border-green-500/20 bg-green-500/5 px-4 py-3">
+                  <span className="material-symbols-outlined text-green-600 text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                  <p className="text-[13px] text-green-700">{termsSuccess}</p>
+                </div>
+              )}
               {termsAccepted ? (
                 <div className="flex items-center gap-3 bg-green-500/5 border border-green-500/20 rounded-xl px-4 py-3">
                   <span className="material-symbols-outlined text-green-600 text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                   <div>
                     <p className="text-[14px] font-semibold text-green-700">Terms accepted</p>
-                    <p className="text-[13px] text-green-600">Accepted on {fmtDate(termsAcceptedAt)}</p>
+                    <p className="text-[13px] text-green-600">Accepted on {fmtDate(localTermsAcceptedAt)}</p>
                   </div>
                 </div>
               ) : (
@@ -978,7 +946,7 @@ export default function DocumentUploadPanel({
                       I have read and agree to the terms and conditions
                     </span>
                   </label>
-                  {termsChecked && !termsAcceptedAt && (
+                  {termsChecked && !termsAccepted && (
                     <div className="flex justify-center pt-1">
                       <button
                         onClick={handleAcceptTerms}
@@ -990,12 +958,12 @@ export default function DocumentUploadPanel({
                       </button>
                     </div>
                   )}
-                  {termsAcceptedAt && (
+                  {termsAccepted && (
                     <div className="flex items-center gap-3 bg-green-500/5 border border-green-500/20 rounded-xl px-4 py-3">
                       <span className="material-symbols-outlined text-green-600 text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                       <div>
                         <p className="text-[14px] font-semibold text-green-700">Terms accepted</p>
-                        <p className="text-[13px] text-green-600">Accepted on {fmtDate(termsAcceptedAt)}</p>
+                        <p className="text-[13px] text-green-600">Accepted on {fmtDate(localTermsAcceptedAt)}</p>
                       </div>
                     </div>
                   )}

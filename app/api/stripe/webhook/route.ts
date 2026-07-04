@@ -197,6 +197,112 @@ async function createBlockTimeInvoicePdf(params: {
   }
 }
 
+async function createBlockTimeTopupInvoicePdf(params: {
+  supabase: any
+  invoiceId: string
+  invoiceNumber: string
+  userId: string
+  createdAt: string
+  packageName: string
+  hoursAdded: number
+  ratePerHour: number
+  amountPaid: number
+  subtotal: number
+  gstAmount: number
+  total: number
+  newExpiresAt: string
+  customerProfile: {
+    full_name?: string | null
+    first_name?: string | null
+    last_name?: string | null
+    phone_country_code?: string | null
+    phone_number?: string | null
+    email?: string | null
+  } | null
+}) {
+  const {
+    supabase,
+    invoiceId,
+    invoiceNumber,
+    userId,
+    createdAt,
+    packageName,
+    hoursAdded,
+    ratePerHour,
+    amountPaid,
+    subtotal,
+    gstAmount,
+    total,
+    newExpiresAt,
+    customerProfile,
+  } = params
+
+  const pdfBuffer = await generateInvoicePdf({
+    invoiceNumber,
+    invoiceTypeLabel: 'TAX INVOICE',
+    statusLabel: 'PAID',
+    createdAt,
+    dueAt: createdAt,
+    billingModeLabel: 'Block Time',
+    billToName: getFullName(customerProfile),
+    billToEmail: customerProfile?.email ?? '—',
+    billToPhone: getPhoneDisplay(customerProfile),
+    lineItems: [
+      {
+        description: `Block Time Top-Up — ${packageName}`,
+        quantity: hoursAdded,
+        unitPrice: ratePerHour,
+        amount: amountPaid,
+      },
+    ],
+    subtotal,
+    gstAmount,
+    total,
+    footerNote: `All prices include GST. Hours are valid until ${new Intl.DateTimeFormat('en-AU', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date(newExpiresAt))}. Unused hours at expiry are forfeited per Terms & Conditions.`,
+  })
+
+  const storagePath = getInvoiceStoragePath(userId, invoiceNumber)
+  const fileName = `${invoiceNumber}.pdf`
+  const uploadResult = await supabase.storage
+    .from('invoice_pdfs')
+    .upload(storagePath, pdfBuffer, {
+      contentType: 'application/pdf',
+      upsert: true,
+      cacheControl: '3600',
+    })
+
+  if (uploadResult.error) {
+    throw uploadResult.error
+  }
+
+  const { data: publicUrlData } = supabase.storage.from('invoice_pdfs').getPublicUrl(storagePath)
+  const pdfUrl = publicUrlData.publicUrl
+
+  const { error: updateInvoiceErr } = await supabase
+    .from('invoices')
+    .update({ pdf_url: pdfUrl })
+    .eq('id', invoiceId)
+
+  if (updateInvoiceErr) {
+    throw updateInvoiceErr
+  }
+
+  return {
+    pdfUrl,
+    storagePath,
+    fileName,
+    attachment: {
+      filename: fileName,
+      content: pdfBuffer.toString('base64'),
+      contentType: 'application/pdf',
+    },
+  }
+}
+
 export async function POST(req: Request) {
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -248,6 +354,287 @@ export async function POST(req: Request) {
       purchase_id: paymentIntent.metadata?.purchase_id,
       purchase_type: paymentIntent.metadata?.purchase_type,
     });
+
+    if (paymentIntent.metadata?.purchase_type === "block_time_topup") {
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+        if (!supabaseUrl || !serviceKey) {
+          console.error("[webhook] Missing Supabase env vars");
+          return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
+        }
+
+        const supabase = createClient(supabaseUrl, serviceKey) as any;
+        const purchaseId = paymentIntent.metadata.purchase_id ?? null;
+        const hoursAdded = Number(paymentIntent.metadata.hours_added ?? 0);
+
+        if (!purchaseId || !Number.isFinite(hoursAdded) || hoursAdded <= 0) {
+          console.error("[webhook] block_time_topup missing purchase_id/hours_added metadata", {
+            paymentIntentId: paymentIntent.id,
+            purchaseId,
+            hoursAdded,
+          });
+          // Money has been taken but the top-up cannot be applied — alert admin.
+          await supabase.from("verification_events").insert({
+            user_id: paymentIntent.metadata.supabase_user_id ?? null,
+            actor_role: "system",
+            event_type: "message",
+            title: "Block time top-up payment received but not applied — manual follow-up required",
+            body: `Stripe payment ${paymentIntent.id} carries purchase_type=block_time_topup but is missing usable purchase_id/hours_added metadata, so the hours were not credited. Please apply the top-up manually or refund the payment.`,
+            is_read: false,
+            email_status: "pending",
+          });
+          return NextResponse.json({ received: true });
+        }
+
+        const { data: topupRows, error: topupErr } = await supabase.rpc("apply_block_time_topup", {
+          p_purchase_id: purchaseId,
+          p_hours: hoursAdded,
+          p_stripe_payment_intent_id: paymentIntent.id,
+        });
+
+        if (topupErr || !topupRows?.[0]) {
+          logErr("apply_block_time_topup FAILED", topupErr);
+          try {
+            await supabase.from("verification_events").insert({
+              user_id: paymentIntent.metadata.supabase_user_id ?? null,
+              actor_role: "system",
+              event_type: "message",
+              title: "Block time top-up payment received but not applied — manual follow-up required",
+              body: `Stripe payment ${paymentIntent.id} for a ${hoursAdded}h top-up of purchase ${purchaseId} could not be applied: ${topupErr?.message ?? "no result"}. Please apply the top-up manually or refund the payment.`,
+              is_read: false,
+              email_status: "pending",
+            });
+          } catch (alertErr: any) {
+            console.warn("[webhook] top-up failure alert insert failed", { message: alertErr?.message });
+          }
+          return NextResponse.json({ error: "Payment processing failed" }, { status: 500 });
+        }
+
+        const topup = topupRows[0] as {
+          out_topup_id: string;
+          out_already_applied: boolean;
+          out_user_id: string;
+          out_package_name: string;
+          out_hours_added: number;
+          out_amount_paid: number;
+          out_rate_per_hour: number;
+          out_validity_extension_days: number;
+          out_new_hours_purchased: number;
+          out_new_hours_remaining: number;
+          out_new_expires_at: string;
+        };
+
+        // Invoice: keyed to the payment intent so a replayed event never
+        // creates a second receipt.
+        const { data: existingTopupInvoice, error: existingTopupInvoiceErr } = await supabase
+          .from("invoices")
+          .select("id, invoice_number, pdf_url, created_at")
+          .eq("stripe_payment_intent_id", paymentIntent.id)
+          .eq("type", "block_time_topup")
+          .maybeSingle();
+
+        if (existingTopupInvoiceErr) {
+          logErr("check existing top-up invoice FAILED", existingTopupInvoiceErr);
+          return NextResponse.json({ error: "Payment processing failed" }, { status: 500 });
+        }
+
+        const amountPaid = Number(topup.out_amount_paid);
+        const invoiceAmounts = buildGstBreakdown(amountPaid);
+        let invoice = existingTopupInvoice as { id: string; invoice_number: string; pdf_url?: string | null; created_at?: string } | null;
+        const isNewInvoice = !invoice;
+
+        if (!invoice) {
+          const { data: newInvoice, error: invoiceErr } = await supabase
+            .from("invoices")
+            .insert({
+              type: "block_time_topup",
+              user_id: topup.out_user_id,
+              block_time_purchase_id: purchaseId,
+              subtotal: invoiceAmounts.subtotal,
+              gst_amount: invoiceAmounts.gstAmount,
+              total: invoiceAmounts.total,
+              status: "paid",
+              payment_method: "stripe",
+              stripe_payment_intent_id: paymentIntent.id,
+              paid_at: new Date().toISOString(),
+            })
+            .select("id, invoice_number")
+            .single();
+
+          if (invoiceErr || !newInvoice) {
+            logErr("insert block time top-up invoice FAILED", invoiceErr);
+            return NextResponse.json({ error: "Payment processing failed" }, { status: 500 });
+          }
+
+          invoice = newInvoice;
+
+          const { error: lineItemErr } = await supabase
+            .from("invoice_line_items")
+            .insert({
+              invoice_id: newInvoice.id,
+              type: "block_time_hours",
+              description: `${topup.out_package_name} Block Time top-up`,
+              quantity: Number(topup.out_hours_added),
+              unit_price: Number(topup.out_rate_per_hour),
+              amount: amountPaid,
+              display_order: 1,
+            });
+
+          if (lineItemErr) {
+            logErr("insert block time top-up line item FAILED", lineItemErr);
+            return NextResponse.json({ error: "Payment processing failed" }, { status: 500 });
+          }
+
+          const { error: linkErr } = await supabase
+            .from("block_time_topups")
+            .update({ invoice_id: newInvoice.id })
+            .eq("id", topup.out_topup_id);
+
+          if (linkErr) {
+            console.warn("[webhook] linking top-up to invoice failed (non-fatal)", { message: linkErr.message });
+          }
+        }
+
+        if (!invoice) {
+          // Unreachable: either the existing invoice was found or one was just
+          // inserted (failures returned 500 above).
+          logErr("top-up invoice unexpectedly missing", null);
+          return NextResponse.json({ error: "Payment processing failed" }, { status: 500 });
+        }
+        const invoiceRecord = invoice;
+
+        await markEventProcessed(supabase, event);
+
+        if (topup.out_already_applied && !isNewInvoice) {
+          console.log("[webhook] block_time_topup replay — already applied and invoiced", {
+            purchaseId,
+            topupId: topup.out_topup_id,
+            invoiceId: invoiceRecord.id,
+          });
+          return NextResponse.json({ received: true });
+        }
+
+        try {
+          const paymentMethodId =
+            typeof paymentIntent.payment_method === "string"
+              ? paymentIntent.payment_method
+              : (paymentIntent.payment_method as { id?: string } | null)?.id ?? null;
+
+          if (paymentMethodId) {
+            const { error: pmUpdateErr } = await supabase
+              .from("profiles")
+              .update({ default_payment_method_id: paymentMethodId })
+              .eq("id", topup.out_user_id);
+
+            if (pmUpdateErr) {
+              console.warn("[webhook] Failed to save default_payment_method_id (non-fatal)", {
+                message: pmUpdateErr.message,
+              });
+            }
+          }
+        } catch (pmErr: any) {
+          console.warn("[webhook] Failed to save default_payment_method_id (non-fatal)", {
+            message: pmErr?.message,
+          });
+        }
+
+        try {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name, first_name, last_name, phone_country_code, phone_number, email")
+            .eq("id", topup.out_user_id)
+            .single();
+
+          let pdfResult:
+            | Awaited<ReturnType<typeof createBlockTimeTopupInvoicePdf>>
+            | null = null;
+
+          try {
+            pdfResult = await createBlockTimeTopupInvoicePdf({
+              supabase,
+              invoiceId: invoiceRecord.id,
+              invoiceNumber: invoiceRecord.invoice_number,
+              userId: topup.out_user_id,
+              createdAt: invoiceRecord.created_at ?? new Date().toISOString(),
+              packageName: topup.out_package_name,
+              hoursAdded: Number(topup.out_hours_added),
+              ratePerHour: Number(topup.out_rate_per_hour),
+              amountPaid,
+              subtotal: invoiceAmounts.subtotal,
+              gstAmount: invoiceAmounts.gstAmount,
+              total: invoiceAmounts.total,
+              newExpiresAt: topup.out_new_expires_at,
+              customerProfile: profile ?? null,
+            });
+          } catch (pdfErr: any) {
+            console.warn("[webhook] Top-up invoice PDF generation failed (non-fatal)", {
+              message: pdfErr?.message,
+            });
+          }
+
+          if (profile?.email) {
+            const template = paymentConfirmedEmail(
+              `Your ${topup.out_package_name} Block Time top-up is confirmed. ${Number(topup.out_hours_added).toFixed(1)} hours have been added at your locked-in rate of $${Number(topup.out_rate_per_hour).toFixed(0)}/hr — your balance is now ${Number(topup.out_new_hours_remaining).toFixed(1)} hours, valid until ${new Date(topup.out_new_expires_at).toLocaleDateString("en-AU")}.`,
+              pdfResult?.pdfUrl
+            );
+
+            await sendEmail({
+              to: profile.email,
+              subject: template.subject,
+              html: template.html,
+              eventType: "block_time_topup_confirmed",
+              entityType: "block_time_purchase",
+              entityId: purchaseId,
+              metadata: {
+                invoiceId: invoiceRecord.id,
+                invoiceNumber: invoiceRecord.invoice_number,
+                topupId: topup.out_topup_id,
+                packageName: topup.out_package_name,
+                hoursAdded: Number(topup.out_hours_added),
+                ratePerHour: Number(topup.out_rate_per_hour),
+                pdfUrl: pdfResult?.pdfUrl ?? null,
+              },
+              attachments: pdfResult ? [pdfResult.attachment] : undefined,
+            });
+          }
+
+          const { error: notifErr } = await supabase
+            .from("verification_events")
+            .insert({
+              user_id: topup.out_user_id,
+              actor_role: "system",
+              event_type: "approved",
+              title: `${topup.out_package_name} Block Time topped up`,
+              body: `${Number(topup.out_hours_added).toFixed(1)} hours have been added to your package. New balance: ${Number(topup.out_new_hours_remaining).toFixed(1)} hours, valid until ${new Date(topup.out_new_expires_at).toLocaleDateString("en-AU")}.`,
+              is_read: false,
+              email_status: "skipped",
+            });
+
+          if (notifErr) {
+            console.warn("[webhook] Top-up notification insert FAILED (non-fatal)", { message: notifErr.message });
+          }
+        } catch (notifEx: any) {
+          console.warn("[webhook] Top-up notification failed (non-fatal)", { message: notifEx?.message });
+        }
+
+        console.log("[webhook] block_time_topup payment_intent.succeeded processed successfully ✓", {
+          purchaseId,
+          topupId: topup.out_topup_id,
+          invoiceId: invoiceRecord.id,
+          paymentIntentId: paymentIntent.id,
+        });
+        return NextResponse.json({ received: true });
+      } catch (err: any) {
+        console.error("[webhook] block_time_topup fatal error", {
+          message: err?.message,
+          stack: err?.stack,
+          name: err?.name,
+        });
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+      }
+    }
 
     try {
       if (paymentIntent.metadata?.purchase_type !== "block_time") {
@@ -313,6 +700,9 @@ export async function POST(req: Request) {
         .from("invoices")
         .select("id, invoice_number, status, pdf_url, created_at")
         .eq("block_time_purchase_id", purchase.id)
+        // Flight and top-up invoices also carry block_time_purchase_id, and
+        // more than one row here would make maybeSingle() error out.
+        .eq("type", "block_time_purchase")
         .maybeSingle();
 
       if (existingInvoiceErr) {

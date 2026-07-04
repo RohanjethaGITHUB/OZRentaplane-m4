@@ -6,6 +6,7 @@ import PackageCard from '@/components/PackageCard'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import BlockTimePackageScroller from './BlockTimePackageScroller'
 import BlockTimePurchaseButton from './BlockTimePurchaseButton'
+import BlockTimeTopupCard from './BlockTimeTopupCard'
 
 export const metadata = { title: 'Block Time | OZRentAPlane' }
 
@@ -31,8 +32,10 @@ type PurchaseRow = {
   queue_position: number | null
   refund_amount: number | null
   refunded_at: string | null
-  package: { name: string } | { name: string }[] | null
+  package: PackageJoin | PackageJoin[] | null
 }
+
+type PackageJoin = { name: string; validity_days: number }
 
 type UsageRow = {
   id: string
@@ -145,7 +148,7 @@ export default async function BlockTimePage({
         queue_position,
         refund_amount,
         refunded_at,
-        package:block_time_packages ( name )
+        package:block_time_packages ( name, validity_days )
       `)
       .eq('user_id', user.id)
       .order('purchased_at', { ascending: false }),
@@ -171,6 +174,8 @@ export default async function BlockTimePage({
   const purchases = (purchaseRows ?? []) as unknown as PurchaseRow[]
   const usage = (usageRows ?? []) as unknown as UsageRow[]
   const selectedPackageSlug = normalizePackageSlug(searchParams?.package)
+  const topupOutcomeRaw = searchParams?.block_time_topup
+  const topupOutcome = Array.isArray(topupOutcomeRaw) ? topupOutcomeRaw[0] : topupOutcomeRaw ?? null
 
   const activePurchases = purchases
     .filter((p) => p.status === 'active')
@@ -209,6 +214,24 @@ export default async function BlockTimePage({
       />
 
       <div className="mx-auto max-w-[1320px] space-y-8 pb-16 pt-2">
+        {topupOutcome === 'success' ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+            <p className="text-[14px] font-semibold text-emerald-800">Top-up payment received</p>
+            <p className="mt-0.5 text-[13px] leading-relaxed text-emerald-700">
+              Your hours are being added now — the new balance and expiry will appear here within a
+              minute or two of Stripe confirming the payment. A tax invoice is on its way to your inbox.
+            </p>
+          </div>
+        ) : topupOutcome === 'cancelled' ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+            <p className="text-[14px] font-semibold text-amber-900">Top-up cancelled</p>
+            <p className="mt-0.5 text-[13px] leading-relaxed text-amber-800">
+              No payment was taken. Your package is unchanged — you can start a new top-up whenever
+              you are ready.
+            </p>
+          </div>
+        ) : null}
+
         {/* ── Active package summary ─────────────────────────────────────── */}
         <section
           className="rounded-2xl border border-[#152d5a]/10 bg-white p-6 md:p-8"
@@ -238,9 +261,13 @@ export default async function BlockTimePage({
               </p>
             </div>
             {hasActivePackage ? (
-              <span className="inline-flex items-center gap-1 self-start rounded-full border border-[#1a4fd6]/10 bg-[#f0f6ff] px-3.5 py-1.5 text-[12px] font-bold text-[#1a4fd6]">
-                You have an active package - top-up coming soon
-              </span>
+              <Link
+                href="#top-up"
+                className="inline-flex items-center gap-1 self-start rounded-full border border-[#1a4fd6]/10 bg-[#f0f6ff] px-3.5 py-1.5 text-[12px] font-bold text-[#1a4fd6] transition-colors hover:bg-[#e0eeff] hover:text-[#153eb2]"
+              >
+                Top up your package
+                <span className="material-symbols-outlined text-[14px]">add</span>
+              </Link>
             ) : (
               <Link
                 href="#packages"
@@ -291,6 +318,18 @@ export default async function BlockTimePage({
                 )
               })}
             </div>
+          ) : null}
+
+          {hasActivePackage ? (
+            <BlockTimeTopupCard
+              purchaseId={activePurchases[0].id}
+              packageName={packageName(activePurchases[0])}
+              hoursPurchased={Number(activePurchases[0].hours_purchased)}
+              hoursRemaining={Number(activePurchases[0].hours_remaining)}
+              ratePerHour={Number(activePurchases[0].rate_per_hour)}
+              expiresAt={activePurchases[0].expires_at}
+              validityDays={Number(one(activePurchases[0].package)?.validity_days ?? 0)}
+            />
           ) : null}
         </section>
 
@@ -364,9 +403,12 @@ export default async function BlockTimePage({
                     action={
                       isCleared ? (
                         hasActivePackage ? (
-                          <p className="rounded-xl border border-[#1a4fd6]/10 bg-[#f0f6ff] px-3 py-3 text-center text-[12px] font-semibold leading-relaxed text-[#1a4fd6]">
-                            You have an active package - top-up coming soon
-                          </p>
+                          <Link
+                            href="#top-up"
+                            className="block rounded-xl border border-[#1a4fd6]/10 bg-[#f0f6ff] px-3 py-3 text-center text-[12px] font-semibold leading-relaxed text-[#1a4fd6] transition-colors hover:bg-[#e0eeff] hover:text-[#153eb2]"
+                          >
+                            You have an active package — top it up instead
+                          </Link>
                         ) : (
                           <BlockTimePurchaseButton
                             packageId={pkg.id}

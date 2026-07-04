@@ -13,6 +13,8 @@ import UnblockCustomerButton from './UnblockCustomerButton'
 import { CLEARANCE_ACTION } from './clearance-actions'
 import { DocumentReviewCards } from './VerdictPanel'
 import BlockTimePurchasesSection, { type AdminBlockTimePurchase } from './BlockTimePurchasesSection'
+import BlockTimeTopupsSection, { type AdminBlockTimeTopup } from './BlockTimeTopupsSection'
+import { formatDateFromISO } from '@/lib/formatDateTime'
 
 type TimelineEvent = {
   at: string
@@ -150,6 +152,7 @@ type Props = {
   aircraftRows: AircraftRow[]
   aircraftLogRows: AircraftLogRow[]
   blockTimePurchases: AdminBlockTimePurchase[]
+  blockTimeTopups: AdminBlockTimeTopup[]
   balanceCents: number
   totalRevenueCents: number
   transactions: CreditTransaction[]
@@ -172,16 +175,12 @@ function prettyStatus(s: string): string {
 
 function shortDate(value: string | null | undefined): string {
   if (!value) return '—'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return '—'
-  return new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric' }).format(d)
+  return formatDateFromISO(value)
 }
 
 function activityDate(value: string | null | undefined): string {
   if (!value) return '—'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+  return formatDateFromISO(value)
 }
 
 function activityDotClass(eventType: string): string {
@@ -267,6 +266,7 @@ export default function CustomerProfileTabs({
   aircraftRows,
   aircraftLogRows,
   blockTimePurchases,
+  blockTimeTopups,
   balanceCents,
   totalRevenueCents,
   transactions,
@@ -895,6 +895,7 @@ export default function CustomerProfileTabs({
             </div>
           </div>
           <BlockTimePurchasesSection purchases={blockTimePurchases} />
+          <BlockTimeTopupsSection topups={blockTimeTopups} />
         </section>
       )}
 

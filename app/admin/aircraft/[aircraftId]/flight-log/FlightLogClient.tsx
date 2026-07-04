@@ -8,6 +8,7 @@ import {
 } from '@/app/actions/aircraft-flight-log'
 import type { FlightLogSource } from '@/lib/aircraft-flight-log'
 import { searchCustomers } from '@/app/actions/admin'
+import { formatDateFromISO } from '@/lib/formatDateTime'
 import CalendarDateField from '@/components/CalendarDateField'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 
@@ -797,7 +798,7 @@ export default function FlightLogClient({
                       <option value="">None</option>
                       {createContext.recentBookings.map(b => (
                         <option key={b.id} value={b.id}>
-                          {b.booking_reference ?? b.id.slice(0, 8)} · {new Date(b.scheduled_start).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' })} · {b.pic_name ?? 'PIC'}
+                          {b.booking_reference ?? b.id.slice(0, 8)} · {formatDateFromISO(b.scheduled_start)} · {b.pic_name ?? 'PIC'}
                         </option>
                       ))}
                     </select>

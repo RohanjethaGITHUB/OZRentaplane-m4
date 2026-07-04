@@ -1,3 +1,59 @@
+# Assumptions & Judgment Calls — Block Time Top-Up (July 2026, second run)
+
+Prerequisites re-verified before starting: the live database now has the corrected validity periods and rejects a second active package (probed with a disposable user, cleaned up), and both are committed (`d4248a4`).
+
+## Step 0 — Booking documents lock redesign
+
+- **State mapping for the 3-step indicator is judgment-based.** I mapped `missing` documents to step 1 as the current step, `needs_review` to step 2 as the current step, and fully `complete` document sets to all three steps complete so the lock lifts. That keeps the visual ladder aligned with the actual document gate states already returned by `evaluateBookingDocumentsReadiness()`.
+- **Missing-document copy is intentionally different from the under-review copy.** When documents are missing entirely, the banner says `Please upload your documents` and explains that booking unlocks after the team reviews and approves them. When uploads exist but are still pending review, the banner switches to `Your documents are under review` with the review-time label `Up to 24 hours`.
+- **The locked booking-type cards use a dark overlay instead of blur.** The reference image reads as a muted, legible lock state rather than a softened background effect, so the booking-type cards now use a navy overlay with per-card lock captions at the bottom instead of a large shared lock icon.
+
+## Step 1 — Database (migration 101)
+
+- **The atomic update is a database function, not application logic.** A top-up must change three fields on the purchase row (hours purchased, hours remaining, expiry) plus write a history row, all-or-nothing, while flights may be drawing the same balance down concurrently. The app talks to the database through an API that can't lock rows across calls, so this lives in `apply_block_time_topup()`, which locks the purchase row the same way `process_block_time_flight()` does. Concurrent top-ups and flights therefore queue up one at a time instead of overwriting each other.
+- **A payment can only ever be applied once, at the database level.** Each top-up records its Stripe payment id in a column that refuses duplicates, and the function returns the already-recorded result instead of applying twice. This is a second seatbelt under the existing webhook event-id dedupe.
+- **The history table records more than the brief listed.** Besides the required fields, each top-up stores the balance before/after and the expiry before/after. Cost is negligible and it turns the table into a real audit trail (and gives the admin view its "resulting extension" column for free).
+- **Top-up receipts get their own invoice type (`block_time_topup`).** Reusing the existing `block_time_purchase` type would make every report or screen that counts package purchases silently include top-ups. The allowed-types rule on the invoices table is extended instead.
+- **`amount_paid` on the purchase row grows with each top-up.** The database enforces `amount_paid = hours_purchased × rate`, so extending hours requires extending the amount too. The row's `amount_paid` therefore means "total paid into this package including top-ups" from now on (in rare cases this can differ from the sum of individual charges by one cent due to rounding — the row is recomputed from total hours so the database rule always holds).
+- **Expiry extension rounds up on odd validity periods.** Half of the package's validity is added per top-up; if a package ever has an odd validity (none does today: 30→15, 60→30, 90→45, 180→90), the customer gets the extra day.
+- **A package that hit zero hours while the payment was in flight can still receive its top-up.** If the customer flies their last hours in the minutes between starting a top-up and the payment confirming, the package is 'exhausted' when the money arrives. The function accepts that case and revives the package (which also puts it back at the end of the FIFO queue, per the existing trigger). Expired or refunded packages are refused. Edge case: if the customer had somehow activated a *new* package in that window, reviving the old one would violate the one-active-package rule and the webhook would alert the admin rather than apply silently.
+- **No role check inside the function**, following the existing convention (`process_block_time_flight` works the same way): it is only callable in practice by the server-side webhook using the service key, and the customer-facing entry point does its own ownership checks.
+
+## Step 2 — Server action + Stripe flow
+
+- **No "pending" row is created when a top-up starts.** A new purchase reserves a pending database row before payment; a top-up doesn't need one because the purchase row already exists — everything the webhook needs travels in the Stripe payment metadata. This also means an abandoned top-up checkout leaves no clutter behind (no "pending top-up" states to explain to customers).
+- **The 10% minimum is measured against the row's current `hours_purchased`.** Since top-ups increase `hours_purchased`, the minimum for the *next* top-up grows accordingly (top up a 10h package by 5h and the next minimum is 1.5h, not 1h). The brief's wording contrasts "purchased" with "remaining" rather than "original catalogue size", and this reading keeps the rule proportional to the package's real size. Fractional hours are allowed to two decimals, matching how flight hours are recorded.
+- **Expired-but-not-yet-swept packages are refused at the start.** A package still marked 'active' whose expiry date has passed can't begin a top-up (the customer would be paying to extend something that's about to be marked expired). The expiry sweep will catch it; the customer buys fresh instead.
+- **The shared minimum/extension math lives in `lib/payments/block-time-topup.ts`**, used by both the server action and the customer preview, so the two can't drift apart. (It can't live in the actions file itself — that file only exports server actions.)
+- **Webhook failure handling: money-taken-but-not-applied raises an admin alert.** If the payment succeeds but the hours can't be credited (bad metadata, package refunded in the meantime, the exhausted-then-new-package edge), the webhook posts a high-visibility follow-up to the existing admin alert channel (same pattern as failed off-session charges) instead of failing silently. Where a retry could plausibly succeed, the webhook also returns an error so Stripe retries.
+- **A replayed event never re-sends the confirmation email**: the receipt invoice is looked up by payment id, and the email/PDF step only runs when the top-up was newly applied.
+- **One-line safety fix to the existing purchase webhook branch (logged as the exception to "touch nothing else"):** its "has this purchase already been invoiced?" lookup fetched by purchase id alone and errors if more than one invoice matches. Flight invoices already share that purchase id (latent bug), and top-up receipts now do too, so the lookup is filtered to purchase-type invoices only. Behavior is otherwise identical.
+
+## Step 3 — Customer-facing UI
+
+- **The top-up form lives inside the "Current balance" summary card**, directly under the active package's balance bar, replacing the "coming soon" pill (which is now a link that scrolls to the form). Rationale: the top-up belongs visually to the package it extends, not to the "buy new package" grid below.
+- **The preview is computed in the browser from the same shared rules module the server uses**, so what the customer sees (hours added, cost at the locked-in rate, new balance, new expiry with the "+N days" chip) is exactly what the server will charge and apply. The server still re-validates everything on submission.
+- **The input defaults to the minimum top-up** with a 0.5-hour stepper, and the confirm button itself states the commitment ("Top up 2h for $640.00") so there's no surprise at Stripe checkout.
+- **Amber confirm button.** Following the page's own established convention that amber is the block-time "commit money" accent (featured package buy button), while navy stays for navigation.
+- **The package cards' action slot now points active-package holders at the top-up form** instead of the old "coming soon" text — buying a second package is still impossible, but the dead end now has an exit.
+- **After Stripe redirects back, the page shows a "payment received / hours being added" banner** rather than pretending the update is instant — the hours land when Stripe's webhook fires, usually within seconds, and the banner says so. A cancelled checkout gets a "no payment taken" banner.
+- **No clearance re-check for top-ups.** Buying block time requires checkout clearance; a top-up requires an *active package*, which could only have been bought while cleared. The form only renders when an active package exists, and the server action's ownership + active-status checks are the real gate.
+
+## Step 4 — Admin-facing UI
+
+- **The top-up history is its own card directly under "Block time purchases"** in the Billing tab, cloning that section's structure (white card, thin border, uppercase heading, row-separated list). It is read-only — there is no admin action to take on a historical top-up, so unlike the purchases section it carries no buttons.
+- **Each row shows slightly more than the brief's minimum**: hours added, amount, date, and validity extension as required, plus the locked rate it was charged at and the balance before → after (the audit columns from Step 1), because "did the customer really get their hours?" is the first question an admin will ask when looking here.
+
+## Step 5 — Testing
+
+- **The suite (`scripts/test_block_time_topup_suite.mjs`) follows the prior suite's conventions**: linked remote database, disposable clearly-named test users, real signed Stripe events POSTed at the actual webhook route on a local dev server (port 3034 so it can't collide with the older suite), emails suppressed, everything cleaned up afterwards.
+- **The 10%-minimum boundary is tested against the production code, not a copy.** The shared rules module is compiled from its TypeScript source at test time and the compiled output is exercised directly (below minimum rejected, at/above accepted, minimum grows after a top-up). The server action's surrounding glue (login, ownership, active-status, expiry checks) mirrors the existing purchase action's glue and, like it, isn't drivable outside a browser session — the parts of it that make decisions are exactly the shared module and the database function, both covered.
+- **Locked-rate coverage creates a purchase whose stored rate deliberately differs from the catalogue rate** ($250 vs the package's current price) rather than editing the shared catalogue mid-test; the suite then proves the top-up charged and recorded $250.
+- **Double-fire is covered twice over**: the same event id (event dedupe) and the same payment under a fresh event id (the database-level idempotency), since Stripe can do both.
+- **Suite status at hand-off: written but not yet green — it aborts at preflight because migration 101 has not been applied to the remote database** (schema changes are applied manually by the project owner, per standing workflow). The rules-module assertions were verified independently and pass. Once 101 is applied, run `node scripts/test_block_time_topup_suite.mjs`; per the brief the task isn't complete until it passes.
+
+---
+
 # Assumptions & Judgment Calls — Overage Invoice Gate + Combined Checkout (July 2026)
 
 ## Prerequisite check — task stopped before Step 1

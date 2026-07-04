@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
 
 type AcceptTermsResult =
-  | { ok: true }
+  | { ok: true; acceptedAt: string }
   | { ok: false; error: string }
 
 export async function acceptTermsAndConditions(): Promise<AcceptTermsResult> {
@@ -54,20 +54,51 @@ export async function acceptTermsAndConditions(): Promise<AcceptTermsResult> {
     return { ok: false, error: 'No active terms document is available right now.' }
   }
 
-  const { error } = await supabase
+  const acceptedAt = new Date().toISOString()
+  const admin = createAdminClient()
+  const acceptanceContext = 'standard'
+  console.info('[acceptTermsAndConditions] writing acceptance row', {
+    userId: user.id,
+    termsDocumentId: activeTerms.id,
+    termsVersion: activeTerms.version,
+    context: acceptanceContext,
+  })
+
+  const { error: insertError } = await admin
+    .from('booking_terms_acceptances')
+    .insert({
+      booking_id: null,
+      checkout_request_id: null,
+      user_id: user.id,
+      terms_document_id: activeTerms.id,
+      terms_version: activeTerms.version,
+      terms_document_url: activeTerms.public_url,
+      terms_content_hash: activeTerms.content_hash,
+      acceptance_text: 'I have read and accept the booking terms and conditions.',
+      accepted_ip: null,
+      user_agent: null,
+      accepted_at: acceptedAt,
+      acceptance_context: acceptanceContext,
+    })
+
+  if (insertError) {
+    return { ok: false, error: 'Could not save your terms acceptance right now. Please try again.' }
+  }
+
+  const { error: profileError } = await supabase
     .from('profiles')
     .update({
-      terms_accepted_at: new Date().toISOString(),
+      terms_accepted_at: acceptedAt,
       terms_version: activeTerms.version,
     })
     .eq('id', user.id)
 
-  if (error) {
+  if (profileError) {
     return { ok: false, error: 'Could not save your terms acceptance right now. Please try again.' }
   }
 
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/documents')
   revalidatePath('/dashboard/bookings/new')
-  return { ok: true }
+  return { ok: true, acceptedAt }
 }

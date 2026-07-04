@@ -5,6 +5,7 @@ import Stripe from "stripe";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { PAYMENT_CONFIG } from "@/lib/payments/config";
+import { validateBlockTimeTopupHours } from "@/lib/payments/block-time-topup";
 import {
   notifyAdminBankTransferProofUploaded,
   notifyBankTransferProofReceived,
@@ -340,6 +341,164 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
   if (updatePurchaseErr) {
     throw new Error(updatePurchaseErr.message || "Failed to link the payment intent.");
   }
+
+  if (!session.url) {
+    throw new Error("Failed to create Stripe checkout session.");
+  }
+
+  redirect(session.url);
+}
+
+export async function createBlockTimeTopupIntent(purchaseId: string, hoursRequested: number) {
+  const stripeSecret = process.env.STRIPE_SECRET_KEY;
+  if (!stripeSecret) {
+    throw new Error("Server misconfiguration");
+  }
+
+  const stripe = new Stripe(stripeSecret, {
+    apiVersion: "2023-10-16" as any,
+  });
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) throw new Error("Unauthorized");
+
+  const { data: profile, error: profileErr } = await supabase
+    .from("profiles")
+    .select("id, full_name, email, stripe_customer_id")
+    .eq("id", user.id)
+    .single();
+
+  if (profileErr || !profile) {
+    throw new Error("Profile not found.");
+  }
+
+  type TopupPurchaseRow = {
+    id: string;
+    user_id: string;
+    package_id: string;
+    hours_purchased: number;
+    hours_remaining: number;
+    rate_per_hour: number;
+    status: string;
+    expires_at: string;
+    package:
+      | { id: string; name: string; validity_days: number }
+      | { id: string; name: string; validity_days: number }[]
+      | null;
+  };
+
+  const { data: purchaseRaw, error: purchaseErr } = await supabase
+    .from("pilot_block_time_purchases")
+    .select(`
+      id,
+      user_id,
+      package_id,
+      hours_purchased,
+      hours_remaining,
+      rate_per_hour,
+      status,
+      expires_at,
+      package:block_time_packages ( id, name, validity_days )
+    `)
+    .eq("id", purchaseId)
+    .eq("user_id", user.id)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (purchaseErr) {
+    throw new Error(purchaseErr.message || "Failed to load your block time package.");
+  }
+
+  const purchase = purchaseRaw as TopupPurchaseRow | null;
+  if (!purchase) {
+    throw new Error("No active block time package found to top up.");
+  }
+
+  if (new Date(purchase.expires_at).getTime() <= Date.now()) {
+    throw new Error("This package has expired and can no longer be topped up.");
+  }
+
+  const validation = validateBlockTimeTopupHours(Number(hoursRequested), Number(purchase.hours_purchased));
+  if (!validation.ok) {
+    throw new Error(validation.reason);
+  }
+  const hours = validation.hours;
+
+  const packageRow = Array.isArray(purchase.package) ? purchase.package[0] : purchase.package;
+  const packageName = packageRow?.name ?? "Block Time";
+  // Charge at the rate locked in on the purchase row — never the package's
+  // current catalogue rate.
+  const ratePerHour = Number(purchase.rate_per_hour);
+  const amountCents = Math.round(hours * ratePerHour * 100);
+
+  let stripeCustomerId = profile.stripe_customer_id ?? null;
+  if (!stripeCustomerId) {
+    const customer = await stripe.customers.create({
+      email: profile.email ?? undefined,
+      name: profile.full_name ?? undefined,
+      metadata: {
+        supabase_user_id: user.id,
+      },
+    });
+
+    stripeCustomerId = customer.id;
+
+    const { error: updateCustomerErr } = await supabase
+      .from("profiles")
+      .update({ stripe_customer_id: stripeCustomerId })
+      .eq("id", user.id);
+
+    if (updateCustomerErr) {
+      throw new Error(updateCustomerErr.message || "Failed to save Stripe customer.");
+    }
+  }
+
+  const appUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000";
+
+  const topupMetadata = {
+    purchase_type: "block_time_topup",
+    supabase_user_id: user.id,
+    purchase_id: purchase.id,
+    package_id: purchase.package_id,
+    package_name: packageName,
+    hours_added: String(hours),
+    rate_per_hour: String(ratePerHour),
+  };
+
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
+    mode: "payment",
+    customer: stripeCustomerId,
+    line_items: [
+      {
+        price_data: {
+          currency: "aud",
+          product_data: {
+            name: `OZ Rent A Plane - ${packageName} Top-Up`,
+            description: `${hours} hours at ${ratePerHour.toFixed(0)}/hr (locked-in rate)`,
+          },
+          unit_amount: amountCents,
+        },
+        quantity: 1,
+      },
+    ],
+    success_url: `${appUrl}/dashboard/block-time?block_time_topup=success`,
+    cancel_url: `${appUrl}/dashboard/block-time?block_time_topup=cancelled`,
+    metadata: topupMetadata,
+    payment_intent_data: ({
+      setup_future_usage: "off_session",
+      metadata: topupMetadata,
+      description: `OZ Rent A Plane - ${packageName} Top-Up (${hours}h Block Time)`,
+    } as any),
+  });
 
   if (!session.url) {
     throw new Error("Failed to create Stripe checkout session.");

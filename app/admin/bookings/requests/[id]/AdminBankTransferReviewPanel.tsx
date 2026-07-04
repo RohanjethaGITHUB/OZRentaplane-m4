@@ -5,6 +5,7 @@ import { useState } from "react"
 import { adminApproveBankTransfer, adminRejectBankTransfer } from "@/app/actions/payment"
 import DocumentViewerModal from "@/components/ui/DocumentViewerModal"
 import type { DocumentFile } from "@/components/ui/DocumentViewerModal"
+import { formatDateFromISO } from "@/lib/formatDateTime"
 
 type Submission = {
   id: string
@@ -77,7 +78,7 @@ export default function AdminBankTransferReviewPanel({ bookingId, submission }: 
           <p className="text-[#4b6390] text-[11px] uppercase tracking-wide mb-0.5">Submitted</p>
           <p className="font-semibold text-[#152d5a]">
             {submission.submitted_at
-              ? new Date(submission.submitted_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+              ? formatDateFromISO(submission.submitted_at)
               : '—'}
           </p>
         </div>
