@@ -636,6 +636,142 @@ export async function POST(req: Request) {
       }
     }
 
+    if (paymentIntent.metadata?.purchase_type === "block_time_overage_payment") {
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+        if (!supabaseUrl || !serviceKey) {
+          console.error("[webhook] Missing Supabase env vars");
+          return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
+        }
+
+        const supabase = createClient(supabaseUrl, serviceKey) as any;
+        const invoiceId = paymentIntent.metadata.invoice_id ?? null;
+
+        if (!invoiceId) {
+          console.error("[webhook] block_time_overage_payment missing invoice_id metadata", {
+            paymentIntentId: paymentIntent.id,
+          });
+          // Money has been taken but the invoice cannot be settled — alert admin.
+          await supabase.from("verification_events").insert({
+            user_id: paymentIntent.metadata.supabase_user_id ?? null,
+            actor_role: "system",
+            event_type: "message",
+            title: "Block time overage payment received but not applied — manual follow-up required",
+            body: `Stripe payment ${paymentIntent.id} carries purchase_type=block_time_overage_payment but is missing invoice_id metadata, so the overage invoice was not marked paid. Please settle the invoice manually or refund the payment.`,
+            is_read: false,
+            email_status: "pending",
+          });
+          return NextResponse.json({ received: true });
+        }
+
+        const { data: overageInvoice, error: overageInvoiceErr } = await supabase
+          .from("invoices")
+          .select("id, invoice_number, user_id, booking_id, total, status")
+          .eq("id", invoiceId)
+          .eq("is_block_time_overage", true)
+          .maybeSingle();
+
+        if (overageInvoiceErr) {
+          logErr("load overage invoice FAILED", overageInvoiceErr);
+          return NextResponse.json({ error: "Payment processing failed" }, { status: 500 });
+        }
+
+        if (!overageInvoice) {
+          console.error("[webhook] overage invoice not found", { invoiceId, paymentIntentId: paymentIntent.id });
+          await supabase.from("verification_events").insert({
+            user_id: paymentIntent.metadata.supabase_user_id ?? null,
+            actor_role: "system",
+            event_type: "message",
+            title: "Block time overage payment received but invoice not found — manual follow-up required",
+            body: `Stripe payment ${paymentIntent.id} references overage invoice ${invoiceId}, which does not exist. Please investigate and settle or refund manually.`,
+            is_read: false,
+            email_status: "pending",
+          });
+          return NextResponse.json({ received: true });
+        }
+
+        if (overageInvoice.status === "paid") {
+          // Replay (same payment under a fresh event id) — nothing to do.
+          await markEventProcessed(supabase, event);
+          console.log("[webhook] block_time_overage_payment replay — invoice already paid", { invoiceId });
+          return NextResponse.json({ received: true });
+        }
+
+        const { error: paidErr } = await supabase
+          .from("invoices")
+          .update({
+            status: "paid",
+            payment_method: "stripe",
+            stripe_payment_intent_id: paymentIntent.id,
+            paid_at: new Date().toISOString(),
+          })
+          .eq("id", invoiceId)
+          .eq("status", "awaiting");
+
+        if (paidErr) {
+          logErr("mark overage invoice paid FAILED", paidErr);
+          return NextResponse.json({ error: "Payment processing failed" }, { status: 500 });
+        }
+
+        await markEventProcessed(supabase, event);
+
+        // Customer notification + email — the gate lifts automatically now
+        // that the invoice is paid.
+        try {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name, email")
+            .eq("id", overageInvoice.user_id)
+            .single();
+
+          if (profile?.email) {
+            const template = paymentConfirmedEmail(
+              `Your block time overage invoice ${overageInvoice.invoice_number} ($${Number(overageInvoice.total).toFixed(2)}) has been paid. Thank you — bookings and block time purchases are available again.`,
+            );
+            await sendEmail({
+              to: profile.email,
+              subject: template.subject,
+              html: template.html,
+              eventType: "block_time_overage_paid",
+              entityType: "invoice",
+              entityId: overageInvoice.id,
+              metadata: {
+                invoiceNumber: overageInvoice.invoice_number,
+                total: Number(overageInvoice.total),
+              },
+            });
+          }
+
+          await supabase.from("verification_events").insert({
+            user_id: overageInvoice.user_id,
+            actor_role: "system",
+            event_type: "approved",
+            title: "Block time overage paid — account unlocked",
+            body: `Overage invoice ${overageInvoice.invoice_number} ($${Number(overageInvoice.total).toFixed(2)}) has been paid. New bookings, block time purchases, and top-ups are available again.`,
+            is_read: false,
+            email_status: "skipped",
+          });
+        } catch (notifEx: any) {
+          console.warn("[webhook] overage payment notification failed (non-fatal)", { message: notifEx?.message });
+        }
+
+        console.log("[webhook] block_time_overage_payment processed successfully ✓", {
+          invoiceId,
+          paymentIntentId: paymentIntent.id,
+        });
+        return NextResponse.json({ received: true });
+      } catch (err: any) {
+        console.error("[webhook] block_time_overage_payment fatal error", {
+          message: err?.message,
+          stack: err?.stack,
+          name: err?.name,
+        });
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+      }
+    }
+
     try {
       if (paymentIntent.metadata?.purchase_type !== "block_time") {
         console.log("[webhook] Skipping - non block_time payment intent");

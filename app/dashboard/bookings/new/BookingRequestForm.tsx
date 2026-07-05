@@ -9,6 +9,7 @@ import {
   useRef,
 } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createBooking } from "@/app/actions/booking";
 import {
   checkCustomerAvailability,
@@ -20,10 +21,11 @@ import type { CreateBookingInput } from "@/lib/supabase/booking-types";
 import type { UserDocument } from "@/lib/supabase/types";
 import { sydneyInputToUTC, formatSydTime } from "@/lib/utils/sydney-time";
 import { validateFlightReviewDate } from "@/lib/utils/flight-review";
-import { formatDate, formatDateTime } from "@/lib/formatDateTime";
+import { formatDate, formatDateFromISO } from "@/lib/formatDateTime";
 import DocumentProgressCard from "@/components/DocumentProgressCard";
 import CalendarDateField from "@/components/CalendarDateField";
 import PortalPageHero from "@/components/PortalPageHero";
+import BookingConfirmationModal from "./BookingConfirmationModal";
 import { getDocumentProgressSnapshot } from "@/lib/document-progress";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -43,6 +45,7 @@ type SuccessState = {
   bookingId: string;
   bookingReference: string;
   bookingStatus: string;
+  bookingMode: "single" | "multi";
   startDT: string;
   endDT: string;
   estimatedHours: number | null;
@@ -55,7 +58,14 @@ type Props = {
   aircraftRegistration: string;
   aircraftType: string;
   aircraftStatus: string;
-  hourlyRate: number;
+  payfRatePerHour: number;
+  displayedRatePerHour: number;
+  activeBlockTimeSummary: {
+    hoursRemaining: number;
+    expiresAt: string;
+    ratePerHour: number;
+  } | null;
+  cheapestActivePackageRatePerHour: number | null;
   picName: string | null;
   picArn: string | null;
   documentReadinessItems: BookingReadinessItem[];
@@ -113,17 +123,14 @@ function formatShortDateDisplay(dateStr: string): string {
   return formatDate(dateStr);
 }
 
+function formatHourlyRate(rate: number): string {
+  return `$${Math.round(rate).toLocaleString("en-AU")}/hr`;
+}
+
 function shiftDateByDays(dateStr: string, days: number): string {
   const d = new Date(`${dateStr}T12:00:00`);
   d.setDate(d.getDate() + days);
   return d.toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
-}
-
-function formatInputAsAU(dtLocal: string): string {
-  if (!dtLocal) return "—";
-  const utc = sydneyInputToUTC(dtLocal);
-  if (!utc) return "—";
-  return formatDateTime(utc);
 }
 
 function parseTimeToMinutes(time: string): number {
@@ -162,10 +169,6 @@ function getVdoHourlyRate(hours: number): number {
   if (hours < 50) return 310;
   if (hours < 100) return 300;
   return 290;
-}
-
-function formatMoney(amount: number): string {
-  return `$${Math.round(amount).toLocaleString()}`;
 }
 
 // ── Date input ─────────────────────────────────────────────────────────────────
@@ -359,6 +362,114 @@ function AvailabilityStatus({
   return null;
 }
 
+function BookingRateContextPanel({
+  payfRatePerHour,
+  displayedRatePerHour,
+  activeBlockTimeSummary,
+  cheapestActivePackageRatePerHour,
+}: {
+  payfRatePerHour: number
+  displayedRatePerHour: number
+  activeBlockTimeSummary: Props["activeBlockTimeSummary"]
+  cheapestActivePackageRatePerHour: number | null
+}) {
+  const hasActiveBlockTime = activeBlockTimeSummary !== null
+
+  return (
+    <div
+      className={`mb-5 rounded-2xl border px-6 py-5 shadow-sm ${
+        hasActiveBlockTime ? "border-green-500/20 bg-green-500/5" : "border-[#f2d28a] bg-[#fff6df]"
+      }`}
+    >
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex-1">
+          <p
+            className={`text-[11px] font-semibold uppercase tracking-widest ${
+              hasActiveBlockTime ? "text-green-700" : "text-[#a16207]"
+            }`}
+          >
+            {hasActiveBlockTime ? "Block time active" : "Pay As You Fly"}
+          </p>
+          <p
+            className={`mt-2 text-lg font-bold ${
+              hasActiveBlockTime ? "text-green-700" : "text-[#7c2d12]"
+            }`}
+          >
+            {hasActiveBlockTime
+              ? "Your locked-in block time rate is available for this booking."
+              : "You're booking at the Pay As You Fly rate."}
+          </p>
+          <p
+            className={`mt-1 text-sm leading-relaxed ${
+              hasActiveBlockTime ? "text-green-700/80" : "text-[#8b5e34]"
+            }`}
+          >
+            {hasActiveBlockTime
+              ? `You can use your current balance below and top up later from Block Time.`
+              : `That's ${formatHourlyRate(payfRatePerHour)} for this flight. Save up to $40/hr by purchasing a Block Time package.`}
+          </p>
+        </div>
+
+        <div
+          className={`lg:border-l lg:pl-6 ${
+            hasActiveBlockTime ? "lg:border-green-500/20" : "lg:border-[#e9c87b]"
+          }`}
+        >
+          <div className={`flex items-start gap-2 ${hasActiveBlockTime ? "text-green-700" : "text-[#b45309]"}`}>
+            <span className="material-symbols-outlined text-[18px] mt-0.5">
+              schedule
+            </span>
+            <div>
+              <p
+                className={`text-xs font-semibold uppercase tracking-wide ${
+                  hasActiveBlockTime ? "text-green-700/80" : "text-[#a16207]"
+                }`}
+              >
+                {hasActiveBlockTime ? "Current balance" : "Booking rate"}
+              </p>
+              {hasActiveBlockTime && activeBlockTimeSummary ? (
+                <>
+                  <p className={`text-sm font-semibold ${hasActiveBlockTime ? "text-green-700" : "text-[#7c2d12]"}`}>
+                    {activeBlockTimeSummary.hoursRemaining.toFixed(1)}h remaining
+                  </p>
+                  <p className={`text-xs ${hasActiveBlockTime ? "text-green-700/80" : "text-[#8b5e34]"}`}>
+                    Expires {formatDateFromISO(activeBlockTimeSummary.expiresAt)}
+                  </p>
+                  <p className="mt-3 text-sm line-through text-[#4b6390]/70">
+                    {formatHourlyRate(payfRatePerHour)}
+                  </p>
+                  <p className={`font-serif text-3xl font-normal ${hasActiveBlockTime ? "text-[#1a4fd6]" : "text-[#152d5a]"}`}>
+                    {formatHourlyRate(displayedRatePerHour)}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-[#7c2d12]">
+                    You're booking at the Pay As You Fly rate
+                  </p>
+                  <p className="mt-3 text-sm leading-relaxed text-[#7c2d12]">
+                    That's {formatHourlyRate(payfRatePerHour)} for this flight. Save up to $40/hr by purchasing a Block Time package.
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {!hasActiveBlockTime ? (
+            <Link
+              href="/dashboard/pricing"
+              className="mt-4 inline-flex items-center justify-center gap-2 rounded-full border border-[#1a4fd6]/10 bg-[#f0f6ff] px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-[#1a4fd6] transition-colors hover:bg-[#e0edff] hover:text-[#153eb2]"
+            >
+              View Block Time
+              <span className="material-symbols-outlined text-sm">arrow_forward</span>
+            </Link>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function BookingRequestForm({
@@ -366,7 +477,10 @@ export default function BookingRequestForm({
   aircraftRegistration,
   aircraftType,
   aircraftStatus,
-  hourlyRate,
+  payfRatePerHour,
+  displayedRatePerHour,
+  activeBlockTimeSummary,
+  cheapestActivePackageRatePerHour,
   picName,
   picArn,
   documentReadinessItems,
@@ -381,7 +495,6 @@ export default function BookingRequestForm({
   const [bookingMode, setBookingMode] = useState<
     "single" | "multi" | null
   >(null);
-  const [showPricingModal, setShowPricingModal] = useState(false);
   const [dragging, setDragging] = useState<"start" | "end" | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     summary: true,
@@ -415,6 +528,9 @@ export default function BookingRequestForm({
   const [medical] = useState(true);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successState, setSuccessState] = useState<SuccessState | null>(null);
+  const [multiDayMinimumInfoOpen, setMultiDayMinimumInfoOpen] = useState(false);
+  const multiDayMinimumInfoRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   const timeToPct = (t: string): number => {
     if (!t) return 0;
@@ -451,6 +567,30 @@ export default function BookingRequestForm({
 
   const toggleSection = (key: string) =>
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  useEffect(() => {
+    if (!multiDayMinimumInfoOpen) return;
+
+    function onMouseDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (!multiDayMinimumInfoRef.current?.contains(target)) {
+        setMultiDayMinimumInfoOpen(false);
+      }
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMultiDayMinimumInfoOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [multiDayMinimumInfoOpen]);
 
   // Flight review validation (silent — no UI for editing, value comes from profile)
   const flightReviewError = lastFlightDate
@@ -654,31 +794,14 @@ export default function BookingRequestForm({
   }, [bookingDurationMinutes]);
 
   const estimatedRate = useMemo(() => {
-    if (estimatedHours == null) return hourlyRate;
+    if (estimatedHours == null) return payfRatePerHour;
     return getVdoHourlyRate(estimatedHours);
-  }, [estimatedHours, hourlyRate]);
+  }, [estimatedHours, payfRatePerHour]);
 
   const estimatedTotal = useMemo(() => {
     if (estimatedHours == null) return null;
     return estimatedHours * estimatedRate;
   }, [estimatedHours, estimatedRate]);
-
-  const multiDayMinimumVdoHours = useMemo(() => {
-    if (
-      bookingMode !== "multi" ||
-      estimatedHours == null ||
-      estimatedHours <= 0
-    ) {
-      return null;
-    }
-    return Math.max(4, Math.ceil(estimatedHours / 24) * 4);
-  }, [bookingMode, estimatedHours]);
-
-  const multiDayMinimumEstimate = useMemo(() => {
-    if (multiDayMinimumVdoHours == null) return null;
-    const rate = getVdoHourlyRate(multiDayMinimumVdoHours);
-    return multiDayMinimumVdoHours * rate;
-  }, [multiDayMinimumVdoHours]);
 
   const bookingDayCount = useMemo(() => {
     if (bookingMode !== "multi" || !startDate || !bookingReturnDate) return 0;
@@ -694,6 +817,11 @@ export default function BookingRequestForm({
       Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
     );
   }, [bookingMode, startDate, bookingReturnDate]);
+
+  const multiDayMinimumVdoHours = useMemo(() => {
+    if (bookingMode !== "multi" || bookingDayCount <= 0) return null;
+    return bookingDayCount * 4;
+  }, [bookingMode, bookingDayCount]);
 
   const activeBookingDate = startDate;
 
@@ -806,11 +934,11 @@ export default function BookingRequestForm({
           bookingId: result.bookingId,
           bookingReference: result.bookingReference,
           bookingStatus: result.bookingStatus,
+          bookingMode: bookingMode ?? "single",
           startDT,
           endDT,
           estimatedHours,
         });
-        window.scrollTo({ top: 0, behavior: "smooth" });
       } catch (err: unknown) {
         const msg =
           err instanceof Error ? err.message : "Something went wrong.";
@@ -842,158 +970,27 @@ export default function BookingRequestForm({
     });
   }
 
-  // ── Success state ─────────────────────────────────────────────────────────
-
-  if (successState) {
-    const isConfirmed = successState.bookingStatus === "confirmed";
-
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center px-6 py-20">
-        <div className="max-w-lg w-full text-center">
-          <div
-            className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-8 ${
-              isConfirmed
-                ? "bg-green-500/15 border border-green-500/20"
-                : "bg-blue-500/15 border border-blue-500/20"
-            }`}
-          >
-            <span
-              className={`material-symbols-outlined text-4xl ${isConfirmed ? "text-green-400" : "text-blue-400"}`}
-              style={{ fontVariationSettings: "'FILL' 1, 'wght' 400" }}
-            >
-              {isConfirmed ? "check_circle" : "pending_actions"}
-            </span>
-          </div>
-
-          <p
-            className={`text-[10px] font-bold uppercase tracking-[0.35em] mb-3 ${isConfirmed ? "text-green-400/70" : "text-blue-400/70"}`}
-          >
-            {isConfirmed ? "Booking Confirmed" : "Request Received"}
-          </p>
-          <h1 className="text-3xl md:text-4xl font-serif text-white mb-4 leading-tight">
-            {isConfirmed
-              ? "Your Booking Is Confirmed"
-              : "Booking Request Submitted"}
-          </h1>
-          <p className="text-slate-400 text-sm leading-relaxed mb-8 max-w-sm mx-auto">
-            {isConfirmed
-              ? "Your aircraft booking has been confirmed. Please arrive at the aircraft at least 30 minutes before departure for pre-flight checks."
-              : "Your request has been submitted and is awaiting review by our operations team."}
-          </p>
-
-          <div className="bg-gradient-to-br from-[#0f1d38] to-[#080e1c] border-t border-white/[0.13] border-x border-b border-x-white/[0.06] border-b-white/[0.06] rounded-xl p-7 mb-6 relative overflow-hidden">
-            <div
-              className="absolute inset-0 rounded-xl pointer-events-none"
-              style={{
-                background:
-                  "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.12) 0%, transparent 70%)",
-              }}
-            />
-            <div className="relative">
-              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-blue-400/70 mb-3">
-                Booking Reference
-              </p>
-              <p className="text-3xl font-mono font-bold text-white tracking-[0.18em] mb-2">
-                {successState.bookingReference}
-              </p>
-              <p className="text-[11px] text-slate-600">
-                Save this reference for your records
-              </p>
-            </div>
-          </div>
-
-          {isConfirmed ? (
-            <div className="bg-green-500/[0.07] border border-green-500/20 rounded-xl px-5 py-4 mb-6 flex items-start gap-3 text-left">
-              <span
-                className="material-symbols-outlined text-green-400 text-base flex-shrink-0 mt-0.5"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                check_circle
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-green-300 mb-1">
-                  Booking confirmed
-                </p>
-                <p className="text-xs text-green-300/70 leading-relaxed">
-                  Your booking is confirmed. Please arrive at the aircraft at
-                  least 30 minutes before your scheduled departure.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-blue-500/[0.07] border border-blue-500/20 rounded-xl px-5 py-4 mb-6 flex items-start gap-3 text-left">
-              <span className="material-symbols-outlined text-blue-400 text-base flex-shrink-0 mt-0.5">
-                pending_actions
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-blue-300 mb-1">
-                  Awaiting review
-                </p>
-                <p className="text-xs text-blue-300/70 leading-relaxed">
-                  Our operations team will review your request and confirm the
-                  booking shortly.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {(successState.startDT || successState.estimatedHours != null) && (
-            <div className="bg-[#080e1c] border border-white/[0.07] rounded-xl p-5 mb-8 text-left space-y-3">
-              {successState.startDT && (
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-slate-500">Departure</span>
-                  <span className="text-xs text-white font-medium">
-                    {formatInputAsAU(successState.startDT)}
-                  </span>
-                </div>
-              )}
-              {successState.endDT && (
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-slate-500">Est. Return</span>
-                  <span className="text-xs text-white font-medium">
-                    {formatInputAsAU(successState.endDT)}
-                  </span>
-                </div>
-              )}
-              {successState.estimatedHours != null && (
-                <div className="flex justify-between items-center border-t border-white/[0.05] pt-3">
-                  <span className="text-xs text-slate-500">Est. Duration</span>
-                  <span className="text-xs text-blue-400 font-semibold">
-                    {formatDuration(successState.estimatedHours)}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Link
-              href={`/dashboard/bookings/${successState.bookingId}`}
-              className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-[0.2em] rounded-lg transition-all flex items-center justify-center gap-2 shadow-[0_0_24px_rgba(37,99,235,0.25)]"
-            >
-              <span className="material-symbols-outlined text-sm">
-                receipt_long
-              </span>
-              View Booking
-            </Link>
-            <Link
-              href="/dashboard/bookings"
-              className="flex-1 py-4 bg-white/[0.06] hover:bg-white/[0.09] text-white font-bold text-xs uppercase tracking-[0.2em] rounded-lg transition-all flex items-center justify-center gap-2 border border-white/[0.08]"
-            >
-              <span className="material-symbols-outlined text-sm">
-                format_list_bulleted
-              </span>
-              My Bookings
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
+    <>
+      {successState ? (
+        <BookingConfirmationModal
+          open
+          bookingId={successState.bookingId}
+          bookingReference={successState.bookingReference}
+          bookingStatus={successState.bookingStatus}
+          bookingMode={successState.bookingMode}
+          startDT={successState.startDT}
+          endDT={successState.endDT}
+          estimatedHours={successState.estimatedHours}
+          onClose={() => {
+            setSuccessState(null);
+            router.replace("/dashboard/bookings");
+          }}
+        />
+      ) : null}
+
     <div
       data-testid="booking-form"
       className="min-h-screen bg-white text-[#152d5a]"
@@ -1184,11 +1181,18 @@ export default function BookingRequestForm({
                 </div>
               </div>
 
-                <div
-                  className={`mt-5 grid grid-cols-1 lg:grid-cols-2 gap-3 ${
-                    bookingTypeLocked ? "pointer-events-none select-none" : ""
-                  }`}
-                >
+              <BookingRateContextPanel
+                payfRatePerHour={payfRatePerHour}
+                displayedRatePerHour={displayedRatePerHour}
+                activeBlockTimeSummary={activeBlockTimeSummary}
+                cheapestActivePackageRatePerHour={cheapestActivePackageRatePerHour}
+              />
+
+              <div
+                className={`mt-5 grid grid-cols-1 lg:grid-cols-2 gap-3 ${
+                  bookingTypeLocked ? "pointer-events-none select-none" : ""
+                }`}
+              >
                 {/* ── Single day ── */}
                 <button
                   type="button"
@@ -1256,7 +1260,7 @@ export default function BookingRequestForm({
                             : "bg-[#dde8f5] text-[#1640b0]"
                         }`}
                       >
-                        $320/hr
+                        {formatHourlyRate(displayedRatePerHour)}
                       </span>
                     </div>
 
@@ -1929,23 +1933,25 @@ export default function BookingRequestForm({
                     <div className="border-t border-[#f1f5f9] pt-3 flex justify-between items-baseline">
                       <span className="text-sm text-[#6b7280]">Rate</span>
                       <span className="text-lg font-bold text-[#152d5a]">
-                        {estimatedHours != null
+                        {activeBlockTimeSummary ? (
+                          <span className="flex flex-col items-end">
+                            <span className="mt-3 text-sm line-through text-[#4b6390]/70">
+                              {formatHourlyRate(payfRatePerHour)}
+                            </span>
+                            <span className="font-serif text-3xl font-normal text-[#1a4fd6]">
+                              {formatHourlyRate(displayedRatePerHour)}
+                            </span>
+                          </span>
+                        ) : estimatedHours != null
                           ? `$${getVdoHourlyRate(estimatedHours)}/hr`
                           : "From $290–$330/hr"}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center pt-1">
-                      <p className="text-[11px] text-[#94a3b8]">
+                    <div className="flex items-center pt-1">
+                      <p className="text-sm text-[#94a3b8] leading-relaxed">
                         +$28.95 per landing · Final invoice after flight record
                         submitted.
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => setShowPricingModal(true)}
-                        className="text-xs text-[#1a4fd6] font-medium hover:underline whitespace-nowrap ml-3"
-                      >
-                        Full pricing →
-                      </button>
                     </div>
                   </div>
                 )}
@@ -2148,121 +2154,91 @@ export default function BookingRequestForm({
                     Pricing summary
                   </span>
                 </div>
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <svg
-                      className="w-5 h-5 text-[#94a3b8]"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={1.5}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a2 2 0 012-2z"
-                      />
-                    </svg>
-                    <div>
-                      <div className="text-xs text-[#6b7280]">Booking type</div>
-                      <div className="text-sm font-semibold text-[#152d5a]">
-                        Multi-day hire
+                <div className="grid gap-3 lg:grid-cols-3">
+                  <div className="rounded-2xl border border-[#e2e8f0] bg-[#f8faff] p-4">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="material-symbols-outlined text-[#94a3b8] text-[18px] flex-shrink-0"
+                        style={{ fontVariationSettings: "'wght' 300" }}
+                      >
+                        calendar_month
+                      </span>
+                      <div>
+                        <div className="text-[13px] text-[#6b7280] md:text-sm">
+                          Booking type
+                        </div>
+                        <div className="text-[15px] font-semibold text-[#152d5a] md:text-base">
+                          Multi-day hire
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <svg
-                      className="w-5 h-5 text-[#94a3b8]"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={1.5}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <div>
-                      <div className="text-xs text-[#6b7280]">
-                        Minimum billable VDO
-                      </div>
-                      <div className="text-sm font-semibold text-[#152d5a]">
-                        {multiDayMinimumVdoHours
-                          ? `${multiDayMinimumVdoHours} VDO hours`
-                          : "—"}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <svg
-                      className="w-5 h-5 text-[#94a3b8]"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={1.5}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"
-                      />
-                    </svg>
-                    <div>
-                      <div className="text-xs text-[#6b7280]">
-                        Final billing
-                      </div>
-                      <div className="text-sm font-semibold text-[#152d5a]">
-                        Based on actual VDO hours flown
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <svg
-                      className="w-5 h-5 text-[#94a3b8]"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={1.5}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    <div>
-                      <div className="text-xs text-[#6b7280]">
-                        Minimum estimate
-                      </div>
-                      <div className="text-sm font-semibold text-[#152d5a]">
-                        {multiDayMinimumEstimate == null
-                          ? "—"
-                          : formatMoney(multiDayMinimumEstimate)}
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowPricingModal(true)}
-                    className="text-sm text-[#1a4fd6] font-medium border border-[#1a4fd6]/30 rounded-lg px-3 py-1 text-xs hover:bg-[#f0f6ff] transition-colors flex items-center gap-1 ml-auto"
+
+                  <div
+                    ref={multiDayMinimumInfoRef}
+                    className="relative rounded-2xl border border-[#e2e8f0] bg-[#f8faff] p-4"
                   >
-                    View full pricing
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </button>
+                    <div className="flex items-start gap-2.5">
+                      <span
+                        className="material-symbols-outlined text-[#94a3b8] text-[18px] flex-shrink-0 mt-0.5"
+                        style={{ fontVariationSettings: "'wght' 300" }}
+                      >
+                        schedule
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <div className="text-[13px] text-[#6b7280] md:text-sm">
+                            Minimum billable VDO
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setMultiDayMinimumInfoOpen((value) => !value)}
+                            aria-label="Explain the minimum billable VDO rule"
+                            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[#1a4fd6] transition-colors hover:bg-[#e0edff] hover:text-[#1540a8]"
+                          >
+                            <span
+                              className="material-symbols-outlined text-[15px]"
+                              style={{ fontVariationSettings: "'wght' 300" }}
+                            >
+                              info
+                            </span>
+                          </button>
+                        </div>
+                        <div className="text-[15px] font-semibold text-[#152d5a] md:text-base">
+                          {multiDayMinimumVdoHours
+                            ? `${multiDayMinimumVdoHours} VDO hours`
+                            : "—"}
+                        </div>
+                      </div>
+                    </div>
+
+                    {multiDayMinimumInfoOpen ? (
+                      <div className="absolute left-4 right-4 top-[calc(100%+0.5rem)] z-10 rounded-2xl border border-[#152d5a]/15 bg-white p-4 shadow-[0_16px_40px_rgba(21,45,90,0.16)]">
+                        <p className="text-[13px] leading-6 text-[#4b6390]">
+                          Each day of a multi-day booking is billed a minimum of 4 VDO hours, even if you fly less. If you fly more than 4 hours on a given day, you're billed for the actual hours flown that day. This minimum applies per day, not across the whole booking.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-2xl border border-[#e2e8f0] bg-[#f8faff] p-4">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="material-symbols-outlined text-[#94a3b8] text-[18px] flex-shrink-0"
+                        style={{ fontVariationSettings: "'wght' 300" }}
+                      >
+                        payments
+                      </span>
+                      <div>
+                        <div className="text-[13px] text-[#6b7280] md:text-sm">
+                          Final billing
+                        </div>
+                        <div className="text-[15px] font-semibold text-[#152d5a] md:text-base">
+                          Based on actual VDO hours flown
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -2481,193 +2457,8 @@ export default function BookingRequestForm({
             )}
           </div>
         )}
-
-        {showPricingModal && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-            <div
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-              onClick={() => setShowPricingModal(false)}
-            />
-
-            <div className="relative z-10 w-full sm:max-w-lg mx-4 bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="flex justify-center pt-3 pb-1 sm:hidden">
-                <div className="w-10 h-1 rounded-full bg-[#e2e8f0]" />
-              </div>
-
-              <div className="px-6 pt-4 pb-8">
-                <div className="flex items-start justify-between mb-5">
-                  <div>
-                    <p className="text-xs font-semibold text-[#1a4fd6] uppercase tracking-widest mb-1">
-                      Pricing breakdown
-                    </p>
-                    <h2
-                      className="text-xl font-semibold text-[#152d5a]"
-                      style={{ fontFamily: "Newsreader, serif" }}
-                    >
-                      How aircraft hire is priced
-                    </h2>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowPricingModal(false)}
-                    className="w-8 h-8 rounded-full bg-[#f1f5f9] flex items-center justify-center text-[#6b7280] hover:bg-[#e2e8f0] transition-colors flex-shrink-0 mt-1"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
-                </div>
-
-                <div className="flex flex-wrap gap-2 mb-5">
-                  {[
-                    "Wet hire — fuel included",
-                    "GST included",
-                    "$28.95 per landing",
-                  ].map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-1.5 text-xs font-medium text-[#1a4fd6] bg-[#f0f6ff] border border-[#dde8f5] px-3 py-1.5 rounded-full"
-                    >
-                      <svg
-                        className="w-3 h-3"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2.5}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="rounded-2xl overflow-hidden border border-[#e2e8f0] mb-5">
-                  <div className="bg-[#152d5a] px-4 py-3 flex justify-between">
-                    <span className="text-xs font-bold text-white/70 uppercase tracking-widest">
-                      VDO tier
-                    </span>
-                    <span className="text-xs font-bold text-white/70 uppercase tracking-widest">
-                      Hourly rate
-                    </span>
-                  </div>
-                  {[
-                    { label: "Less than 10 VDO hours", rate: "$330" },
-                    { label: "10 to 24.9 VDO hours", rate: "$320" },
-                    { label: "25 to 49.9 VDO hours", rate: "$310" },
-                    { label: "50 to 99.9 VDO hours", rate: "$300" },
-                    { label: "100+ VDO hours", rate: "$290" },
-                  ].map(({ label, rate }, i) => (
-                    <div
-                      key={i}
-                      className={`flex justify-between items-center px-4 py-3.5 ${i % 2 === 0 ? "bg-white" : "bg-[#f8fafc]"} ${i < 4 ? "border-b border-[#f1f5f9]" : ""}`}
-                    >
-                      <span className="text-sm text-[#374151]">{label}</span>
-                      <span className="text-base font-bold text-[#152d5a]">
-                        {rate}
-                        <span className="text-xs font-normal text-[#6b7280]">
-                          /hr
-                        </span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="bg-[#f0f6ff] border border-[#dde8f5] rounded-2xl px-4 py-4 mb-4">
-                  <p className="text-xs font-semibold text-[#1a4fd6] uppercase tracking-widest mb-1">
-                    Single-day hire
-                  </p>
-                  <p className="text-2xl font-bold text-[#152d5a]">
-                    No minimum VDO requirement
-                  </p>
-                  <p className="text-sm text-[#6b7280] mt-1">
-                    Billed on actual VDO hours flown for same-day bookings.
-                  </p>
-                </div>
-
-                <div className="bg-[#152d5a] rounded-2xl px-4 py-4 mb-4">
-                  <p className="text-xs font-semibold text-white/60 uppercase tracking-widest mb-3">
-                    Multi-day hire minimum
-                  </p>
-                  <p className="text-sm text-white/80 mb-3">
-                    For every 24 hours booked, a minimum of 4 VDO hours is
-                    billable.
-                  </p>
-                  <div className="space-y-2">
-                    {[
-                      { hrs: "24 hrs booked", min: "4 VDO hrs minimum" },
-                      { hrs: "48 hrs booked", min: "8 VDO hrs minimum" },
-                      { hrs: "72 hrs booked", min: "12 VDO hrs minimum" },
-                      { hrs: "96 hrs booked", min: "16 VDO hrs minimum" },
-                    ].map(({ hrs, min }) => (
-                      <div
-                        key={hrs}
-                        className="flex justify-between items-center bg-white/10 rounded-xl px-3 py-2.5"
-                      >
-                        <span className="text-sm text-white">{hrs}</span>
-                        <span className="text-xs font-semibold text-[#f59e0b] flex items-center gap-1.5">
-                          <svg
-                            className="w-3 h-3"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                          </svg>
-                          {min}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-white/50 mt-3">
-                    If you fly more than the minimum, billing is based on actual
-                    VDO hours.
-                  </p>
-                </div>
-
-                <div className="flex items-start gap-3 bg-[#fffbeb] border border-[#fde68a] rounded-xl px-4 py-3">
-                  <svg
-                    className="w-4 h-4 text-[#f59e0b] flex-shrink-0 mt-0.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                    />
-                  </svg>
-                  <p className="text-sm text-[#92400e]">
-                    Overnight aircraft parking at airports other than Bankstown
-                    is not included and is the pilot&apos;s responsibility.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
+    </>
   );
 }

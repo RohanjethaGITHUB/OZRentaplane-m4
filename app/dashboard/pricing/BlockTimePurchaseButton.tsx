@@ -7,7 +7,8 @@ type Props = {
   packageId: string
   packageHours: number
   featured?: boolean
-  pendingSectionId: string
+  pendingSectionId?: string
+  pendingHref?: string
 }
 
 function isPendingPurchaseError(message: string): boolean {
@@ -19,6 +20,7 @@ export default function BlockTimePurchaseButton({
   packageHours,
   featured = false,
   pendingSectionId,
+  pendingHref,
 }: Props) {
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -37,8 +39,15 @@ export default function BlockTimePurchaseButton({
         setError(message)
 
         if (isPendingPurchaseError(message)) {
-          const target = document.getElementById(pendingSectionId)
-          target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          if (pendingHref) {
+            window.location.assign(pendingHref)
+            return
+          }
+
+          if (pendingSectionId) {
+            const target = document.getElementById(pendingSectionId)
+            target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
         }
       }
     })

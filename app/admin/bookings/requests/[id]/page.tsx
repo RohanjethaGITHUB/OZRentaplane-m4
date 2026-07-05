@@ -13,12 +13,13 @@ import AdminOperationalActions from './AdminOperationalActions'
 import AdminBankTransferPanel from './AdminBankTransferPanel'
 import AdminBankTransferReviewPanel from './AdminBankTransferReviewPanel'
 import AdminStandardBillingPanel from './AdminStandardBillingPanel'
+import AdminSubmitFlightRecordPanel from './AdminSubmitFlightRecordPanel'
 import AdminStandardBankTransferPanel from './AdminStandardBankTransferPanel'
 import AdminCancellationReviewCard from './AdminCancellationReviewCard'
 import AdminHoldBookingActions from './AdminHoldBookingActions'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 import { getAircraftFlightLogStartSuggestions } from '@/lib/aircraft-flight-log'
-import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
+import { deriveBookingStatusForFlightRecord, hasSubmittedFlightRecord } from '@/lib/booking/flight-record-status'
 
 export const metadata = { title: 'Booking Detail | Admin' }
 
@@ -163,8 +164,24 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const isStandardBillingPending = bookingType === 'standard' && booking.status === 'pending_post_flight_review'
   // Standard booking payment pending — show bank transfer panel if applicable
   const isStandardPaymentPending = bookingType === 'standard' && booking.status === 'payment_pending'
-  // Fetch airports and credit for both checkout outcome form AND standard billing panel
-  const needsAirportsAndCredit = isOutcomePending || isStandardBillingPending
+  // Admin-initiated post-flight submission — available at any operational
+  // status, any time, as long as no flight record is already in the pipeline.
+  const ADMIN_SUBMIT_STATUSES = [
+    'pending_confirmation',
+    'confirmed',
+    'ready_for_dispatch',
+    'dispatched',
+    'awaiting_flight_record',
+    'flight_record_overdue',
+    'on_hold_pending_documents',
+  ]
+  const isAdminSubmitEligible =
+    bookingType === 'standard' &&
+    ADMIN_SUBMIT_STATUSES.includes(booking.status) &&
+    !hasSubmittedFlightRecord(booking.flight_records)
+  // Fetch airports and credit for checkout outcome form, standard billing panel,
+  // and the admin post-flight submission panel
+  const needsAirportsAndCredit = isOutcomePending || isStandardBillingPending || isAdminSubmitEligible
 
   const [
     { data: customer },
@@ -262,7 +279,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   }))
   const messages         = rawMessages  ?? []
   const aircraftLogs     = (aircraftLogsRaw ?? []) as Record<string, unknown>[]
-  const [checkoutInvoiceResult, suggestionsResult] = await Promise.all([
+  const [checkoutInvoiceResult, suggestionsResult, activeBlockTimeResult] = await Promise.all([
     supabase
       .from('checkout_invoices')
       .select(`
@@ -283,9 +300,33 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           nextLogNumber: 1,
           suggestedStarts: { vdo_start: null, tacho_start: null, air_switch_start: null, mr_start: null },
         }),
+    // Customer's active block time package — shown in the admin post-flight
+    // submission panel so the admin sees which billing branch will apply.
+    isAdminSubmitEligible
+      ? supabase
+          .from('pilot_block_time_purchases')
+          .select('hours_remaining, rate_per_hour, expires_at')
+          .eq('user_id', booking.booking_owner_user_id)
+          .eq('status', 'active')
+          .gt('expires_at', new Date().toISOString())
+          .order('queue_position', { ascending: true, nullsFirst: false })
+          .order('activated_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ])
   const checkoutInvoice = checkoutInvoiceResult.data
   const flightLogStartSuggestions = suggestionsResult.suggestedStarts
+  const activeBlockTimeRow = activeBlockTimeResult.data as
+    | { hours_remaining: number; rate_per_hour: number; expires_at: string }
+    | null
+  const adminSubmitBlockTime = activeBlockTimeRow
+    ? {
+        hoursRemaining: Number(activeBlockTimeRow.hours_remaining),
+        ratePerHour: Number(activeBlockTimeRow.rate_per_hour),
+        expiresAt: activeBlockTimeRow.expires_at,
+      }
+    : null
   // Invoice was sent via Stripe if checkoutInvoice exists with a status of 'open' or 'paid'
   const invoiceSentViaStripe = !!(
     checkoutInvoice &&
@@ -955,6 +996,20 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             customerCreditCents={customerCreditCents}
             initialFlightRecord={flightRecordRow}
             startSuggestions={flightLogStartSuggestions}
+            defaultHourlyRate={(aircraft as { default_hourly_rate?: number } | null)?.default_hourly_rate ?? undefined}
+          />
+        </div>
+      )}
+
+      {/* ── Full-width admin post-flight submission (no record in pipeline) ─── */}
+      {isAdminSubmitEligible && (
+        <div className="mt-8">
+          <AdminSubmitFlightRecordPanel
+            bookingId={booking.id}
+            airports={airports}
+            scheduledStart={booking.scheduled_start}
+            startSuggestions={flightLogStartSuggestions}
+            activeBlockTime={adminSubmitBlockTime}
             defaultHourlyRate={(aircraft as { default_hourly_rate?: number } | null)?.default_hourly_rate ?? undefined}
           />
         </div>

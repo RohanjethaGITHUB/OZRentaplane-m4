@@ -783,6 +783,11 @@ export default function DashboardContent({
           actionUrl: undefined,
         }
       : null)
+  const toastEyebrow = flashNotice
+    ? 'Block time purchase'
+    : passwordUpdated
+    ? 'Security'
+    : undefined
 
   useEffect(() => {
     if (!toastNotice) return
@@ -922,6 +927,7 @@ export default function DashboardContent({
       {toastNotice ? (
         <SuccessModal
           open={successModalOpen}
+          eyebrow={toastEyebrow}
           title={toastNotice.title}
           message={toastNotice.message}
           actionLabel={toastNotice.actionLabel}
@@ -1089,6 +1095,14 @@ export default function DashboardContent({
                 {blockTimeSummary.activePurchaseCount > 0 ? 'Buy More Hours' : 'Get Started with Block Time'}
                 <span className="material-symbols-outlined text-[14px]">add</span>
               </button>
+
+              <Link
+                href="/dashboard/purchases"
+                className="inline-flex items-center gap-1 text-[12px] font-bold text-[#4b6390] hover:text-[#152d5a] px-3.5 py-1.5 bg-white/70 hover:bg-white rounded-full border border-[#152d5a]/10 transition-colors"
+              >
+                View purchase history
+                <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+              </Link>
             </div>
           </div>
 

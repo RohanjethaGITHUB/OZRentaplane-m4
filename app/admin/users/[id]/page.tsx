@@ -226,6 +226,37 @@ export default async function AdminUserPage({ params }: { params: { id: string }
     }
   })
 
+  // Block time flight invoices — usage deductions, overage invoices (flagged),
+  // and separately-invoiced landing fees for the Billing tab.
+  const { data: blockTimeFlightInvoiceRows } = await supabase
+    .from('invoices')
+    .select('id, invoice_number, booking_id, total, status, is_block_time_overage, created_at, paid_at, pdf_url, invoice_line_items ( type )')
+    .eq('user_id', params.id)
+    .eq('type', 'flight')
+    .eq('billing_mode', 'block_time')
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  const blockTimeFlightInvoices = (blockTimeFlightInvoiceRows ?? []).map((row: any) => {
+    const lineTypes: string[] = (row.invoice_line_items ?? []).map((item: any) => item.type)
+    const kind = row.is_block_time_overage
+      ? 'overage'
+      : lineTypes.length > 0 && lineTypes.every((t) => t === 'landing_fee')
+        ? 'landing_fee'
+        : 'usage'
+    return {
+      id: row.id as string,
+      invoice_number: row.invoice_number as string,
+      booking_id: (row.booking_id as string | null) ?? null,
+      total: Number(row.total),
+      status: row.status as string,
+      kind: kind as 'usage' | 'overage' | 'landing_fee',
+      created_at: row.created_at as string,
+      paid_at: (row.paid_at as string | null) ?? null,
+      pdf_url: (row.pdf_url as string | null) ?? null,
+    }
+  })
+
   const { data: checkoutStatusHistoryRows } = checkoutBookingsRaw && checkoutBookingsRaw.length > 0
     ? await supabase
         .from('booking_status_history')
@@ -492,6 +523,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
         aircraftLogRows={aircraftLogRows ?? []}
         blockTimePurchases={blockTimePurchases}
         blockTimeTopups={blockTimeTopups}
+        blockTimeFlightInvoices={blockTimeFlightInvoices}
         balanceCents={balanceCents ?? 0}
         totalRevenueCents={totalRevenueCents}
         transactions={transactions ?? []}

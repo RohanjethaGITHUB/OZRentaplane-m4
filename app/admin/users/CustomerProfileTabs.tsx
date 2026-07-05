@@ -14,6 +14,7 @@ import { CLEARANCE_ACTION } from './clearance-actions'
 import { DocumentReviewCards } from './VerdictPanel'
 import BlockTimePurchasesSection, { type AdminBlockTimePurchase } from './BlockTimePurchasesSection'
 import BlockTimeTopupsSection, { type AdminBlockTimeTopup } from './BlockTimeTopupsSection'
+import BlockTimeFlightInvoicesSection, { type AdminBlockTimeFlightInvoice } from './BlockTimeFlightInvoicesSection'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 
 type TimelineEvent = {
@@ -116,7 +117,7 @@ type RecordedByAdminProfile = {
   } | null
 } | null
 
-type TabType = 'overview' | 'documents' | 'bookings' | 'billing' | 'messages' | 'log'
+type TabType = 'overview' | 'admin_actions' | 'documents' | 'bookings' | 'billing' | 'messages'
 
 type CustomerProfile = {
   id: string
@@ -153,6 +154,7 @@ type Props = {
   aircraftLogRows: AircraftLogRow[]
   blockTimePurchases: AdminBlockTimePurchase[]
   blockTimeTopups: AdminBlockTimeTopup[]
+  blockTimeFlightInvoices: AdminBlockTimeFlightInvoice[]
   balanceCents: number
   totalRevenueCents: number
   transactions: CreditTransaction[]
@@ -267,6 +269,7 @@ export default function CustomerProfileTabs({
   aircraftLogRows,
   blockTimePurchases,
   blockTimeTopups,
+  blockTimeFlightInvoices,
   balanceCents,
   totalRevenueCents,
   transactions,
@@ -759,14 +762,14 @@ export default function CustomerProfileTabs({
       </section>
 
       <section className="sticky top-0 z-10 mb-4 rounded-b-2xl bg-white">
-        <div className="flex overflow-x-auto border-b-2 border-slate-200 bg-white scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="flex overflow-x-auto border-b-2 border-slate-200 bg-white scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             {([
               { key: 'overview', label: 'Overview' },
+              { key: 'admin_actions', label: 'Admin Actions' },
               { key: 'documents', label: 'Documents' },
               { key: 'bookings', label: 'Bookings' },
               { key: 'billing', label: 'Billing' },
               { key: 'messages', label: 'Messages' },
-              { key: 'log', label: 'Log' },
             ] as const).map((tab) => (
               <button
                 key={tab.key}
@@ -798,6 +801,11 @@ export default function CustomerProfileTabs({
             customerId={customerId}
           />
           <RecentActivityCard />
+        </section>
+      )}
+
+      {activeTab === 'admin_actions' && (
+        <section className="space-y-4">
           <AdminActionsPanel
             customerId={customerId}
             currentStatus={clearanceStatus}
@@ -896,6 +904,7 @@ export default function CustomerProfileTabs({
           </div>
           <BlockTimePurchasesSection purchases={blockTimePurchases} />
           <BlockTimeTopupsSection topups={blockTimeTopups} />
+          <BlockTimeFlightInvoicesSection invoices={blockTimeFlightInvoices} />
         </section>
       )}
 
@@ -909,21 +918,6 @@ export default function CustomerProfileTabs({
         </section>
       )}
 
-      {activeTab === 'log' && (
-        <section>
-          <h3 className="text-[11px] uppercase tracking-widest font-semibold text-[#4b6390] mb-3">Internal review history</h3>
-          {[...events]
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-            .map((ev) => (
-              <div key={ev.id} className="bg-white border border-[#152d5a]/10 rounded-xl px-4 py-3 mb-2">
-                <p className="text-[14px] font-semibold text-[#152d5a]">{ev.title}</p>
-                {ev.body ? <p className="text-[12px] text-[#4b6390] mt-1">{ev.body}</p> : null}
-                <p className="text-[11px] text-[#4b6390]/60 mt-1.5">{shortDate(ev.created_at)}</p>
-              </div>
-            ))}
-          {events.length === 0 ? <p className="text-[12px] text-[#4b6390]">No review history yet.</p> : null}
-        </section>
-      )}
     </div>
   )
 }

@@ -4,33 +4,14 @@ import { useState } from 'react'
 import { FadeUp, StaggerContainer, StaggerItem } from '@/components/MotionPresets'
 import PreFooterCTA from '@/components/marketing/PreFooterCTA'
 import AtmoClouds from '@/components/AtmoClouds'
+import { BOOKING_TYPE_CARDS } from '@/lib/booking-type-cards'
+import { BookingTypeCardView } from '@/components/BookingTypeCardView'
 
 export const dynamic = 'force-static'
 
 type FaqItemType = {
   question: string
   answer: string
-}
-
-type BookingTypeCard = {
-  eyebrow?: string
-  title: string
-  subtitle: string
-  headerClassName: string
-  headerEyebrowClassName?: string
-  headerTitleClassName?: string
-  headerSubtitleClassName?: string
-  pricePanelClassName: string
-  priceClassName: string
-  price: string | string[]
-  priceCaption?: string
-  priceCaptionClassName?: string
-  panelPrice?: string
-  panelPriceClassName?: string
-  panelCaption?: string
-  panelCaptionClassName?: string
-  bullets: string[]
-  features: string[]
 }
 
 type BillingStep = {
@@ -171,61 +152,6 @@ function FeaturePill({
   )
 }
 
-function BookingTypeCardView({ card }: { card: BookingTypeCard }) {
-  const isPayf = card.title === 'Pay As You Fly (PAYF)'
-  const headerClassName = isPayf ? 'bg-[#07224E]' : 'bg-runway-amber'
-  const panelClassName = isPayf ? 'bg-[#EEF4FB]' : 'bg-[#FEFCF4]'
-
-  return (
-    <article className="flex h-full flex-col rounded-2xl overflow-hidden shadow-md bg-white">
-      <div className={`px-8 pt-8 pb-16 text-center ${headerClassName}`}>
-        <p
-          className={`text-xs font-bold uppercase tracking-[0.15em] ${
-            isPayf ? 'text-runway-amber' : 'text-white'
-          }`}
-        >
-          {isPayf ? 'PAY AS YOU FLY' : 'BLOCK TIME COMBO PACKAGES'}
-        </p>
-        <h3 className={`mt-2 font-serif text-3xl font-normal ${isPayf ? 'text-white' : 'text-oz-navy'}`}>
-          {card.title}
-        </h3>
-        <p className={`mt-2 text-sm ${isPayf ? 'text-white/70' : 'text-oz-navy/80'}`}>{card.subtitle}</p>
-      </div>
-
-      <div className="mx-6 -mt-10 relative z-10">
-        <div className={`rounded-xl shadow-md p-6 text-center border border-[#e2e8f0] ${panelClassName}`}>
-          {isPayf ? (
-            <>
-              <p className="font-serif text-4xl text-oz-navy">$330/hr</p>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#4a5568]">FIXED RATE</p>
-              <p className="mt-2 text-xs text-[#3a4d70]">+ $28.95 landing fee per flight (not included in hourly rate)</p>
-            </>
-          ) : (
-            <>
-              <p className="font-serif text-4xl text-oz-navy">From $290/hr</p>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#c8860a]">
-                SAVE UP TO $40/HR VS PAYF
-              </p>
-              <p className="mt-2 text-xs text-[#3a4d70]">+ $28.95 landing fee per flight (not included in hourly rate)</p>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="flex-1 bg-white px-8 pt-6 pb-8">
-        <div className="space-y-3">
-          {card.bullets.map((item) => (
-            <div key={item} className="flex items-center gap-3">
-              <Icon name="check_circle" filled className="shrink-0 !text-[20px] text-runway-amber" />
-              <span className="text-sm text-[#1e3a5f]">{item}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </article>
-  )
-}
-
 function BillingStepCard({
   title,
   steps,
@@ -286,50 +212,6 @@ function FaqItem({ item }: { item: FaqItemType }) {
 }
 
 const HERO_CHIPS = ['Wet Hire', 'GST Included', '$28.95 Per Landing', 'Billed by VDO Hours']
-
-const BOOKING_TYPE_CARDS: BookingTypeCard[] = [
-  {
-    eyebrow: 'PAY AS YOU FLY',
-    title: 'Pay As You Fly (PAYF)',
-    subtitle: 'Perfect for occasional flyers.',
-    headerClassName: 'bg-[#07224E]',
-    pricePanelClassName: 'bg-[#EEF4FB]',
-    priceClassName: 'text-3xl leading-none text-oz-navy',
-    price: '$330/hr',
-    priceCaption: 'FIXED RATE',
-    priceCaptionClassName: 'text-[#4a5568]',
-    bullets: [
-      'No upfront package',
-      'Pay for actual flying time',
-      'Best for occasional flying',
-      'Same rate every hour you fly',
-    ],
-    features: ['No upfront package', 'Pay for actual flying time', 'Best for occasional flying'],
-  },
-  {
-    eyebrow: 'BLOCK TIME COMBO PACKAGES',
-    title: 'Prepaid Block Time Packages',
-    subtitle: 'Great for regular flyers, training & hour building.',
-    headerClassName: 'bg-runway-amber',
-    headerEyebrowClassName: 'text-white',
-    headerTitleClassName: 'text-oz-navy',
-    headerSubtitleClassName: 'text-oz-navy/80',
-    pricePanelClassName: 'bg-[#FEFCF4]',
-    priceClassName: 'text-3xl leading-none text-oz-navy',
-    price: '$290/hr',
-    panelPrice: 'From $290/hr',
-    panelPriceClassName: 'text-3xl leading-none text-oz-navy',
-    panelCaption: 'SAVE UP TO $40/HR VS PAYF',
-    panelCaptionClassName: 'text-[#c8860a]',
-    bullets: [
-      'Discounted hourly rates',
-      'Prepay and save more',
-      'Perfect for training & building hours',
-      'Use your hours when it suits you',
-    ],
-    features: ['Discounted hourly rates', 'Prepay and save more', 'Perfect for training & building hours'],
-  },
-]
 
 const MINIMUM_RULES = [
   { booked: '24 hrs booked', minimum: '4 VDO hrs minimum', exampleFlown: '2.5 hours flown', youPayFor: '4 hours (minimum applies)' },
@@ -444,7 +326,7 @@ const PAYF_RATE = 330
 
 function buildBlockTimeLoginHref(packageName: string) {
   const packageSlug = packageName.toLowerCase().replace(/\s+/g, '-')
-  const nextPath = `/dashboard/block-time?package=${packageSlug}`
+  const nextPath = `/dashboard/pricing?package=${packageSlug}`
   return `/login?next=${encodeURIComponent(nextPath)}`
 }
 

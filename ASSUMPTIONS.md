@@ -1,3 +1,43 @@
+# Assumptions & Judgment Calls — Post-Flight Records: Block-Time Branching, Admin Submission, No Manual Dispatch (July 2026)
+
+Prerequisites verified before starting: migration 101 is applied to the live database and the top-up suite now runs green (63 assertions), and both the top-up feature and single-active-package enforcement are committed (`661abf6`, `d4248a4`).
+
+## Working tree note
+
+- **Uncommitted changes to `app/dashboard/bookings/new/` were found and left untouched.** They are a display-only "rate context" panel (block time balance vs PAYF rate on the booking form) from other in-flight work. Nothing in this task depends on them; the overage gate for new bookings was installed server-side in `createBooking()`, which that form calls, so the gate holds regardless of that panel's fate.
+
+## Step 1 — Remove manual dispatch
+
+- **`ready_for_dispatch` stays; only the Mark Dispatched action is gone.** The brief removed the dispatch step, not the "aircraft prepared" marker. The operational panel now offers Mark Aircraft Returned from `confirmed`, `ready_for_dispatch`, and (for legacy rows) `dispatched`; `adminMarkAircraftReturned()` accepts those three prior states. The `dispatched` status value, the customer submission path's allowed-status list, and all display-only labels are untouched per the audit.
+- **The queue/badge count status sets keep `'dispatched'` in their `.in(...)` filters.** Legacy dispatched bookings must still be counted while they drain out of the system; the sets already include the states the new flow actually uses. The only UI change was removing the now-dead "In Progress (dispatched)" tab from the admin booking list filter.
+
+## Step 2 — Admin-initiated submission
+
+- **Reuse is by composition, not extraction of the billing logic.** The record-creation logic was extracted into a shared core (`lib/booking/flight-record-submission.ts`) used by both the customer and admin actions. The billing/branching logic already lived in `finaliseStandardBookingInvoice()` (not inline in `submitFlightRecord()` as the brief suspected), so `adminSubmitFlightRecord()` simply calls the core and then that same finalisation function — zero duplicated billing code.
+- **Admin submission is one step: record + billing together.** The readings are admin-entered, so a separate review pass would be the admin reviewing themselves. The action creates the record via the shared core (booking briefly passes through `pending_post_flight_review`, exactly like a customer submission) and immediately finalises billing with the same rate/landing inputs. The customer receives the same "flight record submitted" email (sent by the shared core to the booking owner) plus the same billing-outcome email.
+- **"Any status" reads as any status where no record is already in the pipeline.** Allowed: pending_confirmation, confirmed, ready_for_dispatch, dispatched, awaiting_flight_record, flight_record_overdue, on_hold_pending_documents. Excluded: cancelled/cancellation-requested (nothing to bill), and every post-submission state (a record already exists — the existing billing/clarification panels handle those). Checkout bookings are excluded: they have their own outcome-recording flow and no flight-record pipeline.
+- **Early submission releases the booking's remaining schedule blocks.** If the admin submits before `scheduled_end`, the flight evidently already happened; a completed booking holding a future slot would block other customers, so active blocks linked to the booking are cancelled (same mechanism the cancellation flow uses).
+
+## Step 3 — Overage gate + separate invoices (migration 104, NOT YET APPLIED)
+
+- **The overage is no longer auto-charged to the saved card.** The previous drawdown charged overage off-session immediately. The brief's confirmed spec describes an *invoice* that is *flagged* and *gates* future purchases/bookings "until paid" — an automatic charge would make the gate meaningless, and the (still-queued) combined-checkout brief only makes sense against an unpaid invoice. The overage invoice is created as `awaiting` with `is_block_time_overage = true` at the package's locked rate.
+- **How the customer pays it:** a "Pay now" button on /dashboard/block-time starts a Stripe Checkout session (`purchase_type=block_time_overage_payment`); the webhook marks the invoice paid, which lifts the gate automatically. The gate itself is enforced server-side in `createBooking()`, `createBlockTimePurchaseIntent()`, and `createBlockTimeTopupIntent()` (top-ups count as "future purchases"), with the shared query in `lib/payments/block-time-overage.ts`.
+- **The booking still completes even with an unpaid overage.** The hours were flown and deducted; the debt is tracked on the invoice and enforced by the gate, not by holding the booking in a payment state (the PAYF `payment_pending` machinery is a different invoice table and flow).
+- **One drawdown now creates up to three invoices** (usage/overage/landing) instead of one combined document: usage is created `paid` (settled by block time), overage `awaiting` + flagged, landing fees `awaiting` and then collected off-session against the saved card exactly as before — but now marked paid only after the charge actually succeeds (previously the combined invoice was marked paid before the charge was attempted). Landing-fee collection failure alerts the admin as before; the landing invoice does not gate.
+- **Landing fees invoiced separately applies to the block-time path only.** Flow 2 (PAYF) is explicitly "unchanged", so the PAYF invoice keeps hours + landing fees on one document as today; "regardless of hours billing path" is read as: within Flow 1, the landing invoice is created whether or not the flight overflowed (both covered in the suite).
+- **A GST-breakdown helper was added in the migration** because the invoices table enforces `gst = ROUND(subtotal/10, 2)` and `total = subtotal + gst`, and the previous `subtotal = ROUND(total/1.1)` derivation violates that constraint for some totals (e.g. exactly $500.00 — the old function only survived because catalogue rates never produced such a total). The helper finds a constraint-consistent split preserving the target total, shifting the total by at most one cent when no exact split exists (line items always keep the exact hours × rate amount).
+- **Admin flagging** is a high-visibility `verification_events` alert at finalisation ("BLOCK TIME OVERAGE — unpaid overage invoice issued"), a red flag block + per-invoice OVERAGE badges in the admin customer profile's Billing tab (new "Block time flight invoices" section), and the invoice itself carries the flag in its line description, PDF billing-mode label, and footer.
+- **The booking-form gate is server-side only for now.** The uncommitted in-flight work on `bookings/new` made adding a UI banner there risky; the gate error from `createBooking()` surfaces through the form's normal error display, and the Block Time page carries the full outstanding-overage banner with the payment button.
+
+## Step 5 — Testing
+
+- **The suite (`scripts/test_post_flight_billing_suite.mjs`, port 3035) follows the prior suites' conventions**: linked remote database, disposable users, real signed Stripe events at the real webhook route, emails suppressed, full cleanup.
+- **The shared submission core is tested as production code**: compiled from TypeScript and driven directly against the database (with only `next/cache` and `server-only` stubbed), covering admin-initiated submission for both billing types, the audit trail, and the confirmation-email firing (asserted via the `email_events` row the email pipeline writes even when sending is suppressed).
+- **The server actions' glue** (auth guards, status gates, and the `adminSubmitFlightRecord` composition) isn't drivable outside a browser session, matching the prior suites' documented limitation; the composition itself is asserted at source level, and every decision-making layer (shared core, drawdown RPC, PAYF RPC, webhook) is exercised for real.
+- **Suite status at hand-off: written but not yet green — it aborts at preflight because migration 104 has not been applied to the remote database** (schema changes are applied manually by the project owner). Once 104 is applied, run `node scripts/test_post_flight_billing_suite.mjs`; the task isn't complete until it passes.
+
+---
+
 # Assumptions & Judgment Calls — Block Time Top-Up (July 2026, second run)
 
 Prerequisites re-verified before starting: the live database now has the corrected validity periods and rejects a second active package (probed with a disposable user, cleaned up), and both are committed (`d4248a4`).

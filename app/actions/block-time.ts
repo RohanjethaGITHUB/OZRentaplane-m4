@@ -118,7 +118,8 @@ export async function refundBlockTimePurchase(purchaseId: string) {
   }
 
   revalidatePath(`/admin/users/${refundInfo.out_user_id}`)
-  revalidatePath('/dashboard/block-time')
+  revalidatePath('/dashboard/purchases')
+  revalidatePath('/dashboard/pricing')
   revalidatePath('/dashboard')
 
   return {

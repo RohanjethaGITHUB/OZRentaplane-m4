@@ -6,6 +6,7 @@ import ModalPortal from '@/components/ModalPortal'
 
 type SuccessModalProps = {
   open: boolean
+  eyebrow?: string
   title: string
   message: string
   actionLabel?: string
@@ -15,6 +16,7 @@ type SuccessModalProps = {
 
 export default function SuccessModal({
   open,
+  eyebrow,
   title,
   message,
   actionLabel,
@@ -63,9 +65,11 @@ export default function SuccessModal({
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">
-                Block time purchase
-              </p>
+              {eyebrow ? (
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">
+                  {eyebrow}
+                </p>
+              ) : null}
               <h3 id="purchase-success-title" className="mt-1 text-2xl font-semibold leading-tight">
                 {title}
               </h3>

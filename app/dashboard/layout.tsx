@@ -15,13 +15,22 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
     .eq('id', user.id)
     .single()
 
+  const { count: blockTimePurchaseCount } = await supabase
+    .from('pilot_block_time_purchases')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+
   if (profile?.role === 'admin') redirect('/admin')
   const firstName = (profile as any)?.first_name ?? user.email?.split('@')[0] ?? 'Pilot'
   const email = user.email ?? ''
 
   return (
     <>
-      <CustomerPortalNav firstName={firstName} email={email} hideCheckout={true} />
+      <CustomerPortalNav
+        firstName={firstName}
+        email={email}
+        hideCheckout={true}
+      />
       <div
         className="relative min-h-screen pt-[64px] text-deep-ink dashboard-theme overflow-x-hidden"
         style={{

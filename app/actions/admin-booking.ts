@@ -38,6 +38,7 @@ import {
   FLIGHT_RECORD_REVIEW_STATUSES,
   FLIGHT_RECORD_APPROVAL_STATUSES,
 } from '@/lib/booking/status-constants'
+import { createFlightRecordForBooking } from '@/lib/booking/flight-record-submission'
 import { sydneyInputToUTC, todaySydneyDateKey } from '@/lib/utils/sydney-time'
 
 // ─── Admin guard ──────────────────────────────────────────────────────────────
@@ -759,20 +760,11 @@ export async function adminMarkReadyForDispatch(bookingId: string) {
   )
 }
 
-// ready_for_dispatch → dispatched
-// Aircraft has departed. Clock is running.
-export async function adminMarkDispatched(bookingId: string) {
-  return adminTransition(
-    bookingId,
-    'ready_for_dispatch',
-    'dispatched',
-    'Admin marked aircraft as dispatched.',
-    'Aircraft dispatched.',
-  )
-}
-
-// dispatched → awaiting_flight_record
+// confirmed / ready_for_dispatch / dispatched → awaiting_flight_record
 // Aircraft returned after scheduled_end. Customer must now submit their flight record.
+// The manual "Mark Dispatched" step has been removed from the admin flow, so this
+// transition now accepts any operational prior state ('dispatched' remains valid
+// for legacy bookings that were dispatched before the step was removed).
 export async function adminMarkAircraftReturned(bookingId: string) {
   const { supabase } = await requireAdmin()
   const { data: booking, error } = await supabase
@@ -788,7 +780,7 @@ export async function adminMarkAircraftReturned(bookingId: string) {
 
   return adminTransition(
     bookingId,
-    'dispatched',
+    ['confirmed', 'ready_for_dispatch', 'dispatched'],
     'awaiting_flight_record',
     'Admin marked aircraft as returned. Flight record required from customer.',
     'Aircraft returned. Awaiting customer flight record.',
@@ -2614,67 +2606,49 @@ export async function finaliseStandardBookingInvoice(input: {
     }
 
     const drawdown = drawdownRows[0] as {
-      out_invoice_id: string
-      out_invoice_number: string
+      out_usage_invoice_id: string
+      out_usage_invoice_number: string
+      out_overage_invoice_id: string | null
+      out_overage_invoice_number: string | null
+      out_landing_invoice_id: string | null
+      out_landing_invoice_number: string | null
       out_overflow_hours: number
       out_overflow_amount: number
       out_hours_after: number
-      out_needs_overflow_charge: boolean
-      out_needs_landing_charge: boolean
       out_purchase_id: string
       out_rate_per_hour: number
     }
+    const hasOverage = drawdown.out_overage_invoice_id != null && Number(drawdown.out_overflow_hours) > 0
 
-    const stripeSecret = process.env.STRIPE_SECRET_KEY
-    if (stripeSecret) {
-      const stripe = new Stripe(stripeSecret, {
-        apiVersion: '2023-10-16' as any,
-      })
-
-      if (drawdown.out_needs_overflow_charge) {
-        try {
-          if (!pilotProfile?.stripe_customer_id || !pilotProfile.default_payment_method_id) {
-            throw new Error('Missing Stripe customer or payment method for overflow charge.')
-          }
-
-          await stripe.paymentIntents.create({
-            amount: Math.round(Number(drawdown.out_overflow_amount) * 100),
-            currency: 'aud',
-            customer: pilotProfile.stripe_customer_id,
-            confirm: true,
-            off_session: true,
-            payment_method: pilotProfile.default_payment_method_id,
-            metadata: {
-              purchase_type: 'block_time_overflow',
-              supabase_user_id: booking.booking_owner_user_id,
-              booking_id: input.bookingId,
-              purchase_id: drawdown.out_purchase_id,
-              overflow_hours: String(drawdown.out_overflow_hours),
-              rate_per_hour: String(drawdown.out_rate_per_hour),
-              invoice_id: drawdown.out_invoice_id,
-            },
-            description: 'OZ Rent A Plane — Block Time Overflow',
+    // ── Overage: no automatic card charge. The overage invoice stays
+    // 'awaiting' and gates new bookings/purchases/top-ups until paid.
+    // Flag it clearly to the admin (and to the customer's inbox).
+    if (hasOverage) {
+      try {
+        await supabase
+          .from('verification_events')
+          .insert({
+            user_id: booking.booking_owner_user_id,
+            actor_role: 'system',
+            event_type: 'message',
+            title: 'BLOCK TIME OVERAGE — unpaid overage invoice issued',
+            body: `Flight for booking ${input.bookingId} exceeded the pilot's block time balance. Overage of ${drawdown.out_overflow_hours}h at the locked rate of $${Number(drawdown.out_rate_per_hour).toFixed(2)}/hr = $${Number(drawdown.out_overflow_amount).toFixed(2)} has been invoiced (invoice ${drawdown.out_overage_invoice_number}). The invoice is unpaid: the pilot cannot make new bookings, buy block time, or top up until it is settled. They can pay it from their Block Time page.`,
+            is_read: false,
+            email_status: 'pending',
           })
-        } catch (error: unknown) {
-          const overflowChargeError = error instanceof Error ? error : null
-          console.error('[finaliseStandardBookingInvoice] overflow charge failed:', error)
-          try {
-            await supabase
-              .from('verification_events')
-              .insert({
-                user_id: booking.booking_owner_user_id,
-                actor_role: 'system',
-                event_type: 'message',
-                title: 'Stripe overflow charge failed -- manual follow-up required',
-                body: `Off-session Stripe charge for block time overflow failed for booking ${input.bookingId}. Overflow: ${drawdown.out_overflow_hours}h at $${drawdown.out_rate_per_hour}/hr = $${drawdown.out_overflow_amount}. Error: ${overflowChargeError?.message ?? 'unknown'}. Please collect payment manually or contact the pilot.`,
-                is_read: false,
-                email_status: 'pending',
-              })
-          } catch (notifErr: unknown) {
-            console.warn('[finaliseStandardBookingInvoice] overflow alert insert failed', notifErr)
-          }
-        }
-      } else if (drawdown.out_needs_landing_charge) {
+      } catch (notifErr: unknown) {
+        console.warn('[finaliseStandardBookingInvoice] overage alert insert failed', notifErr)
+      }
+    }
+
+    // ── Landing fees: separate invoice, collected off-session against the
+    // saved card as before. Marked paid only when the charge succeeds.
+    const stripeSecret = process.env.STRIPE_SECRET_KEY
+    if (drawdown.out_landing_invoice_id && landingFeesTotal > 0) {
+      if (stripeSecret) {
+        const stripe = new Stripe(stripeSecret, {
+          apiVersion: '2023-10-16' as any,
+        })
         try {
           if (!pilotProfile?.stripe_customer_id || !pilotProfile.default_payment_method_id) {
             throw new Error('Missing Stripe customer or payment method for landing fee charge.')
@@ -2692,11 +2666,19 @@ export async function finaliseStandardBookingInvoice(input: {
               supabase_user_id: booking.booking_owner_user_id,
               booking_id: input.bookingId,
               purchase_id: drawdown.out_purchase_id,
-              invoice_id: drawdown.out_invoice_id,
+              invoice_id: drawdown.out_landing_invoice_id,
               landing_fees_total: String(landingFeesTotal),
             },
-            description: 'OZ Rent A Plane — Block Time Landing Fee',
+            description: 'OZ Rent A Plane — Landing Fees',
           })
+
+          const { error: landingPaidErr } = await supabase
+            .from('invoices')
+            .update({ status: 'paid', paid_at: new Date().toISOString() })
+            .eq('id', drawdown.out_landing_invoice_id)
+          if (landingPaidErr) {
+            console.warn('[finaliseStandardBookingInvoice] landing invoice paid update failed', landingPaidErr.message)
+          }
         } catch (error: unknown) {
           const landingChargeError = error instanceof Error ? error : null
           console.error('[finaliseStandardBookingInvoice] landing fee charge failed:', error)
@@ -2708,7 +2690,7 @@ export async function finaliseStandardBookingInvoice(input: {
                 actor_role: 'system',
                 event_type: 'message',
                 title: 'Stripe landing fee charge failed -- manual follow-up required',
-                body: `Off-session Stripe charge for block time landing fees failed for booking ${input.bookingId}. Landing fees: $${landingFeesTotal}. Error: ${landingChargeError?.message ?? 'unknown'}. Please collect payment manually or contact the pilot.`,
+                body: `Off-session Stripe charge for landing fees failed for booking ${input.bookingId}. Landing fees: $${landingFeesTotal} (invoice ${drawdown.out_landing_invoice_number}). Error: ${landingChargeError?.message ?? 'unknown'}. The landing fee invoice remains unpaid. Please collect payment manually or contact the pilot.`,
                 is_read: false,
                 email_status: 'pending',
               })
@@ -2716,9 +2698,9 @@ export async function finaliseStandardBookingInvoice(input: {
             console.warn('[finaliseStandardBookingInvoice] landing fee alert insert failed', notifErr)
           }
         }
+      } else {
+        console.error('[finaliseStandardBookingInvoice] Missing STRIPE_SECRET_KEY; landing fee invoice left unpaid.')
       }
-    } else {
-      console.error('[finaliseStandardBookingInvoice] Missing STRIPE_SECRET_KEY; skipping block time charges.')
     }
 
     const blockTimeBookingStatus = 'completed'
@@ -2758,81 +2740,104 @@ export async function finaliseStandardBookingInvoice(input: {
       })
     }
 
-    let pdfUrl: string | null = null
-    try {
-      const { data: invoice, error: invoiceErr } = await supabase
-        .from('invoices')
-        .select('id, invoice_number, type, user_id, booking_id, block_time_purchase_id, billing_mode, subtotal, gst_amount, total, status, created_at, paid_at')
-        .eq('id', drawdown.out_invoice_id)
-        .single()
+    // Generate + upload a PDF for every invoice created by the drawdown
+    // (usage, overage, landing fees — each is its own invoice document).
+    const pdfUrls = new Map<string, string>()
+    const invoiceIdsForPdf = [
+      { id: drawdown.out_usage_invoice_id,   footer: 'All prices include GST. Block time usage is deducted when the flight record is finalised.' },
+      { id: drawdown.out_overage_invoice_id, footer: 'All prices include GST. BLOCK TIME OVERAGE: these hours exceeded your package balance and are billed at your locked package rate. Payment is required before new bookings or block time purchases.' },
+      { id: drawdown.out_landing_invoice_id, footer: 'All prices include GST. Landing fees are invoiced separately from flight hours.' },
+    ].filter((entry): entry is { id: string; footer: string } => entry.id != null)
 
-      if (invoiceErr || !invoice) {
-        throw new Error(invoiceErr?.message ?? 'Invoice not found for PDF generation.')
-      }
+    for (const entry of invoiceIdsForPdf) {
+      try {
+        const { data: invoice, error: invoiceErr } = await supabase
+          .from('invoices')
+          .select('id, invoice_number, type, user_id, booking_id, block_time_purchase_id, billing_mode, subtotal, gst_amount, total, status, created_at, paid_at, is_block_time_overage')
+          .eq('id', entry.id)
+          .single()
 
-      const { data: lineItems, error: lineItemsErr } = await supabase
-        .from('invoice_line_items')
-        .select('description, quantity, unit_price, amount')
-        .eq('invoice_id', invoice.id)
-        .order('display_order', { ascending: true })
+        if (invoiceErr || !invoice) {
+          throw new Error(invoiceErr?.message ?? 'Invoice not found for PDF generation.')
+        }
 
-      if (lineItemsErr) {
-        throw new Error(lineItemsErr.message)
-      }
+        const { data: lineItems, error: lineItemsErr } = await supabase
+          .from('invoice_line_items')
+          .select('description, quantity, unit_price, amount')
+          .eq('invoice_id', invoice.id)
+          .order('display_order', { ascending: true })
 
-      const pdfBuffer = await generateInvoicePdf({
-        invoiceNumber: invoice.invoice_number,
-        invoiceTypeLabel: 'TAX INVOICE',
-        statusLabel: String(invoice.status).toUpperCase(),
-        createdAt: invoice.created_at,
-        dueAt: invoice.paid_at ?? invoice.created_at,
-        billingModeLabel: 'Block Time',
-        bookingRefLabel: booking.booking_reference,
-        billToName: pilotProfile?.full_name?.trim() || snapshotProfile?.full_name?.trim() || 'Pilot',
-        billToEmail: pilotProfile?.email?.trim() || '—',
-        lineItems: (lineItems ?? []).map((lineItem) => ({
-          description: lineItem.description,
-          quantity: Number(lineItem.quantity),
-          unitPrice: Number(lineItem.unit_price),
-          amount: Number(lineItem.amount),
-        })),
-        subtotal: Number(invoice.subtotal),
-        gstAmount: Number(invoice.gst_amount),
-        total: Number(invoice.total),
-        footerNote: 'All prices include GST. Block time usage is deducted when the flight record is finalised.',
-      })
+        if (lineItemsErr) {
+          throw new Error(lineItemsErr.message)
+        }
 
-      const storagePath = `${booking.booking_owner_user_id}/${drawdown.out_invoice_number}.pdf`
-      const uploadResult = await supabase.storage
-        .from('invoice_pdfs')
-        .upload(storagePath, pdfBuffer, {
-          contentType: 'application/pdf',
-          upsert: true,
-          cacheControl: '3600',
+        const pdfBuffer = await generateInvoicePdf({
+          invoiceNumber: invoice.invoice_number,
+          invoiceTypeLabel: 'TAX INVOICE',
+          statusLabel: String(invoice.status).toUpperCase(),
+          createdAt: invoice.created_at,
+          dueAt: invoice.paid_at ?? invoice.created_at,
+          billingModeLabel: invoice.is_block_time_overage ? 'Block Time — OVERAGE' : 'Block Time',
+          bookingRefLabel: booking.booking_reference,
+          billToName: pilotProfile?.full_name?.trim() || snapshotProfile?.full_name?.trim() || 'Pilot',
+          billToEmail: pilotProfile?.email?.trim() || '—',
+          lineItems: (lineItems ?? []).map((lineItem) => ({
+            description: lineItem.description,
+            quantity: Number(lineItem.quantity),
+            unitPrice: Number(lineItem.unit_price),
+            amount: Number(lineItem.amount),
+          })),
+          subtotal: Number(invoice.subtotal),
+          gstAmount: Number(invoice.gst_amount),
+          total: Number(invoice.total),
+          footerNote: entry.footer,
         })
 
-      if (uploadResult.error) {
-        throw uploadResult.error
+        const storagePath = `${booking.booking_owner_user_id}/${invoice.invoice_number}.pdf`
+        const uploadResult = await supabase.storage
+          .from('invoice_pdfs')
+          .upload(storagePath, pdfBuffer, {
+            contentType: 'application/pdf',
+            upsert: true,
+            cacheControl: '3600',
+          })
+
+        if (uploadResult.error) {
+          throw uploadResult.error
+        }
+
+        const { data: publicUrlData } = supabase.storage.from('invoice_pdfs').getPublicUrl(storagePath)
+        pdfUrls.set(entry.id, publicUrlData.publicUrl)
+
+        const { error: updateInvoiceErr } = await supabase
+          .from('invoices')
+          .update({ pdf_url: publicUrlData.publicUrl })
+          .eq('id', invoice.id)
+
+        if (updateInvoiceErr) {
+          throw updateInvoiceErr
+        }
+      } catch (error) {
+        console.error('[finaliseStandardBookingInvoice] block time PDF generation failed:', error)
       }
-
-      const { data: publicUrlData } = supabase.storage.from('invoice_pdfs').getPublicUrl(storagePath)
-      pdfUrl = publicUrlData.publicUrl
-
-      const { error: updateInvoiceErr } = await supabase
-        .from('invoices')
-        .update({ pdf_url: pdfUrl })
-        .eq('id', invoice.id)
-
-      if (updateInvoiceErr) {
-        throw updateInvoiceErr
-      }
-    } catch (error) {
-      console.error('[finaliseStandardBookingInvoice] block time PDF generation failed:', error)
     }
+    const pdfUrl = pdfUrls.get(drawdown.out_usage_invoice_id) ?? null
 
-    const blockTimeMessage = drawdown.out_overflow_hours > 0
-      ? `Your flight of ${vdoReading}h has been recorded and ${vdoReading}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h. Overflow of ${drawdown.out_overflow_hours}h charged at $${Number(drawdown.out_rate_per_hour).toFixed(2)}/hr.`
-      : `Your flight of ${vdoReading}h has been recorded and ${vdoReading}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h.`
+    const deductedHours = Math.round((effectiveVdoHoursRounded - Number(drawdown.out_overflow_hours)) * 100) / 100
+    const blockTimeMessageParts = [
+      `Your flight of ${vdoReading}h has been recorded and ${deductedHours}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h.`,
+    ]
+    if (hasOverage) {
+      blockTimeMessageParts.push(
+        `Your flight exceeded your remaining balance: ${drawdown.out_overflow_hours}h has been invoiced separately as Block Time Overage at your locked rate of $${Number(drawdown.out_rate_per_hour).toFixed(2)}/hr (invoice ${drawdown.out_overage_invoice_number}, $${Number(drawdown.out_overflow_amount).toFixed(2)}). Please pay this invoice from your Block Time page — new bookings and block time purchases are unavailable until it is settled.`,
+      )
+    }
+    if (drawdown.out_landing_invoice_id) {
+      blockTimeMessageParts.push(
+        `Landing fees of $${landingFeesTotal.toFixed(2)} have been invoiced separately (invoice ${drawdown.out_landing_invoice_number}).`,
+      )
+    }
+    const blockTimeMessage = blockTimeMessageParts.join(' ')
 
     const now = new Date().toISOString()
 
@@ -2919,7 +2924,9 @@ export async function finaliseStandardBookingInvoice(input: {
         booking_status:  'completed',
         review_status:   hasReadingChanges ? 'admin_adjusted' : 'admin_confirmed',
         billing_mode:    'block_time',
-        invoice_id:      drawdown.out_invoice_id,
+        invoice_id:      drawdown.out_usage_invoice_id,
+        overage_invoice_id: drawdown.out_overage_invoice_id,
+        landing_invoice_id: drawdown.out_landing_invoice_id,
         overflow_hours:  drawdown.out_overflow_hours,
       },
     })
@@ -2930,9 +2937,9 @@ export async function finaliseStandardBookingInvoice(input: {
       actor_role:    'admin',
       event_type:    'approved',
       title:         'Flight record approved',
-      body:          drawdown.out_overflow_hours > 0
-        ? `${vdoReading}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h. Overflow of ${drawdown.out_overflow_hours}h charged at $${Number(drawdown.out_rate_per_hour).toFixed(2)}/hr.`
-        : `${vdoReading}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h.`,
+      body:          hasOverage
+        ? `${deductedHours}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h. Your flight exceeded your balance — ${drawdown.out_overflow_hours}h has been invoiced as overage at your locked rate of $${Number(drawdown.out_rate_per_hour).toFixed(2)}/hr. Please pay invoice ${drawdown.out_overage_invoice_number} from your Block Time page to keep booking.`
+        : `${deductedHours}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h.`,
       is_read:       false,
       email_status:  'skipped',
     })
@@ -2952,7 +2959,9 @@ export async function finaliseStandardBookingInvoice(input: {
         entityId: input.bookingId,
         metadata: {
           billingMode: 'block_time',
-          invoiceId: drawdown.out_invoice_id,
+          invoiceId: drawdown.out_usage_invoice_id,
+          overageInvoiceId: drawdown.out_overage_invoice_id,
+          landingInvoiceId: drawdown.out_landing_invoice_id,
           overflowHours: drawdown.out_overflow_hours,
           hoursAfter: drawdown.out_hours_after,
           pdfUrl: pdfUrl ?? null,
@@ -3129,6 +3138,127 @@ export async function finaliseStandardBookingInvoice(input: {
   revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
   revalidatePath('/dashboard')
   revalidatePath(`/dashboard/bookings/${input.bookingId}`)
+  }
+}
+
+// ─── Admin-initiated flight record submission ─────────────────────────────────
+// Admin submits post-flight readings on the customer's behalf, from any
+// operational booking status and at any time (before/on/after the scheduled
+// date). Creates the flight record via the same shared submission core as the
+// customer path (same confirmation email fires for the customer), then
+// immediately runs the same billing finalisation used for customer-submitted
+// records — the readings entered here are admin-entered, so no separate review
+// pass is needed. Billing branches on the customer's block time status exactly
+// as it does for self-submitted records.
+
+const ADMIN_SUBMITTABLE_BOOKING_STATUSES = [
+  'pending_confirmation',
+  'confirmed',
+  'ready_for_dispatch',
+  'dispatched',
+  'awaiting_flight_record',
+  'flight_record_overdue',
+  'on_hold_pending_documents',
+]
+
+export async function adminSubmitFlightRecord(input: {
+  bookingId: string
+  date: string                     // YYYY-MM-DD flight date
+  ratePerHour: number
+  landingCharges?: { airportId: string; landingCount: number }[]
+  adminNotes?: string
+  readings: AircraftReadings
+}): Promise<void> {
+  const { supabase, adminId } = await requireAdmin()
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) {
+    throw new Error('VALIDATION: Flight date must be a valid date (YYYY-MM-DD).')
+  }
+
+  validateAircraftReadings(input.readings)
+  const totals = calculateAircraftReadingsTotals(input.readings)
+  if (totals.vdo_total == null || totals.vdo_total <= 0) {
+    throw new Error('VALIDATION: VDO total must be greater than 0.')
+  }
+
+  const { data: booking, error: bookingErr } = await supabase
+    .from('bookings')
+    .select('id, booking_type, aircraft_id, booking_owner_user_id, scheduled_start, scheduled_end, status, pic_name, pic_arn')
+    .eq('id', input.bookingId)
+    .single()
+
+  if (bookingErr || !booking) throw new Error('Booking not found.')
+  if (booking.booking_type !== 'standard') {
+    throw new Error('VALIDATION: Post-flight records can only be submitted for standard bookings.')
+  }
+  if (!ADMIN_SUBMITTABLE_BOOKING_STATUSES.includes(booking.status)) {
+    throw new Error(
+      `VALIDATION: Cannot submit a flight record for a booking with status "${booking.status}".`
+    )
+  }
+
+  // Refuse when a record is already in the post-flight pipeline.
+  const { data: existingRecords } = await supabase
+    .from('flight_records')
+    .select('status, submitted_at')
+    .eq('booking_id', input.bookingId)
+  const hasSubmittedRecord = (existingRecords ?? []).some((record) => {
+    const status = (record as { status?: string | null }).status ?? null
+    if (!status) return Boolean((record as { submitted_at?: string | null }).submitted_at)
+    return !['draft', 'rejected'].includes(status)
+  })
+  if (hasSubmittedRecord) {
+    throw new Error('VALIDATION: A flight record has already been submitted for this booking.')
+  }
+
+  const landingCharges = (input.landingCharges ?? []).filter(
+    (row) => row.airportId?.trim() && Number.isInteger(row.landingCount) && row.landingCount > 0,
+  )
+
+  await createFlightRecordForBooking(
+    supabase,
+    booking,
+    {
+      booking_id:       input.bookingId,
+      date:             input.date,
+      pic_name:         booking.pic_name,
+      pic_arn:          booking.pic_arn,
+      vdo_total:        totals.vdo_total,
+      tacho_total:      totals.tacho_total      ?? 0,
+      air_switch_total: totals.air_switch_total ?? 0,
+      mr_total:         totals.mr_total         ?? 0,
+      oil_added:        input.readings.oil_added,
+      oil_total:        input.readings.oil_total,
+      fuel_added:       input.readings.fuel_added,
+      fuel_returned:    input.readings.fuel_returned,
+      landings:         input.readings.landings,
+      landing_rows:     landingCharges.map((row) => ({
+        airport_id:    row.airportId,
+        landing_count: row.landingCount,
+      })),
+      customer_notes:   null,
+    },
+    { userId: adminId, role: 'admin' },
+  )
+
+  // Booking is now pending_post_flight_review — run the shared billing
+  // finalisation (block time drawdown / PAYF invoice branching lives there).
+  await finaliseStandardBookingInvoice({
+    bookingId:      input.bookingId,
+    ratePerHour:    input.ratePerHour,
+    landingCharges: landingCharges.length > 0 ? landingCharges : undefined,
+    adminNotes:     input.adminNotes,
+    readings:       input.readings,
+  })
+
+  // If the booking finished before its scheduled window ended, release any
+  // still-active schedule blocks so the aircraft slot frees up.
+  if (new Date(booking.scheduled_end).getTime() > Date.now()) {
+    await supabase
+      .from('schedule_blocks')
+      .update({ status: 'cancelled' })
+      .eq('related_booking_id', input.bookingId)
+      .eq('status', 'active')
   }
 }
 

@@ -931,6 +931,9 @@ export default async function BookingDetailPage({ params }: PageProps) {
   const status      = deriveBookingStatusForFlightRecord(booking)
   const bookingType = (booking as { booking_type?: string }).booking_type ?? 'standard'
   const isCheckout  = bookingType === 'checkout'
+  const isMultiDayBooking =
+    new Date(booking.scheduled_start).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }) !==
+    new Date(booking.scheduled_end).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
   const bookingSlotHours = Math.max(
     0,
     (new Date(booking.scheduled_end).getTime() - new Date(booking.scheduled_start).getTime()) / (1000 * 60 * 60),
@@ -1596,7 +1599,9 @@ export default async function BookingDetailPage({ params }: PageProps) {
                 <div className="bg-[#f0f6ff] border border-[#152d5a]/10 rounded-xl p-3.5">
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <span className="material-symbols-outlined text-[#1a4fd6]/45 text-[12px]">timer</span>
-                    <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#4b6390] mb-1">Est. Duration</p>
+                    <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#4b6390] mb-1">
+                      {isMultiDayBooking ? 'Booking Window' : 'Est. Duration'}
+                    </p>
                   </div>
                   <p className="text-[15px] font-semibold text-[#152d5a]">{booking.estimated_hours.toFixed(1)} h</p>
                 </div>

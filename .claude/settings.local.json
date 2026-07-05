@@ -27,7 +27,9 @@
       "Bash(echo \"exit: $?\")",
       "Bash(echo \"exit code: $?\")",
       "Bash(echo \"tsc exit: $?\")",
-      "Bash(node scripts/test_block_time_topup_suite.mjs)"
+      "Bash(node scripts/test_block_time_topup_suite.mjs)",
+      "Bash(node -e ' *)",
+      "Bash(node scripts/test_post_flight_billing_suite.mjs)"
     ]
   }
 }

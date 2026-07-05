@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { PAYMENT_CONFIG } from "@/lib/payments/config";
 import { validateBlockTimeTopupHours } from "@/lib/payments/block-time-topup";
+import { getOutstandingOverageInvoices, overageGateMessage } from "@/lib/payments/block-time-overage";
 import {
   notifyAdminBankTransferProofUploaded,
   notifyBankTransferProofReceived,
@@ -159,6 +160,12 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
   } = await supabase.auth.getUser();
 
   if (authError || !user) throw new Error("Unauthorized");
+
+  // Overage gate — an unpaid block time overage invoice blocks new purchases.
+  const outstandingOverageForPurchase = await getOutstandingOverageInvoices(supabase, user.id);
+  if (outstandingOverageForPurchase.length > 0) {
+    throw new Error(overageGateMessage(outstandingOverageForPurchase));
+  }
 
   const { data: profile, error: profileErr } = await supabase
     .from("profiles")
@@ -367,6 +374,12 @@ export async function createBlockTimeTopupIntent(purchaseId: string, hoursReques
 
   if (authError || !user) throw new Error("Unauthorized");
 
+  // Overage gate — an unpaid block time overage invoice blocks top-ups.
+  const outstandingOverageForTopup = await getOutstandingOverageInvoices(supabase, user.id);
+  if (outstandingOverageForTopup.length > 0) {
+    throw new Error(overageGateMessage(outstandingOverageForTopup));
+  }
+
   const { data: profile, error: profileErr } = await supabase
     .from("profiles")
     .select("id, full_name, email, stripe_customer_id")
@@ -490,13 +503,120 @@ export async function createBlockTimeTopupIntent(purchaseId: string, hoursReques
         quantity: 1,
       },
     ],
-    success_url: `${appUrl}/dashboard/block-time?block_time_topup=success`,
-    cancel_url: `${appUrl}/dashboard/block-time?block_time_topup=cancelled`,
+    success_url: `${appUrl}/dashboard/purchases?block_time_topup=success`,
+    cancel_url: `${appUrl}/dashboard/purchases?block_time_topup=cancelled`,
     metadata: topupMetadata,
     payment_intent_data: ({
       setup_future_usage: "off_session",
       metadata: topupMetadata,
       description: `OZ Rent A Plane - ${packageName} Top-Up (${hours}h Block Time)`,
+    } as any),
+  });
+
+  if (!session.url) {
+    throw new Error("Failed to create Stripe checkout session.");
+  }
+
+  redirect(session.url);
+}
+
+// ─── Block time overage payment ───────────────────────────────────────────────
+// Customer settles an outstanding block time overage invoice via Stripe
+// Checkout. The webhook marks the invoice paid, which lifts the overage gate
+// (new bookings / purchases / top-ups) automatically.
+export async function createBlockTimeOveragePaymentSession(invoiceId: string) {
+  const stripeSecret = process.env.STRIPE_SECRET_KEY;
+  if (!stripeSecret) {
+    throw new Error("Server misconfiguration");
+  }
+
+  const stripe = new Stripe(stripeSecret, {
+    apiVersion: "2023-10-16" as any,
+  });
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) throw new Error("Unauthorized");
+
+  const { data: invoice, error: invoiceErr } = await supabase
+    .from("invoices")
+    .select("id, invoice_number, user_id, booking_id, total, status, is_block_time_overage")
+    .eq("id", invoiceId)
+    .eq("user_id", user.id)
+    .eq("is_block_time_overage", true)
+    .maybeSingle();
+
+  if (invoiceErr) throw new Error("Failed to load the overage invoice.");
+  if (!invoice) throw new Error("Overage invoice not found.");
+  if (invoice.status === "paid") {
+    throw new Error("VALIDATION: This overage invoice has already been paid.");
+  }
+  if (invoice.status !== "awaiting") {
+    throw new Error(`VALIDATION: This overage invoice cannot be paid (status: ${invoice.status}).`);
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, full_name, email, stripe_customer_id")
+    .eq("id", user.id)
+    .single();
+
+  let stripeCustomerId = profile?.stripe_customer_id ?? null;
+  if (!stripeCustomerId) {
+    const customer = await stripe.customers.create({
+      email: profile?.email ?? undefined,
+      name: profile?.full_name ?? undefined,
+      metadata: { supabase_user_id: user.id },
+    });
+    stripeCustomerId = customer.id;
+    await supabase
+      .from("profiles")
+      .update({ stripe_customer_id: stripeCustomerId })
+      .eq("id", user.id);
+  }
+
+  const appUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000";
+
+  const overageMetadata = {
+    purchase_type: "block_time_overage_payment",
+    supabase_user_id: user.id,
+    invoice_id: invoice.id,
+    invoice_number: invoice.invoice_number,
+    booking_id: invoice.booking_id ?? "",
+  };
+
+  const amountCents = Math.round(Number(invoice.total) * 100);
+
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
+    mode: "payment",
+    customer: stripeCustomerId,
+    line_items: [
+      {
+        price_data: {
+          currency: "aud",
+          product_data: {
+            name: `OZ Rent A Plane — Block Time Overage (${invoice.invoice_number})`,
+            description: "Flight hours exceeding your block time balance, at your locked package rate.",
+          },
+          unit_amount: amountCents,
+        },
+        quantity: 1,
+      },
+    ],
+    success_url: `${appUrl}/dashboard/purchases?overage_payment=success`,
+    cancel_url: `${appUrl}/dashboard/purchases?overage_payment=cancelled`,
+    metadata: overageMetadata,
+    payment_intent_data: ({
+      metadata: overageMetadata,
+      description: `OZ Rent A Plane — Block Time Overage (${invoice.invoice_number})`,
     } as any),
   });
 

@@ -11,6 +11,8 @@ import {
   buildReadingsFromTotals,
   upsertAircraftFlightLogRecord,
 } from '@/lib/aircraft-flight-log'
+import { createFlightRecordForBooking } from '@/lib/booking/flight-record-submission'
+import { getOutstandingOverageInvoices, overageGateMessage } from '@/lib/payments/block-time-overage'
 import { validateTotalOnlyReadings } from '@/lib/aircraft-readings'
 import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -22,7 +24,6 @@ import {
   notifyCancellationRequested,
   notifyAdminCancellationReviewRequired,
   notifyClarificationResponseReceived,
-  notifyFlightRecordSubmitted,
   notifyFlightRecordResubmitted,
 } from '@/lib/booking/notifications'
 import type {
@@ -30,7 +31,6 @@ import type {
   SubmitFlightRecordInput,
   ResubmitFlightRecordInput,
   ReviewFlag,
-  FlightRecordLandingRow,
 } from '@/lib/supabase/booking-types'
 import type { UserDocument } from '@/lib/supabase/types'
 
@@ -195,6 +195,12 @@ export async function createBooking(
   input: CreateBookingInput,
 ): Promise<{ bookingId: string; bookingReference: string; bookingStatus: string }> {
   const { supabase, userId } = await requireClearedCustomer()
+
+  // Overage gate — an unpaid block time overage invoice blocks new bookings.
+  const outstandingOverage = await getOutstandingOverageInvoices(supabase, userId)
+  if (outstandingOverage.length > 0) {
+    throw new Error(overageGateMessage(outstandingOverage))
+  }
 
   // Flight review date — required and must be within the last 2 years
   const flightReviewErr = validateFlightReviewDate(input.last_flight_date ?? '')
@@ -376,192 +382,13 @@ export async function submitFlightRecord(
       `VALIDATION: Cannot submit flight record for a booking with status "${booking.status}".`
     )
   }
-  const scheduledHours =
-    (new Date(booking.scheduled_end).getTime() - new Date(booking.scheduled_start).getTime()) /
-    (1000 * 60 * 60)
 
-  // Validate total-only input
-  validateTotalOnlyReadings({
-    vdo_total:        input.vdo_total,
-    tacho_total:      input.tacho_total,
-    air_switch_total: input.air_switch_total,
-    mr_total:         input.mr_total,
-    oil_added:        input.oil_added ?? null,
-    oil_total:        input.oil_total ?? null,
-    fuel_added:       input.fuel_added ?? null,
-    fuel_returned:    input.fuel_returned ?? null,
-    landings:         input.landings ?? null,
-    notes:            input.customer_notes ?? null,
-  })
-
-  // Compute start/stop from last finalized aircraft log
-  const baseline = await getLastFinalizedLogStop(booking.aircraft_id)
-  const readings = buildReadingsFromTotals(
-    {
-      vdo_total:        input.vdo_total,
-      tacho_total:      input.tacho_total,
-      air_switch_total: input.air_switch_total,
-      mr_total:         input.mr_total,
-      oil_added:        input.oil_added ?? null,
-      oil_total:        input.oil_total ?? null,
-      fuel_added:       input.fuel_added ?? null,
-      fuel_returned:    input.fuel_returned ?? null,
-      landings:         input.landings ?? null,
-      notes:            input.customer_notes ?? null,
-    },
-    baseline,
+  return createFlightRecordForBooking(
+    supabase,
+    booking,
+    input,
+    { userId, role: 'customer' },
   )
-
-  const flags: ReviewFlag[] = generateReviewFlags({
-    tacho_start:      readings.tacho_start,
-    tacho_stop:       readings.tacho_stop,
-    vdo_start:        readings.vdo_start,
-    vdo_stop:         readings.vdo_stop,
-    air_switch_start: readings.air_switch_start,
-    air_switch_stop:  readings.air_switch_stop,
-    oil_added:        input.oil_added,
-    fuel_added:       input.fuel_added,
-    landings:         input.landings,
-    scheduled_hours:  scheduledHours,
-  })
-
-  const now = new Date().toISOString()
-
-  // Insert flight record with calculated start/stop (admin can review/correct in billing panel)
-  const { data: flightRecord, error: frError } = await supabase
-    .from('flight_records')
-    .insert({
-      booking_id:              input.booking_id,
-      aircraft_id:             booking.aircraft_id,
-      date:                    input.date,
-      pic_name:                input.pic_name           ?? null,
-      pic_arn:                 input.pic_arn            ?? null,
-      tacho_start:             readings.tacho_start,
-      tacho_stop:              readings.tacho_stop,
-      vdo_start:               readings.vdo_start,
-      vdo_stop:                readings.vdo_stop,
-      air_switch_start:        readings.air_switch_start,
-      air_switch_stop:         readings.air_switch_stop,
-      mr_start:                readings.mr_start,
-      mr_stop:                 readings.mr_stop,
-      oil_added:               input.oil_added          ?? null,
-      oil_total:               input.oil_total          ?? null,
-      fuel_added:              input.fuel_added         ?? null,
-      fuel_returned:           input.fuel_returned      ?? null,
-      landings:                input.landings           ?? null,
-      customer_notes:          input.customer_notes     ?? null,
-      declaration_accepted_at: input.declaration_accepted ? now : null,
-      signature_type:          input.signature_type     ?? 'none',
-      signature_value:         input.signature_value    ?? null,
-      submitted_by_user_id:    userId,
-      submitted_at:            now,
-      status:                  'pending_review',
-      review_flags:            flags.length > 0 ? flags : null,
-    })
-    .select('id')
-    .single()
-
-  if (frError || !flightRecord) {
-    console.error('[submitFlightRecord] Insert failed:', frError)
-    throw new Error('Failed to submit flight record. Please try again.')
-  }
-
-  const { data: snapshotProfile } = await supabase
-    .from('profiles')
-    .select('full_name, pilot_arn')
-    .eq('id', userId)
-    .single()
-
-  const ledgerPicName =
-    input.pic_name?.trim() ||
-    booking.pic_name ||
-    snapshotProfile?.full_name ||
-    'Pilot'
-  const ledgerPicArn =
-    input.pic_arn?.trim() ||
-    booking.pic_arn ||
-    snapshotProfile?.pilot_arn ||
-    null
-
-  await upsertAircraftFlightLogRecord({
-    aircraft_id: booking.aircraft_id,
-    flight_date: input.date,
-    pic_user_id: userId,
-    pic_name: ledgerPicName,
-    pic_arn: ledgerPicArn,
-    readings,
-    related_booking_id: input.booking_id,
-    source: 'booking_customer_post_flight',
-    review_status: 'pending_admin_review',
-    created_by: userId,
-    updated_by: userId,
-  })
-
-  // Insert per-airport landing rows (mandatory for standard bookings)
-  if (input.landing_rows && input.landing_rows.length > 0) {
-    const landingInserts = input.landing_rows.map((row: FlightRecordLandingRow) => ({
-      flight_record_id: flightRecord.id,
-      airport_id:       row.airport_id,
-      landing_count:    row.landing_count,
-    }))
-    const { error: landingErr } = await supabase
-      .from('flight_record_landings')
-      .insert(landingInserts)
-    if (landingErr) {
-      console.error('[submitFlightRecord] Landing rows insert failed:', landingErr)
-      // Non-fatal — flight record created, admin can add landing details manually.
-    }
-  }
-
-  // Advance booking status
-  const { error: bookingUpdateError } = await supabase
-    .from('bookings')
-    .update({ status: 'pending_post_flight_review' })
-    .eq('id', input.booking_id)
-
-  if (bookingUpdateError) {
-    console.error('[submitFlightRecord] Booking status update failed:', bookingUpdateError)
-    // Flight record was created — log but continue. Admin can fix status manually.
-  }
-
-  // Audit event
-  await supabase
-    .from('booking_audit_events')
-    .insert({
-      booking_id:          input.booking_id,
-      aircraft_id:         booking.aircraft_id,
-      related_record_type: 'flight_record',
-      related_record_id:   flightRecord.id,
-      actor_user_id:       userId,
-      actor_role:          'customer',
-      event_type:          'flight_record_submitted',
-      event_summary:       `Customer submitted flight record. ${flags.length} review flag(s) generated.`,
-      new_value: {
-        flight_record_id:   flightRecord.id,
-        booking_status:     'pending_post_flight_review',
-        review_flag_count:  flags.length,
-        has_errors:         flags.some(f => f.severity === 'error'),
-      },
-    })
-
-  revalidatePath('/dashboard')
-  revalidatePath('/admin')
-
-  const [{ data: profile }, { data: aircraft }] = await Promise.all([
-    supabase.from('profiles').select('full_name, email').eq('id', userId).single(),
-    supabase.from('aircraft').select('registration').eq('id', booking.aircraft_id).single(),
-  ])
-  if (profile?.email) {
-    await notifyFlightRecordSubmitted({
-      bookingId: input.booking_id,
-      customerEmail: profile.email,
-      customerName: profile.full_name ?? 'Pilot',
-      aircraft: (aircraft as { registration?: string } | null)?.registration ?? 'Aircraft',
-      bookingDate: new Date(booking.scheduled_start).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }),
-    }).catch((error) => console.error('[submitFlightRecord] email failed:', error))
-  }
-
-  return { flightRecordId: flightRecord.id }
 }
 
 // ─── Submit clarification response ────────────────────────────────────────────

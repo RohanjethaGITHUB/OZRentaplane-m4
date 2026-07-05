@@ -22,7 +22,7 @@ const BASE_PORTAL_LINKS: PortalLink[] = [
   { label: 'Dashboard', href: '/dashboard', icon: 'dashboard', exact: true },
   { label: 'Documents', href: '/dashboard/documents', icon: 'description' },
   { label: 'Bookings', href: '/dashboard/bookings', icon: 'event' },
-  { label: 'Profile', href: '/dashboard/settings', icon: 'person' },
+  { label: 'Pricing', href: '/dashboard/pricing', icon: 'sell' },
 ]
 
 const CHECKOUT_LINK: PortalLink = { label: 'Checkout', href: '/dashboard/checkout', icon: 'flight_takeoff' }
@@ -181,7 +181,7 @@ export default function CustomerPortalNav({ firstName, email, hideCheckout = fal
                   <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
                     settings
                   </span>
-                  <span>Account Settings</span>
+                  <span>Profile</span>
                 </Link>
 
                 <Link

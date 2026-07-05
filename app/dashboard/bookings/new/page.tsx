@@ -14,6 +14,8 @@ import { hasManualCheckoutClearance } from '@/lib/checkout-clearance'
 
 export const metadata = { title: 'Book a Flight | Pilot Overview' }
 
+const PAYF_RATE_PER_HOUR = 330
+
 // ── Shared locked gate shell ─────────────────────────────────────────────────
 
 function LockedGate({
@@ -255,7 +257,16 @@ export default async function NewBookingPage() {
 
   // ── State D: Cleared to fly — show the booking form ──────────────────────
   if (pilotClearanceStatus === 'cleared_to_fly') {
-    const [{ data: paidInvoice }, { data: historicalClearance }, { data: documents }, activeTermsPrimary, { data: latestTermsAcceptance }] = await Promise.all([
+    const nowIso = new Date().toISOString()
+    const [
+      { data: paidInvoice },
+      { data: historicalClearance },
+      { data: documents },
+      activeTermsPrimary,
+      { data: latestTermsAcceptance },
+      { data: activeBlockTimePurchase },
+      { data: cheapestBlockTimePackage },
+    ] = await Promise.all([
       supabase
         .from('checkout_invoices')
         .select('id')
@@ -289,6 +300,22 @@ export default async function NewBookingPage() {
         .select('terms_document_id, terms_version, terms_content_hash, accepted_at')
         .eq('user_id', user.id)
         .order('accepted_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('pilot_block_time_purchases')
+        .select('hours_remaining, rate_per_hour, expires_at')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .gt('expires_at', nowIso)
+        .order('activated_at', { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('block_time_packages')
+        .select('rate_per_hour')
+        .eq('is_active', true)
+        .order('rate_per_hour', { ascending: true })
         .limit(1)
         .maybeSingle(),
     ])
@@ -452,7 +479,21 @@ export default async function NewBookingPage() {
     if (!typedProfile?.full_name) eligibilityWarnings.push('Your profile name is missing. Please update your profile.')
     if (!typedProfile?.pilot_arn) eligibilityWarnings.push('Your Aviation Reference Number has not been recorded. Please contact operations.')
 
-    const BOOKING_HOURLY_RATE = 320
+    const activeBlockTimeRatePerHour = activeBlockTimePurchase?.rate_per_hour != null
+      ? Number(activeBlockTimePurchase.rate_per_hour)
+      : null
+    const currentPayfRatePerHour = PAYF_RATE_PER_HOUR
+    const displayedRatePerHour = activeBlockTimeRatePerHour ?? currentPayfRatePerHour
+    const activeBlockTimeSummary = activeBlockTimePurchase
+      ? {
+          hoursRemaining: Number(activeBlockTimePurchase.hours_remaining),
+          expiresAt: activeBlockTimePurchase.expires_at,
+          ratePerHour: Number(activeBlockTimePurchase.rate_per_hour),
+        }
+      : null
+    const cheapestActivePackageRatePerHour = cheapestBlockTimePackage?.rate_per_hour != null
+      ? Number(cheapestBlockTimePackage.rate_per_hour)
+      : null
 
     return (
       <CustomerBookingShell user={user as User} profile={typedProfile}>
@@ -461,7 +502,10 @@ export default async function NewBookingPage() {
           aircraftRegistration={aircraft.registration}
           aircraftType={aircraft.display_name || aircraft.aircraft_type}
           aircraftStatus={aircraft.status}
-          hourlyRate={BOOKING_HOURLY_RATE}
+          payfRatePerHour={currentPayfRatePerHour}
+          displayedRatePerHour={displayedRatePerHour}
+          activeBlockTimeSummary={activeBlockTimeSummary}
+          cheapestActivePackageRatePerHour={cheapestActivePackageRatePerHour}
           picName={typedProfile?.full_name ?? null}
           picArn={typedProfile?.pilot_arn ?? null}
           documentReadinessItems={docItems}

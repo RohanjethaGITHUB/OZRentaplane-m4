@@ -22,7 +22,7 @@ type NavGroup = {
   items: NavItem[]
 }
 
-const NAV_GROUPS: NavGroup[] = [
+const BASE_NAV_GROUPS: NavGroup[] = [
   {
     title: 'Main',
     activeTabs: ['Dashboard'],
@@ -41,11 +41,11 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Bookings',
     activeTabs: ['Bookings'],
-    activeRoutes: ['/dashboard/bookings', '/dashboard/block-time'],
+    activeRoutes: ['/dashboard/bookings', '/dashboard/pricing', '/dashboard/purchases'],
     items: [
       { label: 'My Bookings',      icon: 'calendar_month', href: '/dashboard/bookings',     requiresVerified: true },
       { label: 'Request a Flight', icon: 'flight_takeoff', href: '/dashboard/bookings/new', requiresVerified: true },
-      { label: 'Block Time',       icon: 'schedule',       href: '/dashboard/block-time',   requiresVerified: true },
+      { label: 'Block Time',       icon: 'schedule',       href: '/dashboard/pricing',       requiresVerified: true },
     ],
   },
   {
@@ -58,6 +58,21 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
+function buildNavGroups(hasPurchaseHistory: boolean): NavGroup[] {
+  return BASE_NAV_GROUPS.map((group) => {
+    if (group.title !== 'Bookings') return group
+    return {
+      ...group,
+      items: [
+        ...group.items,
+        ...(hasPurchaseHistory
+          ? [{ label: 'Purchase History', icon: 'receipt_long', href: '/dashboard/purchases', requiresVerified: true }]
+          : []),
+      ],
+    }
+  })
+}
+
 type Props = {
   displayName: string
   sidebarRole?: string
@@ -65,6 +80,7 @@ type Props = {
   onTabChange?: (tab: DashTab) => void
   chatUnreadCount?: number
   isVerified?: boolean
+  hasPurchaseHistory?: boolean
   onLogout: () => void
 }
 
@@ -75,9 +91,11 @@ export default function CustomerSidebar({
   onTabChange,
   chatUnreadCount = 0,
   isVerified = false,
+  hasPurchaseHistory = false,
   onLogout,
 }: Props) {
   const pathname = usePathname()
+  const NAV_GROUPS = buildNavGroups(hasPurchaseHistory)
 
   function isGroupActive(group: NavGroup): boolean {
     if (activeTab && group.activeTabs?.includes(activeTab)) return true

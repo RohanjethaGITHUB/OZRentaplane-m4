@@ -59,7 +59,7 @@ const STAT_ICONS: Record<string, string> = {
   'Upcoming Bookings':          'calendar_month',
   'Awaiting Confirmation':      'hourglass_top',
   'Completed Flights':          'check_circle',
-  'Total Flight Hours':         'schedule',
+  'Total Booked Hours':         'schedule',
   'Checkout Request':           'how_to_reg',
   'Awaiting Review':            'hourglass_top',
   'Upcoming Aircraft Bookings': 'calendar_month',
@@ -110,6 +110,12 @@ type BookingRow = {
   aircraft_registration?: string | null
   aircraft:          { registration: string } | null
   flight_records?:   { status: string | null; submitted_at: string | null }[] | null
+}
+
+function isMultiDayBooking(startISO: string | null | undefined, endISO: string | null | undefined): boolean {
+  if (!startISO || !endISO) return false
+  return new Date(startISO).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }) !==
+    new Date(endISO).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
 }
 
 // ── Clearance gate banners ────────────────────────────────────────────────────
@@ -421,7 +427,7 @@ export default async function CustomerBookingsPage() {
     { label: 'Upcoming Bookings',     value: String(upcomingAircraft.length),                                                                                                    icon: 'calendar_month' },
     { label: 'Awaiting Confirmation', value: String(rows.filter(b => b.booking_type !== 'checkout' && ['pending_confirmation', 'needs_clarification'].includes(b.status)).length), icon: 'hourglass_top'  },
     { label: 'Completed Flights',     value: String(rows.filter(b => b.booking_type !== 'checkout' && b.status === 'completed').length),                                          icon: 'check_circle'   },
-    { label: 'Total Flight Hours',    value: rows.filter(b => b.booking_type !== 'checkout' && b.status === 'completed').reduce((sum, b) => sum + (b.estimated_hours ?? 0), 0).toFixed(1), icon: 'schedule' },
+    { label: 'Total Booked Hours',    value: rows.filter(b => b.booking_type !== 'checkout' && b.status === 'completed').reduce((sum, b) => sum + (b.estimated_hours ?? 0), 0).toFixed(1), icon: 'schedule' },
   ]
 
   const allUpcoming = [
@@ -467,7 +473,7 @@ export default async function CustomerBookingsPage() {
                 {
                   icon: 'schedule',
                   value: `${rows.filter((r) => r.booking_type !== 'checkout' && r.status === 'completed').reduce((acc, r) => acc + (r.estimated_hours ?? 0), 0).toFixed(1)}h`,
-                  label: 'Total Flight Hours',
+                  label: 'Total Booked Hours',
                 },
               ].map((stat) => (
                 <div key={stat.label} className="bg-[#152d5a] rounded-2xl px-6 py-6 flex items-center gap-4 min-h-[96px]">
@@ -703,7 +709,12 @@ export default async function CustomerBookingsPage() {
                                   <span className="text-[#152d5a]/20">·</span>
                                   <span className="flex items-center gap-1">
                                     <span className="material-symbols-outlined text-[13px]">timer</span>
-                                    {booking.estimated_hours} hrs
+                                    <span className="text-[#4b6390]">
+                                      {isMultiDayBooking(booking.scheduled_start, booking.scheduled_end)
+                                        ? 'Booking Window'
+                                        : 'Est. Duration'}
+                                    </span>
+                                    <span className="font-semibold text-[#152d5a]">{booking.estimated_hours} hrs</span>
                                   </span>
                                 </>
                               )}
@@ -812,7 +823,12 @@ export default async function CustomerBookingsPage() {
                                 <span className="text-[#152d5a]/20">•</span>
                                 <span className="flex items-center gap-1.5">
                                   <span className="material-symbols-outlined text-[13px]">timer</span>
-                                  {booking.estimated_hours} hrs
+                                  <span className="text-[#4b6390]">
+                                    {isMultiDayBooking(booking.scheduled_start, booking.scheduled_end)
+                                      ? 'Booking Window'
+                                      : 'Est. Duration'}
+                                  </span>
+                                  <span className="font-semibold text-[#152d5a]">{booking.estimated_hours} hrs</span>
                                 </span>
                               </>
                             )}

@@ -179,9 +179,11 @@ export default async function AdminBookingList({
     { label: 'Completed', value: 'completed' },
   ]
 
+  // The manual dispatch step has been removed — nothing sets 'dispatched'
+  // anymore, so the queue tabs jump from Upcoming straight to the post-flight
+  // states. Legacy 'dispatched' rows still render with their badge under All.
   const standardTabs = [
     { label: 'Upcoming', value: 'confirmed' },
-    { label: 'In Progress', value: 'dispatched' },
     { label: 'Awaiting Flight Record', value: 'awaiting_flight_record' },
     { label: 'Post-flight Review', value: 'pending_post_flight_review' },
     { label: 'Completed', value: 'completed' },
