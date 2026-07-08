@@ -3,7 +3,6 @@
 import {
   useState,
   useEffect,
-  useTransition,
   useCallback,
   useMemo,
   useRef,
@@ -26,6 +25,7 @@ import DocumentProgressCard from "@/components/DocumentProgressCard";
 import CalendarDateField from "@/components/CalendarDateField";
 import PortalPageHero from "@/components/PortalPageHero";
 import BookingConfirmationModal from "./BookingConfirmationModal";
+import BookingReviewModal, { type BookingReviewDraft } from "./BookingReviewModal";
 import { getDocumentProgressSnapshot } from "@/lib/document-progress";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -378,21 +378,21 @@ function BookingRateContextPanel({
   return (
     <div
       className={`mb-5 rounded-2xl border px-6 py-5 shadow-sm ${
-        hasActiveBlockTime ? "border-green-500/20 bg-green-500/5" : "border-[#f2d28a] bg-[#fff6df]"
+        hasActiveBlockTime ? "border-green-500/20 bg-green-500/5" : "border-[#1a4fd6] bg-[#152d5a]"
       }`}
     >
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex-1">
           <p
             className={`text-[11px] font-semibold uppercase tracking-widest ${
-              hasActiveBlockTime ? "text-green-700" : "text-[#a16207]"
+              hasActiveBlockTime ? "text-green-700" : "text-[#cfe0ff]"
             }`}
           >
             {hasActiveBlockTime ? "Block time active" : "Pay As You Fly"}
           </p>
           <p
             className={`mt-2 text-lg font-bold ${
-              hasActiveBlockTime ? "text-green-700" : "text-[#7c2d12]"
+              hasActiveBlockTime ? "text-green-700" : "text-white"
             }`}
           >
             {hasActiveBlockTime
@@ -401,7 +401,7 @@ function BookingRateContextPanel({
           </p>
           <p
             className={`mt-1 text-sm leading-relaxed ${
-              hasActiveBlockTime ? "text-green-700/80" : "text-[#8b5e34]"
+              hasActiveBlockTime ? "text-green-700/80" : "text-[#d6e3ff]"
             }`}
           >
             {hasActiveBlockTime
@@ -412,17 +412,17 @@ function BookingRateContextPanel({
 
         <div
           className={`lg:border-l lg:pl-6 ${
-            hasActiveBlockTime ? "lg:border-green-500/20" : "lg:border-[#e9c87b]"
+            hasActiveBlockTime ? "lg:border-green-500/20" : "lg:border-white/15"
           }`}
         >
-          <div className={`flex items-start gap-2 ${hasActiveBlockTime ? "text-green-700" : "text-[#b45309]"}`}>
+          <div className={`flex items-start gap-2 ${hasActiveBlockTime ? "text-green-700" : "text-white"}`}>
             <span className="material-symbols-outlined text-[18px] mt-0.5">
               schedule
             </span>
             <div>
               <p
                 className={`text-xs font-semibold uppercase tracking-wide ${
-                  hasActiveBlockTime ? "text-green-700/80" : "text-[#a16207]"
+                  hasActiveBlockTime ? "text-green-700/80" : "text-[#cfe0ff]"
                 }`}
               >
                 {hasActiveBlockTime ? "Current balance" : "Booking rate"}
@@ -432,7 +432,7 @@ function BookingRateContextPanel({
                   <p className={`text-sm font-semibold ${hasActiveBlockTime ? "text-green-700" : "text-[#7c2d12]"}`}>
                     {activeBlockTimeSummary.hoursRemaining.toFixed(1)}h remaining
                   </p>
-                  <p className={`text-xs ${hasActiveBlockTime ? "text-green-700/80" : "text-[#8b5e34]"}`}>
+                  <p className={`text-xs ${hasActiveBlockTime ? "text-green-700/80" : "text-[#d6e3ff]"}`}>
                     Expires {formatDateFromISO(activeBlockTimeSummary.expiresAt)}
                   </p>
                   <p className="mt-3 text-sm line-through text-[#4b6390]/70">
@@ -444,10 +444,10 @@ function BookingRateContextPanel({
                 </>
               ) : (
                 <>
-                  <p className="text-sm font-semibold text-[#7c2d12]">
+                  <p className="text-sm font-semibold text-white">
                     You're booking at the Pay As You Fly rate
                   </p>
-                  <p className="mt-3 text-sm leading-relaxed text-[#7c2d12]">
+                  <p className="mt-3 text-sm leading-relaxed text-[#d6e3ff]">
                     That's {formatHourlyRate(payfRatePerHour)} for this flight. Save up to $40/hr by purchasing a Block Time package.
                   </p>
                 </>
@@ -458,7 +458,7 @@ function BookingRateContextPanel({
           {!hasActiveBlockTime ? (
             <Link
               href="/dashboard/pricing"
-              className="mt-4 inline-flex items-center justify-center gap-2 rounded-full border border-[#1a4fd6]/10 bg-[#f0f6ff] px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-[#1a4fd6] transition-colors hover:bg-[#e0edff] hover:text-[#153eb2]"
+              className="mt-4 inline-flex items-center justify-center gap-2 rounded-full border border-[#f59e0b]/25 bg-[#f59e0b] px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-white shadow-sm transition-colors hover:bg-[#d97706] hover:border-[#d97706]"
             >
               View Block Time
               <span className="material-symbols-outlined text-sm">arrow_forward</span>
@@ -491,7 +491,6 @@ export default function BookingRequestForm({
   eligibilityWarnings,
   initialLastFlightDate,
 }: Props) {
-  const [isSubmitting, startSubmit] = useTransition();
   const [bookingMode, setBookingMode] = useState<
     "single" | "multi" | null
   >(null);
@@ -527,6 +526,8 @@ export default function BookingRequestForm({
   const [notes, setNotes] = useState("");
   const [medical] = useState(true);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [reviewDraft, setReviewDraft] = useState<BookingReviewDraft | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const [successState, setSuccessState] = useState<SuccessState | null>(null);
   const [multiDayMinimumInfoOpen, setMultiDayMinimumInfoOpen] = useState(false);
   const multiDayMinimumInfoRef = useRef<HTMLDivElement>(null);
@@ -798,11 +799,6 @@ export default function BookingRequestForm({
     return getVdoHourlyRate(estimatedHours);
   }, [estimatedHours, payfRatePerHour]);
 
-  const estimatedTotal = useMemo(() => {
-    if (estimatedHours == null) return null;
-    return estimatedHours * estimatedRate;
-  }, [estimatedHours, estimatedRate]);
-
   const bookingDayCount = useMemo(() => {
     if (bookingMode !== "multi" || !startDate || !bookingReturnDate) return 0;
     const start = new Date(`${startDate}T12:00:00`);
@@ -834,7 +830,7 @@ export default function BookingRequestForm({
     bookingReturnDate <= startDate;
 
   const canSubmit =
-    !isSubmitting &&
+    !reviewDraft &&
     !eligibilityBlocked &&
     !!startDT &&
     !!endDT &&
@@ -927,47 +923,71 @@ export default function BookingRequestForm({
       returnTime: string | null;
     };
 
-    startSubmit(async () => {
-      try {
-        const result = await createBooking(input as CreateBookingInput);
-        setSuccessState({
-          bookingId: result.bookingId,
-          bookingReference: result.bookingReference,
-          bookingStatus: result.bookingStatus,
-          bookingMode: bookingMode ?? "single",
-          startDT,
-          endDT,
-          estimatedHours,
-        });
-      } catch (err: unknown) {
-        const msg =
-          err instanceof Error ? err.message : "Something went wrong.";
-        if (
-          msg.includes("AVAILABILITY") ||
-          msg.includes("conflict") ||
-          msg.includes("unavailable")
-        ) {
-          setSubmitError(
-            "This time was just taken or blocked. Please choose another window.",
-          );
-        } else if (msg.includes("VALIDATION")) {
-          setSubmitError(msg.replace("VALIDATION:", "").trim());
-        } else if (
-          msg.includes("CLEARANCE_REQUIRED") ||
-          msg.includes("VERIFICATION_REQUIRED")
-        ) {
-          setSubmitError(
-            "You must complete your checkout flight and be cleared before booking aircraft.",
-          );
-        } else if (msg.includes("READINESS_REQUIRED")) {
-          setSubmitError(
-            "Your pilot documents are incomplete or still under review. Please check your Documents page and ensure all required files have been uploaded.",
-          );
-        } else {
-          setSubmitError(msg);
-        }
-      }
+    setReviewError(null);
+    setReviewDraft({
+      bookingMode: bookingMode ?? "single",
+      startDate,
+      startTime,
+      endDate: bookingReturnDate,
+      endTime: bookingReturnTime,
+      bookingSummaryDurationLabel,
+      estimatedHours,
+      estimatedRate,
+      bookingDayCount,
+      multiDayMinimumVdoHours,
+      input,
     });
+  }
+
+  async function handleReviewConfirm() {
+    if (!reviewDraft) return;
+
+    try {
+      const result = await createBooking(reviewDraft.input as CreateBookingInput);
+      setReviewDraft(null);
+      setSuccessState({
+        bookingId: result.bookingId,
+        bookingReference: result.bookingReference,
+        bookingStatus: result.bookingStatus,
+        bookingMode: reviewDraft.bookingMode,
+        startDT: reviewDraft.input.scheduled_start,
+        endDT: reviewDraft.input.scheduled_end,
+        estimatedHours: reviewDraft.estimatedHours,
+      });
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Something went wrong.";
+      if (
+        msg.includes("AVAILABILITY") ||
+        msg.includes("conflict") ||
+        msg.includes("unavailable")
+      ) {
+        setReviewError(
+          "This time was just taken or blocked. Please choose another window.",
+        );
+      } else if (msg.includes("VALIDATION")) {
+        setReviewError(msg.replace("VALIDATION:", "").trim());
+      } else if (
+        msg.includes("CLEARANCE_REQUIRED") ||
+        msg.includes("VERIFICATION_REQUIRED")
+      ) {
+        setReviewError(
+          "You must complete your checkout flight and be cleared before booking aircraft.",
+        );
+      } else if (msg.includes("READINESS_REQUIRED")) {
+        setReviewError(
+          "Your pilot documents are incomplete or still under review. Please check your Documents page and ensure all required files have been uploaded.",
+        );
+      } else {
+        setReviewError(msg);
+      }
+      throw err;
+    }
+  }
+
+  function handleReviewClose() {
+    setReviewDraft(null);
+    setReviewError(null);
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -988,6 +1008,16 @@ export default function BookingRequestForm({
             setSuccessState(null);
             router.replace("/dashboard/bookings");
           }}
+        />
+      ) : null}
+      {reviewDraft ? (
+        <BookingReviewModal
+          open
+          draft={reviewDraft}
+          error={reviewError}
+          onClose={handleReviewClose}
+          onConfirm={handleReviewConfirm}
+          onSwipeError={(message) => setReviewError(message)}
         />
       ) : null}
 
@@ -1114,72 +1144,74 @@ export default function BookingRequestForm({
                 </p>
               </div>
 
-              <div
-                className={`mb-5 rounded-2xl border px-6 py-5 shadow-sm ${
-                  documentGate.bannerState === 'unlocked'
-                    ? 'border-green-500/20 bg-green-500/5'
-                    : 'border-[#f2d28a] bg-[#fff6df]'
-                }`}
-              >
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="flex-1">
-                    <DocumentProgressCard
-                      variant="wizard"
-                      statuses={documentGate.statuses}
-                      heading="Complete all 4 steps to submit your documents"
-                      subheading="Our team will review and confirm your checkout request."
-                      className="shadow-sm"
-                    />
-                    <p
-                      className={`mt-4 text-lg md:text-xl font-bold mb-1.5 ${
-                        documentGate.bannerState === 'unlocked'
-                          ? 'text-green-700'
-                          : 'text-[#7c2d12]'
-                      }`}
-                    >
-                      {documentGate.bannerHeading}
-                    </p>
-                    <p
-                      className={`text-sm md:text-base leading-relaxed max-w-2xl ${
-                        documentGate.bannerState === 'unlocked'
-                          ? 'text-green-700/80'
-                          : 'text-[#8b5e34]'
-                      }`}
-                    >
-                      {documentGate.bannerBody}
-                    </p>
-                    <Link
-                      href="/dashboard/documents"
-                      className={`mt-4 inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-white transition-colors shadow-sm ${
-                        documentGate.bannerState === 'unlocked'
-                          ? 'bg-green-600 hover:bg-green-700'
-                          : 'bg-[#1a4fd6] hover:bg-[#1540a8]'
-                      }`}
-                    >
-                      {documentGate.ctaLabel}
-                      <span className="material-symbols-outlined text-sm">
-                        arrow_forward
-                      </span>
-                    </Link>
-                  </div>
+              {!documentGate.allApproved ? (
+                <div
+                  className={`mb-5 rounded-2xl border px-6 py-5 shadow-sm ${
+                    documentGate.bannerState === 'unlocked'
+                      ? 'border-green-500/20 bg-green-500/5'
+                      : 'border-[#f2d28a] bg-[#fff6df]'
+                  }`}
+                >
+                  <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex-1">
+                      <DocumentProgressCard
+                        variant="wizard"
+                        statuses={documentGate.statuses}
+                        heading="Complete all 4 steps to submit your documents"
+                        subheading="Our team will review and confirm your checkout request."
+                        className="shadow-sm"
+                      />
+                      <p
+                        className={`mt-4 text-lg md:text-xl font-bold mb-1.5 ${
+                          documentGate.bannerState === 'unlocked'
+                            ? 'text-green-700'
+                            : 'text-[#7c2d12]'
+                        }`}
+                      >
+                        {documentGate.bannerHeading}
+                      </p>
+                      <p
+                        className={`text-sm md:text-base leading-relaxed max-w-2xl ${
+                          documentGate.bannerState === 'unlocked'
+                            ? 'text-green-700/80'
+                            : 'text-[#8b5e34]'
+                        }`}
+                      >
+                        {documentGate.bannerBody}
+                      </p>
+                      <Link
+                        href="/dashboard/documents"
+                        className={`mt-4 inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-white transition-colors shadow-sm ${
+                          documentGate.bannerState === 'unlocked'
+                            ? 'bg-green-600 hover:bg-green-700'
+                            : 'bg-[#1a4fd6] hover:bg-[#1540a8]'
+                        }`}
+                      >
+                        {documentGate.ctaLabel}
+                        <span className="material-symbols-outlined text-sm">
+                          arrow_forward
+                        </span>
+                      </Link>
+                    </div>
 
-                  <div className={`lg:border-l lg:pl-6 ${documentGate.bannerState === 'unlocked' ? 'lg:border-green-500/20' : 'lg:border-[#e9c87b]'}`}>
-                    <div className={`flex items-start gap-2 ${documentGate.bannerState === 'unlocked' ? 'text-green-700' : 'text-[#b45309]'}`}>
-                      <span className="material-symbols-outlined text-[18px] mt-0.5">
-                        schedule
-                      </span>
-                      <div>
-                        <p className={`text-xs font-semibold uppercase tracking-wide ${documentGate.bannerState === 'unlocked' ? 'text-green-700/80' : 'text-[#a16207]'}`}>
-                          Typical review time
-                        </p>
-                        <p className={`text-sm md:text-base font-semibold ${documentGate.bannerState === 'unlocked' ? 'text-green-700' : 'text-[#7c2d12]'}`}>
-                          {reviewTimeValue}
-                        </p>
+                    <div className={`lg:border-l lg:pl-6 ${documentGate.bannerState === 'unlocked' ? 'lg:border-green-500/20' : 'lg:border-[#e9c87b]'}`}>
+                      <div className={`flex items-start gap-2 ${documentGate.bannerState === 'unlocked' ? 'text-green-700' : 'text-[#b45309]'}`}>
+                        <span className="material-symbols-outlined text-[18px] mt-0.5">
+                          schedule
+                        </span>
+                        <div>
+                          <p className={`text-xs font-semibold uppercase tracking-wide ${documentGate.bannerState === 'unlocked' ? 'text-green-700/80' : 'text-[#a16207]'}`}>
+                            Typical review time
+                          </p>
+                          <p className={`text-sm md:text-base font-semibold ${documentGate.bannerState === 'unlocked' ? 'text-green-700' : 'text-[#7c2d12]'}`}>
+                            {reviewTimeValue}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              ) : null}
 
               <BookingRateContextPanel
                 payfRatePerHour={payfRatePerHour}
@@ -1198,25 +1230,25 @@ export default function BookingRequestForm({
                   type="button"
                   disabled={bookingTypeLocked}
                   onClick={() => handleBookingModeChange("single")}
-                  className={`relative overflow-hidden rounded-2xl border-2 p-5 text-left transition-all duration-150 disabled:cursor-not-allowed min-h-[320px] lg:min-h-[340px] ${
+                  className={`relative overflow-hidden rounded-2xl border-2 p-4 md:p-4 text-left transition-all duration-150 disabled:cursor-not-allowed min-h-[280px] lg:min-h-[300px] cursor-pointer ${
                     bookingTypeLocked
                       ? "border-[#b8c9dd] bg-[#dbeafe]"
                       : bookingMode === "single"
-                        ? "border-[#1a4fd6] bg-[#eef4ff]"
-                        : "border-dashed border-[#c7d8f5] bg-[#eef6ff] hover:border-[#1a4fd6] hover:bg-[#e0edff] hover:shadow-sm"
+                        ? "border-[#1a4fd6] bg-[#eef4ff] shadow-sm"
+                        : "border-dashed border-[#c7d8f5] bg-[#f7fbff] hover:border-[#1a4fd6] hover:bg-[#eef4ff] hover:shadow-sm"
                   }`}
                 >
                   {bookingTypeLocked && <div className="absolute inset-0 bg-white/18" />}
                     <div className={`relative z-10 flex h-full flex-col ${bookingTypeLocked ? "text-[#152d5a]" : ""}`}>
                       <div
-                        className={`mb-4 flex h-14 w-14 items-center justify-center rounded-full border ${
+                        className={`mb-3 flex h-12 w-12 items-center justify-center rounded-full border ${
                           bookingTypeLocked
                               ? "border-[#b9cae1] bg-white/70 text-[#1a4fd6]"
                           : "border-[#c7d8f5] bg-white text-[#1a4fd6]"
                       }`}
                     >
                       <span
-                        className="material-symbols-outlined text-[24px]"
+                        className="material-symbols-outlined text-[22px]"
                         style={{ fontVariationSettings: "'wght' 300" }}
                       >
                         calendar_month
@@ -1224,19 +1256,19 @@ export default function BookingRequestForm({
                     </div>
 
                     <p
-                      className={`text-lg font-extrabold tracking-tight leading-tight mb-1.5 ${
+                      className={`text-[17px] font-extrabold tracking-tight leading-tight mb-1.5 ${
                         bookingTypeLocked ? "text-[#152d5a]" : bookingMode === "single" ? "text-[#152d5a]" : "text-[#374151]"
                       }`}
                     >
                       Single day
                     </p>
-                    <p className={`text-xs leading-relaxed mb-4 ${bookingTypeLocked ? "text-[#4b6390]" : "text-[#6b7280]"}`}>
+                    <p className={`text-[13px] leading-relaxed mb-3 ${bookingTypeLocked ? "text-[#4b6390]" : "text-[#6b7280]"}`}>
                       Depart and return on the same date. Billed on actual hours flown.
                     </p>
 
                     <div className="flex flex-wrap gap-1.5">
                       <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-semibold ${
                           bookingTypeLocked
                               ? "border border-[#b8c9dd] bg-white/75 text-[#1640b0]"
                             : "bg-[#dde8f5] text-[#1640b0]"
@@ -1245,7 +1277,7 @@ export default function BookingRequestForm({
                         Same-day return
                       </span>
                       <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-semibold ${
                           bookingTypeLocked
                               ? "border border-[#b8c9dd] bg-white/75 text-[#1640b0]"
                             : "bg-[#dde8f5] text-[#1640b0]"
@@ -1254,7 +1286,7 @@ export default function BookingRequestForm({
                         No min. hours
                       </span>
                       <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-semibold ${
                           bookingTypeLocked
                               ? "border border-[#b8c9dd] bg-white/75 text-[#1640b0]"
                             : "bg-[#dde8f5] text-[#1640b0]"
@@ -1265,7 +1297,7 @@ export default function BookingRequestForm({
                     </div>
 
                     {bookingTypeLocked ? (
-                      <div className="mt-auto pt-5 border-t border-[#b8c9dd] flex items-center justify-center gap-2 text-sm font-semibold text-[#152d5a]">
+                      <div className="mt-auto pt-4 border-t border-[#b8c9dd] flex items-center justify-center gap-2 text-sm font-semibold text-[#152d5a]">
                         <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#b8c9dd] bg-white/75">
                           <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">
                             lock
@@ -1273,26 +1305,7 @@ export default function BookingRequestForm({
                         </span>
                         <span>Locked until documents are approved</span>
                       </div>
-                    ) : (
-                      bookingMode !== "single" && (
-                        <p className="mt-4 text-[11px] font-semibold text-[#1a4fd6] flex items-center gap-1">
-                          <svg
-                            className="w-3 h-3"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2.5}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"
-                            />
-                          </svg>
-                          Tap to select
-                        </p>
-                      )
-                    )}
+                    ) : null}
                   </div>
                 </button>
 
@@ -1301,25 +1314,25 @@ export default function BookingRequestForm({
                   type="button"
                   disabled={bookingTypeLocked}
                   onClick={() => handleBookingModeChange("multi")}
-                  className={`relative overflow-hidden rounded-2xl border-2 p-5 text-left transition-all duration-150 disabled:cursor-not-allowed min-h-[320px] lg:min-h-[340px] ${
+                  className={`relative overflow-hidden rounded-2xl border-2 p-4 md:p-4 text-left transition-all duration-150 disabled:cursor-not-allowed min-h-[280px] lg:min-h-[300px] cursor-pointer ${
                     bookingTypeLocked
                       ? "border-[#b8c9dd] bg-[#dbeafe]"
                       : bookingMode === "multi"
-                        ? "border-2 border-[#d97706] bg-[#fffbf0] shadow-sm"
-                        : "border-dashed border-[#e9d5a1] bg-[#fffbf0] hover:border-[#f59e0b] hover:shadow-sm"
+                        ? "border-[#d97706] bg-[#fff8e8] shadow-sm"
+                        : "border-dashed border-[#ead7ac] bg-[#fffdf6] hover:border-[#d97706] hover:bg-[#fff8e8] hover:shadow-sm"
                   }`}
                 >
                   {bookingTypeLocked && <div className="absolute inset-0 bg-white/18" />}
                   <div className={`relative z-10 flex h-full flex-col ${bookingTypeLocked ? "text-[#152d5a]" : ""}`}>
                     <div
-                      className={`mb-4 flex h-14 w-14 items-center justify-center rounded-full border ${
+                      className={`mb-3 flex h-12 w-12 items-center justify-center rounded-full border ${
                           bookingTypeLocked
                               ? "border-[#b9cae1] bg-white/70 text-[#1a4fd6]"
                           : "border-[#f1d58f] bg-white text-[#92400e]"
                       }`}
                     >
                       <span
-                        className="material-symbols-outlined text-[24px]"
+                        className="material-symbols-outlined text-[22px]"
                         style={{ fontVariationSettings: "'wght' 300" }}
                       >
                         calendar_month
@@ -1327,19 +1340,19 @@ export default function BookingRequestForm({
                     </div>
 
                     <p
-                      className={`text-lg font-extrabold tracking-tight leading-tight mb-1.5 ${
+                      className={`text-[17px] font-extrabold tracking-tight leading-tight mb-1.5 ${
                         bookingTypeLocked ? "text-[#152d5a]" : bookingMode === "multi" ? "text-[#152d5a]" : "text-[#374151]"
                       }`}
                     >
                       Multi-day
                     </p>
-                    <p className={`text-xs leading-relaxed mb-4 ${bookingTypeLocked ? "text-[#4b6390]" : "text-[#6b7280]"}`}>
+                    <p className={`text-[13px] leading-relaxed mb-3 ${bookingTypeLocked ? "text-[#4b6390]" : "text-[#6b7280]"}`}>
                       Aircraft stays with you overnight across multiple consecutive days.
                     </p>
 
                     <div className="flex flex-wrap gap-1.5">
                       <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-semibold ${
                           bookingTypeLocked
                               ? "border border-[#b8c9dd] bg-white/75 text-[#1640b0]"
                             : "bg-[#fef3c7] text-[#92400e]"
@@ -1348,7 +1361,7 @@ export default function BookingRequestForm({
                         4 VDO hrs min. per 24h
                       </span>
                       <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-semibold ${
                           bookingTypeLocked
                               ? "border border-[#b8c9dd] bg-white/75 text-[#1640b0]"
                             : "bg-[#fee2e2] text-[#991b1b]"
@@ -1359,7 +1372,7 @@ export default function BookingRequestForm({
                     </div>
 
                     {bookingTypeLocked ? (
-                      <div className="mt-auto pt-5 border-t border-[#b8c9dd] flex items-center justify-center gap-2 text-sm font-semibold text-[#152d5a]">
+                      <div className="mt-auto pt-4 border-t border-[#b8c9dd] flex items-center justify-center gap-2 text-sm font-semibold text-[#152d5a]">
                         <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#b8c9dd] bg-white/75">
                           <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">
                             lock
@@ -1367,26 +1380,7 @@ export default function BookingRequestForm({
                         </span>
                         <span>Locked until documents are approved</span>
                       </div>
-                    ) : (
-                      bookingMode !== "multi" && (
-                        <p className="mt-4 text-[11px] font-semibold text-[#92400e] flex items-center gap-1">
-                          <svg
-                            className="w-3 h-3"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2.5}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"
-                            />
-                          </svg>
-                          Tap to select
-                        </p>
-                      )
-                    )}
+                    ) : null}
                   </div>
                 </button>
               </div>

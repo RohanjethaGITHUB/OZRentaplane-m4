@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  adminMarkReadyForDispatch,
   adminMarkAircraftReturned,
   adminMarkCompleted,
 } from '@/app/actions/admin-booking'
@@ -16,13 +15,6 @@ const ACTION_MAP: Record<string, {
   btnClass:    string
   action:      (id: string) => Promise<void>
 }> = {
-  confirmed: {
-    label:       'Mark Ready for Dispatch',
-    description: 'Pre-flight checks done. Customer cleared to arrive.',
-    icon:        'flight_takeoff',
-    btnClass:    'bg-green-700 hover:bg-green-600 text-white',
-    action:      adminMarkReadyForDispatch,
-  },
   ready_for_dispatch: {
     label:       'Mark Aircraft Returned',
     description: 'Aircraft back on ground. Customer must submit flight record.',

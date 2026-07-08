@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { submitFlightRecord, uploadFlightRecordEvidence } from '@/app/actions/booking'
 import TotalOnlyReadingsForm from '@/components/aircraft/TotalOnlyReadingsForm'
 import { type TotalOnlyFormValues, validateTotalOnlyReadings } from '@/lib/aircraft-readings'
+import { resolveMinimumVdoBilling } from '@/lib/booking/standard-booking-billing'
 
 type Airport = {
   id:        string
@@ -33,6 +34,7 @@ type Props = {
   flightDate: string
   airports?:  Airport[]
   activePackage?: ActiveBlockTimePackage | null
+  bookingSlotHours: number
   is24HourBooking?: boolean
 }
 
@@ -43,7 +45,7 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024
 const ALLOWED_TYPES  = new Set(['image/jpeg', 'image/png'])
 
 export default function FlightRecordForm({
-  bookingId, picName, picArn, flightDate, airports = [], activePackage = null, is24HourBooking = false,
+  bookingId, picName, picArn, flightDate, airports = [], activePackage = null, bookingSlotHours, is24HourBooking = false,
 }: Props) {
   const router = useRouter()
   const airportOptions = (() => {
@@ -157,6 +159,10 @@ export default function FlightRecordForm({
   }
 
   const enteredVdoTotal = getNum('vdo_total')
+  const minimumVdoBilling = resolveMinimumVdoBilling({
+    bookingSlotHours,
+    actualVdoHours: enteredVdoTotal,
+  })
   const overflowHours = activePackage && enteredVdoTotal != null
     ? Math.max(0, enteredVdoTotal - activePackage.hours_remaining)
     : null
@@ -309,6 +315,15 @@ export default function FlightRecordForm({
               <span className="material-symbols-outlined text-[#1a4fd6] text-[14px] mt-0.5 flex-shrink-0">info</span>
               <p className="text-xs text-[#4b6390] leading-relaxed">
                 Hours entered below will be deducted from your Block Time balance on submission. Your current balance is {activePackage.hours_remaining.toFixed(1)}h.
+              </p>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="material-symbols-outlined text-amber-400 text-[14px] mt-0.5 flex-shrink-0">warning</span>
+              <p className="text-xs text-amber-600/80 leading-relaxed">
+                This booking spans {minimumVdoBilling.bookingDays} day{minimumVdoBilling.bookingDays === 1 ? '' : 's'}, so the minimum billable VDO is {minimumVdoBilling.minimumVdoHours.toFixed(1)}h at 4h per day.
+                {enteredVdoTotal != null && enteredVdoTotal < minimumVdoBilling.minimumVdoHours
+                  ? ` Your current entry is ${enteredVdoTotal.toFixed(1)}h, which is below that minimum.`
+                  : ''}
               </p>
             </div>
             {is24HourBooking && (

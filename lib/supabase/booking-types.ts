@@ -641,7 +641,7 @@ export type BookingInvoice = {
   booking_id:                   string
   customer_id:                  string
   invoice_number:               string
-  status:                       'payment_required' | 'paid' | 'void' | 'failed'
+  status:                       'payment_required' | 'paid' | 'waived' | 'void' | 'failed'
   currency:                     string
   vdo_reading:                  number | null
   rate_cents_per_hour:          number
@@ -669,10 +669,23 @@ export type BookingInvoice = {
 // Input type for finaliseStandardBookingInvoice server action.
 export type FinaliseStandardBookingInvoiceInput = {
   bookingId:          string
-  vdoReading:         number
+  readings:           {
+    vdo_total: number
+    tacho_total: number
+    air_switch_total: number
+    mr_total: number
+    oil_added: number | null
+    oil_total: number | null
+    fuel_added: number | null
+    fuel_returned: number | null
+    landings: number | null
+    notes: string | null
+  }
   ratePerHour:        number   // admin-entered dollars, e.g. 290
   landingCharges?:    { airportId: string; landingCount: number }[]
   adminNotes?:        string
+  submissionMode?:    'send_invoice' | 'mark_paid' | 'waived'
+  waiverReason?:      string
 }
 
 export type ProvisionalBookingAction = 'keep' | 'release'

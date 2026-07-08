@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import Stripe from "stripe";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -13,12 +14,13 @@ import {
 } from "@/lib/booking/notifications";
 import { sendEmail } from "@/lib/email/send-email";
 import { paymentConfirmedEmail } from "@/lib/email/templates/payment";
+import { settleCheckoutInvoiceManually } from "@/lib/payments/settle-checkout-invoice";
 
 type ManualPaymentMethod = "cash" | "card_in_person" | "bank_transfer";
 
 type RecordManualPaymentInput = {
   bookingId: string;
-  paymentMethod: ManualPaymentMethod;
+  paymentMethod?: ManualPaymentMethod | null;
   amountCents: number;
   note?: string;
 };
@@ -520,9 +522,10 @@ export async function createBlockTimeTopupIntent(purchaseId: string, hoursReques
   redirect(session.url);
 }
 
-// ─── Block time overage payment ───────────────────────────────────────────────
-// Customer settles an outstanding block time overage invoice via Stripe
-// Checkout. The webhook marks the invoice paid, which lifts the overage gate
+// ─── Block time invoice payment (overage + landing fee) ──────────────────────
+// Customer settles an outstanding block time flight invoice — an overage
+// invoice or a landing fee invoice — via Stripe Checkout. The webhook marks
+// the invoice paid; for overage invoices that also lifts the overage gate
 // (new bookings / purchases / top-ups) automatically.
 export async function createBlockTimeOveragePaymentSession(invoiceId: string) {
   const stripeSecret = process.env.STRIPE_SECRET_KEY;
@@ -544,19 +547,20 @@ export async function createBlockTimeOveragePaymentSession(invoiceId: string) {
 
   const { data: invoice, error: invoiceErr } = await supabase
     .from("invoices")
-    .select("id, invoice_number, user_id, booking_id, total, status, is_block_time_overage")
+    .select("id, invoice_number, user_id, booking_id, total, status, is_block_time_overage, billing_mode, type")
     .eq("id", invoiceId)
     .eq("user_id", user.id)
-    .eq("is_block_time_overage", true)
+    .eq("billing_mode", "block_time")
+    .eq("type", "flight")
     .maybeSingle();
 
-  if (invoiceErr) throw new Error("Failed to load the overage invoice.");
-  if (!invoice) throw new Error("Overage invoice not found.");
+  if (invoiceErr) throw new Error("Failed to load the invoice.");
+  if (!invoice) throw new Error("Invoice not found.");
   if (invoice.status === "paid") {
-    throw new Error("VALIDATION: This overage invoice has already been paid.");
+    throw new Error("VALIDATION: This invoice has already been paid.");
   }
   if (invoice.status !== "awaiting") {
-    throw new Error(`VALIDATION: This overage invoice cannot be paid (status: ${invoice.status}).`);
+    throw new Error(`VALIDATION: This invoice cannot be paid (status: ${invoice.status}).`);
   }
 
   const { data: profile } = await supabase
@@ -593,6 +597,12 @@ export async function createBlockTimeOveragePaymentSession(invoiceId: string) {
   };
 
   const amountCents = Math.round(Number(invoice.total) * 100);
+  const productLabel = invoice.is_block_time_overage
+    ? `OZ Rent A Plane — Block Time Overage (${invoice.invoice_number})`
+    : `OZ Rent A Plane — Landing Fees (${invoice.invoice_number})`;
+  const productDescription = invoice.is_block_time_overage
+    ? "Flight hours exceeding your block time balance, at your locked package rate."
+    : "Landing fees for your flight, invoiced separately from flight hours.";
 
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ["card"],
@@ -603,8 +613,8 @@ export async function createBlockTimeOveragePaymentSession(invoiceId: string) {
         price_data: {
           currency: "aud",
           product_data: {
-            name: `OZ Rent A Plane — Block Time Overage (${invoice.invoice_number})`,
-            description: "Flight hours exceeding your block time balance, at your locked package rate.",
+            name: productLabel,
+            description: productDescription,
           },
           unit_amount: amountCents,
         },
@@ -616,7 +626,7 @@ export async function createBlockTimeOveragePaymentSession(invoiceId: string) {
     metadata: overageMetadata,
     payment_intent_data: ({
       metadata: overageMetadata,
-      description: `OZ Rent A Plane — Block Time Overage (${invoice.invoice_number})`,
+      description: productLabel,
     } as any),
   });
 
@@ -1040,7 +1050,13 @@ async function requireAdmin() {
 }
 
 export async function recordManualPayment(input: RecordManualPaymentInput) {
+  // requireAdmin() enforces authorization via the session client; the actual
+  // privileged writes below use the service-role client because the settlement
+  // RPCs (mark_checkout_invoice_paid_atomic / mark_booking_invoice_paid_atomic)
+  // are locked to service_role and must not be reachable via the authenticated
+  // PostgREST role.
   const { supabase, adminId } = await requireAdmin();
+  const admin = createAdminClient();
 
   if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
     throw new Error("Amount must be a positive whole number of cents.");
@@ -1054,109 +1070,31 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
 
   if (!booking) throw new Error("Booking not found.");
 
-  const manualRef = `manual-${input.paymentMethod}-${input.bookingId}-${Date.now()}`;
+  const paymentMethod = input.paymentMethod ?? null;
+  const manualRef = `manual-${paymentMethod ?? "standard"}-${input.bookingId}-${Date.now()}`;
   const trimmedNote = input.note?.trim() || null;
   const methodLabel =
-    input.paymentMethod === "cash"
+    paymentMethod === "cash"
       ? "cash"
-      : input.paymentMethod === "card_in_person"
+      : paymentMethod === "card_in_person"
       ? "card (in person)"
-      : "bank transfer";
+      : paymentMethod === "bank_transfer"
+        ? "bank transfer"
+        : "manual settlement";
 
   if (booking.booking_type === "checkout") {
-    const { data: invoice } = await supabase
-      .from("checkout_invoices")
-      .select("id, checkout_outcome")
-      .eq("booking_id", input.bookingId)
-      .eq("invoice_type", "checkout")
-      .single();
-
-    if (!invoice) throw new Error("Checkout invoice not found.");
-
-    const { error: ledgerError } = await supabase
-      .from("customer_payment_ledger")
-      .insert({
-        customer_id: booking.booking_owner_user_id,
-        booking_id: input.bookingId,
-        invoice_id: invoice.id,
-        invoice_source_type: "checkout",
-        amount_cents: input.amountCents,
-        currency: "aud",
-        entry_type: input.paymentMethod === "bank_transfer" ? "bank_transfer" : "manual_adjustment",
-        payment_method: input.paymentMethod,
-        note: trimmedNote ?? `Manual payment recorded by admin (${methodLabel}).`,
-        stripe_payment_intent_id: manualRef,
-        stripe_checkout_session_id: manualRef,
-        created_by: adminId,
-      });
-
-    if (ledgerError) throw new Error(ledgerError.message || "Failed to record payment ledger entry.");
-
-    const { error: rpcErr } = await supabase.rpc("mark_checkout_invoice_paid_atomic", {
-      p_invoice_id: invoice.id,
-      p_stripe_payment_intent_id: manualRef,
-      p_stripe_checkout_session_id: manualRef,
-      p_amount_paid_cents: input.amountCents,
-    });
-
-    if (rpcErr) throw new Error(rpcErr.message || "Failed to settle checkout invoice.");
-
-    await supabase
-      .from("booking_status_history")
-      .insert({
-        booking_id: input.bookingId,
-        old_status: "checkout_payment_required",
-        new_status: "completed",
-        note: "Checkout invoice paid via manual admin record.",
-        changed_by_user_id: adminId,
-      });
-
-    let notifTitle = "Checkout payment received";
-    let notifBody = "Your checkout invoice has been paid.";
-    const checkoutOutcome = invoice.checkout_outcome as string | null;
-    if (checkoutOutcome === "cleared_to_fly") {
-      notifTitle = "Checkout payment received — you're cleared to fly";
-      notifBody = "Your checkout invoice has been paid. Aircraft bookings are now available.";
-    } else if (checkoutOutcome === "additional_checkout_required") {
-      notifTitle = "Checkout invoice paid — additional checkout required";
-      notifBody = "Your checkout invoice has been paid. An additional checkout session is required before you can be cleared to fly. You can now book another checkout flight.";
-    } else if (checkoutOutcome === "checkout_reschedule_required") {
-      notifTitle = "Checkout invoice paid — reschedule required";
-      notifBody = "Your checkout invoice has been paid. You can now book another checkout session when you are ready.";
-    } else if (checkoutOutcome === "not_currently_eligible") {
-      notifTitle = "Checkout invoice paid";
-      notifBody = "Your checkout invoice has been paid. Based on your assessment, further training with a qualified instructor is required before you can continue with aircraft hire.";
+    if (!paymentMethod) {
+      throw new Error("VALIDATION: Manual checkout payments require a payment method.");
     }
-
-    await supabase.from("verification_events").insert({
-      user_id: booking.booking_owner_user_id,
-      actor_role: "system",
-      event_type: "approved",
-      title: notifTitle,
-      body: notifBody,
-      is_read: false,
-      email_status: "skipped",
+    await settleCheckoutInvoiceManually(admin, adminId, {
+      bookingId: input.bookingId,
+      customerId: booking.booking_owner_user_id,
+      paymentMethod,
+      amountCents: input.amountCents,
+      note: trimmedNote,
     });
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("email")
-      .eq("id", booking.booking_owner_user_id)
-      .single();
-    if (profile?.email) {
-      const template = paymentConfirmedEmail(notifBody);
-      await sendEmail({
-        to: profile.email,
-        subject: template.subject,
-        html: template.html,
-        eventType: "payment_confirmed",
-        entityType: "checkout",
-        entityId: input.bookingId,
-        metadata: { checkoutOutcome: checkoutOutcome ?? null, paymentMethod: input.paymentMethod },
-      });
-    }
   } else {
-    const { data: invoice } = await supabase
+    const { data: invoice } = await admin
       .from("booking_invoices")
       .select("id")
       .eq("booking_id", input.bookingId)
@@ -1164,7 +1102,7 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
 
     if (!invoice) throw new Error("Booking invoice not found.");
 
-    const { error: ledgerError } = await supabase
+    const { error: ledgerError } = await admin
       .from("customer_payment_ledger")
       .insert({
         customer_id: booking.booking_owner_user_id,
@@ -1173,9 +1111,9 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
         invoice_source_type: "booking",
         amount_cents: input.amountCents,
         currency: "aud",
-        entry_type: input.paymentMethod === "bank_transfer" ? "bank_transfer" : "manual_adjustment",
-        payment_method: input.paymentMethod,
-        note: trimmedNote ?? `Manual payment recorded by admin (${methodLabel}).`,
+        entry_type: paymentMethod === "bank_transfer" ? "bank_transfer" : "manual_adjustment",
+        payment_method: paymentMethod,
+        note: trimmedNote ?? (paymentMethod ? `Manual payment recorded by admin (${methodLabel}).` : "Manual payment recorded by admin."),
         stripe_payment_intent_id: manualRef,
         stripe_checkout_session_id: manualRef,
         created_by: adminId,
@@ -1183,7 +1121,7 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
 
     if (ledgerError) throw new Error(ledgerError.message || "Failed to record payment ledger entry.");
 
-    const { error: rpcErr } = await supabase.rpc("mark_booking_invoice_paid_atomic", {
+    const { error: rpcErr } = await admin.rpc("mark_booking_invoice_paid_atomic", {
       p_invoice_id: invoice.id,
       p_stripe_payment_intent_id: manualRef,
       p_stripe_checkout_session_id: manualRef,
@@ -1192,7 +1130,7 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
 
     if (rpcErr) throw new Error(rpcErr.message || "Failed to settle booking invoice.");
 
-    await supabase
+    await admin
       .from("booking_status_history")
       .insert({
         booking_id: input.bookingId,
@@ -1202,7 +1140,7 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
         changed_by_user_id: adminId,
       });
 
-    await supabase.from("verification_events").insert({
+    await admin.from("verification_events").insert({
       user_id: booking.booking_owner_user_id,
       actor_role: "system",
       event_type: "approved",
@@ -1212,27 +1150,170 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
       email_status: "skipped",
     });
 
-    const { data: profile } = await supabase
+    const { data: profile } = await admin
       .from("profiles")
       .select("email")
       .eq("id", booking.booking_owner_user_id)
       .single();
     if (profile?.email) {
       const template = paymentConfirmedEmail("Payment has been received and recorded for your flight.");
-      await sendEmail({
+      // Manual settlement is complete at this point; the confirmation email
+      // can be queued in the background so admin callers do not wait on the
+      // external mail API before they see success.
+      void sendEmail({
         to: profile.email,
         subject: template.subject,
         html: template.html,
         eventType: "post_flight_payment_received",
         entityType: "booking",
         entityId: input.bookingId,
-        metadata: { paymentMethod: input.paymentMethod },
-      });
+        metadata: { paymentMethod },
+      }).catch((error) => console.error('[recordManualPayment] email failed:', error));
     }
   }
 
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/requests/${input.bookingId}`);
   revalidatePath(`/dashboard/bookings/${input.bookingId}`);
+  return { success: true };
+}
+
+// ─── Manual settlement of a block time flight invoice ────────────────────────
+// Admin records an in-person payment (cash / card in person / verified bank
+// transfer) against an 'awaiting' block time invoice — an overage invoice or
+// a landing fee invoice. This is the Case 3 ("mark paid") path for invoices
+// that live in the `invoices` table; recordManualPayment cannot be reused
+// because it settles `booking_invoices` / `checkout_invoices` rows.
+// For overage invoices, setting status = 'paid' is exactly the condition
+// lib/payments/block-time-overage.ts checks, so the booking gate lifts
+// automatically — same effect as the Stripe webhook settlement.
+export async function adminSettleBlockTimeInvoice(input: {
+  invoiceId: string;
+  paymentMethod?: ManualPaymentMethod | null;
+  note?: string;
+}) {
+  const { supabase, adminId } = await requireAdmin();
+
+  const { data: invoice, error: invoiceErr } = await supabase
+    .from("invoices")
+    .select("id, invoice_number, user_id, booking_id, total, status, billing_mode, type, is_block_time_overage")
+    .eq("id", input.invoiceId)
+    .single();
+
+  if (invoiceErr || !invoice) throw new Error("Invoice not found.");
+  if (invoice.billing_mode !== "block_time" || invoice.type !== "flight") {
+    throw new Error("VALIDATION: Only block time flight invoices can be settled with this action.");
+  }
+  if (invoice.status === "paid") {
+    throw new Error("VALIDATION: This invoice has already been paid.");
+  }
+  if (invoice.status !== "awaiting") {
+    throw new Error(`VALIDATION: This invoice cannot be settled (status: ${invoice.status}).`);
+  }
+
+  const amountCents = Math.round(Number(invoice.total) * 100);
+  if (!Number.isInteger(amountCents) || amountCents <= 0) {
+    throw new Error("Invoice total is invalid.");
+  }
+
+  const paymentMethod = input.paymentMethod ?? null;
+  const manualRef = `manual-${paymentMethod ?? "standard"}-${invoice.id}-${Date.now()}`;
+  const trimmedNote = input.note?.trim() || null;
+  const methodLabel =
+    paymentMethod === "cash"
+      ? "cash"
+      : paymentMethod === "card_in_person"
+      ? "card (in person)"
+      : paymentMethod === "bank_transfer"
+        ? "bank transfer"
+        : "manual settlement";
+
+  const { error: ledgerError } = await supabase
+    .from("customer_payment_ledger")
+    .insert({
+      customer_id: invoice.user_id,
+      booking_id: invoice.booking_id,
+      invoice_id: invoice.id,
+      invoice_source_type: "block_time",
+      amount_cents: amountCents,
+      currency: "aud",
+      entry_type: paymentMethod === "bank_transfer" ? "bank_transfer" : "manual_adjustment",
+      payment_method: paymentMethod,
+      note: trimmedNote ?? (paymentMethod ? `Manual payment recorded by admin (${methodLabel}).` : "Manual payment recorded by admin."),
+      stripe_payment_intent_id: manualRef,
+      stripe_checkout_session_id: manualRef,
+      created_by: adminId,
+    });
+
+  if (ledgerError) throw new Error(ledgerError.message || "Failed to record payment ledger entry.");
+
+  // Guarded on status so a concurrent settlement (e.g. the Stripe webhook)
+  // cannot be double-applied.
+  const { data: updatedRows, error: paidErr } = await supabase
+    .from("invoices")
+    .update({
+      status: "paid",
+      payment_method: paymentMethod,
+      paid_at: new Date().toISOString(),
+    })
+    .eq("id", invoice.id)
+    .eq("status", "awaiting")
+    .select("id");
+
+  if (paidErr) throw new Error(paidErr.message || "Failed to mark the invoice paid.");
+  if (!updatedRows || updatedRows.length === 0) {
+    throw new Error("The invoice was settled by another process while this action ran. No changes were applied here — verify the invoice status before recording the payment again.");
+  }
+
+  const isOverage = Boolean(invoice.is_block_time_overage);
+  const totalLabel = `$${Number(invoice.total).toFixed(2)}`;
+  const notifTitle = isOverage
+    ? "Block time overage paid — account unlocked"
+    : "Landing fee invoice settled";
+  const notifBody = isOverage
+    ? `Overage invoice ${invoice.invoice_number} (${totalLabel}) has been settled (${methodLabel}). New bookings, block time purchases, and top-ups are available again.`
+    : `Landing fee invoice ${invoice.invoice_number} (${totalLabel}) has been settled (${methodLabel}).`;
+
+  await supabase.from("verification_events").insert({
+    user_id: invoice.user_id,
+    actor_user_id: adminId,
+    actor_role: "admin",
+    event_type: "approved",
+    title: notifTitle,
+    body: notifBody,
+    is_read: false,
+    email_status: "skipped",
+  });
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("email")
+    .eq("id", invoice.user_id)
+    .single();
+  if (profile?.email) {
+    const template = paymentConfirmedEmail(notifBody);
+    await sendEmail({
+      to: profile.email,
+      subject: template.subject,
+      html: template.html,
+      eventType: isOverage ? "block_time_overage_paid" : "block_time_landing_fee_paid",
+      entityType: "invoice",
+      entityId: invoice.id,
+      metadata: {
+        invoiceNumber: invoice.invoice_number,
+        total: Number(invoice.total),
+        paymentMethod,
+      },
+    }).catch((error) => console.error("[adminSettleBlockTimeInvoice] email failed:", error));
+  }
+
+  revalidatePath("/admin/users");
+  revalidatePath(`/admin/users/${invoice.user_id}`);
+  revalidatePath("/dashboard/purchases");
+  revalidatePath("/dashboard");
+  if (invoice.booking_id) {
+    revalidatePath(`/admin/bookings/requests/${invoice.booking_id}`);
+    revalidatePath(`/dashboard/bookings/${invoice.booking_id}`);
+  }
   return { success: true };
 }

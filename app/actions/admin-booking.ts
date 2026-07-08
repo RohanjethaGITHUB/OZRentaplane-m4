@@ -1,8 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { recordManualPayment, adminSettleBlockTimeInvoice } from '@/app/actions/payment'
+import { settleCheckoutInvoiceManually } from '@/lib/payments/settle-checkout-invoice'
 import type {
   CreateAdminBlockInput,
   CreateAdminBlockResult,
@@ -12,7 +14,6 @@ import type {
 import {
   notifyBookingConfirmed,
   notifyBookingCancelled,
-  notifyClarificationRequested,
   notifyPostFlightClarificationRequested,
   notifyCheckoutConfirmed,
 } from '@/lib/booking/notifications'
@@ -35,11 +36,18 @@ import {
   upsertAircraftFlightLogRecord,
 } from '@/lib/aircraft-flight-log'
 import {
+  resolveStandardBookingBillingBranch,
+  resolveBlockTimeLandingSettlement,
+  resolveMinimumVdoBilling,
+  type MinimumVdoDecision,
+} from '@/lib/booking/standard-booking-billing'
+import {
   FLIGHT_RECORD_REVIEW_STATUSES,
   FLIGHT_RECORD_APPROVAL_STATUSES,
 } from '@/lib/booking/status-constants'
 import { createFlightRecordForBooking } from '@/lib/booking/flight-record-submission'
 import { sydneyInputToUTC, todaySydneyDateKey } from '@/lib/utils/sydney-time'
+import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
 
 // ─── Admin guard ──────────────────────────────────────────────────────────────
 // Mirrors requireAdmin() in app/actions/admin.ts.
@@ -617,76 +625,6 @@ export async function cancelBookingRequest(bookingId: string, reason: string) {
 // Admin moves the booking to `needs_clarification` and stores the question
 // in booking_status_history.note — customer-readable per existing RLS.
 // The held slot is NOT released; blocks stay active while awaiting the response.
-export async function requestClarification(bookingId: string, message: string) {
-  const { supabase, adminId } = await requireAdmin()
-
-  if (!message.trim()) throw new Error('VALIDATION: A clarification message is required.')
-
-  const { data: booking, error: fetchErr } = await supabase
-    .from('bookings')
-    .select('status, aircraft_id, booking_owner_user_id, booking_reference, scheduled_start, scheduled_end')
-    .eq('id', bookingId)
-    .single()
-
-  if (fetchErr || !booking) throw new Error('Booking not found.')
-
-  const allowed = ['pending_confirmation', 'confirmed']
-  if (!allowed.includes(booking.status)) {
-    throw new Error(
-      `VALIDATION: Clarification can only be requested from pending_confirmation or confirmed. Current status: '${booking.status}'.`
-    )
-  }
-
-  const now = new Date().toISOString()
-
-  const { error: updateErr } = await supabase
-    .from('bookings')
-    .update({ status: 'needs_clarification', updated_at: now })
-    .eq('id', bookingId)
-
-  if (updateErr) throw new Error('Failed to update booking status.')
-
-  await supabase.from('booking_status_history').insert({
-    booking_id:         bookingId,
-    old_status:         booking.status,
-    new_status:         'needs_clarification',
-    changed_by_user_id: adminId,
-    note:               message,
-  })
-
-  await supabase.from('booking_audit_events').insert({
-    booking_id:    bookingId,
-    aircraft_id:   booking.aircraft_id,
-    actor_user_id: adminId,
-    actor_role:    'admin',
-    event_type:    'booking_updated',
-    event_summary: 'Admin requested clarification from customer.',
-    new_value:     { status: 'needs_clarification', message },
-  })
-
-  // Notify customer with the question
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('full_name, email')
-    .eq('id', booking.booking_owner_user_id)
-    .single()
-
-  if (prof?.email) {
-    await notifyClarificationRequested({
-      customerEmail: prof.email,
-      customerName:  prof.full_name ?? 'Pilot',
-      ref:           booking.booking_reference ?? bookingId.slice(0, 8).toUpperCase(),
-      question:      message,
-      bookingId,
-    }).catch(e => console.error('[requestClarification] notification error:', e))
-  }
-
-  revalidatePath('/admin')
-  revalidatePath('/admin/bookings/checkout')
-  revalidatePath(`/admin/bookings/checkout/${bookingId}`)
-  revalidatePath('/dashboard')
-}
-
 // ─── Operational dispatch actions ─────────────────────────────────────────────
 // These advance a booking through the post-confirmation operational stages.
 // Slot-blocking model is unchanged — blocks remain active through the flight.
@@ -1115,8 +1053,25 @@ export async function markCheckoutOutcome(input: {
   paymentWaived?:       boolean
   waiverReason?:        string
   suppressPaymentRequestEmail?: boolean
+  // Mark-paid path: settle the checkout invoice in the same action so the
+  // outcome and the settlement cannot be split by a client-side failure.
+  manualPayment?: {
+    paymentMethod: 'cash' | 'card_in_person' | 'bank_transfer'
+    amountCents:   number
+    note?:         string
+  }
 }): Promise<void> {
   const { supabase, adminId } = await requireAdmin()
+
+  // ── Manual payment validation — fail fast BEFORE the outcome is recorded ──
+  if (input.manualPayment) {
+    if (input.paymentWaived) {
+      throw new Error('VALIDATION: A manual payment cannot be recorded when payment is waived.')
+    }
+    if (!Number.isInteger(input.manualPayment.amountCents) || input.manualPayment.amountCents <= 0) {
+      throw new Error('VALIDATION: Manual payment amount must be a positive whole number of cents.')
+    }
+  }
 
   // ── Waiver validation (duplicated in RPC for defence-in-depth) ───────────
   if (input.paymentWaived) {
@@ -1446,7 +1401,7 @@ export async function markCheckoutOutcome(input: {
     }
 
     const skipPaymentRequestEmail =
-      input.suppressPaymentRequestEmail === true &&
+      (input.suppressPaymentRequestEmail === true || input.manualPayment != null) &&
       emailEventType === 'checkout_payment_required'
 
     if (!skipPaymentRequestEmail) {
@@ -1459,6 +1414,31 @@ export async function markCheckoutOutcome(input: {
         entityId: input.bookingId,
         metadata: { outcome: input.outcome, finalBookingStatus, finalClearanceStatus },
       }).catch((error) => console.error('[markCheckoutOutcome] email failed:', error))
+    }
+  }
+
+  // ── Mark-paid settlement — same action, so a failure here is always visible ──
+  // Skipped when account credit already settled the invoice (booking is
+  // already 'completed'; there is nothing left to pay).
+  if (input.manualPayment && finalBookingStatus !== 'completed') {
+    try {
+      // requireAdmin() (upstream) authorizes via the session client; the
+      // settlement itself runs on the service-role client because
+      // mark_checkout_invoice_paid_atomic is locked to service_role.
+      await settleCheckoutInvoiceManually(createAdminClient(), adminId, {
+        bookingId:     input.bookingId,
+        customerId:    booking.booking_owner_user_id,
+        paymentMethod: input.manualPayment.paymentMethod,
+        amountCents:   input.manualPayment.amountCents,
+        note:          input.manualPayment.note,
+      })
+    } catch (settleError) {
+      const message = settleError instanceof Error ? settleError.message : String(settleError)
+      console.error('[markCheckoutOutcome] manual settlement failed', { bookingId: input.bookingId, message })
+      throw new Error(
+        `The checkout outcome was recorded and an invoice was created, but marking it paid failed: ${message} ` +
+        'The booking is now awaiting payment — refresh this page and record the manual payment from the payment panel.'
+      )
     }
   }
 
@@ -2365,13 +2345,15 @@ export async function finaliseStandardBookingInvoice(input: {
   ratePerHour: number
   landingCharges?: { airportId: string; landingCount: number }[]
   adminNotes?: string
-  readings: AircraftReadings
+  readings: TotalOnlyReadings
+  submissionMode?: 'send_invoice' | 'mark_paid' | 'waived'
+  waiverReason?: string
+  minimumVdoDecision?: MinimumVdoDecision
 }): Promise<void> {
   const { supabase, adminId } = await requireAdmin()
 
-  validateAircraftReadings(input.readings)
-  const totals = calculateAircraftReadingsTotals(input.readings)
-  const vdoReading = totals.vdo_total
+  validateTotalOnlyReadings(input.readings)
+  const vdoReading = input.readings.vdo_total
   if (vdoReading == null || isNaN(vdoReading) || vdoReading <= 0) {
     throw new Error('VALIDATION: VDO total must be greater than 0.')
   }
@@ -2383,6 +2365,13 @@ export async function finaliseStandardBookingInvoice(input: {
   }
   if (!isFinite(input.ratePerHour) || input.ratePerHour <= 0) {
     throw new Error('VALIDATION: Hourly rate must be a positive number.')
+  }
+
+  const submissionMode = input.submissionMode ?? 'send_invoice'
+  const billingBranch = resolveStandardBookingBillingBranch({ submissionMode })
+
+  if (billingBranch.kind === 'waived' && !input.waiverReason?.trim()) {
+    throw new Error('VALIDATION: A waiver reason is required when payment is waived.')
   }
 
   for (const row of input.landingCharges ?? []) {
@@ -2409,15 +2398,34 @@ export async function finaliseStandardBookingInvoice(input: {
   const scheduledStart = new Date(booking.scheduled_start)
   const scheduledEnd = new Date(booking.scheduled_end)
   const bookingSlotHours = (scheduledEnd.getTime() - scheduledStart.getTime()) / (1000 * 60 * 60)
-  const minimumVdoHours = bookingSlotHours >= 24 ? Math.floor(bookingSlotHours / 24) * 4 : 0
-  const effectiveVdoHours = Math.max(vdoReading, minimumVdoHours)
-  const effectiveVdoHoursRounded = Math.round(effectiveVdoHours * 100) / 100
+  const minimumVdoBilling = resolveMinimumVdoBilling({
+    bookingSlotHours,
+    actualVdoHours: vdoReading,
+    decision: input.minimumVdoDecision ?? null,
+  })
+  if (minimumVdoBilling.requiresDecision || minimumVdoBilling.billedVdoHours == null) {
+    throw new Error(
+      `VALIDATION: VDO total (${vdoReading}h) is below the minimum ${minimumVdoBilling.minimumVdoHours}h for this booking. Choose whether to bill the minimum or the actual hours before finalising.`,
+    )
+  }
 
-  if (effectiveVdoHoursRounded > vdoReading) {
-    console.log('[finaliseStandardBookingInvoice] 24h minimum applied', {
+  const effectiveVdoHours = minimumVdoBilling.billedVdoHours
+  const effectiveVdoHoursRounded = Math.round(effectiveVdoHours * 100) / 100
+  const minimumVdoContext = minimumVdoBilling.bookingDays > 0
+    ? `${minimumVdoBilling.bookingDays} day${minimumVdoBilling.bookingDays === 1 ? '' : 's'} booked × 4h/day`
+    : null
+  const minimumVdoOutcomeMessage = minimumVdoBilling.isBelowMinimum
+    ? minimumVdoBilling.appliedDecision === 'enforce_minimum'
+      ? `Submitted VDO hours (${vdoReading}h) were below the minimum ${minimumVdoBilling.minimumVdoHours}h for ${minimumVdoContext ?? 'this booking'}, so the minimum was billed.`
+      : `Submitted VDO hours (${vdoReading}h) were below the minimum ${minimumVdoBilling.minimumVdoHours}h for ${minimumVdoContext ?? 'this booking'}, and operations approved billing the actual ${vdoReading}h instead.`
+    : null
+
+  if (minimumVdoBilling.isBelowMinimum) {
+    console.log('[finaliseStandardBookingInvoice] minimum VDO decision applied', {
       submitted: vdoReading,
-      minimum: minimumVdoHours,
-      effective: effectiveVdoHoursRounded,
+      minimum: minimumVdoBilling.minimumVdoHours,
+      decision: minimumVdoBilling.appliedDecision,
+      billed: effectiveVdoHoursRounded,
       bookingSlotHours,
     })
   }
@@ -2433,6 +2441,10 @@ export async function finaliseStandardBookingInvoice(input: {
   if (flightRecordErr || !flightRecord) {
     throw new Error('Flight record not found for this booking.')
   }
+
+  const billingBaseline = await getLastFinalizedLogStop(booking.aircraft_id)
+  const fullReadings = buildReadingsFromTotals(input.readings, billingBaseline)
+  const fullReadingsTotals = calculateAircraftReadingsTotals(fullReadings)
 
   const existingReadings = {
     vdo_start: flightRecord.vdo_start ?? null,
@@ -2450,7 +2462,7 @@ export async function finaliseStandardBookingInvoice(input: {
     landings: flightRecord.landings ?? null,
     notes: flightRecord.customer_notes ?? null,
   }
-  const hasReadingChanges = hasMaterialAircraftReadingChanges(existingReadings, input.readings)
+  const hasReadingChanges = hasMaterialAircraftReadingChanges(existingReadings, fullReadings)
 
   const { data: snapshotProfile } = await supabase
     .from('profiles')
@@ -2460,7 +2472,7 @@ export async function finaliseStandardBookingInvoice(input: {
 
   const { data: pilotProfile, error: pilotProfileErr } = await supabase
     .from('profiles')
-    .select('id, full_name, email, stripe_customer_id, default_payment_method_id')
+    .select('id, full_name, email')
     .eq('id', booking.booking_owner_user_id)
     .single()
   if (pilotProfileErr) {
@@ -2482,6 +2494,15 @@ export async function finaliseStandardBookingInvoice(input: {
   }
 
   const billingMode = activePackage ? 'block_time' : 'pay_as_you_fly'
+  const minimumVdoAuditValue = {
+    actual_vdo_hours: vdoReading,
+    booking_days: minimumVdoBilling.bookingDays,
+    booking_slot_hours: Math.round(bookingSlotHours * 100) / 100,
+    minimum_vdo_applied: minimumVdoBilling.isBelowMinimum,
+    minimum_vdo_decision: minimumVdoBilling.appliedDecision,
+    minimum_vdo_hours: minimumVdoBilling.minimumVdoHours,
+    billed_vdo_hours: effectiveVdoHoursRounded,
+  }
 
   if (billingMode === 'block_time') {
     let landingFeesTotal = 0
@@ -2546,8 +2567,7 @@ export async function finaliseStandardBookingInvoice(input: {
           { userId: booking.booking_owner_user_id, bookingId: input.bookingId },
         )
 
-        const PAYF_FALLBACK_RATE = 330
-        const fallbackFlightTotal = Math.round(effectiveVdoHoursRounded * PAYF_FALLBACK_RATE * 100) / 100
+        const fallbackFlightTotal = Math.round(effectiveVdoHoursRounded * PAYF_RATE_PER_HOUR * 100) / 100
         const fallbackGrandTotal = Math.round((fallbackFlightTotal + landingFeesTotal) * 100) / 100
         const fallbackSubtotal = Math.round((fallbackGrandTotal / 1.1) * 100) / 100
         const fallbackGst = Math.round((fallbackGrandTotal - fallbackSubtotal) * 100) / 100
@@ -2558,9 +2578,9 @@ export async function finaliseStandardBookingInvoice(input: {
             p_booking_id: input.bookingId,
             p_customer_id: booking.booking_owner_user_id,
             p_vdo_reading: effectiveVdoHoursRounded,
-            p_rate_cents_per_hour: PAYF_FALLBACK_RATE * 100,
+            p_rate_cents_per_hour: PAYF_RATE_PER_HOUR * 100,
             p_landing_charges: landingChargesJson ?? null,
-            p_admin_notes: `[AUTO FALLBACK] Pilot block time package expired or exhausted. Billed at Pay As You Fly rate ($${PAYF_FALLBACK_RATE}/hr). Original admin note: ${input.adminNotes ?? 'none'}`,
+            p_admin_notes: `[AUTO FALLBACK] Pilot block time package expired or exhausted. Billed at Pay As You Fly rate ($${PAYF_RATE_PER_HOUR}/hr). Original admin note: ${input.adminNotes ?? 'none'}`,
           },
         )
 
@@ -2577,7 +2597,7 @@ export async function finaliseStandardBookingInvoice(input: {
             actor_role: 'system',
             event_type: 'message',
             title: 'Block time package expired -- billed at Pay As You Fly rate',
-            body: `Pilot's block time package had expired or was exhausted at the time of finalisation. Flight of ${effectiveVdoHoursRounded}h was billed at the standard Pay As You Fly rate of $${PAYF_FALLBACK_RATE}/hr instead. Please review with the pilot.`,
+            body: `Pilot's block time package had expired or was exhausted at the time of finalisation. Flight of ${effectiveVdoHoursRounded}h was billed at the standard Pay As You Fly rate of $${PAYF_RATE_PER_HOUR}/hr instead. Please review with the pilot.`,
             is_read: false,
             email_status: 'pending',
           })
@@ -2641,65 +2661,46 @@ export async function finaliseStandardBookingInvoice(input: {
       }
     }
 
-    // ── Landing fees: separate invoice, collected off-session against the
-    // saved card as before. Marked paid only when the charge succeeds.
-    const stripeSecret = process.env.STRIPE_SECRET_KEY
+    // ── Landing fees: routed through the same payment-path chooser as PAYF
+    // (send invoice / mark paid / waived). No automatic card charge — the
+    // invoice is created 'awaiting' with no payment method (migration 106)
+    // and the admin's choice decides what happens next.
+    const landingSettlement = resolveBlockTimeLandingSettlement({ submissionMode })
+    let landingOutcome:
+      | 'awaiting'
+      | 'settled_manual'
+      | 'waived'
+      | null = null
+    let landingSettlementError: string | null = null
     if (drawdown.out_landing_invoice_id && landingFeesTotal > 0) {
-      if (stripeSecret) {
-        const stripe = new Stripe(stripeSecret, {
-          apiVersion: '2023-10-16' as any,
-        })
-        try {
-          if (!pilotProfile?.stripe_customer_id || !pilotProfile.default_payment_method_id) {
-            throw new Error('Missing Stripe customer or payment method for landing fee charge.')
-          }
-
-          await stripe.paymentIntents.create({
-            amount: Math.round(Number(landingFeesTotal) * 100),
-            currency: 'aud',
-            customer: pilotProfile.stripe_customer_id,
-            confirm: true,
-            off_session: true,
-            payment_method: pilotProfile.default_payment_method_id,
-            metadata: {
-              purchase_type: 'block_time_landing_fee',
-              supabase_user_id: booking.booking_owner_user_id,
-              booking_id: input.bookingId,
-              purchase_id: drawdown.out_purchase_id,
-              invoice_id: drawdown.out_landing_invoice_id,
-              landing_fees_total: String(landingFeesTotal),
-            },
-            description: 'OZ Rent A Plane — Landing Fees',
-          })
-
-          const { error: landingPaidErr } = await supabase
+      try {
+        if (landingSettlement.action === 'waive') {
+          const { data: waivedRows, error: waiveErr } = await supabase
             .from('invoices')
-            .update({ status: 'paid', paid_at: new Date().toISOString() })
+            .update({ status: 'waived' })
             .eq('id', drawdown.out_landing_invoice_id)
-          if (landingPaidErr) {
-            console.warn('[finaliseStandardBookingInvoice] landing invoice paid update failed', landingPaidErr.message)
+            .eq('status', 'awaiting')
+            .select('id')
+          if (waiveErr) throw new Error(waiveErr.message)
+          if (!waivedRows || waivedRows.length === 0) {
+            throw new Error('Landing fee invoice was not in an awaiting state.')
           }
-        } catch (error: unknown) {
-          const landingChargeError = error instanceof Error ? error : null
-          console.error('[finaliseStandardBookingInvoice] landing fee charge failed:', error)
-          try {
-            await supabase
-              .from('verification_events')
-              .insert({
-                user_id: booking.booking_owner_user_id,
-                actor_role: 'system',
-                event_type: 'message',
-                title: 'Stripe landing fee charge failed -- manual follow-up required',
-                body: `Off-session Stripe charge for landing fees failed for booking ${input.bookingId}. Landing fees: $${landingFeesTotal} (invoice ${drawdown.out_landing_invoice_number}). Error: ${landingChargeError?.message ?? 'unknown'}. The landing fee invoice remains unpaid. Please collect payment manually or contact the pilot.`,
-                is_read: false,
-                email_status: 'pending',
-              })
-          } catch (notifErr: unknown) {
-            console.warn('[finaliseStandardBookingInvoice] landing fee alert insert failed', notifErr)
-          }
+          landingOutcome = 'waived'
+        } else if (landingSettlement.action === 'settle_manual') {
+          await adminSettleBlockTimeInvoice({
+            invoiceId: drawdown.out_landing_invoice_id,
+            note: input.adminNotes?.trim() || undefined,
+          })
+          landingOutcome = 'settled_manual'
+        } else {
+          landingOutcome = 'awaiting'
         }
-      } else {
-        console.error('[finaliseStandardBookingInvoice] Missing STRIPE_SECRET_KEY; landing fee invoice left unpaid.')
+      } catch (error: unknown) {
+        // The drawdown is already committed, so the finalisation continues;
+        // the failure is re-thrown at the end of this branch so the admin
+        // sees it in the panel instead of it being swallowed.
+        landingSettlementError = error instanceof Error ? error.message : 'Unknown error.'
+        console.error('[finaliseStandardBookingInvoice] landing fee settlement failed:', error)
       }
     }
 
@@ -2722,8 +2723,8 @@ export async function finaliseStandardBookingInvoice(input: {
 
     try {
       const { data: authData } = await supabase.auth.getUser()
-      const blockTimeHistoryNote = effectiveVdoHoursRounded > vdoReading
-        ? `Block time flight finalised. 24h minimum applied: billed ${effectiveVdoHoursRounded}h (submitted ${vdoReading}h).`
+      const blockTimeHistoryNote = minimumVdoOutcomeMessage
+        ? `Block time flight finalised. ${minimumVdoOutcomeMessage}`
         : 'Block time flight finalised. Hours deducted from balance.'
       await supabase
         .from('booking_status_history')
@@ -2825,6 +2826,7 @@ export async function finaliseStandardBookingInvoice(input: {
 
     const deductedHours = Math.round((effectiveVdoHoursRounded - Number(drawdown.out_overflow_hours)) * 100) / 100
     const blockTimeMessageParts = [
+      ...(minimumVdoOutcomeMessage ? [minimumVdoOutcomeMessage] : []),
       `Your flight of ${vdoReading}h has been recorded and ${deductedHours}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h.`,
     ]
     if (hasOverage) {
@@ -2833,9 +2835,20 @@ export async function finaliseStandardBookingInvoice(input: {
       )
     }
     if (drawdown.out_landing_invoice_id) {
-      blockTimeMessageParts.push(
-        `Landing fees of $${landingFeesTotal.toFixed(2)} have been invoiced separately (invoice ${drawdown.out_landing_invoice_number}).`,
-      )
+      const landingAmountLabel = `$${landingFeesTotal.toFixed(2)}`
+      if (landingOutcome === 'settled_manual') {
+        blockTimeMessageParts.push(
+          `Landing fees of ${landingAmountLabel} (invoice ${drawdown.out_landing_invoice_number}) have been recorded as paid.`,
+        )
+      } else if (landingOutcome === 'waived') {
+        blockTimeMessageParts.push(
+          `Landing fees of ${landingAmountLabel} (invoice ${drawdown.out_landing_invoice_number}) have been waived.`,
+        )
+      } else {
+        blockTimeMessageParts.push(
+          `Landing fees of ${landingAmountLabel} have been invoiced separately (invoice ${drawdown.out_landing_invoice_number}). Please pay it from your Purchases page.`,
+        )
+      }
     }
     const blockTimeMessage = blockTimeMessageParts.join(' ')
 
@@ -2844,20 +2857,20 @@ export async function finaliseStandardBookingInvoice(input: {
     const { error: flightRecordUpdateErr } = await supabase
       .from('flight_records')
       .update({
-        tacho_start: input.readings.tacho_start,
-        tacho_stop: input.readings.tacho_stop,
-        vdo_start: input.readings.vdo_start,
-        vdo_stop: input.readings.vdo_stop,
-        air_switch_start: input.readings.air_switch_start,
-        air_switch_stop: input.readings.air_switch_stop,
-        mr_start: input.readings.mr_start,
-        mr_stop: input.readings.mr_stop,
-        oil_added: input.readings.oil_added,
-        oil_total: input.readings.oil_total,
-        fuel_added: input.readings.fuel_added,
-        fuel_returned: input.readings.fuel_returned,
-        landings: input.readings.landings,
-        customer_notes: input.readings.notes,
+        tacho_start: fullReadings.tacho_start,
+        tacho_stop: fullReadings.tacho_stop,
+        vdo_start: fullReadings.vdo_start,
+        vdo_stop: fullReadings.vdo_stop,
+        air_switch_start: fullReadings.air_switch_start,
+        air_switch_stop: fullReadings.air_switch_stop,
+        mr_start: fullReadings.mr_start,
+        mr_stop: fullReadings.mr_stop,
+        oil_added: fullReadings.oil_added,
+        oil_total: fullReadings.oil_total,
+        fuel_added: fullReadings.fuel_added,
+        fuel_returned: fullReadings.fuel_returned,
+        landings: fullReadings.landings,
+        customer_notes: fullReadings.notes,
         status: hasReadingChanges ? 'approved_with_correction' : 'approved',
         approved_by_user_id: adminId,
         approved_at: now,
@@ -2872,19 +2885,18 @@ export async function finaliseStandardBookingInvoice(input: {
     }
 
     const approvalBaseline = await getLastFinalizedLogStop(booking.aircraft_id)
-    const adminTotals = calculateAircraftReadingsTotals(input.readings)
     const refreshedReadings = buildReadingsFromTotals(
       {
-        vdo_total:        adminTotals.vdo_total        ?? 0,
-        tacho_total:      adminTotals.tacho_total      ?? 0,
-        air_switch_total: adminTotals.air_switch_total ?? 0,
-        mr_total:         adminTotals.mr_total         ?? 0,
-        oil_added:        input.readings.oil_added,
-        oil_total:        input.readings.oil_total,
-        fuel_added:       input.readings.fuel_added,
-        fuel_returned:       input.readings.fuel_returned,
-        landings:         input.readings.landings,
-        notes:            input.readings.notes,
+        vdo_total:        fullReadingsTotals.vdo_total ?? 0,
+        tacho_total:      fullReadingsTotals.tacho_total ?? 0,
+        air_switch_total: fullReadingsTotals.air_switch_total ?? 0,
+        mr_total:         fullReadingsTotals.mr_total ?? 0,
+        oil_added:        fullReadings.oil_added,
+        oil_total:        fullReadings.oil_total,
+        fuel_added:       fullReadings.fuel_added,
+        fuel_returned:    fullReadings.fuel_returned,
+        landings:         fullReadings.landings,
+        notes:            fullReadings.notes,
       },
       approvalBaseline,
     )
@@ -2916,7 +2928,7 @@ export async function finaliseStandardBookingInvoice(input: {
       actor_user_id: adminId,
       actor_role:    'admin',
       event_type:    'booking_invoice_finalised',
-      event_summary: `Admin finalised block time flight record. VDO: ${vdoReading}h @ $${input.ratePerHour}/hr. Final status: completed.`,
+      event_summary: `${minimumVdoOutcomeMessage ? `${minimumVdoOutcomeMessage} ` : ''}Admin finalised block time flight record. VDO: ${vdoReading}h @ $${input.ratePerHour}/hr. Final status: completed.`,
       new_value: {
         vdo_reading:     vdoReading,
         rate_per_hour:   input.ratePerHour,
@@ -2924,10 +2936,15 @@ export async function finaliseStandardBookingInvoice(input: {
         booking_status:  'completed',
         review_status:   hasReadingChanges ? 'admin_adjusted' : 'admin_confirmed',
         billing_mode:    'block_time',
+        ...minimumVdoAuditValue,
         invoice_id:      drawdown.out_usage_invoice_id,
         overage_invoice_id: drawdown.out_overage_invoice_id,
         landing_invoice_id: drawdown.out_landing_invoice_id,
         overflow_hours:  drawdown.out_overflow_hours,
+        payment_method:  null,
+        submission_mode: submissionMode,
+        landing_settlement: landingOutcome,
+        landing_waiver_reason: landingOutcome === 'waived' ? input.waiverReason?.trim() ?? null : null,
       },
     })
 
@@ -2937,9 +2954,9 @@ export async function finaliseStandardBookingInvoice(input: {
       actor_role:    'admin',
       event_type:    'approved',
       title:         'Flight record approved',
-      body:          hasOverage
+      body:          `${minimumVdoOutcomeMessage ? `${minimumVdoOutcomeMessage} ` : ''}${hasOverage
         ? `${deductedHours}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h. Your flight exceeded your balance — ${drawdown.out_overflow_hours}h has been invoiced as overage at your locked rate of $${Number(drawdown.out_rate_per_hour).toFixed(2)}/hr. Please pay invoice ${drawdown.out_overage_invoice_number} from your Block Time page to keep booking.`
-        : `${deductedHours}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h.`,
+        : `${deductedHours}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h.`}`,
       is_read:       false,
       email_status:  'skipped',
     })
@@ -2973,6 +2990,17 @@ export async function finaliseStandardBookingInvoice(input: {
     revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
     revalidatePath('/dashboard')
     revalidatePath(`/dashboard/bookings/${input.bookingId}`)
+
+    // Surface a landing-fee settlement failure to the admin. Everything else
+    // (drawdown, flight record, booking status) has completed successfully;
+    // the landing invoice is still 'awaiting' with no payment method and can
+    // be settled from the customer's profile (Block time flight invoices).
+    if (landingSettlementError) {
+      throw new Error(
+        `Flight record finalised, but the landing fee invoice ${drawdown.out_landing_invoice_number ?? ''} could not be routed to the chosen payment path: ${landingSettlementError} ` +
+        `The invoice is still awaiting payment — settle or re-route it from the customer's profile (Block time flight invoices section).`,
+      )
+    }
   } else {
 
   const rateCents = Math.round(input.ratePerHour * 100)
@@ -2997,27 +3025,32 @@ export async function finaliseStandardBookingInvoice(input: {
     throw new Error(rpcErr?.message ?? 'Failed to finalise invoice. Please try again.')
   }
 
-  const finalBookingStatus = rpcRows[0].out_final_booking_status as string
+  const invoiceId = rpcRows[0].out_invoice_id as string
+  const amountDueNowCents = Number(rpcRows[0].out_amount_due_now_cents ?? 0)
+  const rpcFinalBookingStatus = rpcRows[0].out_final_booking_status as string
+  const finalBookingStatus = billingBranch.kind === 'waived'
+    ? 'completed'
+    : rpcFinalBookingStatus
 
   const now = new Date().toISOString()
 
   const { error: flightRecordUpdateErr } = await supabase
     .from('flight_records')
     .update({
-      tacho_start: input.readings.tacho_start,
-      tacho_stop: input.readings.tacho_stop,
-      vdo_start: input.readings.vdo_start,
-      vdo_stop: input.readings.vdo_stop,
-      air_switch_start: input.readings.air_switch_start,
-      air_switch_stop: input.readings.air_switch_stop,
-      mr_start: input.readings.mr_start,
-      mr_stop: input.readings.mr_stop,
-      oil_added: input.readings.oil_added,
-      oil_total: input.readings.oil_total,
-      fuel_added: input.readings.fuel_added,
-      fuel_returned: input.readings.fuel_returned,
-      landings: input.readings.landings,
-      customer_notes: input.readings.notes,
+      tacho_start: fullReadings.tacho_start,
+      tacho_stop: fullReadings.tacho_stop,
+      vdo_start: fullReadings.vdo_start,
+      vdo_stop: fullReadings.vdo_stop,
+      air_switch_start: fullReadings.air_switch_start,
+      air_switch_stop: fullReadings.air_switch_stop,
+      mr_start: fullReadings.mr_start,
+      mr_stop: fullReadings.mr_stop,
+      oil_added: fullReadings.oil_added,
+      oil_total: fullReadings.oil_total,
+      fuel_added: fullReadings.fuel_added,
+      fuel_returned: fullReadings.fuel_returned,
+      landings: fullReadings.landings,
+      customer_notes: fullReadings.notes,
       status: hasReadingChanges ? 'approved_with_correction' : 'approved',
       approved_by_user_id: adminId,
       approved_at: now,
@@ -3035,22 +3068,22 @@ export async function finaliseStandardBookingInvoice(input: {
   // at the moment of admin approval. This ensures chain continuity if another
   // flight was approved between the customer's submission and this finalization.
   // The admin-confirmed totals (stop - start from the form) are preserved exactly;
-  // only the chain anchor (start) is refreshed. flight_records keeps input.readings
+  // only the chain anchor (start) is refreshed. flight_records keeps the
+  // hidden full readings that were reconstructed from the submitted totals.
   // as the admin review audit document.
   const approvalBaseline = await getLastFinalizedLogStop(booking.aircraft_id)
-  const adminTotals = calculateAircraftReadingsTotals(input.readings)
   const refreshedReadings = buildReadingsFromTotals(
     {
-      vdo_total:        adminTotals.vdo_total        ?? 0,
-      tacho_total:      adminTotals.tacho_total      ?? 0,
-      air_switch_total: adminTotals.air_switch_total ?? 0,
-      mr_total:         adminTotals.mr_total         ?? 0,
-      oil_added:        input.readings.oil_added,
-      oil_total:        input.readings.oil_total,
-      fuel_added:       input.readings.fuel_added,
-      fuel_returned:       input.readings.fuel_returned,
-      landings:         input.readings.landings,
-      notes:            input.readings.notes,
+      vdo_total:        fullReadingsTotals.vdo_total ?? 0,
+      tacho_total:      fullReadingsTotals.tacho_total ?? 0,
+      air_switch_total: fullReadingsTotals.air_switch_total ?? 0,
+      mr_total:         fullReadingsTotals.mr_total ?? 0,
+      oil_added:        fullReadings.oil_added,
+      oil_total:        fullReadings.oil_total,
+      fuel_added:       fullReadings.fuel_added,
+      fuel_returned:    fullReadings.fuel_returned,
+      landings:         fullReadings.landings,
+      notes:            fullReadings.notes,
     },
     approvalBaseline,
   )
@@ -3068,63 +3101,115 @@ export async function finaliseStandardBookingInvoice(input: {
     updated_by: adminId,
   })
 
+  if (billingBranch.kind === 'waived') {
+    const { error: waivedInvoiceErr } = await supabase
+      .from('booking_invoices')
+      .update({
+        status: 'waived',
+        total_paid_cents: 0,
+        paid_at: now,
+        updated_at: now,
+      })
+      .eq('id', invoiceId)
+    if (waivedInvoiceErr) {
+      throw new Error(`Failed to mark the booking invoice as waived: ${waivedInvoiceErr.message}`)
+    }
+
+    await supabase
+      .from('bookings')
+      .update({
+        status: 'completed',
+        updated_at: now,
+      })
+      .eq('id', input.bookingId)
+  } else if (billingBranch.kind === 'invoice' && input.submissionMode === 'mark_paid' && amountDueNowCents > 0) {
+    await recordManualPayment({
+      bookingId: input.bookingId,
+      amountCents: amountDueNowCents,
+      note: input.adminNotes?.trim() || undefined,
+    })
+  }
+
   await supabase.from('booking_status_history').insert({
     booking_id:         input.bookingId,
     old_status:         'pending_post_flight_review',
     new_status:         finalBookingStatus,
     changed_by_user_id: adminId,
-    note: finalBookingStatus === 'completed'
-      ? 'Invoice settled by customer credit. Booking completed.'
-      : 'Admin finalised flight billing. Payment request sent to customer.',
+    note: billingBranch.kind === 'waived'
+      ? 'Admin waived the standard booking invoice. Booking completed.'
+      : finalBookingStatus === 'completed'
+        ? (billingBranch.kind === 'invoice' && input.submissionMode === 'mark_paid'
+            ? 'Invoice settled by manual payment. Booking completed.'
+            : 'Invoice settled by customer credit. Booking completed.')
+        : 'Admin finalised flight billing. Payment request sent to customer.',
   })
 
-  await supabase.from('booking_audit_events').insert({
-    booking_id:    input.bookingId,
-    aircraft_id:   booking.aircraft_id,
-    actor_user_id: adminId,
-    actor_role:    'admin',
-    event_type:    'booking_invoice_finalised',
-    event_summary: `Admin finalised standard booking invoice. VDO: ${vdoReading}h @ $${input.ratePerHour}/hr. Final status: ${finalBookingStatus}.`,
-    new_value: {
-      vdo_reading:     vdoReading,
-      rate_per_hour:   input.ratePerHour,
-      landing_charges: landingChargesJson,
-      booking_status:  finalBookingStatus,
-      review_status:   hasReadingChanges ? 'admin_adjusted' : 'admin_confirmed',
-    },
-  })
+    await supabase.from('booking_audit_events').insert({
+      booking_id:    input.bookingId,
+      aircraft_id:   booking.aircraft_id,
+      actor_user_id: adminId,
+      actor_role:    'admin',
+      event_type:    'booking_invoice_finalised',
+      event_summary: `${minimumVdoOutcomeMessage ? `${minimumVdoOutcomeMessage} ` : ''}Admin finalised standard booking invoice. VDO: ${vdoReading}h @ $${input.ratePerHour}/hr. Final status: ${finalBookingStatus}.`,
+      new_value: {
+        vdo_reading:     vdoReading,
+        rate_per_hour:   input.ratePerHour,
+        landing_charges: landingChargesJson,
+        booking_status:  finalBookingStatus,
+        review_status:   hasReadingChanges ? 'admin_adjusted' : 'admin_confirmed',
+        billing_branch:  billingBranch.kind,
+        ...minimumVdoAuditValue,
+        payment_method:  null,
+        submission_mode: submissionMode,
+        payment_waived:  billingBranch.kind === 'waived',
+      },
+    })
 
-  const isSettledByCredit = finalBookingStatus === 'completed'
-  await supabase.from('verification_events').insert({
-    user_id:       booking.booking_owner_user_id,
-    actor_user_id: adminId,
-    actor_role:    'admin',
-    event_type:    'approved',
-    title: isSettledByCredit
-      ? 'Flight invoice settled by credit'
-      : 'Flight invoice ready — payment required',
-    body: isSettledByCredit
-      ? 'Your flight invoice has been settled using your account credit. Your booking is now complete.'
-      : 'Your flight invoice has been issued. Please pay the invoice to close your booking.',
-    is_read:      false,
-    email_status: 'skipped',
-  })
+  const wasManuallySettled = billingBranch.kind === 'invoice' && input.submissionMode === 'mark_paid'
+  const wasWaived = billingBranch.kind === 'waived'
+  const isSettledByCredit = finalBookingStatus === 'completed' && !wasManuallySettled && !wasWaived
+  if (!wasManuallySettled) {
+    await supabase.from('verification_events').insert({
+      user_id:       booking.booking_owner_user_id,
+      actor_user_id: adminId,
+      actor_role:    'admin',
+      event_type:    'approved',
+      title: wasWaived
+        ? 'Flight invoice waived'
+        : isSettledByCredit
+          ? 'Flight invoice settled by credit'
+          : 'Flight invoice ready — payment required',
+      body: `${minimumVdoOutcomeMessage ? `${minimumVdoOutcomeMessage} ` : ''}${wasWaived
+        ? 'Your flight invoice has been waived by the admin team. Your booking is now complete.'
+        : isSettledByCredit
+          ? 'Your flight invoice has been settled using your account credit. Your booking is now complete.'
+          : 'Your flight invoice has been issued. Please pay the invoice to close your booking.'}`,
+      is_read:      false,
+      email_status: 'skipped',
+    })
+  }
 
   const { data: profileForInvoiceEmail } = await supabase
     .from('profiles')
     .select('email')
     .eq('id', booking.booking_owner_user_id)
     .single()
-  if (profileForInvoiceEmail?.email) {
-    const template = isSettledByCredit
-      ? paymentConfirmedEmail('Payment has been recorded for your flight.')
-      : checkoutOutcomeEmail(
-          'Payment required for your flight',
-          'Payment required for your flight',
-          'Your post-flight invoice is ready. Please complete payment from your dashboard.',
-          'Pay Now',
-        )
-    await sendEmail({
+  if (profileForInvoiceEmail?.email && !wasManuallySettled) {
+    const invoiceEmailPrefix = minimumVdoOutcomeMessage ? `${minimumVdoOutcomeMessage} ` : ''
+    const template = wasWaived
+      ? paymentConfirmedEmail(`${invoiceEmailPrefix}Your flight invoice was waived by the admin team.`)
+      : isSettledByCredit
+        ? paymentConfirmedEmail(`${invoiceEmailPrefix}Payment has been recorded for your flight.`)
+        : checkoutOutcomeEmail(
+            'Payment required for your flight',
+            'Payment required for your flight',
+            `${invoiceEmailPrefix}Your post-flight invoice is ready. Please complete payment from your dashboard.`,
+            'Pay Now',
+          )
+    // The billing write is the source of truth; email delivery can continue
+    // in the background so the admin does not sit on the spinner waiting for
+    // an external API round-trip.
+    void sendEmail({
       to: profileForInvoiceEmail.email,
       subject: template.subject,
       html: template.html,
@@ -3151,23 +3236,16 @@ export async function finaliseStandardBookingInvoice(input: {
 // pass is needed. Billing branches on the customer's block time status exactly
 // as it does for self-submitted records.
 
-const ADMIN_SUBMITTABLE_BOOKING_STATUSES = [
-  'pending_confirmation',
-  'confirmed',
-  'ready_for_dispatch',
-  'dispatched',
-  'awaiting_flight_record',
-  'flight_record_overdue',
-  'on_hold_pending_documents',
-]
-
 export async function adminSubmitFlightRecord(input: {
   bookingId: string
   date: string                     // YYYY-MM-DD flight date
   ratePerHour: number
   landingCharges?: { airportId: string; landingCount: number }[]
   adminNotes?: string
-  readings: AircraftReadings
+  readings: TotalOnlyReadings
+  submissionMode?: 'send_invoice' | 'mark_paid' | 'waived'
+  waiverReason?: string
+  minimumVdoDecision?: MinimumVdoDecision
 }): Promise<void> {
   const { supabase, adminId } = await requireAdmin()
 
@@ -3175,9 +3253,8 @@ export async function adminSubmitFlightRecord(input: {
     throw new Error('VALIDATION: Flight date must be a valid date (YYYY-MM-DD).')
   }
 
-  validateAircraftReadings(input.readings)
-  const totals = calculateAircraftReadingsTotals(input.readings)
-  if (totals.vdo_total == null || totals.vdo_total <= 0) {
+  validateTotalOnlyReadings(input.readings)
+  if (input.readings.vdo_total == null || input.readings.vdo_total <= 0) {
     throw new Error('VALIDATION: VDO total must be greater than 0.')
   }
 
@@ -3190,11 +3267,6 @@ export async function adminSubmitFlightRecord(input: {
   if (bookingErr || !booking) throw new Error('Booking not found.')
   if (booking.booking_type !== 'standard') {
     throw new Error('VALIDATION: Post-flight records can only be submitted for standard bookings.')
-  }
-  if (!ADMIN_SUBMITTABLE_BOOKING_STATUSES.includes(booking.status)) {
-    throw new Error(
-      `VALIDATION: Cannot submit a flight record for a booking with status "${booking.status}".`
-    )
   }
 
   // Refuse when a record is already in the post-flight pipeline.
@@ -3223,10 +3295,10 @@ export async function adminSubmitFlightRecord(input: {
       date:             input.date,
       pic_name:         booking.pic_name,
       pic_arn:          booking.pic_arn,
-      vdo_total:        totals.vdo_total,
-      tacho_total:      totals.tacho_total      ?? 0,
-      air_switch_total: totals.air_switch_total ?? 0,
-      mr_total:         totals.mr_total         ?? 0,
+      vdo_total:        input.readings.vdo_total,
+      tacho_total:      input.readings.tacho_total,
+      air_switch_total: input.readings.air_switch_total,
+      mr_total:         input.readings.mr_total,
       oil_added:        input.readings.oil_added,
       oil_total:        input.readings.oil_total,
       fuel_added:       input.readings.fuel_added,
@@ -3249,6 +3321,9 @@ export async function adminSubmitFlightRecord(input: {
     landingCharges: landingCharges.length > 0 ? landingCharges : undefined,
     adminNotes:     input.adminNotes,
     readings:       input.readings,
+    submissionMode:  input.submissionMode,
+    waiverReason:    input.waiverReason,
+    minimumVdoDecision: input.minimumVdoDecision,
   })
 
   // If the booking finished before its scheduled window ended, release any

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import PortalPageHero from '@/components/PortalPageHero'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import { createBlockTimeOveragePaymentSession } from '@/app/actions/payment'
+import { PAYMENT_CONFIG } from '@/lib/payments/config'
 import BlockTimeTopupCard from '../pricing/BlockTimeTopupCard'
 
 export const metadata = { title: 'Purchase History | OZRentAPlane' }
@@ -111,7 +112,7 @@ export default async function PurchaseHistoryPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: profile }, { data: packageRows }, { data: purchaseRows }, { data: usageRows }, { data: overageRows }] = await Promise.all([
+  const [{ data: profile }, { data: packageRows }, { data: purchaseRows }, { data: usageRows }, { data: overageRows }, { data: landingInvoiceRows }] = await Promise.all([
     supabase
       .from('profiles')
       .select('pilot_clearance_status')
@@ -163,6 +164,17 @@ export default async function PurchaseHistoryPage({
       .eq('is_block_time_overage', true)
       .eq('status', 'awaiting')
       .order('created_at', { ascending: true }),
+    // Unpaid landing fee invoices — block time flight invoices that are not
+    // overage invoices. Paid via Stripe or bank transfer (admin confirms).
+    supabase
+      .from('invoices')
+      .select('id, invoice_number, total, created_at, pdf_url, payment_method')
+      .eq('user_id', user.id)
+      .eq('billing_mode', 'block_time')
+      .eq('type', 'flight')
+      .eq('is_block_time_overage', false)
+      .eq('status', 'awaiting')
+      .order('created_at', { ascending: true }),
   ])
 
   const isCleared = profile?.pilot_clearance_status === 'cleared_to_fly'
@@ -180,6 +192,22 @@ export default async function PurchaseHistoryPage({
     created_at: string
     pdf_url: string | null
   }[]
+  const outstandingLandingInvoices = (landingInvoiceRows ?? []) as {
+    id: string
+    invoice_number: string
+    total: number
+    created_at: string
+    pdf_url: string | null
+    payment_method: string | null
+  }[]
+  const bankDetails =
+    PAYMENT_CONFIG.BANK_ACCOUNT_NAME && PAYMENT_CONFIG.BANK_BSB && PAYMENT_CONFIG.BANK_ACCOUNT_NUMBER
+      ? {
+          accountName: PAYMENT_CONFIG.BANK_ACCOUNT_NAME,
+          bsb: PAYMENT_CONFIG.BANK_BSB,
+          accountNumber: PAYMENT_CONFIG.BANK_ACCOUNT_NUMBER,
+        }
+      : null
 
   const activePurchases = purchases
     .filter((p) => p.status === 'active')
@@ -298,6 +326,73 @@ export default async function PurchaseHistoryPage({
                     Pay ${Number(invoice.total).toFixed(2)} now
                   </button>
                 </form>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {outstandingLandingInvoices.length > 0 && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 px-6 py-5">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700">Payment required</p>
+            <h2 className="mt-1 text-[18px] font-semibold text-amber-900">Landing fee {outstandingLandingInvoices.length === 1 ? 'invoice' : 'invoices'}</h2>
+            <p className="mt-1.5 max-w-xl text-[13px] leading-relaxed text-amber-800">
+              Landing fees are invoiced separately from your block time hours.
+            </p>
+          </div>
+          <div className="mt-4 space-y-3">
+            {outstandingLandingInvoices.map((invoice) => (
+              <div
+                key={invoice.id}
+                className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="text-[13px] font-semibold text-[#152d5a]">
+                    Invoice {invoice.invoice_number} — ${Number(invoice.total).toFixed(2)}
+                  </p>
+                  <p className="text-[12px] text-[#4b6390]">
+                    Issued {new Date(invoice.created_at).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney' })}
+                    {invoice.pdf_url && (
+                      <>
+                        {' · '}
+                        <a
+                          href={invoice.pdf_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[#1a4fd6] underline underline-offset-2"
+                        >
+                          View PDF
+                        </a>
+                      </>
+                    )}
+                  </p>
+                  {invoice.payment_method === 'bank_transfer' && (
+                    <p className="mt-1.5 text-[12px] leading-relaxed text-[#4b6390]">
+                      Pay by bank transfer using <span className="font-semibold text-[#152d5a]">{invoice.invoice_number}</span> as
+                      the reference{bankDetails ? (
+                        <>
+                          {': '}
+                          <span className="font-semibold text-[#152d5a]">{bankDetails.accountName}</span>
+                          {' · BSB '}
+                          <span className="font-mono text-[#152d5a]">{bankDetails.bsb}</span>
+                          {' · Acc '}
+                          <span className="font-mono text-[#152d5a]">{bankDetails.accountNumber}</span>
+                        </>
+                      ) : null}. The team will mark it settled once the transfer arrives.
+                    </p>
+                  )}
+                </div>
+                {invoice.payment_method !== 'bank_transfer' && (
+                  <form action={createBlockTimeOveragePaymentSession.bind(null, invoice.id)}>
+                    <button
+                      type="submit"
+                      className="inline-flex items-center justify-center rounded-full bg-[#1a4fd6] px-5 py-2.5 text-[12px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#1540a8]"
+                    >
+                      Pay ${Number(invoice.total).toFixed(2)} now
+                    </button>
+                  </form>
+                )}
               </div>
             ))}
           </div>

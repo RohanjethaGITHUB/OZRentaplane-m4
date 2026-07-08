@@ -597,7 +597,7 @@ export async function getCustomerCreditTransactions(customerId: string) {
     .from('customer_payment_ledger')
     .select('*')
     .eq('customer_id', customerId)
-    .in('entry_type', ['advance_credit', 'advance_applied', 'refund', 'manual_adjustment', 'credit_reversed', 'credit_refunded'])
+    .in('entry_type', ['advance_credit', 'advance_applied', 'refund', 'manual_adjustment', 'credit_reversed', 'credit_refunded', 'bank_transfer'])
     .order('created_at', { ascending: false })
 
   if (error) {

@@ -133,3 +133,45 @@ test('Admin can mark a manual payment', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Card (in person)' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Bank transfer' })).toBeVisible()
 })
+
+test('Standard booking detail no longer shows the ready-for-dispatch action', async ({ page }) => {
+  await login(page, 'admin')
+
+  await page.goto('/admin/bookings')
+  const firstViewLink = page.getByRole('link', { name: 'View' }).first()
+  if ((await firstViewLink.count()) === 0) {
+    test.skip(true, 'No booking rows are available in the current test data.')
+  }
+
+  await firstViewLink.click()
+  await expect(page).toHaveURL(/\/admin\/bookings\/requests\/[A-Za-z0-9-]+$/)
+  await expect(page.getByRole('button', { name: 'Mark Ready for Dispatch' })).toHaveCount(0)
+})
+
+test('Standard booking billing panel exposes total-only readings and payment options', async ({ page }) => {
+  await login(page, 'admin')
+
+  await page.goto('/admin/bookings')
+  const firstViewLink = page.getByRole('link', { name: 'View' }).first()
+  if ((await firstViewLink.count()) === 0) {
+    test.skip(true, 'No booking rows are available in the current test data.')
+  }
+
+  await firstViewLink.click()
+  await expect(page).toHaveURL(/\/admin\/bookings\/requests\/[A-Za-z0-9-]+$/)
+
+  const billingHeading = page.getByText('Flight Billing').first()
+  if ((await billingHeading.count()) === 0) {
+    test.skip(true, 'Selected booking is not in pending_post_flight_review.')
+  }
+
+  await expect(page.getByText('VDO total')).toBeVisible()
+  await expect(page.getByText('Tacho total')).toBeVisible()
+  await expect(page.getByText('Airswitch total')).toBeVisible()
+  await expect(page.getByText('MR total')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Stripe' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Bank transfer' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Send invoice' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Mark paid' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Waived' })).toBeVisible()
+})

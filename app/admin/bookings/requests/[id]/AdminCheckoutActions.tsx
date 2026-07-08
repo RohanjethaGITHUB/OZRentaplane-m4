@@ -9,11 +9,11 @@ import {
   markCheckoutNoShow,
   unlockCheckoutNoShowLock,
 } from '@/app/actions/admin-booking'
-import { recordManualPayment } from '@/app/actions/payment'
 import {
   type TotalOnlyFormValues,
   validateTotalOnlyReadings,
 } from '@/lib/aircraft-readings'
+import { CHECKOUT_RATE_PER_HOUR } from '@/lib/pricing-constants'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 
 type CheckoutStatus =
@@ -158,7 +158,7 @@ export default function AdminCheckoutActions({
   const [confirmingOutcome, setConfirmingOutcome] = useState<OutcomeKey | null>(null)
   const [paymentWaived, setPaymentWaived] = useState(false)
   const [waiverReason, setWaiverReason] = useState('')
-  const [hourlyRate, setHourlyRate] = useState('290')
+  const [hourlyRate, setHourlyRate] = useState(String(CHECKOUT_RATE_PER_HOUR))
   const [adminNote, setAdminNote] = useState('')
   const [landingRows, setLandingRows] = useState<LandingChargeRow[]>([])
   const [readings, setReadings] = useState<TotalOnlyFormValues>(createInitialReadings)
@@ -198,7 +198,7 @@ export default function AdminCheckoutActions({
     setConfirmingOutcome(null)
     setPaymentWaived(false)
     setWaiverReason('')
-    setHourlyRate('290')
+    setHourlyRate(String(CHECKOUT_RATE_PER_HOUR))
     setAdminNote('')
     setLandingRows([])
     setReadings(createInitialReadings())
@@ -215,7 +215,7 @@ export default function AdminCheckoutActions({
     setConfirmingOutcome(key)
     setPaymentWaived(key === 'checkout_reschedule_required')
     setWaiverReason('')
-    setHourlyRate('290')
+    setHourlyRate(String(CHECKOUT_RATE_PER_HOUR))
     setAdminNote('')
     setReadings(createInitialReadings())
     setShowManualPaymentFields(false)
@@ -313,29 +313,28 @@ export default function AdminCheckoutActions({
       notes:            adminNote.trim() || null,
     }
 
-    run(async () => {
-      await markCheckoutOutcome({
-        bookingId,
-        outcome:             confirmingOutcome,
-        adminNote:           adminNote.trim() || undefined,
-        checkoutRatePerHour: hourlyRateNum,
-        landingCharges:      validLandingCharges,
-        paymentWaived,
-        waiverReason:        paymentWaived ? waiverReason.trim() : undefined,
-        readings:            totalReadings,
-        suppressPaymentRequestEmail: !paymentWaived && mode === 'mark_paid',
-      })
-
-      if (!paymentWaived && mode === 'mark_paid') {
-        const parsedAmount = Number(manualAmount || (estimatedAmountDue / 100).toFixed(2))
-        await recordManualPayment({
-          bookingId,
-          paymentMethod: manualPaymentMethod,
-          amountCents: Math.round(parsedAmount * 100),
-          note: manualPaymentNote.trim() || undefined,
-        })
-      }
-    })
+    // Single server action: the outcome and the mark-paid settlement happen in
+    // one call, so a settlement failure surfaces here as a visible error
+    // instead of being lost when this panel unmounts after revalidation.
+    const parsedAmount = Number(manualAmount || (estimatedAmountDue / 100).toFixed(2))
+    run(() => markCheckoutOutcome({
+      bookingId,
+      outcome:             confirmingOutcome,
+      adminNote:           adminNote.trim() || undefined,
+      checkoutRatePerHour: hourlyRateNum,
+      landingCharges:      validLandingCharges,
+      paymentWaived,
+      waiverReason:        paymentWaived ? waiverReason.trim() : undefined,
+      readings:            totalReadings,
+      suppressPaymentRequestEmail: !paymentWaived && mode === 'mark_paid',
+      manualPayment: !paymentWaived && mode === 'mark_paid'
+        ? {
+            paymentMethod: manualPaymentMethod,
+            amountCents:   Math.round(parsedAmount * 100),
+            note:          manualPaymentNote.trim() || undefined,
+          }
+        : undefined,
+    }))
   }
 
   function executeSaveAndSendInvoice() {
@@ -596,7 +595,7 @@ export default function AdminCheckoutActions({
               </label>
             </div>
             {submitAttempted && readingsError && (
-              <p className="mt-2 text-xs text-rose-400">{readingsError}</p>
+              <p className="mt-2 text-xs text-rose-700">{readingsError}</p>
             )}
           </div>
 
@@ -655,7 +654,7 @@ export default function AdminCheckoutActions({
                                 <span className="material-symbols-outlined text-[12px]">remove</span>
                               </button>
                             </div>
-                            {rowError && <p className="mt-1 text-xs text-rose-400">{rowError}</p>}
+                            {rowError && <p className="mt-1 text-xs text-rose-700">{rowError}</p>}
                           </div>
                         )
                       })}
@@ -733,19 +732,19 @@ export default function AdminCheckoutActions({
               )}
 
               {error && (
-                <div className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</div>
+                <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>
               )}
 
               <div className="border-t border-gray-200 bg-white px-5 py-4">
                 {submissionConfirmation ? (
                   <div className="rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-4">
                     <p className="text-sm font-semibold text-[#152d5a]">
-                      {submissionConfirmation === 'send_invoice' ? 'Send invoice to customer?' : 'Mark payment as received?'}
+                      {submissionConfirmation === 'send_invoice' ? 'Send invoice to customer?' : 'Mark payment as already received?'}
                     </p>
                     <p className="mt-1 text-sm text-[#4b6390]">
                       {submissionConfirmation === 'send_invoice'
-                        ? 'This will finalise the checkout outcome and send a payment request to the customer. The booking will move to awaiting payment.'
-                        : 'This will finalise the checkout outcome and mark the booking as fully paid. No invoice will be sent to the customer.'}
+                        ? 'This will finalise the checkout outcome and send a payment request to the customer. The booking will move to awaiting payment. Customer will need to log in and pay before their booking is confirmed.'
+                        : 'This will finalise the checkout outcome and mark the booking as fully paid. No invoice will be sent to the customer. Use this only if payment was already received (cash, bank transfer, or in person).'}
                     </p>
                     <div className="mt-4 flex items-center gap-3">
                       <button
@@ -769,8 +768,8 @@ export default function AdminCheckoutActions({
                         {isPending
                           ? 'Saving…'
                           : submissionConfirmation === 'send_invoice'
-                            ? 'Yes, send invoice'
-                            : 'Yes, mark as paid'}
+                            ? 'Yes, send invoice — customer will be asked to pay'
+                            : 'Yes, mark as paid — no invoice will be sent'}
                       </button>
                     </div>
                   </div>
@@ -782,7 +781,7 @@ export default function AdminCheckoutActions({
                       disabled={isPending}
                       className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
                     >
-                      {isPending ? 'Saving…' : 'Save and Send Invoice'}
+                      {isPending ? 'Saving…' : 'Send Invoice (customer pays later)'}
                     </button>
                     <button
                       type="button"
@@ -790,7 +789,7 @@ export default function AdminCheckoutActions({
                       disabled={isPending || paymentWaived}
                       className="rounded-lg bg-green-700 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-green-800 disabled:opacity-50"
                     >
-                      {isPending ? 'Saving…' : showManualPaymentFields ? 'Confirm and Complete' : 'Save and Mark Paid'}
+                      {isPending ? 'Saving…' : showManualPaymentFields ? 'Confirm and Complete' : 'Mark as Already Paid (settle now)'}
                     </button>
                   </div>
                 )}

@@ -6,6 +6,7 @@ import PreFooterCTA from '@/components/marketing/PreFooterCTA'
 import AtmoClouds from '@/components/AtmoClouds'
 import { BOOKING_TYPE_CARDS } from '@/lib/booking-type-cards'
 import { BookingTypeCardView } from '@/components/BookingTypeCardView'
+import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
 
 export const dynamic = 'force-static'
 
@@ -322,8 +323,6 @@ const BLOCK_TIME_PACKAGES = [
   },
 ]
 
-const PAYF_RATE = 330
-
 function buildBlockTimeLoginHref(packageName: string) {
   const packageSlug = packageName.toLowerCase().replace(/\s+/g, '-')
   const nextPath = `/dashboard/pricing?package=${packageSlug}`
@@ -340,7 +339,7 @@ function parseRateAmount(rate: string) {
 }
 
 function formatSavings(rate: string) {
-  return PAYF_RATE - parseRateAmount(rate)
+  return PAYF_RATE_PER_HOUR - parseRateAmount(rate)
 }
 
 const FAQ_ITEMS: FaqItemType[] = [

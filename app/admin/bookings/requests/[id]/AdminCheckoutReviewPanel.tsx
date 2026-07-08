@@ -18,6 +18,7 @@ import type { DocumentFile } from '@/components/ui/DocumentViewerModal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import type { VerificationEvent } from '@/lib/supabase/types'
 import { formatDateFromISO } from '@/lib/formatDateTime'
+import { CHECKOUT_RATE_PER_HOUR } from '@/lib/pricing-constants'
 import {
   CalendarDays,
   CheckCircle2,
@@ -749,7 +750,7 @@ export default function AdminCheckoutReviewPanel({
               <DollarSign className="w-4 h-4 text-gray-500" />
             </div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Rate</p>
-            <p className="text-sm font-semibold text-[#152d5a]">$290 / hour</p>
+            <p className="text-sm font-semibold text-[#152d5a]">${CHECKOUT_RATE_PER_HOUR} / hour</p>
           </div>
         </div>
 

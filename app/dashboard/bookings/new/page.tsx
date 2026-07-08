@@ -11,10 +11,9 @@ import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
 import { evaluateBookingDocumentsReadiness, evaluateBookingReadinessDecision, hasAcceptedCurrentTerms } from '@/lib/booking-readiness'
 import BookingReadinessInlinePanel from './BookingReadinessInlinePanel'
 import { hasManualCheckoutClearance } from '@/lib/checkout-clearance'
+import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
 
 export const metadata = { title: 'Book a Flight | Pilot Overview' }
-
-const PAYF_RATE_PER_HOUR = 330
 
 // ── Shared locked gate shell ─────────────────────────────────────────────────
 

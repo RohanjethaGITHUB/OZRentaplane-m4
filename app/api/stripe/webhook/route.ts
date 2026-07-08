@@ -666,15 +666,19 @@ export async function POST(req: Request) {
           return NextResponse.json({ received: true });
         }
 
+        // Covers both overage invoices and landing fee invoices — the
+        // customer-facing payment session (createBlockTimeOveragePaymentSession)
+        // creates sessions for either kind of awaiting block time flight invoice.
         const { data: overageInvoice, error: overageInvoiceErr } = await supabase
           .from("invoices")
-          .select("id, invoice_number, user_id, booking_id, total, status")
+          .select("id, invoice_number, user_id, booking_id, total, status, is_block_time_overage")
           .eq("id", invoiceId)
-          .eq("is_block_time_overage", true)
+          .eq("billing_mode", "block_time")
+          .eq("type", "flight")
           .maybeSingle();
 
         if (overageInvoiceErr) {
-          logErr("load overage invoice FAILED", overageInvoiceErr);
+          logErr("load block time invoice FAILED", overageInvoiceErr);
           return NextResponse.json({ error: "Payment processing failed" }, { status: 500 });
         }
 
@@ -726,15 +730,18 @@ export async function POST(req: Request) {
             .eq("id", overageInvoice.user_id)
             .single();
 
+          const isOverageInvoice = Boolean(overageInvoice.is_block_time_overage);
+          const paidMessage = isOverageInvoice
+            ? `Your block time overage invoice ${overageInvoice.invoice_number} ($${Number(overageInvoice.total).toFixed(2)}) has been paid. Thank you — bookings and block time purchases are available again.`
+            : `Your landing fee invoice ${overageInvoice.invoice_number} ($${Number(overageInvoice.total).toFixed(2)}) has been paid. Thank you.`;
+
           if (profile?.email) {
-            const template = paymentConfirmedEmail(
-              `Your block time overage invoice ${overageInvoice.invoice_number} ($${Number(overageInvoice.total).toFixed(2)}) has been paid. Thank you — bookings and block time purchases are available again.`,
-            );
+            const template = paymentConfirmedEmail(paidMessage);
             await sendEmail({
               to: profile.email,
               subject: template.subject,
               html: template.html,
-              eventType: "block_time_overage_paid",
+              eventType: isOverageInvoice ? "block_time_overage_paid" : "block_time_landing_fee_paid",
               entityType: "invoice",
               entityId: overageInvoice.id,
               metadata: {
@@ -748,8 +755,12 @@ export async function POST(req: Request) {
             user_id: overageInvoice.user_id,
             actor_role: "system",
             event_type: "approved",
-            title: "Block time overage paid — account unlocked",
-            body: `Overage invoice ${overageInvoice.invoice_number} ($${Number(overageInvoice.total).toFixed(2)}) has been paid. New bookings, block time purchases, and top-ups are available again.`,
+            title: isOverageInvoice
+              ? "Block time overage paid — account unlocked"
+              : "Landing fee invoice paid",
+            body: isOverageInvoice
+              ? `Overage invoice ${overageInvoice.invoice_number} ($${Number(overageInvoice.total).toFixed(2)}) has been paid. New bookings, block time purchases, and top-ups are available again.`
+              : `Landing fee invoice ${overageInvoice.invoice_number} ($${Number(overageInvoice.total).toFixed(2)}) has been paid.`,
             is_read: false,
             email_status: "skipped",
           });
@@ -1266,6 +1277,7 @@ export async function POST(req: Request) {
       p_stripe_payment_intent_id: paymentIntentId,
       p_stripe_checkout_session_id: session.id,
       p_amount_paid_cents: amountPaid,
+      p_is_stripe_payment: true,
     });
 
     if (rpcErr) {

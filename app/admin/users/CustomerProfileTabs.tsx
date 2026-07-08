@@ -1,12 +1,11 @@
 'use client'
 
-import { type ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { AccountStatus, PilotClearanceStatus, UserDocument, VerificationEvent } from '@/lib/supabase/types'
 import CurrentActionSection from './CurrentActionSection'
 import CheckoutActivitySection from './CheckoutActivitySection'
-import HistoricalCheckoutEditor from './HistoricalCheckoutEditor'
 import { AdminActionsPanel } from './AdminActionsPanel'
 import AdminChatPanel from './AdminChatPanel'
 import UnblockCustomerButton from './UnblockCustomerButton'
@@ -31,6 +30,7 @@ type BookingRow = {
   booking_type: string
   checkout_lifecycle_status?: string | null
   scheduled_start: string | null
+  scheduled_end: string | null
   payment_status: string
   aircraft: { id: string; registration: string } | { id: string; registration: string }[] | null
 }
@@ -107,6 +107,9 @@ type CreditTransaction = {
   id: string
   entry_type: string
   amount_cents: number
+  payment_method: string | null
+  invoice_source_type: string | null
+  note: string | null
   created_at: string
 }
 
@@ -117,7 +120,7 @@ type RecordedByAdminProfile = {
   } | null
 } | null
 
-type TabType = 'overview' | 'admin_actions' | 'documents' | 'bookings' | 'billing' | 'messages'
+type TabType = 'overview' | 'documents' | 'bookings' | 'billing' | 'messages'
 
 type CustomerProfile = {
   id: string
@@ -155,6 +158,11 @@ type Props = {
   blockTimePurchases: AdminBlockTimePurchase[]
   blockTimeTopups: AdminBlockTimeTopup[]
   blockTimeFlightInvoices: AdminBlockTimeFlightInvoice[]
+  activeBlockTime: {
+    hoursRemaining: number
+    ratePerHour: number
+    expiresAt: string
+  } | null
   balanceCents: number
   totalRevenueCents: number
   transactions: CreditTransaction[]
@@ -166,6 +174,7 @@ type Props = {
   activeBookingsSummary: {
     count: number
     primaryBookingId: string | null
+    primaryBookingStart: string | null
   } | null
 }
 
@@ -270,6 +279,7 @@ export default function CustomerProfileTabs({
   blockTimePurchases,
   blockTimeTopups,
   blockTimeFlightInvoices,
+  activeBlockTime,
   balanceCents,
   totalRevenueCents,
   transactions,
@@ -282,7 +292,15 @@ export default function CustomerProfileTabs({
 }: Props) {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const activeTab = (searchParams?.get('tab') ?? 'overview') as TabType
+  const requestedTab = searchParams?.get('tab')
+  const [selectedCheckoutResult, setSelectedCheckoutResult] = useState('')
+  const activeTab: TabType =
+    requestedTab === 'documents' ||
+    requestedTab === 'bookings' ||
+    requestedTab === 'billing' ||
+    requestedTab === 'messages'
+      ? requestedTab
+      : 'overview'
 
   const initials = customerProfile.full_name?.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() ?? '??'
   const uploadedRequired = REQUIRED_DOC_TYPES.filter((t) => documents.some((d) => d.document_type === t && (d.status === 'uploaded' || d.status === 'approved'))).length
@@ -298,6 +316,7 @@ export default function CustomerProfileTabs({
     approved: latestDocuments.filter((doc) => doc.status === 'approved').length,
     rejected: latestDocuments.filter((doc) => doc.status === 'rejected').length,
   }
+  const approvedRequiredCount = REQUIRED_DOC_TYPES.filter((type) => latestDocumentsByType.get(type)?.status === 'approved').length
   const totalDocumentCount =
     documentStatusCounts.uploaded + documentStatusCounts.approved + documentStatusCounts.rejected
   const documentStatTone: QuickStatTone =
@@ -333,12 +352,23 @@ export default function CustomerProfileTabs({
             : 'text-red-400'
   const clearance = clearanceBadge(clearanceStatus)
   const account = accountBadge(accountStatus)
+  const activeBookingBadge = activeBookingsSummary
+    ? {
+        label:
+          activeBookingsSummary.primaryBookingStart
+            ? `Flight booked: ${formatDateFromISO(activeBookingsSummary.primaryBookingStart)}`
+            : activeBookingsSummary.count === 1
+              ? 'Flight booked'
+              : `${activeBookingsSummary.count} flights booked`,
+        tone: activeBookingsSummary.count > 0 ? 'bg-white/10 text-white/70 border-white/15' : 'bg-white/5 text-white/55 border-white/10',
+      }
+    : {
+        label: 'No upcoming flights',
+        tone: 'bg-white/5 text-white/55 border-white/10',
+      }
 
   const unreadMessages = events.filter((e) => e.event_type === 'message' && !e.is_read && e.actor_role !== 'admin').length
   const latestCheckoutBookingId = checkoutBookings[0]?.id ?? null
-
-  const latestPilotLicenceArn = documents.find((d) => d.document_type === 'pilot_licence' && d.licence_number)?.licence_number ?? null
-  const defaultPicArn = customerProfile.pilot_arn ?? latestPilotLicenceArn ?? null
 
   const historicalSummary = historicalCheckoutRow
     ? {
@@ -402,7 +432,9 @@ export default function CustomerProfileTabs({
   const currentStatusAction = accountStatus === 'blocked' ? null : CLEARANCE_ACTION[clearanceStatus]
 
   function setTab(tab: TabType) {
-    router.replace(`?tab=${tab}`, { scroll: false })
+    const nextParams = new URLSearchParams(searchParams?.toString())
+    nextParams.set('tab', tab)
+    router.replace(`?${nextParams.toString()}`, { scroll: false })
   }
 
   function openTab(tab: TabType) {
@@ -633,6 +665,11 @@ export default function CustomerProfileTabs({
                   <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: account.bg, color: account.text }}>{account.label}</span>
                   <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: clearance.bg, color: clearance.text }}>{clearance.label}</span>
                 </div>
+                <div className="mt-2">
+                  <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold ${activeBookingBadge.tone}`}>
+                    {activeBookingBadge.label}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -703,6 +740,11 @@ export default function CustomerProfileTabs({
                 <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: account.bg, color: account.text }}>{account.label}</span>
                 <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: clearance.bg, color: clearance.text }}>{clearance.label}</span>
               </div>
+              <div className="mt-2">
+                <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold ${activeBookingBadge.tone}`}>
+                  {activeBookingBadge.label}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -765,7 +807,6 @@ export default function CustomerProfileTabs({
           <div className="flex overflow-x-auto border-b-2 border-slate-200 bg-white scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             {([
               { key: 'overview', label: 'Overview' },
-              { key: 'admin_actions', label: 'Admin Actions' },
               { key: 'documents', label: 'Documents' },
               { key: 'bookings', label: 'Bookings' },
               { key: 'billing', label: 'Billing' },
@@ -804,16 +845,6 @@ export default function CustomerProfileTabs({
         </section>
       )}
 
-      {activeTab === 'admin_actions' && (
-        <section className="space-y-4">
-          <AdminActionsPanel
-            customerId={customerId}
-            currentStatus={clearanceStatus}
-            activeBookingsSummary={activeBookingsSummary}
-          />
-        </section>
-      )}
-
       {activeTab === 'documents' && (
         <section>
           <DocumentReviewCards
@@ -826,17 +857,21 @@ export default function CustomerProfileTabs({
       )}
 
       {activeTab === 'bookings' && (
-        <section>
-          <CheckoutActivitySection checkoutBookings={checkoutBookings} standardBookings={standardBookings} />
-          <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5 mt-3">
-            <HistoricalCheckoutEditor
-              customerId={customerProfile.id}
-              customerName={customerProfile.full_name ?? 'Unknown Customer'}
-              clearanceStatus={clearanceStatus}
-              hasActiveCheckoutRequest={checkoutBookings.some((b) => ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required'].includes(b.status))}
-              defaultPicArn={defaultPicArn}
-              aircraftOptions={aircraftRows.map((a) => ({ id: a.id, registration: a.registration, displayName: a.display_name ?? a.registration }))}
-              existingLogs={aircraftLogRows.map((log) => {
+        <section className="space-y-4">
+          <AdminActionsPanel
+            customerId={customerId}
+            currentStatus={clearanceStatus}
+            documentSummary={`Documents: ${approvedRequiredCount}/${REQUIRED_DOC_TYPES.length} approved · ${uploadedRequired}/${REQUIRED_DOC_TYPES.length} required uploaded`}
+            activeBookingsSummary={activeBookingsSummary}
+            selectedStatus={selectedCheckoutResult}
+            onSelectedStatusChange={setSelectedCheckoutResult}
+            historicalCheckout={{
+              customerName: customerProfile.full_name ?? 'Unknown Customer',
+              clearanceStatus,
+              hasActiveCheckoutRequest: checkoutBookings.some((b) => ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required'].includes(b.status)),
+              defaultPicArn: customerProfile.pilot_arn,
+              aircraftOptions: aircraftRows.map((a) => ({ id: a.id, registration: a.registration, displayName: a.display_name ?? a.registration })),
+              existingLogs: aircraftLogRows.map((log) => {
                 const av = log.aircraft
                 const first = Array.isArray(av) ? av[0] : av
                 return {
@@ -867,10 +902,15 @@ export default function CustomerProfileTabs({
                   source: log.source,
                   reviewStatus: log.review_status,
                 }
-              })}
-              historicalRecord={historicalSummary}
-            />
-          </div>
+              }),
+              historicalRecord: historicalSummary,
+            }}
+          />
+          <CheckoutActivitySection
+            checkoutBookings={checkoutBookings}
+            standardBookings={standardBookings}
+            activeBlockTime={activeBlockTime}
+          />
         </section>
       )}
 
@@ -892,9 +932,19 @@ export default function CustomerProfileTabs({
                 transactions.map((txn) => {
                   const amount = txn.amount_cents / 100
                   const isCredit = amount >= 0
+                  const sourceLabel = txn.invoice_source_type ? prettyStatus(txn.invoice_source_type) : null
+                  const paymentMethodLabel = txn.payment_method ? prettyStatus(txn.payment_method) : null
+                  const detailLabel = [sourceLabel, paymentMethodLabel].filter(Boolean).join(' · ')
                   return (
                     <div key={txn.id} className="flex justify-between items-center py-2 border-b border-[#152d5a]/8 last:border-b-0">
-                      <p className="text-[12px] text-[#4b6390]">{prettyStatus(txn.entry_type)} · {shortDate(txn.created_at)}</p>
+                      <div>
+                        <p className="text-[12px] text-[#4b6390]">{prettyStatus(txn.entry_type)} · {shortDate(txn.created_at)}</p>
+                        {detailLabel || txn.note ? (
+                          <p className="mt-0.5 text-[11px] text-[#7c8aa7]">
+                            {[detailLabel, txn.note].filter(Boolean).join(' · ')}
+                          </p>
+                        ) : null}
+                      </div>
                       <p className={`text-[12px] font-semibold ${isCredit ? 'text-[#166534]' : 'text-[#991b1b]'}`}>{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)}</p>
                     </div>
                   )

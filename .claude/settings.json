@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:3000/login)",
+      "Bash(node /private/tmp/claude-501/-Users-rohanjetha-Documents-OZ-M2-OZRentaplane-m4/8a317c83-eed9-4e02-9971-6c3a888ad56b/scratchpad/repro.mjs)"
+    ]
+  }
+}

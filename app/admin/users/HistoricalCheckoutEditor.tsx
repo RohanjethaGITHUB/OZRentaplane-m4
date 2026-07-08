@@ -12,6 +12,7 @@ type LogMode = 'none' | 'link_existing' | 'create_new'
 type MeterKey = 'vdo' | 'tacho' | 'air_switch' | 'mr'
 type MeterRow = { start: string; stop: string; total: string }
 type ResolvedMeter = { start: number; stop: number; total: number }
+const HISTORICAL_OUTCOMES: Outcome[] = ['cleared_to_fly', 'additional_checkout_required', 'not_currently_eligible']
 
 type AircraftOption = { id: string; registration: string; displayName: string }
 type ExistingLogOption = {
@@ -66,6 +67,9 @@ type Props = {
   aircraftOptions: AircraftOption[]
   existingLogs: ExistingLogOption[]
   historicalRecord: HistoricalRecordSummary | null
+  checkoutOutcome: string | null
+  isOpen?: boolean
+  onOpenChange?: (open: boolean) => void
   renderMode?: 'card' | 'button_only' | 'summary_only'
 }
 
@@ -90,6 +94,10 @@ function toFixed1(value: number): string {
 
 function round1(value: number): number {
   return Math.round(value * 10) / 10
+}
+
+function isHistoricalOutcome(value: string | null): value is Outcome {
+  return value !== null && (HISTORICAL_OUTCOMES as readonly string[]).includes(value)
 }
 
 function resolveMeterRow(label: string, row: MeterRow): ResolvedMeter {
@@ -131,12 +139,11 @@ const EMPTY_METERS: Record<MeterKey, MeterRow> = {
 
 export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props }: Props) {
   const router = useRouter()
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
   const [checkoutDate, setCheckoutDate] = useState('')
-  const [checkoutOutcome, setCheckoutOutcome] = useState<Outcome>('cleared_to_fly')
   const [adminNotes, setAdminNotes] = useState('')
   const [acknowledgeActiveCheckout, setAcknowledgeActiveCheckout] = useState(false)
 
@@ -158,6 +165,9 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
 
   const disableAction = props.clearanceStatus === 'cleared_to_fly' || Boolean(props.historicalRecord)
   const selectedLog = useMemo(() => props.existingLogs.find((log) => log.id === linkedFlightLogId) ?? null, [linkedFlightLogId, props.existingLogs])
+  const resolvedCheckoutOutcome = props.checkoutOutcome
+  const open = props.isOpen ?? internalOpen
+  const setOpen = props.onOpenChange ?? setInternalOpen
   const preferredAircraftId = useMemo(() => {
     if (!props.aircraftOptions.length) return ''
     const kzg = props.aircraftOptions.find((a) => a.registration === 'VH-KZG' || a.displayName.toLowerCase().includes('cessna 172'))
@@ -248,11 +258,14 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
 
     startTransition(async () => {
       try {
+        if (!isHistoricalOutcome(resolvedCheckoutOutcome)) {
+          throw new Error('VALIDATION: Select Update Checkout Result before recording a historical checkout.')
+        }
         if (logMode === 'link_existing') {
           await recordHistoricalCheckoutCompletion({
             customerId: props.customerId,
             checkoutDate,
-            checkoutOutcome,
+            checkoutOutcome: resolvedCheckoutOutcome,
             adminNotes,
             acknowledgeActiveCheckout,
             logMode,
@@ -284,7 +297,7 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
           await recordHistoricalCheckoutCompletion({
             customerId: props.customerId,
             checkoutDate,
-            checkoutOutcome,
+            checkoutOutcome: resolvedCheckoutOutcome,
             adminNotes,
             acknowledgeActiveCheckout,
             logMode,
@@ -297,7 +310,7 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
           await recordHistoricalCheckoutCompletion({
             customerId: props.customerId,
             checkoutDate,
-            checkoutOutcome,
+            checkoutOutcome: resolvedCheckoutOutcome,
             adminNotes,
             acknowledgeActiveCheckout,
             logMode,
@@ -319,14 +332,32 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
   }
 
   const actionButton = (
-    <button
-      type="button"
-      onClick={() => setOpen(true)}
-      disabled={disableAction}
-      className="rounded-xl border border-blue-400/25 bg-blue-500/10 px-4 py-2 text-[13px] font-bold uppercase tracking-widest text-[#1a4fd6] transition-colors hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      Mark Checkout Completed
-    </button>
+    <fieldset className="space-y-2">
+      <legend className="text-sm font-medium text-gray-500">Create a checkout flight record?</legend>
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-2 text-sm text-[#152d5a]">
+          <input
+            type="radio"
+            name={`checkout-flight-record-${props.customerId}`}
+            checked={Boolean(open)}
+            onChange={() => setOpen(true)}
+            disabled={disableAction}
+            className="h-4 w-4 border-gray-300 text-[#1a4fd6] focus:ring-[#1a4fd6]"
+          />
+          <span>Yes</span>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-[#152d5a]">
+          <input
+            type="radio"
+            name={`checkout-flight-record-${props.customerId}`}
+            checked={!open}
+            onChange={() => setOpen(false)}
+            className="h-4 w-4 border-gray-300 text-[#1a4fd6] focus:ring-[#1a4fd6]"
+          />
+          <span>No</span>
+        </label>
+      </div>
+    </fieldset>
   )
 
   return (
@@ -338,24 +369,24 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
               <p className="text-[13px] font-semibold uppercase tracking-widest text-[#4b6390]">Historical Checkout</p>
               <p className="mt-1 text-[14px] text-[#4b6390]">Record checkout completion without creating invoices, payments, or calendar bookings.</p>
             </div>
-            {SHOW_ADMIN_DIRECT_CHECKOUT_COMPLETE_ACTION && actionButton}
           </div>
           {SHOW_ADMIN_DIRECT_CHECKOUT_COMPLETE_ACTION && disableAction ? (
             <p className="mt-2 text-[13px] text-amber-300/90">
               {props.historicalRecord ? 'A historical checkout record already exists for this customer.' : 'Customer is already cleared to fly.'}
             </p>
           ) : null}
+          {SHOW_ADMIN_DIRECT_CHECKOUT_COMPLETE_ACTION && actionButton}
         </div>
       ) : renderMode === 'button_only' && SHOW_ADMIN_DIRECT_CHECKOUT_COMPLETE_ACTION ? actionButton : null}
 
       {props.historicalRecord ? (
-        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-[14px] text-emerald-100">
-          <p className="text-[13px] font-bold uppercase tracking-widest text-emerald-300">Pre-portal checkout completed</p>
-          <p className="mt-2">Date: {props.historicalRecord.checkoutDate}</p>
-          <p>Outcome: {prettyOutcome(props.historicalRecord.checkoutOutcome)}</p>
-          <p>Recorded by: {props.historicalRecord.recordedByName || 'Admin'}{props.historicalRecord.recordedByEmail ? ` (${props.historicalRecord.recordedByEmail})` : ''}</p>
-          {props.historicalRecord.linkedFlightLogId ? <p>Linked flight log: {props.historicalRecord.linkedFlightLogAircraftRegistration || 'Aircraft'} ({props.historicalRecord.linkedFlightLogDate || 'No date'})</p> : null}
-          {props.historicalRecord.adminNotes ? <p>Notes: {props.historicalRecord.adminNotes}</p> : null}
+        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-[14px] text-[#152d5a]">
+          <p className="text-[13px] font-bold uppercase tracking-widest text-[#152d5a]">Pre-portal checkout completed</p>
+          <p className="mt-2 text-[#152d5a]">Date: {props.historicalRecord.checkoutDate}</p>
+          <p className="text-[#152d5a]">Outcome: {prettyOutcome(props.historicalRecord.checkoutOutcome)}</p>
+          <p className="text-[#152d5a]">Recorded by: {props.historicalRecord.recordedByName || 'Admin'}{props.historicalRecord.recordedByEmail ? ` (${props.historicalRecord.recordedByEmail})` : ''}</p>
+          {props.historicalRecord.linkedFlightLogId ? <p className="text-[#152d5a]">Linked flight log: {props.historicalRecord.linkedFlightLogAircraftRegistration || 'Aircraft'} ({props.historicalRecord.linkedFlightLogDate || 'No date'})</p> : null}
+          {props.historicalRecord.adminNotes ? <p className="text-[#152d5a]">Notes: {props.historicalRecord.adminNotes}</p> : null}
         </div>
       ) : null}
 
@@ -364,7 +395,7 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
           <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-[#152d5a]/10 bg-white p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-xl font-semibold text-[#152d5a]">Mark Checkout Completed</h3>
+                <h3 className="text-xl font-semibold text-[#152d5a]">Create a Checkout Flight Record</h3>
                 <p className="mt-2 text-[14px] text-[#4b6390]">This records a checkout that was completed before or outside the portal. No invoice, payment ledger, or schedule block will be created.</p>
               </div>
               <button type="button" onClick={() => setOpen(false)} className="rounded-lg border border-[#152d5a]/15 p-2 text-[#4b6390] hover:bg-white/10 hover:text-[#152d5a]" aria-label="Close dialog">
@@ -386,17 +417,6 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
                     className="w-full bg-white border border-[#152d5a]/15 focus:border-oz-blue/50 focus:outline-none text-[14px] text-[#152d5a] rounded-lg px-3 py-2 text-left flex items-center justify-between"
                   />
                 </div>
-                <label className="space-y-1 text-[14px] text-[#4b6390]">
-                  <span>Checkout outcome</span>
-                  <div className="relative">
-                    <select value={checkoutOutcome} onChange={(e) => setCheckoutOutcome(e.target.value as Outcome)} className={SELECT_CLASS}>
-                      <option value="cleared_to_fly">Cleared to fly</option>
-                      <option value="additional_checkout_required">Additional checkout required</option>
-                      <option value="not_currently_eligible">Not currently eligible</option>
-                    </select>
-                    <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#4b6390] material-symbols-outlined text-[18px]">expand_more</span>
-                  </div>
-                </label>
               </div>
 
               <label className="block space-y-1 text-[14px] text-[#4b6390]">
@@ -519,7 +539,7 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => setOpen(false)} disabled={isPending} className="rounded-xl border border-[#152d5a]/15 px-4 py-2 text-[14px] text-[#4b6390]">Cancel</button>
                 <button type="submit" disabled={isPending} className="rounded-xl bg-blue-600 px-4 py-2 text-[14px] font-semibold text-white hover:bg-blue-500 disabled:opacity-60">
-                  {isPending ? 'Recording...' : 'Mark Checkout Completed'}
+                  {isPending ? 'Recording...' : 'Create Checkout Flight Record'}
                 </button>
               </div>
             </form>

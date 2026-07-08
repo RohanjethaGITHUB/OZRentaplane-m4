@@ -8,20 +8,25 @@ import AdminBookingActions from './AdminBookingActions'
 import AdminCheckoutActions from './AdminCheckoutActions'
 import AdminCheckoutReviewPanel from './AdminCheckoutReviewPanel'
 import AdminManualCheckoutCompletion from './AdminManualCheckoutCompletion'
-import AdminClarificationForm from './AdminClarificationForm'
-import AdminOperationalActions from './AdminOperationalActions'
 import AdminBankTransferPanel from './AdminBankTransferPanel'
 import AdminBankTransferReviewPanel from './AdminBankTransferReviewPanel'
 import AdminStandardBillingPanel from './AdminStandardBillingPanel'
+import {
+  AdminFlightReadingsDisclosureProvider,
+  AdminFlightReadingsDisclosureSection,
+  AdminFlightReadingsDisclosureTrigger,
+} from './AdminFlightReadingsDisclosure'
 import AdminSubmitFlightRecordPanel from './AdminSubmitFlightRecordPanel'
 import AdminStandardBankTransferPanel from './AdminStandardBankTransferPanel'
 import AdminCancellationReviewCard from './AdminCancellationReviewCard'
 import AdminHoldBookingActions from './AdminHoldBookingActions'
+import { deriveBookingLifecycleStage } from '@/lib/booking/booking-lifecycle-stage'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 import { getAircraftFlightLogStartSuggestions } from '@/lib/aircraft-flight-log'
-import { deriveBookingStatusForFlightRecord, hasSubmittedFlightRecord } from '@/lib/booking/flight-record-status'
+import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
+import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
 
-export const metadata = { title: 'Booking Detail | Admin' }
+export const metadata = { title: 'Booking Details | Admin' }
 
 // ── Status display config ─────────────────────────────────────────────────────
 
@@ -78,6 +83,140 @@ const BLOCK_TYPE_LABEL: Record<string, string> = {
   owner_use:        'Owner Use',
 }
 
+type FlightReadingsBanner =
+  | {
+      kind: 'note'
+      tone: 'slate'
+      title: string
+      body: string
+      buttonLabel: string
+      buttonTone: 'primary' | 'secondary'
+    }
+  | {
+      kind: 'callout'
+      tone: 'amber'
+      title: string
+      body: string
+      buttonLabel: string
+      buttonTone: 'primary' | 'secondary'
+    }
+  | {
+      kind: 'confirmed'
+      tone: 'green'
+      title: string
+      body: string
+      linkLabel: string
+      buttonLabel: string
+      buttonTone: 'primary' | 'secondary'
+    }
+  | {
+      kind: 'exception'
+      tone: 'amber' | 'rose' | 'slate'
+      title: string
+      body: string
+      buttonLabel: string
+      buttonTone: 'primary' | 'secondary'
+    }
+
+function getFlightReadingsBanner(input: {
+  lifecycleKey: string
+  submittedAtLabel: string | null
+  billingStatusLabel: string | null
+}): FlightReadingsBanner | null {
+  const billingStatus = input.billingStatusLabel ? input.billingStatusLabel.toLowerCase() : 'not available'
+
+  switch (input.lifecycleKey) {
+    case 'booked':
+    case 'upcoming':
+      return {
+        kind: 'note',
+        tone: 'slate',
+        title: 'No post-flight action yet',
+        body:
+          "This flight hasn't happened yet. Post-flight readings can be submitted once the booking reaches its scheduled time.",
+        buttonLabel: 'Submit Flight Readings',
+        buttonTone: 'secondary',
+      }
+    case 'in_progress':
+      return {
+        kind: 'callout',
+        tone: 'amber',
+        title: 'Flight in progress',
+        body:
+          'This flight is currently in progress. Once it has landed, use the button below to mark it complete and submit the post-flight readings.',
+        buttonLabel: 'Submit Flight Readings',
+        buttonTone: 'secondary',
+      }
+    case 'awaiting_flight_readings':
+      return {
+        kind: 'callout',
+        tone: 'amber',
+        title: 'Awaiting post-flight readings',
+        body: 'This flight has been flown and is awaiting post-flight readings. Use the form below to submit them.',
+        buttonLabel: 'Submit Flight Readings',
+        buttonTone: 'primary',
+      }
+    case 'readings_submitted':
+      return {
+        kind: 'confirmed',
+        tone: 'green',
+        title: 'Flight readings submitted',
+        body: `Flight readings were submitted ${input.submittedAtLabel ? `on ${input.submittedAtLabel} ` : ''}and billing is ${billingStatus}.`,
+        linkLabel: 'View submitted record',
+        buttonLabel: 'Submit Flight Readings',
+        buttonTone: 'secondary',
+      }
+    case 'paid_closed':
+      return {
+        kind: 'confirmed',
+        tone: 'green',
+        title: 'Booking closed',
+        body: `Flight readings were submitted ${input.submittedAtLabel ? `on ${input.submittedAtLabel} ` : ''}and billing is ${billingStatus}.`,
+        linkLabel: 'View submitted record',
+        buttonLabel: 'Submit Flight Readings',
+        buttonTone: 'secondary',
+      }
+    case 'cancelled':
+      return {
+        kind: 'exception',
+        tone: 'rose',
+        title: 'Booking cancelled',
+        body: 'This booking was cancelled, so there is no post-flight action to take.',
+        buttonLabel: 'Submit Flight Readings',
+        buttonTone: 'secondary',
+      }
+    case 'no_show':
+      return {
+        kind: 'exception',
+        tone: 'rose',
+        title: 'No-show recorded',
+        body: 'This booking was marked no show, so post-flight readings are not expected.',
+        buttonLabel: 'Submit Flight Readings',
+        buttonTone: 'secondary',
+      }
+    case 'admin_hold':
+      return {
+        kind: 'exception',
+        tone: 'amber',
+        title: 'On hold',
+        body: 'This booking is on hold with operations, so post-flight actions are paused.',
+        buttonLabel: 'Submit Flight Readings',
+        buttonTone: 'secondary',
+      }
+    case 'needs_clarification':
+      return {
+        kind: 'exception',
+        tone: 'amber',
+        title: 'Needs clarification',
+        body: 'This booking is waiting on clarification before billing can continue.',
+        buttonLabel: 'Submit Flight Readings',
+        buttonTone: 'secondary',
+      }
+    default:
+      return null
+  }
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 type PageProps = { params: { id: string } }
@@ -118,6 +257,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       scheduled_start,
       scheduled_end,
       status,
+      payment_status,
       pic_name,
       pic_arn,
       estimated_hours,
@@ -156,7 +296,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const bookingType       = (booking as { booking_type?: string }).booking_type ?? 'standard'
   const pageTitle = bookingType === 'checkout'
     ? 'Review Checkout Request'
-    : 'Review Standard Booking Payment'
+    : 'Booking Details'
   const isOutcomePending  = booking.status === 'checkout_completed_under_review'
   const isPaymentRequired = booking.status === 'checkout_payment_required'
   const isCheckoutRequested = bookingType === 'checkout' && booking.status === 'checkout_requested'
@@ -164,24 +304,12 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const isStandardBillingPending = bookingType === 'standard' && booking.status === 'pending_post_flight_review'
   // Standard booking payment pending — show bank transfer panel if applicable
   const isStandardPaymentPending = bookingType === 'standard' && booking.status === 'payment_pending'
-  // Admin-initiated post-flight submission — available at any operational
-  // status, any time, as long as no flight record is already in the pipeline.
-  const ADMIN_SUBMIT_STATUSES = [
-    'pending_confirmation',
-    'confirmed',
-    'ready_for_dispatch',
-    'dispatched',
-    'awaiting_flight_record',
-    'flight_record_overdue',
-    'on_hold_pending_documents',
-  ]
-  const isAdminSubmitEligible =
-    bookingType === 'standard' &&
-    ADMIN_SUBMIT_STATUSES.includes(booking.status) &&
-    !hasSubmittedFlightRecord(booking.flight_records)
+  // Admin-initiated post-flight submission is available for all standard bookings.
+  const isAdminSubmitEligible = bookingType === 'standard'
   // Fetch airports and credit for checkout outcome form, standard billing panel,
   // and the admin post-flight submission panel
   const needsAirportsAndCredit = isOutcomePending || isStandardBillingPending || isAdminSubmitEligible
+  const needsBillingPreview = bookingType === 'standard'
 
   const [
     { data: customer },
@@ -192,6 +320,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     { data: rawMessages },
     { data: airportRows },
     { data: creditRow },
+    { data: activeBlockTimeRow },
+    { data: bookingInvoiceStatusRow },
     { data: flightRecordRow },
     { data: aircraftLogsRaw },
   ] = await Promise.all([
@@ -238,6 +368,23 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     needsAirportsAndCredit
       ? supabase.from('customer_credit_balances').select('balance_cents').eq('customer_id', booking.booking_owner_user_id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
+    needsBillingPreview
+      ? supabase
+          .from('pilot_block_time_purchases')
+          .select('hours_remaining, rate_per_hour, expires_at')
+          .eq('user_id', booking.booking_owner_user_id)
+          .eq('status', 'active')
+          .gt('expires_at', new Date().toISOString())
+          .order('queue_position', { ascending: true, nullsFirst: false })
+          .order('activated_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    supabase
+      .from('booking_invoices')
+      .select('status')
+      .eq('booking_id', booking.id)
+      .maybeSingle(),
     // Flight record — fetched for standard billing panel
     isStandardBillingPending
       ? supabase.from('flight_records').select('*').eq('booking_id', booking.id).order('submitted_at', { ascending: false }).limit(1).maybeSingle()
@@ -279,7 +426,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   }))
   const messages         = rawMessages  ?? []
   const aircraftLogs     = (aircraftLogsRaw ?? []) as Record<string, unknown>[]
-  const [checkoutInvoiceResult, suggestionsResult, activeBlockTimeResult] = await Promise.all([
+  const [checkoutInvoiceResult, suggestionsResult] = await Promise.all([
     supabase
       .from('checkout_invoices')
       .select(`
@@ -300,33 +447,9 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           nextLogNumber: 1,
           suggestedStarts: { vdo_start: null, tacho_start: null, air_switch_start: null, mr_start: null },
         }),
-    // Customer's active block time package — shown in the admin post-flight
-    // submission panel so the admin sees which billing branch will apply.
-    isAdminSubmitEligible
-      ? supabase
-          .from('pilot_block_time_purchases')
-          .select('hours_remaining, rate_per_hour, expires_at')
-          .eq('user_id', booking.booking_owner_user_id)
-          .eq('status', 'active')
-          .gt('expires_at', new Date().toISOString())
-          .order('queue_position', { ascending: true, nullsFirst: false })
-          .order('activated_at', { ascending: true })
-          .limit(1)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
   ])
   const checkoutInvoice = checkoutInvoiceResult.data
   const flightLogStartSuggestions = suggestionsResult.suggestedStarts
-  const activeBlockTimeRow = activeBlockTimeResult.data as
-    | { hours_remaining: number; rate_per_hour: number; expires_at: string }
-    | null
-  const adminSubmitBlockTime = activeBlockTimeRow
-    ? {
-        hoursRemaining: Number(activeBlockTimeRow.hours_remaining),
-        ratePerHour: Number(activeBlockTimeRow.rate_per_hour),
-        expiresAt: activeBlockTimeRow.expires_at,
-      }
-    : null
   // Invoice was sent via Stripe if checkoutInvoice exists with a status of 'open' or 'paid'
   const invoiceSentViaStripe = !!(
     checkoutInvoice &&
@@ -345,6 +468,15 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   })
 
   const customerCreditCents = (creditRow as { balance_cents?: number } | null)?.balance_cents ?? 0
+  const activeBlockTime = (activeBlockTimeRow as { hours_remaining: number; rate_per_hour: number; expires_at: string } | null)
+    ? {
+        hoursRemaining: Number((activeBlockTimeRow as { hours_remaining: number }).hours_remaining),
+        ratePerHour: Number((activeBlockTimeRow as { rate_per_hour: number }).rate_per_hour),
+        expiresAt: (activeBlockTimeRow as { expires_at: string }).expires_at,
+      }
+    : null
+  const bookingInvoiceStatus = (bookingInvoiceStatusRow as { status?: string | null } | null)?.status ?? null
+  const billingStatusLabel = bookingInvoiceStatus ?? (booking as { payment_status?: string | null }).payment_status ?? null
   const rawPhoneCountry = (customer as { phone_country_code?: string | null } | null)?.phone_country_code ?? null
   const rawPhoneNumber  = (customer as { phone_number?: string | null } | null)?.phone_number ?? null
   const customerPhone   = rawPhoneNumber
@@ -442,6 +574,16 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   })
 
   const status = deriveBookingStatusForFlightRecord(booking)
+  const bookingSlotHours = Math.max(
+    0,
+    (new Date(booking.scheduled_end).getTime() - new Date(booking.scheduled_start).getTime()) / (1000 * 60 * 60),
+  )
+  const lifecycleStage = deriveBookingLifecycleStage({
+    bookingStatus: booking.status,
+    flightRecordStatus: booking.flight_records?.[0]?.status ?? null,
+    bookingInvoiceStatus,
+    paymentStatus: (booking as { payment_status?: string | null }).payment_status ?? null,
+  })
   // bookingType is already declared above (const bookingType = ...)
   const statusCfgBase = STATUS_CFG[status] ?? {
     label:  status.replace(/_/g, ' '),
@@ -454,7 +596,17 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     isAwaitingManualPayment || isStandardAwaitingManualPayment
       ? { label: 'Manual Payment Submitted', color: 'text-[#1a4fd6]', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: 'account_balance' }
       : statusCfgBase
-  const statusBadgeLabel = statusCfg.label.toUpperCase()
+  const lifecycleToneCfg: Record<string, { text: string; bg: string; border: string }> = {
+    slate:  { text: 'text-slate-700',  bg: 'bg-slate-100',  border: 'border-slate-200' },
+    gray:   { text: 'text-slate-600',  bg: 'bg-slate-100',  border: 'border-slate-200' },
+    blue:   { text: 'text-blue-700',   bg: 'bg-blue-50',    border: 'border-blue-200' },
+    amber:  { text: 'text-amber-700',  bg: 'bg-amber-50',   border: 'border-amber-200' },
+    orange: { text: 'text-orange-700', bg: 'bg-orange-50',  border: 'border-orange-200' },
+    purple: { text: 'text-purple-700', bg: 'bg-purple-50',  border: 'border-purple-200' },
+    green:  { text: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+    rose:   { text: 'text-rose-700',   bg: 'bg-rose-50',    border: 'border-rose-200' },
+  }
+  const lifecycleTone = lifecycleToneCfg[lifecycleStage.tone] ?? lifecycleToneCfg.slate
   const clearanceStatus  = (customer as { pilot_clearance_status?: string } | null)?.pilot_clearance_status ?? 'checkout_required'
   const clearanceCfgBase = CLEARANCE_CFG[clearanceStatus] ?? CLEARANCE_CFG.checkout_required
   const clearanceCfg = isAwaitingManualPayment
@@ -474,6 +626,13 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     value
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (char) => char.toUpperCase())
+  const flightReadingsBanner = bookingType === 'standard'
+    ? getFlightReadingsBanner({
+        lifecycleKey: lifecycleStage.key,
+        submittedAtLabel: flightRecordRow?.submitted_at ? formatDateTime(flightRecordRow.submitted_at) : null,
+        billingStatusLabel: billingStatusLabel ? formatStatusLabel(billingStatusLabel) : null,
+      })
+    : null
   const formatDayMonth = (value: string) =>
     new Date(value).toLocaleDateString('en-AU', {
       timeZone: 'Australia/Sydney',
@@ -507,11 +666,6 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const isPending               = status === 'pending_confirmation'
   const isCancellationRequested = status === 'cancellation_requested'
   const isClarificationState    = status === 'needs_clarification'
-  // post_flight_approved stays operational until billing is finalised;
-  // once payment_pending the standard billing panel replaces operational actions.
-  const OPERATIONAL_STATUSES    = ['confirmed', 'ready_for_dispatch', 'dispatched']
-  const isOperational           = OPERATIONAL_STATUSES.includes(status)
-
   // ── Fetch pending cancellation request for review ─────────────────────────
   type CancellationReqAdmin = {
     id:                  string
@@ -548,43 +702,44 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const hasConflict     = externalConflicts.length > 0
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-8 pb-24">
+    <AdminFlightReadingsDisclosureProvider>
+      <div className="min-h-screen bg-gray-100">
+        <div className="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-8 pb-24">
 
-      <div className="mb-6">
-        <div className="flex items-center gap-2 text-sm text-gray-400 mb-4">
-          <Link
-            href="/admin/bookings/requests"
-            className="hover:text-[#152d5a] transition-colors"
-          >
-            Checkout Requests
-          </Link>
-          <span>/</span>
-          <Link
-            href="/admin/bookings"
-            className="hover:text-[#152d5a] transition-colors"
-          >
-            All bookings
-          </Link>
-        </div>
+        <div className="mb-6">
+          <div className="flex items-center gap-2 text-sm text-gray-400 mb-4">
+            <Link
+              href="/admin/bookings/requests"
+              className="hover:text-[#152d5a] transition-colors"
+            >
+              Checkout Requests
+            </Link>
+            <span>/</span>
+            <Link
+              href="/admin/bookings"
+              className="hover:text-[#152d5a] transition-colors"
+            >
+              All bookings
+            </Link>
+          </div>
 
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-[#152d5a]">{pageTitle}</h1>
-            <p className="text-sm text-gray-400 mt-1">
-              Review the details below and confirm or take action.
-            </p>
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <span className="inline-flex items-center px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold uppercase tracking-wide">
-              {statusBadgeLabel}
-            </span>
-            <span className="text-xs text-gray-400">
-              Submitted {formatDateTime(booking.created_at)}
-            </span>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-semibold text-[#152d5a]">{pageTitle}</h1>
+              <p className="text-sm text-gray-400 mt-1">
+                View and manage this booking.
+              </p>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <span className={`inline-flex items-center px-3 py-1 rounded-full border text-xs font-semibold uppercase tracking-wide ${lifecycleTone.bg} ${lifecycleTone.text} ${lifecycleTone.border}`}>
+                {lifecycleStage.label}
+              </span>
+              <span className="text-xs text-gray-400">
+                Submitted {formatDateTime(booking.created_at)}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
 
       {isOnHold && (
         <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-4">
@@ -616,7 +771,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center">
@@ -662,34 +817,177 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             </div>
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</span>
           </div>
-          <p className="text-sm font-semibold text-[#152d5a]">{statusCfg.label}</p>
+          <div className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 ${lifecycleTone.bg} ${lifecycleTone.border}`}>
+            <p className={`text-sm font-semibold ${lifecycleTone.text}`}>{lifecycleStage.label}</p>
+          </div>
           <p className="text-xs text-gray-400 mt-0.5">
-            {bookingType === 'checkout'
-              ? (status === 'checkout_requested'
-                ? 'Awaiting review'
-                : status === 'checkout_confirmed'
-                  ? 'Confirmed by admin'
-                  : status === 'checkout_completed_under_review'
-                    ? 'Outcome pending'
-                    : 'Payment required'
-              )
-              : 'Current booking state'}
+            {lifecycleStage.sublabel ?? (bookingType === 'checkout' ? 'Current checkout state' : 'Current booking state')}
           </p>
+        </div>
+        </div>
+
+        {bookingType === 'standard' && flightReadingsBanner && (
+          <div
+            className={`mb-4 rounded-2xl border p-4 shadow-sm ${
+              flightReadingsBanner.kind === 'callout'
+                ? 'border-amber-200 bg-amber-50/90'
+                : flightReadingsBanner.kind === 'confirmed'
+                  ? 'border-emerald-200 bg-emerald-50/80'
+                  : flightReadingsBanner.tone === 'rose'
+                    ? 'border-rose-200 bg-rose-50/80'
+                    : 'border-slate-200 bg-slate-50/90'
+            }`}
+          >
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="min-w-0">
+                <p className={`text-[10px] font-semibold uppercase tracking-widest ${
+                  flightReadingsBanner.kind === 'callout'
+                    ? 'text-amber-700'
+                    : flightReadingsBanner.kind === 'confirmed'
+                      ? 'text-emerald-700'
+                      : flightReadingsBanner.tone === 'rose'
+                        ? 'text-rose-700'
+                        : 'text-slate-600'
+                }`}>
+                  {flightReadingsBanner.kind === 'callout'
+                    ? 'Post-flight Action'
+                    : flightReadingsBanner.kind === 'confirmed'
+                      ? 'Post-flight Summary'
+                      : 'Booking State'}
+                </p>
+                <h2 className="mt-1 text-[15px] font-semibold text-[#152d5a]">
+                  {flightReadingsBanner.title}
+                </h2>
+                <p className="mt-1 text-sm text-[#4b6390] leading-relaxed">
+                  {flightReadingsBanner.body}
+                </p>
+              </div>
+
+              <div className="flex flex-col items-start gap-2 md:ml-4 md:flex-shrink-0">
+                <AdminFlightReadingsDisclosureTrigger
+                  label={flightReadingsBanner.buttonLabel}
+                  variant={flightReadingsBanner.buttonTone}
+                  className="w-full sm:w-auto"
+                />
+                {flightReadingsBanner.kind === 'confirmed' && flightRecordRow ? (
+                  <Link
+                    href="#flight-record-snapshot"
+                    className="inline-flex items-center gap-2 self-start rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">visibility</span>
+                    {flightReadingsBanner.linkLabel}
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="mb-4 rounded-2xl border border-[#1a4fd6]/15 bg-gradient-to-br from-[#f6f9ff] to-[#eef4ff] p-5 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#1a4fd6]">
+              Booking snapshot
+            </p>
+            <h2 className="text-[15px] font-semibold text-[#152d5a] mt-1">
+              Useful details before billing
+            </h2>
+          </div>
+          <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-widest ${
+            flightRecordRow
+              ? 'border-green-200 bg-green-50 text-green-700'
+              : 'border-amber-200 bg-amber-50 text-amber-700'
+          }`}>
+            {flightRecordRow
+              ? `Flight record ${formatStatusLabel(flightRecordRow.status)}`
+              : 'No flight record yet'}
+          </span>
+        </div>
+        <div className="mb-4 rounded-xl border border-[#1a4fd6]/15 bg-white/75 px-4 py-3 text-[12px] text-[#152d5a]">
+          Billing mode is determined at flight finalization from the customer&apos;s active package at that time.
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="rounded-2xl border border-[#1a4fd6]/15 bg-[#f7faff] p-4 sm:col-span-2">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#1a4fd6]">Flight window</p>
+            <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+              <div className="rounded-xl border border-[#1a4fd6]/15 bg-white px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b6390]">Departure</p>
+                <p className="mt-1 text-[15px] font-semibold text-[#152d5a]">{formatDateTime(booking.scheduled_start)}</p>
+              </div>
+              <div className="rounded-xl border border-[#1a4fd6]/15 bg-white px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b6390]">Return</p>
+                <p className="mt-1 text-[15px] font-semibold text-[#152d5a]">{formatDateTime(booking.scheduled_end)}</p>
+              </div>
+            </div>
+            <p className="mt-2 text-[12px] text-[#4b6390]">Sydney time (AEST).</p>
+          </div>
+
+          <div className="rounded-2xl border-l-4 border-l-[#1a4fd6] border border-[#1a4fd6]/15 bg-[#f0f6ff] p-4 shadow-sm">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#1a4fd6]">Billing preview</p>
+            <p className="mt-2 text-[15px] font-semibold text-[#152d5a]">
+              {activeBlockTime
+                ? `Block Time — $${activeBlockTime.ratePerHour.toFixed(2)}/hr`
+                : `Pay As You Fly — $${PAYF_RATE_PER_HOUR}/hr`}
+            </p>
+            <p className="mt-1 text-[12px] text-[#4b6390] leading-relaxed">
+              Based on the customer&apos;s current package status. This may change if the account is updated before flight finalization.
+            </p>
+            {activeBlockTime ? (
+              <p className="mt-1 text-[12px] text-[#4b6390]">
+                Active package: {activeBlockTime.hoursRemaining.toFixed(1)}h remaining, expires {formatDateTime(activeBlockTime.expiresAt)}
+              </p>
+            ) : null}
+          </div>
+
+          <div
+            id="flight-record-snapshot"
+            className="rounded-2xl border-l-4 border-l-[#f59e0b] border border-amber-200 bg-amber-50/70 p-4 shadow-sm"
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#b45309]">Flight record</p>
+            <p className="mt-2 text-[15px] font-semibold text-[#152d5a]">
+              {flightRecordRow
+                ? formatStatusLabel(flightRecordRow.status)
+                : 'Not yet submitted'}
+            </p>
+            <p className="mt-1 text-[12px] text-[#4b6390]">
+              {flightRecordRow?.submitted_at
+                ? `Submitted ${formatDateTime(flightRecordRow.submitted_at)}`
+                : 'Post-flight submission still pending.'}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/70 bg-white/80 p-4 sm:col-span-2 xl:col-span-2">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b6390]">Customer notes</p>
+            <p className="mt-2 text-[14px] font-medium text-[#152d5a] leading-relaxed">
+              {(booking as { customer_notes?: string | null }).customer_notes?.trim()
+                ? (booking as { customer_notes?: string | null }).customer_notes
+                : 'No customer notes provided.'}
+            </p>
+            {(booking as { admin_notes?: string | null }).admin_notes?.trim() && (
+              <p className="mt-2 text-[12px] text-[#4b6390]">
+                Admin note: {(booking as { admin_notes?: string | null }).admin_notes}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 pb-32">
+        <div className="grid grid-cols-1 gap-6 pb-32">
 
         {/* ── Left column: details ─────────────────────────────────────────────── */}
         <div className="space-y-6">
 
           {/* ── Checkout bank transfer panel — shown when checkout payment required ── */}
           {isPaymentRequired && !invoiceSentViaStripe && (
-            <AdminBankTransferPanel
-              bookingId={booking.id}
-              bookingType="checkout"
-              amountCents={checkoutInvoice?.stripe_amount_due_cents ?? 0}
-            />
+            <ManualPaymentDisclosure>
+              <AdminBankTransferPanel
+                bookingId={booking.id}
+                bookingType="checkout"
+                amountCents={checkoutInvoice?.stripe_amount_due_cents ?? 0}
+                variant="admin_override"
+              />
+            </ManualPaymentDisclosure>
           )}
 
           {isPaymentRequired && invoiceSentViaStripe && (
@@ -710,20 +1008,14 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           )}
 
           {isPaymentRequired && invoiceSentViaStripe && (
-            <details className="group">
-              <summary className="cursor-pointer text-[11px] font-semibold text-amber-600 uppercase tracking-wider select-none list-none flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[16px] group-open:rotate-90 transition-transform">chevron_right</span>
-                Payment received but customer hasn't submitted proof?
-              </summary>
-              <div className="mt-3">
-                <AdminBankTransferPanel
-                  bookingId={booking.id}
-                  bookingType="checkout"
-                  amountCents={checkoutInvoice?.stripe_amount_due_cents ?? 0}
-                  variant="admin_override"
-                />
-              </div>
-            </details>
+            <ManualPaymentDisclosure>
+              <AdminBankTransferPanel
+                bookingId={booking.id}
+                bookingType="checkout"
+                amountCents={checkoutInvoice?.stripe_amount_due_cents ?? 0}
+                variant="admin_override"
+              />
+            </ManualPaymentDisclosure>
           )}
 
           {isPaymentRequired && invoiceSentViaStripe && latestBankTransferSub && isAwaitingManualPayment && (
@@ -737,11 +1029,14 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               submissions={standardPendingReviewSubmissions}
             />
           ) : isStandardPaymentPending ? (
-            <AdminBankTransferPanel
-              bookingId={booking.id}
-              bookingType="standard"
-              amountCents={standardInvoiceAmountDueCents}
-            />
+            <ManualPaymentDisclosure>
+              <AdminBankTransferPanel
+                bookingId={booking.id}
+                bookingType="standard"
+                amountCents={standardInvoiceAmountDueCents}
+                variant="admin_override"
+              />
+            </ManualPaymentDisclosure>
           ) : null}
 
           {/* ── Checkout request review panel — shown for checkout_requested ─── */}
@@ -877,15 +1172,6 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             )}
 
             {/* Clarification form — available from pending or confirmed */}
-            {canRequestClarification && (
-              <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
-                <h2 className="text-xs uppercase tracking-widest font-semibold text-[#152d5a] mb-3">
-                  Need More Information?
-                </h2>
-                <AdminClarificationForm bookingId={booking.id} />
-              </div>
-            )}
-
             {/* Customer clarification response — shown on admin side after response received */}
             {clarificationResponse && status === 'pending_confirmation' && (
               <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
@@ -893,16 +1179,6 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 <p className="text-xs text-[#4b6390] leading-relaxed italic">
                   &quot;{clarificationResponse}&quot;
                 </p>
-              </div>
-            )}
-
-            {/* ── Operational dispatch panel ───────────────────────────────────── */}
-            {isOperational && (
-              <div className="bg-[#111316] border border-[#152d5a]/10 rounded-2xl p-6">
-                <h2 className="text-xs uppercase tracking-widest font-semibold text-[#4b6390] mb-4">
-                  Operational Actions
-                </h2>
-                <AdminOperationalActions bookingId={booking.id} status={status} />
               </div>
             )}
 
@@ -985,38 +1261,56 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-      </div>
-
-      {/* ── Full-width Flight Billing (standard post-flight review) ─────────── */}
-      {isStandardBillingPending && flightRecordRow && (
-        <div className="mt-8">
-          <AdminStandardBillingPanel
-            bookingId={booking.id}
-            airports={airports}
-            customerCreditCents={customerCreditCents}
-            initialFlightRecord={flightRecordRow}
-            startSuggestions={flightLogStartSuggestions}
-            defaultHourlyRate={(aircraft as { default_hourly_rate?: number } | null)?.default_hourly_rate ?? undefined}
-          />
         </div>
-      )}
 
-      {/* ── Full-width admin post-flight submission (no record in pipeline) ─── */}
-      {isAdminSubmitEligible && (
-        <div className="mt-8">
-          <AdminSubmitFlightRecordPanel
-            bookingId={booking.id}
-            airports={airports}
-            scheduledStart={booking.scheduled_start}
-            startSuggestions={flightLogStartSuggestions}
-            activeBlockTime={adminSubmitBlockTime}
-            defaultHourlyRate={(aircraft as { default_hourly_rate?: number } | null)?.default_hourly_rate ?? undefined}
-          />
+        {isAdminSubmitEligible && flightReadingsBanner && (
+          <AdminFlightReadingsDisclosureSection>
+            <div className="mt-8">
+              <AdminSubmitFlightRecordPanel
+                bookingId={booking.id}
+                airports={airports}
+                scheduledStart={booking.scheduled_start}
+                startSuggestions={flightLogStartSuggestions}
+                activeBlockTime={activeBlockTime}
+                bookingSlotHours={bookingSlotHours}
+              />
+            </div>
+          </AdminFlightReadingsDisclosureSection>
+        )}
+
+        {/* ── Full-width Flight Billing (standard post-flight review) ─────────── */}
+        {isStandardBillingPending && flightRecordRow && (
+          <div id="submitted-flight-record" className="mt-8">
+            <AdminStandardBillingPanel
+              bookingId={booking.id}
+              airports={airports}
+              customerCreditCents={customerCreditCents}
+              initialFlightRecord={flightRecordRow}
+              startSuggestions={flightLogStartSuggestions}
+              bookingSlotHours={bookingSlotHours}
+              activeBlockTime={activeBlockTime}
+              defaultHourlyRate={PAYF_RATE_PER_HOUR}
+            />
+          </div>
+        )}
+
         </div>
-      )}
 
       </div>
+    </AdminFlightReadingsDisclosureProvider>
+  )
+}
 
-    </div>
+function ManualPaymentDisclosure({ children }: { children: React.ReactNode }) {
+  return (
+    <details className="group">
+      <summary className="cursor-pointer text-[11px] font-semibold text-amber-600 uppercase tracking-wider select-none list-none flex items-center gap-1.5">
+        <span className="material-symbols-outlined text-[16px] group-open:rotate-90 transition-transform">chevron_right</span>
+        Payment received but customer hasn't submitted proof?
+      </summary>
+      <div className="mt-3">
+        {children}
+      </div>
+    </details>
   )
 }

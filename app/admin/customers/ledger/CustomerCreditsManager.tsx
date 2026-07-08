@@ -166,6 +166,7 @@ export default function CustomerCreditsManager({ initialCustomerId }: { initialC
       case 'credit_refunded': return 'Cash refunded to customer'
       case 'credit_reversed': return 'Reversed mistaken entry'
       case 'manual_adjustment': return 'Manual adjustment'
+      case 'bank_transfer': return 'Bank transfer'
       default: return type
     }
   }

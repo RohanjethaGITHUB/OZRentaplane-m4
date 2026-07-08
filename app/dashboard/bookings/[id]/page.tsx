@@ -202,6 +202,7 @@ function NextActionCard({
   clarificationQuestion,
   bookingId,
   bookingInvoice,
+  bookingSlotHours,
   standardBankTransferSub,
   standardBankDetails,
   picName,
@@ -241,6 +242,7 @@ function NextActionCard({
   checkoutOutcome?:         string | null
   standardBilling?:         { subtotal_cents: number; advance_applied_cents: number; amount_due_cents: number } | null
   bookingInvoice?:          { id: string; invoice_number: string; subtotal_cents: number; advance_applied_cents: number; stripe_amount_due_cents: number; status: string; payment_method: string | null } | null
+  bookingSlotHours:         number
   standardBankTransferSub?: { id: string; status: string } | null
   standardBankDetails?:     { accountName: string; bsb: string; accountNumber: string } | null
   cancellationRequest?:     { status: string; charge_amount_cents: number | null; customer_message: string | null } | null
@@ -507,6 +509,7 @@ function NextActionCard({
           picArn={picArn}
           flightDate={flightDate}
           activePackage={activePackage ?? null}
+          bookingSlotHours={bookingSlotHours}
           is24HourBooking={is24HourBooking ?? false}
         />
       </div>
@@ -916,6 +919,10 @@ export default async function BookingDetailPage({ params }: PageProps) {
     latestRescheduleRequest?.status === 'pending'
       ? latestRescheduleRequest
       : null
+  const bookingSlotHours = Math.max(
+    0,
+    (new Date(booking.scheduled_end).getTime() - new Date(booking.scheduled_start).getTime()) / (1000 * 60 * 60),
+  )
 
   // ── Status history ─────────────────────────────────────────────────────────
   // Safe to use booking.id here because the ownership check above already ran.
@@ -934,10 +941,6 @@ export default async function BookingDetailPage({ params }: PageProps) {
   const isMultiDayBooking =
     new Date(booking.scheduled_start).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }) !==
     new Date(booking.scheduled_end).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
-  const bookingSlotHours = Math.max(
-    0,
-    (new Date(booking.scheduled_end).getTime() - new Date(booking.scheduled_start).getTime()) / (1000 * 60 * 60),
-  )
   const is24HourBooking = bookingSlotHours >= 24
   const daysUntilExpiry = activePackage
     ? Math.ceil((new Date(activePackage.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -1400,6 +1403,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
                   flightDate={flightDate}
                   airports={airports}
                   activePackage={activePackage as ActiveBlockTimePackage | null}
+                  bookingSlotHours={bookingSlotHours}
                   is24HourBooking={is24HourBooking}
                 />
               </div>
@@ -1691,6 +1695,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
           checkoutOutcome={checkoutOutcome}
           standardBilling={standardBilling}
           bookingInvoice={bookingInvoice}
+          bookingSlotHours={bookingSlotHours}
           standardBankTransferSub={standardBankTransferSub}
           standardBankDetails={standardBankDetails}
           cancellationRequest={cancellationRequest}

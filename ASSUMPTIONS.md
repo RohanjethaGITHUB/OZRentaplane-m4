@@ -119,6 +119,12 @@ Prerequisites re-verified before starting: the live database now has the correct
 
 This file logs every decision made during this task that wasn't explicitly spelled out in the brief, in plain language.
 
+## Checkout payment source flag
+
+- **`mark_checkout_invoice_paid_atomic` is now source-aware instead of Stripe-only.** I added a boolean source flag so the Stripe webhook keeps the existing recovery behavior while manual admin checkout settlements skip the fabricated `stripe_payment` ledger insert and leave the invoice payment method set by the manual caller.
+- **Manual checkout settlement leaves `checkout_invoices.payment_method` untouched.** The manual source is captured on the ledger row instead, because the checkout invoice column is still constrained to non-cash values and the paid RPC already records the actual settled state.
+- **Customer profile billing should reflect money-in rows, not spendable credit.** The Overview tab billing stat now sums positive payment-ledger inflows so it tracks actual paid revenue instead of the separate credit balance.
+
 ## Step 1 — PackageCard
 
 - **Theme prop instead of fixed themes.** The brief described /pricing as "light theme" and the dashboard as "dark theme", but in the actual site the pricing page's block-time section sits on a dark navy background, and the customer dashboard uses white cards on a light blue background. Rather than hard-coding either look, PackageCard takes a `variant` prop (`"dark"` or `"light"`) so it renders correctly wherever it's used.
@@ -156,3 +162,149 @@ This file logs every decision made during this task that wasn't explicitly spell
 - **Webhook tests hit the real webhook route.** The suite starts a local dev server and POSTs correctly-signed Stripe test events at /api/stripe/webhook, rather than re-implementing the webhook's logic in the test. Confirmation emails are suppressed during the test run by blanking the email API key for the test server.
 - **Pending-purchase visibility is verified at the data layer** (the exact query the new page runs), not by rendering the page in a browser — a full logged-in browser test was out of proportion for checking one list.
 - **The refund test exercises the database side of the refund** (validation, status changes, revert, finalise) with a simulated Stripe refund id. The one-line Stripe API call itself isn't tested because there is no real payment to refund without charging a card.
+
+---
+
+# Assumptions & Judgment Calls — Unify Block Time Payment Routing with the Case 1/2/3 Chooser (2026-07-07)
+
+## 1. `recordManualPayment` could NOT be reused as-is — a sibling action was added
+The brief said to reuse `recordManualPayment` "if this one fits". It does not: its standard-booking path looks up a `booking_invoices` row by booking id and calls `mark_booking_invoice_paid_atomic` (`app/actions/payment.ts` ~1159-1193). Block time invoices live in the `invoices` table and block-time bookings have no `booking_invoices` row, so it would throw "Booking invoice not found." Instead, `adminSettleBlockTimeInvoice` (new, in `app/actions/payment.ts`) follows the exact same recipe (ledger entry → invoice marked paid with a status guard → notification → email) but targets `invoices`. `customer_payment_ledger.invoice_source_type` needed a new `'block_time'` value (migration 106) because its CHECK only allowed `('checkout','booking')`.
+
+## 2. Booking status stays `completed` for block-time flights, even with an unpaid landing invoice
+PAYF sets the booking to `payment_pending` until the invoice is paid. For block time, the flight hours are settled from the balance at finalisation; only the landing fee (and any overage) can remain outstanding. Keeping the booking `completed` (existing behaviour) avoids rewiring the customer booking page (whose payment card reads `booking_invoices`, which block-time bookings don't have). Outstanding landing/overage invoices are surfaced and payable on the customer's **Purchases** page instead. If unpaid landing fees should hold the booking open, that is a follow-up change.
+
+## 3. Case 2 "bank transfer" for block-time landing fees has no proof-upload step
+The PAYF bank-transfer flow (proof upload → `adminConfirmStandardBankTransfer`) is built entirely on `booking_invoices` + its submissions table. Rebuilding that pipeline for the `invoices` table was judged beyond "surgical". Instead: choosing *Send invoice + Bank transfer* stamps the landing invoice `payment_method = 'bank_transfer'`, the customer sees the bank details + invoice-number reference on the Purchases page, and the admin verifies the transfer by using the new **Mark settled** control (method: "Bank transfer (verified)") on the customer profile. Same admin-verifies-transfer semantics, one shared control.
+
+## 4. "Waived" for a block-time customer waives the landing fee only — never the overage
+The overage invoice is deliberately excluded from the chooser: it always stays `awaiting` and gates the account until paid (Stripe self-service) or marked settled by the admin (new action). Waiving an overage would silently forgive hours flown beyond the package, contradicting the confirmed gate behaviour of migration 104. The admin panel states this explicitly. A waived landing fee sets the invoice `status = 'waived'` (added to the `invoices` status CHECK in migration 106, mirroring `booking_invoices` migration 105). The waiver reason is recorded in `booking_audit_events.new_value.landing_waiver_reason` (the `invoices` table has no notes column).
+
+## 5. `default_payment_method_id` was NOT deleted
+Decision 1 said to flag rather than delete. The finalisation path no longer reads it (the only charging reader was the removed auto-charge). It is still **written** by the Stripe webhook (route.ts ~528, ~884, ~1015 — block-time purchase/top-up flows, out of scope) and still **selected** in the block-time purchase flow (`app/actions/payment.ts` ~172). The column, its webhook writers, and the `profiles` type stay untouched. It is now unused for charging; removing it is a separate cleanup decision.
+
+## 6. Landing-fee settlement failures surface as a thrown error AFTER finalisation completes
+If routing the landing invoice fails, the drawdown is already committed — aborting would strand the booking in `pending_post_flight_review` with hours already deducted. So the finalisation completes (flight record, booking status, PDFs, emails) and then **throws** a descriptive error that the admin panel displays: the invoice is still `awaiting` with no payment method and can be settled/re-routed from the customer profile ("Block time flight invoices" section). This replaces the old log-and-swallow behaviour; nothing is silent, and nothing is left half-committed.
+
+## 7. The Stripe payment session + webhook branch were generalised, not duplicated
+`createBlockTimeOveragePaymentSession` and the `block_time_overage_payment` webhook branch now accept any awaiting block-time flight invoice (overage or landing fee), keyed by `billing_mode='block_time' AND type='flight'`. The metadata `purchase_type` string keeps its old name so historical Stripe records stay interpretable. Notification/email copy branches on `is_block_time_overage`. Judged in scope: this is the flight-record finalisation path's settlement leg, and generalising is safer than a parallel near-identical branch.
+
+## 8. `AdminStandardBillingPanel` (Case 1 review) was not modified
+It already sends `paymentMethod`/`submissionMode`/`waiverReason`; the server-side fix makes them respected for block-time customers. Pre-existing cosmetic gap left alone (out of scope): its rate field defaults to $290 and its summary prices all hours at that rate even for block-time customers — the server ignores that rate for block time (locked package rate applies), so the maths is correct, but the preview can mislead. Follow-up UI polish candidate.
+
+## 9. The expired-package PAYF fallback still ignores the submission mode
+`finaliseStandardBookingInvoice`'s fallback (package expired/exhausted mid-review → bill at PAYF) issues an invoice-and-wait regardless of the chooser. Pre-existing behaviour, untouched: in that surprise scenario an explicit invoice the customer can see is the safer default. Flagged, not changed.
+
+## 10. The customer pay surface for landing invoices is the Purchases page only
+The pricing page also lists overage invoices but was left unchanged — one canonical pay surface keeps the change minimal. The finalisation email/notification points customers to the Purchases page.
+
+## 11. Migration 106 must be applied before this code is deployed
+The TypeScript now assumes: landing invoices arrive with `payment_method NULL`; `invoices.status` accepts `'waived'`; `invoices.payment_method` accepts `'cash'`/`'card_in_person'`; `customer_payment_ledger.invoice_source_type` accepts `'block_time'`. Until migration 106 runs, mark-paid/waived block-time submissions will fail with CHECK-constraint errors (visibly, per item 6). Migration 106 redefines `process_block_time_flight` on top of 104's signature — 104 must be applied first.
+
+## 12. Unit tests + manual script
+The settlement routing is exercised by pure-function unit tests (`tests/unit/block-time-settlement.spec.ts`, existing `npx playwright test tests/unit` harness). The DB/Stripe legs cannot be automated in this session; a step-by-step manual verification script is at `tests/manual-block-time-payment-routing.md` and should be walked through in a browser after migration 106 is applied.
+
+# Assumptions & Judgment Calls — Make the 4-hour-per-day minimum VDO rule visible and admin-controlled (2026-07-07)
+
+## 1. Shared helper for the minimum rule
+The 4-hour-per-day minimum is treated as shared business logic, not duplicated UI math. I will centralise the day-count calculation in the shared standard-booking billing helper and reuse it from the admin finaliser and the customer/admin forms so the server and UI cannot drift.
+
+## 2. Admin choice is explicit and recorded
+When actual VDO hours are below the minimum, the finaliser will require an explicit admin choice of `enforce_minimum` or `bill_actual`. The decision will be recorded in `booking_audit_events.new_value` alongside the actual hours, the minimum hours, and the booking-day count, rather than creating a new table or migration.
+
+## 3. Customer warning stays non-blocking
+The customer-facing warning will reuse the same helper and only inform the pilot before submit; it will not block submission. The actual billed value remains the admin's responsibility in the shared finaliser path.
+
+# Assumptions & Judgment Calls — Stop checkout "mark paid in person" from creating spendable credit (2026-07-07)
+
+## 1. Reuse an existing non-credit ledger type
+The checkout admin "mark paid in person" path should keep its current invoice-settlement flow, but the ledger entry must not be `manual_adjustment` because that is included in `customer_credit_balances`. `bank_transfer` is the least disruptive existing entry type that is excluded from the spendable-credit view, so I will reuse it for this audit row rather than adding a migration.
+
+## 2. Preserve the descriptive audit trail
+The admin-facing note and `payment_method` field will continue to describe the actual in-person payment method, so operations can still see that the invoice was settled in person even though the ledger entry itself is non-credit-bearing.
+
+# Assumptions & Judgment Calls — Show checkout in-person payments in the admin Transactions panel (2026-07-07)
+
+## 1. Reuse the shared credit-transaction query
+The admin billing Transactions panel and the admin customer-ledger page both read through `getCustomerCreditTransactions`, so the cleanest fix is to widen that shared query to include `bank_transfer` rows rather than introducing a second bespoke fetch path.
+
+## 2. Surface source details in the billing tab
+The billing-tab Transactions panel now shows the invoice source and payment method alongside the entry type/date. That keeps the checkout in-person payment understandable as a checkout payment, while still leaving the spendable-credit math unchanged because `bank_transfer` remains excluded from `customer_credit_balances`.
+
+# Assumptions & Judgment Calls — Checkout "Mark as Already Paid" silent settle failure (2026-07-08)
+
+## 1. Root cause is two-layered; only the structural layer needed a code fix
+The concrete failures on 2026-07-07 happened because `recordManualPayment` was already passing `p_is_stripe_payment` to `mark_checkout_invoice_paid_atomic` while migration 107 had not yet been applied — PostgREST rejected the 5-argument call, throwing *after* the ledger insert. Migration 107 is now applied (verified live: the 5-arg RPC executes and settles). No new migration is needed. The code fix targets the structural layer: the mark-paid flow was two sequential client-side server-action awaits, and the first action's `revalidatePath` unmounts `AdminCheckoutActions` (it only renders for pre-outcome statuses), so any error from the second call landed on an unmounted component and was never shown.
+
+## 2. Combine outcome + settle into one server action rather than fixing error display
+Per the task brief, `markCheckoutOutcome` now accepts an optional `manualPayment` input and performs the manual settlement server-side after the outcome RPC. The settle logic was extracted verbatim into `lib/payments/settle-checkout-invoice.ts` and is shared with `recordManualPayment`'s checkout branch, so the standalone settle path (used by other panels) cannot drift from the outcome path.
+
+## 3. Settlement failure surfaces by throwing before revalidatePath
+If the settle step fails after the outcome is recorded, the action throws a contextual error *before* any `revalidatePath` call. Because a thrown server action returns no RSC payload, the panel stays mounted and the admin sees the error, which directs them to refresh and use the payment panel (the existing `AdminBankTransferPanel` recovery path for `checkout_payment_required`). This follows the codebase-wide convention of throwing `Error` from server actions and displaying `error.message` client-side.
+
+## 4. Credit-settled invoices skip the manual settlement
+If the outcome RPC settles the invoice fully from account credit (booking returns `completed`), a provided `manualPayment` is skipped instead of double-recording a payment. The client already blocks submitting a zero amount, so this is defence-in-depth.
+
+## 5. Ledger row still precedes the RPC inside the settle helper
+Kept the existing order (ledger insert → settle RPC) unchanged, per the instruction not to alter `recordManualPayment`'s core logic. A failure between the two can still leave an audit ledger row alongside an unpaid invoice (visible in Transactions), but it is now always accompanied by a visible admin error.
+
+## 6. Test fixtures left in the live dev database
+Live verification used a disposable admin (`fable-repro-admin@example.com`) and the prior session's repro customer/booking `7b98b637` (left in the send-invoice awaiting-payment state after the final regression run). Stuck booking `725384ba` (which had a real cash ledger row from 2026-07-07) was settled during verification by replaying the RPC. Stuck booking `b8f7c7bf` has *no* ledger row — whether payment was actually received in person is unknown, so it was intentionally left in `checkout_payment_required` for a human decision.
+
+---
+
+# Payment RPC permission lockdown (security fix, staged) — 2026-07-08
+
+## 7. Migration numbering: two files, not one
+The task illustrated the grant migration as `108_lock_payment_rpc_grants.sql`, but Section C (adding internal admin guards to the four block-time RPCs) is itself a DB change that must be live **before** the grant revoke, and its own testing (Stage 1 test #4) requires it applied. So it is split into two files with the temporal order encoded in the numbers: `108_block_time_rpc_admin_guard.sql` (Stage 1, apply first) and `109_lock_payment_rpc_grants.sql` (Stage 2, apply only after Stage 1 code is deployed + 108 applied + all Stage 1 tests pass).
+
+## 8. Whole booking-branch of recordManualPayment routed through the service-role client
+The task (Section B) said to use `createAdminClient()` "for this call" (the `mark_booking_invoice_paid_atomic` RPC). I routed the entire booking-type branch's privileged operations (ledger insert, the RPC, status-history insert, verification_events insert, profile read) through the admin client, not just the RPC line. Reason: the checkout branch (Section A) already runs *all* of its writes on the admin client via `settleCheckoutInvoiceManually`, and a half-session/half-service-role settlement risks a latent RLS block on the `customer_payment_ledger` insert that could not be verified without running the app. Running these writes as service_role is correct because `requireAdmin()` still authorizes the caller via the session client first. The read of `bookings` at the top of `recordManualPayment` and the `requireAdmin()` check remain on the session client.
+
+## 9. mark_booking_invoice_paid_atomic reasserted (idempotent), not comment-only
+The task said mark_booking_invoice_paid_atomic needs "no change, confirm it stays that way." Live state is already `{postgres, service_role}`. Migration 109 includes an explicit idempotent `REVOKE ... FROM PUBLIC, anon, authenticated` + `GRANT ... TO service_role` for it rather than a bare comment, to assert the desired end-state against future drift. Both statements are no-ops given current state and cannot error.
+
+## 10. Stage 2 function signatures corrected against live pg_proc
+The signatures in the task's proposed Stage-2 SQL were mostly wrong (as the task warned they might be). Corrected via `pg_get_function_identity_arguments`: `approve_bank_transfer_atomic(uuid)`, `approve_standard_bank_transfer_atomic(uuid)`, `record_customer_refund_atomic(uuid, integer, text, text, text)`, `reverse_customer_credit_atomic(uuid, text)`, `apply_credit_to_standard_booking_atomic(uuid, integer, numeric, uuid, text, text)`, `finalise_standard_booking_invoice_atomic(uuid, uuid, numeric, integer, jsonb, text)`, `complete_checkout_outcome_atomic(uuid, uuid, numeric, text, jsonb, text, boolean, text, integer)`, `approve_post_flight_review_atomic(uuid, boolean, text, text, text)`, `submit_flight_record_atomic(uuid, date, text, text, numeric×11?, integer, text, boolean, text, text, jsonb)`. No overloads exist for any targeted function, so each REVOKE is unambiguous.
+
+## 11. Stage 1 functional verification (tests 2–5) not run by the agent
+Only test #1 (`npx tsc --noEmit`) was executed (clean). Tests 2–5 require a running app, an admin login, Stripe test-mode, and — for test #4 — migration 108 applied to the DB. These cannot be performed autonomously in this environment. They are handed to Rohan; Stage 2 (migration 109) must NOT be applied until Rohan confirms all five pass.
+
+# Assumptions & Judgment Calls — Finalise Flight Billing spinner hang investigation (2026-07-08)
+
+## 12. The visible hang was the panel waiting for post-save navigation, not the write itself
+Live repro on fresh `pending_post_flight_review` bookings showed the billing write completing and the button flipping to `Saved` in 3.7–4.8s across three cases, with redirect completion in 4.7–5.5s. The earlier 3+ minute complaint was not reproducible in this environment, but the panel was still coupling its loading state to `router.replace()` / `router.refresh()`, so any slow follow-up route would keep the spinner alive after the data was already committed.
+
+## 13. Non-critical email delivery should stay off the critical path
+Both `finaliseStandardBookingInvoice` and the booking manual-payment helper were awaiting confirmation emails after the database writes had already succeeded. Those emails now fire-and-forget with error logging, which removes the external mail API from the user-visible critical path while preserving the write and the email audit rows.
+
+# Assumptions & Judgment Calls — Admin flight billing defaults and manual payment disclosure (2026-07-08)
+
+## 14. Checkout and PAYF defaults should come from shared constants
+The checkout review path now uses a shared checkout-rate constant instead of a magic `290`, and the standard billing path keeps using the shared PAYF constant for non-block-time flights. That keeps the admin defaults aligned with the same source of truth the rest of the booking code uses.
+
+## 15. Block time rate is informational in the review UI
+For block-time customers, the panel now displays the locked package rate and treats it as read-only. The server already branches on the active block-time purchase, so this change is a display and guardrail fix rather than a billing-behavior change.
+
+## 16. Manual payment is opt-in only
+The manual-payment card is now wrapped in a disclosure and starts collapsed. Reusing the existing proof-related trigger text keeps the secondary path obvious without showing the card on initial page load.
+
+# Assumptions & Judgment Calls — Minimum VDO billing preview sync (2026-07-08)
+
+## 17. The admin panels should preview the same billed VDO that the server already finalises
+For below-minimum standard bookings, both admin billing panels now derive the summary amount from `minimumVdoDecision` instead of the raw submitted VDO total. I verified the live server path with disposable bookings: `bill_actual` produced `booking_invoices.vdo_reading = 10` and `stripe_amount_due_cents = 330000`, while `enforce_minimum` produced `booking_invoices.vdo_reading = 12` and `stripe_amount_due_cents = 396000`, with matching `booking_audit_events.new_value.billed_vdo_hours` values.
+
+# Assumptions & Judgment Calls — Billing decision preview sync and confirmation copy (2026-07-08)
+
+## 18. The billed-hours preview should be the same value used for submission
+The yellow warning box and the summary now both read from the same derived billed-hours value, so the dropdown, preview text, and server submission stay aligned when the admin switches between `bill_actual` and `enforce_minimum`.
+
+# Assumptions & Judgment Calls — Remove the admin payment-method selector from standard-booking billing (2026-07-08)
+
+## 19. Standard-booking send-invoice flows now leave `payment_method` null
+The admin panels no longer surface a Stripe/bank-transfer choice, and the standard-booking finaliser now creates the invoice without preselecting a payment method so the customer chooses it later on their own payment page.
+
+## 20. Standard-booking mark-paid flows now record a generic manual settlement
+The booking invoice is marked paid, the ledger row uses a null payment method, and the audit trail says manual payment without inventing a cash/card/bank-transfer split.
+
+## 21. Block-time landing fees follow the same no-preselection pattern
+The drawdown still routes to await payment / settle manual / waive, but the landing invoice no longer gets a forced payment-method stamp from the admin side.

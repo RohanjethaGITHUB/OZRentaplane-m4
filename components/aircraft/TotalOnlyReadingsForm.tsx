@@ -1,12 +1,14 @@
 'use client'
 
-import type { TotalOnlyFormValues } from '@/lib/aircraft-readings'
+import type { AircraftContinuityBaseline, TotalOnlyFormValues } from '@/lib/aircraft-readings'
 
 type Props = {
   values: TotalOnlyFormValues
   onChange: (field: keyof TotalOnlyFormValues, value: string) => void
   notes?: string
   onNotesChange?: (value: string) => void
+  continuityBaseline?: AircraftContinuityBaseline | null
+  showContinuityWarnings?: boolean
   disabled?: boolean
   compact?: boolean
   submitAttempted?: boolean
@@ -39,12 +41,31 @@ export default function TotalOnlyReadingsForm({
   onChange,
   notes,
   onNotesChange,
+  continuityBaseline,
+  showContinuityWarnings = false,
   disabled = false,
   compact = false,
   submitAttempted = false,
 }: Props) {
   return (
     <div className="space-y-4">
+      {continuityBaseline && (
+        <div className="rounded-xl border border-[#dbe7f4] bg-[#f8fbff] px-4 py-3 text-[11px] leading-relaxed text-[#4b6390]">
+          <span className="font-semibold uppercase tracking-[0.14em] text-[#4b6390]">Continuity baseline</span>
+          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono tabular-nums text-[#152d5a]">
+            <span>VDO {formatBaselineValue(continuityBaseline.vdo_start)}</span>
+            <span>Tacho {formatBaselineValue(continuityBaseline.tacho_start)}</span>
+            <span>Airswitch {formatBaselineValue(continuityBaseline.air_switch_start)}</span>
+            <span>MR {formatBaselineValue(continuityBaseline.mr_start)}</span>
+          </div>
+          {showContinuityWarnings && (
+            <p className="mt-2 text-[11px] text-[#4b6390]">
+              Totals are anchored to the latest finalized aircraft log behind the scenes.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Meter totals grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {METER_LABELS.map(({ field, label }) => {
@@ -101,6 +122,10 @@ export default function TotalOnlyReadingsForm({
       ) : null}
     </div>
   )
+}
+
+function formatBaselineValue(value: number | null) {
+  return value == null ? '—' : value.toFixed(1)
 }
 
 function SimpleField({

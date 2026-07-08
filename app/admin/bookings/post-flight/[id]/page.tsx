@@ -69,6 +69,12 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
 
   const startStr = booking?.scheduled_start ? formatDateTime(booking.scheduled_start) : 'Unknown'
   const endStr   = booking?.scheduled_end   ? formatDateTime(booking.scheduled_end)   : 'Unknown'
+  const bookingSlotHours = booking?.scheduled_start && booking?.scheduled_end
+    ? Math.max(
+        0,
+        (new Date(booking.scheduled_end).getTime() - new Date(booking.scheduled_start).getTime()) / (1000 * 60 * 60),
+      )
+    : 0
 
   const statusBadge = STATUS_BADGE[record.status] ?? {
     label: record.status,
@@ -293,6 +299,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
             customerCreditCents={customerCreditCents}
             initialFlightRecord={record}
             startSuggestions={flightLogStartSuggestions}
+            bookingSlotHours={bookingSlotHours}
             defaultHourlyRate={(aircraft as { default_hourly_rate?: number } | null)?.default_hourly_rate ?? undefined}
             redirectAfterSuccess="/admin/bookings/post-flight"
           />

@@ -66,7 +66,13 @@ const ACTIVE_STANDARD_BOOKING_STATUSES = [
   'post_flight_approved',
 ] as const
 
-export default async function AdminUserPage({ params }: { params: { id: string } }) {
+export default async function AdminUserPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string }
+  searchParams?: { tab?: string | string[] }
+}) {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -100,7 +106,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
     { data: documents },
     { data: events },
     balanceCents,
-    { data: revenueInvoices },
+    { data: revenueRows },
     transactions,
     { count: totalBookingCount },
     { count: checkoutBookingCount },
@@ -113,6 +119,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
     { data: historicalCheckoutRow },
     { data: aircraftRows },
     { data: aircraftLogRows },
+    { data: activeBlockTimeRow },
     { data: blockTimePurchaseRows },
     { data: blockTimeTopupRows },
   ] = await Promise.all([
@@ -128,24 +135,24 @@ export default async function AdminUserPage({ params }: { params: { id: string }
       .order('created_at', { ascending: false }),
     getCustomerCreditBalance(params.id),
     supabase
-      .from('checkout_payment_invoices')
-      .select('total_paid_cents')
+      .from('customer_payment_ledger')
+      .select('amount_cents, entry_type')
       .eq('customer_id', params.id)
-      .eq('status', 'paid'),
+      .gt('amount_cents', 0),
     getCustomerCreditTransactions(params.id),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_owner_user_id', params.id),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_owner_user_id', params.id).eq('booking_type', 'checkout'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_owner_user_id', params.id).eq('booking_type', 'standard'),
     supabase
       .from('bookings')
-      .select('id, status, booking_type, checkout_lifecycle_status, scheduled_start, payment_status, aircraft ( id, registration )')
+      .select('id, status, booking_type, checkout_lifecycle_status, scheduled_start, scheduled_end, payment_status, aircraft ( id, registration )')
       .eq('booking_owner_user_id', params.id)
       .eq('booking_type', 'checkout')
       .order('scheduled_start', { ascending: false })
       .limit(3),
     supabase
       .from('bookings')
-      .select('id, status, booking_type, scheduled_start, payment_status, aircraft ( id, registration )')
+      .select('id, status, booking_type, scheduled_start, scheduled_end, payment_status, aircraft ( id, registration )')
       .eq('booking_owner_user_id', params.id)
       .eq('booking_type', 'standard')
       .order('scheduled_start', { ascending: false })
@@ -177,6 +184,16 @@ export default async function AdminUserPage({ params }: { params: { id: string }
       .select('id, aircraft_id, flight_date, pic_name, pic_arn, vdo_start, vdo_stop, vdo_total, tacho_start, tacho_stop, tacho_total, air_switch_start, air_switch_stop, air_switch_total, mr_start, mr_stop, mr_total, oil_added, oil_total, fuel_added, fuel_returned, landings, source, review_status, aircraft:aircraft_id (registration, display_name)')
       .order('flight_date', { ascending: false })
       .limit(200),
+    supabase
+      .from('pilot_block_time_purchases')
+      .select('hours_remaining, rate_per_hour, expires_at')
+      .eq('user_id', params.id)
+      .eq('status', 'active')
+      .gt('expires_at', new Date().toISOString())
+      .order('queue_position', { ascending: true, nullsFirst: false })
+      .order('activated_at', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
     supabase
       .from('pilot_block_time_purchases')
       .select('id, status, hours_purchased, hours_remaining, rate_per_hour, amount_paid, purchased_at, expires_at, refund_amount, refunded_at, refund_stripe_id, stripe_payment_intent_id, package:block_time_packages ( name )')
@@ -225,6 +242,14 @@ export default async function AdminUserPage({ params }: { params: { id: string }
       package_name: pkg?.name ?? 'Block Time',
     }
   })
+
+  const activeBlockTime = (activeBlockTimeRow as { hours_remaining: number; rate_per_hour: number; expires_at: string } | null)
+    ? {
+        hoursRemaining: Number((activeBlockTimeRow as { hours_remaining: number }).hours_remaining),
+        ratePerHour: Number((activeBlockTimeRow as { rate_per_hour: number }).rate_per_hour),
+        expiresAt: (activeBlockTimeRow as { expires_at: string }).expires_at,
+      }
+    : null
 
   // Block time flight invoices — usage deductions, overage invoices (flagged),
   // and separately-invoiced landing fees for the Billing tab.
@@ -283,10 +308,11 @@ export default async function AdminUserPage({ params }: { params: { id: string }
     ? {
         count: activeBookingRows.length,
         primaryBookingId: activeBookingRows[0]?.id ?? null,
+        primaryBookingStart: activeBookingRows[0]?.scheduled_start ?? null,
       }
     : null
-  const totalRevenueCents = (revenueInvoices ?? []).reduce(
-    (sum, invoice: { total_paid_cents: number | null }) => sum + (invoice.total_paid_cents ?? 0),
+  const totalRevenueCents = (revenueRows ?? []).reduce(
+    (sum, row: { amount_cents: number | null; entry_type?: string | null }) => sum + (row.amount_cents ?? 0),
     0,
   )
   const latestCheckoutBookingId = checkoutBookings[0]?.id ?? null
@@ -297,9 +323,6 @@ export default async function AdminUserPage({ params }: { params: { id: string }
       !['cancelled_by_customer', 'cancelled_by_admin', 'customer_cancelled', 'admin_cancelled', 'completed', 'expired', 'rejected'].includes((b.checkout_lifecycle_status ?? '') as string),
   )
   const hasCheckoutRequest = hasActiveCheckoutRequest
-  const latestPilotLicenceArn =
-    (documents as UserDocument[] | null)?.find((d) => d.document_type === 'pilot_licence' && d.licence_number)?.licence_number ?? null
-  const defaultPicArn = customerProfile.pilot_arn ?? latestPilotLicenceArn ?? null
 
   const docsByUser = new Map<string, Array<{ user_id: string; document_type: string; status: string; expiry_date: string | null; medical_class?: string | null }>>()
   for (const doc of (documents as UserDocument[] ?? [])) {
@@ -524,6 +547,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
         blockTimePurchases={blockTimePurchases}
         blockTimeTopups={blockTimeTopups}
         blockTimeFlightInvoices={blockTimeFlightInvoices}
+        activeBlockTime={activeBlockTime}
         balanceCents={balanceCents ?? 0}
         totalRevenueCents={totalRevenueCents}
         transactions={transactions ?? []}

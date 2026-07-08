@@ -1,4 +1,5 @@
 import { formatDateFromISO } from '@/lib/formatDateTime'
+import SettleBlockTimeInvoiceButton from './SettleBlockTimeInvoiceButton'
 
 export type AdminBlockTimeFlightInvoice = {
   id: string
@@ -105,9 +106,18 @@ export default function BlockTimeFlightInvoicesSection({
                 </p>
               </div>
 
-              <p className="flex-shrink-0 text-[13px] font-semibold text-[#152d5a] sm:text-right">
-                {aud(invoice.total)}
-              </p>
+              <div className="flex flex-shrink-0 flex-col items-start gap-2 sm:items-end">
+                <p className="text-[13px] font-semibold text-[#152d5a] sm:text-right">
+                  {aud(invoice.total)}
+                </p>
+                {invoice.status === 'awaiting' && invoice.kind !== 'usage' && (
+                  <SettleBlockTimeInvoiceButton
+                    invoiceId={invoice.id}
+                    invoiceNumber={invoice.invoice_number}
+                    isOverage={invoice.kind === 'overage'}
+                  />
+                )}
+              </div>
             </div>
           )
         })

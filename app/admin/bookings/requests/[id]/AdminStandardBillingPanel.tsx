@@ -1,16 +1,23 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { finaliseStandardBookingInvoice } from '@/app/actions/admin-booking'
-import AircraftReadingsForm from '@/components/aircraft/AircraftReadingsForm'
+import TotalOnlyReadingsForm from '@/components/aircraft/TotalOnlyReadingsForm'
 import {
-  calculateAircraftReadingsTotals,
   numberInputValue,
   type AircraftContinuityBaseline,
-  type AircraftReadingsFormValues,
-  validateAircraftReadings,
+  type TotalOnlyFormValues,
+  validateTotalOnlyReadings,
 } from '@/lib/aircraft-readings'
+import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
+import {
+  resolveStandardBookingBillingBranch,
+  resolveMinimumVdoBilling,
+  resolveMinimumVdoBillingDisplay,
+  type MinimumVdoDecision,
+  type StandardBookingSubmissionMode,
+} from '@/lib/booking/standard-booking-billing'
 import type { FlightRecord } from '@/lib/supabase/booking-types'
 
 type Airport = {
@@ -26,12 +33,20 @@ type LandingChargeRow = {
   landingCount: string
 }
 
+type BlockTimeSummary = {
+  hoursRemaining: number
+  ratePerHour: number
+  expiresAt: string
+}
+
 type Props = {
   bookingId: string
   airports: Airport[]
   customerCreditCents: number
   initialFlightRecord: FlightRecord
   startSuggestions: AircraftContinuityBaseline
+  bookingSlotHours: number
+  activeBlockTime?: BlockTimeSummary | null
   defaultHourlyRate?: number
   redirectAfterSuccess?: string
 }
@@ -57,24 +72,29 @@ export default function AdminStandardBillingPanel({
   customerCreditCents,
   initialFlightRecord,
   startSuggestions,
-  defaultHourlyRate = 290,
+  bookingSlotHours,
+  activeBlockTime,
+  defaultHourlyRate = PAYF_RATE_PER_HOUR,
   redirectAfterSuccess,
 }: Props) {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [hourlyRate, setHourlyRate] = useState(String(defaultHourlyRate))
+  const [submitState, setSubmitState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [showStillProcessing, setShowStillProcessing] = useState(false)
+  const [submissionMode, setSubmissionMode] = useState<StandardBookingSubmissionMode>('send_invoice')
+  const [waiverReason, setWaiverReason] = useState('')
+  const [minimumVdoDecision, setMinimumVdoDecision] = useState<MinimumVdoDecision | ''>('')
+  const lockedHourlyRate = activeBlockTime?.ratePerHour ?? null
+  const initialHourlyRate = lockedHourlyRate ?? defaultHourlyRate
+  const [hourlyRate, setHourlyRate] = useState(String(initialHourlyRate))
   const [adminNotes, setAdminNotes] = useState(initialFlightRecord.customer_notes ?? '')
   const [landings, setLandings] = useState(numberInputValue(initialFlightRecord.landings))
-  const [readings, setReadings] = useState<AircraftReadingsFormValues>({
-    tacho_start:      numberInputValue(initialFlightRecord.tacho_start),
-    tacho_stop:       numberInputValue(initialFlightRecord.tacho_stop),
-    vdo_start:        numberInputValue(initialFlightRecord.vdo_start),
-    vdo_stop:         numberInputValue(initialFlightRecord.vdo_stop),
-    air_switch_start: numberInputValue(initialFlightRecord.air_switch_start),
-    air_switch_stop:  numberInputValue(initialFlightRecord.air_switch_stop),
-    mr_start:         numberInputValue(initialFlightRecord.mr_start),
-    mr_stop:          numberInputValue(initialFlightRecord.mr_stop),
+  const [readings, setReadings] = useState<TotalOnlyFormValues>({
+    tacho_total:      numberInputValue(initialFlightRecord.tacho_total),
+    vdo_total:        numberInputValue(initialFlightRecord.vdo_total),
+    air_switch_total: numberInputValue(initialFlightRecord.air_switch_total),
+    mr_total:         numberInputValue(initialFlightRecord.mr_total),
     oil_added:        numberInputValue(initialFlightRecord.oil_added),
     oil_total:        numberInputValue(initialFlightRecord.oil_total),
     fuel_added:       numberInputValue(initialFlightRecord.fuel_added),
@@ -87,21 +107,42 @@ export default function AdminStandardBillingPanel({
       : [{ id: ++rowIdCounter, airportId: '', landingCount: '1' }]
   })
 
+  useEffect(() => {
+    setHourlyRate(String(lockedHourlyRate ?? defaultHourlyRate))
+  }, [defaultHourlyRate, lockedHourlyRate])
+
+  useEffect(() => {
+    if (submitState !== 'saving') {
+      setShowStillProcessing(false)
+      return
+    }
+
+    const timer = window.setTimeout(() => setShowStillProcessing(true), 15000)
+    return () => window.clearTimeout(timer)
+  }, [submitState])
+
   function run(fn: () => Promise<void>) {
     setError(null)
-    startTransition(async () => {
+    setSubmitState('saving')
+
+    void (async () => {
       try {
         await fn()
-        if (redirectAfterSuccess) {
-          router.replace(redirectAfterSuccess)
-          return
-        }
-        router.refresh()
+        setSubmitState('saved')
+
+        startTransition(() => {
+          if (redirectAfterSuccess) {
+            router.replace(redirectAfterSuccess)
+            return
+          }
+          router.refresh()
+        })
       } catch (actionError) {
         const message = actionError instanceof Error ? actionError.message : 'Action failed. Please try again.'
+        setSubmitState('idle')
         setError(message.replace(/^VALIDATION: /, ''))
       }
-    })
+    })()
   }
 
   function addLandingRow() {
@@ -119,16 +160,13 @@ export default function AdminStandardBillingPanel({
   const hourlyRateNum = Number(hourlyRate)
   const validHourlyRate = Number.isFinite(hourlyRateNum) && hourlyRateNum > 0
   const landingsNum = landings.trim() === '' ? null : Number(landings)
+  const billingBranch = resolveStandardBookingBillingBranch({ submissionMode })
 
   const normalisedReadings = {
-    vdo_start:        getNum(readings.vdo_start),
-    vdo_stop:         getNum(readings.vdo_stop),
-    tacho_start:      getNum(readings.tacho_start),
-    tacho_stop:       getNum(readings.tacho_stop),
-    air_switch_start: getNum(readings.air_switch_start),
-    air_switch_stop:  getNum(readings.air_switch_stop),
-    mr_start:         getNum(readings.mr_start),
-    mr_stop:          getNum(readings.mr_stop),
+    vdo_total:        getNum(readings.vdo_total) ?? 0,
+    tacho_total:      getNum(readings.tacho_total) ?? 0,
+    air_switch_total: getNum(readings.air_switch_total) ?? 0,
+    mr_total:         getNum(readings.mr_total) ?? 0,
     oil_added:        getNum(readings.oil_added),
     oil_total:        getNum(readings.oil_total),
     fuel_added:       getNum(readings.fuel_added),
@@ -139,15 +177,26 @@ export default function AdminStandardBillingPanel({
 
   let readingsError: string | null = null
   try {
-    validateAircraftReadings(normalisedReadings)
+    validateTotalOnlyReadings({
+      ...normalisedReadings,
+      landings: landingsNum,
+      notes: adminNotes.trim() || null,
+    })
   } catch (validationError) {
     readingsError = validationError instanceof Error
       ? validationError.message.replace(/^VALIDATION: /, '')
       : 'Invalid readings.'
   }
 
-  const totals      = readingsError ? null : calculateAircraftReadingsTotals(normalisedReadings)
+  const totals      = readingsError ? null : normalisedReadings
   const vdoReading  = totals?.vdo_total ?? null
+  const minimumVdoBilling = resolveMinimumVdoBilling({
+    bookingSlotHours,
+    actualVdoHours: vdoReading,
+    decision: minimumVdoDecision || null,
+  })
+  const minimumDecisionRequired = minimumVdoBilling.requiresDecision
+  const { billedVdoHours, billedVdoSummary, billedVdoConfirmation } = resolveMinimumVdoBillingDisplay(minimumVdoBilling)
 
   const landingRowErrors = landingRows.map((row) => {
     const count     = Number(row.landingCount)
@@ -169,7 +218,7 @@ export default function AdminStandardBillingPanel({
     0,
   )
   const vdoBaseCents       = validHourlyRate && vdoReading != null
-    ? Math.round(vdoReading * Math.round(hourlyRateNum * 100))
+    ? Math.round((billedVdoHours ?? vdoReading) * Math.round(hourlyRateNum * 100))
     : 0
   const subtotalCents      = vdoBaseCents + landingSubtotalCents
   const creditApplicable   = Math.min(customerCreditCents, subtotalCents)
@@ -196,6 +245,14 @@ export default function AdminStandardBillingPanel({
       setError('Complete or remove incomplete landing rows before submitting.')
       return
     }
+    if (billingBranch.kind === 'waived' && !waiverReason.trim()) {
+      setError('A waiver reason is required when payment is waived.')
+      return
+    }
+    if (minimumDecisionRequired) {
+      setError('Choose whether to bill the minimum or the actual hours before finalising.')
+      return
+    }
 
     run(() => finaliseStandardBookingInvoice({
       bookingId,
@@ -203,6 +260,9 @@ export default function AdminStandardBillingPanel({
       landingCharges: validLandingCharges.length > 0 ? validLandingCharges : undefined,
       adminNotes:     adminNotes.trim() || undefined,
       readings:       normalisedReadings,
+      submissionMode,
+      waiverReason:   billingBranch.kind === 'waived' ? waiverReason.trim() || undefined : undefined,
+      minimumVdoDecision: minimumVdoDecision || undefined,
     }))
   }
 
@@ -217,21 +277,57 @@ export default function AdminStandardBillingPanel({
 
       <section className="space-y-4">
         <SectionHeading>A. Aircraft Readings</SectionHeading>
-        <AircraftReadingsForm
+        <TotalOnlyReadingsForm
           values={readings}
           onChange={(field, value) => setReadings((current) => ({ ...current, [field]: value }))}
           notes={adminNotes}
           onNotesChange={setAdminNotes}
-          landings={landings}
-          onLandingsChange={setLandings}
-          startBaseline={startSuggestions}
+          continuityBaseline={startSuggestions}
           showContinuityWarnings
-          tableLayout
-          disabled={isPending}
+          disabled={submitState !== 'idle'}
         />
         {readingsError && (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {readingsError}
+          </div>
+        )}
+        {minimumVdoBilling.isBelowMinimum && minimumVdoBilling.minimumVdoHours > 0 && minimumVdoBilling.actualVdoHours != null && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 space-y-3">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-amber-800">
+                VDO hours are below the minimum for this booking.
+              </p>
+              <p className="text-sm text-amber-700 leading-relaxed">
+                VDO hours flown: <span className="font-mono tabular-nums font-semibold">{minimumVdoBilling.actualVdoHours.toFixed(1)} h</span>
+                {' '}| Minimum for this booking ({minimumVdoBilling.bookingDays} day{minimumVdoBilling.bookingDays === 1 ? '' : 's'} booked × 4h/day):{' '}
+                <span className="font-mono tabular-nums font-semibold">{minimumVdoBilling.minimumVdoHours.toFixed(1)} h</span>
+              </p>
+            </div>
+            <label className="block">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-800 block mb-1">
+                Billing decision
+              </span>
+              <select
+                value={minimumVdoDecision}
+                onChange={(e) => setMinimumVdoDecision(e.target.value as MinimumVdoDecision | '')}
+                disabled={submitState !== 'idle'}
+                className="w-full max-w-lg rounded-lg border border-amber-200 bg-white px-3 py-2.5 text-sm text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)]"
+              >
+                <option value="">Choose billing option…</option>
+                <option value="enforce_minimum">
+                  Enforce minimum billing
+                </option>
+                <option value="bill_actual">
+                  Bill actual hours
+                </option>
+              </select>
+            </label>
+            <p className="text-xs font-semibold text-amber-800 leading-relaxed">
+              {billedVdoConfirmation}
+            </p>
+            <p className="text-xs text-amber-700/90 leading-relaxed">
+              Finalisation will stay blocked until you choose whether to bill the minimum or the actual submitted hours.
+            </p>
           </div>
         )}
       </section>
@@ -242,7 +338,15 @@ export default function AdminStandardBillingPanel({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-[var(--admin-text)] mb-2">
-              Hourly rate
+              Hourly rate {activeBlockTime ? (
+                <span className="ml-1.5 text-[10px] text-[var(--admin-text-muted)] font-normal">
+                  (locked block time rate ${activeBlockTime.ratePerHour.toFixed(2)}/hr applies)
+                </span>
+              ) : (
+                <span className="ml-1.5 text-[10px] text-[var(--admin-text-muted)] font-normal">
+                  (Pay As You Fly — no active block time package)
+                </span>
+              )}
             </label>
             <div className="relative max-w-xs">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--admin-text-muted)]">$</span>
@@ -252,8 +356,13 @@ export default function AdminStandardBillingPanel({
                 step="0.01"
                 value={hourlyRate}
                 onChange={(e) => setHourlyRate(e.target.value)}
-                disabled={isPending}
-                className="w-full bg-white border border-[var(--admin-border)] rounded-lg pl-7 pr-3 py-2.5 text-sm text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)] min-h-[40px]"
+                readOnly={!!activeBlockTime}
+                disabled={submitState !== 'idle'}
+                className={`w-full border rounded-lg pl-7 pr-3 py-2.5 text-sm min-h-[40px] ${
+                  activeBlockTime
+                    ? 'bg-slate-50 border-[var(--admin-border)] text-[var(--admin-text-muted)] cursor-not-allowed'
+                    : 'bg-white border-[var(--admin-border)] text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)]'
+                }`}
               />
             </div>
           </div>
@@ -267,7 +376,7 @@ export default function AdminStandardBillingPanel({
               <button
                 type="button"
                 onClick={addLandingRow}
-                disabled={isPending || airports.length === 0}
+                disabled={submitState !== 'idle' || airports.length === 0}
                 className="flex items-center gap-1 text-[11px] text-[#1a4fd6] hover:text-[#152d5a] transition-colors disabled:opacity-40"
               >
                 <span className="material-symbols-outlined text-[14px]">add_circle</span>
@@ -289,7 +398,7 @@ export default function AdminStandardBillingPanel({
                       <select
                         value={row.airportId}
                         onChange={(e) => handleLandingChange(row.id, 'airportId', e.target.value)}
-                        disabled={isPending}
+                        disabled={submitState !== 'idle'}
                         className="flex-1 bg-white border border-[var(--admin-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)] min-w-0 min-h-[40px]"
                       >
                         <option value="">Select airport…</option>
@@ -305,7 +414,7 @@ export default function AdminStandardBillingPanel({
                         step="1"
                         value={row.landingCount}
                         onChange={(e) => handleLandingChange(row.id, 'landingCount', e.target.value)}
-                        disabled={isPending}
+                        disabled={submitState !== 'idle'}
                         className="w-16 bg-white border border-[var(--admin-border)] rounded-lg px-2 py-2.5 text-sm text-[var(--admin-text)] text-center focus:outline-none focus:border-[rgba(26,79,214,0.35)] min-h-[40px]"
                       />
                       <div className="w-16 text-right flex-shrink-0 py-2.5">
@@ -316,7 +425,7 @@ export default function AdminStandardBillingPanel({
                       <button
                         type="button"
                         onClick={() => removeLandingRow(row.id)}
-                        disabled={isPending || landingRows.length <= 1}
+                        disabled={submitState !== 'idle' || landingRows.length <= 1}
                         className="flex-shrink-0 p-2 text-[var(--admin-text-muted)] hover:text-rose-500 transition-colors disabled:opacity-30"
                       >
                         <span className="material-symbols-outlined text-[16px]">remove_circle</span>
@@ -333,20 +442,75 @@ export default function AdminStandardBillingPanel({
         </div>
       </section>
 
+      <section className="space-y-4">
+        <SectionHeading>C. Payment Options</SectionHeading>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] p-4 space-y-3">
+            <p className="text-sm font-medium text-[var(--admin-text)]">Submission mode</p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: 'send_invoice' as const, label: 'Send Invoice to Customer' },
+                { value: 'mark_paid' as const, label: 'Mark paid' },
+                { value: 'waived' as const, label: 'Waived' },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setSubmissionMode(option.value)}
+                  disabled={submitState !== 'idle'}
+                  className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                    submissionMode === option.value
+                      ? 'border-[rgba(26,79,214,0.35)] bg-white text-[var(--admin-text)]'
+                      : 'border-[var(--admin-border)] bg-white/70 text-[var(--admin-text-muted)] hover:border-[rgba(26,79,214,0.2)]'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {billingBranch.kind === 'waived' ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-3">
+            <p className="text-sm font-semibold text-amber-800">Payment waived</p>
+            <textarea
+              value={waiverReason}
+              onChange={(e) => setWaiverReason(e.target.value)}
+              rows={3}
+              placeholder="Reason for waiving payment…"
+              disabled={submitState !== 'idle'}
+              className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)]"
+            />
+          </div>
+        ) : (
+          <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] px-4 py-3 text-sm text-[var(--admin-text-muted)]">
+            {submissionMode === 'mark_paid'
+              ? 'This will record the invoice as settled.'
+              : 'This will issue an invoice. The customer will choose how to pay from their booking page.'}
+          </div>
+        )}
+      </section>
+
       {totals && validHourlyRate && (
         <section className="space-y-4">
-          <SectionHeading>C. Invoice Summary</SectionHeading>
+          <SectionHeading>D. Invoice Summary</SectionHeading>
+          {minimumVdoBilling.isBelowMinimum && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 leading-relaxed">
+              Billing preview: {billedVdoConfirmation}
+            </div>
+          )}
           <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] px-5 py-4 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-[var(--admin-text-muted)]">Calculated VDO total</span>
               <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
-                {vdoReading?.toFixed(1) ?? '—'} h
+                {billedVdoSummary}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-[var(--admin-text-muted)]">Aircraft hire</span>
               <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
-                ${(vdoBaseCents / 100).toFixed(2)}
+                ${(((billedVdoHours ?? vdoReading) ?? 0) * hourlyRateNum).toFixed(2)}
               </span>
             </div>
             {landingSubtotalCents > 0 && (
@@ -388,11 +552,20 @@ export default function AdminStandardBillingPanel({
       <button
         type="button"
         onClick={handleSubmit}
-        disabled={isPending}
+        disabled={submitState !== 'idle' || minimumDecisionRequired}
         className="w-full rounded-xl bg-[#1a4fd6] hover:bg-[#1540a8] text-white px-4 py-3.5 text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm"
       >
-        {isPending ? 'Finalising…' : 'Finalise Flight Billing'}
+        {submitState === 'saving'
+          ? (showStillProcessing ? 'Still finalising…' : 'Finalising…')
+          : submitState === 'saved'
+            ? 'Saved'
+            : 'Finalise Flight Billing'}
       </button>
+      {submitState === 'saving' && showStillProcessing && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          This is taking longer than usual, but the save may still be processing. Please keep this tab open for a moment.
+        </div>
+      )}
     </div>
   )
 }

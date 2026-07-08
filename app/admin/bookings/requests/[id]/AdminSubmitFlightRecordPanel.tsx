@@ -3,13 +3,19 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { adminSubmitFlightRecord } from '@/app/actions/admin-booking'
-import AircraftReadingsForm from '@/components/aircraft/AircraftReadingsForm'
+import TotalOnlyReadingsForm from '@/components/aircraft/TotalOnlyReadingsForm'
+import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
 import {
-  calculateAircraftReadingsTotals,
-  numberInputValue,
+  resolveStandardBookingBillingBranch,
+  resolveMinimumVdoBilling,
+  resolveMinimumVdoBillingDisplay,
+  type MinimumVdoDecision,
+  type StandardBookingSubmissionMode,
+} from '@/lib/booking/standard-booking-billing'
+import {
   type AircraftContinuityBaseline,
-  type AircraftReadingsFormValues,
-  validateAircraftReadings,
+  type TotalOnlyFormValues,
+  validateTotalOnlyReadings,
 } from '@/lib/aircraft-readings'
 
 type Airport = {
@@ -37,7 +43,8 @@ type Props = {
   scheduledStart: string           // ISO — used to default the flight date
   startSuggestions: AircraftContinuityBaseline
   activeBlockTime: BlockTimeSummary | null
-  defaultHourlyRate?: number
+  bookingSlotHours: number
+  successRedirectHref?: string
 }
 
 const LANDING_FEE_CENTS = 2895
@@ -65,24 +72,26 @@ export default function AdminSubmitFlightRecordPanel({
   scheduledStart,
   startSuggestions,
   activeBlockTime,
-  defaultHourlyRate = 330,
+  bookingSlotHours,
+  successRedirectHref,
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [flightDate, setFlightDate] = useState(sydneyDateKey(scheduledStart))
-  const [hourlyRate, setHourlyRate] = useState(String(defaultHourlyRate))
+  const [hourlyRate, setHourlyRate] = useState(
+    String(activeBlockTime?.ratePerHour ?? PAYF_RATE_PER_HOUR),
+  )
+  const [submissionMode, setSubmissionMode] = useState<StandardBookingSubmissionMode>('send_invoice')
+  const [waiverReason, setWaiverReason] = useState('')
+  const [minimumVdoDecision, setMinimumVdoDecision] = useState<MinimumVdoDecision | ''>('')
   const [adminNotes, setAdminNotes] = useState('')
   const [landings, setLandings] = useState('')
-  const [readings, setReadings] = useState<AircraftReadingsFormValues>({
-    tacho_start:      numberInputValue(startSuggestions.tacho_start ?? null),
-    tacho_stop:       '',
-    vdo_start:        numberInputValue(startSuggestions.vdo_start ?? null),
-    vdo_stop:         '',
-    air_switch_start: numberInputValue(startSuggestions.air_switch_start ?? null),
-    air_switch_stop:  '',
-    mr_start:         numberInputValue(startSuggestions.mr_start ?? null),
-    mr_stop:          '',
+  const [readings, setReadings] = useState<TotalOnlyFormValues>({
+    tacho_total:      '',
+    vdo_total:        '',
+    air_switch_total: '',
+    mr_total:         '',
     oil_added:        '',
     oil_total:        '',
     fuel_added:       '',
@@ -109,14 +118,10 @@ export default function AdminSubmitFlightRecordPanel({
   const landingsNum = landings.trim() === '' ? null : Number(landings)
 
   const normalisedReadings = {
-    vdo_start:        getNum(readings.vdo_start),
-    vdo_stop:         getNum(readings.vdo_stop),
-    tacho_start:      getNum(readings.tacho_start),
-    tacho_stop:       getNum(readings.tacho_stop),
-    air_switch_start: getNum(readings.air_switch_start),
-    air_switch_stop:  getNum(readings.air_switch_stop),
-    mr_start:         getNum(readings.mr_start),
-    mr_stop:          getNum(readings.mr_stop),
+    vdo_total:        getNum(readings.vdo_total) ?? 0,
+    tacho_total:      getNum(readings.tacho_total) ?? 0,
+    air_switch_total: getNum(readings.air_switch_total) ?? 0,
+    mr_total:         getNum(readings.mr_total) ?? 0,
     oil_added:        getNum(readings.oil_added),
     oil_total:        getNum(readings.oil_total),
     fuel_added:       getNum(readings.fuel_added),
@@ -127,15 +132,18 @@ export default function AdminSubmitFlightRecordPanel({
 
   let readingsError: string | null = null
   try {
-    validateAircraftReadings(normalisedReadings)
+    validateTotalOnlyReadings({
+      ...normalisedReadings,
+      landings: landingsNum,
+      notes: adminNotes.trim() || null,
+    })
   } catch (validationError) {
     readingsError = validationError instanceof Error
       ? validationError.message.replace(/^VALIDATION: /, '')
       : 'Invalid readings.'
   }
 
-  const totals     = readingsError ? null : calculateAircraftReadingsTotals(normalisedReadings)
-  const vdoReading = totals?.vdo_total ?? null
+  const vdoReading = readingsError ? null : normalisedReadings.vdo_total
 
   const landingRowErrors = landingRows.map((row) => {
     const count      = Number(row.landingCount)
@@ -158,9 +166,14 @@ export default function AdminSubmitFlightRecordPanel({
   )
 
   const effectiveRate = activeBlockTime ? activeBlockTime.ratePerHour : hourlyRateNum
-  const vdoBaseCents = vdoReading != null && Number.isFinite(effectiveRate) && effectiveRate > 0
-    ? Math.round(vdoReading * Math.round(effectiveRate * 100))
-    : 0
+  const billingBranch = resolveStandardBookingBillingBranch({ submissionMode })
+  const minimumVdoBilling = resolveMinimumVdoBilling({
+    bookingSlotHours,
+    actualVdoHours: vdoReading,
+    decision: minimumVdoDecision || null,
+  })
+  const minimumDecisionRequired = minimumVdoBilling.requiresDecision
+  const { billedVdoHours, billedVdoSummary, billedVdoConfirmation } = resolveMinimumVdoBillingDisplay(minimumVdoBilling)
   const blockTimeCoveredHours = activeBlockTime && vdoReading != null
     ? Math.min(vdoReading, activeBlockTime.hoursRemaining)
     : 0
@@ -193,6 +206,14 @@ export default function AdminSubmitFlightRecordPanel({
       setError('Complete or remove incomplete landing rows before submitting.')
       return
     }
+    if (billingBranch.kind === 'waived' && !waiverReason.trim()) {
+      setError('A waiver reason is required when payment is waived.')
+      return
+    }
+    if (minimumDecisionRequired) {
+      setError('Choose whether to bill the minimum or the actual hours before finalising.')
+      return
+    }
 
     setError(null)
     startTransition(async () => {
@@ -204,8 +225,15 @@ export default function AdminSubmitFlightRecordPanel({
           landingCharges: validLandingCharges.length > 0 ? validLandingCharges : undefined,
           adminNotes:     adminNotes.trim() || undefined,
           readings:       normalisedReadings,
+          submissionMode,
+          waiverReason:    billingBranch.kind === 'waived' ? waiverReason.trim() || undefined : undefined,
+          minimumVdoDecision: minimumVdoDecision || undefined,
         })
-        router.refresh()
+        if (successRedirectHref) {
+          router.push(successRedirectHref)
+        } else {
+          router.refresh()
+        }
       } catch (actionError) {
         const message = actionError instanceof Error ? actionError.message : 'Action failed. Please try again.'
         setError(message.replace(/^VALIDATION: /, ''))
@@ -260,21 +288,53 @@ export default function AdminSubmitFlightRecordPanel({
             className="w-full bg-white border border-[var(--admin-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)] min-h-[40px]"
           />
         </div>
-        <AircraftReadingsForm
+        <TotalOnlyReadingsForm
           values={readings}
           onChange={(field, value) => setReadings((current) => ({ ...current, [field]: value }))}
           notes={adminNotes}
           onNotesChange={setAdminNotes}
-          landings={landings}
-          onLandingsChange={setLandings}
-          startBaseline={startSuggestions}
+          continuityBaseline={startSuggestions}
           showContinuityWarnings
-          tableLayout
           disabled={isPending}
         />
         {readingsError && (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {readingsError}
+          </div>
+        )}
+        {minimumVdoBilling.isBelowMinimum && minimumVdoBilling.minimumVdoHours > 0 && minimumVdoBilling.actualVdoHours != null && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 space-y-3">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-amber-800">
+                VDO hours are below the minimum for this booking.
+              </p>
+              <p className="text-sm text-amber-700 leading-relaxed">
+                VDO hours flown: <span className="font-mono tabular-nums font-semibold">{minimumVdoBilling.actualVdoHours.toFixed(1)} h</span>
+                {' '}| Minimum for this booking ({minimumVdoBilling.bookingDays} day{minimumVdoBilling.bookingDays === 1 ? '' : 's'} booked × 4h/day):{' '}
+                <span className="font-mono tabular-nums font-semibold">{minimumVdoBilling.minimumVdoHours.toFixed(1)} h</span>
+              </p>
+            </div>
+            <label className="block">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-800 block mb-1">
+                Billing decision
+              </span>
+              <select
+                value={minimumVdoDecision}
+                onChange={(e) => setMinimumVdoDecision(e.target.value as MinimumVdoDecision | '')}
+                disabled={isPending}
+                className="w-full max-w-lg rounded-lg border border-amber-200 bg-white px-3 py-2.5 text-sm text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)]"
+              >
+                <option value="">Choose billing option…</option>
+                <option value="enforce_minimum">Enforce minimum billing</option>
+                <option value="bill_actual">Bill actual hours</option>
+              </select>
+            </label>
+            <p className="text-xs font-semibold text-amber-800 leading-relaxed">
+              {billedVdoConfirmation}
+            </p>
+            <p className="text-xs text-amber-700/90 leading-relaxed">
+              Finalisation will stay blocked until you choose whether to bill the minimum or the actual submitted hours.
+            </p>
           </div>
         )}
       </section>
@@ -285,9 +345,13 @@ export default function AdminSubmitFlightRecordPanel({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-[var(--admin-text)] mb-2">
-              Hourly rate {activeBlockTime && (
+              Hourly rate {activeBlockTime ? (
                 <span className="ml-1.5 text-[10px] text-[var(--admin-text-muted)] font-normal">
                   (ignored for block time — locked rate ${activeBlockTime.ratePerHour.toFixed(2)}/hr applies)
+                </span>
+              ) : (
+                <span className="ml-1.5 text-[10px] text-[var(--admin-text-muted)] font-normal">
+                  (Pay As You Fly — no active block time package)
                 </span>
               )}
             </label>
@@ -380,14 +444,82 @@ export default function AdminSubmitFlightRecordPanel({
         </div>
       </section>
 
-      {totals && vdoReading != null && vdoReading > 0 && (
+      <section className="space-y-4">
+          <SectionHeading>C. Payment Options</SectionHeading>
+          {activeBlockTime && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800 leading-relaxed">
+              Block time customer: flight hours are settled from the balance automatically, so the
+              options below apply to the <span className="font-semibold">landing fee invoice</span>.
+              Any overage is always invoiced separately and must be paid (online or marked settled
+              from the customer&apos;s profile) before the customer can book again — it cannot be
+              waived here.
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] p-4 space-y-3">
+              <p className="text-sm font-medium text-[var(--admin-text)]">Submission mode</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: 'send_invoice' as const, label: 'Send Invoice to Customer' },
+                  { value: 'mark_paid' as const, label: 'Mark paid' },
+                  { value: 'waived' as const, label: 'Waived' },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setSubmissionMode(option.value)}
+                    disabled={isPending}
+                    className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                      submissionMode === option.value
+                        ? 'border-[rgba(26,79,214,0.35)] bg-white text-[var(--admin-text)]'
+                        : 'border-[var(--admin-border)] bg-white/70 text-[var(--admin-text-muted)] hover:border-[rgba(26,79,214,0.2)]'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {billingBranch.kind === 'waived' ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-3">
+              <p className="text-sm font-semibold text-amber-800">Payment waived</p>
+              <textarea
+                value={waiverReason}
+                onChange={(e) => setWaiverReason(e.target.value)}
+                rows={3}
+                placeholder="Reason for waiving payment…"
+                disabled={isPending}
+                className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)]"
+              />
+            </div>
+          ) : (
+            <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] px-4 py-3 text-sm text-[var(--admin-text-muted)]">
+              {submissionMode === 'mark_paid'
+                ? activeBlockTime
+                  ? 'This will record the landing fee invoice as settled.'
+                  : 'This will record the invoice as settled.'
+                : activeBlockTime
+                  ? 'This will issue a landing fee invoice. The customer will choose how to pay from their Purchases page.'
+                  : 'This will issue an invoice. The customer will choose how to pay from their booking page.'}
+            </div>
+          )}
+        </section>
+
+      {vdoReading != null && vdoReading > 0 && (
         <section className="space-y-4">
-          <SectionHeading>C. Billing Summary</SectionHeading>
+          <SectionHeading>D. Billing Summary</SectionHeading>
+          {activeBlockTime && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 leading-relaxed">
+              Billing preview: {billedVdoConfirmation}
+            </div>
+          )}
           <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] px-5 py-4 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-[var(--admin-text-muted)]">Calculated VDO total</span>
               <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
-                {vdoReading.toFixed(1)} h
+                {billedVdoSummary}
               </span>
             </div>
             {activeBlockTime ? (
@@ -411,7 +543,7 @@ export default function AdminSubmitFlightRecordPanel({
               <div className="flex items-center justify-between">
                 <span className="text-sm text-[var(--admin-text-muted)]">Aircraft hire</span>
                 <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
-                  ${(vdoBaseCents / 100).toFixed(2)}
+                  ${((billedVdoHours ?? vdoReading) * effectiveRate).toFixed(2)}
                 </span>
               </div>
             )}
@@ -436,7 +568,7 @@ export default function AdminSubmitFlightRecordPanel({
       <button
         type="button"
         onClick={handleSubmit}
-        disabled={isPending}
+        disabled={isPending || minimumDecisionRequired}
         className="w-full rounded-xl bg-[#1a4fd6] hover:bg-[#1540a8] text-white px-4 py-3.5 text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm"
       >
         {isPending ? 'Submitting…' : 'Submit Post-Flight Record'}
