@@ -15,6 +15,7 @@ import {
   resolveStandardBookingBillingBranch,
   resolveMinimumVdoBilling,
   resolveMinimumVdoBillingDisplay,
+  type ManualSettlementMethod,
   type MinimumVdoDecision,
   type StandardBookingSubmissionMode,
 } from '@/lib/booking/standard-booking-billing'
@@ -83,6 +84,7 @@ export default function AdminStandardBillingPanel({
   const [submitState, setSubmitState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [showStillProcessing, setShowStillProcessing] = useState(false)
   const [submissionMode, setSubmissionMode] = useState<StandardBookingSubmissionMode>('send_invoice')
+  const [manualPaymentMethod, setManualPaymentMethod] = useState<ManualSettlementMethod>('cash')
   const [waiverReason, setWaiverReason] = useState('')
   const [minimumVdoDecision, setMinimumVdoDecision] = useState<MinimumVdoDecision | ''>('')
   const lockedHourlyRate = activeBlockTime?.ratePerHour ?? null
@@ -261,6 +263,7 @@ export default function AdminStandardBillingPanel({
       adminNotes:     adminNotes.trim() || undefined,
       readings:       normalisedReadings,
       submissionMode,
+      manualPaymentMethod: submissionMode === 'mark_paid' ? manualPaymentMethod : undefined,
       waiverReason:   billingBranch.kind === 'waived' ? waiverReason.trim() || undefined : undefined,
       minimumVdoDecision: minimumVdoDecision || undefined,
     }))
@@ -483,11 +486,26 @@ export default function AdminStandardBillingPanel({
               className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)]"
             />
           </div>
+        ) : submissionMode === 'mark_paid' ? (
+          <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] px-4 py-3 space-y-3">
+            <p className="text-sm text-[var(--admin-text-muted)]">This will record the invoice as settled.</p>
+            <label className="block md:max-w-xs">
+              <span className="mb-1.5 block text-[11px] text-[var(--admin-text-muted)]">Payment method received</span>
+              <select
+                value={manualPaymentMethod}
+                onChange={(e) => setManualPaymentMethod(e.target.value as ManualSettlementMethod)}
+                disabled={submitState !== 'idle'}
+                className="w-full rounded-lg border border-[var(--admin-border)] bg-white px-3 py-2 text-sm text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)]"
+              >
+                <option value="cash">Cash</option>
+                <option value="card_in_person">Card (in person)</option>
+                <option value="bank_transfer">Bank transfer</option>
+              </select>
+            </label>
+          </div>
         ) : (
           <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] px-4 py-3 text-sm text-[var(--admin-text-muted)]">
-            {submissionMode === 'mark_paid'
-              ? 'This will record the invoice as settled.'
-              : 'This will issue an invoice. The customer will choose how to pay from their booking page.'}
+            This will issue an invoice. The customer will choose how to pay from their booking page.
           </div>
         )}
       </section>

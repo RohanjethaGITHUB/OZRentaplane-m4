@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { existsSync } from 'node:fs'
 import { chromium } from 'playwright-core'
 import chromiumMin from '@sparticuz/chromium-min'
 
@@ -12,10 +13,12 @@ type InvoiceLineItem = {
 
 type InvoicePdfInput = {
   invoiceNumber: string
-  invoiceTypeLabel: string
+  documentKind: 'tax_invoice' | 'receipt'
   statusLabel: string
   createdAt: string
   dueAt?: string | null
+  paidAt?: string | null
+  paymentMethodLabel?: string | null
   billingModeLabel?: string | null
   bookingRefLabel?: string | null
   billToName: string
@@ -26,6 +29,8 @@ type InvoicePdfInput = {
   gstAmount: number
   total: number
   footerNote: string
+  creditAppliedAmount?: number | null
+  amountPaid?: number | null
 }
 
 function formatMoney(value: number): string {
@@ -75,6 +80,9 @@ function buildRows(lineItems: InvoiceLineItem[]): string {
 }
 
 function renderInvoiceHtml(input: InvoicePdfInput): string {
+  const documentTitle = input.documentKind === 'receipt' ? 'Receipt' : 'Tax Invoice'
+  const documentTypeLabel = input.documentKind === 'receipt' ? 'RECEIPT' : 'TAX INVOICE'
+  const detailDateLabel = input.documentKind === 'receipt' ? 'Paid' : 'Due'
   return `<!doctype html>
   <html lang="en">
     <head>
@@ -248,6 +256,11 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
           font-weight: 700;
           background: white;
         }
+        .totals-row.subtle {
+          font-size: 13px;
+          font-weight: 500;
+          background: transparent;
+        }
         .footer {
           padding: 0 30px 28px;
           color: var(--muted);
@@ -264,11 +277,11 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
         <div class="top">
           <div class="brand">
             <div class="eyebrow">OZ Rent A Plane</div>
-            <h1>Tax Invoice</h1>
+            <h1>${escapeHtml(documentTitle)}</h1>
 	            <p>Bankstown Airport, Sydney NSW<br />ABN: 69 679 543 198</p>
           </div>
           <div class="meta">
-            <div class="type">${escapeHtml(input.invoiceTypeLabel)}</div>
+            <div class="type">${escapeHtml(documentTypeLabel)}</div>
             <h2 class="invoice-number">${escapeHtml(input.invoiceNumber)}</h2>
             <div class="status">${escapeHtml(input.statusLabel)}</div>
           </div>
@@ -283,11 +296,12 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
               ${input.billToPhone ? escapeHtml(input.billToPhone) : ''}
             </div>
           </div>
-          <div class="card">
-            <div class="label">Invoice Details</div>
-            <div class="value">
-              Date: ${escapeHtml(formatDate(input.createdAt))}<br />
-              Due: ${escapeHtml(formatDate(input.dueAt ?? input.createdAt))}<br />
+            <div class="card">
+              <div class="label">Invoice Details</div>
+              <div class="value">
+                Date: ${escapeHtml(formatDate(input.createdAt))}<br />
+              ${detailDateLabel}: ${escapeHtml(formatDate(input.documentKind === 'receipt' ? input.paidAt ?? input.createdAt : input.dueAt ?? input.createdAt))}<br />
+              ${input.documentKind === 'receipt' && input.paymentMethodLabel ? `Payment method: ${escapeHtml(input.paymentMethodLabel)}<br />` : ''}
               ${input.billingModeLabel ? `Billing: ${escapeHtml(input.billingModeLabel)}<br />` : ''}
               ${input.bookingRefLabel ? `${escapeHtml(input.bookingRefLabel)}<br />` : ''}
             </div>
@@ -314,6 +328,12 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
           <div class="totals-box">
             <div class="totals-row"><span>Subtotal</span><span>${formatMoney(input.subtotal)}</span></div>
             <div class="totals-row"><span>GST (10%)</span><span>${formatMoney(input.gstAmount)}</span></div>
+            ${input.creditAppliedAmount && input.creditAppliedAmount > 0
+              ? `<div class="totals-row subtle"><span>Advance credit applied</span><span>-${formatMoney(input.creditAppliedAmount)}</span></div>`
+              : ''}
+            ${input.documentKind === 'receipt'
+              ? `<div class="totals-row subtle"><span>Amount paid</span><span>${formatMoney(input.amountPaid ?? input.total)}</span></div>`
+              : ''}
             <div class="totals-row"><span>Total</span><span>${formatMoney(input.total)}</span></div>
           </div>
         </div>
@@ -329,19 +349,46 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
 export async function generateInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
   const isVercel = process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME != null
 
-  const browser = await chromium.launch(
-    isVercel
-      ? {
-          args: chromiumMin.args,
-          executablePath: await chromiumMin.executablePath(
-            'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'
-          ),
-          headless: true,
-        }
-      : {
-          headless: true,
-        }
-  )
+  async function launchBrowser() {
+    return chromium.launch(
+      isVercel
+        ? {
+            args: chromiumMin.args,
+            executablePath: await chromiumMin.executablePath(
+              'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'
+            ),
+            headless: true,
+          }
+        : {
+            headless: true,
+          }
+    )
+  }
+
+  let browser
+  try {
+    browser = await launchBrowser()
+  } catch (error) {
+    if (isVercel) {
+      throw error
+    }
+
+    const localChromeCandidates = [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium',
+    ]
+    const executablePath = localChromeCandidates.find((candidate) => existsSync(candidate))
+    if (!executablePath) {
+      throw error
+    }
+
+    browser = await chromium.launch({
+      executablePath,
+      headless: true,
+    })
+  }
   try {
     const page = await browser.newPage({
       viewport: { width: 1280, height: 1800 },

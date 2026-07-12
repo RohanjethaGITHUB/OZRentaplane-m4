@@ -641,7 +641,7 @@ export type BookingInvoice = {
   booking_id:                   string
   customer_id:                  string
   invoice_number:               string
-  status:                       'payment_required' | 'paid' | 'waived' | 'void' | 'failed'
+  status:                       'payment_required' | 'bank_transfer_pending_review' | 'paid' | 'waived' | 'void' | 'failed'
   currency:                     string
   vdo_reading:                  number | null
   rate_cents_per_hour:          number
@@ -658,6 +658,7 @@ export type BookingInvoice = {
   stripe_gross_amount_cents:    number | null
   online_payment_surcharge_cents: number | null
   payment_method:               'card' | 'bank_transfer' | null
+  pdf_url:                      string | null
   paid_at:                      string | null
   finalised_by:                 string | null
   finalised_at:                 string | null

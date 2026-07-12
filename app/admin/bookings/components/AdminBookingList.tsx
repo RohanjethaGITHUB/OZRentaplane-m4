@@ -44,11 +44,42 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   cancellation_requested: { label: 'Cancellation Requested', className: 'bg-amber-500/10 text-amber-300 border-amber-500/20' },
 }
 
+const LIGHT_STATUS_BADGE: Record<string, string> = {
+  checkout_requested: 'bg-[rgba(36,88,197,0.10)] text-[var(--admin-info)] border-[rgba(36,88,197,0.20)]',
+  checkout_confirmed: 'bg-[rgba(31,106,67,0.10)] text-[var(--admin-success)] border-[rgba(31,106,67,0.20)]',
+  checkout_completed_under_review: 'bg-[rgba(178,106,18,0.12)] text-[var(--admin-warning)] border-[rgba(178,106,18,0.24)]',
+  checkout_payment_required: 'bg-[rgba(194,65,12,0.10)] text-[rgb(194,65,12)] border-[rgba(194,65,12,0.22)]',
+  pending_confirmation: 'bg-[rgba(36,88,197,0.10)] text-[var(--admin-info)] border-[rgba(36,88,197,0.20)]',
+  confirmed: 'bg-[rgba(31,106,67,0.10)] text-[var(--admin-success)] border-[rgba(31,106,67,0.20)]',
+  ready_for_dispatch: 'bg-[rgba(31,106,67,0.10)] text-[var(--admin-success)] border-[rgba(31,106,67,0.20)]',
+  dispatched: 'bg-[rgba(31,106,67,0.12)] text-[var(--admin-success)] border-[rgba(31,106,67,0.22)]',
+  awaiting_flight_record: 'bg-[rgba(178,106,18,0.12)] text-[var(--admin-warning)] border-[rgba(178,106,18,0.24)]',
+  on_hold_pending_documents: 'bg-[rgba(178,106,18,0.12)] text-[var(--admin-warning)] border-[rgba(178,106,18,0.24)]',
+  pending_post_flight_review: 'bg-[rgba(109,40,217,0.08)] text-[rgb(109,40,217)] border-[rgba(109,40,217,0.18)]',
+  payment_pending: 'bg-[rgba(194,65,12,0.10)] text-[rgb(194,65,12)] border-[rgba(194,65,12,0.22)]',
+  completed: 'bg-[rgba(100,116,139,0.10)] text-[var(--admin-neutral)] border-[rgba(148,163,184,0.24)]',
+  cancelled: 'bg-[rgba(180,65,65,0.10)] text-[var(--admin-danger)] border-[rgba(180,65,65,0.22)]',
+  no_show: 'bg-[rgba(180,65,65,0.10)] text-[var(--admin-danger)] border-[rgba(180,65,65,0.22)]',
+  cancellation_requested: 'bg-[rgba(178,106,18,0.12)] text-[var(--admin-warning)] border-[rgba(178,106,18,0.24)]',
+}
+
 function fullCustomerName(profile: { first_name: string | null; last_name: string | null; full_name: string | null; email: string | null } | undefined, picName: string | null) {
   if (profile?.first_name) return `${profile.first_name} ${profile.last_name ?? ''}`.trim()
   if (profile?.full_name) return profile.full_name
   if (picName) return picName
   return profile?.email ?? 'Customer'
+}
+
+function getStatusBadge(displayStatus: string, appearance: 'default' | 'light-operational') {
+  const fallbackClassName = appearance === 'light-operational'
+    ? 'bg-[rgba(100,116,139,0.10)] text-[var(--admin-neutral)] border-[rgba(148,163,184,0.24)]'
+    : 'bg-white/5 text-slate-300 border-white/10'
+  const baseBadge = STATUS_BADGE[displayStatus] ?? { label: displayStatus.replace(/_/g, ' '), className: fallbackClassName }
+  if (appearance !== 'light-operational') return baseBadge
+  return {
+    label: baseBadge.label,
+    className: LIGHT_STATUS_BADGE[displayStatus] ?? fallbackClassName,
+  }
 }
 
 export default async function AdminBookingList({
@@ -58,6 +89,7 @@ export default async function AdminBookingList({
   pageSubtitle,
   basePath,
   hideFilters,
+  appearance = 'default',
 }: {
   searchParams: SearchParams & { sort?: string; dir?: string }
   bookingTypeFilter: 'checkout' | 'standard' | 'all'
@@ -65,6 +97,7 @@ export default async function AdminBookingList({
   pageSubtitle: string
   basePath: string
   hideFilters?: boolean
+  appearance?: 'default' | 'light-operational'
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -190,13 +223,57 @@ export default async function AdminBookingList({
   ]
 
   const tabs = bookingTypeFilter === 'checkout' ? checkoutTabs : bookingTypeFilter === 'standard' ? standardTabs : []
+  const isLightOperational = appearance === 'light-operational'
+  const wrapperClassName = isLightOperational
+    ? 'max-w-[1400px] mx-auto px-4 md:px-10 py-6 md:py-7 pb-24'
+    : 'max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24'
+  const filterStripClassName = isLightOperational
+    ? 'rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 mb-5 flex flex-wrap gap-2 shadow-[0_10px_26px_rgba(15,30,52,0.08)]'
+    : 'rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 mb-6 flex flex-wrap gap-2 shadow-[var(--admin-shadow-panel)]'
+  const moduleShellClassName = isLightOperational
+    ? 'overflow-hidden rounded-2xl border border-[rgba(12,35,64,0.12)] bg-white shadow-[0_10px_26px_rgba(15,30,52,0.08)]'
+    : 'overflow-hidden rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] shadow-[var(--admin-shadow-panel)]'
+  const emptyStateClassName = isLightOperational
+    ? 'rounded-2xl border border-[rgba(12,35,64,0.12)] bg-white px-6 py-8 text-center shadow-[0_10px_26px_rgba(15,30,52,0.08)]'
+    : 'p-12 text-center text-slate-400 border border-white/10 rounded-2xl bg-white/[0.02]'
+  const headerCellClassName = isLightOperational
+    ? 'px-4 py-3 text-left text-[11.5px] font-bold uppercase tracking-[0.12em] text-[var(--admin-text-secondary)]'
+    : 'px-4 py-3 text-left font-medium'
+  const headerActionClassName = isLightOperational
+    ? 'inline-flex items-center gap-1.5 text-[var(--admin-text-secondary)] transition-colors hover:text-[var(--admin-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(96,165,250,0.45)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-panel-bg-soft)] rounded-sm'
+    : 'inline-flex items-center gap-1.5'
+  const desktopHeadClassName = isLightOperational
+    ? 'bg-[var(--admin-panel-bg-soft)] text-[var(--admin-text-secondary)] border-b border-[rgba(12,35,64,0.08)]'
+    : 'bg-[#111316] text-slate-400'
+  const desktopBodyClassName = isLightOperational
+    ? 'divide-y divide-[rgba(12,35,64,0.08)]'
+    : 'divide-y divide-white/10'
+  const rowClassName = isLightOperational
+    ? 'text-[var(--admin-text)] hover:bg-[var(--admin-panel-bg-soft)]'
+    : 'text-slate-200 hover:bg-white/[0.03]'
+  const customerCellClassName = isLightOperational ? 'px-4 py-3.5 text-[14px] font-semibold text-[var(--admin-text)]' : 'px-4 py-3 text-white font-medium'
+  const customerLinkClassName = isLightOperational
+    ? 'transition-colors hover:text-[var(--admin-accent-blue)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(96,165,250,0.45)] focus-visible:ring-offset-2 focus-visible:ring-offset-white rounded-sm'
+    : 'hover:underline hover:text-blue-400 transition-colors'
+  const bodyValueClassName = isLightOperational ? 'px-4 py-3.5 text-[13.5px] font-medium text-[var(--admin-text)]' : 'px-4 py-3'
+  const emailCellClassName = isLightOperational ? 'px-4 py-3.5 text-[13px] text-[var(--admin-text-secondary)]' : 'px-4 py-3 text-slate-300'
+  const refCellClassName = isLightOperational ? 'px-4 py-3.5 text-[13px] text-[var(--admin-text-secondary)]' : 'px-4 py-3 text-slate-400'
+  const refLinkClassName = isLightOperational
+    ? 'font-mono font-semibold text-[var(--admin-text)] transition-colors hover:text-[var(--admin-accent-blue)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(96,165,250,0.45)] focus-visible:ring-offset-2 focus-visible:ring-offset-white rounded-sm'
+    : 'hover:underline hover:text-blue-400 transition-colors font-mono'
+  const actionButtonClassName = isLightOperational
+    ? 'inline-flex min-h-9 items-center rounded-lg border border-[rgba(26,79,214,0.22)] bg-[rgba(26,79,214,0.08)] px-3 py-1.5 text-[13px] font-semibold text-[var(--admin-accent-blue)] transition-colors hover:bg-[rgba(26,79,214,0.14)] hover:text-[var(--admin-primary-navy)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(96,165,250,0.45)] focus-visible:ring-offset-2 focus-visible:ring-offset-white'
+    : 'inline-flex items-center rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-1.5 text-xs text-blue-200 hover:bg-blue-500/25'
+  const mobileCardClassName = isLightOperational
+    ? 'block rounded-2xl border border-[rgba(12,35,64,0.12)] bg-white p-4 shadow-[0_10px_26px_rgba(15,30,52,0.08)] transition-colors hover:bg-[var(--admin-panel-bg-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(96,165,250,0.45)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-bg)]'
+    : 'block rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 shadow-[var(--admin-shadow-panel)]'
 
   return (
     <>
       <AdminPortalHero eyebrow="Operations" title={pageTitle} subtitle={pageSubtitle} />
-      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24">
+      <div className={wrapperClassName}>
         {!hideFilters && tabs.length > 0 && (
-          <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 mb-6 flex flex-wrap gap-2 shadow-[var(--admin-shadow-panel)]">
+          <div className={filterStripClassName}>
             {tabs.map((tab) => (
               <TabLink
                 key={tab.value}
@@ -209,48 +286,55 @@ export default async function AdminBookingList({
         )}
 
         {rows.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 border border-white/10 rounded-2xl bg-white/[0.02]">No records found for this view.</div>
+          <div className={emptyStateClassName}>
+            <p className={isLightOperational ? 'text-[15px] font-medium text-[var(--admin-text)]' : 'text-slate-400'}>No records found for this view.</p>
+            {isLightOperational ? (
+              <p className="mt-2 text-[13px] leading-[1.45] text-[var(--admin-text-secondary)]">
+                No upcoming flights currently require dispatch readiness.
+              </p>
+            ) : null}
+          </div>
         ) : (
           <>
-            <div className="hidden lg:block overflow-hidden rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] shadow-[var(--admin-shadow-panel)]">
-              <table className="w-full text-sm">
-                <thead className="bg-[#111316] text-slate-400">
+            <div className={`hidden lg:block ${moduleShellClassName}`}>
+              <table className={`w-full ${isLightOperational ? 'text-[13px]' : 'text-sm'}`}>
+                <thead className={desktopHeadClassName}>
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium"><Link href={sortHref('customer')} className="inline-flex items-center gap-1.5">Customer<span className="material-symbols-outlined text-[14px]">{sortIcon('customer')}</span></Link></th>
-                    <th className="px-4 py-3 text-left font-medium"><Link href={sortHref('email')} className="inline-flex items-center gap-1.5">Email<span className="material-symbols-outlined text-[14px]">{sortIcon('email')}</span></Link></th>
-                    <th className="px-4 py-3 text-left font-medium"><Link href={sortHref('aircraft')} className="inline-flex items-center gap-1.5">Aircraft<span className="material-symbols-outlined text-[14px]">{sortIcon('aircraft')}</span></Link></th>
-                    <th className="px-4 py-3 text-left font-medium"><Link href={sortHref('scheduled')} className="inline-flex items-center gap-1.5">Scheduled<span className="material-symbols-outlined text-[14px]">{sortIcon('scheduled')}</span></Link></th>
-                    <th className="px-4 py-3 text-left font-medium"><Link href={sortHref('status')} className="inline-flex items-center gap-1.5">Status<span className="material-symbols-outlined text-[14px]">{sortIcon('status')}</span></Link></th>
-                    <th className="px-4 py-3 text-left font-medium"><Link href={sortHref('ref')} className="inline-flex items-center gap-1.5">Ref<span className="material-symbols-outlined text-[14px]">{sortIcon('ref')}</span></Link></th>
-                    <th className="px-4 py-3 text-right font-medium">Action</th>
+                    <th className={headerCellClassName}><Link href={sortHref('customer')} className={headerActionClassName}>Customer<span className="material-symbols-outlined text-[14px]">{sortIcon('customer')}</span></Link></th>
+                    <th className={headerCellClassName}><Link href={sortHref('email')} className={headerActionClassName}>Email<span className="material-symbols-outlined text-[14px]">{sortIcon('email')}</span></Link></th>
+                    <th className={headerCellClassName}><Link href={sortHref('aircraft')} className={headerActionClassName}>Aircraft<span className="material-symbols-outlined text-[14px]">{sortIcon('aircraft')}</span></Link></th>
+                    <th className={headerCellClassName}><Link href={sortHref('scheduled')} className={headerActionClassName}>Scheduled<span className="material-symbols-outlined text-[14px]">{sortIcon('scheduled')}</span></Link></th>
+                    <th className={headerCellClassName}><Link href={sortHref('status')} className={headerActionClassName}>Status<span className="material-symbols-outlined text-[14px]">{sortIcon('status')}</span></Link></th>
+                    <th className={headerCellClassName}><Link href={sortHref('ref')} className={headerActionClassName}>Ref<span className="material-symbols-outlined text-[14px]">{sortIcon('ref')}</span></Link></th>
+                    <th className={isLightOperational ? 'px-4 py-3 text-right text-[11.5px] font-bold uppercase tracking-[0.12em] text-[var(--admin-text-secondary)]' : 'px-4 py-3 text-right font-medium'}>Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/10">
+                <tbody className={desktopBodyClassName}>
                   {sortedRows.map((booking) => {
                     const aircraft = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
                     const prof = profileMap.get(booking.booking_owner_user_id)
                     const customerName = fullCustomerName(prof, booking.pic_name)
                     const email = prof?.email ?? '—'
                     const displayStatus = deriveBookingStatusForFlightRecord(booking)
-                    const badge = STATUS_BADGE[displayStatus] ?? { label: displayStatus.replace(/_/g, ' '), className: 'bg-white/5 text-slate-300 border-white/10' }
+                    const badge = getStatusBadge(displayStatus, appearance)
                     const actionLabel = basePath.includes('/awaiting-outcome') ? 'Record Outcome' : basePath.includes('/new-requests') ? 'Review' : 'View'
                     return (
-                      <tr key={booking.id} className="text-slate-200 hover:bg-white/[0.03]">
-                        <td className="px-4 py-3 text-white font-medium">
-                          <Link href={`/admin/users/${booking.booking_owner_user_id}`} className="hover:underline hover:text-blue-400 transition-colors">
+                      <tr key={booking.id} className={rowClassName}>
+                        <td className={customerCellClassName}>
+                          <Link href={`/admin/users/${booking.booking_owner_user_id}`} className={customerLinkClassName}>
                             {customerName}
                           </Link>
                         </td>
-                        <td className="px-4 py-3 text-slate-300">{email}</td>
-                        <td className="px-4 py-3">{aircraft?.registration ?? 'VH-KZG'}</td>
-                        <td className="px-4 py-3">{formatDateTime(booking.scheduled_start)}</td>
-                        <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs border ${badge.className}`}>{badge.label}</span></td>
-                        <td className="px-4 py-3 text-slate-400">
-                          <Link href={`/admin/bookings/requests/${booking.id}`} className="hover:underline hover:text-blue-400 transition-colors font-mono">
+                        <td className={emailCellClassName}>{email}</td>
+                        <td className={bodyValueClassName}>{aircraft?.registration ?? 'VH-KZG'}</td>
+                        <td className={bodyValueClassName}>{formatDateTime(booking.scheduled_start)}</td>
+                        <td className="px-4 py-3.5"><span className={`inline-flex rounded-full border px-2.5 py-1 text-[11.5px] font-semibold ${badge.className}`}>{badge.label}</span></td>
+                        <td className={refCellClassName}>
+                          <Link href={`/admin/bookings/requests/${booking.id}`} className={refLinkClassName}>
                             {booking.booking_reference || booking.id.slice(0, 8).toUpperCase()}
                           </Link>
                         </td>
-                        <td className="px-4 py-3 text-right"><Link href={`/admin/bookings/requests/${booking.id}`} className="inline-flex items-center rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-1.5 text-xs text-blue-200 hover:bg-blue-500/25">{actionLabel}</Link></td>
+                        <td className="px-4 py-3.5 text-right"><Link href={`/admin/bookings/requests/${booking.id}`} className={actionButtonClassName}>{actionLabel}</Link></td>
                       </tr>
                     )
                   })}
@@ -265,16 +349,29 @@ export default async function AdminBookingList({
                 const customerName = fullCustomerName(prof, booking.pic_name)
                 const email = prof?.email ?? '—'
                 const displayStatus = deriveBookingStatusForFlightRecord(booking)
-                const badge = STATUS_BADGE[displayStatus] ?? { label: displayStatus.replace(/_/g, ' '), className: 'bg-white/5 text-slate-300 border-white/10' }
+                const badge = getStatusBadge(displayStatus, appearance)
                 return (
-                  <Link key={booking.id} href={`/admin/bookings/requests/${booking.id}`} className="block rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-card-bg)] p-4 shadow-[var(--admin-shadow-panel)]">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-white font-medium">{customerName}</p>
-                      <span className={`px-2 py-1 rounded-full text-[11px] border ${badge.className}`}>{badge.label}</span>
+                  <div key={booking.id} className={mobileCardClassName}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className={isLightOperational ? 'text-[14px] font-semibold text-[var(--admin-text)]' : 'text-white font-medium'}>{customerName}</p>
+                        <p className={isLightOperational ? 'mt-1 text-[13px] text-[var(--admin-text-secondary)]' : 'text-xs text-slate-400 mt-1'}>{formatDateTime(booking.scheduled_start)}</p>
+                      </div>
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11.5px] font-semibold ${badge.className}`}>{badge.label}</span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-1">{email}</p>
-                    <p className="text-sm text-slate-300 mt-2">{aircraft?.registration ?? 'VH-KZG'} · {formatDateTime(booking.scheduled_start)}</p>
-                  </Link>
+                    <p className={isLightOperational ? 'mt-3 text-[13px] font-medium text-[var(--admin-text)]' : 'text-sm text-slate-300 mt-2'}>
+                      {aircraft?.registration ?? 'VH-KZG'}
+                    </p>
+                    <p className={isLightOperational ? 'mt-1 text-[13px] text-[var(--admin-text-secondary)]' : 'text-xs text-slate-400 mt-1'}>{email}</p>
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <Link href={`/admin/bookings/requests/${booking.id}`} className={isLightOperational ? 'font-mono text-[13px] font-semibold text-[var(--admin-text)] transition-colors hover:text-[var(--admin-accent-blue)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(96,165,250,0.45)] focus-visible:ring-offset-2 focus-visible:ring-offset-white rounded-sm' : 'hover:underline hover:text-blue-400 transition-colors font-mono text-slate-300'}>
+                        {booking.booking_reference || booking.id.slice(0, 8).toUpperCase()}
+                      </Link>
+                      <Link href={`/admin/bookings/requests/${booking.id}`} className={actionButtonClassName}>
+                        View
+                      </Link>
+                    </div>
+                  </div>
                 )
               })}
             </div>

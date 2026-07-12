@@ -1,5 +1,9 @@
 export type StandardBookingSubmissionMode = 'send_invoice' | 'mark_paid' | 'waived'
 
+// How a "mark paid" settlement was actually received. Recorded on the ledger
+// row's payment_method for reconciliation; never affects the credit balance.
+export type ManualSettlementMethod = 'cash' | 'card_in_person' | 'bank_transfer'
+
 export type MinimumVdoDecision = 'enforce_minimum' | 'bill_actual'
 
 export type MinimumVdoBilling = {

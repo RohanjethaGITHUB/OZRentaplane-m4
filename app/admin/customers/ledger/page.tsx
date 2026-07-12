@@ -6,18 +6,18 @@ import AdminPortalHero from '@/components/AdminPortalHero'
 import { AdminDataTable, AdminStatusBadge } from '@/app/admin/components/AdminListView'
 import { getCustomerDerivedStatus, getCustomerDerivedStatusMeta, hasActiveCheckoutBooking } from '@/app/admin/customers/customer-status'
 
-export const metadata = { title: 'Customer Ledger | Admin' }
+export const metadata = { title: 'Customer Billing | Admin' }
 export default async function CustomerCreditsPage({ searchParams }: { searchParams: { customerId?: string; q?: string } }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: customers }, { data: balances }, { data: checkoutBookings }] = await Promise.all([
+  const [{ data: customers }, { data: revenueRows }, { data: checkoutBookings }] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, full_name, email, account_status, pilot_clearance_status')
       .eq('role', 'customer'),
-    supabase.from('customer_credit_balances').select('customer_id, balance_cents'),
+    supabase.from('customer_payment_ledger').select('customer_id, amount_cents').gt('amount_cents', 0),
     supabase.from('bookings').select('booking_owner_user_id, status, checkout_lifecycle_status').eq('booking_type', 'checkout').not('booking_owner_user_id', 'is', null),
   ])
   const usersWithCheckoutRequests = new Set(
@@ -26,7 +26,11 @@ export default async function CustomerCreditsPage({ searchParams }: { searchPara
       .map((b) => b.booking_owner_user_id)
       .filter(Boolean),
   )
-  const balanceMap = new Map((balances ?? []).map((b) => [b.customer_id, b.balance_cents]))
+  const totalPaidByCustomer = new Map<string, number>()
+  for (const row of revenueRows ?? []) {
+    if (!row.customer_id) continue
+    totalPaidByCustomer.set(row.customer_id, (totalPaidByCustomer.get(row.customer_id) ?? 0) + (row.amount_cents ?? 0))
+  }
   const rows = (customers ?? []).map((c) => {
     const status = getCustomerDerivedStatus({
       accountStatus: c.account_status,
@@ -37,7 +41,7 @@ export default async function CustomerCreditsPage({ searchParams }: { searchPara
       id: c.id,
       name: c.full_name || 'Unnamed customer',
       email: c.email || 'No email',
-      balanceCents: balanceMap.get(c.id) ?? 0,
+      totalPaidCents: totalPaidByCustomer.get(c.id) ?? 0,
       status,
     }
   })
@@ -50,8 +54,8 @@ export default async function CustomerCreditsPage({ searchParams }: { searchPara
     <>
       <AdminPortalHero
         eyebrow="Customers"
-        title="Customer Ledger"
-        subtitle="Credits, payments, manual payments, and refunds."
+        title="Customer Billing"
+        subtitle="Cumulative money paid in, alongside customer credit history and adjustments."
       />
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24 space-y-8">
         <section className="space-y-4">
@@ -64,7 +68,7 @@ export default async function CustomerCreditsPage({ searchParams }: { searchPara
               className="w-full md:w-[360px] rounded-lg border border-[rgba(12,35,64,0.18)] bg-white px-3.5 py-2.5 text-sm text-[#0C2340] placeholder:text-[#3d5a80] focus:outline-none focus:ring-1 focus:ring-[#1a4a7a]/40"
             />
           </form>
-          <AdminDataTable columns={['Customer', 'Balance', 'Status']}>
+          <AdminDataTable columns={['Customer', 'Total Paid', 'Status']}>
             {filteredRows.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-5 py-12 text-center text-[var(--admin-text-muted)]">
@@ -74,12 +78,7 @@ export default async function CustomerCreditsPage({ searchParams }: { searchPara
             ) : (
               filteredRows.map((r) => {
                 const status = getCustomerDerivedStatusMeta(r.status)
-                const amountClass =
-                  r.balanceCents > 0
-                    ? 'text-[#86efac]'
-                    : r.balanceCents < 0
-                    ? 'text-[#f4cd7a]'
-                    : 'text-[var(--admin-text-muted)]'
+                const amountClass = r.totalPaidCents > 0 ? 'text-[#86efac]' : 'text-[var(--admin-text-muted)]'
                 return (
                   <tr key={r.id} className="border-t border-[var(--admin-divider)] hover:bg-[var(--admin-row-hover)] transition-colors">
                     <td className="px-5 py-[16px]">
@@ -90,7 +89,7 @@ export default async function CustomerCreditsPage({ searchParams }: { searchPara
                     </td>
                     <td className={`px-5 py-[16px] text-[15px] font-semibold tabular-nums ${amountClass}`}>
                       <Link href={`/admin/customers/ledger?customerId=${r.id}`} className="block">
-                        {r.balanceCents < 0 ? '-' : ''}{money(r.balanceCents)}
+                        {money(r.totalPaidCents)}
                       </Link>
                     </td>
                     <td className="px-5 py-[16px]">

@@ -101,29 +101,176 @@ html {
   content: none;
 }
 
-/* Admin design tokens (Stitch benchmark direction) */
+/* Admin design tokens */
 .admin-theme {
-  --admin-bg:              #cfe3f5;
-  --admin-sidebar-bg:      #0C2340;
-  --admin-content-bg:      #ffffff;
-  --admin-panel-bg:        #ffffff;
-  --admin-panel-bg-soft:   #f0f6ff;
-  --admin-card-bg:         #ffffff;
-  --admin-input-bg:        #ffffff;
-  --admin-button-bg:       rgba(22, 104, 197, 0.10);
-  --admin-border:          rgba(12, 35, 64, 0.12);
-  --admin-divider:         rgba(12, 35, 64, 0.08);
-  --admin-accent:          #1a4fd6;
-  --admin-accent-soft:     rgba(96, 165, 250, 0.22);
-  --admin-warning:         #b45309;
-  --admin-text-dim:        #94a3b8;
-  --admin-radius-xl:       1.25rem;
-  --admin-radius-2xl:      1.875rem;
-  --admin-shadow-panel:    0 10px 44px rgba(2, 7, 18, 0.45);
-  --admin-text:            #0C2340;
-  --admin-text-muted:      #4b6390;
-  --admin-text-secondary:  #64748b;
-  color:                   #0C2340;
+  --admin-background:       #eef5fb;
+  --admin-bg:               var(--admin-background);
+  --admin-content-bg:       #f7fbff;
+  --admin-muted-surface:    #f3f7fb;
+  --admin-panel-bg:         #ffffff;
+  --admin-panel-bg-soft:    #f3f7fd;
+  --admin-card-bg:          #ffffff;
+  --admin-input-bg:         #ffffff;
+  --admin-sidebar-bg:       #0b1f3a;
+  --admin-sidebar-active:    #173a65;
+  --admin-sidebar-border:    rgba(148, 163, 184, 0.16);
+  --admin-sidebar-text:      #d6e3ff;
+  --admin-sidebar-text-dim:  #a8bbd8;
+  --admin-sidebar-glow:      rgba(96, 165, 250, 0.10);
+  --admin-sidebar-active-glow: rgba(59, 130, 246, 0.18);
+  --admin-primary-navy:      #0C2340;
+  --admin-accent-blue:       #1a4fd6;
+  --admin-success:           #166534;
+  --admin-warning:           #b45309;
+  --admin-danger:            #b91c1c;
+  --admin-info:              #1d4ed8;
+  --admin-neutral:           #64748b;
+  --admin-border:            rgba(12, 35, 64, 0.12);
+  --admin-card-border:       rgba(12, 35, 64, 0.10);
+  --admin-divider:           rgba(12, 35, 64, 0.08);
+  --admin-accent:            var(--admin-accent-blue);
+  --admin-accent-soft:       rgba(96, 165, 250, 0.22);
+  --admin-button-bg:         rgba(22, 104, 197, 0.10);
+  --admin-text:              var(--admin-primary-navy);
+  --admin-text-muted:        #4b6390;
+  --admin-text-secondary:    #64748b;
+  --admin-text-dim:          #94a3b8;
+  --admin-radius:            1rem;
+  --admin-radius-xl:         1.25rem;
+  --admin-radius-2xl:        1.875rem;
+  --admin-soft-shadow:       0 14px 36px rgba(2, 7, 18, 0.08);
+  --admin-shadow-panel:      var(--admin-soft-shadow);
+  --admin-font-body:         var(--font-manrope), system-ui, sans-serif;
+  --admin-font-display:      var(--font-newsreader), Georgia, serif;
+  --admin-text-xs:           0.8125rem;
+  --admin-text-sm:           0.9375rem;
+  --admin-text-base:         1rem;
+  --admin-text-md:           1.0625rem;
+  --admin-text-lg:           1.1875rem;
+  --admin-text-xl:           1.5rem;
+  --admin-text-page-title:   clamp(2.4rem, 3.2vw, 3.85rem);
+  --admin-leading-body:      1.58;
+  --admin-leading-heading:   1.08;
+  --admin-tracking-heading:  -0.02em;
+  color:                     var(--admin-primary-navy);
+}
+
+.admin-command-pilot {
+  --admin-canvas:           #e7eff7;
+  --admin-workspace:        transparent;
+  --admin-module:           #ffffff;
+  --admin-inset:            #f2f6fb;
+  --admin-row:              #ffffff;
+  --admin-row-hover:        #f5f9ff;
+  --admin-row-selected:     #eaf2ff;
+
+  --admin-border-strong:    rgba(12, 35, 64, 0.18);
+  --admin-border-default:   rgba(12, 35, 64, 0.12);
+  --admin-border-soft:      rgba(12, 35, 64, 0.08);
+  --admin-border-hover:     rgba(26, 79, 214, 0.22);
+  --admin-border-focus:     rgba(26, 79, 214, 0.34);
+
+  --admin-text-primary:     #142b4d;
+  --admin-text-secondary:   #4f6484;
+  --admin-text-muted:       #73859f;
+
+  --admin-sidebar-navy:     #0b1f3a;
+  --admin-primary-navy:     #0c2340;
+  --admin-primary-blue:     #1a4fd6;
+
+  --admin-success:          #1f6a43;
+  --admin-warning:          #b26a12;
+  --admin-danger:           #b44141;
+  --admin-info:             #2458c5;
+  --admin-neutral:          #66768b;
+
+  --admin-radius-module:    16px;
+  --admin-radius-card:      12px;
+  --admin-radius-row:       10px;
+  --admin-radius-control:   10px;
+  --admin-radius-badge:     999px;
+
+  --admin-shadow-module:    0 10px 26px rgba(15, 30, 52, 0.08);
+  --admin-shadow-card:      0 6px 16px rgba(15, 30, 52, 0.05);
+  --admin-shadow-row-hover: 0 8px 18px rgba(15, 30, 52, 0.08);
+  --admin-shadow-dropdown:  0 14px 32px rgba(15, 30, 52, 0.14);
+  --admin-shadow-modal:     0 24px 56px rgba(15, 30, 52, 0.18);
+
+  --admin-bg:               var(--admin-canvas);
+  --admin-content-bg:       var(--admin-workspace);
+  --admin-panel-bg:         var(--admin-module);
+  --admin-panel-bg-soft:    var(--admin-inset);
+  --admin-card-bg:          var(--admin-row);
+  --admin-input-bg:         var(--admin-module);
+  --admin-border:           var(--admin-border-default);
+  --admin-card-border:      var(--admin-border-default);
+  --admin-divider:          var(--admin-border-soft);
+  --admin-accent-blue:      var(--admin-primary-blue);
+  --admin-accent:           var(--admin-primary-blue);
+  --admin-accent-soft:      rgba(26, 79, 214, 0.12);
+  --admin-button-bg:        rgba(26, 79, 214, 0.08);
+  --admin-text:             var(--admin-text-primary);
+  --admin-text-dim:         var(--admin-text-muted);
+  --admin-radius-xl:        var(--admin-radius-card);
+  --admin-radius-2xl:       var(--admin-radius-module);
+  --admin-soft-shadow:      var(--admin-shadow-card);
+  --admin-shadow-panel:     var(--admin-shadow-module);
+  --admin-text-sm:          0.875rem;
+  --admin-text-base:        0.875rem;
+  --admin-text-md:          0.9375rem;
+  --admin-leading-body:     1.5;
+  --admin-leading-heading:  1.14;
+  --admin-tracking-heading: -0.012em;
+  color:                    var(--admin-text-primary);
+  background-color:         var(--admin-canvas);
+  font-family:              var(--font-manrope), system-ui, sans-serif;
+}
+
+.admin-customer-directory-pilot {
+  --customer-directory-navy: #0c2340;
+  --customer-directory-row-hover: #f5f9ff;
+  font-family: var(--font-manrope), system-ui, sans-serif;
+}
+
+.admin-customer-directory-pilot .customer-directory-scroll-target {
+  scroll-margin-top: 92px;
+}
+
+@media (min-width: 768px) {
+  .admin-customer-directory-pilot .customer-directory-scroll-target {
+    scroll-margin-top: 32px;
+  }
+}
+
+.admin-booking-directory-pilot {
+  --booking-directory-navy: #0c2340;
+  --booking-directory-row-hover: #f5f9ff;
+  font-family: var(--font-manrope), system-ui, sans-serif;
+}
+
+.admin-booking-directory-pilot .booking-directory-scroll-target {
+  scroll-margin-top: 92px;
+}
+
+@media (min-width: 768px) {
+  .admin-booking-directory-pilot .booking-directory-scroll-target {
+    scroll-margin-top: 32px;
+  }
+}
+
+.admin-calendar-pilot {
+  --calendar-canvas: #eef5fb;
+  --calendar-module: #ffffff;
+  --calendar-inset: #f4f8fd;
+  --calendar-border: rgba(12, 35, 64, 0.10);
+  --calendar-border-soft: rgba(12, 35, 64, 0.08);
+  --calendar-text: #152d5a;
+  --calendar-text-muted: #4b6390;
+  --calendar-text-dim: #94a3b8;
+  --calendar-accent: #1a4fd6;
+  background: var(--calendar-canvas);
+  color: var(--calendar-text);
+  font-family: var(--font-manrope), system-ui, sans-serif;
 }
 
 /* Customer dashboard design tokens */

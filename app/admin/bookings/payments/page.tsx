@@ -7,6 +7,29 @@ import { AdminRowActionButton, AdminStatusBadge } from '@/app/admin/components/A
 
 type Tab = 'all' | 'payment_required' | 'manual_review' | 'pending' | 'paid' | 'refunded' | 'cancelled'
 
+type BookingInvoiceRow = {
+  id: string
+  booking_id: string | null
+  status: string
+  payment_method: string | null
+  subtotal_cents: number | null
+  stripe_amount_due_cents: number | null
+  total_paid_cents: number | null
+  created_at: string | null
+  updated_at: string | null
+  paid_at: string | null
+}
+
+type BookingBankTransferSubmissionRow = {
+  id: string
+  invoice_id: string | null
+  booking_id: string | null
+  status: string
+  reference: string | null
+  submitted_at: string | null
+  reviewed_at: string | null
+}
+
 function getTab(v?: string): Tab {
   const allowed: Tab[] = ['all', 'payment_required', 'manual_review', 'pending', 'paid', 'refunded', 'cancelled']
   return allowed.includes((v ?? 'all') as Tab) ? (v as Tab) : 'all'
@@ -22,9 +45,10 @@ function paymentStatusMeta(status: string) {
   switch (status) {
     case 'payment_required':
       return { label: 'Payment Required', tone: 'amber' as const }
+    case 'payment_review_pending':
     case 'bank_transfer_pending_review':
     case 'manual_review':
-      return { label: 'Manual Review', tone: 'amber' as const }
+      return { label: 'Payment Review Pending', tone: 'amber' as const }
     case 'pending':
       return { label: 'Pending', tone: 'blue' as const }
     case 'paid':
@@ -49,14 +73,31 @@ export default async function BookingPaymentsPage({ searchParams }: { searchPara
   if (!user) redirect('/login')
 
   const tab = getTab(searchParams.tab)
-  const [{ data: invoices }, { data: manualReviewInvoices }] = await Promise.all([
+  const [{ data: invoices }, { data: pendingReviewSubmissions }] = await Promise.all([
     supabase.from('booking_invoices').select('id, booking_id, status, payment_method, subtotal_cents, stripe_amount_due_cents, total_paid_cents, created_at, updated_at, paid_at').order('updated_at', { ascending: false }),
-    supabase.from('booking_invoices').select('id, booking_id, status, payment_method, subtotal_cents, stripe_amount_due_cents, total_paid_cents, created_at, updated_at, paid_at').eq('status', 'bank_transfer_pending_review').order('updated_at', { ascending: false }),
+    supabase
+      .from('booking_bank_transfer_submissions')
+      .select('id, invoice_id, booking_id, status, reference, submitted_at, reviewed_at')
+      .eq('status', 'pending_review')
+      .order('submitted_at', { ascending: false })
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false }),
   ])
 
+  const invoiceRows = (invoices ?? []) as BookingInvoiceRow[]
+  const pendingReviewRows = (pendingReviewSubmissions ?? []) as BookingBankTransferSubmissionRow[]
+  const latestPendingReviewByInvoice = new Map<string, BookingBankTransferSubmissionRow>()
+  for (const submission of pendingReviewRows) {
+    if (!submission.invoice_id) continue
+    if (!latestPendingReviewByInvoice.has(submission.invoice_id)) {
+      latestPendingReviewByInvoice.set(submission.invoice_id, submission)
+    }
+  }
+  const manualReviewSubmissions = Array.from(latestPendingReviewByInvoice.values())
+
   const bookingIds = Array.from(new Set([
-    ...(invoices ?? []).map((i) => i.booking_id).filter(Boolean),
-    ...(manualReviewInvoices ?? []).map((i) => i.booking_id).filter(Boolean),
+    ...invoiceRows.map((i) => i.booking_id).filter(Boolean),
+    ...manualReviewSubmissions.map((s) => s.booking_id).filter(Boolean),
   ]))
   const { data: bookingRows } = bookingIds.length ? await supabase.from('bookings').select('id, booking_reference, pic_name, booking_owner_user_id, scheduled_start').in('id', bookingIds) : { data: [] }
   const customerIds = Array.from(new Set((bookingRows ?? []).map((b: any) => b.booking_owner_user_id).filter(Boolean)))
@@ -73,26 +114,29 @@ export default async function BookingPaymentsPage({ searchParams }: { searchPara
     return { name, email: c?.email ?? '—' }
   }
 
+  const invoiceMap = new Map(invoiceRows.map((invoice) => [invoice.id, invoice]))
+
   const rows = (tab === 'manual_review'
-    ? (manualReviewInvoices ?? []).map((i) => {
-        const customer = customerForBooking(i.booking_id)
-        const b: any = bookingMap.get(i.booking_id)
+    ? manualReviewSubmissions.map((submission) => {
+        const invoice = submission.invoice_id ? invoiceMap.get(submission.invoice_id) ?? null : null
+        const customer = customerForBooking(submission.booking_id)
+        const b: any = bookingMap.get(submission.booking_id)
         return {
-          id: i.id,
+          id: submission.id,
           ownerId: b?.booking_owner_user_id ?? null,
           customer: customer.name,
           email: customer.email,
-          booking_ref: b?.booking_reference ?? (i.booking_id ? i.booking_id.slice(0, 8).toUpperCase() : '—'),
+          booking_ref: b?.booking_reference ?? (submission.booking_id ? submission.booking_id.slice(0, 8).toUpperCase() : '—'),
           flight_date: b?.scheduled_start,
-          amount_cents: i.stripe_amount_due_cents ?? i.subtotal_cents ?? 0,
-          status: i.status,
-          method: i.payment_method ?? 'bank_transfer',
-          created: i.created_at,
-          updated: i.updated_at,
-          href: i.booking_id ? `/admin/bookings/requests/${i.booking_id}` : '/admin/bookings/payments',
+          amount_cents: invoice?.stripe_amount_due_cents ?? invoice?.subtotal_cents ?? 0,
+          status: 'payment_review_pending',
+          method: invoice?.payment_method ?? 'bank_transfer',
+          created: submission.submitted_at,
+          updated: submission.reviewed_at ?? submission.submitted_at,
+          href: submission.booking_id ? `/admin/bookings/requests/${submission.booking_id}` : '/admin/bookings/payments',
         }
       })
-    : (invoices ?? [])
+    : invoiceRows
         .filter((i) => {
           if (tab === 'all') return true
           if (tab === 'payment_required') return i.status === 'payment_required'
@@ -121,10 +165,10 @@ export default async function BookingPaymentsPage({ searchParams }: { searchPara
           }
         }))
 
-  const totalCollected = (invoices ?? []).filter((i) => i.status === 'paid').reduce((sum, i) => sum + (i.total_paid_cents ?? 0), 0)
-  const outstanding = (invoices ?? []).filter((i) => ['payment_required', 'pending'].includes(i.status)).reduce((sum, i) => sum + (i.stripe_amount_due_cents ?? 0), 0)
-  const manualReviewCount = (manualReviewInvoices ?? []).length
-  const refunds = (invoices ?? []).filter((i) => ['refunded', 'void'].includes(i.status)).length
+  const totalCollected = invoiceRows.filter((i) => i.status === 'paid').reduce((sum, i) => sum + (i.total_paid_cents ?? 0), 0)
+  const outstanding = invoiceRows.filter((i) => ['payment_required', 'pending', 'bank_transfer_pending_review'].includes(i.status)).reduce((sum, i) => sum + (i.stripe_amount_due_cents ?? 0), 0)
+  const manualReviewCount = manualReviewSubmissions.length
+  const refunds = invoiceRows.filter((i) => ['refunded', 'void'].includes(i.status)).length
 
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: 'all', label: 'All' },
@@ -206,7 +250,7 @@ export default async function BookingPaymentsPage({ searchParams }: { searchPara
                       </td>
                       <td className="px-5 py-4 text-[var(--admin-text-muted)]">{r.email}</td>
                       <td className="px-5 py-4 font-medium text-[var(--admin-text)]">
-                        <Link href={`/admin/bookings/requests/${r.id}`} className="hover:underline hover:text-blue-400 transition-colors font-mono">
+                        <Link href={r.href} className="hover:underline hover:text-blue-400 transition-colors font-mono">
                           {r.booking_ref}
                         </Link>
                       </td>

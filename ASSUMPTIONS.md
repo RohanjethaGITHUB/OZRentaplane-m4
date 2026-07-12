@@ -5,6 +5,13 @@ Prerequisites verified before starting: migration 101 is applied to the live dat
 ## Working tree note
 
 - **Uncommitted changes to `app/dashboard/bookings/new/` were found and left untouched.** They are a display-only "rate context" panel (block time balance vs PAYF rate on the booking form) from other in-flight work. Nothing in this task depends on them; the overage gate for new bookings was installed server-side in `createBooking()`, which that form calls, so the gate holds regardless of that panel's fate.
+- **The post-flight hydration fix uses a new shared short-date helper.** I chose a deterministic `10 Jul`-style formatter instead of keeping `toLocaleDateString`, because the bug was caused by SSR/CSR locale drift and the page already had a compact short-date affordance. That keeps the visible format stable without widening the UI beyond the original no-year treatment.
+
+## Post-flight review routing
+
+- **`/admin/bookings/post-flight/[id]` is a separate live review route, not a dead alias for `requests/[id]`.** The sidebar still exposes both the "Awaiting Flight Records" queue and the "Post-flight Review" queue, and the post-flight detail page reuses `AdminStandardBillingPanel` by composition. Its bug was route-level context wiring: it was passing the aircraft default rate instead of the shared PAYF fallback and was not supplying the active block-time purchase row that the shared billing panel uses to lock the rate for block-time customers.
+- **The duration source should be the canonical booking row, not the nested `record.bookings` relation.** For this route, I switched the panel inputs to a direct `bookings` lookup keyed by `record.booking_id` so the scheduled window and `bookingSlotHours` come from the same booking row shape used by the requests flow.
+- **The previous ID-shape fallback verification was on substitute data and did not prove this literal booking.** On `/admin/bookings/post-flight/af46e50a-06fe-47d0-9eee-4a5498446fc2`, the page now resolves as a real flight record (`vdo_total = 10.0h`) linked to booking `4afaa974-8c3a-4a11-b4fc-ad8ce6283933` with `scheduled_start = 2026-10-01T23:15:00Z` and `scheduled_end = 2026-10-04T13:45:00Z`; the helper computes `bookingSlotHours = 62.5`, `bookingDays = 2`, and `minimumVdoHours = 8.0`. Because `actualVdoHours` is above the minimum, the yellow below-minimum box should not render for this specific booking.
 
 ## Step 1 — Remove manual dispatch
 
@@ -219,8 +226,36 @@ The customer-facing warning will reuse the same helper and only inform the pilot
 ## 1. Reuse an existing non-credit ledger type
 The checkout admin "mark paid in person" path should keep its current invoice-settlement flow, but the ledger entry must not be `manual_adjustment` because that is included in `customer_credit_balances`. `bank_transfer` is the least disruptive existing entry type that is excluded from the spendable-credit view, so I will reuse it for this audit row rather than adding a migration.
 
+# Assumptions & Judgment Calls — Standard booking "Mark Paid" credit leak fix (2026-07-09)
+
+## 1. Follow the checkout pattern for the ledger row only
+The standard-booking admin "Mark Paid" path should keep the same settlement and UI flow, but its ledger row must not stay `manual_adjustment` because that is counted by `customer_credit_balances`. I treated `bank_transfer` as the correct non-spendable audit type here too, and left checkout and block-time settlement paths unchanged.
+
 ## 2. Preserve the descriptive audit trail
 The admin-facing note and `payment_method` field will continue to describe the actual in-person payment method, so operations can still see that the invoice was settled in person even though the ledger entry itself is non-credit-bearing.
+
+# Assumptions & Judgment Calls — Restore Billing Summary visibility in post-flight submit panel (2026-07-09)
+
+## 1. Section D should follow the same readiness gate as the standard billing panel
+The submit-flight panel should render the billing summary whenever the readings are valid and the hourly rate is valid, even when actual VDO is `0.0h`. Hiding the section behind `vdoReading > 0` was the regression, and the sibling standard billing panel already uses the broader `totals && validHourlyRate` condition.
+
+# Assumptions & Judgment Calls — Hide submit UI after booking is closed (2026-07-09)
+
+## 1. Closed standard bookings should lose the submit affordance entirely
+Once the lifecycle resolves to `paid_closed`, the green post-flight summary stays read-only and the admin submit panel is no longer mounted. The backend finaliser still has to reject stale retries, but the UI should no longer offer the action on a booking that is already paid and closed.
+
+# Assumptions & Judgment Calls — Standard booking charges card should read finalized invoice data (2026-07-09)
+
+## 1. Use `booking_invoices` for finalized standard bookings
+The "Charges & payment" card on the admin booking page should read the settled standard booking invoice from `booking_invoices`, not the checkout-only invoice table. For closed standard bookings, the billed VDO hours can be derived from the finalized invoice base amount and hourly rate, while the paid state comes from the finalized invoice status/paid amount.
+
+# Assumptions & Judgment Calls — Standard booking PDF generation and download fallback (2026-07-09)
+
+## 1. A waived standard booking invoice does not get a PDF
+I treated `waived` as a no-document case rather than inventing a zero-due receipt, because the customer did not pay anything and the PDF should stay truthful about settlement state.
+
+## 2. Missing PDFs regenerate on demand
+For older standard bookings that predate this feature, the fallback route regenerates the PDF from `booking_invoices` on first click and then redirects to the stored file, so the customer and admin links always have a real target without adding a dead button.
 
 # Assumptions & Judgment Calls — Show checkout in-person payments in the admin Transactions panel (2026-07-07)
 
@@ -308,3 +343,28 @@ The booking invoice is marked paid, the ledger row uses a null payment method, a
 
 ## 21. Block-time landing fees follow the same no-preselection pattern
 The drawdown still routes to await payment / settle manual / waive, but the landing invoice no longer gets a forced payment-method stamp from the admin side.
+
+# Assumptions & Judgment Calls — Admin customer bookings tab should show full standard-booking history (2026-07-09)
+
+## 22. The admin customer-detail bookings tab is a history view, not a three-row preview
+I removed the `.limit(3)` cap from the standard-bookings query in `app/admin/users/[id]/page.tsx` so the Bookings tab shows the customer's full standard-booking history, including `pending_post_flight_review` rows like the under-review booking surfaced in the post-flight queue. I left the existing status badges and ordering intact, so completed, in-review, and cancelled rows all remain visible with their real status labels.
+
+## 23. Uncapped Action Queue Fetching
+open-action queries now fetch uncapped; acceptable at single-airport / single-aircraft volume; revisit pagination only if open-action counts routinely exceed ~50 in a category.
+
+# Assumptions & Judgment Calls — Launch-blocker fixes from the 2026-07-10 checkpoint audit (2026-07-11)
+
+## 24. The credit balance view is now an explicit allowlist (migration 111 — pending manual apply)
+`customer_credit_balances` previously counted `manual_adjustment` toward the spendable balance, which is what let three separate settlement paths mint phantom credit this week. Migration `111_credit_balance_allowlist.sql` restricts the view to the four credit-lifecycle entry types (`advance_credit`, `advance_applied`, `credit_reversed`, `credit_refunded`) so no settlement-shaped ledger row can ever be spendable, regardless of what entry_type a future call site picks. This is safe because nothing legitimate writes `manual_adjustment` (the only code writer was the block-time settle bug) and the live table contains zero such rows. Note the allowlist cannot be `advance_credit` alone: `advance_applied` / `credit_reversed` / `credit_refunded` are the negative offsets that make the balance decrease. **The migration must be applied manually via the Supabase dashboard; until then the code-level fix below already prevents the bug.**
+
+## 25. Block-time manual settles are audit-only ledger rows, like the other two mark-paid paths
+`adminSettleBlockTimeInvoice` now always writes `entry_type: 'bank_transfer'` (the established "audit trail, not credit" pattern from the checkout and standard-booking fixes) and preserves the real method in `payment_method`. A fourth occurrence of this bug class at a new call site is still possible until migration 111 is applied — the view fix is the systemic guard, the entry_type is the convention.
+
+## 26. Mark-paid now captures how the money was received (supersedes part of #20/#21)
+Both admin billing panels show a "Payment method received" selector (cash / card in person / bank transfer, defaulting to cash like the checkout panel) only when "Mark paid" is selected. The method flows through `finaliseStandardBookingInvoice` / `adminSubmitFlightRecord` into the ledger row, the landing-fee invoice's `payment_method`, and the booking audit event. Send-invoice and waived flows still record no method (#19 unchanged).
+
+## 27. The PAYF fallback fires only on the literal "no active block time package" error
+`finaliseStandardBookingInvoice` previously fell back to PAYF billing on any Postgres `P0001` from `process_block_time_flight`; migration 108's `Unauthorized` guard shares that code, so a guard failure would have silently billed the pilot at $330/hr. The fallback now matches only the "No active block time package" message (the expired/exhausted race it was designed for); every other drawdown error aborts the finalisation with an explicit "NO billing was performed" error and leaves the booking in post-flight review. Live-verified both branches by driving the compiled server action against the real database with an intercepted RPC.
+
+## 28. The billing suite drives the drawdown as an authenticated admin
+`test_post_flight_billing_suite.mjs` `drawdown()` now uses the suite's authenticated admin session client instead of service-role, because migration 108's guard requires `auth.uid()` to resolve to an admin (service-role calls have a NULL `auth.uid()`). This matches how the app itself calls the RPC. Suite re-verified at 78/78 against the live database.

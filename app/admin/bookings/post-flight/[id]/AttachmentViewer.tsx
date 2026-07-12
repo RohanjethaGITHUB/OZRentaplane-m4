@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import DocumentViewerModal from '@/components/ui/DocumentViewerModal'
 import type { DocumentFile } from '@/components/ui/DocumentViewerModal'
+import { formatDateFromISOShort } from '@/lib/formatDateTime'
 
 type Attachment = {
   signedUrl: string
@@ -60,10 +61,7 @@ export default function AttachmentViewer({ attachments }: Props) {
                   <div className="w-full p-2 translate-y-full group-hover:translate-y-0 transition-transform">
                     <p className="text-[9px] text-white/90 truncate leading-tight">{att.file_name}</p>
                     <p className="text-[8px] text-white/70">
-                      {new Date(att.created_at).toLocaleDateString('en-AU', {
-                        timeZone: 'Australia/Sydney',
-                        day: 'numeric', month: 'short',
-                      })}
+                      {formatDateFromISOShort(att.created_at)}
                       {att.file_size != null && ` · ${(att.file_size / 1024).toFixed(0)} KB`}
                     </p>
                   </div>

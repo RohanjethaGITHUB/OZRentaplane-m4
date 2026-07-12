@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import AdminPortalHero from '@/components/AdminPortalHero'
+import { AdminPageHeader } from '@/app/admin/components/AdminUi'
 import CustomerDirectoryTable from './CustomerDirectoryTable'
 import { getCustomerDerivedStatus, getStatusFromQuery, hasActiveCheckoutBooking } from '@/app/admin/customers/customer-status'
 import { getAttentionAssessment } from '@/app/admin/customers/attention-reason'
@@ -94,6 +94,7 @@ export default async function AllCustomersPage({ searchParams }: { searchParams:
         fullName: p.full_name || 'Unnamed customer',
         email: p.email || 'No email',
         phone: p.phone_number ? (p.phone_country_code ? `+${p.phone_country_code} ${p.phone_number}` : p.phone_number) : null,
+        updatedAt: p.updated_at,
         lifecycleStatus: derivedStatus,
         needsAttention: attention.hasIssue,
         attentionReason: attention.hasIssue ? attention.reason : null,
@@ -102,16 +103,20 @@ export default async function AllCustomersPage({ searchParams }: { searchParams:
 
   return (
     <>
-      <AdminPortalHero eyebrow="Customers" title="Customer Directory" subtitle="Search and filter all customer accounts." />
-      <div className="max-w-[1400px] mx-auto px-6 md:px-10 pt-6">
-        <Link
-          href="/admin/customers/new"
-          className="inline-flex items-center rounded-lg bg-[#1a4a7a] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#153d66]"
-        >
-          Add New Customer
-        </Link>
-      </div>
-      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24 space-y-6">
+      <AdminPageHeader
+        eyebrow="Customers"
+        title="Customer Directory"
+        subtitle="Search, filter, and manage customer accounts and operational readiness."
+        actions={(
+          <Link
+            href="/admin/customers/new"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[rgba(96,165,250,0.24)] bg-[rgba(22,104,197,0.10)] px-4 py-2.5 text-sm font-semibold text-[var(--admin-accent-blue)] transition-colors hover:bg-[rgba(37,99,235,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(96,165,250,0.45)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+          >
+            Add Customer
+          </Link>
+        )}
+      />
+      <div className="admin-customer-directory-pilot mx-auto max-w-[1440px] space-y-6 px-4 py-6 pb-24 sm:px-6 sm:py-8 md:px-8 lg:px-10">
         <CustomerDirectoryTable rows={rows} initialFilter={activeStatus} />
       </div>
     </>

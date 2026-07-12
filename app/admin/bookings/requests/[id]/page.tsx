@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { CalendarDays, Clock, Plane, User } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { formatDateTime } from '@/lib/formatDateTime'
-import { formatSydTime } from '@/lib/utils/sydney-time'
 import AdminBookingActions from './AdminBookingActions'
 import AdminCheckoutActions from './AdminCheckoutActions'
 import AdminCheckoutReviewPanel from './AdminCheckoutReviewPanel'
@@ -21,10 +20,12 @@ import AdminStandardBankTransferPanel from './AdminStandardBankTransferPanel'
 import AdminCancellationReviewCard from './AdminCancellationReviewCard'
 import AdminHoldBookingActions from './AdminHoldBookingActions'
 import { deriveBookingLifecycleStage } from '@/lib/booking/booking-lifecycle-stage'
+import { isStandardBookingInvoicePaid } from '@/lib/booking/standard-booking-payment-state'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 import { getAircraftFlightLogStartSuggestions } from '@/lib/aircraft-flight-log'
 import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
 import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
+import { isSameSydneyCalendarDay, formatSydTime } from '@/lib/utils/sydney-time'
 
 export const metadata = { title: 'Booking Details | Admin' }
 
@@ -176,6 +177,38 @@ function getFlightReadingsBanner(input: {
         buttonLabel: 'Submit Flight Readings',
         buttonTone: 'secondary',
       }
+    case 'waived_closed':
+      return {
+        kind: 'confirmed',
+        tone: 'green',
+        title: 'Booking closed',
+        body: `Flight readings were submitted ${input.submittedAtLabel ? `on ${input.submittedAtLabel} ` : ''}and billing was waived.`,
+        linkLabel: 'View submitted record',
+        buttonLabel: 'Submit Flight Readings',
+        buttonTone: 'secondary',
+      }
+    case 'payment_review_pending':
+      return {
+        kind: 'exception',
+        tone: 'amber',
+        title: 'Booking closed',
+        body: 'Flight readings were approved. Bank-transfer payment is awaiting review.',
+        buttonLabel: 'Submit Flight Readings',
+        buttonTone: 'secondary',
+      }
+    case 'payment_required':
+    case 'payment_still_due':
+      return {
+        kind: 'exception',
+        tone: 'amber',
+        title: 'Booking closed',
+        body:
+          input.lifecycleKey === 'payment_still_due'
+            ? 'Flight readings were approved. A partial payment is recorded, but the booking still has an outstanding balance.'
+            : 'Flight readings were approved. Payment is still required to settle the booking.',
+        buttonLabel: 'Submit Flight Readings',
+        buttonTone: 'secondary',
+      }
     case 'cancelled':
       return {
         kind: 'exception',
@@ -304,11 +337,10 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const isStandardBillingPending = bookingType === 'standard' && booking.status === 'pending_post_flight_review'
   // Standard booking payment pending — show bank transfer panel if applicable
   const isStandardPaymentPending = bookingType === 'standard' && booking.status === 'payment_pending'
-  // Admin-initiated post-flight submission is available for all standard bookings.
-  const isAdminSubmitEligible = bookingType === 'standard'
+  const isStandardFlightRecordOpen = bookingType === 'standard' && booking.status !== 'completed'
   // Fetch airports and credit for checkout outcome form, standard billing panel,
   // and the admin post-flight submission panel
-  const needsAirportsAndCredit = isOutcomePending || isStandardBillingPending || isAdminSubmitEligible
+  const needsAirportsAndCredit = isOutcomePending || isStandardBillingPending || isStandardFlightRecordOpen
   const needsBillingPreview = bookingType === 'standard'
 
   const [
@@ -321,7 +353,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     { data: airportRows },
     { data: creditRow },
     { data: activeBlockTimeRow },
-    { data: bookingInvoiceStatusRow },
+    { data: standardBookingInvoiceRow },
     { data: flightRecordRow },
     { data: aircraftLogsRaw },
   ] = await Promise.all([
@@ -380,11 +412,13 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           .limit(1)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
-    supabase
-      .from('booking_invoices')
-      .select('status')
-      .eq('booking_id', booking.id)
-      .maybeSingle(),
+    bookingType === 'standard'
+      ? supabase
+          .from('booking_invoices')
+          .select('status, rate_cents_per_hour, vdo_reading, base_amount_cents, landing_subtotal_cents, subtotal_cents, stripe_amount_due_cents, total_paid_cents, payment_method, paid_at, pdf_url')
+          .eq('booking_id', booking.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
     // Flight record — fetched for standard billing panel
     isStandardBillingPending
       ? supabase.from('flight_records').select('*').eq('booking_id', booking.id).order('submitted_at', { ascending: false }).limit(1).maybeSingle()
@@ -475,8 +509,21 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         expiresAt: (activeBlockTimeRow as { expires_at: string }).expires_at,
       }
     : null
-  const bookingInvoiceStatus = (bookingInvoiceStatusRow as { status?: string | null } | null)?.status ?? null
+  const bookingInvoiceStatus = (standardBookingInvoiceRow as { status?: string | null } | null)?.status ?? null
   const billingStatusLabel = bookingInvoiceStatus ?? (booking as { payment_status?: string | null }).payment_status ?? null
+  const standardInvoice = (standardBookingInvoiceRow as {
+    status?: string | null
+    rate_cents_per_hour?: number | null
+    vdo_reading?: number | null
+    base_amount_cents?: number | null
+    landing_subtotal_cents?: number | null
+    subtotal_cents?: number | null
+    stripe_amount_due_cents?: number | null
+    total_paid_cents?: number | null
+    payment_method?: string | null
+    paid_at?: string | null
+    pdf_url?: string | null
+  } | null)
   const rawPhoneCountry = (customer as { phone_country_code?: string | null } | null)?.phone_country_code ?? null
   const rawPhoneNumber  = (customer as { phone_number?: string | null } | null)?.phone_number ?? null
   const customerPhone   = rawPhoneNumber
@@ -537,6 +584,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         .select('id, status, reference, receipt_storage_path, admin_note, submitted_at, reviewed_at')
         .eq('invoice_id', stdInvoiceRow.id)
         .order('submitted_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
 
       standardBankTransferSubmissions = await Promise.all(
         (stdSubs ?? []).map(async (sub) => {
@@ -578,12 +627,68 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     0,
     (new Date(booking.scheduled_end).getTime() - new Date(booking.scheduled_start).getTime()) / (1000 * 60 * 60),
   )
+  const bookingSchedule = formatBookingSchedule(booking.scheduled_start, booking.scheduled_end)
   const lifecycleStage = deriveBookingLifecycleStage({
     bookingStatus: booking.status,
     flightRecordStatus: booking.flight_records?.[0]?.status ?? null,
     bookingInvoiceStatus,
+    bookingInvoicePaidAt: standardInvoice?.paid_at ?? null,
+    bookingInvoiceAmountDueCents: standardInvoice?.stripe_amount_due_cents ?? null,
+    bookingInvoiceTotalPaidCents: standardInvoice?.total_paid_cents ?? null,
+    latestBankTransferSubmissionStatus: latestStdBankSub?.status ?? null,
     paymentStatus: (booking as { payment_status?: string | null }).payment_status ?? null,
   })
+  const chargesAndPayment = bookingType === 'standard'
+    ? standardInvoice
+      ? {
+          hourlyRateLabel: standardInvoice.rate_cents_per_hour
+            ? `$${(standardInvoice.rate_cents_per_hour / 100).toFixed(2)}/hr`
+            : '—',
+          vdoDurationLabel:
+            standardInvoice.base_amount_cents != null && standardInvoice.rate_cents_per_hour
+              ? `${(standardInvoice.base_amount_cents / standardInvoice.rate_cents_per_hour).toFixed(1)} hrs`
+              : standardInvoice.vdo_reading != null
+                ? `${standardInvoice.vdo_reading.toFixed(1)} hrs`
+                : 'Not recorded',
+          totalChargedLabel: standardInvoice.subtotal_cents != null
+            ? `$${(standardInvoice.subtotal_cents / 100).toFixed(2)}`
+            : '$—',
+          isPaid: isStandardBookingInvoicePaid({
+            invoiceStatus: standardInvoice.status,
+            invoicePaidAt: standardInvoice.paid_at,
+            invoiceAmountDueCents: standardInvoice.stripe_amount_due_cents,
+            invoiceTotalPaidCents: standardInvoice.total_paid_cents,
+          }),
+          paidAmountLabel: standardInvoice.total_paid_cents != null
+            ? `$${(standardInvoice.total_paid_cents / 100).toFixed(2)}`
+            : null,
+          paymentDetailLabel: standardInvoice.payment_method
+            ? `${standardInvoice.payment_method === 'bank_transfer' ? 'Bank transfer' : 'Card'} · ${standardInvoice.paid_at ? formatDateTime(standardInvoice.paid_at) : formatDateTime(booking.updated_at)}`
+            : standardInvoice.paid_at
+              ? formatDateTime(standardInvoice.paid_at)
+              : null,
+        }
+      : null
+    : checkoutInvoice
+      ? {
+          hourlyRateLabel: checkoutInvoice.checkout_rate_cents_per_hour
+            ? `$${(checkoutInvoice.checkout_rate_cents_per_hour / 100).toFixed(2)}/hr`
+            : '—',
+          vdoDurationLabel: checkoutInvoice.checkout_duration_hours
+            ? `${checkoutInvoice.checkout_duration_hours} hrs`
+            : 'Not recorded',
+          totalChargedLabel: checkoutInvoice.checkout_final_amount_cents
+            ? `$${(checkoutInvoice.checkout_final_amount_cents / 100).toFixed(2)}`
+            : '$—',
+          isPaid: (checkoutInvoice.total_paid_cents ?? 0) > 0,
+          paidAmountLabel: checkoutInvoice.total_paid_cents != null
+            ? `$${(checkoutInvoice.total_paid_cents / 100).toFixed(2)}`
+            : null,
+          paymentDetailLabel: checkoutInvoice.total_paid_cents && checkoutInvoice.total_paid_cents > 0
+            ? `Bank transfer · in person · ${formatDateTime(booking.updated_at)}`
+            : null,
+        }
+      : null
   // bookingType is already declared above (const bookingType = ...)
   const statusCfgBase = STATUS_CFG[status] ?? {
     label:  status.replace(/_/g, ' '),
@@ -639,6 +744,45 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       day: 'numeric',
       month: 'short',
     })
+  function formatSydneyDateParts(value: string) {
+    const parts = new Intl.DateTimeFormat('en-AU', {
+      timeZone: 'Australia/Sydney',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).formatToParts(new Date(value))
+    const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? ''
+    return {
+      day: get('day'),
+      month: get('month'),
+      year: get('year'),
+    }
+  }
+  function formatBookingDuration(hours: number) {
+    if (!Number.isFinite(hours) || hours <= 0) return null
+    const totalMinutes = Math.round(hours * 60)
+    const wholeHours = Math.floor(totalMinutes / 60)
+    const minutes = totalMinutes % 60
+    if (wholeHours > 0) return `${wholeHours}h ${String(minutes).padStart(2, '0')}m`
+    return `${minutes}m`
+  }
+  function getSydneyTimezoneAbbr(value: string) {
+    const match = formatDateTime(value).match(/\((AEST|AEDT)\)$/)
+    return match?.[1] ?? 'Sydney time'
+  }
+  function formatBookingSchedule(startIso: string, endIso: string) {
+    const startParts = formatSydneyDateParts(startIso)
+    const endParts = formatSydneyDateParts(endIso)
+    const dateRange = isSameSydneyCalendarDay(startIso, endIso)
+      ? `${startParts.day} ${startParts.month} ${startParts.year}`
+      : startParts.year === endParts.year
+        ? `${startParts.day} ${startParts.month} – ${endParts.day} ${endParts.month} ${endParts.year}`
+        : `${startParts.day} ${startParts.month} ${startParts.year} – ${endParts.day} ${endParts.month} ${endParts.year}`
+    const timeRange = `${formatSydTime(startIso)} – ${formatSydTime(endIso)}`
+    const duration = formatBookingDuration((new Date(endIso).getTime() - new Date(startIso).getTime()) / (1000 * 60 * 60))
+    const timezone = `Sydney time (${getSydneyTimezoneAbbr(startIso)})`
+    return { dateRange, timeRange, duration, timezone }
+  }
   const heroClearance = clearanceStatus === 'cleared_to_fly'
     ? { label: 'Cleared to fly', className: 'bg-[#1a4fd6]/20 text-[#93b4ff]' }
     : clearanceStatus === 'checkout_payment_required'
@@ -771,59 +915,78 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         </div>
       )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center">
-              <User className="w-4 h-4 text-gray-400" />
+        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="h-full rounded-[20px] border border-[rgba(12,35,64,0.10)] bg-white p-4 shadow-[0_8px_20px_rgba(15,30,52,0.04)]">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.9)]">
+                <User className="w-4 h-4 text-[var(--admin-text-muted)]" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">Customer</span>
             </div>
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Customer</span>
-          </div>
-          <Link href={`/admin/users/${customer?.id}`} className="text-sm font-semibold text-[#152d5a] hover:underline hover:text-blue-400 transition-colors">
-            {customer?.full_name ?? '—'}
-          </Link>
-          <p className="text-xs text-gray-400 mt-0.5">{customer?.email ?? '—'}</p>
-        </div>
-        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center">
-              <Plane className="w-4 h-4 text-gray-400" />
+            <div className="mt-3 min-w-0">
+              {customer?.id ? (
+                <Link
+                  href={`/admin/users/${customer.id}`}
+                  className="block truncate text-[15px] font-semibold text-[var(--admin-text)] transition-colors hover:text-[var(--admin-accent-blue)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.20)] focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                >
+                  {customer?.full_name ?? '—'}
+                </Link>
+              ) : (
+                <p className="truncate text-[15px] font-semibold text-[var(--admin-text)]">{customer?.full_name ?? '—'}</p>
+              )}
+              <p className="mt-1 truncate text-[12.5px] text-[var(--admin-text-muted)]">{customer?.email ?? '—'}</p>
             </div>
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Aircraft</span>
           </div>
-          <p className="text-sm font-semibold text-[#152d5a]">
-            {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/^Cessna 172$/, 'Cessna 172N') ?? 'Cessna 172N'}
-          </p>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {(aircraft as { registration?: string } | null)?.registration ?? 'VH-KZG'}
-          </p>
-        </div>
-        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center">
-              <CalendarDays className="w-4 h-4 text-gray-400" />
+
+          <div className="h-full rounded-[20px] border border-[rgba(12,35,64,0.10)] bg-white p-4 shadow-[0_8px_20px_rgba(15,30,52,0.04)]">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.9)]">
+                <Plane className="w-4 h-4 text-[var(--admin-text-muted)]" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">Aircraft</span>
             </div>
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Requested Time</span>
-          </div>
-          <p className="text-sm font-semibold text-[#152d5a]">
-            {formatDateTime(booking.scheduled_start)}
-          </p>
-          <p className="text-xs text-gray-400 mt-0.5">Sydney time (AEST)</p>
-        </div>
-        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center">
-              <Clock className="w-4 h-4 text-gray-400" />
+            <div className="mt-3">
+              <p className="truncate text-[15px] font-semibold text-[var(--admin-text)]">
+                {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/^Cessna 172$/, 'Cessna 172N') ?? 'Cessna 172N'}
+              </p>
+              <p className="mt-1 text-[12.5px] text-[var(--admin-text-muted)]">
+                {(aircraft as { registration?: string } | null)?.registration ?? 'VH-KZG'}
+              </p>
             </div>
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</span>
           </div>
-          <div className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 ${lifecycleTone.bg} ${lifecycleTone.border}`}>
-            <p className={`text-sm font-semibold ${lifecycleTone.text}`}>{lifecycleStage.label}</p>
+
+          <div className="h-full rounded-[20px] border border-[rgba(12,35,64,0.10)] bg-white p-4 shadow-[0_8px_20px_rgba(15,30,52,0.04)]">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.9)]">
+                <CalendarDays className="w-4 h-4 text-[var(--admin-text-muted)]" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">Schedule</span>
+            </div>
+            <div className="mt-3 space-y-1.5">
+              <p className="text-[15px] font-semibold text-[var(--admin-text)]">{bookingSchedule.dateRange}</p>
+              <p className="text-[12.5px] text-[var(--admin-text-muted)]">{bookingSchedule.timeRange}</p>
+              <p className="text-[12px] text-[var(--admin-text-muted)]">
+                {bookingSchedule.duration ? `${bookingSchedule.duration} · ${bookingSchedule.timezone}` : bookingSchedule.timezone}
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {lifecycleStage.sublabel ?? (bookingType === 'checkout' ? 'Current checkout state' : 'Current booking state')}
-          </p>
-        </div>
+
+          <div className="h-full rounded-[20px] border border-[rgba(12,35,64,0.10)] bg-white p-4 shadow-[0_8px_20px_rgba(15,30,52,0.04)]">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.9)]">
+                <Clock className="w-4 h-4 text-[var(--admin-text-muted)]" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">Lifecycle</span>
+            </div>
+            <div className="mt-3 space-y-2">
+              <span className={`inline-flex items-center rounded-full border px-3 py-1.5 text-[12px] font-semibold ${lifecycleTone.bg} ${lifecycleTone.border} ${lifecycleTone.text}`}>
+                {lifecycleStage.label}
+              </span>
+              <p className="text-[12.5px] leading-[1.45] text-[var(--admin-text-muted)]">
+                {lifecycleStage.sublabel ?? (bookingType === 'checkout' ? 'Current checkout state' : 'Current booking state')}
+              </p>
+            </div>
+          </div>
         </div>
 
         {bookingType === 'standard' && flightReadingsBanner && (
@@ -864,14 +1027,16 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               </div>
 
               <div className="flex flex-col items-start gap-2 md:ml-4 md:flex-shrink-0">
-                <AdminFlightReadingsDisclosureTrigger
-                  label={flightReadingsBanner.buttonLabel}
-                  variant={flightReadingsBanner.buttonTone}
-                  className="w-full sm:w-auto"
-                />
-                {flightReadingsBanner.kind === 'confirmed' && flightRecordRow ? (
+                {!(['paid_closed', 'waived_closed', 'payment_review_pending', 'payment_required', 'payment_still_due', 'payment_void', 'payment_failed'] as string[]).includes(lifecycleStage.key) && (
+                  <AdminFlightReadingsDisclosureTrigger
+                    label={flightReadingsBanner.buttonLabel}
+                    variant={flightReadingsBanner.buttonTone}
+                    className="w-full sm:w-auto"
+                  />
+                )}
+                {flightReadingsBanner.kind === 'confirmed' && flightRecordRow && isStandardBillingPending ? (
                   <Link
-                    href="#flight-record-snapshot"
+                    href="#submitted-flight-record"
                     className="inline-flex items-center gap-2 self-start rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
                   >
                     <span className="material-symbols-outlined text-[18px]">visibility</span>
@@ -882,96 +1047,6 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             </div>
           </div>
         )}
-
-        <div className="mb-4 rounded-2xl border border-[#1a4fd6]/15 bg-gradient-to-br from-[#f6f9ff] to-[#eef4ff] p-5 shadow-sm">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#1a4fd6]">
-              Booking snapshot
-            </p>
-            <h2 className="text-[15px] font-semibold text-[#152d5a] mt-1">
-              Useful details before billing
-            </h2>
-          </div>
-          <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-widest ${
-            flightRecordRow
-              ? 'border-green-200 bg-green-50 text-green-700'
-              : 'border-amber-200 bg-amber-50 text-amber-700'
-          }`}>
-            {flightRecordRow
-              ? `Flight record ${formatStatusLabel(flightRecordRow.status)}`
-              : 'No flight record yet'}
-          </span>
-        </div>
-        <div className="mb-4 rounded-xl border border-[#1a4fd6]/15 bg-white/75 px-4 py-3 text-[12px] text-[#152d5a]">
-          Billing mode is determined at flight finalization from the customer&apos;s active package at that time.
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-2xl border border-[#1a4fd6]/15 bg-[#f7faff] p-4 sm:col-span-2">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#1a4fd6]">Flight window</p>
-            <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-              <div className="rounded-xl border border-[#1a4fd6]/15 bg-white px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b6390]">Departure</p>
-                <p className="mt-1 text-[15px] font-semibold text-[#152d5a]">{formatDateTime(booking.scheduled_start)}</p>
-              </div>
-              <div className="rounded-xl border border-[#1a4fd6]/15 bg-white px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b6390]">Return</p>
-                <p className="mt-1 text-[15px] font-semibold text-[#152d5a]">{formatDateTime(booking.scheduled_end)}</p>
-              </div>
-            </div>
-            <p className="mt-2 text-[12px] text-[#4b6390]">Sydney time (AEST).</p>
-          </div>
-
-          <div className="rounded-2xl border-l-4 border-l-[#1a4fd6] border border-[#1a4fd6]/15 bg-[#f0f6ff] p-4 shadow-sm">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#1a4fd6]">Billing preview</p>
-            <p className="mt-2 text-[15px] font-semibold text-[#152d5a]">
-              {activeBlockTime
-                ? `Block Time — $${activeBlockTime.ratePerHour.toFixed(2)}/hr`
-                : `Pay As You Fly — $${PAYF_RATE_PER_HOUR}/hr`}
-            </p>
-            <p className="mt-1 text-[12px] text-[#4b6390] leading-relaxed">
-              Based on the customer&apos;s current package status. This may change if the account is updated before flight finalization.
-            </p>
-            {activeBlockTime ? (
-              <p className="mt-1 text-[12px] text-[#4b6390]">
-                Active package: {activeBlockTime.hoursRemaining.toFixed(1)}h remaining, expires {formatDateTime(activeBlockTime.expiresAt)}
-              </p>
-            ) : null}
-          </div>
-
-          <div
-            id="flight-record-snapshot"
-            className="rounded-2xl border-l-4 border-l-[#f59e0b] border border-amber-200 bg-amber-50/70 p-4 shadow-sm"
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#b45309]">Flight record</p>
-            <p className="mt-2 text-[15px] font-semibold text-[#152d5a]">
-              {flightRecordRow
-                ? formatStatusLabel(flightRecordRow.status)
-                : 'Not yet submitted'}
-            </p>
-            <p className="mt-1 text-[12px] text-[#4b6390]">
-              {flightRecordRow?.submitted_at
-                ? `Submitted ${formatDateTime(flightRecordRow.submitted_at)}`
-                : 'Post-flight submission still pending.'}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-white/70 bg-white/80 p-4 sm:col-span-2 xl:col-span-2">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b6390]">Customer notes</p>
-            <p className="mt-2 text-[14px] font-medium text-[#152d5a] leading-relaxed">
-              {(booking as { customer_notes?: string | null }).customer_notes?.trim()
-                ? (booking as { customer_notes?: string | null }).customer_notes
-                : 'No customer notes provided.'}
-            </p>
-            {(booking as { admin_notes?: string | null }).admin_notes?.trim() && (
-              <p className="mt-2 text-[12px] text-[#4b6390]">
-                Admin note: {(booking as { admin_notes?: string | null }).admin_notes}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
 
         <div className="grid grid-cols-1 gap-6 pb-32">
 
@@ -1196,16 +1271,12 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                     },
                     {
                       label: 'Hourly rate',
-                      value: checkoutInvoice?.checkout_rate_cents_per_hour
-                        ? `$${(checkoutInvoice.checkout_rate_cents_per_hour / 100).toFixed(2)}/hr`
-                        : '—'
+                      value: chargesAndPayment?.hourlyRateLabel ?? '—'
                     },
                     {
                       label: 'VDO duration',
-                      value: checkoutInvoice?.checkout_duration_hours
-                        ? `${checkoutInvoice.checkout_duration_hours} hrs`
-                        : null,
-                      missing: !checkoutInvoice?.checkout_duration_hours
+                      value: chargesAndPayment?.vdoDurationLabel ?? null,
+                      missing: !chargesAndPayment?.vdoDurationLabel || chargesAndPayment.vdoDurationLabel === 'Not recorded'
                     },
                   ].map(r => (
                     <div key={r.label} className="flex justify-between items-baseline py-1">
@@ -1221,12 +1292,23 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                   <div className="flex justify-between items-baseline py-1">
                     <span className="text-xs font-semibold text-deep-ink">Total charged</span>
                     <span className="text-[15px] font-semibold text-deep-ink">
-                      {checkoutInvoice?.checkout_final_amount_cents
-                        ? `$${(checkoutInvoice.checkout_final_amount_cents / 100).toFixed(2)}`
-                        : '$—'}
+                      {chargesAndPayment?.totalChargedLabel ?? '$—'}
                     </span>
                   </div>
-                  {checkoutInvoice?.total_paid_cents && checkoutInvoice.total_paid_cents > 0 ? (
+                  {bookingType === 'standard' && standardInvoice && standardInvoice.status !== 'waived' && (
+                    <div className="pt-3">
+                      <a
+                        href={standardInvoice.pdf_url ?? `/dashboard/bookings/${booking.id}/invoice`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#1a4fd6] hover:underline"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">download</span>
+                        {standardInvoice.status === 'paid' ? 'Download Receipt' : 'Download Invoice'}
+                      </a>
+                    </div>
+                  )}
+                  {chargesAndPayment?.isPaid ? (
                     <div className="bg-[#e8f5e9] rounded-xl p-3 mt-2">
                       <div className="flex justify-between items-center">
                         <span className="text-xs font-semibold text-green-700 flex items-center gap-1">
@@ -1237,11 +1319,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                           Paid in full
                         </span>
                         <span className="text-sm font-semibold text-green-700">
-                          ${(checkoutInvoice.total_paid_cents / 100).toFixed(2)}
+                          {chargesAndPayment?.paidAmountLabel ?? '$0.00'}
                         </span>
                       </div>
                       <div className="text-[10px] text-green-600 mt-1">
-                        Bank transfer · in person · {formatDateTime(booking.updated_at)}
+                        {chargesAndPayment?.paymentDetailLabel ?? 'Paid'}
                       </div>
                     </div>
                   ) : (
@@ -1263,7 +1345,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
         </div>
 
-        {isAdminSubmitEligible && flightReadingsBanner && (
+        {isStandardFlightRecordOpen && flightReadingsBanner && (
           <AdminFlightReadingsDisclosureSection>
             <div className="mt-8">
               <AdminSubmitFlightRecordPanel

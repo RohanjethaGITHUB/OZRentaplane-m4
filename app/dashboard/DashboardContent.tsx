@@ -2,14 +2,22 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
-import type { BlockTimePackage, Profile, PilotClearanceStatus, UserDocument, VerificationEvent } from '@/lib/supabase/types'
-import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
-import { formatDateFromISO } from '@/lib/formatDateTime'
+import type { BlockTimePackage, Profile, UserDocument, VerificationEvent } from '@/lib/supabase/types'
+import type { BookingReadinessDecision } from '@/lib/booking-readiness'
+import { evaluateBookingDocumentsReadiness } from '@/lib/booking-readiness'
+import { getDocumentProgressSnapshot } from '@/lib/document-progress'
+import {
+  getJourneyStepIndex,
+  type DashboardActionState,
+  type DashboardFlightSnapshot,
+  type DashboardJourneyStep,
+  type DashboardTone,
+} from '@/lib/dashboard/dashboard-action-state'
+import { formatDashboardDate, formatDashboardTimestamp, formatDateFromISO, formatDateFromISOShort } from '@/lib/formatDateTime'
 import { formatSydTime } from '@/lib/utils/sydney-time'
-import { ADMIN_CONTACT_PHONE_DISPLAY, ADMIN_CONTACT_PHONE_TEL } from '@/lib/contact'
+import DashboardNextActionPanel from '@/components/customer/dashboard/DashboardNextActionPanel'
 import SuccessModal from '@/components/ui/SuccessModal'
 
 // ── Exported types ────────────────────────────────────────────────────────────
@@ -26,6 +34,7 @@ export type CheckoutInvoiceData = {
   checkoutDurationHours: number | null
   landingSubtotalCents: number
   bankTransferStatus?: string | null
+  bankTransferNote?: string | null
   landingCharges: {
     airportIcao: string
     airportName: string
@@ -33,25 +42,6 @@ export type CheckoutInvoiceData = {
     unitAmountCents: number
     totalAmountCents: number
   }[]
-}
-
-export type FlightSnapshotBooking = {
-  id: string
-  bookingType: 'standard' | 'checkout'
-  status: string
-  scheduledStart: string
-  scheduledEnd: string | null
-  aircraftRegistration: string | null
-}
-
-export type BookingReadinessSummary = {
-  show: boolean
-  hasHistoricalClearance: boolean
-  docsReady: boolean
-  termsAccepted: boolean
-  flightRecencyComplete: boolean
-  hasAwaitingReview: boolean
-  hasMissingOrExpired: boolean
 }
 
 export type BlockTimeSummary = {
@@ -80,238 +70,141 @@ type Props = {
   checkoutBookingId?: string | null
   checkoutInvoice?: CheckoutInvoiceData | null
   activeBooking?: { id: string; status: string } | null
-  mainBookingHeroState?: {
-    mode: 'post_flight_required' | 'post_flight_under_review' | 'upcoming_confirmed' | 'post_flight_payment_required' | 'post_flight_awaiting_payment_confirmation'
-    bookingId: string
-  } | null
-  flightSnapshotBooking?: FlightSnapshotBooking | null
-  bookingReadiness?: BookingReadinessSummary | null
+  dashboardActionState: DashboardActionState
+  flightSnapshotBooking?: DashboardFlightSnapshot | null
+  bookingReadiness?: BookingReadinessDecision | null
   blockTimeSummary?: BlockTimeSummary | null
   allBlockTimePackages?: BlockTimePackage[]
   flashNotice?: { kind: 'success'; title: string; message: string; actionLabel?: string; actionUrl?: string } | null
   newlyPurchasedInvoicePdfUrl?: string | null
 }
 
-// ── Status config (clearance-level) ──────────────────────────────────────────
-
-type StatusTone = 'amber' | 'blue' | 'violet' | 'slate' | 'green' | 'red'
-
-type StatusConfig = {
-  statusPill: string
-  statusTone: StatusTone
-  primaryCtaLabel: string
-  primaryCtaHref: string
+function heroPillStyle(tone: DashboardTone): React.CSSProperties {
+  if (tone === 'danger') return { background: 'rgba(239,68,68,0.15)', borderColor: 'rgba(248,113,113,0.40)', color: '#fecaca' }
+  if (tone === 'warning') return { background: 'rgba(245,158,11,0.15)', borderColor: 'rgba(245,158,11,0.35)', color: '#fcd34d' }
+  if (tone === 'success') return { background: 'rgba(52,211,153,0.16)', borderColor: 'rgba(52,211,153,0.40)', color: '#bbf7d0' }
+  if (tone === 'info') return { background: 'rgba(59,130,246,0.16)', borderColor: 'rgba(96,165,250,0.38)', color: '#bfdbfe' }
+  return { background: 'rgba(148,163,184,0.16)', borderColor: 'rgba(148,163,184,0.38)', color: '#e2e8f0' }
 }
 
-const STATUS_CONFIG: Record<PilotClearanceStatus, StatusConfig> = {
-  checkout_required: {
-    statusPill: 'Checkout Required',
-    statusTone: 'amber',
-    primaryCtaLabel: 'Book Checkout',
-    primaryCtaHref: '/dashboard/checkout',
-  },
-  checkout_requested: {
-    statusPill: 'Checkout Requested',
-    statusTone: 'blue',
-    primaryCtaLabel: 'View Checkout Booking',
-    primaryCtaHref: '/dashboard/bookings',
-  },
-  checkout_confirmed: {
-    statusPill: 'Checkout Confirmed',
-    statusTone: 'blue',
-    primaryCtaLabel: 'View Checkout Booking',
-    primaryCtaHref: '/dashboard/bookings',
-  },
-  checkout_completed_under_review: {
-    statusPill: 'Checkout Under Review',
-    statusTone: 'amber',
-    primaryCtaLabel: 'View Checkout Booking',
-    primaryCtaHref: '/dashboard/bookings',
-  },
-  checkout_payment_required: {
-    statusPill: 'Payment Required',
-    statusTone: 'amber',
-    primaryCtaLabel: 'Complete Payment',
-    primaryCtaHref: '/dashboard/bookings',
-  },
-  additional_checkout_required: {
-    statusPill: 'Additional Checkout Required',
-    statusTone: 'amber',
-    primaryCtaLabel: 'Book Another Checkout',
-    primaryCtaHref: '/dashboard/checkout',
-  },
-  checkout_reschedule_required: {
-    statusPill: 'Checkout Reschedule Required',
-    statusTone: 'amber',
-    primaryCtaLabel: 'Reschedule Checkout',
-    primaryCtaHref: '/dashboard/checkout',
-  },
-  not_currently_eligible: {
-    statusPill: 'Not Currently Eligible',
-    statusTone: 'red',
-    primaryCtaLabel: 'Contact Us',
-    primaryCtaHref: '/dashboard/messages',
-  },
-  cleared_to_fly: {
-    statusPill: 'Cleared to Fly',
-    statusTone: 'green',
-    primaryCtaLabel: 'Book a Flight',
-    primaryCtaHref: '/dashboard/bookings/new',
-  },
+function heroButtonStyle(tone: DashboardTone): string {
+  if (tone === 'danger') return 'bg-red-600 hover:bg-red-700 text-white'
+  if (tone === 'warning') return 'bg-[#f59e0b] hover:bg-[#e08c00] text-white'
+  if (tone === 'success') return 'bg-emerald-600 hover:bg-emerald-700 text-white'
+  if (tone === 'info') return 'bg-[#1a4fd6] hover:bg-[#1847be] text-white'
+  return 'bg-white/15 hover:bg-white/25 text-white'
 }
 
-// ── Tone helpers ──────────────────────────────────────────────────────────────
-
-function pillClass(tone: StatusTone): string {
-  if (tone === 'amber') return 'text-amber-200 border-amber-400/50 bg-amber-500/10'
-  if (tone === 'blue') return 'text-blue-200 border-blue-400/40 bg-blue-500/10'
-  if (tone === 'violet') return 'text-violet-100 border-violet-300/50 bg-violet-500/10'
-  if (tone === 'green') return 'text-emerald-100 border-emerald-300/50 bg-emerald-500/10'
-  if (tone === 'red') return 'text-red-100 border-red-300/50 bg-red-500/10'
-  return 'text-slate-100 border-slate-300/40 bg-slate-500/10'
+function heroIcon(tone: DashboardTone): string {
+  if (tone === 'danger') return 'warning'
+  if (tone === 'success') return 'check_circle'
+  if (tone === 'info') return 'info'
+  return 'flight_takeoff'
 }
 
-function toneDotColor(tone: StatusTone): string {
-  if (tone === 'amber') return '#fbbf24'
-  if (tone === 'red') return '#f87171'
-  if (tone === 'green') return '#34d399'
-  if (tone === 'violet') return '#a78bfa'
-  return '#60a5fa'
-}
-
-function toneAccentGradient(tone: StatusTone): string {
-  if (tone === 'amber') return 'linear-gradient(90deg, rgba(245,158,11,0.65) 0%, rgba(245,158,11,0.06) 100%)'
-  if (tone === 'green') return 'linear-gradient(90deg, rgba(52,211,153,0.65) 0%, rgba(52,211,153,0.06) 100%)'
-  if (tone === 'red') return 'linear-gradient(90deg, rgba(248,113,113,0.65) 0%, rgba(248,113,113,0.06) 100%)'
-  return 'linear-gradient(90deg, rgba(96,165,250,0.65) 0%, rgba(96,165,250,0.06) 100%)'
-}
-
-function toneCtaStyle(tone: StatusTone): React.CSSProperties {
-  if (tone === 'amber') return { background: '#f59e0b', color: '#0f1a2a' }
-  if (tone === 'green') return { background: '#34d399', color: '#052e16' }
-  if (tone === 'red') return { background: '#ef4444', color: '#fff' }
-  return { background: '#3b82f6', color: '#fff' }
-}
-
-function toneBorder(tone: StatusTone): string {
-  if (tone === 'amber') return 'rgba(245,158,11,0.22)'
-  if (tone === 'green') return 'rgba(52,211,153,0.22)'
-  if (tone === 'red') return 'rgba(248,113,113,0.22)'
-  return 'rgba(96,165,250,0.18)'
-}
-
-function toneIconBg(tone: StatusTone): React.CSSProperties {
-  if (tone === 'amber') return { background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }
-  if (tone === 'green') return { background: 'rgba(52,211,153,0.10)', border: '1px solid rgba(52,211,153,0.25)' }
-  if (tone === 'red') return { background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.25)' }
-  return { background: 'rgba(96,165,250,0.09)', border: '1px solid rgba(96,165,250,0.20)' }
-}
-
-// ── Pilot journey strip ─────────────────────────────────────────────────────
-
-type JourneyStep = {
-  key: string
-  label: string
-  icon: string
-}
-
-const JOURNEY_STEPS: JourneyStep[] = [
-  { key: 'account_created', label: 'Account Created', icon: 'check' },
-  { key: 'checkout_requested', label: 'Checkout Requested', icon: 'description' },
-  { key: 'checkout_booked', label: 'Checkout Flight Booked', icon: 'calendar_month' },
-  { key: 'checkout_result', label: 'Checkout Result', icon: 'verified_user' },
-  { key: 'ready_to_fly', label: 'Ready to Fly', icon: 'flag' },
-]
-
-function getStepState(
-  stepId: string,
-  status: PilotClearanceStatus,
-): 'completed' | 'current' | 'upcoming' | 'locked' {
-  const order = ['account', 'documents', 'checkout', 'approved', 'ready']
-  const statusToStep: Record<PilotClearanceStatus, number> = {
-    checkout_required: 1,
-    checkout_requested: 2,
-    checkout_confirmed: 2,
-    checkout_completed_under_review: 3,
-    checkout_payment_required: 3,
-    cleared_to_fly: 5,
-    additional_checkout_required: 3,
-    checkout_reschedule_required: 3,
-    not_currently_eligible: 3,
+function getSnapshotStatusDisplay(
+  snapshot: DashboardFlightSnapshot,
+  actionState: DashboardActionState,
+): { label: string; textColor: string; dotColor: string } {
+  if (actionState.statusKey === 'post_flight_records_due') {
+    return { label: 'Post-Flight Records Due', textColor: 'text-amber-300', dotColor: '#fbbf24' }
   }
+  if (actionState.statusKey === 'post_flight_under_review') {
+    return { label: 'Under Review', textColor: 'text-blue-300', dotColor: '#60a5fa' }
+  }
+  if (actionState.statusKey === 'post_flight_clarification_required') {
+    return { label: 'Clarification Needed', textColor: 'text-orange-300', dotColor: '#fdba74' }
+  }
+  if (actionState.statusKey === 'booking_payment_required') {
+    return { label: 'Payment Required', textColor: 'text-orange-300', dotColor: '#fb923c' }
+  }
+  if (actionState.statusKey === 'booking_payment_proof_under_review') {
+    return { label: 'Payment Proof Under Review', textColor: 'text-blue-300', dotColor: '#60a5fa' }
+  }
+  if (actionState.statusKey === 'checkout_payment_required') {
+    return { label: 'Payment Required', textColor: 'text-orange-300', dotColor: '#fb923c' }
+  }
+  if (actionState.statusKey === 'checkout_payment_proof_under_review') {
+    return { label: 'Payment Proof Under Review', textColor: 'text-blue-300', dotColor: '#60a5fa' }
+  }
+  if (actionState.statusKey === 'upcoming_booking_confirmed') {
+    return { label: 'Confirmed', textColor: 'text-emerald-300', dotColor: '#34d399' }
+  }
+  if (snapshot.bookingType === 'checkout') {
+    if (snapshot.status === 'checkout_requested') return { label: 'Awaiting Review', textColor: 'text-blue-300', dotColor: '#60a5fa' }
+    if (snapshot.status === 'checkout_confirmed') return { label: 'Confirmed', textColor: 'text-emerald-300', dotColor: '#34d399' }
+    if (snapshot.status === 'checkout_completed_under_review') return { label: 'Awaiting Outcome', textColor: 'text-amber-300', dotColor: '#fbbf24' }
+    if (snapshot.status === 'checkout_payment_required') return { label: 'Payment Required', textColor: 'text-orange-300', dotColor: '#fb923c' }
+    return { label: 'Checkout Flight', textColor: 'text-blue-300', dotColor: '#60a5fa' }
+  }
+  if (['confirmed', 'ready_for_dispatch', 'dispatched'].includes(snapshot.status)) return { label: 'Confirmed', textColor: 'text-emerald-300', dotColor: '#34d399' }
+  if (['awaiting_flight_record', 'flight_record_overdue'].includes(snapshot.status)) return { label: 'Awaiting Record', textColor: 'text-amber-300', dotColor: '#fbbf24' }
+  if (['pending_post_flight_review', 'needs_clarification'].includes(snapshot.status)) return { label: 'Under Review', textColor: 'text-blue-300', dotColor: '#60a5fa' }
+  if (snapshot.status === 'post_flight_approved') return { label: 'Flight Approved', textColor: 'text-emerald-300', dotColor: '#34d399' }
+  return { label: snapshot.status.replace(/_/g, ' '), textColor: 'text-slate-300', dotColor: '#94a3b8' }
+}
 
-  const currentIndex = statusToStep[status] ?? 0
-  const stepIndex = order.indexOf(stepId)
+function getStepState(stepId: DashboardJourneyStep, currentStep: DashboardJourneyStep): 'completed' | 'current' | 'upcoming' | 'locked' {
+  const currentIndex = getJourneyStepIndex(currentStep)
+  const stepIndex = getJourneyStepIndex(stepId)
 
   if (stepIndex < currentIndex) return 'completed'
   if (stepIndex === currentIndex) return 'current'
-  if (stepId === 'ready' && status !== 'cleared_to_fly') return 'locked'
+  if (stepId === 'ready') return 'locked'
   return 'upcoming'
 }
 
-function getJourneyStepIndex(clearanceStatus: PilotClearanceStatus): number {
-  if (clearanceStatus === 'checkout_required') return 0
-  if (clearanceStatus === 'checkout_requested') return 1
-  if (clearanceStatus === 'checkout_confirmed') return 2
-  if (clearanceStatus === 'checkout_completed_under_review') return 3
-  if (clearanceStatus === 'checkout_payment_required') return 3
-  if (clearanceStatus === 'additional_checkout_required') return 3
-  if (clearanceStatus === 'checkout_reschedule_required') return 3
-  if (clearanceStatus === 'not_currently_eligible') return 0
-  return 4
-}
-
-function PilotJourneyStrip({ clearanceStatus }: { clearanceStatus: PilotClearanceStatus }) {
+function PilotJourneyStrip({ currentStep }: { currentStep: DashboardJourneyStep }) {
   const steps = [
     {
       id: 'account',
       label: 'Account Created',
-      sublabel: getStepState('account', clearanceStatus) === 'completed' ? 'Completed' : 'Upcoming',
+      sublabel: getStepState('account', currentStep) === 'completed' ? 'Completed' : 'Upcoming',
       icon: 'person',
-      state: getStepState('account', clearanceStatus),
+      state: getStepState('account', currentStep),
     },
     {
       id: 'documents',
       label: 'Documents',
       sublabel:
-        getStepState('documents', clearanceStatus) === 'current'
+        getStepState('documents', currentStep) === 'current'
           ? 'In Progress'
-          : getStepState('documents', clearanceStatus) === 'completed'
+          : getStepState('documents', currentStep) === 'completed'
             ? 'Completed'
             : 'Upcoming',
       icon: 'description',
-      state: getStepState('documents', clearanceStatus),
+      state: getStepState('documents', currentStep),
     },
     {
       id: 'checkout',
       label: 'Checkout',
       sublabel:
-        getStepState('checkout', clearanceStatus) === 'current'
+        getStepState('checkout', currentStep) === 'current'
           ? 'Required'
-          : getStepState('checkout', clearanceStatus) === 'completed'
+          : getStepState('checkout', currentStep) === 'completed'
             ? 'Completed'
             : 'Upcoming',
       icon: 'flight_takeoff',
-      state: getStepState('checkout', clearanceStatus),
+      state: getStepState('checkout', currentStep),
     },
     {
       id: 'approved',
       label: 'Approved',
       sublabel:
-        getStepState('approved', clearanceStatus) === 'current'
+        getStepState('approved', currentStep) === 'current'
           ? 'Pending'
-          : getStepState('approved', clearanceStatus) === 'completed'
+          : getStepState('approved', currentStep) === 'completed'
             ? 'Completed'
             : 'Upcoming',
       icon: 'verified',
-      state: getStepState('approved', clearanceStatus),
+      state: getStepState('approved', currentStep),
     },
     {
       id: 'ready',
       label: 'Ready to Fly',
-      sublabel: getStepState('ready', clearanceStatus) === 'completed' ? 'Unlocked' : 'Locked',
+      sublabel: getStepState('ready', currentStep) === 'completed' ? 'Unlocked' : 'Locked',
       icon: 'local_airport',
-      state: getStepState('ready', clearanceStatus),
+      state: getStepState('ready', currentStep),
     },
   ] as const
 
@@ -390,14 +283,7 @@ function PilotJourneyStrip({ clearanceStatus }: { clearanceStatus: PilotClearanc
 // ── Recent activity strip ────────────────────────────────────────────────────
 
 function formatActivityTimestamp(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  return new Intl.DateTimeFormat('en-AU', {
-    day: 'numeric',
-    month: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date)
+  return formatDashboardTimestamp(iso)
 }
 
 function getActivityChip(event: VerificationEvent): { label: string; tone: string; icon: string } {
@@ -453,283 +339,6 @@ function RecentActivityStrip({ events }: { events: VerificationEvent[] }) {
   )
 }
 
-// ── Hero status line ──────────────────────────────────────────────────────────
-
-function getHeroStatusLine(
-  clearanceStatus: PilotClearanceStatus,
-  isAwaitingManualPayment: boolean,
-  mainBookingHeroState: Props['mainBookingHeroState'],
-): string {
-  if (clearanceStatus === 'cleared_to_fly' && mainBookingHeroState) {
-    if (mainBookingHeroState.mode === 'post_flight_awaiting_payment_confirmation')
-      return 'Your bank transfer proof has been submitted. The admin team will review and confirm your payment.'
-    if (mainBookingHeroState.mode === 'post_flight_payment_required')
-      return 'Your post-flight invoice is ready. Please complete payment to close this booking.'
-    if (mainBookingHeroState.mode === 'post_flight_required')
-      return 'Your flight is complete. Please submit your post-flight records.'
-    if (mainBookingHeroState.mode === 'post_flight_under_review')
-      return 'Your records are submitted. Our team is finalising the booking.'
-    return 'Your flight is booked and ready.'
-  }
-  if (clearanceStatus === 'cleared_to_fly') return "All systems ready. You're good to fly."
-  if (isAwaitingManualPayment) return 'Your payment proof has been submitted and is awaiting confirmation.'
-  if (clearanceStatus === 'checkout_required') return 'Your checkout flight is the next step before solo hire.'
-  if (clearanceStatus === 'checkout_requested') return 'Your checkout has been submitted and is under review.'
-  if (clearanceStatus === 'checkout_confirmed') return "Your checkout has been confirmed. We'll see you on the day."
-  if (clearanceStatus === 'checkout_completed_under_review') return 'Your checkout is complete. Our team is reviewing the result.'
-  if (clearanceStatus === 'checkout_payment_required') return 'Your checkout invoice is ready and payment is required to continue.'
-  if (clearanceStatus === 'additional_checkout_required') return 'An additional checkout session is required before solo hire.'
-  if (clearanceStatus === 'checkout_reschedule_required') return 'Your checkout requires a new booking slot to continue.'
-  if (clearanceStatus === 'not_currently_eligible') return 'Further training is required before solo hire can continue.'
-  return 'Your next adventure is ready when you are.'
-}
-
-// ── Next action config ────────────────────────────────────────────────────────
-
-type NextActionConfig = {
-  icon: string
-  iconColor: string
-  tone: StatusTone
-  title: string
-  body: string
-  ctaLabel: string
-  ctaHref: string
-  secondaryLink?: { label: string; href: string }
-}
-
-function getNextActionConfig(
-  isNoShowLocked: boolean,
-  clearanceStatus: PilotClearanceStatus,
-  isAwaitingManualPayment: boolean,
-  mainBookingHeroState: Props['mainBookingHeroState'],
-  mainCtaLabel: string,
-  mainCtaHref: string,
-  checkoutBookingId: string | null,
-  flightSnapshotBooking: FlightSnapshotBooking | null,
-): NextActionConfig {
-  if (isNoShowLocked) {
-    return {
-      icon: 'lock',
-      iconColor: '#f87171',
-      tone: 'red',
-      title: 'Account locked after no-show',
-      body: 'Your checkout flight was marked as a no-show. Please contact the OZ Rent A Plane team to discuss your checkout status and unlock your account.',
-      ctaLabel: 'Contact Team',
-      ctaHref: '/dashboard/messages',
-      secondaryLink: { label: `Call ${ADMIN_CONTACT_PHONE_DISPLAY}`, href: `tel:${ADMIN_CONTACT_PHONE_TEL}` },
-    }
-  }
-
-  // ── cleared_to_fly overrides ──
-  if (clearanceStatus === 'cleared_to_fly') {
-    if (mainBookingHeroState?.mode === 'post_flight_awaiting_payment_confirmation') {
-      return {
-        icon: 'account_balance',
-        iconColor: '#60a5fa',
-        tone: 'blue',
-        title: 'Awaiting payment confirmation',
-        body: "Your bank transfer proof has been submitted. We'll confirm it once it has been reviewed.",
-        ctaLabel: 'View booking details',
-        ctaHref: mainCtaHref,
-      }
-    }
-    if (mainBookingHeroState?.mode === 'post_flight_payment_required') {
-      return {
-        icon: 'payments',
-        iconColor: '#f59e0b',
-        tone: 'amber',
-        title: 'Payment Required',
-        body: 'Your post-flight invoice is ready. Please complete payment to unlock aircraft bookings.',
-        ctaLabel: 'View payment',
-        ctaHref: mainCtaHref,
-        secondaryLink: { label: 'View Booking Details', href: `/dashboard/bookings/${mainBookingHeroState.bookingId}` },
-      }
-    }
-    if (mainBookingHeroState?.mode === 'post_flight_required') {
-      return {
-        icon: 'assignment',
-        iconColor: '#f59e0b',
-        tone: 'amber',
-        title: 'Submit Post-Flight Records',
-        body: 'Your flight is complete. Submit your VDO and tacho readings so our team can finalise the booking.',
-        ctaLabel: mainCtaLabel,
-        ctaHref: mainCtaHref,
-        secondaryLink: { label: 'View Booking Details', href: `/dashboard/bookings/${mainBookingHeroState.bookingId}` },
-      }
-    }
-    if (mainBookingHeroState?.mode === 'post_flight_under_review') {
-      return {
-        icon: 'rate_review',
-        iconColor: '#60a5fa',
-        tone: 'blue',
-        title: 'Post-flight records under review',
-        body: "Thanks — your post-flight details have been submitted. Our team will review them and finalise the booking.",
-        ctaLabel: mainCtaLabel,
-        ctaHref: mainCtaHref,
-        secondaryLink: { label: 'View My Bookings', href: '/dashboard/bookings' },
-      }
-    }
-    if (mainBookingHeroState?.mode === 'upcoming_confirmed') {
-      return {
-        icon: 'flight',
-        iconColor: '#60a5fa',
-        tone: 'blue',
-        title: 'Get ready for your flight',
-        body: 'Your aircraft booking is confirmed. Review the details before arrival and contact the team if anything changes.',
-        ctaLabel: mainCtaLabel,
-        ctaHref: mainCtaHref,
-        secondaryLink: { label: 'View Booking Details', href: `/dashboard/bookings/${mainBookingHeroState.bookingId}` },
-      }
-    }
-    return {
-      icon: 'flight_takeoff',
-      iconColor: '#f59e0b',
-      tone: 'amber',
-      title: 'Book Your Next Flight',
-      body: "You're cleared to fly. Browse available times and book your next rental flight.",
-      ctaLabel: 'Book a Flight',
-      ctaHref: '/dashboard/bookings/new',
-      secondaryLink: { label: 'View My Bookings', href: '/dashboard/bookings' },
-    }
-  }
-
-  // ── awaiting manual payment ──
-  if (isAwaitingManualPayment) {
-    return {
-      icon: 'account_balance',
-      iconColor: '#60a5fa',
-      tone: 'blue',
-      title: 'Awaiting confirmation',
-      body: 'Your payment proof has been submitted. Our team will review it and update your status once confirmed.',
-      ctaLabel: 'View Details',
-      ctaHref: checkoutBookingId ? `/dashboard/bookings/${checkoutBookingId}` : '/dashboard/bookings',
-    }
-  }
-
-  // ── checkout flow states ──
-  const checkoutBookingHref = flightSnapshotBooking?.bookingType === 'checkout'
-    ? `/dashboard/bookings/${flightSnapshotBooking.id}`
-    : checkoutBookingId
-    ? `/dashboard/bookings/${checkoutBookingId}`
-    : '/dashboard/bookings'
-
-  if (clearanceStatus === 'checkout_required') {
-    return {
-      icon: 'how_to_reg',
-      iconColor: '#f59e0b',
-      tone: 'amber',
-      title: 'Complete Your Checkout',
-      body: 'A one-time checkout flight is required before you can hire an aircraft solo.',
-      ctaLabel: 'Book a Flight',
-      ctaHref: '/dashboard/bookings',
-      secondaryLink: { label: 'View Requirements', href: '/checkout-process' },
-    }
-  }
-  if (clearanceStatus === 'checkout_requested') {
-    return {
-      icon: 'pending_actions',
-      iconColor: '#60a5fa',
-      tone: 'blue',
-      title: 'Checkout Request Submitted',
-      body: 'Our team is reviewing your request and will confirm your checkout time shortly.',
-      ctaLabel: 'View Status',
-      ctaHref: checkoutBookingHref,
-    }
-  }
-  if (clearanceStatus === 'checkout_confirmed') {
-    return {
-      icon: 'event_available',
-      iconColor: '#60a5fa',
-      tone: 'blue',
-      title: 'Checkout Flight Confirmed',
-      body: "Your checkout flight is confirmed. We'll see you on the day - no further action needed.",
-      ctaLabel: 'View Booking',
-      ctaHref: checkoutBookingHref,
-    }
-  }
-  if (clearanceStatus === 'checkout_completed_under_review') {
-    return {
-      icon: 'rate_review',
-      iconColor: '#f59e0b',
-      tone: 'amber',
-      title: 'Awaiting Checkout Outcome',
-      body: 'Your checkout flight is under review by our flight operations team.',
-      ctaLabel: 'View Details',
-      ctaHref: checkoutBookingHref,
-    }
-  }
-  if (clearanceStatus === 'checkout_payment_required') {
-    return {
-      icon: 'payments',
-      iconColor: '#f59e0b',
-      tone: 'amber',
-      title: 'Complete Payment',
-      body: 'Your checkout flight is complete. Please pay your invoice to unlock aircraft bookings.',
-      ctaLabel: 'Complete Payment',
-      ctaHref: checkoutBookingId ? `/dashboard/bookings/${checkoutBookingId}` : '/dashboard/bookings',
-    }
-  }
-  if (clearanceStatus === 'additional_checkout_required') {
-    return {
-      icon: 'schedule',
-      iconColor: '#f59e0b',
-      tone: 'amber',
-      title: 'Book your additional checkout',
-      body: 'An additional checkout session is required before solo hire can be approved. Select another checkout date and time.',
-      ctaLabel: 'Book Another Checkout',
-      ctaHref: '/dashboard/checkout',
-    }
-  }
-  if (clearanceStatus === 'checkout_reschedule_required') {
-    return {
-      icon: 'event_repeat',
-      iconColor: '#f59e0b',
-      tone: 'amber',
-      title: 'Reschedule your checkout',
-      body: 'Your checkout requires a new booking slot before assessment can continue. Book a new date and time when you are ready.',
-      ctaLabel: 'Reschedule Checkout',
-      ctaHref: '/dashboard/checkout',
-    }
-  }
-  if (clearanceStatus === 'not_currently_eligible') {
-    return {
-      icon: 'info',
-      iconColor: '#94a3b8',
-      tone: 'slate',
-      title: 'Coordinate next training steps',
-      body: 'Speak with our team to understand the required training before your next assessment.',
-      ctaLabel: 'Contact Us',
-      ctaHref: '/dashboard/messages',
-    }
-  }
-  return {
-    icon: 'flight_takeoff',
-    iconColor: '#60a5fa',
-    tone: 'blue',
-    title: 'Continue your journey',
-    body: 'Check your current status and follow the next steps to progress through the pilot portal.',
-    ctaLabel: mainCtaLabel,
-    ctaHref: mainCtaHref,
-  }
-}
-
-// ── Snapshot status display ───────────────────────────────────────────────────
-
-function getSnapshotStatusDisplay(status: string, bookingType: string): { label: string; textColor: string; dotColor: string } {
-  if (bookingType === 'checkout') {
-    if (status === 'checkout_requested') return { label: 'Awaiting Review', textColor: 'text-blue-300', dotColor: '#60a5fa' }
-    if (status === 'checkout_confirmed') return { label: 'Confirmed', textColor: 'text-emerald-300', dotColor: '#34d399' }
-    if (status === 'checkout_completed_under_review') return { label: 'Awaiting Outcome', textColor: 'text-amber-300', dotColor: '#fbbf24' }
-    if (status === 'checkout_payment_required') return { label: 'Payment Required', textColor: 'text-orange-300', dotColor: '#fb923c' }
-    return { label: 'Checkout Flight', textColor: 'text-blue-300', dotColor: '#60a5fa' }
-  }
-  if (['confirmed', 'ready_for_dispatch', 'dispatched'].includes(status)) return { label: 'Confirmed', textColor: 'text-emerald-300', dotColor: '#34d399' }
-  if (['awaiting_flight_record', 'flight_record_overdue'].includes(status)) return { label: 'Awaiting Record', textColor: 'text-amber-300', dotColor: '#fbbf24' }
-  if (['pending_post_flight_review', 'needs_clarification'].includes(status)) return { label: 'Under Review', textColor: 'text-purple-300', dotColor: '#c084fc' }
-  if (status === 'post_flight_approved') return { label: 'Flight Approved', textColor: 'text-emerald-300', dotColor: '#34d399' }
-  return { label: status.replace(/_/g, ' '), textColor: 'text-slate-300', dotColor: '#94a3b8' }
-}
-
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function SnapshotRow({ icon, label, children }: { icon: string; label: string; children: React.ReactNode }) {
@@ -747,6 +356,29 @@ function SnapshotRow({ icon, label, children }: { icon: string; label: string; c
   )
 }
 
+function readinessTone(state: 'complete' | 'missing' | 'needs_review' | 'expired') {
+  if (state === 'complete') {
+    return { icon: 'check_circle', iconClassName: 'text-emerald-500', labelClassName: 'text-emerald-700' }
+  }
+  if (state === 'expired') {
+    return { icon: 'warning', iconClassName: 'text-amber-500', labelClassName: 'text-amber-700' }
+  }
+  if (state === 'needs_review') {
+    return { icon: 'pending', iconClassName: 'text-blue-500', labelClassName: 'text-blue-700' }
+  }
+  return { icon: 'radio_button_unchecked', iconClassName: 'text-slate-300', labelClassName: 'text-slate-500' }
+}
+
+function progressStatusTone(status: 'not_started' | 'in_progress' | 'complete') {
+  if (status === 'complete') {
+    return { icon: 'check_circle', iconClassName: 'text-emerald-500', label: 'Complete', labelClassName: 'text-emerald-700' }
+  }
+  if (status === 'in_progress') {
+    return { icon: 'pending', iconClassName: 'text-blue-500', label: 'In Progress', labelClassName: 'text-blue-700' }
+  }
+  return { icon: 'radio_button_unchecked', iconClassName: 'text-slate-300', label: 'Not Started', labelClassName: 'text-slate-500' }
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function DashboardContent({
@@ -758,9 +390,9 @@ export default function DashboardContent({
   mustChangePassword = false,
   passwordUpdated = false,
   checkoutBookingId,
-  checkoutInvoice,
-  activeBooking,
-  mainBookingHeroState,
+  checkoutInvoice: _checkoutInvoice,
+  activeBooking: _activeBooking,
+  dashboardActionState,
   flightSnapshotBooking,
   bookingReadiness,
   blockTimeSummary,
@@ -816,109 +448,28 @@ export default function DashboardContent({
   const firstNameFromProfile = (profile?.first_name ?? '').trim()
   const firstName = firstNameFromProfile || displayName.split(' ')[0] || ''
 
-  const clearanceStatus = (profile?.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
-  const isNoShowLocked =
-    profile?.account_status === 'blocked' &&
-    profile?.account_lock_reason === 'checkout_no_show'
-  const checkoutPaymentDisplayState =
-    clearanceStatus === 'checkout_payment_required'
-      ? getCheckoutPaymentDisplayState(
-          checkoutInvoice ? { status: checkoutInvoice.invoiceStatus ?? 'payment_required' } : null,
-          checkoutInvoice?.bankTransferStatus ? { status: checkoutInvoice.bankTransferStatus } : null,
-        )
-      : null
-
-  const isAwaitingManualPayment = checkoutPaymentDisplayState === 'awaiting_manual_payment_confirmation'
-
-  // Status pill override when awaiting manual payment
-  const statusConfig: StatusConfig = isAwaitingManualPayment
-    ? { ...STATUS_CONFIG.checkout_payment_required, statusPill: 'Awaiting Payment Confirmation', statusTone: 'violet' }
-    : STATUS_CONFIG[clearanceStatus]
-
-  // Status pill / CTA overrides for cleared_to_fly booking states
-  const effectiveStatusPill =
-    clearanceStatus === 'cleared_to_fly' && mainBookingHeroState
-      ? mainBookingHeroState.mode === 'post_flight_awaiting_payment_confirmation' ? 'Awaiting Payment Confirmation'
-        : mainBookingHeroState.mode === 'post_flight_payment_required' ? 'Payment Required'
-        : mainBookingHeroState.mode === 'post_flight_required' ? 'Post-Flight Records Due'
-        : mainBookingHeroState.mode === 'post_flight_under_review' ? 'Records Submitted'
-        : 'Booking Confirmed'
-      : statusConfig.statusPill
-
-  const effectiveTone: StatusTone =
-    clearanceStatus === 'cleared_to_fly' && mainBookingHeroState
-      ? mainBookingHeroState.mode === 'post_flight_awaiting_payment_confirmation' ? 'blue'
-        : mainBookingHeroState.mode === 'post_flight_payment_required' ? 'amber'
-        : mainBookingHeroState.mode === 'post_flight_required' ? 'amber'
-        : mainBookingHeroState.mode === 'post_flight_under_review' ? 'blue'
-        : 'blue'
-      : statusConfig.statusTone
-
-  const hasActiveBooking = Boolean(
-    activeBooking && !['completed', 'cancelled', 'no_show'].includes(activeBooking.status),
-  )
-
-  // Main CTA
-  const mainCtaHref =
-    isNoShowLocked
-      ? '/dashboard/messages'
-      :
-    clearanceStatus === 'checkout_payment_required' && checkoutBookingId
-      ? `/dashboard/bookings/${checkoutBookingId}`
-      : clearanceStatus === 'cleared_to_fly' && mainBookingHeroState
-      ? `/dashboard/bookings/${mainBookingHeroState.bookingId}`
-      : clearanceStatus === 'cleared_to_fly' && hasActiveBooking && activeBooking
-      ? `/dashboard/bookings/${activeBooking.id}`
-      : statusConfig.primaryCtaHref
-
-  const mainCtaLabel =
-    isNoShowLocked
-      ? 'Contact Team'
-      :
-    clearanceStatus === 'cleared_to_fly' && mainBookingHeroState?.mode === 'post_flight_awaiting_payment_confirmation'
-      ? 'View Booking Details'
-      : clearanceStatus === 'cleared_to_fly' && mainBookingHeroState?.mode === 'post_flight_payment_required'
-      ? 'Pay Invoice'
-      : clearanceStatus === 'cleared_to_fly' && mainBookingHeroState?.mode === 'post_flight_required'
-      ? 'Submit Post-Flight Records'
-      : clearanceStatus === 'cleared_to_fly' && mainBookingHeroState?.mode === 'post_flight_under_review'
-      ? 'View Booking'
-      : clearanceStatus === 'cleared_to_fly' && mainBookingHeroState?.mode === 'upcoming_confirmed'
-      ? 'View Booking'
-      : clearanceStatus === 'cleared_to_fly' && hasActiveBooking
-      ? 'View Booking'
-      : statusConfig.primaryCtaLabel
-
-  const heroStatusLine = getHeroStatusLine(clearanceStatus, isAwaitingManualPayment, mainBookingHeroState)
-
-  const heroSecondaryCta = mainBookingHeroState
-    ? { label: 'View My Booking', href: `/dashboard/bookings/${mainBookingHeroState.bookingId}` }
-    : flightSnapshotBooking
-    ? { label: 'View My Booking', href: `/dashboard/bookings/${flightSnapshotBooking.id}` }
-    : { label: 'View My Bookings', href: '/dashboard/bookings' }
-
-  const nextAction = getNextActionConfig(
-    isNoShowLocked,
-    clearanceStatus,
-    isAwaitingManualPayment,
-    mainBookingHeroState,
-    mainCtaLabel,
-    mainCtaHref,
-    checkoutBookingId ?? null,
-    flightSnapshotBooking ?? null,
-  )
-
-  // ── Snapshot status ──
-  const snapshotStatus = (() => {
-    if (!flightSnapshotBooking) return null
-    if (mainBookingHeroState?.mode === 'post_flight_awaiting_payment_confirmation') {
-      return { label: 'Awaiting Payment Confirmation', textColor: 'text-blue-300', dotColor: '#60a5fa' }
+  const actionState = dashboardActionState
+  const heroAction = actionState.primaryAction ?? actionState.secondaryAction ?? null
+  const snapshotStatus = flightSnapshotBooking ? getSnapshotStatusDisplay(flightSnapshotBooking, actionState) : null
+  const latestDocsByType = documents.reduce((map, doc) => {
+    const existing = map.get(doc.document_type)
+    if (!existing || new Date(doc.updated_at).getTime() > new Date(existing.updated_at).getTime()) {
+      map.set(doc.document_type, doc)
     }
-    if (mainBookingHeroState?.mode === 'post_flight_payment_required') {
-      return { label: 'Payment Required', textColor: 'text-orange-300', dotColor: '#fb923c' }
-    }
-    return getSnapshotStatusDisplay(flightSnapshotBooking.status, flightSnapshotBooking.bookingType)
-  })()
+    return map
+  }, new Map<string, UserDocument>())
+  const pilotLicenceDocument = latestDocsByType.get('pilot_licence') ?? null
+  const documentReadinessItems = evaluateBookingDocumentsReadiness({
+    documents,
+    hasNightVfrRating: profile?.has_night_vfr_rating ?? null,
+  })
+  const documentProgress = getDocumentProgressSnapshot({
+    documentReadinessItems,
+    pilotLicenceDocument,
+    lastFlightDate: profile?.last_flight_date ?? null,
+    hasNightVfrRating: profile?.has_night_vfr_rating ?? null,
+    termsAccepted: bookingReadiness?.currentTermsAccepted ?? false,
+  })
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -946,23 +497,6 @@ export default function DashboardContent({
           </div>
         </section>
       ) : null}
-
-      {isNoShowLocked && (
-        <section className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 md:p-5">
-          <p className="text-base md:text-lg font-semibold text-rose-100 text-center">
-            Your account is currently locked because you were marked as a no-show for your checkout flight.
-          </p>
-          <p className="mt-2 text-sm md:text-base text-rose-100/90 text-center">
-            Please contact OZ Rent A Plane to discuss your checkout status and unlock your account.
-          </p>
-          <p className="mt-2 text-sm md:text-base text-[#152d5a] text-center">
-            Call:{' '}
-            <a href={`tel:${ADMIN_CONTACT_PHONE_TEL}`} className="underline underline-offset-2">
-              {ADMIN_CONTACT_PHONE_DISPLAY}
-            </a>
-          </p>
-        </section>
-      )}
 
       {/* ─── SECTION 1: HERO CARD ────────────────────────────────────────────── */}
       <section
@@ -1000,42 +534,31 @@ export default function DashboardContent({
           <div className="mb-3">
             <div
               className="inline-flex items-center gap-2 mb-4 px-4 py-1.5 rounded-full border text-[13px] font-semibold"
-              style={{
-                background: 'rgba(245,158,11,0.15)',
-                borderColor: 'rgba(245,158,11,0.35)',
-                color: '#f59e0b',
-              }}
+              style={heroPillStyle(actionState.tone)}
             >
-              <span className="material-symbols-outlined text-[14px]">flight_takeoff</span>
-              {effectiveStatusPill}
+              <span className="material-symbols-outlined text-[14px]">{heroIcon(actionState.tone)}</span>
+              {actionState.heroLabel}
             </div>
           </div>
-          <p className="text-[15px] text-white/80 leading-relaxed mb-6 max-w-md">
-            {clearanceStatus === 'checkout_required'
-              ? "You're almost ready for solo hire. Complete your checkout to access and book your aircraft."
-              : heroStatusLine}
+          <p className="text-[15px] text-white/80 leading-relaxed mb-6 max-w-xl">
+            {actionState.heroMessage}
           </p>
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => router.push(mainCtaHref)}
-              className="bg-[#f59e0b] hover:bg-[#e08c00] text-white font-semibold rounded-xl px-6 py-3 flex items-center gap-2 transition-colors"
-            >
-              <span
-                className="material-symbols-outlined text-[15px] leading-none"
-                style={{ fontVariationSettings: "'FILL' 1" }}
+          {heroAction ? (
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                onClick={() => router.push(heroAction.href)}
+                className={`inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold transition-colors sm:w-auto ${heroButtonStyle(actionState.tone)}`}
               >
-                flight_takeoff
-              </span>
-              {mainCtaLabel}
-            </button>
-            <button
-              onClick={() => router.push(heroSecondaryCta.href)}
-              className="bg-transparent border border-white/40 hover:border-white text-white font-medium rounded-xl px-5 py-3 flex items-center gap-2 transition-colors"
-            >
-              <span className="material-symbols-outlined text-[15px] leading-none">calendar_month</span>
-              {heroSecondaryCta.label}
-            </button>
-          </div>
+                <span
+                  className="material-symbols-outlined text-[15px] leading-none"
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  {heroIcon(actionState.tone)}
+                </span>
+                {heroAction.label}
+              </button>
+            </div>
+          ) : null}
         </div>
         <div
           className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none"
@@ -1043,8 +566,10 @@ export default function DashboardContent({
         />
       </section>
 
+      <DashboardNextActionPanel state={actionState} flightSnapshotBooking={flightSnapshotBooking ?? null} />
+
       {/* ─── SECTION 2: PILOT JOURNEY CARD ───────────────────────────────────── */}
-      <PilotJourneyStrip clearanceStatus={clearanceStatus} />
+      <PilotJourneyStrip currentStep={actionState.journeyStep} />
 
       {/* ─── SECTION 2.5: BLOCK TIME BALANCE BANNER ──────────────────────────── */}
       {blockTimeSummary && (
@@ -1259,101 +784,8 @@ export default function DashboardContent({
         </div>
       ) : null}
 
-      {/* ─── SECTION 3: NEXT ACTION + UPCOMING BOOKING + DOCUMENT READINESS ─── */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-
-        {/* ── Next Action Card ── */}
-        <div
-          className="bg-white border border-[#152d5a]/10 rounded-2xl p-5 flex flex-col relative overflow-hidden min-h-[280px]"
-          style={{
-            position: 'relative',
-            boxShadow: '0 4px 40px rgba(2,10,22,0.08)',
-          }}
-        >
-          <div className="absolute top-0 inset-x-0 z-20 h-[3px]" style={{ background: toneAccentGradient(nextAction.tone) }} />
-
-          {/* Top row */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">send</span>
-              <span className="text-[16px] font-semibold text-[#4b6390]">Next Action</span>
-            </div>
-            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-md border border-[#f59e0b] text-[#f59e0b] flex items-center gap-1">
-              ★ PRIORITY
-            </span>
-          </div>
-
-          {/* Checklist illustration — always visible, absolute top-right */}
-          <div className="hidden md:block absolute top-20 right-3 pointer-events-none select-none">
-            <div className="bg-white rounded-xl p-1">
-              <img
-                src="/CustomerDashboard/CustomerDashboard-checklist.png"
-                alt=""
-                aria-hidden="true"
-                className="w-32 h-36 object-contain"
-              />
-            </div>
-          </div>
-
-          {(() => {
-            // Determine if docs need uploading first
-            const hasAllDocs =
-              documents &&
-              documents.filter((d) => d.status === 'approved' || d.status === 'uploaded').length >= 3
-            const showDocumentAction = !hasAllDocs && clearanceStatus === 'checkout_required'
-
-            return showDocumentAction ? (
-              <>
-                <h2
-                  className="text-[32px] font-normal text-[#152d5a] leading-tight mb-3 pr-0 md:pr-36"
-                  style={{ fontFamily: 'Newsreader, Georgia, serif' }}
-                >
-                  Upload Your Documents
-                </h2>
-                <p className="text-[13px] text-[#4b6390] leading-relaxed mb-4 pr-0 md:pr-32">
-                  Before booking your checkout flight, upload your pilot licence, medical certificate, and photo ID.
-                </p>
-                <div className="mt-auto pt-4">
-                  <Link
-                    href="/dashboard/documents"
-                    className="w-full flex items-center justify-center gap-2 bg-[#f59e0b] hover:bg-[#e08c00] text-white font-semibold rounded-xl py-3.5 px-4 transition-colors text-[14px]"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">upload_file</span>
-                    Upload Documents Now
-                  </Link>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* Status-driven action content */}
-                <div className="relative z-10">
-                  <h2
-                    className="text-[32px] font-normal text-[#152d5a] leading-tight mb-3 pr-0 md:pr-36"
-                    style={{ fontFamily: 'Newsreader, Georgia, serif' }}
-                  >
-                    {nextAction.title}
-                  </h2>
-                </div>
-
-                <p className="text-[13px] text-[#4b6390] leading-relaxed mb-4 pr-0 md:pr-32">
-                  {nextAction.body}
-                </p>
-
-                <div className="mt-auto pt-4">
-                  <Link
-                    href={nextAction.ctaHref}
-                    className="w-full flex items-center justify-center gap-2 bg-[#f59e0b] hover:bg-[#e08c00] text-white font-semibold rounded-xl py-3.5 px-4 transition-colors text-[14px]"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">{nextAction.icon}</span>
-                    {nextAction.ctaLabel}
-                  </Link>
-                </div>
-              </>
-            )
-          })()}
-        </div>
-
-        {/* ── Upcoming Booking Card ── */}
+      {/* ─── SECTION 3: UPCOMING BOOKING + DOCUMENT READINESS ───────────────── */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <div
           className="relative rounded-2xl overflow-hidden bg-white border border-[#152d5a]/10"
           style={{
@@ -1370,7 +802,6 @@ export default function DashboardContent({
             </div>
 
             {flightSnapshotBooking ? (
-              /* ── Populated state ── */
               <div className="relative flex flex-col gap-3 flex-1">
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none">
                   <img
@@ -1383,7 +814,7 @@ export default function DashboardContent({
                 </div>
                 <div className="relative z-10 mb-6">
                   <SnapshotRow icon="calendar_month" label="Booking Date">
-                    {formatDateFromISO(flightSnapshotBooking.scheduledStart) || '—'}
+                    {formatDashboardDate(flightSnapshotBooking.scheduledStart) || '—'}
                   </SnapshotRow>
                   {flightSnapshotBooking.scheduledEnd && (
                     <SnapshotRow icon="schedule" label="Time">
@@ -1416,242 +847,178 @@ export default function DashboardContent({
                   <span className="material-symbols-outlined text-[14px] leading-none">arrow_forward</span>
                 </button>
               </div>
-            ) : clearanceStatus === 'cleared_to_fly' ? (
-              /* ── Cleared, no booking ── */
-              <div>
-                <div className="relative flex justify-center items-center" style={{ height: '180px' }}>
-                  {/* Circle backdrop — centred, lower half of the space */}
-                  <div
-                    className="absolute rounded-full"
-                    style={{
-                      width: '160px',
-                      height: '160px',
-                      bottom: '0px',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      background: 'rgba(219,234,254,0.55)',
-                    }}
-                  />
-                  {/* Plane — larger, sits across the circle */}
-                  <img
-                    src="/CustomerDashboard/CustomerDashboard-plane.png"
-                    alt=""
-                    aria-hidden="true"
-                    className="relative z-10 object-contain"
-                    style={{ width: '240px', height: 'auto', position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)' }}
-                  />
+            ) : (() => {
+              const bookingCardAction =
+                actionState.primaryAction?.href === '/dashboard/bookings/new'
+                  ? actionState.primaryAction
+                  : actionState.primaryAction ?? actionState.secondaryAction ?? null
+
+              return (
+                <div>
+                  <div className="relative flex justify-center items-center" style={{ height: '180px' }}>
+                    <div
+                      className="absolute rounded-full"
+                      style={{
+                        width: '160px',
+                        height: '160px',
+                        bottom: '0px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        background: 'rgba(219,234,254,0.55)',
+                      }}
+                    />
+                    <img
+                      src="/CustomerDashboard/CustomerDashboard-plane.png"
+                      alt=""
+                      aria-hidden="true"
+                      className="relative z-10 object-contain"
+                      style={{ width: '240px', height: 'auto', position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)' }}
+                    />
+                  </div>
+                  <p className="text-[20px] font-semibold text-[#152d5a] text-center mb-2">
+                    {actionState.statusKey === 'cleared_ready_to_book' ? 'No upcoming bookings' : 'No active booking yet'}
+                  </p>
+                  <p className="text-[12px] text-[#4b6390] text-center leading-relaxed mt-2 mb-5">
+                    {actionState.statusKey === 'cleared_ready_to_book'
+                      ? 'You are cleared to fly and ready to make your next aircraft booking.'
+                      : actionState.actionDescription}
+                  </p>
+                  {bookingCardAction ? (
+                    <div className="flex justify-center">
+                      <Link
+                        href={bookingCardAction.href}
+                        className="border border-[#1a4fd6] text-[#1a4fd6] rounded-xl py-2.5 px-6 text-[13px] font-semibold hover:bg-[#f0f6ff] transition-colors"
+                      >
+                        {bookingCardAction.label}
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="text-center text-[12px] text-[#64748b]">
+                      Your next available update will appear here automatically.
+                    </div>
+                  )}
                 </div>
-                <p className="text-[20px] font-semibold text-[#152d5a] text-center mb-2">No upcoming bookings</p>
-                <p className="text-[12px] text-[#4b6390] text-center leading-relaxed mt-2 mb-5">
-                  You&apos;re cleared to fly, but you don&apos;t have an active booking yet. Book your next flight to see the details here.
-                </p>
-                {/* Check if there's an active booking */}
-                {activeBooking || flightSnapshotBooking ? (
-                  <div className="flex justify-center">
-                    <Link
-                      href={`/dashboard/bookings/${checkoutBookingId ?? (activeBooking as { id: string } | null)?.id ?? (flightSnapshotBooking as { id: string } | null)?.id}`}
-                      className="border border-[#1a4fd6] text-[#1a4fd6] rounded-xl py-2.5 px-6 text-[13px] font-semibold hover:bg-[#f0f6ff] transition-colors"
-                    >
-                      View Booking
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="flex justify-center">
-                    <Link
-                      href="/dashboard/bookings/new"
-                      className="border border-[#1a4fd6] text-[#1a4fd6] rounded-xl py-2.5 px-6 text-[13px] font-semibold hover:bg-[#f0f6ff] transition-colors"
-                    >
-                      Make a Booking
-                    </Link>
-                  </div>
-                )}
-              </div>
-            ) : (
-              /* ── Not cleared, no checkout booked ── */
-              <div>
-                <div className="relative flex justify-center items-center" style={{ height: '180px' }}>
-                  {/* Circle backdrop — centred, lower half of the space */}
-                  <div
-                    className="absolute rounded-full"
-                    style={{
-                      width: '160px',
-                      height: '160px',
-                      bottom: '0px',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      background: 'rgba(219,234,254,0.55)',
-                    }}
-                  />
-                  {/* Plane — larger, sits across the circle */}
-                  <img
-                    src="/CustomerDashboard/CustomerDashboard-plane.png"
-                    alt=""
-                    aria-hidden="true"
-                    className="relative z-10 object-contain"
-                    style={{ width: '240px', height: 'auto', position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)' }}
-                  />
-                </div>
-                <p className="text-[20px] font-semibold text-[#152d5a] text-center mb-2">
-                  {clearanceStatus === 'checkout_required' ? 'No checkout booked' : 'No upcoming flight'}
-                </p>
-                <p className="text-[12px] text-[#4b6390] text-center leading-relaxed mt-2 mb-5">
-                  {clearanceStatus === 'checkout_required'
-                    ? 'Once you schedule your checkout flight, your booking details and status will appear here.'
-                    : 'Your booking details will appear here once available.'}
-                </p>
-                {activeBooking || flightSnapshotBooking ? (
-                  <div className="flex justify-center">
-                    <Link
-                      href={`/dashboard/bookings/${checkoutBookingId ?? (activeBooking as { id: string } | null)?.id ?? (flightSnapshotBooking as { id: string } | null)?.id}`}
-                      className="border border-[#1a4fd6] text-[#1a4fd6] rounded-xl py-2.5 px-6 text-[13px] font-semibold hover:bg-[#f0f6ff] transition-colors"
-                    >
-                      View Booking
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="flex justify-center">
-                    <Link
-                      href="/dashboard/bookings/new"
-                      className="border border-[#1a4fd6] text-[#1a4fd6] rounded-xl py-2.5 px-6 text-[13px] font-semibold hover:bg-[#f0f6ff] transition-colors"
-                    >
-                      Make a Booking
-                    </Link>
-                  </div>
-                )}
-              </div>
-            )}
+              )
+            })()}
           </div>
         </div>
 
-        {/* ── Document Readiness Card ── */}
         <div
           className="bg-white border border-[#152d5a]/10 rounded-2xl p-5 flex flex-col"
           style={{
             boxShadow: '0 4px 40px rgba(2,10,22,0.08)',
           }}
-	        >
-	          {(() => {
-	            // Build latest-per-type map (mirrors DocumentsPanelV2 logic)
-	            const docMap = (() => {
-	              const map: Record<string, (typeof documents)[number]> = {}
-	              for (const doc of (documents ?? [])) {
-	                const existing = map[doc.document_type]
-	                if (!existing || new Date(doc.updated_at) > new Date(existing.updated_at)) {
-	                  map[doc.document_type] = doc
-	                }
-	              }
-	              return map
-	            })()
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">description</span>
+            <span className="text-[16px] font-semibold text-[#4b6390]">Document Readiness</span>
+          </div>
 
-	            // Core 3 required docs (matches DocumentsPanelV2 DOC_TYPES)
-	            const CORE_DOC_TYPES = ['pilot_licence', 'medical_certificate', 'photo_id'] as const
+          <div className="flex items-start gap-4 mb-5">
+            <div className="flex-shrink-0">
+              <svg viewBox="0 0 100 100" className="w-28 h-28 flex-shrink-0">
+                <circle cx="50" cy="50" r="40" fill="none" stroke="#e2e8f0" strokeWidth="14" />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  fill="none"
+                  stroke="#1a4fd6"
+                  strokeWidth="14"
+                  strokeLinecap="round"
+                  strokeDasharray={`${(documentProgress.percent / 100) * 251.2} 251.2`}
+                  transform="rotate(-90 50 50)"
+                />
+                <text x="50" y="46" textAnchor="middle" fontWeight="800" fontSize="18" fill="#152d5a">
+                  {documentProgress.percent}%
+                </text>
+                <text x="50" y="62" textAnchor="middle" fontSize="12" fill="#4b6390">
+                  Ready
+                </text>
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0 pt-1">
+              <p className="text-[19px] font-semibold text-[#152d5a] leading-snug">{documentProgress.bannerHeading}</p>
+              <p className="mt-2 text-[12px] text-[#4b6390] leading-relaxed">{documentProgress.bannerBody}</p>
+            </div>
+          </div>
 
-	            // Count docs that are uploaded (not missing/rejected) — mirrors allDocsUploaded logic
-	            const approvedCount = CORE_DOC_TYPES.filter((key) => {
-	              const doc = docMap[key]
-	              if (!doc) return false
-	              if (doc.status === 'rejected') return false
-	              return true
-	            }).length
-
-	            // Night VFR is separate/optional
-	            const nightVfrDoc = docMap['night_vfr_evidence']
-	            const nightVfrState = !nightVfrDoc ? 'missing' : nightVfrDoc.status === 'rejected' ? 'rejected' : 'uploaded'
-	            return (
-	              <>
-	                <div className="flex items-center gap-2 mb-4">
-	                  <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">description</span>
-	                  <span className="text-[16px] font-semibold text-[#4b6390]">Document Readiness</span>
+          <div className="space-y-3 mb-5">
+            {documentReadinessItems.map((item) => {
+              const tone = readinessTone(item.state)
+              return (
+                <div key={item.key} className="flex items-start gap-3 rounded-xl border border-[#152d5a]/8 bg-[#f8fbff] px-3 py-3">
+                  <span className={`material-symbols-outlined text-[18px] ${tone.iconClassName}`}>{tone.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[12px] font-semibold text-[#152d5a]">{item.label}</span>
+                      <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${tone.labelClassName}`}>
+                        {item.state.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] leading-relaxed text-[#4b6390]">{item.detail}</p>
+                  </div>
                 </div>
+              )
+            })}
 
-                <div className="flex items-start gap-4 mb-5">
-                  <div className="flex-shrink-0">
-                    <svg viewBox="0 0 100 100" className="w-28 h-28 flex-shrink-0">
-                      <circle cx="50" cy="50" r="40" fill="none" stroke="#e2e8f0" strokeWidth="14"/>
-	                      <circle
-	                        cx="50" cy="50" r="40"
-	                        fill="none"
-	                        stroke="#1a4fd6"
-	                        strokeWidth="14"
-	                        strokeLinecap="round"
-	                        strokeDasharray={`${(approvedCount / 3) * 251.2} 251.2`}
-	                        transform="rotate(-90 50 50)"
-	                      />
-	                      <text x="50" y="46" textAnchor="middle" fontWeight="800" fontSize="18" fill="#152d5a">{Math.round((approvedCount / 3) * 100)}%</text>
-	                      <text x="50" y="62" textAnchor="middle" fontSize="12" fill="#4b6390">Ready</text>
-	                    </svg>
-	                  </div>
-                  <div className="flex-1 min-w-0 pt-1">
-                    <p className="text-[12px] text-[#4b6390] leading-relaxed">
-                      {approvedCount === 0
-                        ? 'Upload your pilot documents to get checkout ready.'
-	                        : approvedCount < 3
-	                          ? "You're making progress. Complete the remaining documents."
-	                          : 'All documents uploaded. Awaiting admin verification.'}
-	                    </p>
-	                  </div>
-	                </div>
+            {[
+              {
+                key: 'flight_review',
+                label: 'Flight review and red card',
+                detail:
+                  profile?.last_flight_date?.trim() && pilotLicenceDocument?.red_card_expiry_month && pilotLicenceDocument?.red_card_expiry_year
+                    ? 'Flight review recorded and red card details are on file.'
+                    : profile?.last_flight_date?.trim()
+                      ? 'Flight review date is saved. Add red card details to complete this step.'
+                      : 'Add your last flight review date and red card details.',
+                status: documentProgress.statuses[1],
+              },
+              {
+                key: 'night_vfr',
+                label: 'Night VFR requirement',
+                detail:
+                  profile?.has_night_vfr_rating === true
+                    ? documentReadinessItems.some((item) => item.key === 'night_vfr_evidence')
+                      ? 'Night VFR evidence is being tracked in your required documents.'
+                      : 'Night VFR is enabled but supporting evidence is still needed.'
+                    : profile?.has_night_vfr_rating === false
+                      ? 'No Night VFR evidence is required for your current profile.'
+                      : 'Answer the Night VFR question so the correct evidence requirement can be applied.',
+                status: documentProgress.statuses[2],
+              },
+              {
+                key: 'terms',
+                label: 'Current booking terms',
+                detail: bookingReadiness?.currentTermsAccepted
+                  ? 'The latest terms have been accepted.'
+                  : 'Accept the latest booking terms to complete your readiness.',
+                status: documentProgress.statuses[3],
+              },
+            ].map((item) => {
+              const tone = progressStatusTone(item.status)
+              return (
+                <div key={item.key} className="flex items-start gap-3 rounded-xl border border-[#152d5a]/8 bg-white px-3 py-3">
+                  <span className={`material-symbols-outlined text-[18px] ${tone.iconClassName}`}>{tone.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[12px] font-semibold text-[#152d5a]">{item.label}</span>
+                      <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${tone.labelClassName}`}>
+                        {tone.label}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] leading-relaxed text-[#4b6390]">{item.detail}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
 
-	                <div className="space-y-3 mb-4">
-	                  {[
-	                    { label: 'Pilot Licence', key: 'pilot_licence' },
-	                    { label: 'Medical Certificate', key: 'medical_certificate' },
-	                  ].map((doc) => {
-	                    const found = docMap[doc.key]
-	                    const isOk = found && found.status !== 'rejected'
-	                    const isPending = found && found.status !== 'approved' && found.status !== 'rejected'
-	                    return (
-	                      <div key={doc.key} className="flex items-center gap-2">
-	                        <span className={`material-symbols-outlined text-[15px] flex-shrink-0 ${
-	                          isOk && !isPending ? 'text-green-500' :
-	                          isPending ? 'text-amber-500' :
-	                          'text-slate-300'
-	                        }`}>
-	                          {isOk && !isPending ? 'check_circle' : isPending ? 'pending' : 'radio_button_unchecked'}
-	                        </span>
-	                        <span className="text-[11px] text-[#4b6390] flex-1">{doc.label}</span>
-	                        <span className={`text-[10px] font-medium ${
-	                          isOk && !isPending ? 'text-green-600' :
-	                          isPending ? 'text-amber-600' :
-	                          'text-slate-400'
-	                        }`}>
-	                          {isOk && !isPending ? 'Approved' : isPending ? 'Awaiting Approval' : 'Not Submitted'}
-	                        </span>
-	                      </div>
-	                    )
-	                  })}
-	                  <div className="flex items-center gap-2">
-	                    <span className={`material-symbols-outlined text-[15px] flex-shrink-0 ${
-	                      nightVfrState === 'uploaded' ? 'text-green-500' :
-	                      nightVfrState === 'missing' ? 'text-slate-300' :
-	                      'text-red-400'
-	                    }`}>
-	                      {nightVfrState === 'uploaded' ? 'check_circle' :
-	                       nightVfrState === 'missing' ? 'radio_button_unchecked' :
-	                       'cancel'}
-	                    </span>
-	                    <span className="text-[11px] text-[#4b6390] flex-1">Night VFR Endorsement</span>
-	                    <span className={`text-[10px] font-medium ${
-	                      nightVfrState === 'uploaded' ? 'text-green-600' :
-	                      nightVfrState === 'missing' ? 'text-slate-400' :
-	                      'text-red-500'
-	                    }`}>
-	                      {nightVfrState === 'uploaded' ? 'Submitted' :
-	                       nightVfrState === 'missing' ? 'Not Submitted' :
-	                       'Rejected'}
-	                    </span>
-	                  </div>
-	                </div>
-
-                <Link href="/dashboard/documents" className="flex items-center gap-1 text-[15px] font-semibold text-[#1a4fd6] hover:underline mt-auto">
-                  Go to Documents
-                  <span className="material-symbols-outlined text-[15px]">chevron_right</span>
-                </Link>
-              </>
-            )
-          })()}
+          <Link href="/dashboard/documents" className="flex items-center gap-1 text-[15px] font-semibold text-[#1a4fd6] hover:underline mt-auto">
+            {documentProgress.ctaLabel}
+            <span className="material-symbols-outlined text-[15px]">chevron_right</span>
+          </Link>
         </div>
-
       </div>
 
       <div className="bg-white border border-[#152d5a]/10 rounded-2xl px-6 py-5">
@@ -1673,7 +1040,7 @@ export default function DashboardContent({
             const isEvent = 'event_type' in item
             const label = isEvent ? (item.title ?? item.event_type ?? 'Activity update') : item.label
             const time = isEvent
-              ? (item.created_at ? new Date(item.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : 'Recently')
+              ? (item.created_at ? formatDateFromISOShort(item.created_at) : 'Recently')
               : item.time
             const isPositive = isEvent
               ? (item.event_type?.includes('approved') || item.event_type?.includes('verified'))

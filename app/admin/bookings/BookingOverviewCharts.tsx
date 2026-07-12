@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { Bar, BarChart, Cell, LabelList, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis } from 'recharts'
-import { ChartShell, type TimeRangeValue } from '@/app/admin/components/AdminUi'
+import { AdminActionButton, ChartShell, type TimeRangeValue } from '@/app/admin/components/AdminUi'
 import { ChartRangeControl, EmptyChartState, isInRange, ReadableTooltip } from '@/app/admin/components/ChartPrimitives'
 import { deriveBookingStatusForFlightRecord, isAwaitingFlightRecordDue } from '@/lib/booking/flight-record-status'
 
@@ -31,9 +31,28 @@ function dayKey(value: string | null | undefined): string | null {
   return d.toISOString().slice(0, 10)
 }
 
-function ChartCard({ title, subtitle, value, onChange, children }: { title: string; subtitle: string; value: TimeRangeValue; onChange: (v: TimeRangeValue) => void; children: React.ReactNode }) {
+function ChartCard({
+  title,
+  subtitle,
+  value,
+  onChange,
+  actionHref,
+  actionLabel,
+  children,
+}: {
+  title: string
+  subtitle: string
+  value: TimeRangeValue
+  onChange: (v: TimeRangeValue) => void
+  actionHref: string
+  actionLabel: string
+  children: React.ReactNode
+}) {
   return (
-    <ChartShell title={title}>
+    <ChartShell
+      title={title}
+      actions={<AdminActionButton href={actionHref} label={actionLabel} tone="secondary" className="w-full justify-center sm:w-auto" />}
+    >
       <div className="-mt-2 mb-3 flex items-start justify-between gap-3 flex-wrap">
         <p className="text-xs text-slate-400">{subtitle}</p>
         <ChartRangeControl value={value} onChange={onChange} />
@@ -122,32 +141,32 @@ export default function BookingOverviewCharts({ bookings, cancellations, manualP
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <ChartCard title="Standard Bookings Over Time" subtitle="Standard bookings created during the selected period." value={bookingsRange} onChange={setBookingsRange}>
+      <ChartCard title="Standard Bookings Over Time" subtitle="Standard bookings created during the selected period." value={bookingsRange} onChange={setBookingsRange} actionHref="/admin/bookings/upcoming-flights" actionLabel="Open queue">
         {bookingsOverTime.length === 0 ? <EmptyChartState /> : (
           <div className="h-[240px]"><ResponsiveContainer width="100%" height="100%"><LineChart data={bookingsOverTime}><XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} /><YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} /><ReadableTooltip /><Line type="monotone" dataKey="count" stroke="#38BDF8" strokeWidth={2.5} dot={false} /></LineChart></ResponsiveContainer></div>
         )}
       </ChartCard>
 
-      <ChartCard title="Booking Status Breakdown" subtitle="Current standard booking status mix in the selected period." value={statusRange} onChange={setStatusRange}>
+      <ChartCard title="Booking Status Breakdown" subtitle="Current standard booking status mix in the selected period." value={statusRange} onChange={setStatusRange} actionHref="/admin/bookings/history" actionLabel="View history">
         {statusBreakdown.length === 0 ? <EmptyChartState /> : (
           <div className="h-[240px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={statusBreakdown}><XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} angle={-12} textAnchor="end" height={52} interval={0} /><YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} /><ReadableTooltip /><Bar dataKey="value" radius={[6, 6, 0, 0]}>{statusBreakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}<LabelList dataKey="value" position="top" fill="#e2e8f0" fontSize={11} /></Bar></BarChart></ResponsiveContainer></div>
         )}
       </ChartCard>
 
-      <ChartCard title="Payment Status Breakdown" subtitle="Payment states for standard bookings in the selected period." value={paymentRange} onChange={setPaymentRange}>
+      <ChartCard title="Payment Status Breakdown" subtitle="Payment states for standard bookings in the selected period." value={paymentRange} onChange={setPaymentRange} actionHref="/admin/bookings/payments" actionLabel="View payments">
         {paymentBreakdown.length === 0 ? <EmptyChartState /> : (
           <div className="h-[240px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={paymentBreakdown} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={3}>{paymentBreakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><ReadableTooltip /><Legend formatter={(value, entry) => `${value} (${entry?.payload?.value ?? 0})`} wrapperStyle={{ fontSize: '12px' }} /></PieChart></ResponsiveContainer></div>
         )}
       </ChartCard>
 
-      <ChartCard title="Post-flight Review Status" subtitle="Post-flight record and review workload status." value={reviewRange} onChange={setReviewRange}>
+      <ChartCard title="Post-flight Review Status" subtitle="Post-flight record and review workload status." value={reviewRange} onChange={setReviewRange} actionHref="/admin/bookings/post-flight-review" actionLabel="Open review queue">
         {reviewBreakdown.length === 0 ? <EmptyChartState /> : (
           <div className="h-[240px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={reviewBreakdown}><XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} /><YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} /><ReadableTooltip /><Bar dataKey="value" fill="#34D399" radius={[6, 6, 0, 0]}><LabelList dataKey="value" position="top" fill="#e2e8f0" fontSize={11} /></Bar></BarChart></ResponsiveContainer></div>
         )}
       </ChartCard>
 
       <div className="lg:col-span-2">
-        <ChartCard title="Cancellation Trend" subtitle="New cancellation requests during the selected period." value={cancelRange} onChange={setCancelRange}>
+        <ChartCard title="Cancellation Trend" subtitle="New cancellation requests during the selected period." value={cancelRange} onChange={setCancelRange} actionHref="/admin/bookings/cancellations" actionLabel="View cancellations">
           {cancellationTrend.length === 0 ? <EmptyChartState /> : (
             <div className="h-[240px]"><ResponsiveContainer width="100%" height="100%"><LineChart data={cancellationTrend}><XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} /><YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} /><ReadableTooltip /><Line type="monotone" dataKey="count" stroke="#FB7185" strokeWidth={2.5} dot={false} /></LineChart></ResponsiveContainer></div>
           )}

@@ -2,14 +2,33 @@ import { redirect } from 'next/navigation'
 import { unstable_noStore as noStore } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import AdminPortalHero from '@/components/AdminPortalHero'
-import AdminCalendarClient, { type CalEvent } from './AdminCalendarClient'
+import type { ScheduleBlock } from '@/lib/supabase/booking-types'
+import AdminCalendarClient from './AdminCalendarClient'
+import { mapScheduleBlockToAdminCalendarEvent } from './calendar-event-mapper'
+import { getCurrentSydneyDateKey, getRangeForView, isValidSydneyDateKey } from './calendar-range'
+import type { AdminCalendarAircraftOption, AdminCalendarView } from './calendar-types'
 
 export const metadata = { title: 'Calendar | Admin' }
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 export const fetchCache = 'force-no-store'
 
-export default async function AdminCalendarPage() {
+type SearchParams = {
+  view?: string
+  date?: string
+  aircraft?: string
+}
+
+function isCalendarView(value: string | undefined): value is AdminCalendarView {
+  return value === 'month' || value === 'week' || value === 'day'
+}
+
+function getAircraftStatusLabel(status: string | null) {
+  if (!status) return null
+  return status.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase())
+}
+
+export default async function AdminCalendarPage({ searchParams }: { searchParams?: SearchParams }) {
   noStore()
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -18,26 +37,61 @@ export default async function AdminCalendarPage() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
-  const { data: aircraft } = await supabase.from('aircraft').select('id, registration').eq('registration', 'VH-KZG').single()
-  if (!aircraft) return <div className="p-8 text-white">No aircraft found.</div>
+  const view: AdminCalendarView = isCalendarView(searchParams?.view) ? searchParams.view : 'month'
+  const dateKey = isValidSydneyDateKey(searchParams?.date) ? searchParams!.date : getCurrentSydneyDateKey()
+  const requestedAircraftId = searchParams?.aircraft?.trim() || null
+  const visibleRange = getRangeForView(view, dateKey)
 
-  const start = new Date()
-  start.setDate(start.getDate() - 7)
-  const end = new Date()
-  end.setDate(end.getDate() + 45)
+  const { data: aircraftRows } = await supabase
+    .from('aircraft')
+    .select('id, registration, aircraft_type, status')
+    .neq('status', 'inactive')
+    .order('registration', { ascending: true })
+
+  const aircraftOptions: AdminCalendarAircraftOption[] = (aircraftRows ?? []).map((aircraft) => ({
+    id: aircraft.id,
+    registration: aircraft.registration,
+    model: aircraft.aircraft_type ?? null,
+    status: aircraft.status ?? null,
+    statusLabel: getAircraftStatusLabel(aircraft.status ?? null),
+  }))
+
+  if (aircraftOptions.length === 0) {
+    return <div className="p-8 text-white">No aircraft found.</div>
+  }
+
+  const aircraftIds = new Set(aircraftOptions.map((aircraft) => aircraft.id))
+  const selectedAircraftId = requestedAircraftId && aircraftIds.has(requestedAircraftId) ? requestedAircraftId : null
+  const scopedAircraftIds = selectedAircraftId ? [selectedAircraftId] : aircraftOptions.map((aircraft) => aircraft.id)
+  const aircraftMap = new Map(
+    (aircraftRows ?? []).map((aircraft) => [
+      aircraft.id,
+      {
+        id: aircraft.id,
+        registration: aircraft.registration,
+        aircraft_type: aircraft.aircraft_type ?? null,
+      },
+    ]),
+  )
 
   const { data: blocks } = await supabase
     .from('schedule_blocks')
-    .select('id, block_type, start_time, end_time, status, related_booking_id')
-    .eq('aircraft_id', aircraft.id)
+    .select('id, aircraft_id, related_booking_id, related_usage_record_id, block_type, start_time, end_time, public_label, internal_reason, created_by_user_id, created_by_role, is_public_visible, status, expires_at, created_at, updated_at')
+    .in('aircraft_id', scopedAircraftIds)
     .eq('status', 'active')
-    .gte('start_time', start.toISOString())
-    .lte('start_time', end.toISOString())
+    .lt('start_time', visibleRange.rangeEndUtc)
+    .gt('end_time', visibleRange.rangeStartUtc)
     .order('start_time', { ascending: true })
+
+  const now = new Date()
+  const overlappingBlocks = ((blocks ?? []) as ScheduleBlock[]).filter((block) => {
+    if (block.block_type !== 'temporary_hold' || !block.expires_at) return true
+    return new Date(block.expires_at) > now
+  })
 
   const relatedBookingIds = Array.from(
     new Set(
-      (blocks ?? [])
+      overlappingBlocks
         .map((b) => b.related_booking_id)
         .filter((id): id is string => Boolean(id)),
     ),
@@ -46,9 +100,20 @@ export default async function AdminCalendarPage() {
   const { data: bookings } = relatedBookingIds.length
     ? await supabase
         .from('bookings')
-        .select('id, pic_name, status, booking_type, booking_owner_user_id')
+        .select('id, booking_reference, pic_name, status, booking_type, booking_owner_user_id, payment_status, checkout_lifecycle_status')
         .in('id', relatedBookingIds)
-    : { data: [] as Array<{ id: string; pic_name: string | null; status: string; booking_type: string; booking_owner_user_id: string }> }
+    : {
+        data: [] as Array<{
+          id: string
+          booking_reference: string | null
+          pic_name: string | null
+          status: string
+          booking_type: 'checkout' | 'standard'
+          booking_owner_user_id: string
+          payment_status: string | null
+          checkout_lifecycle_status: string | null
+        }>,
+      }
 
   const bookingOwnerIds = Array.from(
     new Set((bookings ?? []).map((b) => b.booking_owner_user_id).filter(Boolean)),
@@ -57,53 +122,61 @@ export default async function AdminCalendarPage() {
   const { data: profiles } = bookingOwnerIds.length
     ? await supabase
         .from('profiles')
-        .select('id, full_name, first_name, last_name')
+        .select('id, full_name, first_name, last_name, email, phone_country_code, phone_number')
         .in('id', bookingOwnerIds)
-    : { data: [] as Array<{ id: string; full_name: string | null; first_name: string | null; last_name: string | null }> }
+    : {
+        data: [] as Array<{
+          id: string
+          full_name: string | null
+          first_name: string | null
+          last_name: string | null
+          email: string | null
+          phone_country_code: string | null
+          phone_number: string | null
+        }>,
+      }
 
   const bookingsById = new Map((bookings ?? []).map((b) => [b.id, b]))
   const profilesById = new Map((profiles ?? []).map((p) => [p.id, p]))
 
-  const events: CalEvent[] = (blocks ?? []).map((b) => {
-    const booking = b.related_booking_id ? bookingsById.get(b.related_booking_id) : null
-    const profile = booking ? profilesById.get(booking.booking_owner_user_id) : null
-    const profileName = profile?.full_name?.trim() || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() || null
-    const isOrphanCustomerBlock = b.block_type === 'customer_booking' && !booking
+  const events = overlappingBlocks.flatMap((block) => {
+    const aircraft = aircraftMap.get(block.aircraft_id)
+    if (!aircraft) return []
 
-    const type = isOrphanCustomerBlock
-      ? 'blocked'
-      : b.block_type === 'customer_booking'
-      ? booking?.booking_type === 'checkout' ? 'checkout' : 'booking'
-      : b.block_type === 'buffer'
-      ? 'buffer'
-      : b.block_type === 'maintenance' || b.block_type === 'inspection'
-      ? 'maintenance'
-      : 'blocked'
+    const booking = block.related_booking_id ? bookingsById.get(block.related_booking_id) ?? null : null
+    const profile = booking ? profilesById.get(booking.booking_owner_user_id) ?? null : null
 
-    const title = isOrphanCustomerBlock ? 'Orphan schedule block' : b.block_type.replace(/_/g, ' ')
-
-    return {
-      id: b.id,
-      type,
-      title,
-      customer: profileName || booking?.pic_name || null,
-      aircraft: aircraft.registration,
-      start: b.start_time,
-      end: b.end_time,
-      status: b.status,
-      paymentStatus: booking?.status === 'checkout_payment_required' ? 'Payment Required' : null,
-    }
+    return [
+      mapScheduleBlockToAdminCalendarEvent({
+        block,
+        aircraft,
+        booking,
+        profile,
+      }),
+    ]
   })
+
+  const selectedAircraftRegistration =
+    selectedAircraftId ? aircraftOptions.find((aircraft) => aircraft.id === selectedAircraftId)?.registration ?? null : null
 
   return (
     <>
-      <AdminPortalHero
-        eyebrow="Calendar"
-        title="Operations Calendar"
-        subtitle="Day, week, and month scheduling for bookings and aircraft blocks."
-      />
-      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24">
-        <AdminCalendarClient events={events} />
+      <div className="pt-[calc(4.5rem+env(safe-area-inset-top))] sm:pt-0">
+        <AdminPortalHero
+          eyebrow="Calendar"
+          title="Operations Calendar"
+          subtitle="Day, week, and month scheduling for bookings and aircraft blocks."
+        />
+      </div>
+      <div className="admin-calendar-pilot mx-auto max-w-[1520px] px-4 py-8 pb-24 sm:px-6 md:px-8 lg:px-10">
+        <AdminCalendarClient
+          events={events}
+          aircraftOptions={aircraftOptions}
+          selectedAircraftId={selectedAircraftId}
+          selectedAircraftRegistration={selectedAircraftRegistration}
+          view={view}
+          dateKey={dateKey}
+        />
       </div>
     </>
   )

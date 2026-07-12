@@ -25,7 +25,7 @@ export default async function NewCustomerPage() {
         subtitle="Create a customer account and send secure first-login credentials by email."
         actions={
           <Link
-            href="/admin/customers"
+            href="/admin/customers/all"
             className="inline-flex items-center rounded-lg border border-[#152d5a]/20 bg-white px-3.5 py-2 text-sm font-medium text-[#152d5a] transition-colors hover:border-[#152d5a]/40"
           >
             Back to customers

@@ -228,7 +228,12 @@ async function gateInvoices(userId) {
 }
 
 async function drawdown(userId, bookingId, vdoHours, landingFees) {
-  return admin.rpc('process_block_time_flight', {
+  // Migration 108 added an auth.uid()-based admin guard to this RPC, so it can
+  // no longer be driven with the service-role client (auth.uid() is NULL →
+  // 'Unauthorized'). Call it the way the app does: with the authenticated
+  // admin session client.
+  const authedAdmin = await getAuthenticatedAdminClient()
+  return authedAdmin.rpc('process_block_time_flight', {
     p_user_id: userId,
     p_booking_id: bookingId,
     p_vdo_hours: vdoHours,

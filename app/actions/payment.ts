@@ -15,6 +15,7 @@ import {
 import { sendEmail } from "@/lib/email/send-email";
 import { paymentConfirmedEmail } from "@/lib/email/templates/payment";
 import { settleCheckoutInvoiceManually } from "@/lib/payments/settle-checkout-invoice";
+import { generateStandardBookingInvoicePdf } from "@/lib/invoices/standard-booking-pdf";
 
 type ManualPaymentMethod = "cash" | "card_in_person" | "bank_transfer";
 
@@ -929,27 +930,41 @@ export async function submitStandardBankTransferProof(
     throw new Error("Failed to upload receipt. Please try again.");
   }
 
-  const { error: dbError } = await supabase
-    .from("booking_bank_transfer_submissions")
-    .insert({
-      invoice_id:           invoiceId,
-      booking_id:           bookingId,
-      customer_id:          user.id,
-      reference,
-      receipt_storage_path: filePath,
-      status:               "pending_review",
+  const { data: submissionId, error: proofError } = await supabase.rpc(
+    "submit_standard_bank_transfer_proof_atomic",
+    {
+      p_invoice_id: invoiceId,
+      p_booking_id: bookingId,
+      p_reference: reference,
+      p_receipt_storage_path: filePath,
+    }
+  );
+
+  if (proofError || !submissionId) {
+    console.error("[submitStandardBankTransferProof] proof RPC failed", {
+      message: proofError?.message,
+      code: proofError?.code,
+      details: proofError?.details,
+      hint: proofError?.hint,
+      bookingId,
+      invoiceId,
+      userId: user.id,
     });
-
-  if (dbError) {
-    console.error("DB insert error:", dbError);
-    await supabase.storage.from("bank_transfer_receipts").remove([filePath]);
-    throw new Error("Failed to submit proof. Please try again.");
+    const { error: cleanupError } = await supabase.storage.from("bank_transfer_receipts").remove([filePath]);
+    if (cleanupError) {
+      console.error("[submitStandardBankTransferProof] cleanup failed", {
+        message: cleanupError.message,
+        bookingId,
+        invoiceId,
+        path: filePath,
+      });
+    }
+    throw new Error(
+      proofError?.message === "Unauthorized"
+        ? "You are not allowed to submit payment proof for this booking."
+        : proofError?.message ?? "Failed to submit proof. Please try again."
+    );
   }
-
-  await supabase
-    .from("booking_invoices")
-    .update({ payment_method: "bank_transfer", status: "bank_transfer_pending_review", updated_at: new Date().toISOString() })
-    .eq("id", invoiceId);
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -970,6 +985,8 @@ export async function submitStandardBankTransferProof(
   }
 
   revalidatePath(`/dashboard/bookings/${bookingId}`);
+  revalidatePath(`/admin/bookings/requests/${bookingId}`);
+  revalidatePath("/admin/bookings/payments");
   return { success: true };
 }
 
@@ -1111,8 +1128,9 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
         invoice_source_type: "booking",
         amount_cents: input.amountCents,
         currency: "aud",
-        entry_type: paymentMethod === "bank_transfer" ? "bank_transfer" : "manual_adjustment",
-        payment_method: paymentMethod,
+        // Standard-booking mark-paid should be audit-only, not spendable credit.
+        entry_type: "bank_transfer",
+        payment_method: paymentMethod ?? "bank_transfer",
         note: trimmedNote ?? (paymentMethod ? `Manual payment recorded by admin (${methodLabel}).` : "Manual payment recorded by admin."),
         stripe_payment_intent_id: manualRef,
         stripe_checkout_session_id: manualRef,
@@ -1169,6 +1187,18 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
         entityId: input.bookingId,
         metadata: { paymentMethod },
       }).catch((error) => console.error('[recordManualPayment] email failed:', error));
+    }
+
+    try {
+      const pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId: invoice.id })
+      if (pdfResult) {
+        console.log('[recordManualPayment] standard booking receipt generated', {
+          invoiceId: invoice.id,
+          pdfUrl: pdfResult.pdfUrl,
+        })
+      }
+    } catch (error) {
+      console.error('[recordManualPayment] standard booking receipt generation failed:', error)
     }
   }
 
@@ -1237,7 +1267,12 @@ export async function adminSettleBlockTimeInvoice(input: {
       invoice_source_type: "block_time",
       amount_cents: amountCents,
       currency: "aud",
-      entry_type: paymentMethod === "bank_transfer" ? "bank_transfer" : "manual_adjustment",
+      // Keep the audit trail, but do not turn a settled invoice into spendable
+      // credit: customer_credit_balances counts 'manual_adjustment' toward the
+      // balance, so a cash/card settle here would mint phantom credit. Same
+      // pattern as the checkout and standard-booking manual settlements; the
+      // actual method is preserved in payment_method.
+      entry_type: "bank_transfer",
       payment_method: paymentMethod,
       note: trimmedNote ?? (paymentMethod ? `Manual payment recorded by admin (${methodLabel}).` : "Manual payment recorded by admin."),
       stripe_payment_intent_id: manualRef,

@@ -114,6 +114,60 @@ export function formatDateFromISO(iso: string | null | undefined): string {
 }
 
 /**
+ * Format a UTC ISO timestamp as a Sydney calendar date with the full month name:
+ * "22 April".
+ *
+ * This is used on the customer dashboard where the date must remain identical
+ * across SSR and the first client render.
+ */
+export function formatDashboardDate(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const date = new Date(iso)
+  if (isNaN(date.getTime())) return '—'
+  const offsetMs = sydneyOffsetMs(date)
+  const syd = new Date(date.getTime() + offsetMs)
+  return `${syd.getUTCDate()} ${MONTHS_LONG[syd.getUTCMonth()]}`
+}
+
+/**
+ * Format a UTC ISO timestamp as just the Sydney calendar date without a year:
+ * "22 Apr".
+ *
+ * Use this for compact status/timeline labels where the full year would be
+ * redundant but the output still needs to be identical in SSR and client
+ * renders.
+ */
+export function formatDateFromISOShort(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const date = new Date(iso)
+  if (isNaN(date.getTime())) return '—'
+  const offsetMs = sydneyOffsetMs(date)
+  const syd = new Date(date.getTime() + offsetMs)
+  return `${syd.getUTCDate()} ${MONTHS_SHORT[syd.getUTCMonth()]}`
+}
+
+/**
+ * Format a UTC ISO timestamp as a compact Sydney date/time:
+ * "22 Apr, 11:25 AM".
+ */
+export function formatDashboardTimestamp(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const date = new Date(iso)
+  if (isNaN(date.getTime())) return '—'
+
+  const offsetMs = sydneyOffsetMs(date)
+  const syd = new Date(date.getTime() + offsetMs)
+  const day = syd.getUTCDate()
+  const month = MONTHS_SHORT[syd.getUTCMonth()]
+  const h24 = syd.getUTCHours()
+  const min = String(syd.getUTCMinutes()).padStart(2, '0')
+  const h12 = h24 % 12 || 12
+  const period = h24 >= 12 ? 'PM' : 'AM'
+
+  return `${day} ${month}, ${h12}:${min} ${period}`
+}
+
+/**
  * Format a date-only key (YYYY-MM-DD) as "Monday, 22 April 2026".
  * Used for calendar and schedule date section headers.
  * No time or timezone label since this is a pure calendar date.

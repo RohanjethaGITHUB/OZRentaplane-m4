@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { createBookingPaymentSession, submitStandardBankTransferProof } from "@/app/actions/payment"
+import { getStandardBookingPaymentDisplayState } from "@/lib/booking/standard-booking-payment-state"
 
 const STRIPE_DOMESTIC_FEE_BPS = 170
 const STRIPE_FIXED_FEE_CENTS  = 30
@@ -15,6 +16,8 @@ type Props = {
     subtotal_cents: number
     advance_applied_cents: number
     stripe_amount_due_cents: number
+    total_paid_cents: number
+    paid_at: string | null
     status: string
     payment_method: string | null
   }
@@ -26,30 +29,19 @@ type Props = {
   } | null
 }
 
-// Derive customer-visible display state from invoice + bank transfer.
-type DisplayState =
-  | 'awaiting_payment'
-  | 'awaiting_manual_payment_confirmation'
-  | 'paid'
-
-function getDisplayState(
-  invoice: Props['invoice'],
-  bankTransfer: Props['bankTransferSubmission'],
-): DisplayState {
-  if (invoice.status === 'paid') return 'paid'
-  if (
-    bankTransfer &&
-    (bankTransfer.status === 'pending_review' || bankTransfer.status === 'approved')
-  ) return 'awaiting_manual_payment_confirmation'
-  return 'awaiting_payment'
-}
-
 export default function BookingPaymentCard({ bookingId, invoice, bankTransferSubmission, bankDetails }: Props) {
   const [method, setMethod] = useState<"stripe" | "bank_transfer">("stripe")
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const displayState = getDisplayState(invoice, bankTransferSubmission ?? null)
+  const displayState = getStandardBookingPaymentDisplayState({
+    bookingStatus: 'payment_pending',
+    invoiceStatus: invoice.status,
+    invoicePaidAt: invoice.paid_at,
+    invoiceAmountDueCents: invoice.stripe_amount_due_cents,
+    invoiceTotalPaidCents: invoice.total_paid_cents,
+    latestSubmissionStatus: bankTransferSubmission?.status ?? null,
+  })
 
   const baseAmountCents = invoice.stripe_amount_due_cents
   const baseAmount      = (baseAmountCents / 100).toFixed(2)
@@ -68,15 +60,15 @@ export default function BookingPaymentCard({ bookingId, invoice, bankTransferSub
   const grossAmount     = (grossAmountCents / 100).toFixed(2)
 
   // ── Awaiting payment confirmation ─────────────────────────────────────────
-  if (displayState === 'awaiting_manual_payment_confirmation') {
+  if (displayState === 'payment_review_pending') {
     return (
       <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
         <div className="flex items-center gap-3 mb-3">
           <span className="material-symbols-outlined text-[#1a4fd6] text-lg">account_balance</span>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-[#1a4fd6]">Awaiting Payment Confirmation</h3>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-[#1a4fd6]">Payment Submitted</h3>
         </div>
         <p className="text-sm text-[#4b6390] leading-relaxed mb-4">
-          Your bank transfer details have been submitted. An admin will verify the payment before your booking is finalised.
+          Your bank-transfer proof has been submitted. An admin will review it before your booking payment is confirmed.
         </p>
         <div className="flex items-center gap-2 p-3 bg-[#f0f6ff] rounded-lg border border-[#152d5a]/10 text-sm text-[#152d5a]">
           <span className="material-symbols-outlined text-[#1a4fd6] text-[18px]">pending_actions</span>
@@ -90,15 +82,17 @@ export default function BookingPaymentCard({ bookingId, invoice, bankTransferSub
   }
 
   // ── Paid ──────────────────────────────────────────────────────────────────
-  if (displayState === 'paid') {
+  if (displayState === 'paid' || displayState === 'waived') {
     return (
       <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
         <div className="flex items-center gap-3 mb-3">
           <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-600">Payment Confirmed</h3>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-600">{displayState === 'waived' ? 'Payment Waived' : 'Payment Confirmed'}</h3>
         </div>
         <p className="text-sm text-[#4b6390] leading-relaxed">
-          Your flight payment has been confirmed. Your booking is now complete.
+          {displayState === 'waived'
+            ? 'No customer payment is required for this booking. The booking is closed.'
+            : 'Your flight payment has been confirmed. Your booking is now complete.'}
         </p>
       </div>
     )
@@ -122,10 +116,14 @@ export default function BookingPaymentCard({ bookingId, invoice, bankTransferSub
     <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
       <div className="flex items-center gap-3 mb-3">
         <span className="material-symbols-outlined text-[#1a4fd6] text-lg">payments</span>
-        <h3 className="text-xs font-bold uppercase tracking-widest text-[#1a4fd6]">Payment Required</h3>
+        <h3 className="text-xs font-bold uppercase tracking-widest text-[#1a4fd6]">
+          {displayState === 'payment_still_due' ? 'Payment Still Due' : 'Payment Required'}
+        </h3>
       </div>
       <p className="text-sm text-[#4b6390] leading-relaxed mb-2">
-        Your flight records have been reviewed and your invoice is ready. The amount below is calculated from the VDO meter reading and any applicable landing fees.
+        {displayState === 'payment_still_due'
+          ? 'A partial payment is recorded on this invoice, but the remaining balance still needs to be settled before the booking can close.'
+          : 'Your flight records have been reviewed and your invoice is ready. The amount below is calculated from the VDO meter reading and any applicable landing fees.'}
       </p>
 
       {bankTransferSubmission?.status === "rejected" && (

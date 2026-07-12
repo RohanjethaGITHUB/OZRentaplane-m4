@@ -1,3 +1,5 @@
+import { getStandardBookingPaymentDisplayState } from './standard-booking-payment-state'
+
 export type BookingLifecycleTone = 'slate' | 'gray' | 'blue' | 'amber' | 'purple' | 'green' | 'rose' | 'orange'
 
 export type BookingLifecycleStageKey =
@@ -6,7 +8,13 @@ export type BookingLifecycleStageKey =
   | 'in_progress'
   | 'awaiting_flight_readings'
   | 'readings_submitted'
+  | 'payment_required'
+  | 'payment_still_due'
+  | 'payment_review_pending'
   | 'paid_closed'
+  | 'waived_closed'
+  | 'payment_void'
+  | 'payment_failed'
   | 'cancelled'
   | 'no_show'
   | 'admin_hold'
@@ -29,6 +37,10 @@ export type BookingLifecycleInput = {
   bookingStatus?: string | null
   flightRecordStatus?: string | null
   bookingInvoiceStatus?: string | null
+  bookingInvoicePaidAt?: string | null
+  bookingInvoiceAmountDueCents?: number | null
+  bookingInvoiceTotalPaidCents?: number | null
+  latestBankTransferSubmissionStatus?: string | null
   paymentStatus?: string | null
 }
 
@@ -37,7 +49,7 @@ const STANDARD_UPCOMING = new Set(['confirmed', 'ready_for_dispatch'])
 const STANDARD_IN_PROGRESS = new Set(['dispatched'])
 const STANDARD_AWAITING_READINGS = new Set(['awaiting_flight_record', 'flight_record_overdue'])
 const STANDARD_REVIEW = new Set(['pending_post_flight_review'])
-const STANDARD_SETTLED = new Set(['invoice_generated', 'payment_pending', 'paid', 'completed'])
+const STANDARD_SETTLED = new Set(['invoice_generated', 'payment_pending', 'paid', 'completed', 'post_flight_approved'])
 
 const CHECKOUT_STATUS_MAP: Record<string, BookingLifecycleStage> = {
   checkout_requested: { key: 'checkout_requested', label: 'Checkout Requested', tone: 'blue', sublabel: 'Awaiting review' },
@@ -141,29 +153,73 @@ function settleLabel(input: BookingLifecycleInput): BookingLifecycleStage {
   }
 
   if (STANDARD_SETTLED.has(bookingStatus)) {
-    const settledByInvoice = bookingInvoiceStatus === 'paid' || bookingInvoiceStatus === 'waived'
-    const settledByPayment = paymentStatus === 'paid'
-    const sublabel =
-      bookingStatus === 'invoice_generated' || bookingStatus === 'payment_pending'
-        ? 'Awaiting settlement'
-        : settledByInvoice || settledByPayment
-          ? 'Closed'
-          : 'Finalised'
+    const paymentDisplayState = getStandardBookingPaymentDisplayState({
+      bookingStatus,
+      invoiceStatus: bookingInvoiceStatus,
+      invoicePaidAt: input.bookingInvoicePaidAt,
+      invoiceAmountDueCents: input.bookingInvoiceAmountDueCents,
+      invoiceTotalPaidCents: input.bookingInvoiceTotalPaidCents,
+      latestSubmissionStatus: input.latestBankTransferSubmissionStatus,
+      paymentStatus,
+    })
 
-    return {
-      key: 'paid_closed',
-      label: 'Paid / Closed',
-      tone: 'green',
-      sublabel,
-    }
-  }
-
-  if (bookingStatus === 'post_flight_approved') {
-    return {
-      key: 'paid_closed',
-      label: 'Paid / Closed',
-      tone: 'green',
-      sublabel: 'Approved and finalising',
+    switch (paymentDisplayState) {
+      case 'payment_review_pending':
+        return {
+          key: 'payment_review_pending',
+          label: 'Payment Review Pending',
+          tone: 'amber',
+          sublabel: 'Booking closed · Bank transfer awaiting admin review',
+        }
+      case 'payment_proof_rejected':
+      case 'payment_required':
+      case 'payment_still_due':
+        return {
+          key: paymentDisplayState === 'payment_still_due' ? 'payment_still_due' : 'payment_required',
+          label: paymentDisplayState === 'payment_still_due' ? 'Payment Still Due' : 'Payment Required',
+          tone: 'orange',
+          sublabel:
+            paymentDisplayState === 'payment_proof_rejected'
+              ? 'Booking closed · Previous bank transfer proof was rejected'
+              : paymentDisplayState === 'payment_still_due'
+                ? 'Booking closed · Partial payment recorded, balance still outstanding'
+                : 'Booking closed · Awaiting payment',
+        }
+      case 'waived':
+        return {
+          key: 'waived_closed',
+          label: 'Waived / Closed',
+          tone: 'green',
+          sublabel: 'No payment required',
+        }
+      case 'void':
+        return {
+          key: 'payment_void',
+          label: 'Payment Void',
+          tone: 'slate',
+          sublabel: 'Payment no longer required',
+        }
+      case 'failed':
+        return {
+          key: 'payment_failed',
+          label: 'Payment Failed',
+          tone: 'rose',
+          sublabel: 'Payment attempt unsuccessful',
+        }
+      case 'paid':
+        return {
+          key: 'paid_closed',
+          label: 'Paid / Closed',
+          tone: 'green',
+          sublabel: 'Payment confirmed',
+        }
+      default:
+        return {
+          key: 'unknown',
+          label: bookingStatus ? bookingStatus.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase()) : 'Unknown',
+          tone: 'slate',
+          sublabel: 'Booking closed',
+        }
     }
   }
 

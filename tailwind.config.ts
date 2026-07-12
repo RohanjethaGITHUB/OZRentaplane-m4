@@ -62,6 +62,22 @@ const config: Config = {
         'panel-deep':         '#1b365d',  // hero CTA gradient destination
         'ink-deep':           '#143057',  // text on gradient/colored CTA button surfaces
         'cloud-hover':        '#eef4ff',  // very light blue hover state on light surface
+
+        // Admin semantic palette for future Tailwind utility usage
+        'admin-bg':           '#eef5fb',
+        'admin-content':      '#f7fbff',
+        'admin-muted':        '#f3f7fb',
+        'admin-sidebar':      '#0b1f3a',
+        'admin-sidebar-active':'#173a65',
+        'admin-card':         '#ffffff',
+        'admin-border':       '#d8e3f0',
+        'admin-primary':      '#0C2340',
+        'admin-accent':       '#1a4fd6',
+        'admin-success':      '#166534',
+        'admin-warning':      '#b45309',
+        'admin-danger':       '#b91c1c',
+        'admin-info':         '#1d4ed8',
+        'admin-neutral':      '#64748b',
       },
       fontFamily: {
         serif: ['var(--font-newsreader)', 'Georgia', 'serif'],

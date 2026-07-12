@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { Bar, BarChart, Cell, LabelList, Legend, Pie, PieChart, ResponsiveContainer, XAxis, YAxis } from 'recharts'
-import { ChartShell, type TimeRangeValue } from '@/app/admin/components/AdminUi'
+import { AdminActionButton, ChartShell, type TimeRangeValue } from '@/app/admin/components/AdminUi'
 import { ChartRangeControl, EmptyChartState, isInRange, ReadableTooltip } from '@/app/admin/components/ChartPrimitives'
 
 type CheckoutBooking = {
@@ -49,9 +49,28 @@ function monthKey(value: string | null | undefined): string | null {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
-function ChartCard({ title, subtitle, value, onChange, children }: { title: string; subtitle: string; value: TimeRangeValue; onChange: (v: TimeRangeValue) => void; children: React.ReactNode }) {
+function ChartCard({
+  title,
+  subtitle,
+  value,
+  onChange,
+  actionHref,
+  actionLabel,
+  children,
+}: {
+  title: string
+  subtitle: string
+  value: TimeRangeValue
+  onChange: (v: TimeRangeValue) => void
+  actionHref: string
+  actionLabel: string
+  children: React.ReactNode
+}) {
   return (
-    <ChartShell title={title}>
+    <ChartShell
+      title={title}
+      actions={<AdminActionButton href={actionHref} label={actionLabel} tone="secondary" className="w-full justify-center sm:w-auto" />}
+    >
       <div className="-mt-2 mb-3 flex items-start justify-between gap-3 flex-wrap">
         <p className="text-xs text-[#4b6390]">{subtitle}</p>
         <ChartRangeControl value={value} onChange={onChange} />
@@ -208,19 +227,19 @@ export default function CheckoutOverviewCharts({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <ChartCard title="Checkout Requests Over Time" subtitle="New checkout requests submitted during the selected period." value={requestsRange} onChange={setRequestsRange}>
+      <ChartCard title="Checkout Requests Over Time" subtitle="New checkout requests submitted during the selected period." value={requestsRange} onChange={setRequestsRange} actionHref="/admin/checkouts/new-requests" actionLabel="Open requests">
         {requestsOverTime.length === 0 ? <EmptyChartState message="No checkout requests submitted in this period." /> : (
           <div className="h-[240px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={requestsOverTime} margin={{ top: 22, right: 10, left: 0, bottom: 8 }}><XAxis dataKey="label" tick={{ fill: '#4b6390', fontSize: 11 }} /><YAxis allowDecimals={false} domain={[0, (max: number) => max + 1]} tick={{ fill: '#4b6390', fontSize: 11 }} /><ReadableTooltip labelFormatter={(label) => `Date/Time: ${label}`} formatter={(value) => [`${value}`, 'Checkout requests']} /><Bar dataKey="count" fill="#60A5FA" radius={[6, 6, 0, 0]}><LabelList dataKey="count" position="top" fill="#152d5a" fontSize={11} /></Bar></BarChart></ResponsiveContainer></div>
         )}
       </ChartCard>
 
-      <ChartCard title="Checkout Status Breakdown" subtitle="Current checkout status mix in the selected period." value={statusRange} onChange={setStatusRange}>
+      <ChartCard title="Checkout Status Breakdown" subtitle="Current checkout status mix in the selected period." value={statusRange} onChange={setStatusRange} actionHref="/admin/checkouts/all" actionLabel="View all">
         {statusMix.length === 0 ? <EmptyChartState /> : (
           <div className="h-[240px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={statusMix} margin={{ top: 22, right: 10, left: 0, bottom: 8 }}><XAxis dataKey="name" tick={{ fill: '#4b6390', fontSize: 11 }} angle={-12} textAnchor="end" height={48} interval={0} /><YAxis allowDecimals={false} domain={[0, (max: number) => max + 2]} tick={{ fill: '#4b6390', fontSize: 11 }} /><ReadableTooltip /><Bar dataKey="value" radius={[6, 6, 0, 0]}>{statusMix.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}<LabelList dataKey="value" position="top" fill="#152d5a" fontSize={11} /></Bar></BarChart></ResponsiveContainer></div>
         )}
       </ChartCard>
 
-      <ChartCard title="Checkout Outcomes" subtitle="Assessment outcomes recorded for checkout flights." value={outcomeRange} onChange={setOutcomeRange}>
+      <ChartCard title="Checkout Outcomes" subtitle="Assessment outcomes recorded for checkout flights." value={outcomeRange} onChange={setOutcomeRange} actionHref="/admin/checkouts/awaiting-outcome" actionLabel="Open queue">
         {outcomes.length === 0 ? <EmptyChartState message="No checkout outcomes recorded in this period." /> : (
           <div className="h-[240px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={outcomes} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={3}>{outcomes.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><ReadableTooltip formatter={(value: number, name: string, item: any) => {
             const total = outcomes.reduce((s, row) => s + row.value, 0)
@@ -230,7 +249,7 @@ export default function CheckoutOverviewCharts({
         )}
       </ChartCard>
 
-      <ChartCard title="Checkout Payment Summary" subtitle="Checkout payment states for the selected period." value={paymentRange} onChange={setPaymentRange}>
+      <ChartCard title="Checkout Payment Summary" subtitle="Checkout payment states for the selected period." value={paymentRange} onChange={setPaymentRange} actionHref="/admin/checkouts/payments" actionLabel="View payments">
         {paymentSummary.chart.length === 0 ? <EmptyChartState message="No checkout payment activity in this period." /> : (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2 text-xs text-[#4b6390]">

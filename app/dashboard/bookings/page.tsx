@@ -110,6 +110,7 @@ type BookingRow = {
   aircraft_registration?: string | null
   aircraft:          { registration: string } | null
   flight_records?:   { status: string | null; submitted_at: string | null }[] | null
+  bookingInvoice?:   { status: string; pdf_url: string | null; invoice_number: string } | null
 }
 
 function isMultiDayBooking(startISO: string | null | undefined, endISO: string | null | undefined): boolean {
@@ -348,9 +349,34 @@ export default async function CustomerBookingsPage() {
     ...booking,
     status: deriveBookingStatusForFlightRecord(booking),
   }))
-  const checkoutRequests = rows.filter(b => b.booking_type === 'checkout')
-  const upcomingAircraft = rows.filter(b => b.booking_type !== 'checkout' && ACTIVE_STATUSES.includes(b.status))
-  const completedFlights = rows.filter(b => {
+  const standardBookingIds = rows
+    .filter((booking) => booking.booking_type !== 'checkout')
+    .map((booking) => booking.id)
+
+  const { data: standardInvoiceRows } = standardBookingIds.length > 0
+    ? await supabase
+        .from('booking_invoices')
+        .select('booking_id, status, pdf_url, invoice_number')
+        .in('booking_id', standardBookingIds)
+    : { data: null }
+
+  const standardInvoiceByBookingId = new Map<string, { status: string; pdf_url: string | null; invoice_number: string }>()
+  for (const row of (standardInvoiceRows ?? []) as { booking_id: string; status: string; pdf_url: string | null; invoice_number: string }[]) {
+    standardInvoiceByBookingId.set(row.booking_id, {
+      status: row.status,
+      pdf_url: row.pdf_url,
+      invoice_number: row.invoice_number,
+    })
+  }
+
+  const rowsWithInvoices = rows.map((booking) => ({
+    ...booking,
+    bookingInvoice: standardInvoiceByBookingId.get(booking.id) ?? null,
+  }))
+
+  const checkoutRequests = rowsWithInvoices.filter(b => b.booking_type === 'checkout')
+  const upcomingAircraft = rowsWithInvoices.filter(b => b.booking_type !== 'checkout' && ACTIVE_STATUSES.includes(b.status))
+  const completedFlights = rowsWithInvoices.filter(b => {
     if (b.booking_type === 'checkout') {
       // Include checkout flights that are fully done (not active/in-progress)
       const checkoutDoneStatuses = ['completed', 'checkout_payment_required', 'awaiting_outcome', 'checkout_completed_under_review', 'additional_checkout_required', 'not_currently_eligible', 'checkout_reschedule_required']
@@ -373,7 +399,7 @@ export default async function CustomerBookingsPage() {
     }
   }
 
-  const checkoutBooking = rows.find(b =>
+  const checkoutBooking = rowsWithInvoices.find(b =>
     b.booking_type === 'checkout' &&
     ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required'].includes(b.status)
   ) ?? null
@@ -420,14 +446,14 @@ export default async function CustomerBookingsPage() {
   // ── Derived stat values ───────────────────────────────────────────────────
   const statCards = !isCleared ? [
     { label: 'Checkout Request',           value: String(checkoutRequests.length),                      icon: 'how_to_reg'    },
-    { label: 'Awaiting Review',            value: String(rows.filter(b => ['checkout_requested', 'pending_confirmation', 'checkout_completed_under_review'].includes(b.status)).length), icon: 'hourglass_top' },
+    { label: 'Awaiting Review',            value: String(rowsWithInvoices.filter(b => ['checkout_requested', 'pending_confirmation', 'checkout_completed_under_review'].includes(b.status)).length), icon: 'hourglass_top' },
     { label: 'Upcoming Aircraft Bookings', value: String(upcomingAircraft.length),                      icon: 'calendar_month'},
-    { label: 'Completed Flights',          value: String(rows.filter(b => b.booking_type !== 'checkout' && b.status === 'completed').length), icon: 'check_circle'  },
+    { label: 'Completed Flights',          value: String(rowsWithInvoices.filter(b => b.booking_type !== 'checkout' && b.status === 'completed').length), icon: 'check_circle'  },
   ] : [
     { label: 'Upcoming Bookings',     value: String(upcomingAircraft.length),                                                                                                    icon: 'calendar_month' },
-    { label: 'Awaiting Confirmation', value: String(rows.filter(b => b.booking_type !== 'checkout' && ['pending_confirmation', 'needs_clarification'].includes(b.status)).length), icon: 'hourglass_top'  },
-    { label: 'Completed Flights',     value: String(rows.filter(b => b.booking_type !== 'checkout' && b.status === 'completed').length),                                          icon: 'check_circle'   },
-    { label: 'Total Booked Hours',    value: rows.filter(b => b.booking_type !== 'checkout' && b.status === 'completed').reduce((sum, b) => sum + (b.estimated_hours ?? 0), 0).toFixed(1), icon: 'schedule' },
+    { label: 'Awaiting Confirmation', value: String(rowsWithInvoices.filter(b => b.booking_type !== 'checkout' && ['pending_confirmation', 'needs_clarification'].includes(b.status)).length), icon: 'hourglass_top'  },
+    { label: 'Completed Flights',     value: String(rowsWithInvoices.filter(b => b.booking_type !== 'checkout' && b.status === 'completed').length),                                          icon: 'check_circle'   },
+    { label: 'Total Booked Hours',    value: rowsWithInvoices.filter(b => b.booking_type !== 'checkout' && b.status === 'completed').reduce((sum, b) => sum + (b.estimated_hours ?? 0), 0).toFixed(1), icon: 'schedule' },
   ]
 
   const allUpcoming = [
@@ -461,18 +487,18 @@ export default async function CustomerBookingsPage() {
                 { icon: 'person_check', value: checkoutRequests.length, label: 'Checkout Requests' },
                 {
                   icon: 'hourglass_empty',
-                  value: rows.filter((r) => ['checkout_requested', 'pending_confirmation', 'checkout_completed_under_review'].includes(r.status)).length,
+                  value: rowsWithInvoices.filter((r) => ['checkout_requested', 'pending_confirmation', 'checkout_completed_under_review'].includes(r.status)).length,
                   label: 'Pending Review',
                 },
                 { icon: 'calendar_month', value: upcomingAircraft.length, label: 'Upcoming Flights' },
                 {
                   icon: 'check_circle',
-                  value: rows.filter((r) => r.booking_type !== 'checkout' && r.status === 'completed').length,
+                  value: rowsWithInvoices.filter((r) => r.booking_type !== 'checkout' && r.status === 'completed').length,
                   label: 'Completed Flights',
                 },
                 {
                   icon: 'schedule',
-                  value: `${rows.filter((r) => r.booking_type !== 'checkout' && r.status === 'completed').reduce((acc, r) => acc + (r.estimated_hours ?? 0), 0).toFixed(1)}h`,
+                  value: `${rowsWithInvoices.filter((r) => r.booking_type !== 'checkout' && r.status === 'completed').reduce((acc, r) => acc + (r.estimated_hours ?? 0), 0).toFixed(1)}h`,
                   label: 'Total Booked Hours',
                 },
               ].map((stat) => (
@@ -759,6 +785,9 @@ export default async function CustomerBookingsPage() {
                   {completedFlights.map((booking) => {
                     const aircraft = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
                     const checkoutOutcome = booking.booking_type === 'checkout' ? checkoutOutcomeMap[booking.id] ?? null : null
+                    const bookingInvoice = booking.bookingInvoice
+                    const bookingInvoiceHref = bookingInvoice?.pdf_url ?? `/dashboard/bookings/${booking.id}/invoice`
+                    const bookingInvoiceLabel = bookingInvoice?.status === 'paid' ? 'DOWNLOAD RECEIPT' : 'DOWNLOAD INVOICE'
                     return (
                       <div key={booking.id} className="bg-white border border-[#152d5a]/10 rounded-2xl overflow-hidden flex">
                         <div
@@ -842,19 +871,15 @@ export default async function CustomerBookingsPage() {
                             VIEW DETAILS
                             <span className="material-symbols-outlined text-[16px] ml-2">chevron_right</span>
                           </Link>
-                          {booking.booking_type !== 'checkout' && (
+                          {booking.booking_type !== 'checkout' && bookingInvoice && bookingInvoice.status !== 'waived' && (
                             <>
                               <Link
-                                href={`/dashboard/bookings/${booking.id}`}
+                                href={bookingInvoiceHref}
                                 className="flex items-center justify-center whitespace-nowrap border border-[#152d5a]/20 text-[#152d5a] hover:bg-[#f0f6ff] text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors"
+                                target="_blank"
+                                rel="noreferrer"
                               >
-                                DOWNLOAD INVOICE
-                              </Link>
-                              <Link
-                                href={`/dashboard/bookings/${booking.id}`}
-                                className="flex items-center justify-center whitespace-nowrap border border-[#152d5a]/20 text-[#152d5a] hover:bg-[#f0f6ff] text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors"
-                              >
-                                DOWNLOAD RECEIPT
+                                {bookingInvoiceLabel}
                               </Link>
                             </>
                           )}

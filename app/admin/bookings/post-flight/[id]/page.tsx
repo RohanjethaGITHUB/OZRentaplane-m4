@@ -5,9 +5,10 @@ import AdminPortalHero from '@/components/AdminPortalHero'
 import RequestClarificationFormWrapper from './RequestClarificationFormWrapper'
 import AttachmentViewer from './AttachmentViewer'
 import AdminStandardBillingPanel from '@/app/admin/bookings/requests/[id]/AdminStandardBillingPanel'
-import { formatDateTime } from '@/lib/formatDateTime'
+import { formatDateFromISOShort, formatDateTime } from '@/lib/formatDateTime'
 import type { FlightRecordClarification, FlightRecordAttachment } from '@/lib/supabase/booking-types'
 import { getAircraftFlightLogStartSuggestions } from '@/lib/aircraft-flight-log'
+import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
 
 export const metadata = { title: 'Review Detail | Admin' }
 
@@ -25,22 +26,61 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
-  const { data: record } = await supabase
+  const recordSelect = `
+    *,
+    aircraft ( id, registration, aircraft_type, default_hourly_rate )
+  `
+
+  const { data: directRecord } = await supabase
     .from('flight_records')
-    .select(`
-      *,
-      aircraft ( id, registration, aircraft_type, default_hourly_rate ),
-      bookings ( id, status, booking_type, scheduled_start, scheduled_end, customer_notes, booking_owner_user_id, booking_reference )
-    `)
+    .select(recordSelect)
     .eq('id', params.id)
-    .single()
+    .maybeSingle()
+
+  let record = directRecord
+  let booking = null as null | {
+    id: string
+    status: string | null
+    booking_type: string | null
+    scheduled_start: string | null
+    scheduled_end: string | null
+    customer_notes: string | null
+    booking_owner_user_id: string | null
+    booking_reference: string | null
+  }
+
+  if (record) {
+    const { data: bookingRow } = await supabase
+      .from('bookings')
+      .select('id, status, booking_type, scheduled_start, scheduled_end, customer_notes, booking_owner_user_id, booking_reference')
+      .eq('id', record.booking_id)
+      .maybeSingle()
+    booking = bookingRow as typeof booking
+  } else {
+    const { data: bookingRow } = await supabase
+      .from('bookings')
+      .select('id, status, booking_type, scheduled_start, scheduled_end, customer_notes, booking_owner_user_id, booking_reference')
+      .eq('id', params.id)
+      .maybeSingle()
+    booking = bookingRow as typeof booking
+
+    if (booking) {
+      const { data: bookingRecord } = await supabase
+        .from('flight_records')
+        .select(recordSelect)
+        .eq('booking_id', booking.id)
+        .order('submitted_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      record = bookingRecord
+    }
+  }
 
   if (!record) {
     return <div className="p-10 text-[var(--admin-text)]">Record not found.</div>
   }
 
   const aircraft   = Array.isArray(record.aircraft) ? record.aircraft[0] : record.aircraft
-  const booking    = Array.isArray(record.bookings)  ? record.bookings[0]  : record.bookings
   const customerId = booking?.booking_owner_user_id ?? null
   const bookingId  = booking?.id ?? null
   const bookingRef = booking?.booking_reference ?? null
@@ -101,9 +141,10 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
   // ── Billing panel data — only fetched when needed ──────────────────────────
   let airports: { id: string; icao_code: string; name: string; default_landing_fee_cents: number }[] = []
   let customerCreditCents = 0
+  let activeBlockTime: { hoursRemaining: number; ratePerHour: number; expiresAt: string } | null = null
 
   if (isStandardBillingReady && customerId) {
-    const [{ data: airportRows }, { data: creditRow }] = await Promise.all([
+    const [{ data: airportRows }, { data: creditRow }, { data: activeBlockTimeRow }] = await Promise.all([
       supabase
         .from('airports')
         .select('id, icao_code, name, default_landing_fee_cents')
@@ -113,6 +154,16 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
         .from('customer_credit_balances')
         .select('balance_cents')
         .eq('customer_id', customerId)
+        .maybeSingle(),
+      supabase
+        .from('pilot_block_time_purchases')
+        .select('hours_remaining, rate_per_hour, expires_at')
+        .eq('user_id', customerId)
+        .eq('status', 'active')
+        .gt('expires_at', new Date().toISOString())
+        .order('queue_position', { ascending: true, nullsFirst: false })
+        .order('activated_at', { ascending: true })
+        .limit(1)
         .maybeSingle(),
     ])
 
@@ -126,6 +177,13 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
       return a.name.localeCompare(b.name)
     })
     customerCreditCents = (creditRow as { balance_cents?: number } | null)?.balance_cents ?? 0
+    activeBlockTime = (activeBlockTimeRow as { hours_remaining: number; rate_per_hour: number; expires_at: string } | null)
+      ? {
+          hoursRemaining: Number((activeBlockTimeRow as { hours_remaining: number }).hours_remaining),
+          ratePerHour: Number((activeBlockTimeRow as { rate_per_hour: number }).rate_per_hour),
+          expiresAt: (activeBlockTimeRow as { expires_at: string }).expires_at,
+        }
+      : null
   }
 
   const flightLogStartSuggestions = record.aircraft_id
@@ -188,9 +246,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
                 <p className="text-sm text-[var(--admin-text)] leading-relaxed">{latestOpen.message}</p>
               </div>
               <p className="text-[10px] text-[var(--admin-text-muted)]">
-                Sent {new Date(latestOpen.created_at).toLocaleDateString('en-AU', {
-                  timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric',
-                })}
+                Sent {formatDateFromISOShort(latestOpen.created_at)}
               </p>
             </div>
           </div>
@@ -300,7 +356,8 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
             initialFlightRecord={record}
             startSuggestions={flightLogStartSuggestions}
             bookingSlotHours={bookingSlotHours}
-            defaultHourlyRate={(aircraft as { default_hourly_rate?: number } | null)?.default_hourly_rate ?? undefined}
+            activeBlockTime={activeBlockTime}
+            defaultHourlyRate={PAYF_RATE_PER_HOUR}
             redirectAfterSuccess="/admin/bookings/post-flight"
           />
         )}

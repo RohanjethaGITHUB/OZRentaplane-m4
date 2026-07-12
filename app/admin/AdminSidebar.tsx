@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, type MouseEvent as ReactMouseEvent } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -13,6 +13,11 @@ type NavGroupType = {
   icon: string
   badgeKey?: string
   items?: NavItem[]
+}
+
+type NavSectionType = {
+  title: string
+  groups: NavGroupType[]
 }
 
 type BadgeKey =
@@ -40,33 +45,20 @@ const NAV_GROUPS: NavGroupType[] = [
   },
   {
     title: 'Bookings',
-    href: '/admin/bookings',
+    href: '/admin/bookings/flights',
     icon: 'event_seat',
     badgeKey: 'bookings',
     items: [
-      { label: 'Overview', href: '/admin/bookings' },
-      { label: 'Upcoming Flights', href: '/admin/bookings/upcoming-flights' },
-      { label: 'Awaiting Flight Records', href: '/admin/bookings/awaiting-flight-records', badgeKey: 'awaitingFlightRecord' },
-      { label: 'On Hold', href: '/admin/bookings/on-hold', badgeKey: 'bookingOnHold' },
-      { label: 'Post-flight Review', href: '/admin/bookings/post-flight-review', badgeKey: 'postFlightReview' },
-      { label: 'Payments', href: '/admin/bookings/payments', badgeKey: 'bookingPayments' },
-      { label: 'Cancellations', href: '/admin/bookings/cancellations', badgeKey: 'bookingCancellations' },
-      { label: 'History', href: '/admin/bookings/history' },
-      { label: 'Checkout Overview', href: '/admin/checkouts' },
-      { label: 'All Checkouts', href: '/admin/checkouts/all' },
-      { label: 'Checkout Payments', href: '/admin/checkouts/payments?tab=paid', badgeKey: 'checkoutPayments' },
-      { label: 'Checkout History', href: '/admin/checkouts/history' },
+      { label: 'Booking Directory', href: '/admin/bookings/flights' },
     ],
   },
   {
     title: 'Customers',
-    href: '/admin/customers',
+    href: '/admin/customers/all',
     icon: 'group_work',
     items: [
-      { label: 'Customer Overview', href: '/admin/customers' },
       { label: 'Customer Directory', href: '/admin/customers/all' },
-      { label: 'Customer Ledger', href: '/admin/customers/ledger' },
-      { label: 'Blocked Customers', href: '/admin/customers/blocked' },
+      { label: 'Customer Billing', href: '/admin/customers/ledger' },
     ],
   },
   {
@@ -97,6 +89,33 @@ const NAV_GROUPS: NavGroupType[] = [
   },
 ]
 
+const NAV_SECTIONS: NavSectionType[] = [
+  {
+    title: 'Operations',
+    groups: NAV_GROUPS.slice(0, 2),
+  },
+  {
+    title: 'Customers',
+    groups: NAV_GROUPS.slice(2, 3),
+  },
+  {
+    title: 'Fleet',
+    groups: NAV_GROUPS.slice(3, 4),
+  },
+  {
+    title: 'Communication',
+    groups: NAV_GROUPS.slice(4, 5),
+  },
+  {
+    title: 'Admin',
+    groups: NAV_GROUPS.slice(5),
+  },
+]
+
+function formatBadgeValue(value: number) {
+  return value > 99 ? '99+' : value
+}
+
 export default function AdminSidebar({
   displayName,
   unreadMessageCount = 0,
@@ -117,7 +136,10 @@ export default function AdminSidebar({
   function deriveExpandedGroup(path: string | null): string | null {
     for (const group of NAV_GROUPS) {
       if (!group.items) continue
-      const inGroup = path === group.href || (path?.startsWith(group.href + '/') ?? false)
+      const inGroup =
+        group.title === 'Bookings'
+          ? (path?.startsWith('/admin/bookings') ?? false) || (path?.startsWith('/admin/checkouts') ?? false)
+          : path === group.href || (path?.startsWith(group.href + '/') ?? false)
       if (inGroup) return group.title
     }
     return null
@@ -126,6 +148,21 @@ export default function AdminSidebar({
   useEffect(() => {
     setExpandedGroup(deriveExpandedGroup(pathname))
   }, [pathname])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+
+    const body = document.body
+    const previousOverflow = body.style.overflow
+
+    if (mobileMenuOpen) {
+      body.style.overflow = 'hidden'
+    }
+
+    return () => {
+      body.style.overflow = previousOverflow
+    }
+  }, [mobileMenuOpen])
 
   const rawCounts = useMemo(() => {
     const checkoutNewRequests = actionCounts.checkoutNewRequests ?? 0
@@ -140,10 +177,10 @@ export default function AdminSidebar({
     const bookingPayments = actionCounts.bookingPayments ?? 0
     const bookingCancellations = actionCounts.bookingCancellations ?? 0
 
-    const checkouts = checkoutNewRequests + checkoutAwaitingOutcome + checkoutPayments + checkoutReschedule + checkoutCancelled
-    const bookings = awaitingFlightRecord + bookingOnHold + postFlightReview + bookingPayments + bookingCancellations
+    const checkouts = actionCounts.checkouts ?? (checkoutNewRequests + checkoutAwaitingOutcome + checkoutPayments + checkoutReschedule + checkoutCancelled)
+    const bookings = actionCounts.bookings ?? (awaitingFlightRecord + bookingOnHold + postFlightReview + bookingPayments + bookingCancellations)
     const messagesUnread = unreadMessageCount
-    const actions = checkouts + bookings + messagesUnread
+    const actions = actionCounts.actions ?? (checkouts + bookings + messagesUnread)
 
     return {
       checkoutNewRequests,
@@ -169,6 +206,19 @@ export default function AdminSidebar({
     setMobileMenuOpen(false)
   }, [pathname])
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setMobileMenuOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [mobileMenuOpen])
+
   async function handleLogout() {
     await supabase.auth.signOut()
     router.push('/login')
@@ -176,6 +226,9 @@ export default function AdminSidebar({
 
   function isGroupActive(group: NavGroupType) {
     if (group.href === '/admin') return pathname === '/admin'
+    if (group.title === 'Bookings') {
+      return (pathname?.startsWith('/admin/bookings') ?? false) || (pathname?.startsWith('/admin/checkouts') ?? false)
+    }
     return pathname === group.href || (pathname?.startsWith(group.href + '/') ?? false)
   }
 
@@ -192,7 +245,7 @@ export default function AdminSidebar({
     return true
   }
 
-  function toggleGroup(title: string, e: React.MouseEvent) {
+  function toggleGroup(title: string, e: ReactMouseEvent<HTMLButtonElement>) {
     e.preventDefault()
     e.stopPropagation()
     setExpandedGroup((prev) => (prev === title ? null : title))
@@ -210,129 +263,191 @@ export default function AdminSidebar({
   return (
     <>
       <button
-        onClick={() => setMobileMenuOpen(true)}
-        className="lg:hidden fixed top-20 left-4 z-40 p-2 bg-[var(--admin-sidebar-bg)] border border-[var(--admin-border)] rounded-xl text-[var(--admin-text-muted)] hover:text-[var(--admin-text)]"
+        onClick={() => setMobileMenuOpen((prev) => !prev)}
+        aria-label={mobileMenuOpen ? 'Close admin navigation' : 'Open admin navigation'}
+        aria-expanded={mobileMenuOpen}
+        aria-controls="admin-sidebar-drawer"
+        className="lg:hidden fixed top-4 left-4 z-50 inline-flex h-11 min-w-11 items-center gap-2 rounded-full border border-[rgba(148,163,184,0.20)] bg-[rgba(11,31,58,0.94)] px-4 text-[13px] font-semibold tracking-[0.03em] text-[var(--admin-sidebar-text)] shadow-[0_16px_36px_rgba(2,7,18,0.30)] backdrop-blur-md transition-colors hover:bg-[rgba(14,38,71,0.98)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
       >
-        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'wght' 300" }}>menu</span>
+        <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'wght' 300" }}>menu</span>
+        <span className="hidden sm:inline">Menu</span>
       </button>
 
       {mobileMenuOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm"
+          className="lg:hidden fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-[2px] transition-opacity"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
-      <aside className={`
-        fixed left-0 top-[64px] lg:top-0 lg:absolute h-[calc(100vh-64px)] lg:h-full w-72
-        border-r border-[var(--admin-border)] bg-[#e8f2fb] lg:bg-[#e8f2fb] backdrop-blur-xl z-[70] lg:z-10
-        flex flex-col py-6 transition-transform duration-300 ease-in-out
-        ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        <div className="flex lg:hidden justify-end px-4 mb-2">
-          <button onClick={() => setMobileMenuOpen(false)} className="p-2 text-white/50 hover:text-white">
-            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'wght' 300" }}>close</span>
+      <aside
+        id="admin-sidebar-drawer"
+        className={`
+        fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(20rem,calc(100vw-1rem))] flex-col overflow-hidden border-r border-[var(--admin-sidebar-border)]
+        bg-[var(--admin-sidebar-bg)] shadow-[0_28px_56px_rgba(2,7,18,0.28)] transition-transform duration-300 ease-out
+        lg:translate-x-0 lg:shadow-[0_20px_42px_rgba(2,7,18,0.14)] lg:w-72
+        ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}
+      >
+        <div className="hidden lg:flex flex-col gap-4 px-6 pt-6 pb-5 border-b border-[rgba(148,163,184,0.12)]">
+          <div>
+            <h1 className="font-serif text-[2.2rem] leading-none font-semibold italic tracking-tight text-[var(--admin-sidebar-text)]">
+              OZ Rent A Plane
+            </h1>
+            <p className="mt-2 text-[11.5px] tracking-[0.24em] uppercase text-[var(--admin-sidebar-text-dim)]">
+              Aviation Operations Command Centre
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-[12px] text-[var(--admin-sidebar-text-dim)]">
+            <span className="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(74,222,128,0.12)]" />
+            <span>{counts.actions > 0 ? `${counts.actions} live ops` : 'All queues clear'}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-b border-[rgba(148,163,184,0.12)] px-4 pb-4 pt-[calc(0.9rem+env(safe-area-inset-top))] lg:hidden">
+          <div className="min-w-0">
+            <p className="font-serif text-[1.2rem] leading-none font-semibold italic tracking-tight text-[var(--admin-sidebar-text)]">OZ Rent A Plane</p>
+            <p className="mt-1 text-[10.5px] tracking-[0.24em] uppercase text-[var(--admin-sidebar-text-dim)]">Command Centre</p>
+          </div>
+          <button
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Close admin navigation"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[rgba(148,163,184,0.18)] bg-white/5 text-[var(--admin-sidebar-text-dim)] transition-colors hover:bg-white/[0.08] hover:text-[var(--admin-sidebar-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+          >
+            <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'wght' 300" }}>
+              close
+            </span>
           </button>
         </div>
 
-        <div className="hidden lg:block mb-10 px-8 mt-4">
-          <h1 className="text-[2.65rem] leading-none font-semibold italic tracking-tight text-[var(--admin-text)]">OZ Rent A Plane</h1>
-          <p className="text-xs tracking-[0.24em] uppercase text-[var(--admin-text-muted)] mt-2">Admin Control Centre</p>
-        </div>
-
-        <nav className="flex-1 overflow-y-auto px-4 pb-6 custom-scrollbar flex flex-col gap-2 text-base">
-          {NAV_GROUPS.map(group => {
-            const groupActive = isGroupActive(group)
-            const isOpen = expandedGroup === group.title
-            const groupCount = group.badgeKey ? (counts[group.badgeKey as BadgeKey] ?? 0) : 0
-            const showBadge = groupCount > 0
-            const badgeValue = groupCount
-
-            return (
-              <div key={group.title} className="flex flex-col gap-1">
-                <div className="flex items-center">
-                  <Link
-                    href={group.href}
-                    className={`flex-1 flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 border border-transparent
-                      ${groupActive
-                        ? 'text-white font-semibold bg-[#1a4a7a] border-[#1a4a7a] shadow-sm'
-                        : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-[#1a4fd6]/8'}`}
-                  >
-                    <span className={`material-symbols-outlined text-[20px] ${groupActive ? 'text-white' : 'text-[var(--admin-text-dim)]'}`} style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}>
-                      {group.icon}
-                    </span>
-                    <span className="flex-1 whitespace-nowrap">{group.title}</span>
-                    {showBadge && (
-                      <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-[10px] font-bold text-white tabular-nums border border-red-200/30">
-                        {badgeValue > 99 ? '99+' : badgeValue}
-                      </span>
-                    )}
-                  </Link>
-
-                  {group.items && (
-                    <button
-                      onClick={(e) => toggleGroup(group.title, e)}
-                      className="p-2 ml-1 text-[var(--admin-text-dim)] hover:text-[var(--admin-text)] rounded-lg hover:bg-white/5 transition-colors"
-                      title={`Toggle ${group.title}`}
-                    >
-                      <span className={`material-symbols-outlined text-[18px] transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
-                        expand_more
-                      </span>
-                    </button>
-                  )}
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 pb-6 pt-4 text-[14.5px] [-webkit-overflow-scrolling:touch] overscroll-contain custom-scrollbar lg:px-4">
+          <div className="flex flex-col gap-5">
+            {NAV_SECTIONS.map((section) => (
+              <section key={section.title} className="flex flex-col gap-3">
+                <div className="flex items-center justify-between px-2">
+                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.22em] text-[var(--admin-sidebar-text-dim)]">
+                    {section.title}
+                  </p>
                 </div>
 
-                {group.items && (
-                  <div className={`grid transition-[grid-template-rows,opacity] duration-[300ms] ease-in-out ${isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-                    <div className="overflow-hidden flex flex-col gap-1 pl-10 pr-2 border-l border-[var(--admin-divider)] ml-6">
-                      <div className="py-1" />
-                      {group.items.map(item => {
-                        const active = isItemActive(item.href)
-                        const itemCount = item.badgeKey ? (counts[item.badgeKey as BadgeKey] ?? 0) : 0
-                        return (
+                <div className="flex flex-col gap-2">
+                  {section.groups.map((group) => {
+                    const groupActive = isGroupActive(group)
+                    const isOpen = expandedGroup === group.title
+                    const groupCount = group.badgeKey ? (counts[group.badgeKey as BadgeKey] ?? 0) : 0
+                    const showBadge = groupCount > 0
+
+                    return (
+                      <div key={group.title} className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5">
                           <Link
-                            key={item.href}
-                            href={item.href}
-                            className={`flex items-center px-3 py-2 rounded-lg text-sm transition-colors duration-200
-                              ${active
-                                ? 'text-white font-semibold bg-[#1a4a7a] shadow-sm'
-                                : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-[#1a4fd6]/5'}`}
+                            href={group.href}
+                            className={`group flex min-h-11 flex-1 items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60
+                              ${groupActive
+                                ? 'border-[rgba(96,165,250,0.22)] bg-[var(--admin-sidebar-active)] text-white shadow-[0_12px_28px_rgba(2,7,18,0.24)]'
+                                : 'border-transparent text-[var(--admin-sidebar-text-dim)] hover:border-[rgba(148,163,184,0.10)] hover:bg-white/[0.06] hover:text-[var(--admin-sidebar-text)]'}`}
                           >
-                            <span>{item.label}</span>
-                            {itemCount > 0 && (
-                              <span className="ml-auto flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-[10px] font-bold text-white tabular-nums border border-red-200/30">
-                                {itemCount > 99 ? '99+' : itemCount}
+                            <span
+                              className={`material-symbols-outlined text-[20px] transition-colors ${
+                                groupActive ? 'text-white' : 'text-[var(--admin-sidebar-text-dim)]'
+                              }`}
+                              style={{ fontVariationSettings: "'FILL' 0, 'wght' 300" }}
+                            >
+                              {group.icon}
+                            </span>
+                            <span className="flex-1 whitespace-nowrap font-medium">{group.title}</span>
+                            {showBadge ? (
+                              <span
+                                className={`inline-flex min-w-[2.05rem] items-center justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums ${
+                                  groupActive
+                                    ? 'border-white/15 bg-white/12 text-white'
+                                    : 'border-[rgba(96,165,250,0.18)] bg-[rgba(59,130,246,0.12)] text-[var(--admin-sidebar-text)]'
+                                }`}
+                              >
+                                {formatBadgeValue(groupCount)}
                               </span>
-                            )}
+                            ) : null}
                           </Link>
-                        )
-                      })}
-                      <div className="py-1" />
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
+
+                          {group.items ? (
+                            <button
+                              onClick={(e) => toggleGroup(group.title, e)}
+                              aria-label={`Toggle ${group.title} submenu`}
+                              aria-expanded={isOpen}
+                              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-transparent text-[var(--admin-sidebar-text-dim)] transition-colors hover:border-[rgba(148,163,184,0.10)] hover:bg-white/[0.06] hover:text-[var(--admin-sidebar-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
+                            >
+                              <span className={`material-symbols-outlined text-[18px] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
+                                expand_more
+                              </span>
+                            </button>
+                          ) : null}
+                        </div>
+
+                        {group.items ? (
+                          <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                            <div className="overflow-hidden">
+                              <div className="ml-6 flex flex-col gap-1 border-l border-[rgba(148,163,184,0.14)] pl-4 pr-1 pt-1.5">
+                                {group.items.map((item) => {
+                                  const active = isItemActive(item.href)
+                                  const itemCount = item.badgeKey ? (counts[item.badgeKey as BadgeKey] ?? 0) : 0
+                                  return (
+                                    <Link
+                                      key={item.href}
+                                      href={item.href}
+                                      className={`flex min-h-10 items-center gap-2 rounded-xl px-3 py-2 text-[13.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60
+                                        ${active
+                                          ? 'bg-[rgba(255,255,255,0.08)] text-white shadow-[0_8px_20px_rgba(2,7,18,0.18)]'
+                                          : 'text-[var(--admin-sidebar-text-dim)] hover:bg-white/[0.06] hover:text-[var(--admin-sidebar-text)]'}`}
+                                    >
+                                      <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-sky-300' : 'bg-[rgba(148,163,184,0.45)]'}`} />
+                                      <span className="flex-1">{item.label}</span>
+                                      {itemCount > 0 ? (
+                                        <span
+                                          className={`inline-flex min-w-[1.95rem] items-center justify-center rounded-full border px-2 py-0.5 text-[10.5px] font-semibold tabular-nums ${
+                                            active
+                                              ? 'border-white/15 bg-white/12 text-white'
+                                              : 'border-[rgba(96,165,250,0.18)] bg-[rgba(59,130,246,0.12)] text-[var(--admin-sidebar-text)]'
+                                          }`}
+                                        >
+                                          {formatBadgeValue(itemCount)}
+                                        </span>
+                                      ) : null}
+                                    </Link>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
         </nav>
 
-        <div className="mt-auto px-4 pt-4 border-t border-[#152d5a]/15 shrink-0 block bg-[#e8f2fb] lg:bg-[#e8f2fb]">
-          <div className="px-4 py-3 flex items-center justify-between bg-[#e8f2fb] border border-[var(--admin-border)] rounded-[16px] transition-colors">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-full bg-[#1a2333] border border-[var(--admin-border)] flex items-center justify-center flex-shrink-0 shadow-inner">
-                <span className="text-[11px] font-bold text-[var(--admin-text)]">{initials}</span>
+        <div className="mt-auto shrink-0 border-t border-[rgba(148,163,184,0.12)] bg-[var(--admin-sidebar-bg)] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div className="flex items-center justify-between gap-3 rounded-[20px] border border-[rgba(148,163,184,0.14)] bg-white/[0.05] px-4 py-3 shadow-[0_12px_28px_rgba(2,7,18,0.18)]">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-[rgba(148,163,184,0.16)] bg-white/[0.07] shadow-inner">
+                <span className="text-[11px] font-bold tracking-[0.08em] text-[var(--admin-sidebar-text)]">{initials}</span>
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-[var(--admin-text)] truncate">{displayName}</p>
-                <p className="text-xs text-[var(--admin-text-dim)] mt-0.5">Administrator</p>
+                <p className="truncate text-[14px] font-semibold text-[var(--admin-sidebar-text)]">{displayName}</p>
+                <p className="mt-0.5 text-[11px] uppercase tracking-[0.18em] text-[var(--admin-sidebar-text-dim)]">Administrator</p>
               </div>
             </div>
             <button
               onClick={handleLogout}
-              className="text-[var(--admin-text-dim)] hover:text-[var(--admin-danger)] transition-colors flex-shrink-0 ml-2"
+              className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-transparent text-[var(--admin-sidebar-text-dim)] transition-colors hover:border-[rgba(148,163,184,0.10)] hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60"
               title="Sign out"
+              aria-label="Sign out"
             >
-              <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>logout</span>
+              <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>
+                logout
+              </span>
             </button>
           </div>
         </div>

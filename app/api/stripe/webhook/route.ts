@@ -4,6 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email/send-email";
 import { paymentConfirmedEmail } from "@/lib/email/templates/payment";
 import { generateInvoicePdf } from "@/lib/invoices/pdf";
+import { storeInvoicePdf } from "@/lib/invoices/pdf-storage";
+import { generateStandardBookingInvoicePdf } from "@/lib/invoices/standard-booking-pdf";
 
 function logErr(step: string, err: any) {
   console.error(`[webhook] ${step}`, {
@@ -85,10 +87,6 @@ function getPhoneDisplay(profile: { phone_country_code?: string | null; phone_nu
   return countryCode ? `${countryCode} ${phoneNumber}` : phoneNumber
 }
 
-function getInvoiceStoragePath(userId: string, invoiceNumber: string): string {
-  return `${userId}/${invoiceNumber}.pdf`
-}
-
 async function createBlockTimeInvoicePdf(params: {
   supabase: any
   invoiceId: string
@@ -133,7 +131,7 @@ async function createBlockTimeInvoicePdf(params: {
   const expiryDate = new Date(purchaseDate.getTime() + validityDays * 24 * 60 * 60 * 1000)
   const pdfBuffer = await generateInvoicePdf({
     invoiceNumber,
-    invoiceTypeLabel: 'TAX INVOICE',
+    documentKind: 'tax_invoice',
     statusLabel: 'PAID',
     createdAt,
     dueAt: createdAt,
@@ -159,42 +157,14 @@ async function createBlockTimeInvoicePdf(params: {
     }).format(expiryDate)}. Unused hours at expiry are forfeited per Terms & Conditions.`,
   })
 
-  const storagePath = getInvoiceStoragePath(userId, invoiceNumber)
-  const fileName = `${invoiceNumber}.pdf`
-  const uploadResult = await supabase.storage
-    .from('invoice_pdfs')
-    .upload(storagePath, pdfBuffer, {
-      contentType: 'application/pdf',
-      upsert: true,
-      cacheControl: '3600',
-    })
-
-  if (uploadResult.error) {
-    throw uploadResult.error
-  }
-
-  const { data: publicUrlData } = supabase.storage.from('invoice_pdfs').getPublicUrl(storagePath)
-  const pdfUrl = publicUrlData.publicUrl
-
-  const { error: updateInvoiceErr } = await supabase
-    .from('invoices')
-    .update({ pdf_url: pdfUrl })
-    .eq('id', invoiceId)
-
-  if (updateInvoiceErr) {
-    throw updateInvoiceErr
-  }
-
-  return {
-    pdfUrl,
-    storagePath,
-    fileName,
-    attachment: {
-      filename: fileName,
-      content: pdfBuffer.toString('base64'),
-      contentType: 'application/pdf',
-    },
-  }
+  return storeInvoicePdf({
+    supabase,
+    table: 'invoices',
+    rowId: invoiceId,
+    userId,
+    invoiceNumber,
+    pdfBuffer,
+  })
 }
 
 async function createBlockTimeTopupInvoicePdf(params: {
@@ -239,7 +209,7 @@ async function createBlockTimeTopupInvoicePdf(params: {
 
   const pdfBuffer = await generateInvoicePdf({
     invoiceNumber,
-    invoiceTypeLabel: 'TAX INVOICE',
+    documentKind: 'tax_invoice',
     statusLabel: 'PAID',
     createdAt,
     dueAt: createdAt,
@@ -265,42 +235,14 @@ async function createBlockTimeTopupInvoicePdf(params: {
     }).format(new Date(newExpiresAt))}. Unused hours at expiry are forfeited per Terms & Conditions.`,
   })
 
-  const storagePath = getInvoiceStoragePath(userId, invoiceNumber)
-  const fileName = `${invoiceNumber}.pdf`
-  const uploadResult = await supabase.storage
-    .from('invoice_pdfs')
-    .upload(storagePath, pdfBuffer, {
-      contentType: 'application/pdf',
-      upsert: true,
-      cacheControl: '3600',
-    })
-
-  if (uploadResult.error) {
-    throw uploadResult.error
-  }
-
-  const { data: publicUrlData } = supabase.storage.from('invoice_pdfs').getPublicUrl(storagePath)
-  const pdfUrl = publicUrlData.publicUrl
-
-  const { error: updateInvoiceErr } = await supabase
-    .from('invoices')
-    .update({ pdf_url: pdfUrl })
-    .eq('id', invoiceId)
-
-  if (updateInvoiceErr) {
-    throw updateInvoiceErr
-  }
-
-  return {
-    pdfUrl,
-    storagePath,
-    fileName,
-    attachment: {
-      filename: fileName,
-      content: pdfBuffer.toString('base64'),
-      contentType: 'application/pdf',
-    },
-  }
+  return storeInvoicePdf({
+    supabase,
+    table: 'invoices',
+    rowId: invoiceId,
+    userId,
+    invoiceNumber,
+    pdfBuffer,
+  })
 }
 
 export async function POST(req: Request) {
@@ -1259,6 +1201,20 @@ export async function POST(req: Request) {
           is_read: false,
           email_status: "skipped",
         });
+
+        try {
+          const pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId })
+          if (pdfResult) {
+            console.log("[webhook] Standard booking receipt generated", {
+              invoiceId,
+              pdfUrl: pdfResult.pdfUrl,
+            });
+          }
+        } catch (pdfErr: any) {
+          console.warn("[webhook] Standard booking receipt generation failed (non-fatal)", {
+            message: pdfErr?.message,
+          });
+        }
       } catch (notifEx: any) {
         console.warn("[webhook] Standard notification failed (non-fatal)", notifEx?.message);
       }

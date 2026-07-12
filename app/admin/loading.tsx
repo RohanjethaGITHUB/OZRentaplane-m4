@@ -1,46 +1,62 @@
 // Skeleton for the /admin overview page
 export default function AdminLoading() {
   return (
-    <div className="p-10 max-w-7xl animate-pulse">
+    <div className="admin-command-pilot min-h-full bg-[var(--admin-canvas)] animate-pulse">
+      <div className="mx-auto max-w-[1400px] px-4 py-5 sm:px-6 sm:py-6 md:px-8 lg:px-10">
       {/* Page header skeleton */}
-      <div className="mb-12 space-y-3">
-        <div className="h-9 w-64 bg-white/5 rounded-xl" />
-        <div className="h-4 w-80 bg-white/[0.03] rounded-lg" />
-        <div className="h-0.5 w-10 bg-white/10 mt-6" />
+      <div className="mb-6 rounded-[var(--admin-radius-module)] border border-[var(--admin-border-default)] bg-[linear-gradient(180deg,rgba(231,239,247,0.98),rgba(242,246,251,0.94))] px-4 py-5 sm:px-6 md:px-8">
+        <div className="space-y-3">
+          <div className="h-3 w-24 rounded-full bg-[rgba(20,43,77,0.10)]" />
+          <div className="h-8 w-52 rounded-xl bg-[rgba(20,43,77,0.12)]" />
+          <div className="h-4 w-full max-w-[30rem] rounded-lg bg-[rgba(20,43,77,0.08)]" />
+        </div>
       </div>
 
-      {/* Stat cards skeleton */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+      <div className="mb-5 rounded-[var(--admin-radius-module)] border border-[var(--admin-border-default)] bg-[var(--admin-module)] p-3 shadow-[var(--admin-shadow-module)] sm:p-4">
+        <div className="grid grid-cols-1 gap-3 min-[390px]:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="bg-[#1e2023]/60 border border-white/5 p-6 rounded-xl h-36 flex flex-col justify-between">
-            <div className="h-5 w-5 bg-white/10 rounded" />
-            <div className="space-y-2">
-              <div className="h-8 w-12 bg-white/10 rounded" />
-              <div className="h-3 w-28 bg-white/[0.05] rounded" />
+            <div key={i} className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border-default)] bg-[var(--admin-inset)] px-4 py-3">
+              <div className="h-3 w-20 rounded-full bg-[rgba(20,43,77,0.10)]" />
+              <div className="mt-3 flex items-end justify-between gap-3">
+                <div className="h-7 w-12 rounded-xl bg-[rgba(20,43,77,0.12)]" />
+                <div className="h-4 w-24 rounded-lg bg-[rgba(20,43,77,0.08)]" />
+              </div>
+              <div className="mt-3 h-3 w-24 rounded-lg bg-[rgba(20,43,77,0.08)]" />
             </div>
-          </div>
         ))}
       </div>
+      </div>
 
-      {/* Queue table skeleton */}
-      <div className="bg-[#1e2023]/60 border border-white/5 rounded-2xl overflow-hidden">
-        <div className="p-8 border-b border-white/5">
-          <div className="h-6 w-48 bg-white/10 rounded" />
+      <div className="overflow-hidden rounded-[var(--admin-radius-module)] border border-[var(--admin-border-default)] bg-[var(--admin-module)] shadow-[var(--admin-shadow-module)]">
+        <div className="border-b border-[var(--admin-border-soft)] bg-[var(--admin-inset)] px-5 py-4">
+          <div className="h-3 w-24 rounded-full bg-[rgba(20,43,77,0.08)]" />
+          <div className="mt-2 h-6 w-40 rounded-xl bg-[rgba(20,43,77,0.12)]" />
         </div>
-        <div className="divide-y divide-white/5">
+        <div className="divide-y divide-[var(--admin-border-soft)] px-3 py-2 sm:px-4 sm:py-3">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-6 px-8 py-5">
-              <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 w-36 bg-white/10 rounded" />
-                <div className="h-3 w-24 bg-white/[0.05] rounded" />
+            <div key={i} className="px-1 py-4 sm:px-2">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap gap-2">
+                    <div className="h-7 w-24 rounded-full bg-[rgba(20,43,77,0.10)]" />
+                    <div className="h-7 w-20 rounded-full bg-[rgba(20,43,77,0.08)]" />
+                  </div>
+                  <div className="mt-3 h-4 w-48 rounded-lg bg-[rgba(20,43,77,0.12)]" />
+                  <div className="mt-2 h-3 w-full max-w-[32rem] rounded-lg bg-[rgba(20,43,77,0.08)]" />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 lg:max-w-[42rem] lg:flex-1">
+                  {Array.from({ length: 4 }).map((__, metaIdx) => (
+                    <div key={metaIdx} className="space-y-2">
+                      <div className="h-3 w-20 rounded-full bg-[rgba(20,43,77,0.08)]" />
+                      <div className="h-3 w-full rounded-lg bg-[rgba(20,43,77,0.12)]" />
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="h-4 w-20 bg-white/[0.05] rounded" />
-              <div className="h-4 w-24 bg-white/[0.05] rounded" />
-              <div className="h-7 w-20 bg-white/[0.05] rounded-full ml-auto" />
             </div>
           ))}
         </div>
+      </div>
       </div>
     </div>
   )

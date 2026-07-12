@@ -13,6 +13,7 @@ const newsreader = Newsreader({
   style: ['normal', 'italic'],
   variable: '--font-newsreader',
   display: 'swap',
+  adjustFontFallback: false,
 })
 
 const manrope = Manrope({

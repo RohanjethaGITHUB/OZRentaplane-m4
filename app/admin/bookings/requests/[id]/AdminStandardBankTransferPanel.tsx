@@ -59,56 +59,60 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
   }
 
   return (
-    <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-6 space-y-4">
-      <div className="flex items-center gap-2">
+    <div
+      id="standard-bank-transfer-review"
+      className="rounded-2xl border border-[#e2e8f0] bg-white p-5 shadow-[0_12px_28px_rgba(15,30,52,0.06)] sm:p-6"
+    >
+      <div className="mb-4 flex items-center gap-3 rounded-xl border border-[#f5e6b3] bg-[#fffaf0] px-4 py-3">
         <span
-          className="material-symbols-outlined text-amber-400 text-[18px]"
+          className="material-symbols-outlined text-[18px] text-[#d97706]"
           style={{ fontVariationSettings: "'FILL' 1" }}
         >
           account_balance
         </span>
-        <h2 className="text-[9px] uppercase tracking-widest font-bold text-amber-400/70">
+        <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0f2747]">
           Bank Transfer Proof
         </h2>
         {submissions.some(s => s.status === "pending_review") && (
-          <span className="ml-auto px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse">
+          <span className="ml-auto rounded-full border border-[#f0b429] bg-[#fff7db] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#7a4100]">
             Pending Review
           </span>
         )}
       </div>
 
+      <div className="space-y-4 border-l-4 border-[#d97706] pl-4 sm:pl-5">
       {submissions.map((sub, idx) => (
         <div
           key={sub.id}
-          className={`rounded-xl p-4 border space-y-3 ${
+          className={`space-y-4 rounded-xl border bg-white p-4 shadow-[0_10px_24px_rgba(15,30,52,0.05)] sm:p-5 ${
             sub.status === "pending_review"
-              ? "bg-amber-500/5 border-amber-500/15"
+              ? "border-[#f0b429]"
               : sub.status === "approved"
-              ? "bg-green-500/5 border-green-500/15"
-              : "bg-red-500/5 border-red-500/15 opacity-60"
+              ? "border-[#86d39d]"
+              : "border-[#f1b5b0]"
           }`}
         >
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[9px] uppercase tracking-widest text-slate-500">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#64748b]">
               Submission {submissions.length - idx}
             </p>
-            <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
-              sub.status === "pending_review" ? "text-amber-400 bg-amber-500/10 border-amber-500/20" :
-              sub.status === "approved"       ? "text-green-400 bg-green-500/10 border-green-500/20" :
-                                               "text-red-400 bg-red-500/10 border-red-500/20"
+            <span className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${
+              sub.status === "pending_review" ? "border-[#f0b429] bg-[#fff7db] text-[#7a4100]" :
+              sub.status === "approved"       ? "border-[#86d39d] bg-[#ecfdf3] text-[#166534]" :
+                                               "border-[#e28b85] bg-[#fef2f2] text-[#912018]"
             }`}>
               {sub.status === "pending_review" ? "Pending Review" : sub.status === "approved" ? "Approved" : "Rejected"}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div>
-              <p className="text-[9px] text-slate-600 uppercase tracking-widest mb-0.5">Reference Used</p>
-              <p className="font-mono text-slate-300">{sub.reference || "—"}</p>
+          <div className="grid gap-4 text-sm sm:grid-cols-2">
+            <div className="min-w-0">
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#64748b]">Reference Used</p>
+              <p className="break-all font-mono text-[13px] font-semibold text-[#0f2747]">{sub.reference || "—"}</p>
             </div>
             <div>
-              <p className="text-[9px] text-slate-600 uppercase tracking-widest mb-0.5">Submitted</p>
-              <p className="text-slate-300 tabular-nums">
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#64748b]">Submitted</p>
+              <p className="tabular-nums text-[13px] font-medium text-[#0f2747]">
                 {new Date(sub.submitted_at).toLocaleDateString("en-AU", {
                   timeZone: "Australia/Sydney",
                   day: "numeric", month: "short", year: "numeric",
@@ -119,7 +123,7 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
 
           {sub.signedReceiptUrl ? (
             <div className="space-y-2">
-              <p className="text-[9px] text-slate-600 uppercase tracking-widest">Receipt</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#64748b]">Receipt</p>
               <button
                 type="button"
                 onClick={() => {
@@ -127,26 +131,26 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
                   setViewerTitle("Bank Transfer Receipt")
                   setViewerOpen(true)
                 }}
-                className="inline-flex items-center gap-1.5 text-xs text-[#a7c8ff] hover:underline"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#bfdbfe] bg-[#f8fbff] px-3.5 py-2 text-sm font-semibold text-[#1d4ed8] transition-colors hover:border-[#93c5fd] hover:bg-[#eff6ff] hover:text-[#1e40af] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a4fd6]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
               >
                 <span className="material-symbols-outlined text-[14px]">open_in_new</span>
                 View Receipt
               </button>
             </div>
           ) : (
-            <p className="text-xs text-slate-600">Receipt URL unavailable</p>
+            <p className="text-sm text-[#475569]">Receipt URL unavailable</p>
           )}
 
           {sub.status === "rejected" && sub.admin_note && (
-            <div className="pt-2 border-t border-red-500/15">
-              <p className="text-[9px] text-red-400/60 uppercase tracking-widest mb-1">Rejection Note</p>
-              <p className="text-xs text-red-300/80 leading-relaxed">{sub.admin_note}</p>
+            <div className="border-t border-[#fecaca] pt-3">
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#912018]">Rejection Note</p>
+              <p className="text-sm leading-relaxed text-[#7f1d1d]">{sub.admin_note}</p>
             </div>
           )}
 
       {sub.status === "pending_review" && (
-            <div className="pt-3 border-t border-amber-500/15 space-y-3">
-              {error && <p className="text-xs text-red-400">{error}</p>}
+            <div className="space-y-3 border-t border-[#e2e8f0] pt-4">
+              {error && <p className="text-sm font-medium text-[#b42318]">{error}</p>}
 
               {rejectingId === sub.id ? (
                 <div className="space-y-2">
@@ -155,30 +159,30 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
                     onChange={e => setRejectNote(e.target.value)}
                     placeholder="Rejection reason (required)..."
                     rows={3}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-white/20 resize-none"
+                    className="w-full resize-none rounded-lg border border-[#cbd5e1] bg-white px-3 py-2.5 text-sm text-[#0f2747] placeholder:text-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#1a4fd6]/20 focus:ring-offset-2 focus:ring-offset-white"
                   />
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <button
                       onClick={() => handleReject(sub.id)}
                       disabled={!!loading}
-                      className="flex-1 px-3 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/20 text-red-400 text-[10px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50"
+                      className="inline-flex min-h-11 flex-1 items-center justify-center rounded-lg border border-[#b42318] bg-[#b42318] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white transition-colors hover:bg-[#912018] hover:border-[#912018] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b42318]/25 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:border-[#d6a6a2] disabled:bg-[#d6a6a2] disabled:text-white/85"
                     >
                       {loading === sub.id ? "Rejecting..." : "Confirm Reject"}
                     </button>
                     <button
                       onClick={() => { setRejectingId(null); setRejectNote(""); setError(null) }}
-                      className="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 text-[10px] font-bold uppercase tracking-widest transition-colors"
+                      className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[#cbd5e1] bg-white px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#475569] transition-colors hover:bg-[#f8fafc] hover:text-[#0f2747] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a4fd6]/20 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
                     >
                       Cancel
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <button
                     onClick={() => handleApprove(sub.id)}
                     disabled={!!loading}
-                    className="flex-1 px-3 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 border border-green-500/20 text-green-400 text-[10px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#15803d] bg-[#15803d] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white transition-colors hover:bg-[#166534] hover:border-[#166534] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15803d]/25 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:border-[#8fcca4] disabled:bg-[#8fcca4] disabled:text-white/85"
                   >
                     <span className="material-symbols-outlined text-[14px]">check_circle</span>
                     {loading === sub.id ? "Confirming..." : "Confirm Payment"}
@@ -186,7 +190,7 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
                   <button
                     onClick={() => { setRejectingId(sub.id); setError(null) }}
                     disabled={!!loading}
-                    className="flex-1 px-3 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-[10px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#b42318] bg-[#b42318] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white transition-colors hover:bg-[#912018] hover:border-[#912018] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b42318]/25 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:border-[#d6a6a2] disabled:bg-[#d6a6a2] disabled:text-white/85"
                   >
                     <span className="material-symbols-outlined text-[14px]">cancel</span>
                     Reject
@@ -197,6 +201,7 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
           )}
         </div>
       ))}
+      </div>
 
       <DocumentViewerModal
         isOpen={viewerOpen}

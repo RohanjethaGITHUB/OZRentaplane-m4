@@ -21,6 +21,8 @@ import { sendEmail } from '@/lib/email/send-email'
 import { checkoutOutcomeEmail } from '@/lib/email/templates/checkout'
 import { paymentConfirmedEmail } from '@/lib/email/templates/payment'
 import { generateInvoicePdf } from '@/lib/invoices/pdf'
+import { storeInvoicePdf } from '@/lib/invoices/pdf-storage'
+import { generateStandardBookingInvoicePdf } from '@/lib/invoices/standard-booking-pdf'
 import {
   type AircraftReadings,
   type TotalOnlyReadings,
@@ -39,6 +41,7 @@ import {
   resolveStandardBookingBillingBranch,
   resolveBlockTimeLandingSettlement,
   resolveMinimumVdoBilling,
+  type ManualSettlementMethod,
   type MinimumVdoDecision,
 } from '@/lib/booking/standard-booking-billing'
 import {
@@ -120,6 +123,7 @@ export async function createAdminScheduleBlock(
   }
 
   revalidatePath('/admin')
+  revalidatePath('/admin/calendar')
 
   return { created: true, blockId: result.blockId }
 }
@@ -2347,6 +2351,9 @@ export async function finaliseStandardBookingInvoice(input: {
   adminNotes?: string
   readings: TotalOnlyReadings
   submissionMode?: 'send_invoice' | 'mark_paid' | 'waived'
+  // How the money was received when submissionMode is 'mark_paid' (ledger
+  // reconciliation only — never credit-bearing). Ignored for other modes.
+  manualPaymentMethod?: ManualSettlementMethod
   waiverReason?: string
   minimumVdoDecision?: MinimumVdoDecision
 }): Promise<void> {
@@ -2556,9 +2563,14 @@ export async function finaliseStandardBookingInvoice(input: {
     )
 
     if (drawdownErr) {
+      // Fall back to PAYF ONLY for the specific "package gone" exception the
+      // RPC raises when the package expired/exhausted between the pre-check
+      // and the drawdown. Any other error — including the migration-108
+      // 'Unauthorized' admin guard, which shares Postgres error code P0001
+      // with RAISE EXCEPTION — must surface to the admin instead of silently
+      // billing the pilot at the PAYF rate.
       const isNoPackageError =
-        drawdownErr.message?.toLowerCase().includes('no active block time package') ||
-        drawdownErr.code === 'P0001'
+        drawdownErr.message?.toLowerCase().includes('no active block time package') ?? false
 
       if (isNoPackageError) {
         console.warn(
@@ -2618,7 +2630,17 @@ export async function finaliseStandardBookingInvoice(input: {
         } as any
       }
 
-      throw new Error(drawdownErr.message ?? 'Block time drawdown failed.')
+      console.error('[finaliseStandardBookingInvoice] block time drawdown failed (no fallback taken)', {
+        code: drawdownErr.code,
+        message: drawdownErr.message,
+        bookingId: input.bookingId,
+        userId: booking.booking_owner_user_id,
+      })
+      throw new Error(
+        `Block time drawdown failed and NO billing was performed: ${drawdownErr.message ?? 'unknown error'}. ` +
+        `The booking is still in post-flight review — resolve the error and finalise again. ` +
+        `(The pilot was NOT billed at the Pay As You Fly rate; that fallback only applies when their package expired or was exhausted.)`,
+      )
     }
 
     if (!drawdownRows?.[0]) {
@@ -2689,6 +2711,7 @@ export async function finaliseStandardBookingInvoice(input: {
         } else if (landingSettlement.action === 'settle_manual') {
           await adminSettleBlockTimeInvoice({
             invoiceId: drawdown.out_landing_invoice_id,
+            paymentMethod: input.manualPaymentMethod ?? null,
             note: input.adminNotes?.trim() || undefined,
           })
           landingOutcome = 'settled_manual'
@@ -2774,7 +2797,7 @@ export async function finaliseStandardBookingInvoice(input: {
 
         const pdfBuffer = await generateInvoicePdf({
           invoiceNumber: invoice.invoice_number,
-          invoiceTypeLabel: 'TAX INVOICE',
+          documentKind: 'tax_invoice',
           statusLabel: String(invoice.status).toUpperCase(),
           createdAt: invoice.created_at,
           dueAt: invoice.paid_at ?? invoice.created_at,
@@ -2793,31 +2816,16 @@ export async function finaliseStandardBookingInvoice(input: {
           total: Number(invoice.total),
           footerNote: entry.footer,
         })
+        const storedPdf = await storeInvoicePdf({
+          supabase,
+          table: 'invoices',
+          rowId: invoice.id,
+          userId: booking.booking_owner_user_id,
+          invoiceNumber: invoice.invoice_number,
+          pdfBuffer,
+        })
 
-        const storagePath = `${booking.booking_owner_user_id}/${invoice.invoice_number}.pdf`
-        const uploadResult = await supabase.storage
-          .from('invoice_pdfs')
-          .upload(storagePath, pdfBuffer, {
-            contentType: 'application/pdf',
-            upsert: true,
-            cacheControl: '3600',
-          })
-
-        if (uploadResult.error) {
-          throw uploadResult.error
-        }
-
-        const { data: publicUrlData } = supabase.storage.from('invoice_pdfs').getPublicUrl(storagePath)
-        pdfUrls.set(entry.id, publicUrlData.publicUrl)
-
-        const { error: updateInvoiceErr } = await supabase
-          .from('invoices')
-          .update({ pdf_url: publicUrlData.publicUrl })
-          .eq('id', invoice.id)
-
-        if (updateInvoiceErr) {
-          throw updateInvoiceErr
-        }
+        pdfUrls.set(entry.id, storedPdf.pdfUrl)
       } catch (error) {
         console.error('[finaliseStandardBookingInvoice] block time PDF generation failed:', error)
       }
@@ -2941,7 +2949,7 @@ export async function finaliseStandardBookingInvoice(input: {
         overage_invoice_id: drawdown.out_overage_invoice_id,
         landing_invoice_id: drawdown.out_landing_invoice_id,
         overflow_hours:  drawdown.out_overflow_hours,
-        payment_method:  null,
+        payment_method:  submissionMode === 'mark_paid' ? input.manualPaymentMethod ?? null : null,
         submission_mode: submissionMode,
         landing_settlement: landingOutcome,
         landing_waiver_reason: landingOutcome === 'waived' ? input.waiverReason?.trim() ?? null : null,
@@ -3101,6 +3109,10 @@ export async function finaliseStandardBookingInvoice(input: {
     updated_by: adminId,
   })
 
+  const shouldGenerateStandardPdfNow =
+    billingBranch.kind !== 'waived' &&
+    !(billingBranch.kind === 'invoice' && input.submissionMode === 'mark_paid' && amountDueNowCents > 0)
+
   if (billingBranch.kind === 'waived') {
     const { error: waivedInvoiceErr } = await supabase
       .from('booking_invoices')
@@ -3126,8 +3138,35 @@ export async function finaliseStandardBookingInvoice(input: {
     await recordManualPayment({
       bookingId: input.bookingId,
       amountCents: amountDueNowCents,
+      paymentMethod: input.manualPaymentMethod ?? null,
       note: input.adminNotes?.trim() || undefined,
     })
+
+    try {
+      const pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId })
+      if (pdfResult) {
+        console.log('[finaliseStandardBookingInvoice] standard booking receipt generated', {
+          invoiceId,
+          pdfUrl: pdfResult.pdfUrl,
+        })
+      }
+    } catch (error) {
+      console.error('[finaliseStandardBookingInvoice] standard booking receipt generation failed:', error)
+    }
+  }
+
+  if (shouldGenerateStandardPdfNow) {
+    try {
+      const pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId })
+      if (pdfResult) {
+        console.log('[finaliseStandardBookingInvoice] standard booking PDF generated', {
+          invoiceId,
+          pdfUrl: pdfResult.pdfUrl,
+        })
+      }
+    } catch (error) {
+      console.error('[finaliseStandardBookingInvoice] standard booking PDF generation failed:', error)
+    }
   }
 
   await supabase.from('booking_status_history').insert({
@@ -3159,7 +3198,7 @@ export async function finaliseStandardBookingInvoice(input: {
         review_status:   hasReadingChanges ? 'admin_adjusted' : 'admin_confirmed',
         billing_branch:  billingBranch.kind,
         ...minimumVdoAuditValue,
-        payment_method:  null,
+        payment_method:  submissionMode === 'mark_paid' ? input.manualPaymentMethod ?? null : null,
         submission_mode: submissionMode,
         payment_waived:  billingBranch.kind === 'waived',
       },
@@ -3244,6 +3283,7 @@ export async function adminSubmitFlightRecord(input: {
   adminNotes?: string
   readings: TotalOnlyReadings
   submissionMode?: 'send_invoice' | 'mark_paid' | 'waived'
+  manualPaymentMethod?: ManualSettlementMethod
   waiverReason?: string
   minimumVdoDecision?: MinimumVdoDecision
 }): Promise<void> {
@@ -3322,6 +3362,7 @@ export async function adminSubmitFlightRecord(input: {
     adminNotes:     input.adminNotes,
     readings:       input.readings,
     submissionMode:  input.submissionMode,
+    manualPaymentMethod: input.manualPaymentMethod,
     waiverReason:    input.waiverReason,
     minimumVdoDecision: input.minimumVdoDecision,
   })

@@ -19,6 +19,7 @@ import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 import CustomerBookingActions from './CustomerBookingActions'
 import CheckoutChangeActions from '@/app/dashboard/checkout/CheckoutChangeActions'
 import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
+import { getStandardBookingPaymentDisplayState } from '@/lib/booking/standard-booking-payment-state'
 
 export const metadata = { title: 'Booking Details | Pilot Dashboard' }
 
@@ -118,6 +119,18 @@ type ActiveBlockTimePackage = {
   expires_at: string
   hours_purchased: number
   package?: { name: string } | { name: string }[] | null
+}
+
+type StandardBookingInvoicePreview = {
+  id: string
+  invoice_number: string
+  subtotal_cents: number
+  advance_applied_cents: number
+  stripe_amount_due_cents: number
+  total_paid_cents: number
+  paid_at: string | null
+  status: string
+  payment_method: string | null
 }
 
 function BlockTimeInfoBanner({
@@ -241,7 +254,7 @@ function NextActionCard({
   bankDetails?:             { accountName: string; bsb: string; accountNumber: string } | null
   checkoutOutcome?:         string | null
   standardBilling?:         { subtotal_cents: number; advance_applied_cents: number; amount_due_cents: number } | null
-  bookingInvoice?:          { id: string; invoice_number: string; subtotal_cents: number; advance_applied_cents: number; stripe_amount_due_cents: number; status: string; payment_method: string | null } | null
+  bookingInvoice?:          StandardBookingInvoicePreview | null
   bookingSlotHours:         number
   standardBankTransferSub?: { id: string; status: string } | null
   standardBankDetails?:     { accountName: string; bsb: string; accountNumber: string } | null
@@ -1026,21 +1039,17 @@ export default async function BookingDetailPage({ params }: PageProps) {
   }
 
   // ── Standard booking invoice + bank transfer fetch ────────────────────────────
-  let bookingInvoice: {
-    id: string; invoice_number: string; subtotal_cents: number
-    advance_applied_cents: number; stripe_amount_due_cents: number
-    status: string; payment_method: string | null
-  } | null = null
+  let bookingInvoice: StandardBookingInvoicePreview | null = null
   let standardBankTransferSub: { id: string; status: string } | null = null
   let standardBankDetails: { accountName: string; bsb: string; accountNumber: string } | null = null
 
   if (status === 'payment_pending') {
     const { data: bInv } = await supabase
       .from('booking_invoices')
-      .select('id, invoice_number, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, status, payment_method')
+      .select('id, invoice_number, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, total_paid_cents, paid_at, status, payment_method')
       .eq('booking_id', booking.id)
       .maybeSingle()
-    bookingInvoice = bInv as typeof bookingInvoice
+    bookingInvoice = bInv as StandardBookingInvoicePreview | null
 
     if (bInv) {
       const { data: bSub } = await supabase
@@ -1048,6 +1057,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
         .select('id, status')
         .eq('invoice_id', bInv.id)
         .order('submitted_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
         .limit(1)
         .maybeSingle()
       standardBankTransferSub = bSub
@@ -1062,10 +1073,18 @@ export default async function BookingDetailPage({ params }: PageProps) {
   }
 
   // Derive standard booking awaiting manual payment state
-  const isStandardAwaitingManualPayment =
-    status === 'payment_pending' &&
-    standardBankTransferSub != null &&
-    (standardBankTransferSub.status === 'pending_review' || standardBankTransferSub.status === 'approved')
+  let standardPaymentDisplayState: ReturnType<typeof getStandardBookingPaymentDisplayState> = 'unknown'
+  if (status === 'payment_pending' && bookingInvoice) {
+    const standardInvoice = bookingInvoice
+    standardPaymentDisplayState = getStandardBookingPaymentDisplayState({
+      bookingStatus: status,
+      invoiceStatus: standardInvoice.status,
+      invoicePaidAt: standardInvoice.paid_at,
+      invoiceAmountDueCents: standardInvoice.stripe_amount_due_cents,
+      invoiceTotalPaidCents: standardInvoice.total_paid_cents,
+      latestSubmissionStatus: standardBankTransferSub?.status ?? null,
+    })
+  }
 
   // ── Derive checkout payment display state ─────────────────────────────────────
   const checkoutPaymentDisplayState = status === 'checkout_payment_required'
@@ -1091,13 +1110,27 @@ export default async function BookingDetailPage({ params }: PageProps) {
   }
 
   // Override cfg for standard booking awaiting bank transfer confirmation
-  if (isStandardAwaitingManualPayment) {
-    cfg.label    = 'Awaiting Payment Confirmation'
-    cfg.sublabel = 'Bank transfer under review'
+  if (standardPaymentDisplayState === 'payment_review_pending') {
+    cfg.label    = 'Payment Submitted'
+    cfg.sublabel = 'Awaiting review'
     cfg.color    = 'text-blue-400'
     cfg.bg       = 'bg-blue-500/10'
     cfg.border   = 'border-blue-500/20'
     cfg.icon     = 'account_balance'
+  } else if (standardPaymentDisplayState === 'payment_proof_rejected') {
+    cfg.label    = 'Proof Rejected'
+    cfg.sublabel = 'Submit a new bank-transfer proof'
+    cfg.color    = 'text-red-400'
+    cfg.bg       = 'bg-red-500/10'
+    cfg.border   = 'border-red-500/20'
+    cfg.icon     = 'error'
+  } else if (standardPaymentDisplayState === 'payment_still_due') {
+    cfg.label    = 'Payment Still Due'
+    cfg.sublabel = 'Outstanding balance remains'
+    cfg.color    = 'text-orange-400'
+    cfg.bg       = 'bg-orange-500/10'
+    cfg.border   = 'border-orange-500/20'
+    cfg.icon     = 'payments'
   }
 
   const isCancelled = status === 'cancelled' || status === 'no_show'

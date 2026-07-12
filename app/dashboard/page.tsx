@@ -3,17 +3,16 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createBlockTimePurchaseIntent } from '@/app/actions/payment'
 import DashboardContent from './DashboardContent'
-import type { FlightSnapshotBooking } from './DashboardContent'
 import type { Profile, UserDocument, VerificationEvent, PilotClearanceStatus } from '@/lib/supabase/types'
 import { isAwaitingFlightRecordDue } from '@/lib/booking/flight-record-status'
-import { evaluateBookingReadinessDecision, hasAcceptedCurrentTerms } from '@/lib/booking-readiness'
+import { evaluateBookingReadinessDecision, hasAcceptedCurrentTerms, type BookingReadinessDecision } from '@/lib/booking-readiness'
 import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
 import { hasManualCheckoutClearance } from '@/lib/checkout-clearance'
-
-type MainBookingHeroState = {
-  mode: 'post_flight_required' | 'post_flight_under_review' | 'upcoming_confirmed' | 'post_flight_payment_required' | 'post_flight_awaiting_payment_confirmation'
-  bookingId: string
-}
+import {
+  resolveDashboardActionState,
+  type DashboardBookingFocusState,
+  type DashboardFlightSnapshot,
+} from '@/lib/dashboard/dashboard-action-state'
 
 type BlockTimePackageRow = {
   id: string
@@ -245,9 +244,6 @@ export default async function DashboardPage({
   const postFlightPaymentRequiredBooking = (postFlightPaymentRequiredBookingResult.data as BookingSnapshotRow | null) ?? null
 
   // ── Post-flight bank transfer status ──────────────────────────────────────
-  // Detect whether the customer has submitted bank transfer proof for the
-  // post-flight invoice so the dashboard can show "Awaiting Payment Confirmation"
-  // instead of pushing them to pay again.
   let postFlightBankTransferStatus: string | null = null
   if (postFlightPaymentRequiredBooking) {
     const { data: pfInvoiceRow } = await supabase
@@ -258,20 +254,17 @@ export default async function DashboardPage({
     if (pfInvoiceRow?.id) {
       const { data: pfBtSub } = await supabase
         .from('booking_bank_transfer_submissions')
-        .select('status')
+        .select('status, admin_note')
         .eq('invoice_id', pfInvoiceRow.id)
         .order('submitted_at', { ascending: false })
         .limit(1)
         .maybeSingle()
-      postFlightBankTransferStatus = (pfBtSub as { status: string } | null)?.status ?? null
+      postFlightBankTransferStatus = (pfBtSub as { status: string; admin_note?: string | null } | null)?.status ?? null
     }
   }
-  const isPostFlightAwaitingBankTransfer =
-    postFlightBankTransferStatus === 'pending_review' ||
-    postFlightBankTransferStatus === 'approved'
 
   const standardSnapshotBooking = postFlightPaymentRequiredBooking ?? postFlightRequiredBooking ?? postFlightUnderReviewBooking ?? upcomingConfirmedBooking
-  const flightSnapshotBooking: FlightSnapshotBooking | null = standardSnapshotBooking
+  const flightSnapshotBooking: DashboardFlightSnapshot | null = standardSnapshotBooking
     ? {
         id: standardSnapshotBooking.id,
         bookingType: 'standard',
@@ -291,25 +284,35 @@ export default async function DashboardPage({
       }
     : null
 
-  const mainBookingHeroState: MainBookingHeroState | null =
+  const bookingFocusState: DashboardBookingFocusState | null =
     postFlightPaymentRequiredBooking
       ? {
-          mode: isPostFlightAwaitingBankTransfer
-            ? 'post_flight_awaiting_payment_confirmation'
-            : 'post_flight_payment_required',
+          mode:
+            postFlightBankTransferStatus === 'rejected'
+              ? 'post_flight_payment_proof_rejected'
+              : postFlightBankTransferStatus === 'pending_review'
+                ? 'post_flight_payment_proof_under_review'
+                : postFlightBankTransferStatus === 'approved'
+                  ? 'post_flight_payment_approved'
+                  : 'post_flight_payment_required',
           bookingId: postFlightPaymentRequiredBooking.id,
         }
       : postFlightRequiredBooking
         ? { mode: 'post_flight_required', bookingId: postFlightRequiredBooking.id }
-        : postFlightUnderReviewBooking
-          ? { mode: 'post_flight_under_review', bookingId: postFlightUnderReviewBooking.id }
+      : postFlightUnderReviewBooking
+          ? {
+              mode: postFlightUnderReviewBooking.status === 'needs_clarification'
+                ? 'post_flight_clarification_required'
+                : 'post_flight_under_review',
+              bookingId: postFlightUnderReviewBooking.id,
+            }
           : upcomingConfirmedBooking
             ? { mode: 'upcoming_confirmed', bookingId: upcomingConfirmedBooking.id }
             : null
 
   // Fetch invoice data only when we have a booking ID
   let checkoutInvoice: import('./DashboardContent').CheckoutInvoiceData | null = null
-  let bookingReadiness: import('./DashboardContent').BookingReadinessSummary | null = null
+  let bookingReadiness: BookingReadinessDecision | null = null
 
   if (paymentPending && checkoutBookingId) {
     const [{ data: invoiceRow }, { data: landingRows }, { data: invoiceStatusRow }] = await Promise.all([
@@ -333,17 +336,19 @@ export default async function DashboardPage({
     // Use invoiceRow.invoice_id as the authoritative ID (comes from checkout_invoice_live_amount view);
     // fall back to invoiceStatusRow.id in case the view row is absent.
     let bankTransferStatus: string | null = null
+    let bankTransferNote: string | null = null
     const invoiceIdForBtLookup =
       (invoiceRow?.invoice_id as string | null) ?? invoiceStatusRow?.id ?? null
     if (invoiceIdForBtLookup) {
       const { data: btSub } = await supabase
         .from('checkout_bank_transfer_submissions')
-        .select('status')
+        .select('status, admin_note')
         .eq('invoice_id', invoiceIdForBtLookup)
         .order('submitted_at', { ascending: false })
         .limit(1)
         .maybeSingle()
-      bankTransferStatus = (btSub as { status: string } | null)?.status ?? null
+      bankTransferStatus = (btSub as { status: string; admin_note?: string | null } | null)?.status ?? null
+      bankTransferNote = (btSub as { status: string; admin_note?: string | null } | null)?.admin_note ?? null
     }
 
     if (invoiceRow) {
@@ -359,6 +364,7 @@ export default async function DashboardPage({
         checkoutDurationHours:   invoiceRow.checkout_duration_hours as number | null,
         landingSubtotalCents:    invoiceRow.checkout_landing_subtotal_cents as number,
         bankTransferStatus,
+        bankTransferNote,
         landingCharges:          ((landingRows ?? []) as any[]).map(lc => ({
           airportIcao:    (lc.airports as any)?.icao_code ?? '',
           airportName:    (lc.airports as any)?.name ?? '',
@@ -370,14 +376,45 @@ export default async function DashboardPage({
     }
   }
 
-  if (clearanceStatus === 'cleared_to_fly') {
-    const hasManualClearance = await hasManualCheckoutClearance(user.id)
+  const hasManualClearance = await hasManualCheckoutClearance(user.id)
+  const [{ data: historicalClearance }, termsPrimary, { data: latestTermsAcceptance }, { data: paidCheckoutInvoice }] = await Promise.all([
+    supabase
+      .from('historical_checkout_completions')
+      .select('id')
+      .eq('customer_id', user.id)
+      .eq('checkout_outcome', 'cleared_to_fly')
+      .eq('is_active', true)
+      .order('recorded_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('terms_documents')
+      .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
+      .eq('is_active', true)
+      .order('effective_from', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('booking_terms_acceptances')
+      .select('terms_document_id, terms_version, terms_content_hash, accepted_at')
+      .eq('user_id', user.id)
+      .order('accepted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('checkout_invoices')
+      .select('id')
+      .eq('customer_id', user.id)
+      .eq('status', 'paid')
+      .limit(1)
+      .maybeSingle(),
+  ])
 
-    if (hasManualClearance) {
-      bookingReadiness = null
-    } else {
-    const [{ data: historicalClearance }, termsPrimary, { data: latestTermsAcceptance }] = await Promise.all([
-      supabase
+  const admin = createAdminClient()
+  const authoritativeHistorical = historicalClearance?.id
+    ? historicalClearance
+    : (await admin
         .from('historical_checkout_completions')
         .select('id')
         .eq('customer_id', user.id)
@@ -385,79 +422,85 @@ export default async function DashboardPage({
         .eq('is_active', true)
         .order('recorded_at', { ascending: false })
         .limit(1)
-        .maybeSingle(),
-      supabase
-        .from('terms_documents')
-        .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
-        .eq('is_active', true)
-        .order('effective_from', { ascending: false })
-        .order('created_at', { ascending: false })
+        .maybeSingle()).data
+  const authoritativePaidInvoice = paidCheckoutInvoice?.id
+    ? paidCheckoutInvoice
+    : (await admin
+        .from('checkout_invoices')
+        .select('id')
+        .eq('customer_id', user.id)
+        .eq('status', 'paid')
         .limit(1)
-        .maybeSingle(),
-      supabase
+        .maybeSingle()).data
+  const authoritativeTermsAcceptance = latestTermsAcceptance?.accepted_at
+    ? latestTermsAcceptance
+    : (await admin
         .from('booking_terms_acceptances')
         .select('terms_document_id, terms_version, terms_content_hash, accepted_at')
         .eq('user_id', user.id)
         .order('accepted_at', { ascending: false })
         .limit(1)
-        .maybeSingle(),
-    ])
-    const admin = createAdminClient()
-    const authoritativeHistorical = historicalClearance?.id
-      ? historicalClearance
-      : (await admin
-          .from('historical_checkout_completions')
-          .select('id')
-          .eq('customer_id', user.id)
-          .eq('checkout_outcome', 'cleared_to_fly')
-          .eq('is_active', true)
-          .order('recorded_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()).data
-    const authoritativeTermsAcceptance = latestTermsAcceptance?.accepted_at
-      ? latestTermsAcceptance
-      : (await admin
-          .from('booking_terms_acceptances')
-          .select('terms_document_id, terms_version, terms_content_hash, accepted_at')
-          .eq('user_id', user.id)
-          .order('accepted_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()).data
+        .maybeSingle()).data
 
-    const authoritativeActiveTermsRow = termsPrimary.data ?? (await admin
-      .from('terms_documents')
-      .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
-      .eq('is_active', true)
-      .order('effective_from', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()).data
-    const activeTerms = normalizeActiveCheckoutTerms((authoritativeActiveTermsRow as Record<string, unknown> | null) ?? null)
-    const termsAccepted = hasAcceptedCurrentTerms(
-      activeTerms ? { id: activeTerms.id, version: activeTerms.version, content_hash: activeTerms.content_hash } : null,
-      (authoritativeTermsAcceptance as { terms_document_id: string | null; terms_version: string | null; terms_content_hash: string | null; accepted_at: string | null } | null),
-    )
-    const readiness = evaluateBookingReadinessDecision({
-      clearanceStatus,
-      hasHistoricalClearance: Boolean(authoritativeHistorical?.id),
-      hasPaidCheckoutInvoice: false,
-      documents: (documents as UserDocument[]) || [],
-      hasNightVfrRating: (profile as Profile | null)?.has_night_vfr_rating ?? null,
-      lastFlightDate: (profile as Profile | null)?.last_flight_date ?? null,
-      termsAccepted,
-    })
+  const authoritativeActiveTermsRow = termsPrimary.data ?? (await admin
+    .from('terms_documents')
+    .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
+    .eq('is_active', true)
+    .order('effective_from', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()).data
+  const activeTerms = normalizeActiveCheckoutTerms((authoritativeActiveTermsRow as Record<string, unknown> | null) ?? null)
+  const termsAccepted = hasAcceptedCurrentTerms(
+    activeTerms ? { id: activeTerms.id, version: activeTerms.version, content_hash: activeTerms.content_hash } : null,
+    (authoritativeTermsAcceptance as {
+      terms_document_id: string | null
+      terms_version: string | null
+      terms_content_hash: string | null
+      accepted_at: string | null
+    } | null),
+  )
 
-    bookingReadiness = {
-      show: !readiness.bookingReady,
-      hasHistoricalClearance: Boolean(authoritativeHistorical?.id),
-      docsReady: readiness.documentsComplete,
-      termsAccepted: readiness.currentTermsAccepted,
-      flightRecencyComplete: readiness.flightRecencyComplete,
-      hasAwaitingReview: readiness.documentsAwaitingReview.length > 0,
-      hasMissingOrExpired: readiness.missingDocuments.length > 0 || readiness.expiredDocuments.length > 0,
-    }
-    }
-  }
+  bookingReadiness = evaluateBookingReadinessDecision({
+    clearanceStatus,
+    hasHistoricalClearance: Boolean(authoritativeHistorical?.id),
+    hasPaidCheckoutInvoice: Boolean(authoritativePaidInvoice?.id),
+    documents: (documents as UserDocument[]) || [],
+    hasNightVfrRating: (profile as Profile | null)?.has_night_vfr_rating ?? null,
+    lastFlightDate: (profile as Profile | null)?.last_flight_date ?? null,
+    termsAccepted,
+  })
+
+  const hasClearancePath = Boolean(authoritativePaidInvoice?.id || authoritativeHistorical?.id)
+  const canCreateStandardBooking =
+    clearanceStatus === 'cleared_to_fly' &&
+    (hasManualClearance || (hasClearancePath && bookingReadiness.bookingReady))
+
+  const dashboardActionState = resolveDashboardActionState({
+    profile: {
+      account_status: (profile as Profile | null)?.account_status ?? 'active',
+      account_lock_reason: (profile as Profile | null)?.account_lock_reason ?? null,
+      pilot_clearance_status: clearanceStatus,
+      has_night_vfr_rating: (profile as Profile | null)?.has_night_vfr_rating ?? null,
+      last_flight_date: (profile as Profile | null)?.last_flight_date ?? null,
+    },
+    documents: (documents as UserDocument[]) || [],
+    bookingReadiness,
+    canCreateStandardBooking,
+    hasManualCheckoutClearance: hasManualClearance,
+    checkoutBookingId,
+    checkoutPayment: checkoutBookingId
+      ? {
+          bookingId: checkoutBookingId,
+          invoiceStatus: checkoutInvoice?.invoiceStatus ?? null,
+          bankTransferStatus: checkoutInvoice?.bankTransferStatus ?? null,
+          bankTransferNote: checkoutInvoice?.bankTransferNote ?? null,
+        }
+      : null,
+    bookingFocusState,
+    flightSnapshotBooking,
+    activeBooking,
+  })
 
   const { data: blockTimePackageRows } = await supabase
     .from('block_time_packages')
@@ -601,13 +644,13 @@ export default async function DashboardPage({
         checkoutBookingId={checkoutBookingId}
         checkoutInvoice={checkoutInvoice}
         activeBooking={activeBooking}
-        mainBookingHeroState={mainBookingHeroState}
+        dashboardActionState={dashboardActionState}
         flightSnapshotBooking={flightSnapshotBooking}
-      bookingReadiness={bookingReadiness}
-      blockTimeSummary={blockTimeSummary}
-      allBlockTimePackages={blockTimePackageRows ?? []}
-      newlyPurchasedInvoicePdfUrl={newlyPurchasedInvoicePdfUrl}
-      flashNotice={
+        bookingReadiness={bookingReadiness}
+        blockTimeSummary={blockTimeSummary}
+        allBlockTimePackages={blockTimePackageRows ?? []}
+        newlyPurchasedInvoicePdfUrl={newlyPurchasedInvoicePdfUrl}
+        flashNotice={
           searchParams?.block_time_purchase === 'success'
             ? {
                 kind: 'success',

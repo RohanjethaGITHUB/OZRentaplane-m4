@@ -11,6 +11,7 @@ export default function UpcomingFlightsPage() {
       pageSubtitle="Upcoming standard flights requiring dispatch readiness."
       basePath="/admin/bookings/upcoming-flights"
       hideFilters={true}
+      appearance="light-operational"
     />
   )
 }

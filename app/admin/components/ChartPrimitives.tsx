@@ -1,7 +1,7 @@
 'use client'
 
 import { Tooltip, type TooltipProps } from 'recharts'
-import { TIME_RANGE_OPTIONS, type TimeRangeValue } from './AdminUi'
+import { TIME_RANGE_OPTIONS, type TimeRangeValue } from './time-range'
 
 export function getRangeStart(value: TimeRangeValue): Date | null {
   const now = new Date()
@@ -32,14 +32,14 @@ export function ChartRangeControl({ value, onChange }: { value: TimeRangeValue; 
       {TIME_RANGE_OPTIONS.map((opt) => {
         const active = value === opt.value
         return (
-          <button
+        <button
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value)}
-            className={`px-2.5 py-1 rounded-md text-xs border transition-colors ${
+            className={`inline-flex min-h-11 items-center justify-center px-3 py-1.5 rounded-md text-[12.5px] border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(96,165,250,0.45)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent ${
               active
-                ? 'bg-[#1a4fd6]/15 border-[#1a4fd6]/30 text-[#1a4fd6]'
-                : 'border-[#152d5a]/20 text-[#4b6390] hover:text-[#152d5a] hover:bg-[#152d5a]/5'
+                ? 'bg-[rgba(26,79,214,0.10)] border-[rgba(26,79,214,0.24)] text-[var(--admin-accent-blue)]'
+                : 'border-[var(--admin-card-border)] text-[var(--admin-text-muted)] hover:text-[var(--admin-text)] hover:bg-[var(--admin-muted-surface)]'
             }`}
           >
             {opt.label}
@@ -51,7 +51,7 @@ export function ChartRangeControl({ value, onChange }: { value: TimeRangeValue; 
 }
 
 export function EmptyChartState({ message = 'No data available' }: { message?: string }) {
-  return <div className="h-[240px] rounded-xl border border-dashed border-white/10 bg-white/[0.01] text-sm text-slate-400 flex items-center justify-center">{message}</div>
+  return <div className="h-[240px] rounded-xl border border-dashed border-[var(--admin-card-border)] bg-[var(--admin-muted-surface)] text-[var(--admin-text-sm)] text-[var(--admin-text-muted)] flex items-center justify-center">{message}</div>
 }
 
 export function ReadableTooltip(props: TooltipProps<number, string>) {
@@ -59,14 +59,14 @@ export function ReadableTooltip(props: TooltipProps<number, string>) {
     <Tooltip
       {...props}
       contentStyle={{
-        backgroundColor: '#0b1220',
-        border: '1px solid #334155',
+        backgroundColor: '#ffffff',
+        border: '1px solid rgba(12,35,64,0.12)',
         borderRadius: '10px',
-        boxShadow: '0 12px 30px rgba(2,6,23,0.55)',
+        boxShadow: '0 14px 36px rgba(2,7,18,0.08)',
       }}
-      labelStyle={{ color: '#e2e8f0', fontSize: 12, fontWeight: 600 }}
-      itemStyle={{ color: '#cbd5e1', fontSize: 12 }}
-      cursor={{ fill: 'rgba(148,163,184,0.12)' }}
+      labelStyle={{ color: 'var(--admin-text)', fontSize: 13, fontWeight: 600 }}
+      itemStyle={{ color: 'var(--admin-text-muted)', fontSize: 13 }}
+      cursor={{ fill: 'rgba(148,163,184,0.10)' }}
     />
   )
 }
