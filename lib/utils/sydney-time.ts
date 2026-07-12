@@ -20,7 +20,7 @@ export function formatSydTime(isoUTC: string): string {
     timeZone: SYD,
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
+    hourCycle: 'h23',
   })
 }
 

@@ -112,17 +112,17 @@ function renderBookingSummary(flightSnapshotBooking: DashboardFlightSnapshot) {
     <div className="rounded-2xl border border-[#152d5a]/10 bg-white/80 px-4 py-4">
       <div className="grid gap-3 md:grid-cols-4">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">Date</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">Starts</p>
           <p className="mt-1 text-sm font-semibold text-[#152d5a]">
-            {formatDashboardDate(flightSnapshotBooking.scheduledStart) || '—'}
+            {formatDashboardDate(flightSnapshotBooking.scheduledStart) || '—'} · {formatSydTime(flightSnapshotBooking.scheduledStart)}
           </p>
         </div>
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">Time</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">Ends</p>
           <p className="mt-1 text-sm font-semibold text-[#152d5a]">
             {flightSnapshotBooking.scheduledEnd
-              ? `${formatSydTime(flightSnapshotBooking.scheduledStart)} – ${formatSydTime(flightSnapshotBooking.scheduledEnd)}`
-              : formatSydTime(flightSnapshotBooking.scheduledStart)}
+              ? `${formatDashboardDate(flightSnapshotBooking.scheduledEnd)} · ${formatSydTime(flightSnapshotBooking.scheduledEnd)}`
+              : '—'}
           </p>
         </div>
         <div>

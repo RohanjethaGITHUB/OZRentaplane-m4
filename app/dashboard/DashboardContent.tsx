@@ -813,12 +813,12 @@ export default function DashboardContent({
                   />
                 </div>
                 <div className="relative z-10 mb-6">
-                  <SnapshotRow icon="calendar_month" label="Booking Date">
-                    {formatDashboardDate(flightSnapshotBooking.scheduledStart) || '—'}
+                  <SnapshotRow icon="flight_takeoff" label="Starts">
+                    {formatDashboardDate(flightSnapshotBooking.scheduledStart)} · {formatSydTime(flightSnapshotBooking.scheduledStart)}
                   </SnapshotRow>
                   {flightSnapshotBooking.scheduledEnd && (
-                    <SnapshotRow icon="schedule" label="Time">
-                      {formatSydTime(flightSnapshotBooking.scheduledStart)} – {formatSydTime(flightSnapshotBooking.scheduledEnd)}
+                    <SnapshotRow icon="flight_land" label="Ends">
+                      {formatDashboardDate(flightSnapshotBooking.scheduledEnd)} · {formatSydTime(flightSnapshotBooking.scheduledEnd)}
                     </SnapshotRow>
                   )}
                   <SnapshotRow icon="flight" label="Aircraft">

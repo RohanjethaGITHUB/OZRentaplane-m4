@@ -450,7 +450,7 @@ export default function AdminSubmitFlightRecordPanel({
       </section>
 
       <section className="space-y-4">
-          <SectionHeading>C. Payment Options</SectionHeading>
+          <SectionHeading>Payment Options</SectionHeading>
           {activeBlockTime && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800 leading-relaxed">
               Block time customer: flight hours are settled from the balance automatically, so the
@@ -460,10 +460,10 @@ export default function AdminSubmitFlightRecordPanel({
               waived here.
             </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] p-4 space-y-3">
+          <div className="flex flex-col gap-4">
+            <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] p-4 space-y-4">
               <p className="text-sm font-medium text-[var(--admin-text)]">Submission mode</p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
                   { value: 'send_invoice' as const, label: 'Send Invoice to Customer' },
                   { value: 'mark_paid' as const, label: 'Mark paid' },
@@ -474,10 +474,10 @@ export default function AdminSubmitFlightRecordPanel({
                     type="button"
                     onClick={() => setSubmissionMode(option.value)}
                     disabled={isPending}
-                    className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                    className={`rounded-xl border px-3 py-3 text-sm font-medium transition-all ${
                       submissionMode === option.value
-                        ? 'border-[rgba(26,79,214,0.35)] bg-white text-[var(--admin-text)]'
-                        : 'border-[var(--admin-border)] bg-white/70 text-[var(--admin-text-muted)] hover:border-[rgba(26,79,214,0.2)]'
+                        ? 'border-[#1a4fd6] bg-white text-[#1a4fd6] shadow-sm ring-1 ring-[#1a4fd6]/20'
+                        : 'border-[var(--admin-border)] bg-white/70 text-[var(--admin-text-muted)] hover:border-[var(--admin-border)] hover:bg-white hover:text-[var(--admin-text)]'
                     }`}
                   >
                     {option.label}
@@ -485,6 +485,57 @@ export default function AdminSubmitFlightRecordPanel({
                 ))}
               </div>
             </div>
+
+            {totals && validHourlyRate && (
+              <div className="space-y-3">
+                {activeBlockTime && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 leading-relaxed">
+                    Billing preview: {billedVdoConfirmation}
+                  </div>
+                )}
+                <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] px-5 py-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-[var(--admin-text-muted)]">Calculated VDO total</span>
+                    <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
+                      {billedVdoSummary}
+                    </span>
+                  </div>
+                  {activeBlockTime ? (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-[var(--admin-text-muted)]">Deducted from block time</span>
+                        <span className="text-sm font-mono tabular-nums text-emerald-700">
+                          {blockTimeCoveredHours.toFixed(2)} h
+                        </span>
+                      </div>
+                      {blockTimeOverageHours > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-amber-700">Overage (invoiced at locked rate)</span>
+                          <span className="text-sm font-mono tabular-nums text-amber-700">
+                            {blockTimeOverageHours.toFixed(2)} h · ${(blockTimeOverageHours * activeBlockTime.ratePerHour).toFixed(2)}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-[var(--admin-text-muted)]">Aircraft hire</span>
+                      <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
+                        ${(billedVdoInput * effectiveRate).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {landingSubtotalCents > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-[var(--admin-text-muted)]">Landing charges (invoiced separately)</span>
+                      <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
+                        ${(landingSubtotalCents / 100).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {billingBranch.kind === 'waived' ? (
@@ -528,58 +579,6 @@ export default function AdminSubmitFlightRecordPanel({
             </div>
           )}
         </section>
-
-      {totals && validHourlyRate && (
-        <section className="space-y-4">
-          <SectionHeading>D. Billing Summary</SectionHeading>
-          {activeBlockTime && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 leading-relaxed">
-              Billing preview: {billedVdoConfirmation}
-            </div>
-          )}
-          <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] px-5 py-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-[var(--admin-text-muted)]">Calculated VDO total</span>
-              <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
-                {billedVdoSummary}
-              </span>
-            </div>
-            {activeBlockTime ? (
-              <>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-[var(--admin-text-muted)]">Deducted from block time</span>
-                  <span className="text-sm font-mono tabular-nums text-emerald-700">
-                    {blockTimeCoveredHours.toFixed(2)} h
-                  </span>
-                </div>
-                {blockTimeOverageHours > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-amber-700">Overage (invoiced at locked rate)</span>
-                    <span className="text-sm font-mono tabular-nums text-amber-700">
-                      {blockTimeOverageHours.toFixed(2)} h · ${(blockTimeOverageHours * activeBlockTime.ratePerHour).toFixed(2)}
-                    </span>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-[var(--admin-text-muted)]">Aircraft hire</span>
-                <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
-                  ${(billedVdoInput * effectiveRate).toFixed(2)}
-                </span>
-              </div>
-            )}
-            {landingSubtotalCents > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-[var(--admin-text-muted)]">Landing charges (invoiced separately)</span>
-                <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
-                  ${(landingSubtotalCents / 100).toFixed(2)}
-                </span>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
 
       {error && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

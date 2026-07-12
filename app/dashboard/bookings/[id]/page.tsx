@@ -1605,21 +1605,20 @@ export default async function BookingDetailPage({ params }: PageProps) {
             <div className="grid grid-cols-2 gap-2.5">
               <div className="bg-[#f0f6ff] border border-[#152d5a]/10 rounded-xl p-3.5">
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <span className="material-symbols-outlined text-[#1a4fd6]/45 text-[12px]">calendar_today</span>
-                  <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#4b6390] mb-1">Date</p>
+                  <span className="material-symbols-outlined text-[#1a4fd6]/45 text-[12px]">flight_takeoff</span>
+                  <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#4b6390] mb-1">Starts (Sydney)</p>
                 </div>
                 <p className="text-[15px] font-semibold text-[#152d5a]">{formatDateFromISO(booking.scheduled_start)}</p>
+                <p className="text-[13px] font-semibold text-[#152d5a] tabular-nums">{new Date(booking.scheduled_start).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}</p>
+                <p className="text-[9px] text-[#4b6390] mt-0.5">(AEST)</p>
               </div>
               <div className="bg-[#f0f6ff] border border-[#152d5a]/10 rounded-xl p-3.5">
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <span className="material-symbols-outlined text-[#1a4fd6]/45 text-[12px]">schedule</span>
-                  <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#4b6390] mb-1">Time (Sydney)</p>
+                  <span className="material-symbols-outlined text-[#1a4fd6]/45 text-[12px]">flight_land</span>
+                  <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#4b6390] mb-1">Ends (Sydney)</p>
                 </div>
-                <p className="text-[15px] font-semibold text-[#152d5a] tabular-nums leading-snug">
-                  {new Date(booking.scheduled_start).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}
-                  {' – '}
-                  {new Date(booking.scheduled_end).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}
-                </p>
+                <p className="text-[15px] font-semibold text-[#152d5a]">{formatDateFromISO(booking.scheduled_end)}</p>
+                <p className="text-[13px] font-semibold text-[#152d5a] tabular-nums">{new Date(booking.scheduled_end).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}</p>
                 <p className="text-[9px] text-[#4b6390] mt-0.5">(AEST)</p>
               </div>
               <div className="bg-[#f0f6ff] border border-[#152d5a]/10 rounded-xl p-3.5">

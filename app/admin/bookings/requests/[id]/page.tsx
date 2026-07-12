@@ -1027,7 +1027,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               </div>
 
               <div className="flex flex-col items-start gap-2 md:ml-4 md:flex-shrink-0">
-                {!(['paid_closed', 'waived_closed', 'payment_review_pending', 'payment_required', 'payment_still_due', 'payment_void', 'payment_failed'] as string[]).includes(lifecycleStage.key) && (
+                {!flightRecordRow && !(['paid_closed', 'waived_closed', 'payment_review_pending', 'payment_required', 'payment_still_due', 'payment_void', 'payment_failed'] as string[]).includes(lifecycleStage.key) && (
                   <AdminFlightReadingsDisclosureTrigger
                     label={flightReadingsBanner.buttonLabel}
                     variant={flightReadingsBanner.buttonTone}
@@ -1035,20 +1035,18 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                   />
                 )}
                 {flightReadingsBanner.kind === 'confirmed' && flightRecordRow && isStandardBillingPending ? (
-                  <Link
-                    href="#submitted-flight-record"
-                    className="inline-flex items-center gap-2 self-start rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">visibility</span>
-                    {flightReadingsBanner.linkLabel}
-                  </Link>
+                  <AdminFlightReadingsDisclosureTrigger
+                    label={flightReadingsBanner.linkLabel ?? 'View submitted record'}
+                    variant="secondary"
+                    className="w-full sm:w-auto"
+                  />
                 ) : null}
               </div>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-6 pb-32">
+        <div className="grid grid-cols-1 gap-6 pb-8">
 
         {/* ── Left column: details ─────────────────────────────────────────────── */}
         <div className="space-y-6">
@@ -1190,12 +1188,12 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             {isStandardPaymentPending && standardBankTransferSubmissions.length === 0 && (
               <div className="bg-orange-500/[0.06] border border-orange-500/20 rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="material-symbols-outlined text-orange-400 text-[16px]">payments</span>
-                  <h2 className="text-xs uppercase tracking-widest font-semibold text-orange-400/70">
+                  <span className="material-symbols-outlined text-orange-500 text-[18px]">payments</span>
+                  <h2 className="text-sm uppercase tracking-widest font-semibold text-orange-600">
                     Payment Pending
                   </h2>
                 </div>
-                <p className="text-[10px] text-[#4b6390] leading-relaxed">
+                <p className="text-sm text-[#334155] leading-relaxed">
                   Payment request has been sent. Awaiting customer payment via Stripe or bank transfer.
                 </p>
               </div>
@@ -1345,9 +1343,9 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
         </div>
 
-        {isStandardFlightRecordOpen && flightReadingsBanner && (
+        {isStandardFlightRecordOpen && !flightRecordRow && flightReadingsBanner && booking.status !== 'payment_pending' && (
           <AdminFlightReadingsDisclosureSection>
-            <div className="mt-8">
+            <div className="mt-4">
               <AdminSubmitFlightRecordPanel
                 bookingId={booking.id}
                 airports={airports}
@@ -1362,7 +1360,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
         {/* ── Full-width Flight Billing (standard post-flight review) ─────────── */}
         {isStandardBillingPending && flightRecordRow && (
-          <div id="submitted-flight-record" className="mt-8">
+          <AdminFlightReadingsDisclosureSection>
+          <div id="submitted-flight-record" className="mt-4">
             <AdminStandardBillingPanel
               bookingId={booking.id}
               airports={airports}
@@ -1374,6 +1373,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               defaultHourlyRate={PAYF_RATE_PER_HOUR}
             />
           </div>
+          </AdminFlightReadingsDisclosureSection>
         )}
 
         </div>

@@ -57,6 +57,8 @@ export function resolveMinimumVdoBilling(input: {
   const minimumVdoHours = bookingDays * 4
 
   if (input.actualVdoHours == null) {
+    // TEMP LIVE-VERIFY instrumentation — REMOVE
+    console.log('[LIVE-VERIFY resolveMinimumVdoBilling] BRANCH=null-short-circuit (L59)', JSON.stringify({ bookingSlotHours: input.bookingSlotHours, bookingDays, minimumVdoHours, actualVdoHours: null }))
     return {
       bookingDays,
       minimumVdoHours,
@@ -69,6 +71,8 @@ export function resolveMinimumVdoBilling(input: {
   }
 
   const isBelowMinimum = input.actualVdoHours < minimumVdoHours
+  // TEMP LIVE-VERIFY instrumentation — REMOVE
+  console.log(`[LIVE-VERIFY resolveMinimumVdoBilling] BRANCH=${isBelowMinimum ? 'below-minimum (L84+)' : 'above-minimum (L72)'}`, JSON.stringify({ bookingSlotHours: input.bookingSlotHours, bookingDays, minimumVdoHours, actualVdoHours: input.actualVdoHours, decision: input.decision ?? null }))
   if (!isBelowMinimum) {
     return {
       bookingDays,

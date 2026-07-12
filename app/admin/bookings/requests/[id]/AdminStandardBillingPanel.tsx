@@ -188,6 +188,12 @@ export default function AdminStandardBillingPanel({
     readingsError = validationError instanceof Error
       ? validationError.message.replace(/^VALIDATION: /, '')
       : 'Invalid readings.'
+    // TEMP LIVE-VERIFY instrumentation — REMOVE
+    console.log('[LIVE-VERIFY panel VALIDATION THREW]', JSON.stringify({
+      rawError: validationError instanceof Error ? validationError.message : String(validationError),
+      normalisedReadings,
+      landingsNum,
+    }))
   }
 
   const totals      = readingsError ? null : normalisedReadings
@@ -225,6 +231,33 @@ export default function AdminStandardBillingPanel({
   const subtotalCents      = vdoBaseCents + landingSubtotalCents
   const creditApplicable   = Math.min(customerCreditCents, subtotalCents)
   const estimatedAmountDue = Math.max(subtotalCents - creditApplicable, 0)
+
+  // TEMP LIVE-VERIFY instrumentation — REMOVE
+  console.log('[LIVE-VERIFY panel STATE-CHAIN]', JSON.stringify({
+    bookingId,
+    bookingSlotHours,
+    initialFlightRecordTotals: {
+      vdo_total: initialFlightRecord.vdo_total,
+      tacho_total: initialFlightRecord.tacho_total,
+      air_switch_total: initialFlightRecord.air_switch_total,
+      mr_total: initialFlightRecord.mr_total,
+      vdo_start: (initialFlightRecord as Record<string, unknown>).vdo_start,
+      vdo_stop: (initialFlightRecord as Record<string, unknown>).vdo_stop,
+      landings: initialFlightRecord.landings,
+    },
+    readingsError,
+    totalsIsNull: totals == null,
+    vdoReading,
+    minimumVdoBilling,
+    billedVdoHours,
+    blockRendered: minimumVdoBilling.isBelowMinimum && minimumVdoBilling.minimumVdoHours > 0 && minimumVdoBilling.actualVdoHours != null,
+    hourlyRateNum,
+    vdoBaseCents,
+    landingSubtotalCents,
+    subtotalCents,
+    creditApplicable,
+    estimatedAmountDue,
+  }))
 
   function handleSubmit() {
     if (readingsError) {
@@ -446,11 +479,11 @@ export default function AdminStandardBillingPanel({
       </section>
 
       <section className="space-y-4">
-        <SectionHeading>C. Payment Options</SectionHeading>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] p-4 space-y-3">
+        <SectionHeading>Payment Options</SectionHeading>
+        <div className="flex flex-col gap-4">
+          <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] p-4 space-y-4">
             <p className="text-sm font-medium text-[var(--admin-text)]">Submission mode</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
                 { value: 'send_invoice' as const, label: 'Send Invoice to Customer' },
                 { value: 'mark_paid' as const, label: 'Mark paid' },
@@ -461,10 +494,10 @@ export default function AdminStandardBillingPanel({
                   type="button"
                   onClick={() => setSubmissionMode(option.value)}
                   disabled={submitState !== 'idle'}
-                  className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                  className={`rounded-xl border px-3 py-3 text-sm font-medium transition-all ${
                     submissionMode === option.value
-                      ? 'border-[rgba(26,79,214,0.35)] bg-white text-[var(--admin-text)]'
-                      : 'border-[var(--admin-border)] bg-white/70 text-[var(--admin-text-muted)] hover:border-[rgba(26,79,214,0.2)]'
+                      ? 'border-[#1a4fd6] bg-white text-[#1a4fd6] shadow-sm ring-1 ring-[#1a4fd6]/20'
+                      : 'border-[var(--admin-border)] bg-white/70 text-[var(--admin-text-muted)] hover:border-[var(--admin-border)] hover:bg-white hover:text-[var(--admin-text)]'
                   }`}
                 >
                   {option.label}
@@ -472,6 +505,56 @@ export default function AdminStandardBillingPanel({
               ))}
             </div>
           </div>
+
+          {totals && validHourlyRate && (
+            <div className="space-y-3">
+              {minimumVdoBilling.isBelowMinimum && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 leading-relaxed">
+                  Billing preview: {billedVdoConfirmation}
+                </div>
+              )}
+              <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] px-5 py-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--admin-text-muted)]">Calculated VDO total</span>
+                  <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
+                    {billedVdoSummary}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--admin-text-muted)]">Aircraft hire</span>
+                  <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
+                    ${(((billedVdoHours ?? vdoReading) ?? 0) * hourlyRateNum).toFixed(2)}
+                  </span>
+                </div>
+                {landingSubtotalCents > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-[var(--admin-text-muted)]">Landing charges</span>
+                    <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
+                      ${(landingSubtotalCents / 100).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                <div className="border-t border-[var(--admin-border)] pt-3 flex items-center justify-between">
+                  <span className="text-sm font-medium text-[var(--admin-text)]">Invoice total</span>
+                  <span className="text-base font-bold font-mono tabular-nums text-[#1a4fd6]">
+                    ${(subtotalCents / 100).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--admin-text-muted)]">Credit applied</span>
+                  <span className={`text-sm font-mono tabular-nums ${creditApplicable > 0 ? 'text-emerald-600' : 'text-[var(--admin-text-muted)]'}`}>
+                    ${((creditApplicable ?? 0) / 100).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-[var(--admin-text)]">Estimated amount due</span>
+                  <span className="text-lg font-bold font-mono tabular-nums text-[#152d5a]">
+                    ${(estimatedAmountDue / 100).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {billingBranch.kind === 'waived' ? (
@@ -509,57 +592,6 @@ export default function AdminStandardBillingPanel({
           </div>
         )}
       </section>
-
-      {totals && validHourlyRate && (
-        <section className="space-y-4">
-          <SectionHeading>D. Invoice Summary</SectionHeading>
-          {minimumVdoBilling.isBelowMinimum && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 leading-relaxed">
-              Billing preview: {billedVdoConfirmation}
-            </div>
-          )}
-          <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] px-5 py-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-[var(--admin-text-muted)]">Calculated VDO total</span>
-              <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
-                {billedVdoSummary}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-[var(--admin-text-muted)]">Aircraft hire</span>
-              <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
-                ${(((billedVdoHours ?? vdoReading) ?? 0) * hourlyRateNum).toFixed(2)}
-              </span>
-            </div>
-            {landingSubtotalCents > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-[var(--admin-text-muted)]">Landing charges</span>
-                <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
-                  ${(landingSubtotalCents / 100).toFixed(2)}
-                </span>
-              </div>
-            )}
-            <div className="border-t border-[var(--admin-border)] pt-3 flex items-center justify-between">
-              <span className="text-sm font-medium text-[var(--admin-text)]">Invoice total</span>
-              <span className="text-base font-bold font-mono tabular-nums text-[#1a4fd6]">
-                ${(subtotalCents / 100).toFixed(2)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-[var(--admin-text-muted)]">Credit applied</span>
-              <span className={`text-sm font-mono tabular-nums ${creditApplicable > 0 ? 'text-emerald-600' : 'text-[var(--admin-text-muted)]'}`}>
-                ${((creditApplicable ?? 0) / 100).toFixed(2)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-[var(--admin-text)]">Estimated amount due</span>
-              <span className="text-lg font-bold font-mono tabular-nums text-[#152d5a]">
-                ${(estimatedAmountDue / 100).toFixed(2)}
-              </span>
-            </div>
-          </div>
-        </section>
-      )}
 
       {error && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
