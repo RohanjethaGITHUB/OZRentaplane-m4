@@ -203,6 +203,7 @@ export default function FlightRecordResubmitForm({ flightRecord, bookingId, onSu
             notes={notes}
             onNotesChange={setNotes}
             submitAttempted={submitAttempted}
+            showBillingCaption={false}
           />
         </section>
 

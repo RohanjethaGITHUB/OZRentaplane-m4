@@ -55,10 +55,10 @@ export function resolveMinimumVdoBilling(input: {
     ? Math.floor(input.bookingSlotHours / 24)
     : 0
   const minimumVdoHours = bookingDays * 4
+  console.log("TEMP-DEBUG: standard-booking-billing.ts entering resolveMinimumVdoBilling", "input:", input, "minimumVdoHours:", minimumVdoHours); // TEMP-DEBUG
 
   if (input.actualVdoHours == null) {
-    // TEMP LIVE-VERIFY instrumentation — REMOVE
-    console.log('[LIVE-VERIFY resolveMinimumVdoBilling] BRANCH=null-short-circuit (L59)', JSON.stringify({ bookingSlotHours: input.bookingSlotHours, bookingDays, minimumVdoHours, actualVdoHours: null }))
+    console.log("TEMP-DEBUG: standard-booking-billing.ts taking null short-circuit branch (59-69)"); // TEMP-DEBUG
     return {
       bookingDays,
       minimumVdoHours,
@@ -71,9 +71,8 @@ export function resolveMinimumVdoBilling(input: {
   }
 
   const isBelowMinimum = input.actualVdoHours < minimumVdoHours
-  // TEMP LIVE-VERIFY instrumentation — REMOVE
-  console.log(`[LIVE-VERIFY resolveMinimumVdoBilling] BRANCH=${isBelowMinimum ? 'below-minimum (L84+)' : 'above-minimum (L72)'}`, JSON.stringify({ bookingSlotHours: input.bookingSlotHours, bookingDays, minimumVdoHours, actualVdoHours: input.actualVdoHours, decision: input.decision ?? null }))
   if (!isBelowMinimum) {
+    console.log("TEMP-DEBUG: standard-booking-billing.ts taking !isBelowMinimum branch (72-82)"); // TEMP-DEBUG
     return {
       bookingDays,
       minimumVdoHours,
@@ -86,6 +85,7 @@ export function resolveMinimumVdoBilling(input: {
   }
 
   if (input.decision == null) {
+    console.log("TEMP-DEBUG: standard-booking-billing.ts taking input.decision == null branch (84-94)"); // TEMP-DEBUG
     return {
       bookingDays,
       minimumVdoHours,
@@ -101,6 +101,7 @@ export function resolveMinimumVdoBilling(input: {
     ? minimumVdoHours
     : input.actualVdoHours
 
+  console.log("TEMP-DEBUG: standard-booking-billing.ts taking default branch"); // TEMP-DEBUG
   return {
     bookingDays,
     minimumVdoHours,

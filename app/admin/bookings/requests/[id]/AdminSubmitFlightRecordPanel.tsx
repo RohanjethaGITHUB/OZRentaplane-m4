@@ -300,6 +300,7 @@ export default function AdminSubmitFlightRecordPanel({
           onNotesChange={setAdminNotes}
           continuityBaseline={startSuggestions}
           showContinuityWarnings
+          showBillingCaption={true}
           disabled={isPending}
         />
         {readingsError && (

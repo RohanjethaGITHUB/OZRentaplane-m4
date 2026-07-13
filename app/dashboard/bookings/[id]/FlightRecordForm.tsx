@@ -365,6 +365,7 @@ export default function FlightRecordForm({
             notes={notes}
             onNotesChange={setNotes}
             submitAttempted={submitAttempted}
+            showBillingCaption={false}
           />
         </section>
 

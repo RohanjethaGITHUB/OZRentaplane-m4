@@ -1,6 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { CalendarDays, Clock, Plane, User } from 'lucide-react'
+import { CalendarDays, Clock, Tag, User } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { formatDateTime } from '@/lib/formatDateTime'
 import AdminBookingActions from './AdminBookingActions'
@@ -24,7 +24,7 @@ import { isStandardBookingInvoicePaid } from '@/lib/booking/standard-booking-pay
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 import { getAircraftFlightLogStartSuggestions } from '@/lib/aircraft-flight-log'
 import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
-import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
+import { PAYF_RATE_PER_HOUR, CHECKOUT_RATE_PER_HOUR } from '@/lib/pricing-constants'
 import { isSameSydneyCalendarDay, formatSydTime } from '@/lib/utils/sydney-time'
 
 export const metadata = { title: 'Booking Details | Admin' }
@@ -845,6 +845,16 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const slotHeld        = activeOwnBlocks.length > 0
   const hasConflict     = externalConflicts.length > 0
 
+  let displayBookingTypeLabel = 'Rental - PAYF'
+  let displayBookingRate = `$${PAYF_RATE_PER_HOUR}/h`
+  if (bookingType === 'checkout') {
+    displayBookingTypeLabel = 'Checkout'
+    displayBookingRate = `$${CHECKOUT_RATE_PER_HOUR}/h`
+  } else if (bookingType === 'standard' && activeBlockTime) {
+    displayBookingTypeLabel = 'Rental - Block time'
+    displayBookingRate = `$${activeBlockTime.ratePerHour}/h`
+  }
+
   return (
     <AdminFlightReadingsDisclosureProvider>
       <div className="min-h-screen bg-gray-100">
@@ -941,16 +951,16 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           <div className="h-full rounded-[20px] border border-[rgba(12,35,64,0.10)] bg-white p-4 shadow-[0_8px_20px_rgba(15,30,52,0.04)]">
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.9)]">
-                <Plane className="w-4 h-4 text-[var(--admin-text-muted)]" />
+                <Tag className="w-4 h-4 text-[var(--admin-text-muted)]" />
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">Aircraft</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">Booking Type</span>
             </div>
             <div className="mt-3">
               <p className="truncate text-[15px] font-semibold text-[var(--admin-text)]">
-                {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/^Cessna 172$/, 'Cessna 172N') ?? 'Cessna 172N'}
+                {displayBookingTypeLabel}
               </p>
               <p className="mt-1 text-[12.5px] text-[var(--admin-text-muted)]">
-                {(aircraft as { registration?: string } | null)?.registration ?? 'VH-KZG'}
+                {displayBookingRate}
               </p>
             </div>
           </div>
@@ -967,6 +977,9 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               <p className="text-[12.5px] text-[var(--admin-text-muted)]">{bookingSchedule.timeRange}</p>
               <p className="text-[12px] text-[var(--admin-text-muted)]">
                 {bookingSchedule.duration ? `${bookingSchedule.duration} · ${bookingSchedule.timezone}` : bookingSchedule.timezone}
+              </p>
+              <p className="text-[12px] text-[var(--admin-text-muted)]">
+                {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/^Cessna 172$/, 'Cessna 172N') ?? 'Cessna 172N'} · {(aircraft as { registration?: string } | null)?.registration ?? 'VH-KZG'}
               </p>
             </div>
           </div>

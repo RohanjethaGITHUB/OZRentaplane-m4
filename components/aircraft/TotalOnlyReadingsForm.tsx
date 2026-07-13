@@ -12,6 +12,7 @@ type Props = {
   disabled?: boolean
   compact?: boolean
   submitAttempted?: boolean
+  showBillingCaption?: boolean
 }
 
 const METER_LABELS: { field: keyof TotalOnlyFormValues; label: string }[] = [
@@ -46,7 +47,38 @@ export default function TotalOnlyReadingsForm({
   disabled = false,
   compact = false,
   submitAttempted = false,
+  showBillingCaption = false,
 }: Props) {
+  const renderField = (field: keyof TotalOnlyFormValues, label: string) => {
+    const value = values[field] ?? ''
+    const parsed = numericString(value)
+    const isEmpty = value.trim() === ''
+    const isInvalid = submitAttempted && (isEmpty || parsed == null || parsed < 0)
+
+    return (
+      <div key={field} className="space-y-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4b6390]">{label}</p>
+        <label className="block">
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            value={value}
+            onChange={(e) => onChange(field, e.target.value)}
+            placeholder="0.0"
+            className={inputClass(compact, isInvalid)}
+            disabled={disabled}
+          />
+        </label>
+        {isInvalid && (
+          <p className="text-[11px] text-red-400">
+            {isEmpty ? `${label} is required.` : 'Must be a valid number ≥ 0.'}
+          </p>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {continuityBaseline && (
@@ -66,45 +98,43 @@ export default function TotalOnlyReadingsForm({
         </div>
       )}
 
-      {/* Meter totals grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {METER_LABELS.map(({ field, label }) => {
-          const value = values[field] ?? ''
-          const parsed = numericString(value)
-          const isEmpty = value.trim() === ''
-          const isInvalid = submitAttempted && (isEmpty || parsed == null || parsed < 0)
-
-          return (
-            <div key={field} className="rounded-xl border border-[#dbe7f4] bg-[#f8fbff] p-3 space-y-2 shadow-[0_1px_0_rgba(255,255,255,0.8)]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4b6390]">{label}</p>
-              <label className="block">
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  value={value}
-                  onChange={(e) => onChange(field, e.target.value)}
-                  placeholder="0.0"
-                  className={inputClass(compact, isInvalid)}
-                  disabled={disabled}
-                />
-              </label>
-              {isInvalid && (
-                <p className="text-[11px] text-red-400">
-                  {isEmpty ? `${label} is required.` : 'Must be a valid number ≥ 0.'}
-                </p>
-              )}
-            </div>
-          )
-        })}
+      {/* Billing Reading */}
+      <div className="space-y-2">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4b6390]">Billing Reading</h3>
+          {showBillingCaption && (
+            <p className="text-[11px] text-[#4b6390] mt-1">This figure is the invoice source of truth</p>
+          )}
+        </div>
+        <div className="rounded-xl border border-[#dbe7f4] bg-[#f8fbff] p-3 space-y-2 shadow-[0_1px_0_rgba(255,255,255,0.8)]">
+          {renderField('vdo_total', 'VDO total')}
+        </div>
       </div>
 
-      {/* Oil and fuel fields */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <SimpleField label="Oil added"   field="oil_added"   values={values} onChange={onChange} disabled={disabled} compact={compact} />
-        <SimpleField label="Oil total"   field="oil_total"   values={values} onChange={onChange} disabled={disabled} compact={compact} />
-        <SimpleField label="Fuel added"  field="fuel_added"  values={values} onChange={onChange} disabled={disabled} compact={compact} />
-        <SimpleField label="Fuel returned"  field="fuel_returned"  values={values} onChange={onChange} disabled={disabled} compact={compact} />
+      {/* Aircraft Log Readings */}
+      <div className="space-y-2">
+        <div>
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4b6390]">Aircraft Log Readings</h3>
+          {showBillingCaption && (
+            <p className="text-[11px] text-[#4b6390] mt-1">For record-keeping, does not affect the amount due</p>
+          )}
+        </div>
+        <div className="rounded-xl border border-[#dbe7f4] bg-[#f8fbff] p-3 space-y-2 shadow-[0_1px_0_rgba(255,255,255,0.8)]">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {METER_LABELS.slice(1).map(({ field, label }) => renderField(field, label))}
+          </div>
+        </div>
+      </div>
+
+      {/* Consumables */}
+      <div className="space-y-2">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4b6390]">Consumables</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <SimpleField label="Oil added"   field="oil_added"   values={values} onChange={onChange} disabled={disabled} compact={compact} />
+          <SimpleField label="Oil total"   field="oil_total"   values={values} onChange={onChange} disabled={disabled} compact={compact} />
+          <SimpleField label="Fuel added"  field="fuel_added"  values={values} onChange={onChange} disabled={disabled} compact={compact} />
+          <SimpleField label="Fuel returned"  field="fuel_returned"  values={values} onChange={onChange} disabled={disabled} compact={compact} />
+        </div>
       </div>
 
       {/* Notes */}

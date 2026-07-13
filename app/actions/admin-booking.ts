@@ -2367,9 +2367,6 @@ export async function finaliseStandardBookingInvoice(input: {
   if (vdoReading < 0.1) {
     throw new Error(`VALIDATION: VDO total (${vdoReading}h) is below minimum of 0.1h.`)
   }
-  if (vdoReading > 24.0) {
-    throw new Error(`VALIDATION: VDO total (${vdoReading}h) exceeds maximum of 24.0h.`)
-  }
   if (!isFinite(input.ratePerHour) || input.ratePerHour <= 0) {
     throw new Error('VALIDATION: Hourly rate must be a positive number.')
   }
@@ -2414,6 +2411,11 @@ export async function finaliseStandardBookingInvoice(input: {
     throw new Error(
       `VALIDATION: VDO total (${vdoReading}h) is below the minimum ${minimumVdoBilling.minimumVdoHours}h for this booking. Choose whether to bill the minimum or the actual hours before finalising.`,
     )
+  }
+
+  const maximumVdoHours = 24.0 * minimumVdoBilling.bookingDays
+  if (vdoReading > maximumVdoHours) {
+    throw new Error(`VALIDATION: VDO total (${vdoReading}h) exceeds maximum of ${maximumVdoHours.toFixed(1)}h.`)
   }
 
   const effectiveVdoHours = minimumVdoBilling.billedVdoHours

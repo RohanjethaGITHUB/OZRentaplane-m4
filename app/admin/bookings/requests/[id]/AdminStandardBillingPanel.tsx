@@ -188,15 +188,11 @@ export default function AdminStandardBillingPanel({
     readingsError = validationError instanceof Error
       ? validationError.message.replace(/^VALIDATION: /, '')
       : 'Invalid readings.'
-    // TEMP LIVE-VERIFY instrumentation — REMOVE
-    console.log('[LIVE-VERIFY panel VALIDATION THREW]', JSON.stringify({
-      rawError: validationError instanceof Error ? validationError.message : String(validationError),
-      normalisedReadings,
-      landingsNum,
-    }))
+    console.log("TEMP-DEBUG: AdminStandardBillingPanel.tsx readingsError set to:", readingsError, "triggered by:", validationError); // TEMP-DEBUG
   }
 
   const totals      = readingsError ? null : normalisedReadings
+  console.log("TEMP-DEBUG: AdminStandardBillingPanel.tsx totals evaluated to:", totals, "because readingsError is:", readingsError); // TEMP-DEBUG
   const vdoReading  = totals?.vdo_total ?? null
   const minimumVdoBilling = resolveMinimumVdoBilling({
     bookingSlotHours,
@@ -225,39 +221,25 @@ export default function AdminStandardBillingPanel({
     (sum, row) => sum + LANDING_FEE_CENTS * row.landingCount,
     0,
   )
-  const vdoBaseCents       = validHourlyRate && vdoReading != null
-    ? Math.round((billedVdoHours ?? vdoReading) * Math.round(hourlyRateNum * 100))
-    : 0
+  const finalVdoHours = billedVdoHours ?? vdoReading ?? 0
+  let packageDeductionHours = 0
+  let overageHours = 0
+  let overageCents = 0
+  let vdoBaseCents = 0
+
+  if (activeBlockTime && finalVdoHours > 0 && validHourlyRate) {
+    packageDeductionHours = Math.min(finalVdoHours, activeBlockTime.hoursRemaining)
+    overageHours = Math.max(finalVdoHours - activeBlockTime.hoursRemaining, 0)
+    overageCents = Math.round(overageHours * Math.round(hourlyRateNum * 100))
+    vdoBaseCents = overageCents
+  } else if (validHourlyRate && finalVdoHours > 0) {
+    vdoBaseCents = Math.round(finalVdoHours * Math.round(hourlyRateNum * 100))
+  }
+
   const subtotalCents      = vdoBaseCents + landingSubtotalCents
   const creditApplicable   = Math.min(customerCreditCents, subtotalCents)
   const estimatedAmountDue = Math.max(subtotalCents - creditApplicable, 0)
-
-  // TEMP LIVE-VERIFY instrumentation — REMOVE
-  console.log('[LIVE-VERIFY panel STATE-CHAIN]', JSON.stringify({
-    bookingId,
-    bookingSlotHours,
-    initialFlightRecordTotals: {
-      vdo_total: initialFlightRecord.vdo_total,
-      tacho_total: initialFlightRecord.tacho_total,
-      air_switch_total: initialFlightRecord.air_switch_total,
-      mr_total: initialFlightRecord.mr_total,
-      vdo_start: (initialFlightRecord as Record<string, unknown>).vdo_start,
-      vdo_stop: (initialFlightRecord as Record<string, unknown>).vdo_stop,
-      landings: initialFlightRecord.landings,
-    },
-    readingsError,
-    totalsIsNull: totals == null,
-    vdoReading,
-    minimumVdoBilling,
-    billedVdoHours,
-    blockRendered: minimumVdoBilling.isBelowMinimum && minimumVdoBilling.minimumVdoHours > 0 && minimumVdoBilling.actualVdoHours != null,
-    hourlyRateNum,
-    vdoBaseCents,
-    landingSubtotalCents,
-    subtotalCents,
-    creditApplicable,
-    estimatedAmountDue,
-  }))
+  console.log("TEMP-DEBUG: AdminStandardBillingPanel.tsx vdoBaseCents:", vdoBaseCents, "subtotalCents:", subtotalCents, "estimatedAmountDue:", estimatedAmountDue); // TEMP-DEBUG
 
   function handleSubmit() {
     if (readingsError) {
@@ -321,6 +303,7 @@ export default function AdminStandardBillingPanel({
           continuityBaseline={startSuggestions}
           showContinuityWarnings
           disabled={submitState !== 'idle'}
+          showBillingCaption={true}
         />
         {readingsError && (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -514,40 +497,86 @@ export default function AdminStandardBillingPanel({
                 </div>
               )}
               <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] px-5 py-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-[var(--admin-text-muted)]">Calculated VDO total</span>
+                <div className="flex items-center">
+                  <span className="text-sm text-[var(--admin-text-muted)]">Submitted VDO total</span>
+                  <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
                   <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
                     {billedVdoSummary}
                   </span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-[var(--admin-text-muted)]">Aircraft hire</span>
-                  <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
-                    ${(((billedVdoHours ?? vdoReading) ?? 0) * hourlyRateNum).toFixed(2)}
-                  </span>
-                </div>
+                {activeBlockTime ? (
+                  <>
+                    <div className="pl-3.5 border-l-2 border-[var(--admin-border)]/60 space-y-1.5 my-1.5">
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--admin-text-muted)] mb-1">Block time balance</div>
+                      <div className="flex items-center">
+                        <span className="text-sm text-[var(--admin-text-muted)]">Available before this flight</span>
+                        <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                        <span className="text-sm font-mono tabular-nums text-[var(--admin-text-muted)]">
+                          {activeBlockTime.hoursRemaining.toFixed(1)}h
+                        </span>
+                      </div>
+                      <div className="flex items-center">
+                        <span className="text-sm text-[var(--admin-text-muted)]">Used this flight</span>
+                        <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                        <span className="text-sm font-mono tabular-nums text-[var(--admin-text-muted)]">
+                          {packageDeductionHours.toFixed(1)}h <span className="ml-4">$0.00</span>
+                        </span>
+                      </div>
+                      <div className="flex items-center">
+                        <span className="text-sm text-[var(--admin-text-muted)]">Remaining after</span>
+                        <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                        <span className="text-sm font-mono tabular-nums text-[var(--admin-text-muted)] font-medium">
+                          {(activeBlockTime.hoursRemaining - packageDeductionHours).toFixed(1)}h
+                        </span>
+                      </div>
+                    </div>
+                    {overageHours > 0 && (
+                      <div className="flex items-center">
+                        <span className="text-sm text-amber-700">Overage ({overageHours.toFixed(1)}h x ${activeBlockTime.ratePerHour.toFixed(2)}/hr)</span>
+                        <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                        <span className="text-sm font-mono tabular-nums text-amber-700">
+                          ${(overageCents / 100).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex items-center">
+                    <span className="text-sm text-[var(--admin-text-muted)]">Aircraft hire ({finalVdoHours.toFixed(1)}h x ${hourlyRateNum.toFixed(2)}/hr)</span>
+                    <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                    <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
+                      ${(vdoBaseCents / 100).toFixed(2)}
+                    </span>
+                  </div>
+                )}
                 {landingSubtotalCents > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-[var(--admin-text-muted)]">Landing charges</span>
+                  <div className="flex items-center">
+                    <span className="text-sm text-[var(--admin-text-muted)]">Landing charges ({validLandingCharges.reduce((sum, row) => sum + row.landingCount, 0)} x ${(LANDING_FEE_CENTS / 100).toFixed(2)})</span>
+                    <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
                     <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
                       ${(landingSubtotalCents / 100).toFixed(2)}
                     </span>
                   </div>
                 )}
-                <div className="border-t border-[var(--admin-border)] pt-3 flex items-center justify-between">
+                <div className="border-t border-[var(--admin-border)] pt-3 flex items-center">
                   <span className="text-sm font-medium text-[var(--admin-text)]">Invoice total</span>
+                  <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
                   <span className="text-base font-bold font-mono tabular-nums text-[#1a4fd6]">
                     ${(subtotalCents / 100).toFixed(2)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-[var(--admin-text-muted)]">Credit applied</span>
-                  <span className={`text-sm font-mono tabular-nums ${creditApplicable > 0 ? 'text-emerald-600' : 'text-[var(--admin-text-muted)]'}`}>
-                    ${((creditApplicable ?? 0) / 100).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-[var(--admin-text)]">Estimated amount due</span>
+                {creditApplicable > 0 && (
+                  <div className="flex items-center">
+                    <span className="text-sm text-[var(--admin-text-muted)]">Credit applied</span>
+                    <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                    <span className="text-sm font-mono tabular-nums text-emerald-600">
+                      ${(creditApplicable / 100).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center">
+                  <span className="text-sm font-semibold text-[var(--admin-text)]">Final amount due</span>
+                  <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
                   <span className="text-lg font-bold font-mono tabular-nums text-[#152d5a]">
                     ${(estimatedAmountDue / 100).toFixed(2)}
                   </span>
