@@ -122,7 +122,6 @@ export async function createAdminScheduleBlock(
     return { created: false, conflicts: result.conflicts }
   }
 
-  revalidatePath('/admin')
   revalidatePath('/admin/calendar')
 
   return { created: true, blockId: result.blockId }
@@ -380,8 +379,8 @@ export async function approvePostFlightReview(
       },
     })
 
-  revalidatePath('/admin')
-  revalidatePath('/dashboard')
+  revalidatePath(`/admin/bookings/requests/${flightRecord.booking_id}`)
+  revalidatePath(`/dashboard/bookings/${flightRecord.booking_id}`)
 }
 
 // ─── Confirm booking request ───────────────────────────────────────────────────
@@ -538,10 +537,9 @@ export async function confirmBookingRequest(bookingId: string) {
     }
   }
 
-  revalidatePath('/admin')
+  revalidatePath(`/admin/bookings/requests/${bookingId}`)
   revalidatePath('/admin/bookings/checkout')
-  revalidatePath(`/admin/bookings/checkout/${bookingId}`)
-  revalidatePath('/dashboard')
+  revalidatePath(`/dashboard/bookings/${bookingId}`)
 }
 
 // ─── Cancel booking request ────────────────────────────────────────────────────
@@ -619,10 +617,9 @@ export async function cancelBookingRequest(bookingId: string, reason: string) {
     }
   }
 
-  revalidatePath('/admin')
+  revalidatePath(`/admin/bookings/requests/${bookingId}`)
   revalidatePath('/admin/bookings/checkout')
-  revalidatePath(`/admin/bookings/checkout/${bookingId}`)
-  revalidatePath('/dashboard')
+  revalidatePath(`/dashboard/bookings/${bookingId}`)
 }
 
 // ─── Request clarification ─────────────────────────────────────────────────────
@@ -973,8 +970,9 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
     }).catch((error) => console.error('[confirmCheckoutBooking] email failed:', error))
   }
 
-  revalidatePath('/admin')
-  revalidatePath('/dashboard')
+  revalidatePath(`/admin/bookings/requests/${bookingId}`)
+  revalidatePath('/admin/bookings/checkout')
+  revalidatePath(`/dashboard/bookings/${bookingId}`)
 }
 
 // ─── Mark checkout flight completed ───────────────────────────────────────────
@@ -2086,12 +2084,9 @@ export async function manuallyCompleteCheckout(input: ManualCheckoutCompletionIn
     email_status: 'skipped',
   })
 
-  revalidatePath('/admin')
   revalidatePath('/admin/bookings/checkout')
-  revalidatePath('/admin/bookings/payment-required')
   revalidatePath(`/admin/bookings/requests/${booking.id}`)
-  revalidatePath('/admin/checkouts/payments')
-  revalidatePath('/dashboard')
+  revalidatePath(`/dashboard/bookings/${booking.id}`)
 }
 
 // ─── Cancellation request review ──────────────────────────────────────────────
@@ -2261,7 +2256,10 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
       .single()
     if (profileForPaymentEmail?.email) {
       const template = paymentConfirmedEmail('Payment has been received and recorded for your booking.')
-      await sendEmail({
+      // The billing write is the source of truth; email delivery can continue
+      // in the background so the admin does not sit on the spinner waiting for
+      // an external API round-trip.
+      void sendEmail({
         to: profileForPaymentEmail.email,
         subject: template.subject,
         html: template.html,
@@ -2473,20 +2471,15 @@ export async function finaliseStandardBookingInvoice(input: {
   }
   const hasReadingChanges = hasMaterialAircraftReadingChanges(existingReadings, fullReadings)
 
-  const { data: snapshotProfile } = await supabase
-    .from('profiles')
-    .select('full_name, pilot_arn')
-    .eq('id', booking.booking_owner_user_id)
-    .single()
-
   const { data: pilotProfile, error: pilotProfileErr } = await supabase
     .from('profiles')
-    .select('id, full_name, email')
+    .select('id, full_name, email, pilot_arn')
     .eq('id', booking.booking_owner_user_id)
     .single()
   if (pilotProfileErr) {
     throw new Error('Failed to load pilot billing profile.')
   }
+  const snapshotProfile = pilotProfile
 
   const { data: activePackage, error: activePackageErr } = await supabase
     .from('pilot_block_time_purchases')
@@ -2894,7 +2887,7 @@ export async function finaliseStandardBookingInvoice(input: {
       throw new Error('Failed to update the flight record with reviewed readings.')
     }
 
-    const approvalBaseline = await getLastFinalizedLogStop(booking.aircraft_id)
+    const approvalBaseline = billingBaseline
     const refreshedReadings = buildReadingsFromTotals(
       {
         vdo_total:        fullReadingsTotals.vdo_total ?? 0,
@@ -2976,7 +2969,10 @@ export async function finaliseStandardBookingInvoice(input: {
       const emailText = pdfUrl
         ? `${blockTimeMessage}\n\nInvoice PDF: ${pdfUrl}`
         : blockTimeMessage
-      await sendEmail({
+      // The billing write is the source of truth; email delivery can continue
+      // in the background so the admin does not sit on the spinner waiting for
+      // an external API round-trip.
+      void sendEmail({
         to: pilotProfile.email,
         subject: template.subject,
         html: template.html,
@@ -2996,9 +2992,7 @@ export async function finaliseStandardBookingInvoice(input: {
       }).catch((error) => console.error('[finaliseStandardBookingInvoice] block time email failed:', error))
     }
 
-    revalidatePath('/admin')
     revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
-    revalidatePath('/dashboard')
     revalidatePath(`/dashboard/bookings/${input.bookingId}`)
 
     // Surface a landing-fee settlement failure to the admin. Everything else
@@ -3074,14 +3068,14 @@ export async function finaliseStandardBookingInvoice(input: {
     throw new Error('Failed to update the flight record with reviewed readings.')
   }
 
-  // Recalculate start/stop for the aircraft log from the latest FINALIZED baseline
-  // at the moment of admin approval. This ensures chain continuity if another
-  // flight was approved between the customer's submission and this finalization.
+  // The aircraft-log chain anchor (start) comes from the FINALIZED baseline
+  // fetched at the top of this finalisation; nothing in this request finalises
+  // another log before this point, so the value is still current.
   // The admin-confirmed totals (stop - start from the form) are preserved exactly;
   // only the chain anchor (start) is refreshed. flight_records keeps the
   // hidden full readings that were reconstructed from the submitted totals.
   // as the admin review audit document.
-  const approvalBaseline = await getLastFinalizedLogStop(booking.aircraft_id)
+  const approvalBaseline = billingBaseline
   const refreshedReadings = buildReadingsFromTotals(
     {
       vdo_total:        fullReadingsTotals.vdo_total ?? 0,
@@ -3260,9 +3254,7 @@ export async function finaliseStandardBookingInvoice(input: {
     }).catch((error) => console.error('[finaliseStandardBookingInvoice] email failed:', error))
   }
 
-  revalidatePath('/admin')
   revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
-  revalidatePath('/dashboard')
   revalidatePath(`/dashboard/bookings/${input.bookingId}`)
   }
 }
@@ -3498,4 +3490,157 @@ export async function adminApproveCancellationCharged(
   revalidatePath(`/admin/bookings/requests/${r.booking_id}`)
   revalidatePath(`/dashboard/bookings/${r.booking_id}`)
   revalidatePath('/dashboard/bookings')
+}
+
+// ─── Instructor Assignment (Checkout) ─────────────────────────────────────────
+
+export async function assignInstructor(bookingId: string, instructorId: string): Promise<void> {
+  const { supabase, adminId } = await requireAdmin()
+  const now = new Date().toISOString()
+
+  // 1. Load booking and guard state
+  const { data: booking, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('status, booking_type, booking_owner_user_id, aircraft_id')
+    .eq('id', bookingId)
+    .single()
+
+  if (fetchErr || !booking) throw new Error('Booking not found.')
+  if (booking.booking_type !== 'checkout') {
+    throw new Error('VALIDATION: This booking is not a checkout booking.')
+  }
+  if (booking.status !== 'checkout_requested') {
+    throw new Error(`VALIDATION: Cannot assign instructor for checkout booking with status '${booking.status}'.`)
+  }
+  if (instructorId === booking.booking_owner_user_id) {
+    throw new Error('VALIDATION: A pilot cannot be assigned as their own instructor.')
+  }
+
+  // 2. Grant instructor role idempotently
+  const { error: roleErr } = await supabase
+    .from('user_roles')
+    .upsert({
+      user_id: instructorId,
+      role: 'instructor',
+      granted_by: adminId,
+    }, { onConflict: 'user_id, role' })
+
+  if (roleErr) throw new Error(`Failed to grant instructor role: ${roleErr.message}`)
+
+  // 3. Flip any existing active assignment to inactive
+  const { error: deactivateErr } = await supabase
+    .from('checkout_instructor_assignments')
+    .update({ is_active: false })
+    .eq('checkout_id', bookingId)
+    .eq('is_active', true)
+
+  if (deactivateErr) throw new Error(`Failed to deactivate prior assignment: ${deactivateErr.message}`)
+
+  // 4. Insert the new active assignment row
+  const { data: assignment, error: assignErr } = await supabase
+    .from('checkout_instructor_assignments')
+    .insert({
+      checkout_id: bookingId,
+      instructor_id: instructorId,
+      assigned_by: adminId,
+      status: 'pending',
+      is_active: true,
+    })
+    .select('id')
+    .single()
+
+  if (assignErr || !assignment) throw new Error(`Failed to insert assignment: ${assignErr?.message}`)
+
+  // 5. Audit event
+  const { data: instructorProfile } = await supabase
+    .from('profiles')
+    .select('full_name, email')
+    .eq('id', instructorId)
+    .single()
+  
+  const instructorName = instructorProfile?.full_name || instructorProfile?.email || instructorId
+
+  await supabase.from('booking_audit_events').insert({
+    booking_id: bookingId,
+    aircraft_id: booking.aircraft_id,
+    actor_user_id: adminId,
+    actor_role: 'admin',
+    event_type: 'instructor_assigned',
+    event_summary: `Admin assigned ${instructorName} as instructor.`,
+    new_value: { assignment_id: assignment.id, instructor_id: instructorId },
+  })
+
+  revalidatePath(`/admin/bookings/requests/${bookingId}`)
+}
+
+export async function assignSelfAsInstructor(bookingId: string): Promise<void> {
+  const { supabase, adminId } = await requireAdmin()
+  const now = new Date().toISOString()
+
+  // 1. Load booking and guard state
+  const { data: booking, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('status, booking_type, booking_owner_user_id, aircraft_id')
+    .eq('id', bookingId)
+    .single()
+
+  if (fetchErr || !booking) throw new Error('Booking not found.')
+  if (booking.booking_type !== 'checkout') {
+    throw new Error('VALIDATION: This booking is not a checkout booking.')
+  }
+  if (booking.status !== 'checkout_requested') {
+    throw new Error(`VALIDATION: Cannot assign instructor for checkout booking with status '${booking.status}'.`)
+  }
+  if (adminId === booking.booking_owner_user_id) {
+    throw new Error('VALIDATION: A pilot cannot be assigned as their own instructor.')
+  }
+
+  // 2. Grant instructor role idempotently (to adminId)
+  const { error: roleErr } = await supabase
+    .from('user_roles')
+    .upsert({
+      user_id: adminId,
+      role: 'instructor',
+      granted_by: adminId,
+    }, { onConflict: 'user_id, role' })
+
+  if (roleErr) throw new Error(`Failed to grant instructor role: ${roleErr.message}`)
+
+  // 3. Flip any existing active assignment to inactive
+  const { error: deactivateErr } = await supabase
+    .from('checkout_instructor_assignments')
+    .update({ is_active: false })
+    .eq('checkout_id', bookingId)
+    .eq('is_active', true)
+
+  if (deactivateErr) throw new Error(`Failed to deactivate prior assignment: ${deactivateErr.message}`)
+
+  // 4. Insert the new active assignment row (accepted)
+  const { data: assignment, error: assignErr } = await supabase
+    .from('checkout_instructor_assignments')
+    .insert({
+      checkout_id: bookingId,
+      instructor_id: adminId,
+      assigned_by: adminId,
+      status: 'accepted',
+      is_active: true,
+      responded_at: now,
+    })
+    .select('id')
+    .single()
+
+  if (assignErr || !assignment) throw new Error(`Failed to insert assignment: ${assignErr?.message}`)
+
+  // 5. Audit event
+  await supabase.from('booking_audit_events').insert({
+    booking_id: bookingId,
+    aircraft_id: booking.aircraft_id,
+    actor_user_id: adminId,
+    actor_role: 'admin',
+    event_type: 'instructor_self_assigned',
+    event_summary: `Admin self-assigned as instructor.`,
+    new_value: { assignment_id: assignment.id, instructor_id: adminId },
+  })
+
+  revalidatePath(`/admin/bookings/requests/${bookingId}`)
 }
