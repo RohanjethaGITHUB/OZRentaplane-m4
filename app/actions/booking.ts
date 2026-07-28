@@ -26,6 +26,7 @@ import {
   notifyClarificationResponseReceived,
   notifyFlightRecordResubmitted,
 } from '@/lib/booking/notifications'
+import { createPerfLogger } from '@/lib/perf/timing'
 import type {
   CreateBookingInput,
   SubmitFlightRecordInput,
@@ -194,40 +195,55 @@ async function requireClearedCustomer() {
 export async function createBooking(
   input: CreateBookingInput,
 ): Promise<{ bookingId: string; bookingReference: string; bookingStatus: string }> {
-  const { supabase, userId } = await requireClearedCustomer()
+  const perf = createPerfLogger({ route: 'server_action:createBooking', role: 'customer' })
+  const markTotal = perf.start('createBooking', 'total_server_action_duration')
+  const { supabase, userId } = await perf.time(
+    'createBooking',
+    'initial_authentication_authorization',
+    () => requireClearedCustomer(),
+  )
 
   // Overage gate — an unpaid block time overage invoice blocks new bookings.
-  const outstandingOverage = await getOutstandingOverageInvoices(supabase, userId)
+  const outstandingOverage = await perf.time(
+    'createBooking',
+    'availability_pricing_reads',
+    () => getOutstandingOverageInvoices(supabase, userId),
+    (result) => ({ rowCount: result.length }),
+  )
   if (outstandingOverage.length > 0) {
     throw new Error(overageGateMessage(outstandingOverage))
   }
 
-  // Flight review date — required and must be within the last 2 years
-  const flightReviewErr = validateFlightReviewDate(input.last_flight_date ?? '')
-  if (flightReviewErr) throw new Error(`VALIDATION: ${flightReviewErr}`)
+  const { acceptedIp, userAgent } = await perf.time('createBooking', 'input_validation', async () => {
+    // Flight review date — required and must be within the last 2 years
+    const flightReviewErr = validateFlightReviewDate(input.last_flight_date ?? '')
+    if (flightReviewErr) throw new Error(`VALIDATION: ${flightReviewErr}`)
 
-  const start = new Date(input.scheduled_start)
-  const end   = new Date(input.scheduled_end)
+    const start = new Date(input.scheduled_start)
+    const end   = new Date(input.scheduled_end)
 
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-    throw new Error('VALIDATION: Invalid start or end time.')
-  }
-  if (end <= start) {
-    throw new Error('VALIDATION: End time must be after start time.')
-  }
-  if (start <= new Date()) {
-    throw new Error('VALIDATION: Booking start time must be in the future.')
-  }
-  const h = await headers()
-  const forwardedFor = h.get('x-forwarded-for')
-  const acceptedIp =
-    forwardedFor?.split(',')[0]?.trim() ||
-    h.get('x-real-ip')?.trim() ||
-    h.get('cf-connecting-ip')?.trim() ||
-    null
-  const userAgent = h.get('user-agent') ?? null
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new Error('VALIDATION: Invalid start or end time.')
+    }
+    if (end <= start) {
+      throw new Error('VALIDATION: End time must be after start time.')
+    }
+    if (start <= new Date()) {
+      throw new Error('VALIDATION: Booking start time must be in the future.')
+    }
+    const h = await headers()
+    const forwardedFor = h.get('x-forwarded-for')
+    return {
+      acceptedIp:
+        forwardedFor?.split(',')[0]?.trim() ||
+        h.get('x-real-ip')?.trim() ||
+        h.get('cf-connecting-ip')?.trim() ||
+        null,
+      userAgent: h.get('user-agent') ?? null,
+    }
+  })
 
-  const { data, error } = await supabase.rpc('create_aircraft_booking_atomic', {
+  const { data, error } = await perf.time('createBooking', 'booking_rpc_database_write', () => supabase.rpc('create_aircraft_booking_atomic', {
     p_aircraft_id:                   input.aircraft_id,
     p_pic_user_id:                   input.pic_user_id                   ?? null,
     p_pic_name:                      input.pic_name                      ?? null,
@@ -241,7 +257,7 @@ export async function createBooking(
     p_accepted_ip:                   acceptedIp,
     p_user_agent:                    userAgent,
     p_risk_acknowledgement_accepted: input.risk_acknowledgement_accepted ?? false,
-  })
+  }), (result) => ({ rowCount: result.data ? 1 : 0 }))
 
   if (error) {
     // Preserve VALIDATION: / AVAILABILITY: / UNAUTHORIZED: prefixes so callers
@@ -260,25 +276,40 @@ export async function createBooking(
 
   // Save flight review date to the customer's profile so it pre-fills on future bookings.
   // Non-throwing — booking is already created; a sync failure here is not critical.
-  await supabase
-    .from('profiles')
-    .update({ last_flight_date: input.last_flight_date })
-    .eq('id', userId)
+  await perf.time(
+    'createBooking',
+    'post_write_profile_update',
+    () => supabase
+      .from('profiles')
+      .update({ last_flight_date: input.last_flight_date })
+      .eq('id', userId),
+  )
 
-  revalidatePath('/dashboard')
-  revalidatePath('/admin')
+  perf.timeSync('createBooking', 'revalidation', () => {
+    revalidatePath('/dashboard')
+    revalidatePath('/admin')
+  })
 
   // Notify customer — fire-and-forget
-  const supabase2 = await createClient()
-  const { data: { user: u } } = await supabase2.auth.getUser()
+  const supabase2 = await perf.time('createBooking', 'post_write_identity_client_preparation', () => createClient())
+  const { data: { user: u } } = await perf.time(
+    'createBooking',
+    'post_write_identity_read',
+    () => supabase2.auth.getUser(),
+  )
   if (u) {
-    const { data: prof } = await supabase2
-      .from('profiles')
-      .select('full_name, email')
-      .eq('id', u.id)
-      .single()
+    const { data: prof } = await perf.time(
+      'createBooking',
+      'post_write_profile_read',
+      () => supabase2
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', u.id)
+        .single(),
+      (result) => ({ rowCount: result.data ? 1 : 0 }),
+    )
     if (prof?.email) {
-      await notifyBookingSubmitted({
+      const emailPayload = perf.timeSync('createBooking', 'email_preparation', () => ({
         customerEmail: prof.email,
         customerName:  prof.full_name ?? 'Pilot',
         ref:           result.booking_reference ?? result.booking_id.slice(0, 8).toUpperCase(),
@@ -286,10 +317,16 @@ export async function createBooking(
         start:         new Date(input.scheduled_start).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }),
         end:           new Date(input.scheduled_end).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }),
         bookingId:     result.booking_id,
-      }).catch(e => console.error('[createBooking] notification error:', e))
+      }))
+      await perf.time(
+        'createBooking',
+        'email_delivery_request',
+        () => notifyBookingSubmitted(emailPayload).catch(e => console.error('[createBooking] notification error:', e)),
+      )
     }
   }
 
+  markTotal()
   return { bookingId: result.booking_id, bookingReference: result.booking_reference, bookingStatus: result.status }
 }
 

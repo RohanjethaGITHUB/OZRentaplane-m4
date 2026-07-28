@@ -13,6 +13,7 @@ import {
   type DashboardBookingFocusState,
   type DashboardFlightSnapshot,
 } from '@/lib/dashboard/dashboard-action-state'
+import { createPerfLogger } from '@/lib/perf/timing'
 
 type BlockTimePackageRow = {
   id: string
@@ -86,16 +87,27 @@ export default async function DashboardPage({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined }
 }) {
+  const perf = createPerfLogger({ route: '/dashboard', role: 'customer' })
+  const markTotal = perf.start('customer_dashboard_page', 'total_server_page_preparation')
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await perf.time(
+    'customer_dashboard_page',
+    'identity_preparation',
+    () => supabase.auth.getUser(),
+  )
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  const { data: profile } = await perf.time(
+    'customer_dashboard_page',
+    'profile_preparation',
+    () => supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single(),
+    (result) => ({ rowCount: result.data ? 1 : 0 }),
+  )
 
   // Admins belong in /admin
   if (profile?.role === 'admin') redirect('/admin')
@@ -107,13 +119,17 @@ export default async function DashboardPage({
   const isFirstLogin     = isNewSession && (profile?.login_count ?? 1) === 0
 
   if (isNewSession) {
-    await supabase
-      .from('profiles')
-      .update({
-        last_login_at: new Date().toISOString(),
-        login_count:   (profile?.login_count ?? 0) + 1,
-      })
-      .eq('id', user.id)
+    await perf.time(
+      'customer_dashboard_page',
+      'login_tracking_write',
+      () => supabase
+        .from('profiles')
+        .update({
+          last_login_at: new Date().toISOString(),
+          login_count:   (profile?.login_count ?? 0) + 1,
+        })
+        .eq('id', user.id),
+    )
   }
 
   const clearanceStatus = ((profile as Profile | null)?.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
@@ -143,7 +159,7 @@ export default async function DashboardPage({
     upcomingConfirmedBookingResult,
     checkoutSnapshotBookingResult,
     postFlightPaymentRequiredBookingResult,
-  ] = await Promise.all([
+  ] = await perf.time('customer_dashboard_page', 'main_parallel_query_group', () => Promise.all([
     supabase
       .from('user_documents')
       .select('*')
@@ -218,7 +234,7 @@ export default async function DashboardPage({
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
-  ])
+  ]))
 
   type BookingSnapshotRow = {
     id: string
@@ -246,19 +262,29 @@ export default async function DashboardPage({
   // ── Post-flight bank transfer status ──────────────────────────────────────
   let postFlightBankTransferStatus: string | null = null
   if (postFlightPaymentRequiredBooking) {
-    const { data: pfInvoiceRow } = await supabase
-      .from('booking_invoices')
-      .select('id')
-      .eq('booking_id', postFlightPaymentRequiredBooking.id)
-      .maybeSingle()
+    const { data: pfInvoiceRow } = await perf.time(
+      'customer_dashboard_page',
+      'post_flight_invoice_lookup',
+      () => supabase
+        .from('booking_invoices')
+        .select('id')
+        .eq('booking_id', postFlightPaymentRequiredBooking.id)
+        .maybeSingle(),
+      (result) => ({ rowCount: result.data ? 1 : 0 }),
+    )
     if (pfInvoiceRow?.id) {
-      const { data: pfBtSub } = await supabase
-        .from('booking_bank_transfer_submissions')
-        .select('status, admin_note')
-        .eq('invoice_id', pfInvoiceRow.id)
-        .order('submitted_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      const { data: pfBtSub } = await perf.time(
+        'customer_dashboard_page',
+        'post_flight_bank_transfer_lookup',
+        () => supabase
+          .from('booking_bank_transfer_submissions')
+          .select('status, admin_note')
+          .eq('invoice_id', pfInvoiceRow.id)
+          .order('submitted_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        (result) => ({ rowCount: result.data ? 1 : 0 }),
+      )
       postFlightBankTransferStatus = (pfBtSub as { status: string; admin_note?: string | null } | null)?.status ?? null
     }
   }
@@ -315,7 +341,7 @@ export default async function DashboardPage({
   let bookingReadiness: BookingReadinessDecision | null = null
 
   if (paymentPending && checkoutBookingId) {
-    const [{ data: invoiceRow }, { data: landingRows }, { data: invoiceStatusRow }] = await Promise.all([
+    const [{ data: invoiceRow }, { data: landingRows }, { data: invoiceStatusRow }] = await perf.time('customer_dashboard_page', 'checkout_payment_parallel_query_group', () => Promise.all([
       supabase
         .from('checkout_invoice_live_amount')
         .select('invoice_id, subtotal_cents, advance_applied_cents, total_paid_cents, current_credit_balance_cents, display_amount_due_cents, checkout_outcome, checkout_duration_hours, checkout_landing_subtotal_cents')
@@ -330,7 +356,9 @@ export default async function DashboardPage({
         .select('id, status')
         .eq('booking_id', checkoutBookingId)
         .single(),
-    ])
+    ]), (result) => ({
+      rowCount: (result[0].data ? 1 : 0) + (result[1].data?.length ?? 0) + (result[2].data ? 1 : 0),
+    }))
 
     // Fetch latest bank transfer submission for the invoice.
     // Use invoiceRow.invoice_id as the authoritative ID (comes from checkout_invoice_live_amount view);
@@ -340,13 +368,18 @@ export default async function DashboardPage({
     const invoiceIdForBtLookup =
       (invoiceRow?.invoice_id as string | null) ?? invoiceStatusRow?.id ?? null
     if (invoiceIdForBtLookup) {
-      const { data: btSub } = await supabase
-        .from('checkout_bank_transfer_submissions')
-        .select('status, admin_note')
-        .eq('invoice_id', invoiceIdForBtLookup)
-        .order('submitted_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      const { data: btSub } = await perf.time(
+        'customer_dashboard_page',
+        'checkout_bank_transfer_lookup',
+        () => supabase
+          .from('checkout_bank_transfer_submissions')
+          .select('status, admin_note')
+          .eq('invoice_id', invoiceIdForBtLookup)
+          .order('submitted_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        (result) => ({ rowCount: result.data ? 1 : 0 }),
+      )
       bankTransferStatus = (btSub as { status: string; admin_note?: string | null } | null)?.status ?? null
       bankTransferNote = (btSub as { status: string; admin_note?: string | null } | null)?.admin_note ?? null
     }
@@ -376,8 +409,12 @@ export default async function DashboardPage({
     }
   }
 
-  const hasManualClearance = await hasManualCheckoutClearance(user.id)
-  const [{ data: historicalClearance }, termsPrimary, { data: latestTermsAcceptance }, { data: paidCheckoutInvoice }] = await Promise.all([
+  const hasManualClearance = await perf.time(
+    'customer_dashboard_page',
+    'manual_checkout_clearance_lookup',
+    () => hasManualCheckoutClearance(user.id),
+  )
+  const [{ data: historicalClearance }, termsPrimary, { data: latestTermsAcceptance }, { data: paidCheckoutInvoice }] = await perf.time('customer_dashboard_page', 'booking_readiness_parallel_query_group', () => Promise.all([
     supabase
       .from('historical_checkout_completions')
       .select('id')
@@ -409,7 +446,9 @@ export default async function DashboardPage({
       .eq('status', 'paid')
       .limit(1)
       .maybeSingle(),
-  ])
+  ]), (result) => ({
+    rowCount: (result[0].data ? 1 : 0) + (result[1].data ? 1 : 0) + (result[2].data ? 1 : 0) + (result[3].data ? 1 : 0),
+  }))
 
   const admin = createAdminClient()
   const authoritativeHistorical = historicalClearance?.id
@@ -461,7 +500,7 @@ export default async function DashboardPage({
     } | null),
   )
 
-  bookingReadiness = evaluateBookingReadinessDecision({
+  bookingReadiness = perf.timeSync('customer_dashboard_page', 'dashboard_summary_preparation', () => evaluateBookingReadinessDecision({
     clearanceStatus,
     hasHistoricalClearance: Boolean(authoritativeHistorical?.id),
     hasPaidCheckoutInvoice: Boolean(authoritativePaidInvoice?.id),
@@ -469,7 +508,7 @@ export default async function DashboardPage({
     hasNightVfrRating: (profile as Profile | null)?.has_night_vfr_rating ?? null,
     lastFlightDate: (profile as Profile | null)?.last_flight_date ?? null,
     termsAccepted,
-  })
+  }))
 
   const hasClearancePath = Boolean(authoritativePaidInvoice?.id || authoritativeHistorical?.id)
   const canCreateStandardBooking =
@@ -502,15 +541,23 @@ export default async function DashboardPage({
     activeBooking,
   })
 
-  const { data: blockTimePackageRows } = await supabase
-    .from('block_time_packages')
-    .select('id, name, hours, rate_per_hour, total_price, validity_days, is_active, display_order, created_at, updated_at')
-    .eq('is_active', true)
-    .order('display_order', { ascending: true })
+  const { data: blockTimePackageRows } = await perf.time(
+    'customer_dashboard_page',
+    'block_time_package_lookup',
+    () => supabase
+      .from('block_time_packages')
+      .select('id, name, hours, rate_per_hour, total_price, validity_days, is_active, display_order, created_at, updated_at')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true }),
+    (result) => ({ rowCount: result.data?.length ?? 0 }),
+  )
 
-  const { data: blockTimePurchaseRows } = await supabase
-    .from('pilot_block_time_purchases')
-    .select(`
+  const { data: blockTimePurchaseRows } = await perf.time(
+    'customer_dashboard_page',
+    'block_time_purchase_summary_lookup',
+    () => supabase
+      .from('pilot_block_time_purchases')
+      .select(`
       id,
       status,
       hours_purchased,
@@ -525,9 +572,11 @@ export default async function DashboardPage({
         validity_days
       )
     `)
-    .eq('user_id', user.id)
-    .order('purchased_at', { ascending: false })
-    .limit(10)
+      .eq('user_id', user.id)
+      .order('purchased_at', { ascending: false })
+      .limit(10),
+    (result) => ({ rowCount: result.data?.length ?? 0 }),
+  )
 
   const selectedBlockTimePackage = ((blockTimePackageRows ?? []) as BlockTimePackageRow[]).find(
     (pkg) => slugifyPackageName(pkg.name) === selectedBlockTimePackageSlug,
@@ -579,16 +628,22 @@ export default async function DashboardPage({
 
   let newlyPurchasedInvoicePdfUrl: string | null = null
   if (searchParams?.block_time_purchase === 'success') {
-    const { data: recentInvoice } = await supabase
-      .from('invoices')
-      .select('pdf_url')
-      .eq('user_id', user.id)
-      .eq('type', 'block_time_purchase')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    const { data: recentInvoice } = await perf.time(
+      'customer_dashboard_page',
+      'recent_block_time_invoice_lookup',
+      () => supabase
+        .from('invoices')
+        .select('pdf_url')
+        .eq('user_id', user.id)
+        .eq('type', 'block_time_purchase')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      (result) => ({ rowCount: result.data ? 1 : 0 }),
+    )
     newlyPurchasedInvoicePdfUrl = recentInvoice?.pdf_url ?? null
   }
+  markTotal()
 
   return (
     <>

@@ -3,26 +3,44 @@ import { createClient } from '@/lib/supabase/server'
 import AtmoClouds from '@/components/AtmoClouds'
 import CustomerPortalNav from '@/components/customer/CustomerPortalNav'
 import CustomerDashboardBackgroundOverlay from './CustomerDashboardBackgroundOverlay'
+import { createPerfLogger } from '@/lib/perf/timing'
 
 export default async function CustomerPortalLayout({ children }: { children: React.ReactNode }) {
+  const perf = createPerfLogger({ route: '/dashboard/layout', role: 'customer' })
+  const markTotal = perf.start('customer_dashboard_layout', 'total_layout_preparation')
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await perf.time(
+    'customer_dashboard_layout',
+    'authenticated_user_lookup',
+    () => supabase.auth.getUser(),
+  )
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, pilot_clearance_status, must_change_password, first_name')
-    .eq('id', user.id)
-    .single()
+  const { data: profile } = await perf.time(
+    'customer_dashboard_layout',
+    'profile_lookup',
+    () => supabase
+      .from('profiles')
+      .select('role, pilot_clearance_status, must_change_password, first_name')
+      .eq('id', user.id)
+      .single(),
+    (result) => ({ rowCount: result.data ? 1 : 0 }),
+  )
 
-  const { count: blockTimePurchaseCount } = await supabase
-    .from('pilot_block_time_purchases')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id)
+  const { count: blockTimePurchaseCount } = await perf.time(
+    'customer_dashboard_layout',
+    'block_time_summary_lookup',
+    () => supabase
+      .from('pilot_block_time_purchases')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id),
+    (result) => ({ rowCount: result.count ?? null }),
+  )
 
   if (profile?.role === 'admin') redirect('/admin')
   const firstName = (profile as any)?.first_name ?? user.email?.split('@')[0] ?? 'Pilot'
   const email = user.email ?? ''
+  markTotal()
 
   return (
     <>

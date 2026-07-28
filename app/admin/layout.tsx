@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import AdminSidebar from './AdminSidebar'
 import { countAwaitingFlightRecords } from '@/lib/booking/flight-record-status'
+import { createPerfLogger } from '@/lib/perf/timing'
 
 type BookingInvoiceRow = {
   id: string
@@ -20,16 +21,27 @@ type BookingBankTransferSubmissionRow = {
 
 // Server-side guard: only admins can access any /admin route.
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const perf = createPerfLogger({ route: '/admin/layout', role: 'admin' })
+  const markTotal = perf.start('admin_layout', 'total_layout_preparation')
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await perf.time(
+    'admin_layout',
+    'authenticated_user_lookup',
+    () => supabase.auth.getUser(),
+  )
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, full_name')
-    .eq('id', user.id)
-    .single()
+  const { data: profile } = await perf.time(
+    'admin_layout',
+    'profile_role_lookup',
+    () => supabase
+      .from('profiles')
+      .select('role, full_name')
+      .eq('id', user.id)
+      .single(),
+    (result) => ({ rowCount: result.data ? 1 : 0 }),
+  )
 
   if (!profile || profile.role !== 'admin') redirect('/dashboard')
 
@@ -50,7 +62,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { count: checkoutIssues },
     { count: overageInvoiceCount },
     { data: customerDocumentRows },
-  ] = await Promise.all([
+  ] = await perf.time('admin_layout', 'first_parallel_query_group', () => Promise.all([
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_requested'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_completed_under_review'),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_payment_required'),
@@ -75,7 +87,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       .in('document_type', ['pilot_licence', 'medical_certificate', 'photo_id'])
       .in('status', ['uploaded', 'approved', 'rejected'])
       .order('uploaded_at', { ascending: false }),
-  ])
+  ]))
 
   const checkoutNewQueue = (checkoutNewRequests ?? 0)
   const checkoutAwaitingOutcomeQueue = (checkoutAwaitingOutcome ?? 0)
@@ -92,7 +104,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const bookingAwaitingFlightQueue = countAwaitingFlightRecords(awaitingFlightRecordRows)
   const bookingPostFlightQueue = postFlightReview ?? 0
   const bookingPaymentIds = Array.from(new Set((bookingPaymentRows ?? []).map((row) => row.id)))
-  const [{ data: bookingInvoices }, { data: bookingBankTransferSubmissions }] = await Promise.all([
+  const [{ data: bookingInvoices }, { data: bookingBankTransferSubmissions }] = await perf.time('admin_layout', 'dependent_second_query_group', () => Promise.all([
     bookingPaymentIds.length
       ? supabase
           .from('booking_invoices')
@@ -106,7 +118,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           .in('booking_id', bookingPaymentIds)
           .order('submitted_at', { ascending: false })
       : Promise.resolve({ data: [] as BookingBankTransferSubmissionRow[] }),
-  ])
+  ]), (result) => ({
+    rowCount: (result[0].data?.length ?? 0) + (result[1].data?.length ?? 0),
+  }))
   const invoiceByBookingId = new Map<string, BookingInvoiceRow>()
   for (const row of bookingInvoices ?? []) {
     const current = invoiceByBookingId.get(row.booking_id)
@@ -144,6 +158,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
   const documentReviewQueue = documentReviewUsers.size
   const totalActions = checkoutActions + bookingActions + documentReviewQueue
+  markTotal()
 
   return (
     <div className="admin-theme min-h-[100dvh] flex flex-col bg-[var(--admin-bg)] text-[var(--admin-text)] font-sans relative isolate overflow-x-clip">

@@ -3,6 +3,7 @@ import { unstable_noStore as noStore } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { countAwaitingFlightRecords } from '@/lib/booking/flight-record-status'
 import { ActionQueueSection } from './ActionQueueSection'
+import { createPerfLogger } from '@/lib/perf/timing'
 
 export const metadata = { title: 'Command Board | OZRentAPlane' }
 export const dynamic = 'force-dynamic'
@@ -267,15 +268,22 @@ export default async function AdminActionsPage({
 }: {
   searchParams?: { sort?: string; urgency?: string }
 }) {
+  const perf = createPerfLogger({ route: '/admin', role: 'admin' })
+  const markTotal = perf.start('admin_home', 'total_server_page_preparation')
   noStore()
   const supabase = await createClient()
 
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await perf.time('admin_home', 'identity_preparation', () => supabase.auth.getUser())
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const { data: profile } = await perf.time(
+    'admin_home',
+    'profile_preparation',
+    () => supabase.from('profiles').select('role').eq('id', user.id).single(),
+    (result) => ({ rowCount: result.data ? 1 : 0 }),
+  )
   if (profile?.role !== 'admin') redirect('/dashboard')
 
   const nowIso = new Date().toISOString()
@@ -304,7 +312,7 @@ export default async function AdminActionsPage({
     { count: bookingPaymentsRequired },
     { count: manualBookingPaymentsReview },
     { count: cancellationRequests },
-  ] = await Promise.all([
+  ] = await perf.time('admin_home', 'main_parallel_query_group', () => Promise.all([
     safeQuery('block time overage invoices', supabase.from('invoices').select('id, invoice_number, total, created_at, user_id, booking_id, bookings ( booking_reference, booking_owner_user_id, booking_type, pic_name, aircraft ( id, registration ) )').eq('is_block_time_overage', true).eq('status', 'awaiting')),
     safeQuery(
       'customer document rows',
@@ -387,7 +395,7 @@ export default async function AdminActionsPage({
     safeQuery('booking payment count', supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'payment_pending')),
     safeQuery('booking manual review count', supabase.from('booking_bank_transfer_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending_review')),
     safeQuery('booking cancellation count', supabase.from('booking_cancellation_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending')),
-  ])
+  ]))
 
   // bookings.booking_owner_user_id references auth.users, so profiles cannot be
   // embedded in the queries above — resolve customer names with one batched lookup.
@@ -419,12 +427,17 @@ export default async function AdminActionsPage({
     }
   }
 
-  const { data: ownerProfiles } = ownerUserIds.size
-    ? await safeQuery(
-        'owner profiles',
-        supabase.from('profiles').select('id, first_name, last_name, full_name, email').in('id', Array.from(ownerUserIds)),
-      )
-    : { data: [] as Array<ProfileRow & { id: string }> }
+  const { data: ownerProfiles } = await perf.time(
+    'admin_home',
+    'sequential_owner_profile_group',
+    () => ownerUserIds.size
+      ? safeQuery(
+          'owner profiles',
+          supabase.from('profiles').select('id, first_name, last_name, full_name, email').in('id', Array.from(ownerUserIds)),
+        )
+      : Promise.resolve({ data: [] as Array<ProfileRow & { id: string }> }),
+    (result) => ({ rowCount: result.data?.length ?? 0 }),
+  )
   const profilesById = new Map((ownerProfiles ?? []).map((p: any) => [p.id as string, p as ProfileRow]))
   const profileFor = (userId: string | null | undefined): ProfileRow | null =>
     userId ? profilesById.get(userId) ?? null : null
@@ -439,28 +452,33 @@ export default async function AdminActionsPage({
 
   const documentReviewUserIds = Array.from(pendingDocumentsByUser.keys())
 
-  const { data: documentReviewBookingRows } = documentReviewUserIds.length
-    ? await safeQuery(
-        'document review booking rows',
-        supabase
-          .from('bookings')
-          .select('id, booking_owner_user_id, booking_type, status, scheduled_start, created_at, updated_at')
-          .in('booking_owner_user_id', documentReviewUserIds)
-          .in('status', [
-            'on_hold_pending_documents',
-            'checkout_requested',
-            'checkout_confirmed',
-            'checkout_completed_under_review',
-            'checkout_payment_required',
-            'confirmed',
-            'ready_for_dispatch',
-            'dispatched',
-            'awaiting_flight_record',
-            'flight_record_overdue',
-          ])
-          .order('scheduled_start', { ascending: true }),
-      )
-    : { data: [] as BookingRow[] }
+  const { data: documentReviewBookingRows } = await perf.time(
+    'admin_home',
+    'sequential_document_review_booking_group',
+    () => documentReviewUserIds.length
+      ? safeQuery(
+          'document review booking rows',
+          supabase
+            .from('bookings')
+            .select('id, booking_owner_user_id, booking_type, status, scheduled_start, created_at, updated_at')
+            .in('booking_owner_user_id', documentReviewUserIds)
+            .in('status', [
+              'on_hold_pending_documents',
+              'checkout_requested',
+              'checkout_confirmed',
+              'checkout_completed_under_review',
+              'checkout_payment_required',
+              'confirmed',
+              'ready_for_dispatch',
+              'dispatched',
+              'awaiting_flight_record',
+              'flight_record_overdue',
+            ])
+            .order('scheduled_start', { ascending: true }),
+        )
+      : Promise.resolve({ data: [] as BookingRow[] }),
+    (result) => ({ rowCount: result.data?.length ?? 0 }),
+  )
 
   const documentReviewBookingsByUser = new Map<string, BookingRow[]>()
   for (const row of documentReviewBookingRows ?? []) {
@@ -472,15 +490,20 @@ export default async function AdminActionsPage({
   }
 
   const standardPaymentBookingIds = Array.from(new Set((standardPaymentRows ?? []).map((row) => (row as BookingRow).id)))
-  const { data: bookingInvoiceRows } = standardPaymentBookingIds.length
-    ? await safeQuery(
-        'booking invoice rows',
-        supabase
-          .from('booking_invoices')
-          .select('id, booking_id, status, payment_method, stripe_amount_due_cents, total_paid_cents, paid_at, created_at, updated_at')
-          .in('booking_id', standardPaymentBookingIds),
-      )
-    : { data: [] as BookingInvoiceRow[] }
+  const { data: bookingInvoiceRows } = await perf.time(
+    'admin_home',
+    'sequential_booking_invoice_group',
+    () => standardPaymentBookingIds.length
+      ? safeQuery(
+          'booking invoice rows',
+          supabase
+            .from('booking_invoices')
+            .select('id, booking_id, status, payment_method, stripe_amount_due_cents, total_paid_cents, paid_at, created_at, updated_at')
+            .in('booking_id', standardPaymentBookingIds),
+        )
+      : Promise.resolve({ data: [] as BookingInvoiceRow[] }),
+    (result) => ({ rowCount: result.data?.length ?? 0 }),
+  )
   const bookingInvoicesByBookingId = new Map<string, BookingInvoiceRow>()
   for (const row of bookingInvoiceRows ?? []) {
     const invoice = row as BookingInvoiceRow
@@ -491,16 +514,21 @@ export default async function AdminActionsPage({
   }
 
   const standardPaymentInvoiceIds = Array.from(bookingInvoicesByBookingId.values()).map((invoice) => invoice.id)
-  const { data: bookingBankTransferSubmissionRows } = standardPaymentInvoiceIds.length
-    ? await safeQuery(
-        'booking bank transfer submission rows',
-        supabase
-          .from('booking_bank_transfer_submissions')
-          .select('id, invoice_id, booking_id, reference, receipt_storage_path, status, admin_note, submitted_at, reviewed_at, created_at, updated_at')
-          .in('invoice_id', standardPaymentInvoiceIds)
-          .order('submitted_at', { ascending: false }),
-      )
-    : { data: [] as BookingBankTransferSubmissionRow[] }
+  const { data: bookingBankTransferSubmissionRows } = await perf.time(
+    'admin_home',
+    'sequential_booking_bank_transfer_group',
+    () => standardPaymentInvoiceIds.length
+      ? safeQuery(
+          'booking bank transfer submission rows',
+          supabase
+            .from('booking_bank_transfer_submissions')
+            .select('id, invoice_id, booking_id, reference, receipt_storage_path, status, admin_note, submitted_at, reviewed_at, created_at, updated_at')
+            .in('invoice_id', standardPaymentInvoiceIds)
+            .order('submitted_at', { ascending: false }),
+        )
+      : Promise.resolve({ data: [] as BookingBankTransferSubmissionRow[] }),
+    (result) => ({ rowCount: result.data?.length ?? 0 }),
+  )
   const bookingBankTransferSubmissionsByBookingId = new Map<string, BookingBankTransferSubmissionRow[]>()
   for (const row of bookingBankTransferSubmissionRows ?? []) {
     const submission = row as BookingBankTransferSubmissionRow
@@ -509,7 +537,11 @@ export default async function AdminActionsPage({
     bookingBankTransferSubmissionsByBookingId.set(submission.booking_id, list)
   }
 
-  const awaitingFlightRecords = countAwaitingFlightRecords(awaitingFlightRecordRows)
+  const awaitingFlightRecords = perf.timeSync(
+    'admin_home',
+    'dashboard_metric_preparation',
+    () => countAwaitingFlightRecords(awaitingFlightRecordRows),
+  )
 
   const cancelledCheckoutIds = new Set<string>([
     ...(checkoutCancelRequestRows ?? []).map((row) => row.checkout_request_id),
@@ -901,6 +933,10 @@ export default async function AdminActionsPage({
     if (aHint !== bHint) return aHint - bHint
     return a.key.localeCompare(b.key)
   })
+  perf.timeSync('admin_home', 'queue_action_feed_preparation', () => sortedActionRows.length, {
+    rowCount: sortedActionRows.length,
+  })
+  markTotal({ rowCount: sortedActionRows.length })
 
   return (
     <div className="admin-command-pilot min-h-full bg-[var(--admin-canvas)] text-[var(--admin-text)]">
