@@ -88,19 +88,19 @@ export default async function DashboardPage({
   searchParams?: { [key: string]: string | string[] | undefined }
 }) {
   const perf = createPerfLogger({ route: '/dashboard', role: 'customer' })
-  const markTotal = perf.start('customer_dashboard_page', 'total_server_page_preparation')
+  const markTotal = perf.start('customer_dashboard_page', 'customer_dashboard_total_server_page_preparation')
   const supabase = await createClient()
 
   const { data: { user } } = await perf.time(
     'customer_dashboard_page',
-    'identity_preparation',
+    'customer_dashboard_identity_preparation',
     () => getCachedUser(),
   )
   if (!user) redirect('/login')
 
   const { data: profile } = await perf.time(
     'customer_dashboard_page',
-    'profile_preparation',
+    'customer_dashboard_profile_preparation',
     () => getCachedProfile(user.id, 'dashboard'),
     (result) => ({ rowCount: result.data ? 1 : 0 }),
   )
@@ -114,10 +114,10 @@ export default async function DashboardPage({
   const isNewSession     = authLastSignIn !== null && (profileLastLogin === null || authLastSignIn > profileLastLogin)
   const isFirstLogin     = isNewSession && (profile?.login_count ?? 1) === 0
 
-  if (isNewSession) {
-    await perf.time(
+  const loginTrackingPromise = isNewSession
+    ? perf.time(
       'customer_dashboard_page',
-      'login_tracking_write',
+      'customer_dashboard_login_tracking',
       () => supabase
         .from('profiles')
         .update({
@@ -126,7 +126,7 @@ export default async function DashboardPage({
         })
         .eq('id', user.id),
     )
-  }
+    : Promise.resolve(null)
 
   const clearanceStatus = ((profile as Profile | null)?.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
   const paymentPending  = clearanceStatus === 'checkout_payment_required'
@@ -137,32 +137,23 @@ export default async function DashboardPage({
   const selectedBlockTimePackageSlug = normalizePackageSlug(searchParams?.block_time_package)
 
   if (mustChangePassword && !skipPasswordPrompt) {
+    await loginTrackingPromise
     redirect('/change-password')
   }
 
-  // ── Parallel fetches ──────────────────────────────────────────────────────
+  // ── Start independent fetches ──────────────────────────────────────────────
   // When payment is pending, also fetch:
   //   1. The checkout booking ID (for CTA links)
   //   2. The live invoice breakdown (for the payment panel)
   //   3. The landing charges (for the breakdown line items)
-  const [
-    { data: documents },
-    { data: events },
-    checkoutBookingResult,
-    activeBookingResult,
-    postFlightRequiredBookingResult,
-    postFlightUnderReviewBookingResult,
-    upcomingConfirmedBookingResult,
-    checkoutSnapshotBookingResult,
-    postFlightPaymentRequiredBookingResult,
-  ] = await perf.time('customer_dashboard_page', 'main_parallel_query_group', () => Promise.all([
+  const primaryQueryPromise = perf.time('customer_dashboard_page', 'customer_dashboard_primary_query_group', () => Promise.all([
     supabase
       .from('user_documents')
-      .select('*')
+      .select('id, user_id, document_type, status, uploaded_at, expiry_date, updated_at, red_card_expiry_month, red_card_expiry_year')
       .eq('user_id', user.id),
     supabase
       .from('verification_events')
-      .select('*')
+      .select('id, user_id, actor_user_id, actor_role, event_type, from_status, to_status, title, body, request_kind, is_read, admin_read_at, email_status, email_sent_at, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false }),
     paymentPending
@@ -232,6 +223,111 @@ export default async function DashboardPage({
       .maybeSingle(),
   ]))
 
+  const manualClearancePromise = perf.time(
+    'customer_dashboard_page',
+    'customer_dashboard_manual_checkout_clearance_lookup',
+    () => hasManualCheckoutClearance(user.id),
+  )
+
+  const readinessPrimaryPromise = perf.time('customer_dashboard_page', 'customer_dashboard_readiness_query_group', () => Promise.all([
+    supabase
+      .from('historical_checkout_completions')
+      .select('id')
+      .eq('customer_id', user.id)
+      .eq('checkout_outcome', 'cleared_to_fly')
+      .eq('is_active', true)
+      .order('recorded_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('terms_documents')
+      .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
+      .eq('is_active', true)
+      .order('effective_from', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('booking_terms_acceptances')
+      .select('terms_document_id, terms_version, terms_content_hash, accepted_at')
+      .eq('user_id', user.id)
+      .order('accepted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('checkout_invoices')
+      .select('id')
+      .eq('customer_id', user.id)
+      .eq('status', 'paid')
+      .limit(1)
+      .maybeSingle(),
+  ]), (result) => ({
+    rowCount: (result[0].data ? 1 : 0) + (result[1].data ? 1 : 0) + (result[2].data ? 1 : 0) + (result[3].data ? 1 : 0),
+  }))
+
+  const blockTimePromise = perf.time(
+    'customer_dashboard_page',
+    'customer_dashboard_block_time_group',
+    () => Promise.all([
+      supabase
+        .from('block_time_packages')
+        .select('id, name, hours, rate_per_hour, total_price, validity_days, is_active, display_order, created_at, updated_at')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true }),
+      supabase
+        .from('pilot_block_time_purchases')
+        .select(`
+        id,
+        status,
+        hours_purchased,
+        hours_remaining,
+        expires_at,
+        purchased_at,
+        activated_at,
+        package:block_time_packages (
+          name,
+          hours,
+          rate_per_hour,
+          validity_days
+        )
+      `)
+        .eq('user_id', user.id)
+        .order('purchased_at', { ascending: false })
+        .limit(10),
+      searchParams?.block_time_purchase === 'success'
+        ? supabase
+            .from('invoices')
+            .select('pdf_url')
+            .eq('user_id', user.id)
+            .eq('type', 'block_time_purchase')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]),
+    (result) => ({
+      rowCount:
+        (result[0].data?.length ?? 0) +
+        (result[1].data?.length ?? 0) +
+        (result[2].data ? 1 : 0),
+    }),
+  )
+
+  const [
+    [
+      { data: documents },
+      { data: events },
+      checkoutBookingResult,
+      activeBookingResult,
+      postFlightRequiredBookingResult,
+      postFlightUnderReviewBookingResult,
+      upcomingConfirmedBookingResult,
+      checkoutSnapshotBookingResult,
+      postFlightPaymentRequiredBookingResult,
+    ],
+    [{ data: historicalClearance }, termsPrimary, { data: latestTermsAcceptance }, { data: paidCheckoutInvoice }],
+  ] = await Promise.all([primaryQueryPromise, readinessPrimaryPromise])
+
   type BookingSnapshotRow = {
     id: string
     status: string
@@ -260,7 +356,7 @@ export default async function DashboardPage({
   if (postFlightPaymentRequiredBooking) {
     const { data: pfInvoiceRow } = await perf.time(
       'customer_dashboard_page',
-      'post_flight_invoice_lookup',
+      'customer_dashboard_payment_followups',
       () => supabase
         .from('booking_invoices')
         .select('id')
@@ -271,7 +367,7 @@ export default async function DashboardPage({
     if (pfInvoiceRow?.id) {
       const { data: pfBtSub } = await perf.time(
         'customer_dashboard_page',
-        'post_flight_bank_transfer_lookup',
+        'customer_dashboard_payment_followups',
         () => supabase
           .from('booking_bank_transfer_submissions')
           .select('status, admin_note')
@@ -337,7 +433,7 @@ export default async function DashboardPage({
   let bookingReadiness: BookingReadinessDecision | null = null
 
   if (paymentPending && checkoutBookingId) {
-    const [{ data: invoiceRow }, { data: landingRows }, { data: invoiceStatusRow }] = await perf.time('customer_dashboard_page', 'checkout_payment_parallel_query_group', () => Promise.all([
+    const [{ data: invoiceRow }, { data: landingRows }, { data: invoiceStatusRow }] = await perf.time('customer_dashboard_page', 'customer_dashboard_payment_followups', () => Promise.all([
       supabase
         .from('checkout_invoice_live_amount')
         .select('invoice_id, subtotal_cents, advance_applied_cents, total_paid_cents, current_credit_balance_cents, display_amount_due_cents, checkout_outcome, checkout_duration_hours, checkout_landing_subtotal_cents')
@@ -366,7 +462,7 @@ export default async function DashboardPage({
     if (invoiceIdForBtLookup) {
       const { data: btSub } = await perf.time(
         'customer_dashboard_page',
-        'checkout_bank_transfer_lookup',
+        'customer_dashboard_payment_followups',
         () => supabase
           .from('checkout_bank_transfer_submissions')
           .select('status, admin_note')
@@ -405,86 +501,71 @@ export default async function DashboardPage({
     }
   }
 
-  const hasManualClearance = await perf.time(
-    'customer_dashboard_page',
-    'manual_checkout_clearance_lookup',
-    () => hasManualCheckoutClearance(user.id),
-  )
-  const [{ data: historicalClearance }, termsPrimary, { data: latestTermsAcceptance }, { data: paidCheckoutInvoice }] = await perf.time('customer_dashboard_page', 'booking_readiness_parallel_query_group', () => Promise.all([
-    supabase
-      .from('historical_checkout_completions')
-      .select('id')
-      .eq('customer_id', user.id)
-      .eq('checkout_outcome', 'cleared_to_fly')
-      .eq('is_active', true)
-      .order('recorded_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from('terms_documents')
-      .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
-      .eq('is_active', true)
-      .order('effective_from', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from('booking_terms_acceptances')
-      .select('terms_document_id, terms_version, terms_content_hash, accepted_at')
-      .eq('user_id', user.id)
-      .order('accepted_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from('checkout_invoices')
-      .select('id')
-      .eq('customer_id', user.id)
-      .eq('status', 'paid')
-      .limit(1)
-      .maybeSingle(),
-  ]), (result) => ({
-    rowCount: (result[0].data ? 1 : 0) + (result[1].data ? 1 : 0) + (result[2].data ? 1 : 0) + (result[3].data ? 1 : 0),
-  }))
+  const hasManualClearance = await manualClearancePromise
 
   const admin = createAdminClient()
-  const authoritativeHistorical = historicalClearance?.id
-    ? historicalClearance
-    : (await admin
-        .from('historical_checkout_completions')
-        .select('id')
-        .eq('customer_id', user.id)
-        .eq('checkout_outcome', 'cleared_to_fly')
-        .eq('is_active', true)
-        .order('recorded_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()).data
-  const authoritativePaidInvoice = paidCheckoutInvoice?.id
-    ? paidCheckoutInvoice
-    : (await admin
-        .from('checkout_invoices')
-        .select('id')
-        .eq('customer_id', user.id)
-        .eq('status', 'paid')
-        .limit(1)
-        .maybeSingle()).data
-  const authoritativeTermsAcceptance = latestTermsAcceptance?.accepted_at
-    ? latestTermsAcceptance
-    : (await admin
-        .from('booking_terms_acceptances')
-        .select('terms_document_id, terms_version, terms_content_hash, accepted_at')
-        .eq('user_id', user.id)
-        .order('accepted_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()).data
+  const [
+    authoritativeHistorical,
+    authoritativePaidInvoice,
+    authoritativeTermsAcceptance,
+    authoritativeActiveTermsRow,
+  ] = await perf.time(
+    'customer_dashboard_page',
+    'customer_dashboard_readiness_fallbacks',
+    async () => {
+      const [historicalFallback, paidInvoiceFallback, termsAcceptanceFallback, activeTermsFallback] = await Promise.all([
+        historicalClearance?.id
+          ? Promise.resolve({ data: historicalClearance })
+          : admin
+              .from('historical_checkout_completions')
+              .select('id')
+              .eq('customer_id', user.id)
+              .eq('checkout_outcome', 'cleared_to_fly')
+              .eq('is_active', true)
+              .order('recorded_at', { ascending: false })
+              .limit(1)
+              .maybeSingle(),
+        paidCheckoutInvoice?.id
+          ? Promise.resolve({ data: paidCheckoutInvoice })
+          : admin
+              .from('checkout_invoices')
+              .select('id')
+              .eq('customer_id', user.id)
+              .eq('status', 'paid')
+              .limit(1)
+              .maybeSingle(),
+        latestTermsAcceptance?.accepted_at
+          ? Promise.resolve({ data: latestTermsAcceptance })
+          : admin
+              .from('booking_terms_acceptances')
+              .select('terms_document_id, terms_version, terms_content_hash, accepted_at')
+              .eq('user_id', user.id)
+              .order('accepted_at', { ascending: false })
+              .limit(1)
+              .maybeSingle(),
+        termsPrimary.data
+          ? Promise.resolve({ data: termsPrimary.data })
+          : admin
+              .from('terms_documents')
+              .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
+              .eq('is_active', true)
+              .order('effective_from', { ascending: false })
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle(),
+      ])
 
-  const authoritativeActiveTermsRow = termsPrimary.data ?? (await admin
-    .from('terms_documents')
-    .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
-    .eq('is_active', true)
-    .order('effective_from', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()).data
+      return [
+        historicalFallback.data,
+        paidInvoiceFallback.data,
+        termsAcceptanceFallback.data,
+        activeTermsFallback.data,
+      ]
+    },
+    (result) => ({
+      rowCount: result.filter(Boolean).length,
+    }),
+  )
   const activeTerms = normalizeActiveCheckoutTerms((authoritativeActiveTermsRow as Record<string, unknown> | null) ?? null)
   const termsAccepted = hasAcceptedCurrentTerms(
     activeTerms ? { id: activeTerms.id, version: activeTerms.version, content_hash: activeTerms.content_hash } : null,
@@ -496,7 +577,7 @@ export default async function DashboardPage({
     } | null),
   )
 
-  bookingReadiness = perf.timeSync('customer_dashboard_page', 'dashboard_summary_preparation', () => evaluateBookingReadinessDecision({
+  bookingReadiness = perf.timeSync('customer_dashboard_page', 'customer_dashboard_summary_preparation', () => evaluateBookingReadinessDecision({
     clearanceStatus,
     hasHistoricalClearance: Boolean(authoritativeHistorical?.id),
     hasPaidCheckoutInvoice: Boolean(authoritativePaidInvoice?.id),
@@ -537,42 +618,11 @@ export default async function DashboardPage({
     activeBooking,
   })
 
-  const { data: blockTimePackageRows } = await perf.time(
-    'customer_dashboard_page',
-    'block_time_package_lookup',
-    () => supabase
-      .from('block_time_packages')
-      .select('id, name, hours, rate_per_hour, total_price, validity_days, is_active, display_order, created_at, updated_at')
-      .eq('is_active', true)
-      .order('display_order', { ascending: true }),
-    (result) => ({ rowCount: result.data?.length ?? 0 }),
-  )
-
-  const { data: blockTimePurchaseRows } = await perf.time(
-    'customer_dashboard_page',
-    'block_time_purchase_summary_lookup',
-    () => supabase
-      .from('pilot_block_time_purchases')
-      .select(`
-      id,
-      status,
-      hours_purchased,
-      hours_remaining,
-      expires_at,
-      purchased_at,
-      activated_at,
-      package:block_time_packages (
-        name,
-        hours,
-        rate_per_hour,
-        validity_days
-      )
-    `)
-      .eq('user_id', user.id)
-      .order('purchased_at', { ascending: false })
-      .limit(10),
-    (result) => ({ rowCount: result.data?.length ?? 0 }),
-  )
+  const [
+    { data: blockTimePackageRows },
+    { data: blockTimePurchaseRows },
+    { data: recentBlockTimeInvoice },
+  ] = await blockTimePromise
 
   const selectedBlockTimePackage = ((blockTimePackageRows ?? []) as BlockTimePackageRow[]).find(
     (pkg) => slugifyPackageName(pkg.name) === selectedBlockTimePackageSlug,
@@ -622,23 +672,8 @@ export default async function DashboardPage({
       }
     : null
 
-  let newlyPurchasedInvoicePdfUrl: string | null = null
-  if (searchParams?.block_time_purchase === 'success') {
-    const { data: recentInvoice } = await perf.time(
-      'customer_dashboard_page',
-      'recent_block_time_invoice_lookup',
-      () => supabase
-        .from('invoices')
-        .select('pdf_url')
-        .eq('user_id', user.id)
-        .eq('type', 'block_time_purchase')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      (result) => ({ rowCount: result.data ? 1 : 0 }),
-    )
-    newlyPurchasedInvoicePdfUrl = recentInvoice?.pdf_url ?? null
-  }
+  const newlyPurchasedInvoicePdfUrl = recentBlockTimeInvoice?.pdf_url ?? null
+  await loginTrackingPromise
   markTotal()
 
   return (
