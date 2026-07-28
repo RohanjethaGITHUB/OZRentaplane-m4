@@ -290,15 +290,8 @@ export default async function AdminActionsPage({
   const [
     { data: overageInvoiceRows },
     { data: customerDocumentRows },
-    { count: newCheckoutRequests },
-    { count: awaitingCheckoutOutcome },
-    { count: checkoutPaymentsRequired },
     { count: manualCheckoutPaymentsReview },
     { count: checkoutIssues },
-    { count: checkoutReschedulePending },
-    { data: checkoutCancelRequestRows },
-    { data: checkoutLifecycleCancelledRows },
-    { count: postFlightReviewRequired },
     { data: checkoutRequestedRows },
     { data: checkoutPaymentRows },
     { data: checkoutReviewRows },
@@ -308,12 +301,8 @@ export default async function AdminActionsPage({
     { data: standardPostFlightRows },
     { data: standardPaymentRows },
     { data: bookingCancellationRows },
-    { data: awaitingFlightRecordRows },
-    { count: bookingPaymentsRequired },
-    { count: manualBookingPaymentsReview },
-    { count: cancellationRequests },
-  ] = await perf.time('admin_home', 'main_parallel_query_group', () => Promise.all([
-    safeQuery('block time overage invoices', supabase.from('invoices').select('id, invoice_number, total, created_at, user_id, booking_id, bookings ( booking_reference, booking_owner_user_id, booking_type, pic_name, aircraft ( id, registration ) )').eq('is_block_time_overage', true).eq('status', 'awaiting')),
+  ] = await perf.time('admin_home', 'primary_query_group', () => Promise.all([
+    safeQuery('block time overage invoices', supabase.from('invoices').select('id, invoice_number, created_at, user_id, bookings ( booking_type, pic_name, aircraft ( id, registration ) )').eq('is_block_time_overage', true).eq('status', 'awaiting')),
     safeQuery(
       'customer document rows',
       supabase
@@ -323,15 +312,8 @@ export default async function AdminActionsPage({
         .in('status', ['uploaded', 'approved', 'rejected'])
         .order('uploaded_at', { ascending: false }),
     ),
-    safeQuery('new checkout request count', supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_requested')),
-    safeQuery('checkout outcome count', supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_completed_under_review')),
-    safeQuery('checkout payment count', supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_payment_required')),
-    safeQuery('checkout manual review count', supabase.from('checkout_bank_transfer_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending_review')),
-    safeQuery('checkout issue count', supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer').in('pilot_clearance_status', ['additional_checkout_required', 'checkout_reschedule_required', 'not_currently_eligible'])),
-    safeQuery('checkout reschedule count', supabase.from('checkout_change_requests').select('*', { count: 'exact', head: true }).eq('request_type', 'reschedule').eq('status', 'pending')),
-    safeQuery('checkout cancel requests', supabase.from('checkout_change_requests').select('checkout_request_id, created_at').eq('request_type', 'cancel')),
-    safeQuery('cancelled checkout lifecycles', supabase.from('bookings').select('id').eq('booking_type', 'checkout').in('checkout_lifecycle_status', ['cancelled_by_customer', 'cancelled_by_admin'])),
-    safeQuery('post-flight review count', supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'pending_post_flight_review')),
+    safeQuery('checkout manual review count', supabase.from('checkout_bank_transfer_submissions').select('id', { count: 'exact', head: true }).eq('status', 'pending_review')),
+    safeQuery('checkout issue count', supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'customer').in('pilot_clearance_status', ['additional_checkout_required', 'checkout_reschedule_required', 'not_currently_eligible'])),
     safeQuery('checkout requested rows', supabase
       .from('bookings')
       .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
@@ -385,22 +367,12 @@ export default async function AdminActionsPage({
       .select('id, booking_id, customer_message, created_at, bookings ( id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration ) )')
       .eq('status', 'pending')
       .order('created_at', { ascending: true })),
-    safeQuery('flight record status rows', supabase
-      .from('bookings')
-      .select('id, status, scheduled_end, flight_records(status, submitted_at), booking_owner_user_id, booking_reference, aircraft ( id, registration ), pic_name')
-      .eq('booking_type', 'standard')
-      .in('status', ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record', 'flight_record_overdue'])
-      .lte('scheduled_end', nowIso)
-      .order('scheduled_end', { ascending: true })),
-    safeQuery('booking payment count', supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'payment_pending')),
-    safeQuery('booking manual review count', supabase.from('booking_bank_transfer_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending_review')),
-    safeQuery('booking cancellation count', supabase.from('booking_cancellation_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending')),
   ]))
 
   // bookings.booking_owner_user_id references auth.users, so profiles cannot be
   // embedded in the queries above — resolve customer names with one batched lookup.
   const ownerUserIds = new Set<string>()
-  for (const rows of [checkoutRequestedRows, checkoutPaymentRows, checkoutReviewRows, standardAwaitingFlightRows, standardPostFlightRows, standardPaymentRows, awaitingFlightRecordRows]) {
+  for (const rows of [checkoutRequestedRows, checkoutPaymentRows, checkoutReviewRows, standardAwaitingFlightRows, standardPostFlightRows, standardPaymentRows]) {
     for (const row of rows ?? []) {
       const ownerId = (row as { booking_owner_user_id?: string | null }).booking_owner_user_id
       if (ownerId) ownerUserIds.add(ownerId)
@@ -427,21 +399,6 @@ export default async function AdminActionsPage({
     }
   }
 
-  const { data: ownerProfiles } = await perf.time(
-    'admin_home',
-    'sequential_owner_profile_group',
-    () => ownerUserIds.size
-      ? safeQuery(
-          'owner profiles',
-          supabase.from('profiles').select('id, first_name, last_name, full_name, email').in('id', Array.from(ownerUserIds)),
-        )
-      : Promise.resolve({ data: [] as Array<ProfileRow & { id: string }> }),
-    (result) => ({ rowCount: result.data?.length ?? 0 }),
-  )
-  const profilesById = new Map((ownerProfiles ?? []).map((p: any) => [p.id as string, p as ProfileRow]))
-  const profileFor = (userId: string | null | undefined): ProfileRow | null =>
-    userId ? profilesById.get(userId) ?? null : null
-
   const pendingDocumentsByUser = new Map<string, UserDocumentRow[]>()
   for (const doc of Array.from(latestDocumentByUserType.values())) {
     if (doc.status !== 'uploaded') continue
@@ -451,34 +408,72 @@ export default async function AdminActionsPage({
   }
 
   const documentReviewUserIds = Array.from(pendingDocumentsByUser.keys())
+  const standardPaymentBookingIds = Array.from(new Set((standardPaymentRows ?? []).map((row) => (row as BookingRow).id)))
 
-  const { data: documentReviewBookingRows } = await perf.time(
+  const [
+    { data: ownerProfiles },
+    { data: documentReviewBookingRows },
+    { data: bookingInvoiceRows },
+    { data: bookingBankTransferSubmissionRows },
+  ] = await perf.time(
     'admin_home',
-    'sequential_document_review_booking_group',
-    () => documentReviewUserIds.length
-      ? safeQuery(
-          'document review booking rows',
-          supabase
-            .from('bookings')
-            .select('id, booking_owner_user_id, booking_type, status, scheduled_start, created_at, updated_at')
-            .in('booking_owner_user_id', documentReviewUserIds)
-            .in('status', [
-              'on_hold_pending_documents',
-              'checkout_requested',
-              'checkout_confirmed',
-              'checkout_completed_under_review',
-              'checkout_payment_required',
-              'confirmed',
-              'ready_for_dispatch',
-              'dispatched',
-              'awaiting_flight_record',
-              'flight_record_overdue',
-            ])
-            .order('scheduled_start', { ascending: true }),
-        )
-      : Promise.resolve({ data: [] as BookingRow[] }),
-    (result) => ({ rowCount: result.data?.length ?? 0 }),
+    'followup_parallel_group',
+    () => Promise.all([
+      ownerUserIds.size
+        ? safeQuery(
+            'owner profiles',
+            supabase.from('profiles').select('id, first_name, last_name, full_name, email').in('id', Array.from(ownerUserIds)),
+          )
+        : Promise.resolve({ data: [] as Array<ProfileRow & { id: string }> }),
+      documentReviewUserIds.length
+        ? safeQuery(
+            'document review booking rows',
+            supabase
+              .from('bookings')
+              .select('id, booking_owner_user_id, booking_type, status, scheduled_start, created_at, updated_at')
+              .in('booking_owner_user_id', documentReviewUserIds)
+              .in('status', [
+                'on_hold_pending_documents',
+                'checkout_requested',
+                'checkout_confirmed',
+                'checkout_completed_under_review',
+                'checkout_payment_required',
+                'confirmed',
+                'ready_for_dispatch',
+                'dispatched',
+                'awaiting_flight_record',
+                'flight_record_overdue',
+              ])
+              .order('scheduled_start', { ascending: true }),
+          )
+        : Promise.resolve({ data: [] as BookingRow[] }),
+      standardPaymentBookingIds.length
+        ? safeQuery(
+            'booking invoice rows',
+            supabase
+              .from('booking_invoices')
+              .select('id, booking_id, status, payment_method, stripe_amount_due_cents, total_paid_cents, paid_at, created_at, updated_at')
+              .in('booking_id', standardPaymentBookingIds),
+          )
+        : Promise.resolve({ data: [] as BookingInvoiceRow[] }),
+      standardPaymentBookingIds.length
+        ? safeQuery(
+            'booking bank transfer submission rows',
+            supabase
+              .from('booking_bank_transfer_submissions')
+              .select('id, invoice_id, booking_id, reference, receipt_storage_path, status, admin_note, submitted_at, reviewed_at, created_at, updated_at')
+              .in('booking_id', standardPaymentBookingIds)
+              .order('submitted_at', { ascending: false }),
+          )
+        : Promise.resolve({ data: [] as BookingBankTransferSubmissionRow[] }),
+    ]),
+    (result) => ({
+      rowCount: result.reduce((sum, source) => sum + (source.data?.length ?? 0), 0),
+    }),
   )
+  const profilesById = new Map((ownerProfiles ?? []).map((p: any) => [p.id as string, p as ProfileRow]))
+  const profileFor = (userId: string | null | undefined): ProfileRow | null =>
+    userId ? profilesById.get(userId) ?? null : null
 
   const documentReviewBookingsByUser = new Map<string, BookingRow[]>()
   for (const row of documentReviewBookingRows ?? []) {
@@ -489,21 +484,6 @@ export default async function AdminActionsPage({
     documentReviewBookingsByUser.set(booking.booking_owner_user_id, list)
   }
 
-  const standardPaymentBookingIds = Array.from(new Set((standardPaymentRows ?? []).map((row) => (row as BookingRow).id)))
-  const { data: bookingInvoiceRows } = await perf.time(
-    'admin_home',
-    'sequential_booking_invoice_group',
-    () => standardPaymentBookingIds.length
-      ? safeQuery(
-          'booking invoice rows',
-          supabase
-            .from('booking_invoices')
-            .select('id, booking_id, status, payment_method, stripe_amount_due_cents, total_paid_cents, paid_at, created_at, updated_at')
-            .in('booking_id', standardPaymentBookingIds),
-        )
-      : Promise.resolve({ data: [] as BookingInvoiceRow[] }),
-    (result) => ({ rowCount: result.data?.length ?? 0 }),
-  )
   const bookingInvoicesByBookingId = new Map<string, BookingInvoiceRow>()
   for (const row of bookingInvoiceRows ?? []) {
     const invoice = row as BookingInvoiceRow
@@ -514,24 +494,11 @@ export default async function AdminActionsPage({
   }
 
   const standardPaymentInvoiceIds = Array.from(bookingInvoicesByBookingId.values()).map((invoice) => invoice.id)
-  const { data: bookingBankTransferSubmissionRows } = await perf.time(
-    'admin_home',
-    'sequential_booking_bank_transfer_group',
-    () => standardPaymentInvoiceIds.length
-      ? safeQuery(
-          'booking bank transfer submission rows',
-          supabase
-            .from('booking_bank_transfer_submissions')
-            .select('id, invoice_id, booking_id, reference, receipt_storage_path, status, admin_note, submitted_at, reviewed_at, created_at, updated_at')
-            .in('invoice_id', standardPaymentInvoiceIds)
-            .order('submitted_at', { ascending: false }),
-        )
-      : Promise.resolve({ data: [] as BookingBankTransferSubmissionRow[] }),
-    (result) => ({ rowCount: result.data?.length ?? 0 }),
-  )
+  const standardPaymentInvoiceIdSet = new Set(standardPaymentInvoiceIds)
   const bookingBankTransferSubmissionsByBookingId = new Map<string, BookingBankTransferSubmissionRow[]>()
   for (const row of bookingBankTransferSubmissionRows ?? []) {
     const submission = row as BookingBankTransferSubmissionRow
+    if (!standardPaymentInvoiceIdSet.has(submission.invoice_id)) continue
     const list = bookingBankTransferSubmissionsByBookingId.get(submission.booking_id) ?? []
     list.push(submission)
     bookingBankTransferSubmissionsByBookingId.set(submission.booking_id, list)
@@ -540,14 +507,8 @@ export default async function AdminActionsPage({
   const awaitingFlightRecords = perf.timeSync(
     'admin_home',
     'dashboard_metric_preparation',
-    () => countAwaitingFlightRecords(awaitingFlightRecordRows),
+    () => countAwaitingFlightRecords(standardAwaitingFlightRows),
   )
-
-  const cancelledCheckoutIds = new Set<string>([
-    ...(checkoutCancelRequestRows ?? []).map((row) => row.checkout_request_id),
-    ...(checkoutLifecycleCancelledRows ?? []).map((row) => row.id),
-  ])
-  const checkoutCancellationCount = cancelledCheckoutIds.size
 
   const checkoutCancelPendingRows = (checkoutCancelRows ?? [])
     .map((row) => {
@@ -933,7 +894,7 @@ export default async function AdminActionsPage({
     if (aHint !== bHint) return aHint - bHint
     return a.key.localeCompare(b.key)
   })
-  perf.timeSync('admin_home', 'queue_action_feed_preparation', () => sortedActionRows.length, {
+  perf.timeSync('admin_home', 'action_feed_preparation', () => sortedActionRows.length, {
     rowCount: sortedActionRows.length,
   })
   markTotal({ rowCount: sortedActionRows.length })
