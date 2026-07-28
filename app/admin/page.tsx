@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { unstable_noStore as noStore } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getCachedProfile, getCachedUser } from '@/lib/supabase/server'
 import { countAwaitingFlightRecords } from '@/lib/booking/flight-record-status'
 import { ActionQueueSection } from './ActionQueueSection'
 import { createPerfLogger } from '@/lib/perf/timing'
@@ -275,13 +275,13 @@ export default async function AdminActionsPage({
 
   const {
     data: { user },
-  } = await perf.time('admin_home', 'identity_preparation', () => supabase.auth.getUser())
+  } = await perf.time('admin_home', 'identity_preparation', () => getCachedUser())
   if (!user) redirect('/login')
 
   const { data: profile } = await perf.time(
     'admin_home',
     'profile_preparation',
-    () => supabase.from('profiles').select('role').eq('id', user.id).single(),
+    () => getCachedProfile(user.id, 'admin'),
     (result) => ({ rowCount: result.data ? 1 : 0 }),
   )
   if (profile?.role !== 'admin') redirect('/dashboard')

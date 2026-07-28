@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getCachedProfile, getCachedUser } from '@/lib/supabase/server'
 import AdminSidebar from './AdminSidebar'
 import { countAwaitingFlightRecords } from '@/lib/booking/flight-record-status'
 import { createPerfLogger } from '@/lib/perf/timing'
@@ -28,18 +28,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const { data: { user } } = await perf.time(
     'admin_layout',
     'authenticated_user_lookup',
-    () => supabase.auth.getUser(),
+    () => getCachedUser(),
   )
   if (!user) redirect('/login')
 
   const { data: profile } = await perf.time(
     'admin_layout',
     'profile_role_lookup',
-    () => supabase
-      .from('profiles')
-      .select('role, full_name')
-      .eq('id', user.id)
-      .single(),
+    () => getCachedProfile(user.id, 'admin'),
     (result) => ({ rowCount: result.data ? 1 : 0 }),
   )
 

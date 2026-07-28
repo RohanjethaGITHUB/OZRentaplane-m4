@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getCachedProfile, getCachedUser } from '@/lib/supabase/server'
 import AtmoClouds from '@/components/AtmoClouds'
 import CustomerPortalNav from '@/components/customer/CustomerPortalNav'
 import CustomerDashboardBackgroundOverlay from './CustomerDashboardBackgroundOverlay'
@@ -12,29 +12,23 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
   const { data: { user } } = await perf.time(
     'customer_dashboard_layout',
     'authenticated_user_lookup',
-    () => supabase.auth.getUser(),
+    () => getCachedUser(),
   )
   if (!user) redirect('/login')
 
-  const { data: profile } = await perf.time(
+  const [{ data: profile }, { count: blockTimePurchaseCount }] = await perf.time(
     'customer_dashboard_layout',
-    'profile_lookup',
-    () => supabase
-      .from('profiles')
-      .select('role, pilot_clearance_status, must_change_password, first_name')
-      .eq('id', user.id)
-      .single(),
-    (result) => ({ rowCount: result.data ? 1 : 0 }),
-  )
-
-  const { count: blockTimePurchaseCount } = await perf.time(
-    'customer_dashboard_layout',
-    'block_time_summary_lookup',
-    () => supabase
-      .from('pilot_block_time_purchases')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id),
-    (result) => ({ rowCount: result.count ?? null }),
+    'profile_block_time_parallel_group',
+    () => Promise.all([
+      getCachedProfile(user.id, 'dashboard'),
+      supabase
+        .from('pilot_block_time_purchases')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id),
+    ]),
+    (result) => ({
+      rowCount: (result[0].data ? 1 : 0) + (result[1].count ?? 0),
+    }),
   )
 
   if (profile?.role === 'admin') redirect('/admin')

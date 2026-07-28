@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getCachedProfile, getCachedUser } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createBlockTimePurchaseIntent } from '@/app/actions/payment'
 import DashboardContent from './DashboardContent'
@@ -94,18 +94,14 @@ export default async function DashboardPage({
   const { data: { user } } = await perf.time(
     'customer_dashboard_page',
     'identity_preparation',
-    () => supabase.auth.getUser(),
+    () => getCachedUser(),
   )
   if (!user) redirect('/login')
 
   const { data: profile } = await perf.time(
     'customer_dashboard_page',
     'profile_preparation',
-    () => supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single(),
+    () => getCachedProfile(user.id, 'dashboard'),
     (result) => ({ rowCount: result.data ? 1 : 0 }),
   )
 
