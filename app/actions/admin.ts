@@ -8,6 +8,14 @@ import {
   buildRejectedEmail,
   buildOnHoldEmail,
 } from '@/lib/email'
+import {
+  emitVerificationUpdated,
+  emitChatMessage,
+  emitChatRead,
+  emitOpsChanged,
+  emitLedgerUpdated,
+  emitClearanceUpdated,
+} from '@/lib/realtime/emit'
 import type { ThreadSummary, VerificationEvent, ActorRole, RequestKind } from '@/lib/supabase/types'
 
 // ─── Admin guard ──────────────────────────────────────────────────────────────
@@ -104,6 +112,9 @@ export async function approveCustomer(customerId: string, reviewNotes: string) {
   revalidatePath('/admin/customers/all')
   revalidatePath(`/admin/users/${customerId}`)
   revalidatePath('/dashboard')
+
+  void emitVerificationUpdated(customerId)
+  void emitOpsChanged()
 }
 
 // ─── Reject customer ──────────────────────────────────────────────────────────
@@ -179,6 +190,9 @@ export async function rejectCustomer(customerId: string, reviewNotes: string) {
   revalidatePath('/admin/customers/all')
   revalidatePath(`/admin/users/${customerId}`)
   revalidatePath('/dashboard')
+
+  void emitVerificationUpdated(customerId)
+  void emitOpsChanged()
 }
 
 // ─── Place customer on hold ───────────────────────────────────────────────────
@@ -269,6 +283,10 @@ export async function placeCustomerOnHold(
     revalidatePath('/admin/customers/all')
     revalidatePath(`/admin/users/${customerId}`)
     revalidatePath('/dashboard')
+
+    void emitVerificationUpdated(customerId)
+    void emitOpsChanged()
+
     return {
       warning: 'Status updated to On Hold, but the customer message could not be saved. Check server logs and verify verification_events RLS policies.',
     }
@@ -309,6 +327,10 @@ export async function placeCustomerOnHold(
   revalidatePath('/admin/customers/all')
   revalidatePath(`/admin/users/${customerId}`)
   revalidatePath('/dashboard')
+
+  void emitVerificationUpdated(customerId)
+  void emitChatMessage(customerId, event.id)
+  void emitOpsChanged()
 
   return {}
 }
@@ -363,6 +385,9 @@ export async function sendAdminChatMessage(
   revalidatePath(`/admin/users/${customerId}`)
   revalidatePath('/admin/messages')
   revalidatePath('/dashboard')
+
+  void emitChatMessage(customerId)
+  void emitOpsChanged()
 }
 
 // ─── Mark admin chat messages as read ────────────────────────────────────────
@@ -380,6 +405,8 @@ export async function markAdminChatRead(customerId: string): Promise<void> {
     .eq('actor_role', 'customer')
     .is('admin_read_at', null)
   // Non-throwing — read-marking failure is not critical
+
+  void emitChatRead(customerId)
 }
 
 // ─── Admin inbox: thread list ─────────────────────────────────────────────────
@@ -541,6 +568,8 @@ export async function updateCustomerPilotArn(customerId: string, pilotArn: strin
   revalidatePath(`/admin/users/${customerId}`)
   revalidatePath('/admin/customers/all')
   revalidatePath('/admin')
+
+  void emitVerificationUpdated(customerId)
 }
 
 export async function updateDocumentExpiryDate(documentId: string, customerId: string, expiryDate: string | null): Promise<void> {
@@ -569,6 +598,8 @@ export async function updateDocumentExpiryDate(documentId: string, customerId: s
   })
 
   revalidatePath(`/admin/users/${customerId}`)
+
+  void emitVerificationUpdated(customerId)
 }
 
 // ─── Customer Credits ──────────────────────────────────────────────────────────
@@ -642,6 +673,8 @@ export async function recordAdvancePayment(
 
   revalidatePath(`/admin/customers/ledger`)
   revalidatePath(`/admin/users/${customerId}`)
+
+  void emitLedgerUpdated(customerId)
 }
 
 export async function reverseCreditEntry(ledgerId: string, reason: string): Promise<void> {
@@ -650,6 +683,12 @@ export async function reverseCreditEntry(ledgerId: string, reason: string): Prom
   if (!reason || reason.trim() === '') {
     throw new Error('VALIDATION: Reason is required for reversal.')
   }
+
+  const { data: ledgerEntry } = await supabase
+    .from('customer_payment_ledger')
+    .select('customer_id')
+    .eq('id', ledgerId)
+    .single()
 
   const { error } = await supabase.rpc('reverse_customer_credit_atomic', {
     p_ledger_id: ledgerId,
@@ -662,6 +701,10 @@ export async function reverseCreditEntry(ledgerId: string, reason: string): Prom
   }
 
   revalidatePath(`/admin/customers/ledger`)
+
+  if (ledgerEntry?.customer_id) {
+    void emitLedgerUpdated(ledgerEntry.customer_id)
+  }
 }
 
 export async function recordRefund(
@@ -693,6 +736,8 @@ export async function recordRefund(
 
   revalidatePath(`/admin/customers/ledger`)
   revalidatePath(`/admin/users/${customerId}`)
+
+  void emitLedgerUpdated(customerId)
 }
 
 // ─── Update account status ────────────────────────────────────────────────────
@@ -764,6 +809,12 @@ export async function updateAccountStatus(
   revalidatePath(`/admin/users/${customerId}`)
   revalidatePath('/admin')
   revalidatePath('/dashboard')
+
+  void emitVerificationUpdated(customerId)
+  void emitOpsChanged()
+  if (status === 'blocked') {
+    void emitClearanceUpdated(customerId)
+  }
 }
 
 // ─── Update pilot clearance status ───────────────────────────────────────────
@@ -849,4 +900,7 @@ export async function updatePilotClearanceStatus(
   revalidatePath('/admin/customers/all')
   revalidatePath(`/admin/users/${customerId}`)
   revalidatePath('/dashboard')
+
+  void emitClearanceUpdated(customerId)
+  void emitOpsChanged()
 }

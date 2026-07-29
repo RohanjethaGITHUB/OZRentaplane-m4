@@ -20,6 +20,7 @@ import CustomerBookingActions from './CustomerBookingActions'
 import CheckoutChangeActions from '@/app/dashboard/checkout/CheckoutChangeActions'
 import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
 import { getStandardBookingPaymentDisplayState } from '@/lib/booking/standard-booking-payment-state'
+import { BookingRealtimeListener } from '@/components/realtime/BookingRealtimeListener'
 
 export const metadata = { title: 'Booking Details | Pilot Dashboard' }
 
@@ -1296,6 +1297,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
     return (
       <CustomerBookingShell user={user as User} profile={profile as Profile | null}>
+        <BookingRealtimeListener bookingId={booking.id} />
         <div className="w-full">
 
           {/* Hero — full bleed, starts immediately after the Pilot Portal subnav */}
@@ -1468,6 +1470,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
   return (
     <CustomerBookingShell user={user as User} profile={profile as Profile | null}>
+      <BookingRealtimeListener bookingId={booking.id} />
       <div className="w-full pb-16 pt-0">
 
         <PortalPageHero

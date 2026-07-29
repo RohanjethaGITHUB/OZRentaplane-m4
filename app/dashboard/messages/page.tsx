@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import CustomerChatPanel from '@/app/dashboard/CustomerChatPanel'
 import PortalPageHero from '@/components/PortalPageHero'
+import { ThreadRealtimeListener } from '@/components/realtime/ThreadRealtimeListener'
 import type { VerificationEvent } from '@/lib/supabase/types'
 
 export const metadata = { title: 'Messages | OZRentAPlane' }
@@ -36,6 +37,7 @@ export default async function CustomerMessagesPage() {
 
   return (
     <>
+      <ThreadRealtimeListener threadUserId={user.id} />
       <PortalPageHero
         eyebrow="Member Support"
         title="Messages"
@@ -68,6 +70,7 @@ export default async function CustomerMessagesPage() {
           <CustomerChatPanel
             events={chatEvents}
             displayName={displayName}
+            threadUserId={user.id}
           />
         )}
 

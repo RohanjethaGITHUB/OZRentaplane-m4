@@ -27,6 +27,11 @@ import {
 } from '@/lib/booking/notifications'
 import { enqueueBookingConfirmedEmails } from '@/lib/email/outbox'
 import { createPerfLogger } from '@/lib/perf/timing'
+import {
+  emitBookingChanged,
+  emitOpsChanged,
+  emitFlightRecordUpdated,
+} from '@/lib/realtime/emit'
 import type {
   CreateBookingInput,
   SubmitFlightRecordInput,
@@ -324,6 +329,9 @@ export async function createBooking(
     revalidatePath('/admin')
   })
 
+  void emitBookingChanged({ bookingId: result.booking_id, userId })
+  void emitOpsChanged()
+
   perf.timeSync('create_booking', 'create_booking_response_ready', () => null)
   markTotal()
   return { bookingId: result.booking_id, bookingReference: result.booking_reference, bookingStatus: result.status }
@@ -384,6 +392,9 @@ export async function markFlightReturned(bookingId: string): Promise<void> {
 
   revalidatePath(`/dashboard/bookings/${bookingId}`)
   revalidatePath('/dashboard/bookings')
+
+  void emitBookingChanged({ bookingId, userId })
+  void emitOpsChanged()
 }
 
 // ─── Submit flight record ─────────────────────────────────────────────────────
@@ -495,6 +506,9 @@ export async function submitClarificationResponse(
 
   revalidatePath('/dashboard')
   revalidatePath('/admin')
+
+  void emitBookingChanged({ bookingId, userId })
+  void emitOpsChanged()
 }
 
 // ─── Resubmit flight record ───────────────────────────────────────────────────
@@ -679,6 +693,9 @@ export async function resubmitFlightRecord(
   revalidatePath('/dashboard')
   revalidatePath(`/dashboard/bookings/${input.booking_id}`)
   revalidatePath('/admin/bookings/post-flight')
+
+  void emitFlightRecordUpdated({ bookingId: input.booking_id, userId })
+  void emitOpsChanged()
 }
 
 // ─── Upload flight record evidence ────────────────────────────────────────────
@@ -790,6 +807,8 @@ export async function uploadFlightRecordEvidence(
 
   revalidatePath(`/dashboard/bookings/${bookingId}`)
   revalidatePath(`/admin/bookings/post-flight/${flightRecordId}`)
+
+  void emitFlightRecordUpdated({ bookingId, userId })
 
   return { storagePath, attachmentId: attachment.id }
 }
@@ -920,6 +939,9 @@ export async function cancelBookingNow(bookingId: string): Promise<void> {
   revalidatePath('/dashboard')
   revalidatePath('/admin')
   revalidatePath('/admin/bookings/cancellations')
+
+  void emitBookingChanged({ bookingId, userId })
+  void emitOpsChanged()
 }
 
 /**
@@ -1027,4 +1049,7 @@ export async function requestLateCancellation(
   revalidatePath('/dashboard')
   revalidatePath('/admin')
   revalidatePath('/admin/bookings/cancellations')
+
+  void emitBookingChanged({ bookingId, userId })
+  void emitOpsChanged()
 }

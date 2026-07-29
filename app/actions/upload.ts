@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import type { DocumentType } from '@/lib/supabase/types'
+import { emitVerificationUpdated, emitOpsChanged } from '@/lib/realtime/emit'
 
 const MAX_SIZE      = 10 * 1024 * 1024
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
@@ -193,6 +194,9 @@ export async function uploadVerificationDocument(formData: FormData) {
     }
   }
 
+  void emitVerificationUpdated(user.id)
+  void emitOpsChanged()
+
   return { success: true }
 }
 
@@ -259,6 +263,8 @@ export async function replaceVerificationDocument(
     .eq('id', existingDoc.id)
 
   if (resetErr) throw new Error('Failed to reset document status.')
+
+  void emitVerificationUpdated(user.id)
 
   return { success: true }
 }

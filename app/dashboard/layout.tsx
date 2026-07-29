@@ -3,6 +3,8 @@ import { createClient, getCachedProfile, getCachedUser } from '@/lib/supabase/se
 import AtmoClouds from '@/components/AtmoClouds'
 import CustomerPortalNav from '@/components/customer/CustomerPortalNav'
 import CustomerDashboardBackgroundOverlay from './CustomerDashboardBackgroundOverlay'
+import { RealtimeProvider } from '@/components/realtime/RealtimeProvider'
+import { DashboardRealtimeListener } from '@/components/realtime/DashboardRealtimeListener'
 import { createPerfLogger } from '@/lib/perf/timing'
 
 export default async function CustomerPortalLayout({ children }: { children: React.ReactNode }) {
@@ -37,7 +39,8 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
   markTotal()
 
   return (
-    <>
+    <RealtimeProvider>
+      <DashboardRealtimeListener />
       <CustomerPortalNav
         firstName={firstName}
         email={email}
@@ -71,6 +74,6 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
           </div>
         </main>
       </div>
-    </>
+    </RealtimeProvider>
   )
 }

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { sendCustomerReply, markCustomerMessagesRead } from '@/app/actions/verification'
 import type { VerificationEvent } from '@/lib/supabase/types'
 import { formatDateTime } from '@/lib/formatDateTime'
+import { ThreadRealtimeListener } from '@/components/realtime/ThreadRealtimeListener'
 
 function isChatEvent(ev: VerificationEvent): boolean {
   if (ev.event_type === 'message' && ev.title === 'Message from Admin') return true
@@ -17,9 +18,10 @@ function isChatEvent(ev: VerificationEvent): boolean {
 interface Props {
   events:      VerificationEvent[]
   displayName: string
+  threadUserId: string
 }
 
-export default function CustomerChatPanel({ events, displayName }: Props) {
+export default function CustomerChatPanel({ events, displayName, threadUserId }: Props) {
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
@@ -67,6 +69,7 @@ export default function CustomerChatPanel({ events, displayName }: Props) {
 
   return (
     <div className="space-y-5">
+      <ThreadRealtimeListener threadUserId={threadUserId} />
 
       {/* ── Conversation thread ──────────────────────────────────── */}
       {chatEvents.length === 0 ? (

@@ -10,6 +10,7 @@ import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
 
 export const metadata = { title: 'My Bookings | OZRentAPlane' }
+export const dynamic = 'force-dynamic'
 
 // ── Status config ─────────────────────────────────────────────────────────────
 

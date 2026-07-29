@@ -7,6 +7,7 @@ import AdminCalendarClient from './AdminCalendarClient'
 import { mapScheduleBlockToAdminCalendarEvent } from './calendar-event-mapper'
 import { getCurrentSydneyDateKey, getRangeForView, isValidSydneyDateKey } from './calendar-range'
 import type { AdminCalendarAircraftOption, AdminCalendarView } from './calendar-types'
+import { CalendarRealtimeListener } from '@/components/realtime/CalendarRealtimeListener'
 
 export const metadata = { title: 'Calendar | Admin' }
 export const dynamic = 'force-dynamic'
@@ -161,6 +162,7 @@ export default async function AdminCalendarPage({ searchParams }: { searchParams
 
   return (
     <>
+      <CalendarRealtimeListener />
       <div className="pt-[calc(4.5rem+env(safe-area-inset-top))] sm:pt-0">
         <AdminPortalHero
           eyebrow="Calendar"

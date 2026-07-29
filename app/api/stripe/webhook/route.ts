@@ -6,6 +6,13 @@ import { paymentConfirmedEmail } from "@/lib/email/templates/payment";
 import { generateInvoicePdf } from "@/lib/invoices/pdf";
 import { storeInvoicePdf } from "@/lib/invoices/pdf-storage";
 import { generateStandardBookingInvoicePdf } from "@/lib/invoices/standard-booking-pdf";
+import {
+  emitBlockTimeUpdated,
+  emitBookingChanged,
+  emitClearanceUpdated,
+  emitOpsChanged,
+  emitPaymentUpdated,
+} from "@/lib/realtime/emit";
 
 function logErr(step: string, err: any) {
   console.error(`[webhook] ${step}`, {
@@ -567,6 +574,11 @@ export async function POST(req: Request) {
           invoiceId: invoiceRecord.id,
           paymentIntentId: paymentIntent.id,
         });
+
+        void emitBlockTimeUpdated(topup.out_user_id);
+        void emitPaymentUpdated({ userId: topup.out_user_id, invoiceId: invoiceRecord.id });
+        void emitOpsChanged();
+
         return NextResponse.json({ received: true });
       } catch (err: any) {
         console.error("[webhook] block_time_topup fatal error", {
@@ -714,6 +726,18 @@ export async function POST(req: Request) {
           invoiceId,
           paymentIntentId: paymentIntent.id,
         });
+
+        void emitBlockTimeUpdated(overageInvoice.user_id);
+        void emitPaymentUpdated({
+          userId: overageInvoice.user_id,
+          bookingId: overageInvoice.booking_id ?? undefined,
+          invoiceId: overageInvoice.id,
+        });
+        if (overageInvoice.booking_id) {
+          void emitBookingChanged({ bookingId: overageInvoice.booking_id, userId: overageInvoice.user_id });
+        }
+        void emitOpsChanged();
+
         return NextResponse.json({ received: true });
       } catch (err: any) {
         console.error("[webhook] block_time_overage_payment fatal error", {
@@ -894,6 +918,10 @@ export async function POST(req: Request) {
           }
         }
 
+        void emitBlockTimeUpdated(purchase.user_id);
+        void emitPaymentUpdated({ userId: purchase.user_id, invoiceId: existingInvoice.id });
+        void emitOpsChanged();
+
         return NextResponse.json({ received: true });
       }
 
@@ -1067,6 +1095,11 @@ export async function POST(req: Request) {
         invoiceId: invoice.id,
         paymentIntentId: paymentIntent.id,
       });
+
+      void emitBlockTimeUpdated(purchase.user_id);
+      void emitPaymentUpdated({ userId: purchase.user_id, invoiceId: invoice.id });
+      void emitOpsChanged();
+
       return NextResponse.json({ received: true });
     } catch (err: any) {
       console.error("[webhook] payment_intent.succeeded fatal error", {
@@ -1220,6 +1253,11 @@ export async function POST(req: Request) {
       }
 
       console.log("[webhook] standard payment processed ✓", { invoiceId, bookingId });
+
+      void emitPaymentUpdated({ userId: customerId, bookingId, invoiceId });
+      void emitBookingChanged({ bookingId, userId: customerId });
+      void emitOpsChanged();
+
       return NextResponse.json({ received: true });
     }
 
@@ -1333,6 +1371,12 @@ export async function POST(req: Request) {
       bookingId,
       customerId,
     });
+
+    void emitPaymentUpdated({ userId: customerId, bookingId, invoiceId });
+    void emitBookingChanged({ bookingId, userId: customerId });
+    void emitClearanceUpdated(customerId);
+    void emitOpsChanged();
+
     return NextResponse.json({ received: true });
   } catch (err: any) {
     console.error("[webhook] checkout.session.completed fatal error", {

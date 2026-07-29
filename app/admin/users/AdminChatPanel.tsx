@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { sendAdminChatMessage, markAdminChatRead } from '@/app/actions/admin'
 import type { VerificationEvent } from '@/lib/supabase/types'
 import { formatDateTime } from '@/lib/formatDateTime'
+import { ThreadRealtimeListener } from '@/components/realtime/ThreadRealtimeListener'
 
 // Chat shows: 'message' events + 'on_hold' events with a body
 // (on_hold events are admin-to-customer messages that start conversation threads)
@@ -70,6 +71,7 @@ export default function AdminChatPanel({ customerId, events, customerName }: Pro
 
   return (
     <div className="space-y-5">
+      <ThreadRealtimeListener threadUserId={customerId} />
 
       {/* ── Message thread ─────────────────────────────────────────── */}
       {chatEvents.length === 0 ? (

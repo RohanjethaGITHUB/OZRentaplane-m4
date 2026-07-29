@@ -7,6 +7,12 @@ import {
   sendVerificationEmail,
   buildSubmittedEmail,
 } from '@/lib/email'
+import {
+  emitVerificationUpdated,
+  emitChatMessage,
+  emitChatRead,
+  emitOpsChanged,
+} from '@/lib/realtime/emit'
 
 type UpdateDocumentStatusInput = {
   documentId: string
@@ -187,6 +193,9 @@ export async function submitForReview(skipDocCheck = false) {
   revalidatePath('/admin/pending-verifications')
   revalidatePath('/admin/on-hold')
   revalidatePath('/admin/customers/all')
+
+  void emitVerificationUpdated(user.id)
+  void emitOpsChanged()
 }
 
 // ─── Customer chat message ────────────────────────────────────────────────────
@@ -235,6 +244,9 @@ export async function sendCustomerReply(message: string): Promise<void> {
 
   revalidatePath('/dashboard')
   revalidatePath(`/admin/users/${user.id}`)
+
+  void emitChatMessage(user.id)
+  void emitOpsChanged()
 }
 
 // ─── Mark customer messages as read ──────────────────────────────────────────
@@ -253,6 +265,8 @@ export async function markCustomerMessagesRead(): Promise<void> {
     .eq('user_id', user.id)
     .eq('is_read', false)
   // No revalidatePath needed — this is a background read-state update
+
+  void emitChatRead(user.id)
 }
 
 // ─── Save last flight review date ─────────────────────────────────────────────
@@ -333,6 +347,9 @@ export async function updateDocumentStatus(
 
     revalidateVerificationPaths(input.userId)
 
+    void emitVerificationUpdated(input.userId)
+    void emitOpsChanged()
+
     return { success: true }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unexpected error'
@@ -408,6 +425,9 @@ export async function bulkUpdateDocumentStatus(
     }
 
     revalidateVerificationPaths(input.userId)
+
+    void emitVerificationUpdated(input.userId)
+    void emitOpsChanged()
 
     return { success: true, updatedCount, skippedCount, requiredCount: requiredTypes.length }
   } catch (error) {

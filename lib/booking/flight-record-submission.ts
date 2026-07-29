@@ -19,6 +19,7 @@ import {
 } from '@/lib/aircraft-flight-log'
 import { validateTotalOnlyReadings } from '@/lib/aircraft-readings'
 import { notifyFlightRecordSubmitted } from '@/lib/booking/notifications'
+import { emitFlightRecordUpdated, emitBookingChanged, emitOpsChanged } from '@/lib/realtime/emit'
 import type {
   SubmitFlightRecordInput,
   ReviewFlag,
@@ -221,6 +222,10 @@ export async function createFlightRecordForBooking(
 
   revalidatePath('/dashboard')
   revalidatePath('/admin')
+
+  void emitFlightRecordUpdated({ bookingId: input.booking_id, userId: booking.booking_owner_user_id })
+  void emitBookingChanged({ bookingId: input.booking_id, userId: booking.booking_owner_user_id })
+  void emitOpsChanged()
 
   // Confirmation email always goes to the booking owner (the customer),
   // regardless of who submitted the record.

@@ -3,6 +3,7 @@
 import Stripe from 'stripe'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { emitBlockTimeUpdated, emitOpsChanged } from '@/lib/realtime/emit'
 
 async function requireAdmin() {
   const supabase = await createClient()
@@ -121,6 +122,9 @@ export async function refundBlockTimePurchase(purchaseId: string) {
   revalidatePath('/dashboard/purchases')
   revalidatePath('/dashboard/pricing')
   revalidatePath('/dashboard')
+
+  void emitBlockTimeUpdated(refundInfo.out_user_id)
+  void emitOpsChanged()
 
   return {
     success: true,

@@ -587,6 +587,8 @@ export function DocumentReviewCards({
     : 'bg-emerald-50 border-emerald-200 text-emerald-800'
   const summaryIcon = docCounts.pending > 0 ? 'pending_actions' : 'verified'
 
+  const allRequiredApproved = docCounts.approved === totalRequired && totalRequired > 0 && docCounts.pending === 0 && docCounts.rejected === 0
+
   async function updateStatus(doc: UserDocument | null, status: 'approved' | 'rejected' | 'uploaded') {
     if (!doc) return
     setLoadingDocId(doc.id)
@@ -608,6 +610,7 @@ export function DocumentReviewCards({
   }
 
   function openBulkConfirm(status: 'approved' | 'rejected') {
+    if (status === 'approved' && allRequiredApproved) return
     setBulkError('')
     setBulkMessage(null)
     setBulkAction(status)
@@ -696,11 +699,12 @@ export function DocumentReviewCards({
         <button
           type="button"
           onClick={() => openBulkConfirm('approved')}
-          disabled={bulkLoading}
+          disabled={bulkLoading || allRequiredApproved}
+          title={allRequiredApproved ? 'All required documents are already approved' : undefined}
           className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <span className="material-symbols-outlined text-sm">verified_user</span>
-          Approve All Documents
+          {allRequiredApproved ? 'All Documents Approved' : 'Approve All Documents'}
         </button>
         <button
           type="button"

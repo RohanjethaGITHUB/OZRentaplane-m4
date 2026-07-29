@@ -16,6 +16,13 @@ import { sendEmail } from "@/lib/email/send-email";
 import { paymentConfirmedEmail } from "@/lib/email/templates/payment";
 import { settleCheckoutInvoiceManually } from "@/lib/payments/settle-checkout-invoice";
 import { generateStandardBookingInvoicePdf } from "@/lib/invoices/standard-booking-pdf";
+import {
+  emitPaymentUpdated,
+  emitBookingChanged,
+  emitClearanceUpdated,
+  emitOpsChanged,
+  emitBlockTimeUpdated,
+} from "@/lib/realtime/emit";
 
 type ManualPaymentMethod = "cash" | "card_in_person" | "bank_transfer";
 
@@ -93,6 +100,10 @@ export async function createCheckoutPaymentSession(bookingId: string) {
   if (out_settled_by_credit) {
     revalidatePath("/dashboard");
     revalidatePath(`/dashboard/bookings/${bookingId}`);
+    void emitPaymentUpdated({ userId: user.id, bookingId, invoiceId: invoice.id });
+    void emitBookingChanged({ bookingId, userId: user.id });
+    void emitClearanceUpdated(user.id);
+    void emitOpsChanged();
     redirect(`/dashboard/bookings/${bookingId}?payment=settled_by_credit`);
   }
 
@@ -718,6 +729,10 @@ export async function submitBankTransferProof(
   }
 
   revalidatePath(`/dashboard/bookings/${bookingId}`);
+
+  void emitPaymentUpdated({ userId: user.id, bookingId, invoiceId });
+  void emitOpsChanged();
+
   return { success: true };
 }
 
@@ -803,6 +818,19 @@ export async function adminApproveBankTransfer(submissionId: string, bookingId: 
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/requests/${bookingId}`);
   revalidatePath(`/dashboard/bookings/${bookingId}`);
+
+  const approvedSub = await supabase
+    .from("checkout_bank_transfer_submissions")
+    .select("customer_id")
+    .eq("id", submissionId)
+    .single();
+  if (approvedSub.data?.customer_id) {
+    void emitPaymentUpdated({ userId: approvedSub.data.customer_id, bookingId });
+    void emitBookingChanged({ bookingId, userId: approvedSub.data.customer_id });
+    void emitClearanceUpdated(approvedSub.data.customer_id);
+  }
+  void emitOpsChanged();
+
   return { success: true };
 }
 
@@ -850,6 +878,9 @@ export async function createBookingPaymentSession(bookingId: string) {
   if (out_settled_by_credit) {
     revalidatePath("/dashboard");
     revalidatePath(`/dashboard/bookings/${bookingId}`);
+    void emitPaymentUpdated({ userId: user.id, bookingId, invoiceId: invoice.id });
+    void emitBookingChanged({ bookingId, userId: user.id });
+    void emitOpsChanged();
     redirect(`/dashboard/bookings/${bookingId}?payment=settled_by_credit`);
   }
 
@@ -987,6 +1018,10 @@ export async function submitStandardBankTransferProof(
   revalidatePath(`/dashboard/bookings/${bookingId}`);
   revalidatePath(`/admin/bookings/requests/${bookingId}`);
   revalidatePath("/admin/bookings/payments");
+
+  void emitPaymentUpdated({ userId: user.id, bookingId, invoiceId });
+  void emitOpsChanged();
+
   return { success: true };
 }
 
@@ -1048,6 +1083,12 @@ export async function adminRejectBankTransfer(submissionId: string, bookingId: s
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/requests/${bookingId}`);
   revalidatePath(`/dashboard/bookings/${bookingId}`);
+
+  if (sub) {
+    void emitPaymentUpdated({ userId: sub.customer_id, bookingId });
+  }
+  void emitOpsChanged();
+
   return { success: true };
 }
 
@@ -1205,6 +1246,11 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/requests/${input.bookingId}`);
   revalidatePath(`/dashboard/bookings/${input.bookingId}`);
+
+  void emitPaymentUpdated({ userId: booking.booking_owner_user_id, bookingId: input.bookingId });
+  void emitBookingChanged({ bookingId: input.bookingId, userId: booking.booking_owner_user_id });
+  void emitOpsChanged();
+
   return { success: true };
 }
 
@@ -1350,5 +1396,10 @@ export async function adminSettleBlockTimeInvoice(input: {
     revalidatePath(`/admin/bookings/requests/${invoice.booking_id}`);
     revalidatePath(`/dashboard/bookings/${invoice.booking_id}`);
   }
+
+  void emitPaymentUpdated({ userId: invoice.user_id, bookingId: invoice.booking_id ?? undefined, invoiceId: invoice.id });
+  void emitBlockTimeUpdated(invoice.user_id);
+  void emitOpsChanged();
+
   return { success: true };
 }

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { CalendarDays, Clock, Tag, User } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { formatDateTime } from '@/lib/formatDateTime'
+import { BookingRealtimeListener } from '@/components/realtime/BookingRealtimeListener'
 import AdminBookingActions from './AdminBookingActions'
 import AdminCheckoutActions from './AdminCheckoutActions'
 import AdminCheckoutReviewPanel from './AdminCheckoutReviewPanel'
@@ -359,7 +360,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   ] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, email, phone_country_code, phone_number, verification_status, pilot_clearance_status, pilot_arn, created_at, account_status, account_lock_reason')
+      .select('id, full_name, email, phone_country_code, phone_number, verification_status, pilot_clearance_status, pilot_arn, created_at, account_status, account_lock_reason, has_night_vfr_rating')
       .eq('id', booking.booking_owner_user_id)
       .single(),
     supabase
@@ -857,6 +858,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
   return (
     <AdminFlightReadingsDisclosureProvider>
+      <BookingRealtimeListener bookingId={params.id} />
       <div className="min-h-screen bg-gray-100">
         <div className="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-8 pb-24">
 
@@ -1140,6 +1142,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               customerEmail={(customer as { email?: string | null } | null)?.email ?? null}
               customerPhone={customerPhone}
               pilotArn={(customer as { pilot_arn?: string | null } | null)?.pilot_arn ?? null}
+              hasNightVfrRating={(customer as { has_night_vfr_rating?: boolean | null } | null)?.has_night_vfr_rating ?? false}
               clearanceLabel={clearanceCfg.label}
               clearanceColor={clearanceCfg.color}
               clearanceBg={clearanceCfg.bg}

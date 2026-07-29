@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { notifyProxyBookingCreated } from '@/lib/booking/notifications'
 import { createClient } from '@/lib/supabase/server'
 import { sydneyInputToUTC } from '@/lib/utils/sydney-time'
+import { emitBookingChanged, emitOpsChanged } from '@/lib/realtime/emit'
 
 type ProxyBookingActionResult = { error: string }
 type RequiredProxyDocument = 'pilot_licence' | 'medical_certificate' | 'photo_id'
@@ -197,6 +198,12 @@ export async function createProxyBooking(formData: FormData): Promise<ProxyBooki
 
     revalidatePath(`/admin/users/${customerId}`)
     revalidatePath('/admin/bookings')
+
+    if (typeof bookingId === 'string' && bookingId) {
+      void emitBookingChanged({ bookingId, userId: customerId })
+    }
+    void emitOpsChanged()
+
     redirect(`/admin/users/${customerId}`)
   } catch (error) {
     if (isRedirectError(error)) throw error

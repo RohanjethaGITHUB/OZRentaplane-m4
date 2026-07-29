@@ -6,10 +6,13 @@ import {
   sendAdminChatMessage,
   markAdminChatRead,
   getAdminThread,
+  getAdminThreadList,
   searchCustomers,
 } from '@/app/actions/admin'
 import type { ThreadSummary, VerificationEvent } from '@/lib/supabase/types'
 import { formatDateTime, formatDateFromISO } from '@/lib/formatDateTime'
+import { useRealtimeEvent } from '@/hooks/useRealtimeEvent'
+import { ThreadRealtimeListener } from '@/components/realtime/ThreadRealtimeListener'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -249,6 +252,34 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
     selectThread(match)
   }, [initialSelectedUserId, selectThread, selectedId, threads])
 
+  // Live updates from other tabs / customer replies
+  useRealtimeEvent('chat:message', (event) => {
+    void (async () => {
+      try {
+        const freshThreads = await getAdminThreadList()
+        setThreads(freshThreads)
+        if (selectedId && event.threadUserId === selectedId) {
+          const fresh = await getAdminThread(selectedId)
+          setThreadEvents(fresh)
+          markAdminChatRead(selectedId).then(() => {
+            setThreads((prev) =>
+              prev.map((t) =>
+                t.customerId === selectedId ? { ...t, unreadCount: 0 } : t,
+              ),
+            )
+          }).catch(() => {})
+        }
+      } catch {
+        // Fail soft — layout refresh may still catch up
+      }
+    })()
+  }, [selectedId])
+
+  useRealtimeEvent('chat:read', (event) => {
+    if (!selectedId || event.threadUserId !== selectedId) return
+    void getAdminThread(selectedId).then(setThreadEvents).catch(() => {})
+  }, [selectedId])
+
   // ── Send a message ─────────────────────────────────────────────────────────
 
   async function handleSend() {
@@ -341,6 +372,7 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
 
   return (
     <>
+      {selectedId && <ThreadRealtimeListener threadUserId={selectedId} />}
       {showNewMessage && (
         <NewMessageModal
           onSelect={handleNewMessageSelect}

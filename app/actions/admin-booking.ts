@@ -52,6 +52,15 @@ import { createFlightRecordForBooking } from '@/lib/booking/flight-record-submis
 import { sydneyInputToUTC, todaySydneyDateKey } from '@/lib/utils/sydney-time'
 import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
 import { createPerfLogger } from '@/lib/perf/timing'
+import {
+  emitBookingChanged,
+  emitOpsChanged,
+  emitPaymentUpdated,
+  emitClearanceUpdated,
+  emitFlightRecordUpdated,
+  emitBlockTimeUpdated,
+  emitChatMessage,
+} from '@/lib/realtime/emit'
 
 // ─── Admin guard ──────────────────────────────────────────────────────────────
 // Mirrors requireAdmin() in app/actions/admin.ts.
@@ -124,6 +133,8 @@ export async function createAdminScheduleBlock(
   }
 
   revalidatePath('/admin/calendar')
+
+  void emitOpsChanged()
 
   return { created: true, blockId: result.blockId }
 }
@@ -382,6 +393,17 @@ export async function approvePostFlightReview(
 
   revalidatePath(`/admin/bookings/requests/${flightRecord.booking_id}`)
   revalidatePath(`/dashboard/bookings/${flightRecord.booking_id}`)
+
+  const { data: ownerRow } = await supabase
+    .from('bookings')
+    .select('booking_owner_user_id')
+    .eq('id', flightRecord.booking_id)
+    .single()
+  if (ownerRow?.booking_owner_user_id) {
+    void emitBookingChanged({ bookingId: flightRecord.booking_id, userId: ownerRow.booking_owner_user_id })
+    void emitFlightRecordUpdated({ bookingId: flightRecord.booking_id, userId: ownerRow.booking_owner_user_id })
+  }
+  void emitOpsChanged()
 }
 
 // ─── Confirm booking request ───────────────────────────────────────────────────
@@ -515,6 +537,7 @@ export async function confirmBookingRequest(bookingId: string) {
       booking_reference,
       scheduled_start,
       scheduled_end,
+      booking_owner_user_id,
       profiles:booking_owner_user_id ( full_name, email ),
       aircraft ( registration )
     `)
@@ -541,6 +564,11 @@ export async function confirmBookingRequest(bookingId: string) {
   revalidatePath(`/admin/bookings/requests/${bookingId}`)
   revalidatePath('/admin/bookings/checkout')
   revalidatePath(`/dashboard/bookings/${bookingId}`)
+
+  if (notifyData?.booking_owner_user_id) {
+    void emitBookingChanged({ bookingId, userId: notifyData.booking_owner_user_id })
+  }
+  void emitOpsChanged()
 }
 
 // ─── Cancel booking request ────────────────────────────────────────────────────
@@ -600,7 +628,7 @@ export async function cancelBookingRequest(bookingId: string, reason: string) {
   // Notify customer
   const { data: cancelNotifyData } = await supabase
     .from('bookings')
-    .select('booking_reference, profiles:booking_owner_user_id ( full_name, email )')
+    .select('booking_reference, booking_owner_user_id, profiles:booking_owner_user_id ( full_name, email )')
     .eq('id', bookingId)
     .single()
 
@@ -621,6 +649,11 @@ export async function cancelBookingRequest(bookingId: string, reason: string) {
   revalidatePath(`/admin/bookings/requests/${bookingId}`)
   revalidatePath('/admin/bookings/checkout')
   revalidatePath(`/dashboard/bookings/${bookingId}`)
+
+  if (cancelNotifyData?.booking_owner_user_id) {
+    void emitBookingChanged({ bookingId, userId: cancelNotifyData.booking_owner_user_id })
+  }
+  void emitOpsChanged()
 }
 
 // ─── Request clarification ─────────────────────────────────────────────────────
@@ -645,7 +678,7 @@ async function adminTransition(
 
   const { data: booking, error: fetchErr } = await supabase
     .from('bookings')
-    .select('status, aircraft_id')
+    .select('status, aircraft_id, booking_owner_user_id')
     .eq('id', bookingId)
     .single()
 
@@ -686,6 +719,11 @@ async function adminTransition(
   revalidatePath('/admin/bookings/checkout')
   revalidatePath(`/admin/bookings/checkout/${bookingId}`)
   revalidatePath('/dashboard')
+
+  if (booking.booking_owner_user_id) {
+    void emitBookingChanged({ bookingId, userId: booking.booking_owner_user_id })
+  }
+  void emitOpsChanged()
 }
 
 // confirmed → ready_for_dispatch
@@ -874,12 +912,12 @@ export async function requestPostFlightClarification(input: {
   revalidatePath(`/admin/bookings/post-flight/${input.flightRecordId}`)
   revalidatePath('/dashboard')
   revalidatePath(`/dashboard/bookings/${input.bookingId}`)
-}
 
-// ─── Confirm checkout booking ──────────────────────────────────────────────────
-// Admin confirms a checkout_requested booking.
-// Sets booking status → checkout_confirmed.
-// Sets profiles.pilot_clearance_status → checkout_confirmed.
+  void emitBookingChanged({ bookingId: input.bookingId, userId: input.customerId })
+  void emitFlightRecordUpdated({ bookingId: input.bookingId, userId: input.customerId })
+  void emitChatMessage(input.customerId)
+  void emitOpsChanged()
+}
 
 export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
   const perf = createPerfLogger({ route: 'server_action:confirmCheckoutBooking', role: 'admin' })
@@ -991,8 +1029,18 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
   perf.timeSync('checkout_approval', 'checkout_approval_revalidation', () => {
     revalidatePath(`/admin/bookings/requests/${bookingId}`)
     revalidatePath('/admin/bookings/checkout')
+    revalidatePath('/admin')
     revalidatePath(`/dashboard/bookings/${bookingId}`)
+    revalidatePath('/dashboard/bookings')
+    revalidatePath('/dashboard')
   })
+
+  await Promise.all([
+    emitBookingChanged({ bookingId, userId: booking.booking_owner_user_id }),
+    emitClearanceUpdated(booking.booking_owner_user_id),
+    emitOpsChanged(),
+  ])
+
   perf.timeSync('checkout_approval', 'checkout_approval_response_ready', () => null)
   markTotal()
 }
@@ -1052,6 +1100,10 @@ export async function markCheckoutFlightCompleted(bookingId: string): Promise<vo
 
   revalidatePath('/admin')
   revalidatePath('/dashboard')
+
+  void emitBookingChanged({ bookingId, userId: booking.booking_owner_user_id })
+  void emitClearanceUpdated(booking.booking_owner_user_id)
+  void emitOpsChanged()
 }
 
 // ─── Mark checkout outcome ─────────────────────────────────────────────────────
@@ -1470,6 +1522,13 @@ export async function markCheckoutOutcome(input: {
   revalidatePath('/admin/bookings/checkout')
   revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
   revalidatePath('/dashboard')
+
+  void emitBookingChanged({ bookingId: input.bookingId, userId: booking.booking_owner_user_id })
+  void emitClearanceUpdated(booking.booking_owner_user_id)
+  if (!input.paymentWaived) {
+    void emitPaymentUpdated({ userId: booking.booking_owner_user_id, bookingId: input.bookingId })
+  }
+  void emitOpsChanged()
 }
 
 // ─── Cancel checkout booking ───────────────────────────────────────────────────
@@ -1538,6 +1597,16 @@ export async function cancelCheckoutBooking(bookingId: string, reason: string): 
 
   revalidatePath('/admin')
   revalidatePath('/dashboard')
+  revalidatePath('/dashboard/bookings')
+  revalidatePath(`/dashboard/bookings/${bookingId}`)
+  revalidatePath('/admin/bookings/checkout')
+  revalidatePath(`/admin/bookings/requests/${bookingId}`)
+
+  await Promise.all([
+    emitBookingChanged({ bookingId, userId: booking.booking_owner_user_id }),
+    emitClearanceUpdated(booking.booking_owner_user_id),
+    emitOpsChanged(),
+  ])
 }
 
 export async function markCheckoutNoShow(bookingId: string): Promise<void> {
@@ -1602,6 +1671,10 @@ export async function markCheckoutNoShow(bookingId: string): Promise<void> {
   revalidatePath('/admin/bookings/checkout')
   revalidatePath(`/admin/bookings/requests/${bookingId}`)
   revalidatePath('/dashboard')
+
+  void emitBookingChanged({ bookingId, userId: booking.booking_owner_user_id })
+  void emitClearanceUpdated(booking.booking_owner_user_id)
+  void emitOpsChanged()
 }
 
 export async function unlockCheckoutNoShowLock(customerId: string): Promise<void> {
@@ -1633,6 +1706,9 @@ export async function unlockCheckoutNoShowLock(customerId: string): Promise<void
   revalidatePath('/admin/customers')
   revalidatePath(`/admin/users/${customerId}`)
   revalidatePath('/dashboard')
+
+  void emitClearanceUpdated(customerId)
+  void emitOpsChanged()
 }
 
 // ─── Admin update checkout time ────────────────────────────────────────────────
@@ -1923,7 +1999,16 @@ export async function adminUpdateCheckoutTime(
 
   revalidatePath('/admin')
   revalidatePath(`/admin/bookings/checkout/${bookingId}`)
+  revalidatePath(`/admin/bookings/requests/${bookingId}`)
   revalidatePath('/dashboard')
+  revalidatePath('/dashboard/bookings')
+  revalidatePath(`/dashboard/bookings/${bookingId}`)
+
+  await Promise.all([
+    emitBookingChanged({ bookingId, userId: booking.booking_owner_user_id }),
+    emitChatMessage(booking.booking_owner_user_id),
+    emitOpsChanged(),
+  ])
 
   return { newStart: newStartISO, newEnd: newEndISO }
 }
@@ -2109,6 +2194,10 @@ export async function manuallyCompleteCheckout(input: ManualCheckoutCompletionIn
   revalidatePath('/admin/bookings/checkout')
   revalidatePath(`/admin/bookings/requests/${booking.id}`)
   revalidatePath(`/dashboard/bookings/${booking.id}`)
+
+  void emitBookingChanged({ bookingId: booking.id, userId: booking.booking_owner_user_id })
+  void emitClearanceUpdated(booking.booking_owner_user_id)
+  void emitOpsChanged()
 }
 
 // ─── Cancellation request review ──────────────────────────────────────────────
@@ -2240,6 +2329,9 @@ export async function adminApproveCancellationWaived(
   revalidatePath(`/admin/bookings/requests/${r.booking_id}`)
   revalidatePath(`/dashboard/bookings/${r.booking_id}`)
   revalidatePath('/dashboard/bookings')
+
+  void emitBookingChanged({ bookingId: r.booking_id, userId: booking.booking_owner_user_id })
+  void emitOpsChanged()
 }
 
 // ─── Confirm standard bank transfer ───────────────────────────────────────────
@@ -2303,6 +2395,12 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
   revalidatePath('/admin')
   revalidatePath(`/admin/bookings/requests/${bookingId}`)
   revalidatePath(`/dashboard/bookings/${bookingId}`)
+
+  if (sub) {
+    void emitPaymentUpdated({ userId: sub.customer_id, bookingId })
+    void emitBookingChanged({ bookingId, userId: sub.customer_id })
+  }
+  void emitOpsChanged()
 }
 
 // ─── Reject standard bank transfer ────────────────────────────────────────────
@@ -2361,6 +2459,11 @@ export async function adminRejectStandardBankTransfer(
   revalidatePath('/admin')
   revalidatePath(`/admin/bookings/requests/${bookingId}`)
   revalidatePath(`/dashboard/bookings/${bookingId}`)
+
+  if (sub) {
+    void emitPaymentUpdated({ userId: sub.customer_id, bookingId })
+  }
+  void emitOpsChanged()
 }
 
 // ─── Finalise standard booking invoice ────────────────────────────────────────
@@ -2638,6 +2741,10 @@ export async function finaliseStandardBookingInvoice(input: {
         revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
         revalidatePath(`/dashboard/bookings/${input.bookingId}`)
         revalidatePath('/dashboard')
+
+        void emitBookingChanged({ bookingId: input.bookingId, userId: booking.booking_owner_user_id })
+        void emitPaymentUpdated({ userId: booking.booking_owner_user_id, bookingId: input.bookingId })
+        void emitOpsChanged()
 
         return {
           success: true,
@@ -3017,6 +3124,11 @@ export async function finaliseStandardBookingInvoice(input: {
     revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
     revalidatePath(`/dashboard/bookings/${input.bookingId}`)
 
+    void emitBookingChanged({ bookingId: input.bookingId, userId: booking.booking_owner_user_id })
+    void emitPaymentUpdated({ userId: booking.booking_owner_user_id, bookingId: input.bookingId })
+    void emitBlockTimeUpdated(booking.booking_owner_user_id)
+    void emitOpsChanged()
+
     // Surface a landing-fee settlement failure to the admin. Everything else
     // (drawdown, flight record, booking status) has completed successfully;
     // the landing invoice is still 'awaiting' with no payment method and can
@@ -3278,6 +3390,12 @@ export async function finaliseStandardBookingInvoice(input: {
 
   revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
   revalidatePath(`/dashboard/bookings/${input.bookingId}`)
+
+  void emitBookingChanged({ bookingId: input.bookingId, userId: booking.booking_owner_user_id })
+  if (!wasWaived) {
+    void emitPaymentUpdated({ userId: booking.booking_owner_user_id, bookingId: input.bookingId })
+  }
+  void emitOpsChanged()
   }
 }
 
@@ -3512,9 +3630,11 @@ export async function adminApproveCancellationCharged(
   revalidatePath(`/admin/bookings/requests/${r.booking_id}`)
   revalidatePath(`/dashboard/bookings/${r.booking_id}`)
   revalidatePath('/dashboard/bookings')
-}
 
-// ─── Instructor Assignment (Checkout) ─────────────────────────────────────────
+  void emitBookingChanged({ bookingId: r.booking_id, userId: booking.booking_owner_user_id })
+  void emitPaymentUpdated({ userId: booking.booking_owner_user_id, bookingId: r.booking_id })
+  void emitOpsChanged()
+}
 
 export async function assignInstructor(bookingId: string, instructorId: string): Promise<void> {
   const { supabase, adminId } = await requireAdmin()
@@ -3593,6 +3713,9 @@ export async function assignInstructor(bookingId: string, instructorId: string):
   })
 
   revalidatePath(`/admin/bookings/requests/${bookingId}`)
+
+  void emitBookingChanged({ bookingId, userId: booking.booking_owner_user_id })
+  void emitOpsChanged()
 }
 
 export async function assignSelfAsInstructor(bookingId: string): Promise<void> {
@@ -3665,4 +3788,7 @@ export async function assignSelfAsInstructor(bookingId: string): Promise<void> {
   })
 
   revalidatePath(`/admin/bookings/requests/${bookingId}`)
+
+  void emitBookingChanged({ bookingId, userId: booking.booking_owner_user_id })
+  void emitOpsChanged()
 }

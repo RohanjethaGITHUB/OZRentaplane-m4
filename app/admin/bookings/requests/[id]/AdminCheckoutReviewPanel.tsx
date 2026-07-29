@@ -62,6 +62,7 @@ type Props = {
   customerEmail:      string | null
   customerPhone:      string | null
   pilotArn:           string | null
+  hasNightVfrRating?: boolean
   clearanceLabel:     string
   clearanceColor:     string
   clearanceBg:        string
@@ -144,6 +145,7 @@ function DocRow({
   statusOverride?: string
   onOpenDocumentViewer: (files: NonNullable<DocSummary['files']>, index: number, title: string) => void
 }) {
+  const router = useRouter()
   const today   = new Date().toISOString().split('T')[0]!
   const expired = doc?.expiry_date && doc.expiry_date < today
   const [viewLoadingIndex, setViewLoadingIndex] = useState<number | null>(null)
@@ -151,6 +153,10 @@ function DocRow({
   const [actionPending, setActionPending] = useState<'approved' | 'rejected' | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [currentStatus, setCurrentStatus] = useState(doc?.status ?? '')
+
+  useEffect(() => {
+    setCurrentStatus(doc?.status ?? '')
+  }, [doc?.id, doc?.status])
 
   async function handleDocAction(newStatus: 'approved' | 'rejected') {
     if (!doc?.id) return
@@ -163,6 +169,7 @@ function DocRow({
     })
     if (result.success) {
       setCurrentStatus(newStatus)
+      router.refresh()
     } else {
       setActionError(result.error ?? 'Action failed.')
     }
@@ -368,6 +375,7 @@ export default function AdminCheckoutReviewPanel({
   bookingId, aircraftId, bookingReference,
   scheduledStart, scheduledEnd,
   customerNotes, lastFlightDate, customerId, customerName, customerEmail, customerPhone, pilotArn,
+  hasNightVfrRating = false,
   clearanceLabel, clearanceColor, clearanceBg, clearanceBorder,
   documents, messages,
 }: Props) {
@@ -403,6 +411,7 @@ export default function AdminCheckoutReviewPanel({
     requiredCount: number
   } | null>(null)
   const [bulkError, setBulkError] = useState('')
+  const [forceAllApproved, setForceAllApproved] = useState(false)
 
   // ── Message state ────────────────────────────────────────────────────────────
   const [message, setMessage]     = useState('')
@@ -544,6 +553,7 @@ export default function AdminCheckoutReviewPanel({
   }
 
   function openBulkConfirm(status: 'approved' | 'rejected') {
+    if (status === 'approved' && allRequiredApproved) return
     setBulkError('')
     setBulkMessage(null)
     setBulkAction(status)
@@ -570,6 +580,11 @@ export default function AdminCheckoutReviewPanel({
         skippedCount: result.skippedCount,
         requiredCount: result.requiredCount,
       })
+      if (bulkAction === 'approved') {
+        setForceAllApproved(true)
+      } else {
+        setForceAllApproved(false)
+      }
       router.refresh()
     } finally {
       setBulkLoading(false)
@@ -582,6 +597,9 @@ export default function AdminCheckoutReviewPanel({
   const medicalDoc        = documents.find(d => d.document_type === 'medical_certificate')
   const photoIdDoc        = documents.find(d => d.document_type === 'photo_id')
   const nightVfrEvidenceDoc = documents.find(d => d.document_type === 'night_vfr_evidence')
+  const requiredDocs = hasNightVfrRating
+    ? [licenceDoc, medicalDoc, photoIdDoc, nightVfrEvidenceDoc]
+    : [licenceDoc, medicalDoc, photoIdDoc]
   const allDocsOk  = [licenceDoc, medicalDoc, photoIdDoc].every(d => {
     if (!d) return false
     if (d.status === 'rejected') return false
@@ -589,6 +607,11 @@ export default function AdminCheckoutReviewPanel({
     if (d.expiry_date && d.expiry_date < today) return false
     return true
   })
+  const allRequiredApproved = forceAllApproved || requiredDocs.every((d) => d?.status === 'approved')
+  const nightVfrStatusOverride =
+    nightVfrEvidenceDoc && nightVfrEvidenceDoc.status !== 'approved' && nightVfrEvidenceDoc.status !== 'rejected'
+      ? 'Claimed'
+      : undefined
 
   const endTimeLabel = ALL_TIME_OPTIONS.find(o => o.value === newEndTime)?.label ?? newEndTime
   const requestedTimeLabel = formatRequestedTimeLabel(scheduledStart)
@@ -657,7 +680,7 @@ export default function AdminCheckoutReviewPanel({
             doc={nightVfrEvidenceDoc}
             docType="night_vfr_evidence"
             customerId={customerId}
-            statusOverride={nightVfrEvidenceDoc ? 'Claimed' : undefined}
+            statusOverride={nightVfrStatusOverride}
             onOpenDocumentViewer={openDocumentViewer}
           />
         </div>
@@ -703,11 +726,12 @@ export default function AdminCheckoutReviewPanel({
           <button
             type="button"
             onClick={() => openBulkConfirm('approved')}
-            disabled={bulkLoading}
+            disabled={bulkLoading || allRequiredApproved}
+            title={allRequiredApproved ? 'All required documents are already approved' : undefined}
             className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="material-symbols-outlined text-sm">verified_user</span>
-            Approve All Documents
+            {allRequiredApproved ? 'All Documents Approved' : 'Approve All Documents'}
           </button>
           <button
             type="button"

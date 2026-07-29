@@ -15,6 +15,11 @@ import { isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
 import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 import { sydneyInputToUTC } from '@/lib/utils/sydney-time'
 import { createPerfLogger } from '@/lib/perf/timing'
+import {
+  emitBookingChanged,
+  emitClearanceUpdated,
+  emitOpsChanged,
+} from '@/lib/realtime/emit'
 import type {
   CreateCheckoutBookingInput,
   CheckoutSubmitResult,
@@ -751,6 +756,10 @@ export async function submitCheckoutRequest(
     revalidatePath('/admin/checkouts/all')
   })
 
+  void emitBookingChanged({ bookingId, userId })
+  void emitClearanceUpdated(userId)
+  void emitOpsChanged()
+
   perf.timeSync('checkout_submit', 'checkout_submit_response_ready', () => null)
   markTotal()
   return {
@@ -895,6 +904,10 @@ export async function cancelCheckoutRequest(checkoutId: string): Promise<void> {
   revalidatePath('/admin/checkouts/cancel-reschedule')
   revalidatePath('/admin/checkouts/reschedule')
   revalidatePath('/admin/checkouts/cancelled')
+
+  void emitBookingChanged({ bookingId: checkoutId, userId })
+  void emitClearanceUpdated(userId)
+  void emitOpsChanged()
 }
 
 export async function requestCheckoutReschedule(
@@ -1010,6 +1023,9 @@ export async function requestCheckoutReschedule(
   revalidatePath('/admin/checkouts/cancel-reschedule')
   revalidatePath('/admin/checkouts/reschedule')
   revalidatePath('/admin/checkouts/cancelled')
+
+  void emitBookingChanged({ bookingId: checkoutId, userId })
+  void emitOpsChanged()
 }
 
 export async function approveCheckoutReschedule(changeRequestId: string): Promise<void> {
@@ -1217,6 +1233,9 @@ export async function approveCheckoutReschedule(changeRequestId: string): Promis
   revalidatePath('/admin/checkouts/cancel-reschedule')
   revalidatePath('/admin/checkouts/reschedule')
   revalidatePath('/admin/checkouts/cancelled')
+
+  void emitBookingChanged({ bookingId: booking.id, userId: booking.booking_owner_user_id })
+  void emitOpsChanged()
 }
 
 export async function rejectCheckoutReschedule(changeRequestId: string): Promise<void> {
@@ -1228,7 +1247,7 @@ export async function rejectCheckoutReschedule(changeRequestId: string): Promise
     .from('checkout_change_requests')
     .select(`
       id, checkout_request_id, request_type, status,
-      bookings:checkout_request_id (id, status, aircraft_id, scheduled_start, scheduled_end, checkout_lifecycle_status)
+      bookings:checkout_request_id (id, status, aircraft_id, scheduled_start, scheduled_end, checkout_lifecycle_status, booking_owner_user_id)
     `)
     .eq('id', changeRequestId)
     .single()
@@ -1283,4 +1302,7 @@ export async function rejectCheckoutReschedule(changeRequestId: string): Promise
   revalidatePath('/admin/checkouts/cancel-reschedule')
   revalidatePath('/admin/checkouts/reschedule')
   revalidatePath('/admin/checkouts/cancelled')
+
+  void emitBookingChanged({ bookingId: booking.id, userId: booking.booking_owner_user_id })
+  void emitOpsChanged()
 }
