@@ -19,13 +19,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { evaluateBookingDocumentsReadiness, hasAcceptedCurrentTerms } from '@/lib/booking-readiness'
 import { hasManualCheckoutClearance } from '@/lib/checkout-clearance'
 import {
-  notifyBookingSubmitted,
   notifyBookingCancelled,
   notifyCancellationRequested,
   notifyAdminCancellationReviewRequired,
   notifyClarificationResponseReceived,
   notifyFlightRecordResubmitted,
 } from '@/lib/booking/notifications'
+import { enqueueBookingConfirmedEmails } from '@/lib/email/outbox'
 import { createPerfLogger } from '@/lib/perf/timing'
 import type {
   CreateBookingInput,
@@ -299,11 +299,6 @@ export async function createBooking(
       .eq('id', userId),
   )
 
-  perf.timeSync('create_booking', 'create_booking_revalidation', () => {
-    revalidatePath('/dashboard')
-    revalidatePath('/admin')
-  })
-
   perf.timeSync('create_booking', 'create_booking_post_write_identity_reads', () => null, { rowCount: 0 })
   perf.timeSync('create_booking', 'create_booking_notification_write', () => null, { rowCount: 0 })
 
@@ -319,10 +314,15 @@ export async function createBooking(
       }))
       await perf.time(
         'create_booking',
-        'create_booking_email_delivery',
-        () => notifyBookingSubmitted(emailPayload).catch(e => console.error('[createBooking] notification error:', e)),
+        'create_booking_email_enqueue',
+        () => enqueueBookingConfirmedEmails(emailPayload),
       )
   }
+
+  perf.timeSync('create_booking', 'create_booking_revalidation', () => {
+    revalidatePath('/dashboard')
+    revalidatePath('/admin')
+  })
 
   perf.timeSync('create_booking', 'create_booking_response_ready', () => null)
   markTotal()

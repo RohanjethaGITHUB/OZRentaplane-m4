@@ -6,9 +6,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
 import {
-  notifyCheckoutRequestSubmittedAdmin,
-  notifyCheckoutRequestSubmittedCustomer,
-} from '@/lib/booking/notifications'
+  enqueueCheckoutRequestSubmittedAdminEmail,
+  enqueueCheckoutRequestSubmittedCustomerEmail,
+} from '@/lib/email/outbox'
 import { checkAircraftAvailability } from '@/lib/booking/availability'
 import { isNoShowLockedProfile } from '@/lib/checkout-policy'
 import { isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
@@ -720,7 +720,7 @@ export async function submitCheckoutRequest(
   if (notifErr) console.error('[submitCheckoutRequest] notification failed:', notifErr.message)
 
   if (safeEmail) {
-    const emailPayload = perf.timeSync('checkout_submit', 'checkout_submit_customer_email', () => ({
+    const emailPayload = perf.timeSync('checkout_submit', 'checkout_submit_customer_email_enqueue', () => ({
       customerEmail: safeEmail,
       customerName: profile.full_name ?? 'Pilot',
       bookingId,
@@ -733,13 +733,13 @@ export async function submitCheckoutRequest(
     await Promise.all([
       perf.time(
         'checkout_submit',
-        'checkout_submit_customer_email',
-        () => notifyCheckoutRequestSubmittedCustomer(emailPayload).catch((error) => console.error('[submitCheckoutRequest] customer email failed:', error)),
+        'checkout_submit_customer_email_enqueue',
+        () => enqueueCheckoutRequestSubmittedCustomerEmail(emailPayload),
       ),
       perf.time(
         'checkout_submit',
-        'checkout_submit_admin_email',
-        () => notifyCheckoutRequestSubmittedAdmin(emailPayload).catch((error) => console.error('[submitCheckoutRequest] admin email failed:', error)),
+        'checkout_submit_admin_email_enqueue',
+        () => enqueueCheckoutRequestSubmittedAdminEmail(emailPayload),
       ),
     ])
   }

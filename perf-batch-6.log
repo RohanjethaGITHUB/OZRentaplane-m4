@@ -1,0 +1,380 @@
+
+> ozrentaplane@0.1.0 start
+> next start
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+
+ ✓ Starting...
+ ✓ Ready in 209ms
+{"type":"perf_timing","timestamp":"2026-07-29T04:33:54.491Z","operationId":"9667324e-08eb-4fdc-8f44-420e13fb868a","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_claim","durationMs":878.04,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:33:54.492Z","operationId":"9667324e-08eb-4fdc-8f44-420e13fb868a","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_batch_total","durationMs":883.62,"status":"success","rowCount":0}
+[email-outbox] batch complete { claimed: 0, sent: 0, failed: 0 }
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:10.938Z","operationId":"e407a7ce-3ee0-40fd-ad2e-700b8ba386e6","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":483.31,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:10.938Z","operationId":"12585d21-59dc-48e1-973b-e6eac4fb9e32","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":485.07,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:11.137Z","operationId":"0b8c271c-95b1-4a5e-aca6-8b4d5e260286","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":198.31,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:11.452Z","operationId":"12585d21-59dc-48e1-973b-e6eac4fb9e32","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":513.24,"status":"success","rowCount":2}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:11.452Z","operationId":"12585d21-59dc-48e1-973b-e6eac4fb9e32","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":999.56,"status":"success"}
+CHECKOUT_AVAILABILITY_STEP1 {
+  mode: 'default',
+  aircraft_id: '811bf319-1c27-425a-91c8-9b551a1476e7',
+  requested_start_utc: '2026-11-16T23:15:00.000Z',
+  requested_end_utc: '2026-11-17T03:00:00.000Z',
+  requested_start_sydney: '17/11/26, 10:15:00 am',
+  requested_end_sydney: '17/11/26, 2:00:00 pm',
+  query_start_utc: '2026-11-16T23:15:00.000Z',
+  query_end_utc: '2026-11-17T03:00:00.000Z',
+  query_start_sydney: '17/11/26, 10:15:00 am',
+  query_end_sydney: '17/11/26, 2:00:00 pm',
+  preflight_buffer_minutes: 0,
+  postflight_buffer_minutes: 0,
+  blocking_bookings_found: 0,
+  blocking_schedule_blocks_found: 0,
+  blocking_bookings: [],
+  blocking_schedule_blocks: [],
+  available: true
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:35.521Z","operationId":"51404e85-e987-4691-855e-a5793bf78510","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_auth","durationMs":230.35,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:36.556Z","operationId":"51404e85-e987-4691-855e-a5793bf78510","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_authorization","durationMs":1035.7,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:36.757Z","operationId":"51404e85-e987-4691-855e-a5793bf78510","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_availability_pricing_reads","durationMs":200.14,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:36.757Z","operationId":"51404e85-e987-4691-855e-a5793bf78510","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_validation","durationMs":0.55,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:37.004Z","operationId":"51404e85-e987-4691-855e-a5793bf78510","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_rpc_write","durationMs":247,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:37.184Z","operationId":"51404e85-e987-4691-855e-a5793bf78510","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_profile_update","durationMs":179.55,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:37.184Z","operationId":"51404e85-e987-4691-855e-a5793bf78510","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_post_write_identity_reads","durationMs":0.01,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:37.184Z","operationId":"51404e85-e987-4691-855e-a5793bf78510","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_notification_write","durationMs":0.01,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:37.185Z","operationId":"51404e85-e987-4691-855e-a5793bf78510","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_email_preparation","durationMs":0.44,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:37.370Z","operationId":"51404e85-e987-4691-855e-a5793bf78510","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_email_enqueue","durationMs":185.56,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:37.371Z","operationId":"51404e85-e987-4691-855e-a5793bf78510","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_revalidation","durationMs":0.36,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:37.371Z","operationId":"51404e85-e987-4691-855e-a5793bf78510","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_response_ready","durationMs":0.01,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:37.371Z","operationId":"51404e85-e987-4691-855e-a5793bf78510","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_total","durationMs":2080.72,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:37.565Z","operationId":"77109534-0ba3-4f23-a49d-0f819a2c63c4","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":186.3,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:37.565Z","operationId":"a268797b-42f1-4ab0-8959-be7af1778e6e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":186.95,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:37.735Z","operationId":"c530e2e8-588b-41b5-9415-57978c709832","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":168.59,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:37.742Z","operationId":"a268797b-42f1-4ab0-8959-be7af1778e6e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":176.97,"status":"success","rowCount":2}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:37.742Z","operationId":"a268797b-42f1-4ab0-8959-be7af1778e6e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":366.6,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:43.273Z","operationId":"313b8a7b-70bf-4375-9e94-d04f0c29ae07","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":192.11,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:43.273Z","operationId":"e8dbd682-1c32-47d4-aa06-bedcdbdb787c","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":192.75,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:45.704Z","operationId":"d0abfaea-1830-4f32-bf41-5bfceef3cfbe","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":2430.39,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:45.704Z","operationId":"e8dbd682-1c32-47d4-aa06-bedcdbdb787c","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":2431.1,"status":"success","rowCount":2}
+{"type":"perf_timing","timestamp":"2026-07-29T04:35:45.704Z","operationId":"e8dbd682-1c32-47d4-aa06-bedcdbdb787c","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":2625.33,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:36:05.677Z","operationId":"85ca5e7e-bae4-42aa-8c49-47afbceff655","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_claim","durationMs":292.53,"status":"success","rowCount":2}
+{"type":"perf_timing","timestamp":"2026-07-29T04:36:05.678Z","operationId":"85ca5e7e-bae4-42aa-8c49-47afbceff655","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_template_preparation","durationMs":0.36,"status":"success"}
+[email] sent {
+  resendEmailId: 'b29ce398-c469-457f-87cc-ac0b2913fbe8',
+  eventType: 'booking_confirmed',
+  to: 'rohanjetha14@gmail.com'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:36:06.858Z","operationId":"85ca5e7e-bae4-42aa-8c49-47afbceff655","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_provider_delivery","durationMs":1179.75,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:36:07.034Z","operationId":"85ca5e7e-bae4-42aa-8c49-47afbceff655","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_status_update","durationMs":175.74,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:36:07.034Z","operationId":"85ca5e7e-bae4-42aa-8c49-47afbceff655","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_job_total","durationMs":1356.04,"status":"success","rowCount":1}
+[email-outbox] job complete { eventType: 'booking_confirmed', status: 'sent' }
+{"type":"perf_timing","timestamp":"2026-07-29T04:36:07.034Z","operationId":"85ca5e7e-bae4-42aa-8c49-47afbceff655","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_template_preparation","durationMs":0.05,"status":"success"}
+[email] sent {
+  resendEmailId: '7d7193fe-f21c-4f8e-86c5-630707ccf7c7',
+  eventType: 'admin_new_booking_confirmed',
+  to: 'info@ozrentaplane.com'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:36:07.910Z","operationId":"85ca5e7e-bae4-42aa-8c49-47afbceff655","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_provider_delivery","durationMs":875.76,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:36:08.089Z","operationId":"85ca5e7e-bae4-42aa-8c49-47afbceff655","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_status_update","durationMs":178.77,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:36:08.089Z","operationId":"85ca5e7e-bae4-42aa-8c49-47afbceff655","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_job_total","durationMs":1054.72,"status":"success","rowCount":1}
+[email-outbox] job complete { eventType: 'admin_new_booking_confirmed', status: 'sent' }
+{"type":"perf_timing","timestamp":"2026-07-29T04:36:08.089Z","operationId":"85ca5e7e-bae4-42aa-8c49-47afbceff655","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_batch_total","durationMs":2704.17,"status":"success","rowCount":2}
+[email-outbox] batch complete { claimed: 2, sent: 2, failed: 0 }
+{"type":"perf_timing","timestamp":"2026-07-29T04:36:26.955Z","operationId":"513587f7-1a14-42bb-9459-010f65b01595","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_claim","durationMs":215.35,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:36:26.955Z","operationId":"513587f7-1a14-42bb-9459-010f65b01595","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_batch_total","durationMs":215.8,"status":"success","rowCount":0}
+[email-outbox] batch complete { claimed: 0, sent: 0, failed: 0 }
+ ⚠ For production Image Optimization with Next.js, the optional 'sharp' package is strongly recommended. Run 'npm i sharp', and Next.js will use it automatically for Image Optimization.
+Read more: https://nextjs.org/docs/messages/sharp-missing-in-production
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:29.346Z","operationId":"dae242bd-b55b-40a8-a778-8f6ef385ac37","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":260.38,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:29.346Z","operationId":"59ee123b-168b-4603-820b-2f21c0e17d7d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_identity_preparation","durationMs":260.7,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:29.346Z","operationId":"aa374227-94d7-44c4-a825-41b3d6bb32ef","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":260.66,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:29.585Z","operationId":"be673271-d4c0-456f-b6e3-c35038b0ee1a","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":238.5,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:29.586Z","operationId":"59ee123b-168b-4603-820b-2f21c0e17d7d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_profile_preparation","durationMs":239.1,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:29.609Z","operationId":"aa374227-94d7-44c4-a825-41b3d6bb32ef","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":262.24,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:29.609Z","operationId":"aa374227-94d7-44c4-a825-41b3d6bb32ef","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":524.72,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:29.804Z","operationId":"59ee123b-168b-4603-820b-2f21c0e17d7d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_manual_checkout_clearance_lookup","durationMs":217.69,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:29.850Z","operationId":"59ee123b-168b-4603-820b-2f21c0e17d7d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_block_time_group","durationMs":263.08,"status":"success","rowCount":4}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:29.883Z","operationId":"59ee123b-168b-4603-820b-2f21c0e17d7d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_login_tracking","durationMs":297.67,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:30.265Z","operationId":"59ee123b-168b-4603-820b-2f21c0e17d7d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_primary_query_group","durationMs":679.69,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:30.267Z","operationId":"59ee123b-168b-4603-820b-2f21c0e17d7d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_query_group","durationMs":680.14,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:30.466Z","operationId":"59ee123b-168b-4603-820b-2f21c0e17d7d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_fallbacks","durationMs":199.34,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:30.467Z","operationId":"59ee123b-168b-4603-820b-2f21c0e17d7d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_summary_preparation","durationMs":0.17,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:30.468Z","operationId":"59ee123b-168b-4603-820b-2f21c0e17d7d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_total_server_page_preparation","durationMs":1383.96,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:34.615Z","operationId":"a97d21ef-95ba-45af-99a1-872eeadedb12","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":213.99,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:34.615Z","operationId":"6a2c042f-2495-448e-b86c-23aa76d4cd92","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":214.25,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:34.849Z","operationId":"796100f6-1016-4845-9687-8a5955d83135","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":233.24,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:34.849Z","operationId":"6a2c042f-2495-448e-b86c-23aa76d4cd92","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":233.81,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:34.849Z","operationId":"6a2c042f-2495-448e-b86c-23aa76d4cd92","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":449.42,"status":"success"}
+[checkout_route_load] {
+  route: '/dashboard/checkout',
+  user_id: '9da5ca39-97fb-4b66-9cab-4c4af0b94fab',
+  profile_found: false,
+  pilot_profile_found: false,
+  checkout_request_found: false,
+  pilot_documents_found: false,
+  errors: {
+    profile: {
+      code: 'PGRST200',
+      message: "Could not find a relationship between 'profiles' and 'user_document_files' in the schema cache"
+    },
+    checkout_request: null,
+    pilot_documents: null,
+    aircraft: null,
+    terms_primary: null,
+    terms_fallback: null,
+    terms_admin_primary: null,
+    terms_admin_fallback: null,
+    terms_admin_client: null
+  }
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:45.425Z","operationId":"ec6efd50-57e5-4f44-8238-5c2cf1eba080","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":184.02,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:45.425Z","operationId":"ec921716-1046-4754-9b76-64c08f267b72","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":184.26,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:45.708Z","operationId":"d2ccb0ca-dbdd-4c0e-8473-47dd328f2a5c","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":282.05,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:45.708Z","operationId":"ec921716-1046-4754-9b76-64c08f267b72","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":282.48,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:41:45.708Z","operationId":"ec921716-1046-4754-9b76-64c08f267b72","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":467.51,"status":"success"}
+[checkout_route_load] {
+  route: '/dashboard/checkout',
+  user_id: '9da5ca39-97fb-4b66-9cab-4c4af0b94fab',
+  profile_found: false,
+  pilot_profile_found: false,
+  checkout_request_found: false,
+  pilot_documents_found: false,
+  errors: {
+    profile: {
+      code: 'PGRST200',
+      message: "Could not find a relationship between 'profiles' and 'user_document_files' in the schema cache"
+    },
+    checkout_request: null,
+    pilot_documents: null,
+    aircraft: null,
+    terms_primary: null,
+    terms_fallback: null,
+    terms_admin_primary: null,
+    terms_admin_fallback: null,
+    terms_admin_client: null
+  }
+}
+CHECKOUT_AVAILABILITY_STEP1 {
+  mode: 'default',
+  aircraft_id: '811bf319-1c27-425a-91c8-9b551a1476e7',
+  requested_start_utc: '2026-12-07T22:00:00.000Z',
+  requested_end_utc: '2026-12-08T00:00:00.000Z',
+  requested_start_sydney: '8/12/26, 9:00:00 am',
+  requested_end_sydney: '8/12/26, 11:00:00 am',
+  query_start_utc: '2026-12-07T22:00:00.000Z',
+  query_end_utc: '2026-12-08T00:00:00.000Z',
+  query_start_sydney: '8/12/26, 9:00:00 am',
+  query_end_sydney: '8/12/26, 11:00:00 am',
+  preflight_buffer_minutes: 0,
+  postflight_buffer_minutes: 0,
+  blocking_bookings_found: 0,
+  blocking_schedule_blocks_found: 0,
+  blocking_bookings: [],
+  blocking_schedule_blocks: [],
+  available: true
+}
+saveLastFlightDate:start {
+  userId: '9da5ca39-97fb-4b66-9cab-4c4af0b94fab',
+  dateStr: '2026-03-03'
+}
+saveLastFlightDate: {
+  userId: '9da5ca39-97fb-4b66-9cab-4c4af0b94fab',
+  dateStr: '2026-03-03',
+  error: null,
+  data: [
+    {
+      id: '9da5ca39-97fb-4b66-9cab-4c4af0b94fab',
+      last_flight_date: '2026-03-03'
+    }
+  ]
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:37.360Z","operationId":"8dffd87a-2180-4c3c-b893-f286d1aa994d","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":221.59,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:37.360Z","operationId":"38eb1158-e914-48e0-b8ef-32c05e54b093","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":221.89,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:37.554Z","operationId":"07c5e78d-1534-4d24-a883-342c9f5f2daa","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":192.89,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:37.554Z","operationId":"38eb1158-e914-48e0-b8ef-32c05e54b093","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":193.44,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:37.554Z","operationId":"38eb1158-e914-48e0-b8ef-32c05e54b093","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":416.66,"status":"success"}
+[checkout_route_load] {
+  route: '/dashboard/checkout',
+  user_id: '9da5ca39-97fb-4b66-9cab-4c4af0b94fab',
+  profile_found: false,
+  pilot_profile_found: false,
+  checkout_request_found: false,
+  pilot_documents_found: true,
+  errors: {
+    profile: {
+      code: 'PGRST200',
+      message: "Could not find a relationship between 'profiles' and 'user_document_files' in the schema cache"
+    },
+    checkout_request: null,
+    pilot_documents: null,
+    aircraft: null,
+    terms_primary: null,
+    terms_fallback: null,
+    terms_admin_primary: null,
+    terms_admin_fallback: null,
+    terms_admin_client: null
+  }
+}
+[acceptTermsAndConditions] writing acceptance row {
+  userId: '9da5ca39-97fb-4b66-9cab-4c4af0b94fab',
+  termsDocumentId: '861ac297-769b-4583-9e8a-f1d9dbaedb79',
+  termsVersion: '1.0',
+  context: 'standard'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:50.035Z","operationId":"30713798-36b5-4bfc-8260-9f969b2c84fb","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":165.97,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:50.035Z","operationId":"a5e81785-264a-484b-b384-dd4260f0ce58","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":166.42,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:50.269Z","operationId":"b4261a83-a143-42ec-87d7-727eda5a11ea","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":232.96,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:50.269Z","operationId":"a5e81785-264a-484b-b384-dd4260f0ce58","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":233.44,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:50.269Z","operationId":"a5e81785-264a-484b-b384-dd4260f0ce58","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":401.46,"status":"success"}
+[checkout_route_load] {
+  route: '/dashboard/checkout',
+  user_id: '9da5ca39-97fb-4b66-9cab-4c4af0b94fab',
+  profile_found: false,
+  pilot_profile_found: false,
+  checkout_request_found: false,
+  pilot_documents_found: true,
+  errors: {
+    profile: {
+      code: 'PGRST200',
+      message: "Could not find a relationship between 'profiles' and 'user_document_files' in the schema cache"
+    },
+    checkout_request: null,
+    pilot_documents: null,
+    aircraft: null,
+    terms_primary: null,
+    terms_fallback: null,
+    terms_admin_primary: null,
+    terms_admin_fallback: null,
+    terms_admin_client: null
+  }
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:56.167Z","operationId":"7718526e-c9ab-44a1-8d02-335b3d0c12b9","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_auth","durationMs":364.36,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:56.167Z","operationId":"7718526e-c9ab-44a1-8d02-335b3d0c12b9","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_profile_authorization","durationMs":0.02,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:56.343Z","operationId":"7718526e-c9ab-44a1-8d02-335b3d0c12b9","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_terms_read","durationMs":175.59,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:56.383Z","operationId":"7718526e-c9ab-44a1-8d02-335b3d0c12b9","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_documents_read","durationMs":216.33,"status":"success","rowCount":4}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:56.554Z","operationId":"7718526e-c9ab-44a1-8d02-335b3d0c12b9","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_availability_read","durationMs":170.23,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:56.753Z","operationId":"7718526e-c9ab-44a1-8d02-335b3d0c12b9","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_availability_read","durationMs":198.94,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:56.941Z","operationId":"7718526e-c9ab-44a1-8d02-335b3d0c12b9","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_rpc_write","durationMs":187.88,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:57.116Z","operationId":"7718526e-c9ab-44a1-8d02-335b3d0c12b9","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_terms_acceptance_write","durationMs":174.34,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:57.491Z","operationId":"7718526e-c9ab-44a1-8d02-335b3d0c12b9","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_notification_write","durationMs":197.64,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:57.493Z","operationId":"7718526e-c9ab-44a1-8d02-335b3d0c12b9","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_customer_email_enqueue","durationMs":1.48,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:57.663Z","operationId":"7718526e-c9ab-44a1-8d02-335b3d0c12b9","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_admin_email_enqueue","durationMs":169.42,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:57.676Z","operationId":"7718526e-c9ab-44a1-8d02-335b3d0c12b9","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_customer_email_enqueue","durationMs":182.9,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:57.676Z","operationId":"7718526e-c9ab-44a1-8d02-335b3d0c12b9","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_revalidation","durationMs":0.25,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:57.676Z","operationId":"7718526e-c9ab-44a1-8d02-335b3d0c12b9","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_response_ready","durationMs":0.01,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:57.676Z","operationId":"7718526e-c9ab-44a1-8d02-335b3d0c12b9","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_total","durationMs":1875.07,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:57.871Z","operationId":"5849f3f6-778b-4ccc-a537-9a39e9ed98e9","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":189.67,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:57.871Z","operationId":"5009f939-104b-4cf8-87b1-7b9d021444f6","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":189.93,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:58.095Z","operationId":"4f31cc70-ce46-407f-88d6-e79dc6dc055e","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":223.83,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:58.095Z","operationId":"5009f939-104b-4cf8-87b1-7b9d021444f6","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":224.54,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:42:58.095Z","operationId":"5009f939-104b-4cf8-87b1-7b9d021444f6","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":415.74,"status":"success"}
+[checkout_route_load] {
+  route: '/dashboard/checkout',
+  user_id: '9da5ca39-97fb-4b66-9cab-4c4af0b94fab',
+  profile_found: false,
+  pilot_profile_found: false,
+  checkout_request_found: true,
+  pilot_documents_found: true,
+  errors: {
+    profile: {
+      code: 'PGRST200',
+      message: "Could not find a relationship between 'profiles' and 'user_document_files' in the schema cache"
+    },
+    checkout_request: null,
+    pilot_documents: null,
+    aircraft: null,
+    terms_primary: null,
+    terms_fallback: null,
+    terms_admin_primary: null,
+    terms_admin_fallback: null,
+    terms_admin_client: null
+  }
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:43:26.748Z","operationId":"bcb23e39-b813-4dcd-be74-505072a5e2ac","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_claim","durationMs":232.97,"status":"success","rowCount":2}
+{"type":"perf_timing","timestamp":"2026-07-29T04:43:26.748Z","operationId":"bcb23e39-b813-4dcd-be74-505072a5e2ac","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_template_preparation","durationMs":0.31,"status":"success"}
+[email] sent {
+  resendEmailId: '033a5c26-0a56-4d24-a8ef-dc82f0df8f50',
+  eventType: 'checkout_request_submitted',
+  to: 'rohanjetha14@gmail.com'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:43:28.586Z","operationId":"bcb23e39-b813-4dcd-be74-505072a5e2ac","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_provider_delivery","durationMs":1837.74,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:43:28.773Z","operationId":"bcb23e39-b813-4dcd-be74-505072a5e2ac","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_status_update","durationMs":186.41,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:43:28.773Z","operationId":"bcb23e39-b813-4dcd-be74-505072a5e2ac","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_job_total","durationMs":2024.65,"status":"success","rowCount":1}
+[email-outbox] job complete { eventType: 'checkout_request_submitted', status: 'sent' }
+{"type":"perf_timing","timestamp":"2026-07-29T04:43:28.773Z","operationId":"bcb23e39-b813-4dcd-be74-505072a5e2ac","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_template_preparation","durationMs":0.29,"status":"success"}
+[email] sent {
+  resendEmailId: '347ddadc-ffd3-4b0c-9164-b0b158b5c89e',
+  eventType: 'admin_new_checkout_request',
+  to: 'info@ozrentaplane.com'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:43:29.687Z","operationId":"bcb23e39-b813-4dcd-be74-505072a5e2ac","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_provider_delivery","durationMs":913.83,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:43:29.865Z","operationId":"bcb23e39-b813-4dcd-be74-505072a5e2ac","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_status_update","durationMs":178.31,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:43:29.865Z","operationId":"bcb23e39-b813-4dcd-be74-505072a5e2ac","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_job_total","durationMs":1092.64,"status":"success","rowCount":1}
+[email-outbox] job complete { eventType: 'admin_new_checkout_request', status: 'sent' }
+{"type":"perf_timing","timestamp":"2026-07-29T04:43:29.866Z","operationId":"bcb23e39-b813-4dcd-be74-505072a5e2ac","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_batch_total","durationMs":3350.93,"status":"success","rowCount":2}
+[email-outbox] batch complete { claimed: 2, sent: 2, failed: 0 }
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:32.025Z","operationId":"1681d2b1-4722-4afe-a3c3-4b80c59d3ec9","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":221.3,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:32.025Z","operationId":"9164559b-98e0-4c99-90e0-02aad243c38c","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_identity_preparation","durationMs":221.65,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:32.025Z","operationId":"a09ab482-1a63-4ae0-8683-2d960849cd7d","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":221.57,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:32.250Z","operationId":"5fa45a6c-2b02-4c9a-8d3e-d25f1aa1b6cc","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":225.12,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:32.251Z","operationId":"9164559b-98e0-4c99-90e0-02aad243c38c","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_profile_preparation","durationMs":225.79,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:32.251Z","operationId":"a09ab482-1a63-4ae0-8683-2d960849cd7d","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":226.1,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:32.687Z","operationId":"6bbac804-1e22-45cf-b971-3fd1bc3a6004","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":225.61,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:32.687Z","operationId":"c7d5c42a-5df5-4c0a-82dc-3784d74079d3","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"authenticated_user_lookup","durationMs":227.17,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:32.687Z","operationId":"688a800e-c5e5-4bdd-9a72-67eb83082597","route":"/admin","role":"admin","operationName":"admin_home","phase":"identity_preparation","durationMs":225.73,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:32.913Z","operationId":"2f4c5e2e-487a-497d-aa68-5c6c924cc003","route":"shared_profile","role":"admin","operationName":"cached_profile_helper","phase":"profile_query_admin","durationMs":226.1,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:32.913Z","operationId":"c7d5c42a-5df5-4c0a-82dc-3784d74079d3","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"profile_role_lookup","durationMs":226.64,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:32.913Z","operationId":"688a800e-c5e5-4bdd-9a72-67eb83082597","route":"/admin","role":"admin","operationName":"admin_home","phase":"profile_preparation","durationMs":226.55,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:32.913Z","operationId":"c7d5c42a-5df5-4c0a-82dc-3784d74079d3","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"admin_shell_authorization_preparation","durationMs":453.91,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:32.913Z","operationId":"c7d5c42a-5df5-4c0a-82dc-3784d74079d3","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"total_blocking_admin_layout_preparation","durationMs":453.93,"status":"success"}
+[admin command board] "checkout cancel rows" query failed: column checkout_change_requests.customer_message does not exist
+[admin command board] "checkout reschedule rows" query failed: column checkout_change_requests.customer_message does not exist
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:33.527Z","operationId":"688a800e-c5e5-4bdd-9a72-67eb83082597","route":"/admin","role":"admin","operationName":"admin_home","phase":"primary_query_group","durationMs":613.55,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:33.536Z","operationId":"ec1b03b8-fa0d-4600-ac9a-3500c19a4ae9","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_query_group","durationMs":602.43,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:33.536Z","operationId":"ec1b03b8-fa0d-4600-ac9a-3500c19a4ae9","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"dependent_second_query_group","durationMs":0.04,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:33.536Z","operationId":"ec1b03b8-fa0d-4600-ac9a-3500c19a4ae9","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_total","durationMs":602.93,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:33.760Z","operationId":"688a800e-c5e5-4bdd-9a72-67eb83082597","route":"/admin","role":"admin","operationName":"admin_home","phase":"followup_parallel_group","durationMs":232.54,"status":"success","rowCount":8}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:33.760Z","operationId":"688a800e-c5e5-4bdd-9a72-67eb83082597","route":"/admin","role":"admin","operationName":"admin_home","phase":"dashboard_metric_preparation","durationMs":0.03,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:33.760Z","operationId":"688a800e-c5e5-4bdd-9a72-67eb83082597","route":"/admin","role":"admin","operationName":"admin_home","phase":"action_feed_preparation","durationMs":0.01,"status":"success","rowCount":4}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:33.760Z","operationId":"688a800e-c5e5-4bdd-9a72-67eb83082597","route":"/admin","role":"admin","operationName":"admin_home","phase":"total_server_page_preparation","durationMs":1301.18,"status":"success","rowCount":4}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:42.575Z","operationId":"82d990d6-17fa-4096-bf7e-ee9bfc817be7","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_auth","durationMs":369.4,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:42.575Z","operationId":"82d990d6-17fa-4096-bf7e-ee9bfc817be7","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_authorization","durationMs":0.04,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:42.749Z","operationId":"82d990d6-17fa-4096-bf7e-ee9bfc817be7","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_booking_read","durationMs":174.63,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:43.177Z","operationId":"82d990d6-17fa-4096-bf7e-ee9bfc817be7","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_primary_write","durationMs":427.35,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:43.336Z","operationId":"82d990d6-17fa-4096-bf7e-ee9bfc817be7","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_notification_write","durationMs":157.75,"status":"success"}
+[confirmCheckoutBooking] notification failed: Could not find the 'request_id' column of 'verification_events' in the schema cache
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:43.714Z","operationId":"82d990d6-17fa-4096-bf7e-ee9bfc817be7","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_email_enqueue","durationMs":166.52,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:43.714Z","operationId":"82d990d6-17fa-4096-bf7e-ee9bfc817be7","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_revalidation","durationMs":0.19,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:43.714Z","operationId":"82d990d6-17fa-4096-bf7e-ee9bfc817be7","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_response_ready","durationMs":0.02,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:43.714Z","operationId":"82d990d6-17fa-4096-bf7e-ee9bfc817be7","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_total","durationMs":1509.35,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:43.887Z","operationId":"ab48a491-e9cd-4b4b-89c3-2ac84616fa85","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":165.36,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:43.887Z","operationId":"7c54e98e-fed2-40d3-a0d9-7f4f399b7eb3","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"authenticated_user_lookup","durationMs":167.31,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:44.050Z","operationId":"d25255d0-88e6-4041-83c8-8bc794ce7fed","route":"shared_profile","role":"admin","operationName":"cached_profile_helper","phase":"profile_query_admin","durationMs":162.37,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:44.050Z","operationId":"7c54e98e-fed2-40d3-a0d9-7f4f399b7eb3","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"profile_role_lookup","durationMs":162.78,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:44.050Z","operationId":"7c54e98e-fed2-40d3-a0d9-7f4f399b7eb3","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"admin_shell_authorization_preparation","durationMs":330.13,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:44.050Z","operationId":"7c54e98e-fed2-40d3-a0d9-7f4f399b7eb3","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"total_blocking_admin_layout_preparation","durationMs":330.15,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:44.102Z","operationId":"b1d8030e-6577-4288-9b9f-1ce619b46ce5","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":183.93,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:44.102Z","operationId":"579461ce-2b1f-47c6-9c65-a709e356d9de","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"authenticated_user_lookup","durationMs":185.09,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:44.365Z","operationId":"5bd4d017-4f7e-4b46-8726-661f87ab47d9","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_query_group","durationMs":313.64,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:44.366Z","operationId":"5bd4d017-4f7e-4b46-8726-661f87ab47d9","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"dependent_second_query_group","durationMs":0.02,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:44.366Z","operationId":"5bd4d017-4f7e-4b46-8726-661f87ab47d9","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_total","durationMs":314.2,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:44.395Z","operationId":"fbd935c5-f7bb-4cda-826e-20240340cd71","route":"shared_profile","role":"admin","operationName":"cached_profile_helper","phase":"profile_query_admin","durationMs":292.8,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:44.395Z","operationId":"579461ce-2b1f-47c6-9c65-a709e356d9de","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"profile_role_lookup","durationMs":293.07,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:44.395Z","operationId":"579461ce-2b1f-47c6-9c65-a709e356d9de","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"admin_shell_authorization_preparation","durationMs":478.2,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:44.395Z","operationId":"579461ce-2b1f-47c6-9c65-a709e356d9de","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"total_blocking_admin_layout_preparation","durationMs":478.21,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:44.758Z","operationId":"8534c08d-79ef-4a7d-9703-754fa7a42364","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_query_group","durationMs":361.7,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:44.758Z","operationId":"8534c08d-79ef-4a7d-9703-754fa7a42364","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"dependent_second_query_group","durationMs":0.02,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:45:44.759Z","operationId":"8534c08d-79ef-4a7d-9703-754fa7a42364","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_total","durationMs":362.68,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:46:06.132Z","operationId":"918b5311-afe5-4660-9f22-36f286a816a0","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_claim","durationMs":533.05,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:46:06.132Z","operationId":"918b5311-afe5-4660-9f22-36f286a816a0","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_template_preparation","durationMs":0.36,"status":"success"}
+[email] sent {
+  resendEmailId: 'c7384cf2-63fb-43ef-928a-089c465dae19',
+  eventType: 'checkout_confirmed',
+  to: 'rohanjetha14@gmail.com'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:46:07.118Z","operationId":"918b5311-afe5-4660-9f22-36f286a816a0","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_provider_delivery","durationMs":985.39,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:46:07.305Z","operationId":"918b5311-afe5-4660-9f22-36f286a816a0","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_status_update","durationMs":187.86,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:46:07.306Z","operationId":"918b5311-afe5-4660-9f22-36f286a816a0","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_job_total","durationMs":1173.77,"status":"success","rowCount":1}
+[email-outbox] job complete { eventType: 'checkout_confirmed', status: 'sent' }
+{"type":"perf_timing","timestamp":"2026-07-29T04:46:07.306Z","operationId":"918b5311-afe5-4660-9f22-36f286a816a0","route":"api:email-outbox","role":"unknown","operationName":"email_outbox","phase":"email_outbox_batch_total","durationMs":1707.68,"status":"success","rowCount":1}
+[email-outbox] batch complete { claimed: 1, sent: 1, failed: 0 }

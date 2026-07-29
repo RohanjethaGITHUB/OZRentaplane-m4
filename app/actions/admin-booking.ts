@@ -15,8 +15,8 @@ import {
   notifyBookingConfirmed,
   notifyBookingCancelled,
   notifyPostFlightClarificationRequested,
-  notifyCheckoutConfirmed,
 } from '@/lib/booking/notifications'
+import { enqueueCheckoutConfirmedEmail } from '@/lib/email/outbox'
 import { sendEmail } from '@/lib/email/send-email'
 import { checkoutOutcomeEmail } from '@/lib/email/templates/checkout'
 import { paymentConfirmedEmail } from '@/lib/email/templates/payment'
@@ -965,7 +965,7 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
   }))
   if (notifErr) console.error('[confirmCheckoutBooking] notification failed:', notifErr.message)
 
-  const [customerProfileRes, aircraftRes] = await perf.time('checkout_approval', 'checkout_approval_email_preparation', () => Promise.all([
+  const [customerProfileRes, aircraftRes] = await Promise.all([
     supabase
       .from('profiles')
       .select('email')
@@ -976,16 +976,16 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
       .select('registration')
       .eq('id', booking.aircraft_id)
       .single(),
-  ]))
+  ])
   const customerProfile = customerProfileRes.data
   const aircraft = aircraftRes.data
   if (customerProfile?.email) {
-    await perf.time('checkout_approval', 'checkout_approval_email_delivery', () => notifyCheckoutConfirmed({
+    await perf.time('checkout_approval', 'checkout_approval_email_enqueue', () => enqueueCheckoutConfirmedEmail({
       customerEmail: customerProfile.email,
       bookingId,
       time: fmtStart,
       aircraft: aircraft?.registration ?? 'Assigned aircraft',
-    }).catch((error) => console.error('[confirmCheckoutBooking] email failed:', error)))
+    }))
   }
 
   perf.timeSync('checkout_approval', 'checkout_approval_revalidation', () => {

@@ -1,0 +1,907 @@
+
+> ozrentaplane@0.1.0 start
+> next start
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+
+ ✓ Starting...
+ ✓ Ready in 165ms
+ ⚠ For production Image Optimization with Next.js, the optional 'sharp' package is strongly recommended. Run 'npm i sharp', and Next.js will use it automatically for Image Optimization.
+Read more: https://nextjs.org/docs/messages/sharp-missing-in-production
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:43.030Z","operationId":"14a1b7dc-ba4a-4354-9e01-3d355f20596b","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":244.13,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:43.031Z","operationId":"04044e44-cd12-4008-823b-6e435612372a","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_identity_preparation","durationMs":244.72,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:43.031Z","operationId":"b15574ed-5c14-43a3-ad3e-d9ed5a4d8754","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":244.66,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:43.279Z","operationId":"7d2de28d-be97-40d3-aabc-9e7daa609254","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":245.9,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:43.279Z","operationId":"04044e44-cd12-4008-823b-6e435612372a","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_profile_preparation","durationMs":248.48,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:43.280Z","operationId":"b15574ed-5c14-43a3-ad3e-d9ed5a4d8754","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":249.42,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:43.281Z","operationId":"b15574ed-5c14-43a3-ad3e-d9ed5a4d8754","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":496.77,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:43.616Z","operationId":"04044e44-cd12-4008-823b-6e435612372a","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_manual_checkout_clearance_lookup","durationMs":336.02,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:43.621Z","operationId":"04044e44-cd12-4008-823b-6e435612372a","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_primary_query_group","durationMs":341.92,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:43.626Z","operationId":"04044e44-cd12-4008-823b-6e435612372a","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_login_tracking","durationMs":346.68,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:43.628Z","operationId":"04044e44-cd12-4008-823b-6e435612372a","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_query_group","durationMs":347.78,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:43.630Z","operationId":"04044e44-cd12-4008-823b-6e435612372a","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_block_time_group","durationMs":350.15,"status":"success","rowCount":4}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:43.829Z","operationId":"04044e44-cd12-4008-823b-6e435612372a","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_fallbacks","durationMs":201.11,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:43.830Z","operationId":"04044e44-cd12-4008-823b-6e435612372a","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_summary_preparation","durationMs":0.34,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:43.831Z","operationId":"04044e44-cd12-4008-823b-6e435612372a","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_total_server_page_preparation","durationMs":1047.47,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:48.310Z","operationId":"cfdddef3-93db-408d-93ef-92855e6ea5c1","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":175.77,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:48.310Z","operationId":"765c0734-73d2-4136-b259-7aaaae9a4570","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":176.72,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:48.530Z","operationId":"95ec5ad6-2ca7-4660-b91c-32261d944941","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":219.08,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:48.530Z","operationId":"765c0734-73d2-4136-b259-7aaaae9a4570","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":220.14,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:48.530Z","operationId":"765c0734-73d2-4136-b259-7aaaae9a4570","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":399.07,"status":"success"}
+[checkout_route_load] {
+  route: '/dashboard/checkout',
+  user_id: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+  profile_found: false,
+  pilot_profile_found: false,
+  checkout_request_found: false,
+  pilot_documents_found: false,
+  errors: {
+    profile: {
+      code: 'PGRST200',
+      message: "Could not find a relationship between 'profiles' and 'user_document_files' in the schema cache"
+    },
+    checkout_request: null,
+    pilot_documents: null,
+    aircraft: null,
+    terms_primary: null,
+    terms_fallback: null,
+    terms_admin_primary: null,
+    terms_admin_fallback: null,
+    terms_admin_client: null
+  }
+}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:59.050Z","operationId":"86cc1eb9-0d66-470a-945e-84dc8e4e6548","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":180.47,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:59.050Z","operationId":"6686abe3-bc47-4de1-b359-a4267bfcac7a","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":181.04,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:59.264Z","operationId":"dcbd1b78-15fa-45a3-acb5-4f643fd81bf8","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":213.89,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:59.264Z","operationId":"6686abe3-bc47-4de1-b359-a4267bfcac7a","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":214.4,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T03:58:59.264Z","operationId":"6686abe3-bc47-4de1-b359-a4267bfcac7a","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":397.16,"status":"success"}
+[checkout_route_load] {
+  route: '/dashboard/checkout',
+  user_id: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+  profile_found: false,
+  pilot_profile_found: false,
+  checkout_request_found: false,
+  pilot_documents_found: false,
+  errors: {
+    profile: {
+      code: 'PGRST200',
+      message: "Could not find a relationship between 'profiles' and 'user_document_files' in the schema cache"
+    },
+    checkout_request: null,
+    pilot_documents: null,
+    aircraft: null,
+    terms_primary: null,
+    terms_fallback: null,
+    terms_admin_primary: null,
+    terms_admin_fallback: null,
+    terms_admin_client: null
+  }
+}
+CHECKOUT_AVAILABILITY_STEP1 {
+  mode: 'default',
+  aircraft_id: '811bf319-1c27-425a-91c8-9b551a1476e7',
+  requested_start_utc: '2026-10-31T22:15:00.000Z',
+  requested_end_utc: '2026-11-01T00:15:00.000Z',
+  requested_start_sydney: '1/11/26, 9:15:00 am',
+  requested_end_sydney: '1/11/26, 11:15:00 am',
+  query_start_utc: '2026-10-31T22:15:00.000Z',
+  query_end_utc: '2026-11-01T00:15:00.000Z',
+  query_start_sydney: '1/11/26, 9:15:00 am',
+  query_end_sydney: '1/11/26, 11:15:00 am',
+  preflight_buffer_minutes: 0,
+  postflight_buffer_minutes: 0,
+  blocking_bookings_found: 0,
+  blocking_schedule_blocks_found: 0,
+  blocking_bookings: [],
+  blocking_schedule_blocks: [],
+  available: true
+}
+saveLastFlightDate:start {
+  userId: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+  dateStr: '2026-07-26'
+}
+saveLastFlightDate: {
+  userId: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+  dateStr: '2026-07-26',
+  error: null,
+  data: [
+    {
+      id: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+      last_flight_date: '2026-07-26'
+    }
+  ]
+}
+{"type":"perf_timing","timestamp":"2026-07-29T03:59:58.407Z","operationId":"e598bc7b-2829-4932-96cf-9dc75c029779","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":163.14,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T03:59:58.407Z","operationId":"ac930897-8a22-4bff-8288-bcf5b4b9a861","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":163.57,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T03:59:58.637Z","operationId":"a95cf738-68d9-4f48-b9b1-026587d71260","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":229.2,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T03:59:58.637Z","operationId":"ac930897-8a22-4bff-8288-bcf5b4b9a861","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":229.79,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T03:59:58.637Z","operationId":"ac930897-8a22-4bff-8288-bcf5b4b9a861","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":394.83,"status":"success"}
+[checkout_route_load] {
+  route: '/dashboard/checkout',
+  user_id: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+  profile_found: false,
+  pilot_profile_found: false,
+  checkout_request_found: false,
+  pilot_documents_found: true,
+  errors: {
+    profile: {
+      code: 'PGRST200',
+      message: "Could not find a relationship between 'profiles' and 'user_document_files' in the schema cache"
+    },
+    checkout_request: null,
+    pilot_documents: null,
+    aircraft: null,
+    terms_primary: null,
+    terms_fallback: null,
+    terms_admin_primary: null,
+    terms_admin_fallback: null,
+    terms_admin_client: null
+  }
+}
+[acceptTermsAndConditions] writing acceptance row {
+  userId: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+  termsDocumentId: '861ac297-769b-4583-9e8a-f1d9dbaedb79',
+  termsVersion: '1.0',
+  context: 'standard'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:19.341Z","operationId":"546eea0a-0ba5-4f59-8930-2052933d0a8f","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":166.19,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:19.341Z","operationId":"162a29ff-f301-487a-9572-265d23a7ffcb","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":166.63,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:19.577Z","operationId":"63b4ca4d-0ead-4bd5-a488-b93bff93fdf4","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":235.32,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:19.577Z","operationId":"162a29ff-f301-487a-9572-265d23a7ffcb","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":235.87,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:19.577Z","operationId":"162a29ff-f301-487a-9572-265d23a7ffcb","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":404.87,"status":"success"}
+[checkout_route_load] {
+  route: '/dashboard/checkout',
+  user_id: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+  profile_found: false,
+  pilot_profile_found: false,
+  checkout_request_found: false,
+  pilot_documents_found: true,
+  errors: {
+    profile: {
+      code: 'PGRST200',
+      message: "Could not find a relationship between 'profiles' and 'user_document_files' in the schema cache"
+    },
+    checkout_request: null,
+    pilot_documents: null,
+    aircraft: null,
+    terms_primary: null,
+    terms_fallback: null,
+    terms_admin_primary: null,
+    terms_admin_fallback: null,
+    terms_admin_client: null
+  }
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:23.912Z","operationId":"9e5d4357-4d7c-484f-88ca-460954166808","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_auth","durationMs":352.15,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:23.912Z","operationId":"9e5d4357-4d7c-484f-88ca-460954166808","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_profile_authorization","durationMs":0.01,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:24.072Z","operationId":"9e5d4357-4d7c-484f-88ca-460954166808","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_terms_read","durationMs":159.61,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:24.100Z","operationId":"9e5d4357-4d7c-484f-88ca-460954166808","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_documents_read","durationMs":187.93,"status":"success","rowCount":4}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:24.283Z","operationId":"9e5d4357-4d7c-484f-88ca-460954166808","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_availability_read","durationMs":181.54,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:24.484Z","operationId":"9e5d4357-4d7c-484f-88ca-460954166808","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_availability_read","durationMs":201.18,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:24.686Z","operationId":"9e5d4357-4d7c-484f-88ca-460954166808","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_rpc_write","durationMs":202.22,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:24.850Z","operationId":"9e5d4357-4d7c-484f-88ca-460954166808","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_terms_acceptance_write","durationMs":163.02,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:25.210Z","operationId":"9e5d4357-4d7c-484f-88ca-460954166808","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_notification_write","durationMs":166.27,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:25.211Z","operationId":"9e5d4357-4d7c-484f-88ca-460954166808","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_customer_email","durationMs":0.58,"status":"success"}
+[email] sent {
+  resendEmailId: '260f8c63-e70a-481b-9d56-7a9dfa7b8af1',
+  eventType: 'admin_new_checkout_request',
+  to: 'info@ozrentaplane.com'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:27.058Z","operationId":"9e5d4357-4d7c-484f-88ca-460954166808","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_admin_email","durationMs":1846.13,"status":"success"}
+[email] sent {
+  resendEmailId: '3090a6ff-5e6e-4525-a32f-52cdadd23f39',
+  eventType: 'checkout_request_submitted',
+  to: 'rohanjetha14@gmail.com'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:27.120Z","operationId":"9e5d4357-4d7c-484f-88ca-460954166808","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_customer_email","durationMs":1908.37,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:27.120Z","operationId":"9e5d4357-4d7c-484f-88ca-460954166808","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_revalidation","durationMs":0.13,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:27.120Z","operationId":"9e5d4357-4d7c-484f-88ca-460954166808","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_response_ready","durationMs":0.01,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:27.120Z","operationId":"9e5d4357-4d7c-484f-88ca-460954166808","route":"server_action:submitCheckoutRequest","role":"customer","operationName":"checkout_submit","phase":"checkout_submit_total","durationMs":3560.45,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:27.298Z","operationId":"9a4f6f33-359b-4710-aaa9-2e869140da37","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":173.42,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:27.298Z","operationId":"1e5ec1ca-bab7-43a2-8b68-cdaa7b3df8a2","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":173.94,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:27.498Z","operationId":"f3f68798-bb51-41c4-9985-4ecf4f1463bb","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":198.92,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:27.498Z","operationId":"1e5ec1ca-bab7-43a2-8b68-cdaa7b3df8a2","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":199.95,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:27.498Z","operationId":"1e5ec1ca-bab7-43a2-8b68-cdaa7b3df8a2","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":375.17,"status":"success"}
+[checkout_route_load] {
+  route: '/dashboard/checkout',
+  user_id: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+  profile_found: false,
+  pilot_profile_found: false,
+  checkout_request_found: true,
+  pilot_documents_found: true,
+  errors: {
+    profile: {
+      code: 'PGRST200',
+      message: "Could not find a relationship between 'profiles' and 'user_document_files' in the schema cache"
+    },
+    checkout_request: null,
+    pilot_documents: null,
+    aircraft: null,
+    terms_primary: null,
+    terms_fallback: null,
+    terms_admin_primary: null,
+    terms_admin_fallback: null,
+    terms_admin_client: null
+  }
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:30.749Z","operationId":"259e49a9-2435-43a3-9043-be52c45699cb","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":162.81,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:30.749Z","operationId":"6428c1b4-ace0-4971-856e-308636e16f6d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_identity_preparation","durationMs":163.08,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:30.924Z","operationId":"571613ee-8d84-4566-9ba4-ce91f184dc02","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":174.69,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:30.924Z","operationId":"6428c1b4-ace0-4971-856e-308636e16f6d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_profile_preparation","durationMs":175.3,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:31.159Z","operationId":"6428c1b4-ace0-4971-856e-308636e16f6d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_block_time_group","durationMs":233.29,"status":"success","rowCount":4}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:31.164Z","operationId":"6428c1b4-ace0-4971-856e-308636e16f6d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_query_group","durationMs":238.82,"status":"success","rowCount":2}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:31.168Z","operationId":"6428c1b4-ace0-4971-856e-308636e16f6d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_primary_query_group","durationMs":243.48,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:31.260Z","operationId":"6428c1b4-ace0-4971-856e-308636e16f6d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_manual_checkout_clearance_lookup","durationMs":334.97,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:31.439Z","operationId":"6428c1b4-ace0-4971-856e-308636e16f6d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_fallbacks","durationMs":178.3,"status":"success","rowCount":2}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:31.441Z","operationId":"6428c1b4-ace0-4971-856e-308636e16f6d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_summary_preparation","durationMs":1.81,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:31.441Z","operationId":"6428c1b4-ace0-4971-856e-308636e16f6d","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_total_server_page_preparation","durationMs":856.36,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:43.810Z","operationId":"8507f1c3-0cdb-4d26-a75e-11a0bf6c35f1","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":211.64,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:43.810Z","operationId":"d678c734-3287-499b-9e29-feef76d4cb2b","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_identity_preparation","durationMs":211.91,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:43.810Z","operationId":"b8c48088-f9d3-4500-9cf2-6a4f74a2fc00","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":211.89,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:44.009Z","operationId":"dec2200d-7586-4c0b-be31-3e6c0a6b026e","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":197.88,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:44.009Z","operationId":"d678c734-3287-499b-9e29-feef76d4cb2b","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_profile_preparation","durationMs":198.58,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:44.009Z","operationId":"b8c48088-f9d3-4500-9cf2-6a4f74a2fc00","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":198.75,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:44.428Z","operationId":"85fcfb80-4ce4-470f-a118-c5c0adac5e78","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":222.45,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:44.428Z","operationId":"3937fe3d-9111-47c5-8ab6-a00c00ad6f1e","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"authenticated_user_lookup","durationMs":223.88,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:44.428Z","operationId":"e0b19e27-3935-4db5-8344-4462861096cf","route":"/admin","role":"admin","operationName":"admin_home","phase":"identity_preparation","durationMs":222.54,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:44.589Z","operationId":"9e4ae85a-87ac-4666-b5a2-906ae784b09e","route":"shared_profile","role":"admin","operationName":"cached_profile_helper","phase":"profile_query_admin","durationMs":160.94,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:44.589Z","operationId":"3937fe3d-9111-47c5-8ab6-a00c00ad6f1e","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"profile_role_lookup","durationMs":161.42,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:44.589Z","operationId":"e0b19e27-3935-4db5-8344-4462861096cf","route":"/admin","role":"admin","operationName":"admin_home","phase":"profile_preparation","durationMs":161.35,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:44.589Z","operationId":"3937fe3d-9111-47c5-8ab6-a00c00ad6f1e","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"admin_shell_authorization_preparation","durationMs":385.39,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:44.589Z","operationId":"3937fe3d-9111-47c5-8ab6-a00c00ad6f1e","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"total_blocking_admin_layout_preparation","durationMs":385.4,"status":"success"}
+[admin command board] "checkout reschedule rows" query failed: column checkout_change_requests.customer_message does not exist
+[admin command board] "checkout cancel rows" query failed: column checkout_change_requests.customer_message does not exist
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:45.212Z","operationId":"64df7f4a-483d-4849-bc95-7181d5c64782","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_query_group","durationMs":603.56,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:45.212Z","operationId":"64df7f4a-483d-4849-bc95-7181d5c64782","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"dependent_second_query_group","durationMs":0.04,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:45.212Z","operationId":"64df7f4a-483d-4849-bc95-7181d5c64782","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_total","durationMs":604.02,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:45.224Z","operationId":"e0b19e27-3935-4db5-8344-4462861096cf","route":"/admin","role":"admin","operationName":"admin_home","phase":"primary_query_group","durationMs":635.12,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:45.434Z","operationId":"e0b19e27-3935-4db5-8344-4462861096cf","route":"/admin","role":"admin","operationName":"admin_home","phase":"followup_parallel_group","durationMs":208.99,"status":"success","rowCount":8}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:45.434Z","operationId":"e0b19e27-3935-4db5-8344-4462861096cf","route":"/admin","role":"admin","operationName":"admin_home","phase":"dashboard_metric_preparation","durationMs":0.03,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:45.434Z","operationId":"e0b19e27-3935-4db5-8344-4462861096cf","route":"/admin","role":"admin","operationName":"admin_home","phase":"action_feed_preparation","durationMs":0.01,"status":"success","rowCount":4}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:45.434Z","operationId":"e0b19e27-3935-4db5-8344-4462861096cf","route":"/admin","role":"admin","operationName":"admin_home","phase":"total_server_page_preparation","durationMs":1230.55,"status":"success","rowCount":4}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:55.570Z","operationId":"13b66a5d-ad77-444c-85dc-c45a15dc10bc","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":162.6,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:55.570Z","operationId":"4086c32d-3e58-482b-bbc4-eef27823e9f2","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"authenticated_user_lookup","durationMs":164.03,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:55.728Z","operationId":"abf88ba6-e62f-48d3-ace6-80e56958721f","route":"shared_profile","role":"admin","operationName":"cached_profile_helper","phase":"profile_query_admin","durationMs":157.62,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:55.728Z","operationId":"4086c32d-3e58-482b-bbc4-eef27823e9f2","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"profile_role_lookup","durationMs":157.96,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:55.728Z","operationId":"4086c32d-3e58-482b-bbc4-eef27823e9f2","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"admin_shell_authorization_preparation","durationMs":322.04,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:55.728Z","operationId":"4086c32d-3e58-482b-bbc4-eef27823e9f2","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"total_blocking_admin_layout_preparation","durationMs":322.05,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:55.799Z","operationId":"5731e563-b88e-4ee1-8bbe-8ed8ca5661d3","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":198.48,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:55.799Z","operationId":"db57ee4f-0c99-4f94-ae83-ee9e5da700cd","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"authenticated_user_lookup","durationMs":200.7,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:55.978Z","operationId":"0adf25f8-7c5d-4645-b6a8-6bb1b3c769f6","route":"shared_profile","role":"admin","operationName":"cached_profile_helper","phase":"profile_query_admin","durationMs":178.35,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:55.978Z","operationId":"db57ee4f-0c99-4f94-ae83-ee9e5da700cd","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"profile_role_lookup","durationMs":178.69,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:55.978Z","operationId":"db57ee4f-0c99-4f94-ae83-ee9e5da700cd","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"admin_shell_authorization_preparation","durationMs":379.44,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:55.978Z","operationId":"db57ee4f-0c99-4f94-ae83-ee9e5da700cd","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"total_blocking_admin_layout_preparation","durationMs":379.45,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:55.991Z","operationId":"480e0310-1e88-4333-8eed-057a471b5564","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_query_group","durationMs":260.61,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:55.991Z","operationId":"480e0310-1e88-4333-8eed-057a471b5564","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"dependent_second_query_group","durationMs":0.01,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:55.991Z","operationId":"480e0310-1e88-4333-8eed-057a471b5564","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_total","durationMs":261.11,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:56.202Z","operationId":"9d60742b-81d7-4822-8e99-0e1adefb9863","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_query_group","durationMs":222.15,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:56.202Z","operationId":"9d60742b-81d7-4822-8e99-0e1adefb9863","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"dependent_second_query_group","durationMs":0.01,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:56.202Z","operationId":"9d60742b-81d7-4822-8e99-0e1adefb9863","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_total","durationMs":222.84,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:59.242Z","operationId":"77f08fef-2a51-476d-9447-30150a700353","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_auth","durationMs":322.46,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:59.242Z","operationId":"77f08fef-2a51-476d-9447-30150a700353","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_authorization","durationMs":0.02,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:59.429Z","operationId":"77f08fef-2a51-476d-9447-30150a700353","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_booking_read","durationMs":187,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:59.779Z","operationId":"77f08fef-2a51-476d-9447-30150a700353","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_primary_write","durationMs":350.55,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:00:59.938Z","operationId":"77f08fef-2a51-476d-9447-30150a700353","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_notification_write","durationMs":158.37,"status":"success"}
+[confirmCheckoutBooking] notification failed: Could not find the 'request_id' column of 'verification_events' in the schema cache
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:00.098Z","operationId":"77f08fef-2a51-476d-9447-30150a700353","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_email_preparation","durationMs":159.22,"status":"success"}
+[email] sent {
+  resendEmailId: 'f5d910a4-1655-4669-b9b0-f5b946392cd9',
+  eventType: 'checkout_confirmed',
+  to: 'rohanjetha14@gmail.com'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:01.868Z","operationId":"77f08fef-2a51-476d-9447-30150a700353","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_email_delivery","durationMs":1770.38,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:01.868Z","operationId":"77f08fef-2a51-476d-9447-30150a700353","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_revalidation","durationMs":0.11,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:01.868Z","operationId":"77f08fef-2a51-476d-9447-30150a700353","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_response_ready","durationMs":0.01,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:01.868Z","operationId":"77f08fef-2a51-476d-9447-30150a700353","route":"server_action:confirmCheckoutBooking","role":"admin","operationName":"checkout_approval","phase":"checkout_approval_total","durationMs":2949.12,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.061Z","operationId":"d4bb6734-9491-4663-9ce8-d03c0486eec4","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":188.62,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.061Z","operationId":"d0e9f2b5-b9e6-4b6f-b76a-e4a593a11fe5","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"authenticated_user_lookup","durationMs":190.41,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.225Z","operationId":"39a68594-5760-4d8b-a5e8-d358cc69471c","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":168.58,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.225Z","operationId":"7beaac16-441a-4fce-8fc0-06866e751ea6","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"authenticated_user_lookup","durationMs":170.03,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.232Z","operationId":"0b4644b0-d4b9-4eab-b56d-b9da1ed481e4","route":"shared_profile","role":"admin","operationName":"cached_profile_helper","phase":"profile_query_admin","durationMs":170.75,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.232Z","operationId":"d0e9f2b5-b9e6-4b6f-b76a-e4a593a11fe5","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"profile_role_lookup","durationMs":171.11,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.232Z","operationId":"d0e9f2b5-b9e6-4b6f-b76a-e4a593a11fe5","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"admin_shell_authorization_preparation","durationMs":361.56,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.232Z","operationId":"d0e9f2b5-b9e6-4b6f-b76a-e4a593a11fe5","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"total_blocking_admin_layout_preparation","durationMs":361.58,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.405Z","operationId":"cec0678e-ee3c-4589-8299-f4b16a9193ea","route":"shared_profile","role":"admin","operationName":"cached_profile_helper","phase":"profile_query_admin","durationMs":179.76,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.405Z","operationId":"7beaac16-441a-4fce-8fc0-06866e751ea6","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"profile_role_lookup","durationMs":180.1,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.405Z","operationId":"7beaac16-441a-4fce-8fc0-06866e751ea6","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"admin_shell_authorization_preparation","durationMs":350.18,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.405Z","operationId":"7beaac16-441a-4fce-8fc0-06866e751ea6","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"total_blocking_admin_layout_preparation","durationMs":350.19,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.496Z","operationId":"3f006571-9149-4655-b93f-6aa90dd737e9","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_query_group","durationMs":261.66,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.496Z","operationId":"3f006571-9149-4655-b93f-6aa90dd737e9","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"dependent_second_query_group","durationMs":0.01,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.496Z","operationId":"3f006571-9149-4655-b93f-6aa90dd737e9","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_total","durationMs":262.21,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.662Z","operationId":"192a4092-2380-4fa6-a05b-19e0156ece72","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_query_group","durationMs":255.1,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.662Z","operationId":"192a4092-2380-4fa6-a05b-19e0156ece72","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"dependent_second_query_group","durationMs":0.01,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:02.662Z","operationId":"192a4092-2380-4fa6-a05b-19e0156ece72","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_total","durationMs":255.67,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.182Z","operationId":"fa24dbaf-087a-4e98-ac06-c41c34bcdd15","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":157.63,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.182Z","operationId":"9cdd515c-07e5-4099-99be-037f2bd2fbf1","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"authenticated_user_lookup","durationMs":158.89,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.342Z","operationId":"04432d81-6fd0-452b-95e7-65a70681cdd2","route":"shared_profile","role":"admin","operationName":"cached_profile_helper","phase":"profile_query_admin","durationMs":159.77,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.342Z","operationId":"9cdd515c-07e5-4099-99be-037f2bd2fbf1","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"profile_role_lookup","durationMs":160.08,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.343Z","operationId":"9cdd515c-07e5-4099-99be-037f2bd2fbf1","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"admin_shell_authorization_preparation","durationMs":319.02,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.343Z","operationId":"9cdd515c-07e5-4099-99be-037f2bd2fbf1","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"total_blocking_admin_layout_preparation","durationMs":319.03,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.376Z","operationId":"dc498444-be82-4b0d-80de-777713b69a13","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":167.61,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.376Z","operationId":"0357c9c8-328c-4eb5-a42d-7549406569eb","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"authenticated_user_lookup","durationMs":169.05,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.549Z","operationId":"bf8e58b8-64cb-4221-95c6-00dee3666e1b","route":"shared_profile","role":"admin","operationName":"cached_profile_helper","phase":"profile_query_admin","durationMs":172.5,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.549Z","operationId":"0357c9c8-328c-4eb5-a42d-7549406569eb","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"profile_role_lookup","durationMs":172.82,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.549Z","operationId":"0357c9c8-328c-4eb5-a42d-7549406569eb","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"admin_shell_authorization_preparation","durationMs":341.91,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.549Z","operationId":"0357c9c8-328c-4eb5-a42d-7549406569eb","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"total_blocking_admin_layout_preparation","durationMs":341.93,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.608Z","operationId":"fe812663-b796-4f4a-a15d-30633bd61afa","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_query_group","durationMs":264.12,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.608Z","operationId":"fe812663-b796-4f4a-a15d-30633bd61afa","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"dependent_second_query_group","durationMs":0.02,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.608Z","operationId":"fe812663-b796-4f4a-a15d-30633bd61afa","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_total","durationMs":264.6,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.838Z","operationId":"8989c6d0-86a0-44f5-af7d-8cfafd38bd19","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_query_group","durationMs":288.72,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.839Z","operationId":"8989c6d0-86a0-44f5-af7d-8cfafd38bd19","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"dependent_second_query_group","durationMs":0.02,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:06.839Z","operationId":"8989c6d0-86a0-44f5-af7d-8cfafd38bd19","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_total","durationMs":289.22,"status":"success"}
+[markCheckoutOutcome] calling RPC complete_checkout_outcome_atomic {
+  p_booking_id: '6b4c8d0e-450b-41a1-9db2-f6f2436f93f4',
+  p_customer_id: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+  p_vdo_reading: 2,
+  p_checkout_outcome: 'cleared_to_fly',
+  p_landing_charges: [
+    {
+      airport_id: 'bc40e493-01a1-4759-bd87-704ad7a8051d',
+      landing_count: 1
+    }
+  ],
+  p_admin_notes: 'adsdf',
+  p_payment_waived: false,
+  p_waiver_reason: null,
+  p_checkout_rate_cents_per_hour: 29000
+}
+[email] sent {
+  resendEmailId: '2cd51745-40b2-4bad-bd5f-2d29a4075dfd',
+  eventType: 'checkout_payment_required',
+  to: 'rohanjetha14@gmail.com'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.193Z","operationId":"46983738-1c51-44e7-85ab-c48a1fb3be77","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":159.14,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.193Z","operationId":"566d34d8-8f6a-4960-a99a-b212ce976353","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"authenticated_user_lookup","durationMs":161.21,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.353Z","operationId":"15443dc4-bc55-4f40-b383-f8dd437d20a3","route":"shared_profile","role":"admin","operationName":"cached_profile_helper","phase":"profile_query_admin","durationMs":159.77,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.353Z","operationId":"566d34d8-8f6a-4960-a99a-b212ce976353","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"profile_role_lookup","durationMs":160.1,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.353Z","operationId":"566d34d8-8f6a-4960-a99a-b212ce976353","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"admin_shell_authorization_preparation","durationMs":321.35,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.353Z","operationId":"566d34d8-8f6a-4960-a99a-b212ce976353","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"total_blocking_admin_layout_preparation","durationMs":321.36,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.441Z","operationId":"1bf8d1d3-8e56-4cf6-a65b-e18e5f9e384a","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":213.4,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.441Z","operationId":"c73b944d-b4b6-4404-b2cf-67bea55b881b","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"authenticated_user_lookup","durationMs":214.61,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.600Z","operationId":"3ddb4f88-3d1e-41ee-8847-c3ef09aa1e6f","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_query_group","durationMs":244.23,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.600Z","operationId":"3ddb4f88-3d1e-41ee-8847-c3ef09aa1e6f","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"dependent_second_query_group","durationMs":0.02,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.600Z","operationId":"3ddb4f88-3d1e-41ee-8847-c3ef09aa1e6f","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_total","durationMs":244.72,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.632Z","operationId":"836387e0-60d0-42da-9f3d-147210d6c549","route":"shared_profile","role":"admin","operationName":"cached_profile_helper","phase":"profile_query_admin","durationMs":191.06,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.632Z","operationId":"c73b944d-b4b6-4404-b2cf-67bea55b881b","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"profile_role_lookup","durationMs":191.51,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.633Z","operationId":"c73b944d-b4b6-4404-b2cf-67bea55b881b","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"admin_shell_authorization_preparation","durationMs":406.16,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.633Z","operationId":"c73b944d-b4b6-4404-b2cf-67bea55b881b","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"total_blocking_admin_layout_preparation","durationMs":406.18,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.889Z","operationId":"17ead725-026b-4e2b-ab54-ee035769e9ab","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_query_group","durationMs":255.5,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.889Z","operationId":"17ead725-026b-4e2b-ab54-ee035769e9ab","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"dependent_second_query_group","durationMs":0.03,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:25.889Z","operationId":"17ead725-026b-4e2b-ab54-ee035769e9ab","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_total","durationMs":256.06,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:36.814Z","operationId":"0321c9a2-72c3-45c3-bba8-f4734845a20a","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":224.92,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:36.814Z","operationId":"b140d1df-bfe0-43f5-b147-df26fec169e7","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_identity_preparation","durationMs":225.2,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:36.814Z","operationId":"dac35b08-e415-4247-9c27-b0647d6d7c15","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":225.16,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:37.030Z","operationId":"65afa604-e42e-49ab-aae7-51315e74ca65","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":215.64,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:37.030Z","operationId":"b140d1df-bfe0-43f5-b147-df26fec169e7","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_profile_preparation","durationMs":216.22,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:37.031Z","operationId":"dac35b08-e415-4247-9c27-b0647d6d7c15","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":217.1,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:37.031Z","operationId":"dac35b08-e415-4247-9c27-b0647d6d7c15","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":443.46,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:37.283Z","operationId":"b140d1df-bfe0-43f5-b147-df26fec169e7","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_block_time_group","durationMs":251.62,"status":"success","rowCount":4}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:37.286Z","operationId":"b140d1df-bfe0-43f5-b147-df26fec169e7","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_login_tracking","durationMs":255.22,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:37.301Z","operationId":"b140d1df-bfe0-43f5-b147-df26fec169e7","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_query_group","durationMs":269.95,"status":"success","rowCount":2}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:37.317Z","operationId":"b140d1df-bfe0-43f5-b147-df26fec169e7","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_primary_query_group","durationMs":286.7,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:37.418Z","operationId":"b140d1df-bfe0-43f5-b147-df26fec169e7","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_manual_checkout_clearance_lookup","durationMs":387.33,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:37.491Z","operationId":"b140d1df-bfe0-43f5-b147-df26fec169e7","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_payment_followups","durationMs":173.61,"status":"success","rowCount":3}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:37.664Z","operationId":"b140d1df-bfe0-43f5-b147-df26fec169e7","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_payment_followups","durationMs":173.44,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:37.831Z","operationId":"b140d1df-bfe0-43f5-b147-df26fec169e7","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_fallbacks","durationMs":165.79,"status":"success","rowCount":2}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:37.832Z","operationId":"b140d1df-bfe0-43f5-b147-df26fec169e7","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_summary_preparation","durationMs":1.14,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:01:37.833Z","operationId":"b140d1df-bfe0-43f5-b147-df26fec169e7","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_total_server_page_preparation","durationMs":1245.06,"status":"success"}
+[webhook] Event received: type=charge.succeeded id=evt_3TyOh5LgovzDP8yV3JHOvAZl
+[webhook] Event received: type=payment_intent.succeeded id=evt_3TyOh5LgovzDP8yV3toyBFNV
+[webhook] Event received: type=payment_intent.created id=evt_3TyOh5LgovzDP8yV3NjprVms
+[webhook] payment_intent.succeeded - payment intent details {
+  payment_intent_id: 'pi_3TyOh5LgovzDP8yV3B79V2Z5',
+  amount_received: 61979,
+  metadata: {},
+  purchase_id: undefined,
+  purchase_type: undefined
+}
+[webhook] Skipping - non block_time payment intent
+[webhook] Event received: type=checkout.session.completed id=evt_1TyOh7LgovzDP8yVvCmODT45
+[webhook] checkout.session.completed - session details {
+  session_id: 'cs_test_a1SzKmPTaxlTyfIuWbzsYA0NsCi8ZXgbGYsoE0uaGRwOEfLU1gXDg70lmL',
+  payment_intent: 'pi_3TyOh5LgovzDP8yV3B79V2Z5',
+  amount_total: 61979,
+  metadata: {
+    invoice_type: 'checkout',
+    customer_id: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+    invoice_id: 'af9a83f9-a65b-4e4f-bbcf-4e03f45ed225',
+    booking_id: '6b4c8d0e-450b-41a1-9db2-f6f2436f93f4'
+  },
+  invoice_id: 'af9a83f9-a65b-4e4f-bbcf-4e03f45ed225',
+  booking_id: '6b4c8d0e-450b-41a1-9db2-f6f2436f93f4',
+  customer_id: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+  invoice_type: 'checkout'
+}
+[webhook] Extracted metadata {
+  invoiceId: 'af9a83f9-a65b-4e4f-bbcf-4e03f45ed225',
+  bookingId: '6b4c8d0e-450b-41a1-9db2-f6f2436f93f4',
+  customerId: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+  invoiceType: 'checkout',
+  sessionId: 'cs_test_a1SzKmPTaxlTyfIuWbzsYA0NsCi8ZXgbGYsoE0uaGRwOEfLU1gXDg70lmL',
+  paymentIntentId: 'pi_3TyOh5LgovzDP8yV3B79V2Z5',
+  amountPaid: 61979
+}
+[webhook] Calling mark_checkout_invoice_paid_atomic {
+  invoiceId: 'af9a83f9-a65b-4e4f-bbcf-4e03f45ed225',
+  sessionId: 'cs_test_a1SzKmPTaxlTyfIuWbzsYA0NsCi8ZXgbGYsoE0uaGRwOEfLU1gXDg70lmL'
+}
+[webhook] mark_checkout_invoice_paid_atomic succeeded ✓
+{"type":"perf_timing","timestamp":"2026-07-29T04:02:15.982Z","operationId":"5426bb5f-d6be-4c7a-aba3-15ed52c68294","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":185.73,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:02:15.982Z","operationId":"b01906aa-939b-4cc1-ac93-97deff4ce474","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":186.48,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:02:16.161Z","operationId":"ab3a4329-9a3d-40bb-b4da-64b2b8424ed1","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":178.99,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:02:16.167Z","operationId":"b01906aa-939b-4cc1-ac93-97deff4ce474","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":185.36,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:02:16.168Z","operationId":"b01906aa-939b-4cc1-ac93-97deff4ce474","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":372.47,"status":"success"}
+[email] sent {
+  resendEmailId: 'dc958900-7721-4204-aafb-2ac57514094d',
+  eventType: 'payment_confirmed',
+  to: 'rohanjetha14@gmail.com'
+}
+[webhook] checkout.session.completed processed successfully ✓ {
+  invoiceId: 'af9a83f9-a65b-4e4f-bbcf-4e03f45ed225',
+  bookingId: '6b4c8d0e-450b-41a1-9db2-f6f2436f93f4',
+  customerId: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:02:22.117Z","operationId":"2f566fd5-7db0-48cc-a147-b8f02d417b8f","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":230.62,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:02:22.117Z","operationId":"c29edf0c-c85e-45b8-a65b-365cfb7e60a4","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_identity_preparation","durationMs":230.9,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:02:22.311Z","operationId":"4d3b9805-0288-4de8-8b46-c70d949df67f","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":193.56,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:02:22.311Z","operationId":"c29edf0c-c85e-45b8-a65b-365cfb7e60a4","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_profile_preparation","durationMs":193.97,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:02:22.556Z","operationId":"c29edf0c-c85e-45b8-a65b-365cfb7e60a4","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_query_group","durationMs":244.76,"status":"success","rowCount":3}
+{"type":"perf_timing","timestamp":"2026-07-29T04:02:22.560Z","operationId":"c29edf0c-c85e-45b8-a65b-365cfb7e60a4","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_block_time_group","durationMs":248.5,"status":"success","rowCount":4}
+{"type":"perf_timing","timestamp":"2026-07-29T04:02:22.574Z","operationId":"c29edf0c-c85e-45b8-a65b-365cfb7e60a4","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_primary_query_group","durationMs":262.86,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:02:22.718Z","operationId":"c29edf0c-c85e-45b8-a65b-365cfb7e60a4","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_manual_checkout_clearance_lookup","durationMs":406.88,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:02:22.886Z","operationId":"c29edf0c-c85e-45b8-a65b-365cfb7e60a4","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_fallbacks","durationMs":167.3,"status":"success","rowCount":3}
+{"type":"perf_timing","timestamp":"2026-07-29T04:02:22.887Z","operationId":"c29edf0c-c85e-45b8-a65b-365cfb7e60a4","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_summary_preparation","durationMs":0.48,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:02:22.887Z","operationId":"c29edf0c-c85e-45b8-a65b-365cfb7e60a4","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_total_server_page_preparation","durationMs":1001.46,"status":"success"}
+CHECKOUT_AVAILABILITY_STEP1 {
+  mode: 'default',
+  aircraft_id: '811bf319-1c27-425a-91c8-9b551a1476e7',
+  requested_start_utc: '2026-11-02T22:45:00.000Z',
+  requested_end_utc: '2026-11-05T16:45:00.000Z',
+  requested_start_sydney: '3/11/26, 9:45:00 am',
+  requested_end_sydney: '6/11/26, 3:45:00 am',
+  query_start_utc: '2026-11-02T22:45:00.000Z',
+  query_end_utc: '2026-11-05T16:45:00.000Z',
+  query_start_sydney: '3/11/26, 9:45:00 am',
+  query_end_sydney: '6/11/26, 3:45:00 am',
+  preflight_buffer_minutes: 0,
+  postflight_buffer_minutes: 0,
+  blocking_bookings_found: 0,
+  blocking_schedule_blocks_found: 0,
+  blocking_bookings: [],
+  blocking_schedule_blocks: [],
+  available: true
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:08.717Z","operationId":"c20ebb29-9949-4abf-94d3-78247f7132a3","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_auth","durationMs":216.57,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:09.715Z","operationId":"c20ebb29-9949-4abf-94d3-78247f7132a3","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_authorization","durationMs":997.44,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:09.892Z","operationId":"c20ebb29-9949-4abf-94d3-78247f7132a3","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_availability_pricing_reads","durationMs":177.23,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:09.894Z","operationId":"c20ebb29-9949-4abf-94d3-78247f7132a3","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_validation","durationMs":1.46,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:10.146Z","operationId":"c20ebb29-9949-4abf-94d3-78247f7132a3","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_rpc_write","durationMs":252.22,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:10.326Z","operationId":"c20ebb29-9949-4abf-94d3-78247f7132a3","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_profile_update","durationMs":179.63,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:10.326Z","operationId":"c20ebb29-9949-4abf-94d3-78247f7132a3","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_revalidation","durationMs":0.15,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:10.326Z","operationId":"c20ebb29-9949-4abf-94d3-78247f7132a3","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_post_write_identity_reads","durationMs":0.02,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:10.326Z","operationId":"c20ebb29-9949-4abf-94d3-78247f7132a3","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_notification_write","durationMs":0.01,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:10.327Z","operationId":"c20ebb29-9949-4abf-94d3-78247f7132a3","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_email_preparation","durationMs":0.55,"status":"success"}
+[email] sent {
+  resendEmailId: 'ac985054-0b3c-4366-9b5f-7a4a7b802075',
+  eventType: 'booking_confirmed',
+  to: 'rohanjetha14@gmail.com'
+}
+[email] sent {
+  resendEmailId: '41f97b99-97a3-46f1-8f50-168d9e3b2cf6',
+  eventType: 'admin_new_booking_confirmed',
+  to: 'info@ozrentaplane.com'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:12.157Z","operationId":"c20ebb29-9949-4abf-94d3-78247f7132a3","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_email_delivery","durationMs":1830.27,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:12.157Z","operationId":"c20ebb29-9949-4abf-94d3-78247f7132a3","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_response_ready","durationMs":0.05,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:12.157Z","operationId":"c20ebb29-9949-4abf-94d3-78247f7132a3","route":"server_action:createBooking","role":"customer","operationName":"create_booking","phase":"create_booking_total","durationMs":3656.8,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:12.332Z","operationId":"5f68faaa-2ba7-4ee0-9cf0-dbd20771141e","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":169.66,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:12.332Z","operationId":"00ee25a9-1d85-4cd4-864c-51db480f578e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":169.94,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:12.514Z","operationId":"d9b53e2f-43ac-42fd-a5e6-607a47c69cdd","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":181.15,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:12.514Z","operationId":"00ee25a9-1d85-4cd4-864c-51db480f578e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":181.71,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:12.514Z","operationId":"00ee25a9-1d85-4cd4-864c-51db480f578e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":352.75,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:17.489Z","operationId":"b4314f75-2692-4ae0-9590-47b8de4d7380","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":162.28,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:17.490Z","operationId":"fb6ff60e-37e7-4c1b-8e87-28304537032b","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":162.58,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:17.714Z","operationId":"7223e079-129f-4c06-83c7-c58d5180f7d4","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":224.35,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:17.714Z","operationId":"fb6ff60e-37e7-4c1b-8e87-28304537032b","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":224.75,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:17.714Z","operationId":"fb6ff60e-37e7-4c1b-8e87-28304537032b","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":388.47,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:53.343Z","operationId":"05b2a787-39cf-4926-a237-07cd10a3da5f","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":230.39,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:53.343Z","operationId":"2c18204b-e2a7-4ea1-9f2a-bfc2ada271fe","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_identity_preparation","durationMs":230.6,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:53.343Z","operationId":"b6a6bf0f-d6d5-4170-b2e8-b62d88bbe9ba","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":230.59,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:53.592Z","operationId":"eb89bb49-14c2-4891-a1bd-acef88933b84","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":248.63,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:53.592Z","operationId":"2c18204b-e2a7-4ea1-9f2a-bfc2ada271fe","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_profile_preparation","durationMs":249.09,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:53.593Z","operationId":"b6a6bf0f-d6d5-4170-b2e8-b62d88bbe9ba","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":249.76,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:53.593Z","operationId":"b6a6bf0f-d6d5-4170-b2e8-b62d88bbe9ba","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":481.45,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:54.699Z","operationId":"2c18204b-e2a7-4ea1-9f2a-bfc2ada271fe","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_login_tracking","durationMs":1107.3,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:54.705Z","operationId":"2c18204b-e2a7-4ea1-9f2a-bfc2ada271fe","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_block_time_group","durationMs":1112.13,"status":"success","rowCount":4}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:54.705Z","operationId":"2c18204b-e2a7-4ea1-9f2a-bfc2ada271fe","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_query_group","durationMs":1112.34,"status":"success","rowCount":3}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:54.706Z","operationId":"2c18204b-e2a7-4ea1-9f2a-bfc2ada271fe","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_primary_query_group","durationMs":1113.99,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:54.866Z","operationId":"2c18204b-e2a7-4ea1-9f2a-bfc2ada271fe","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_manual_checkout_clearance_lookup","durationMs":1273.44,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:55.036Z","operationId":"2c18204b-e2a7-4ea1-9f2a-bfc2ada271fe","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_fallbacks","durationMs":169.91,"status":"success","rowCount":3}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:55.036Z","operationId":"2c18204b-e2a7-4ea1-9f2a-bfc2ada271fe","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_summary_preparation","durationMs":0.48,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:03:55.037Z","operationId":"2c18204b-e2a7-4ea1-9f2a-bfc2ada271fe","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_total_server_page_preparation","durationMs":1925.32,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:09.763Z","operationId":"43b0c361-4c78-4b7d-8212-ebdedca39cdd","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":174.78,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:09.763Z","operationId":"9fb6acc0-ea24-4786-8503-91891e55c666","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":175.05,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:09.952Z","operationId":"c4dab833-ef89-4716-a01c-5ba242ca4400","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":188.51,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:09.952Z","operationId":"9fb6acc0-ea24-4786-8503-91891e55c666","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":188.94,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:09.952Z","operationId":"9fb6acc0-ea24-4786-8503-91891e55c666","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":364.98,"status":"success"}
+[email] sent {
+  resendEmailId: '148eb3ca-e185-487f-a786-684c315c57b8',
+  eventType: 'flight_record_submitted',
+  to: 'rohanjetha14@gmail.com'
+}
+[email] sent {
+  resendEmailId: 'e0240f79-5c48-4399-b8d9-f2bb35174fc5',
+  eventType: 'admin_flight_record_review_required',
+  to: 'info@ozrentaplane.com'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:35.680Z","operationId":"662cd099-18b3-4e7b-bda7-bcebd1a230f3","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":178.89,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:35.680Z","operationId":"f7c19ea4-fac3-41a9-ae75-1f19dd6cb8d0","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":179.2,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:35.884Z","operationId":"0a49614d-46fc-4e8e-ade4-6e0c5123dc1a","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":204.25,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:35.884Z","operationId":"f7c19ea4-fac3-41a9-ae75-1f19dd6cb8d0","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":204.63,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:35.884Z","operationId":"f7c19ea4-fac3-41a9-ae75-1f19dd6cb8d0","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":385.93,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:38.745Z","operationId":"40c96ef1-4f99-4d71-98cf-cf2bc4fa0e08","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":301.69,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:38.745Z","operationId":"8b68546a-6698-497e-aaa6-fe43c6bcbd8e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":301.95,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:38.921Z","operationId":"e37daf5c-0b21-48ac-9f82-e4728d2a10be","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":174.89,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:38.921Z","operationId":"8b68546a-6698-497e-aaa6-fe43c6bcbd8e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":175.24,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:38.921Z","operationId":"8b68546a-6698-497e-aaa6-fe43c6bcbd8e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":478.15,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:38.981Z","operationId":"ef22e033-4a14-44c6-b6d7-31a51ad13114","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":177.53,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:38.981Z","operationId":"1e05ef34-dc73-4c75-8f21-861e0ee7c35e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":177.78,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:39.183Z","operationId":"c9664bc5-3fac-4e82-8f4a-306c02799b57","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":201.77,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:39.184Z","operationId":"1e05ef34-dc73-4c75-8f21-861e0ee7c35e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":203.03,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:04:39.184Z","operationId":"1e05ef34-dc73-4c75-8f21-861e0ee7c35e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":381.56,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:10.743Z","operationId":"225a57c8-37d1-44a0-a8c9-c7d4c9ee7ae1","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":182.22,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:10.743Z","operationId":"dd378b33-c72d-42df-bac3-46c7fb0385e7","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_identity_preparation","durationMs":182.48,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:10.743Z","operationId":"8f51cbdc-e4ed-414c-9342-5d1ce275da84","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":182.45,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:11.005Z","operationId":"804f4f15-5d54-40d8-83b7-7bd39a9d29e2","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":261.37,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:11.005Z","operationId":"dd378b33-c72d-42df-bac3-46c7fb0385e7","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_profile_preparation","durationMs":261.83,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:11.006Z","operationId":"8f51cbdc-e4ed-414c-9342-5d1ce275da84","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":262.2,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:11.390Z","operationId":"81d49cb3-7059-4f49-9000-19876704c24b","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":191.52,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:11.390Z","operationId":"0c1cbdbc-43c5-4f13-a811-ad8c53adf808","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"authenticated_user_lookup","durationMs":192.64,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:11.390Z","operationId":"c6c4f1ca-6e0a-4b75-84b4-0abdf8b7eff8","route":"/admin","role":"admin","operationName":"admin_home","phase":"identity_preparation","durationMs":191.62,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:11.596Z","operationId":"53552883-ea7e-4bdb-af7d-44337a319fc7","route":"shared_profile","role":"admin","operationName":"cached_profile_helper","phase":"profile_query_admin","durationMs":205.55,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:11.596Z","operationId":"0c1cbdbc-43c5-4f13-a811-ad8c53adf808","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"profile_role_lookup","durationMs":205.94,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:11.596Z","operationId":"c6c4f1ca-6e0a-4b75-84b4-0abdf8b7eff8","route":"/admin","role":"admin","operationName":"admin_home","phase":"profile_preparation","durationMs":205.95,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:11.596Z","operationId":"0c1cbdbc-43c5-4f13-a811-ad8c53adf808","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"admin_shell_authorization_preparation","durationMs":398.71,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:11.596Z","operationId":"0c1cbdbc-43c5-4f13-a811-ad8c53adf808","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"total_blocking_admin_layout_preparation","durationMs":398.72,"status":"success"}
+[admin command board] "checkout reschedule rows" query failed: column checkout_change_requests.customer_message does not exist
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:11.925Z","operationId":"eea0a489-5b96-449b-8303-7ca9044f487d","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_query_group","durationMs":308.86,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:11.925Z","operationId":"eea0a489-5b96-449b-8303-7ca9044f487d","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"dependent_second_query_group","durationMs":0.05,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:11.925Z","operationId":"eea0a489-5b96-449b-8303-7ca9044f487d","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_total","durationMs":309.21,"status":"success"}
+[admin command board] "checkout cancel rows" query failed: column checkout_change_requests.customer_message does not exist
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:11.927Z","operationId":"c6c4f1ca-6e0a-4b75-84b4-0abdf8b7eff8","route":"/admin","role":"admin","operationName":"admin_home","phase":"primary_query_group","durationMs":330.49,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:12.135Z","operationId":"c6c4f1ca-6e0a-4b75-84b4-0abdf8b7eff8","route":"/admin","role":"admin","operationName":"admin_home","phase":"followup_parallel_group","durationMs":207.39,"status":"success","rowCount":7}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:12.135Z","operationId":"c6c4f1ca-6e0a-4b75-84b4-0abdf8b7eff8","route":"/admin","role":"admin","operationName":"admin_home","phase":"dashboard_metric_preparation","durationMs":0.03,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:12.135Z","operationId":"c6c4f1ca-6e0a-4b75-84b4-0abdf8b7eff8","route":"/admin","role":"admin","operationName":"admin_home","phase":"action_feed_preparation","durationMs":0.01,"status":"success","rowCount":3}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:12.135Z","operationId":"c6c4f1ca-6e0a-4b75-84b4-0abdf8b7eff8","route":"/admin","role":"admin","operationName":"admin_home","phase":"total_server_page_preparation","durationMs":937.63,"status":"success","rowCount":3}
+TEMP-DEBUG: standard-booking-billing.ts entering resolveMinimumVdoBilling input: { bookingSlotHours: 66, actualVdoHours: 12, decision: null } minimumVdoHours: 8
+TEMP-DEBUG: standard-booking-billing.ts taking !isBelowMinimum branch (72-82)
+[finaliseStandardBookingInvoice] standard booking PDF generation failed: ej [StorageApiError]: new row violates row-level security policy
+    at /Users/rohanjetha/Documents/OZ/M2/OZRentaplane-m4/.next/server/chunks/1086.js:48:13699
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  __isStorageError: true,
+  namespace: 'storage',
+  status: 400,
+  statusCode: '403'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:44.330Z","operationId":"2acb0f33-fd61-4a56-a714-406661b66baf","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":182.36,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:44.330Z","operationId":"85f71178-ed70-4056-81f2-d3cd28c7f98b","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"authenticated_user_lookup","durationMs":184.93,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:44.500Z","operationId":"2b825e2a-fb0f-4d63-bdb0-d0bb9248140a","route":"shared_profile","role":"admin","operationName":"cached_profile_helper","phase":"profile_query_admin","durationMs":169.9,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:44.500Z","operationId":"85f71178-ed70-4056-81f2-d3cd28c7f98b","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"profile_role_lookup","durationMs":170.51,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:44.500Z","operationId":"85f71178-ed70-4056-81f2-d3cd28c7f98b","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"admin_shell_authorization_preparation","durationMs":355.51,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:44.500Z","operationId":"85f71178-ed70-4056-81f2-d3cd28c7f98b","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"total_blocking_admin_layout_preparation","durationMs":355.52,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:44.596Z","operationId":"4be0b33e-f933-43ef-99e5-acb2d05134f6","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":193.3,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:44.596Z","operationId":"49572c46-076f-4d42-859e-bb77283b37ce","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"authenticated_user_lookup","durationMs":195.2,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:44.730Z","operationId":"68706e8e-74f8-4eb9-a9e9-f28513bd9fa7","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_query_group","durationMs":228.26,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:44.792Z","operationId":"df88f35e-5b99-4082-8319-918e1eac2655","route":"shared_profile","role":"admin","operationName":"cached_profile_helper","phase":"profile_query_admin","durationMs":195.89,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:44.792Z","operationId":"49572c46-076f-4d42-859e-bb77283b37ce","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"profile_role_lookup","durationMs":196.2,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:44.792Z","operationId":"49572c46-076f-4d42-859e-bb77283b37ce","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"admin_shell_authorization_preparation","durationMs":391.44,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:44.792Z","operationId":"49572c46-076f-4d42-859e-bb77283b37ce","route":"/admin/layout","role":"admin","operationName":"admin_layout","phase":"total_blocking_admin_layout_preparation","durationMs":391.46,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:44.919Z","operationId":"68706e8e-74f8-4eb9-a9e9-f28513bd9fa7","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"dependent_second_query_group","durationMs":188.35,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:44.919Z","operationId":"68706e8e-74f8-4eb9-a9e9-f28513bd9fa7","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_total","durationMs":417.55,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:45.028Z","operationId":"3ed02058-c3fa-4e4f-8a83-a23138aaa7b3","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_query_group","durationMs":233.98,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:45.206Z","operationId":"3ed02058-c3fa-4e4f-8a83-a23138aaa7b3","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"dependent_second_query_group","durationMs":177.4,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:45.206Z","operationId":"3ed02058-c3fa-4e4f-8a83-a23138aaa7b3","route":"/admin/layout/counts","role":"admin","operationName":"admin_layout","phase":"admin_operational_counts_total","durationMs":412.35,"status":"success"}
+[email] sent {
+  resendEmailId: 'c2a69aaa-0dae-41b6-8c72-4fc43c73f288',
+  eventType: 'post_flight_payment_required',
+  to: 'rohanjetha14@gmail.com'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:58.763Z","operationId":"d4a3afc0-144d-430e-b32f-ef0c832b168b","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":201.21,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:58.763Z","operationId":"3ed6297a-3546-46e2-affc-d06895dc6600","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_identity_preparation","durationMs":201.48,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:58.763Z","operationId":"4219c76a-4b36-4756-9bd7-010b183aab2e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":201.45,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:58.985Z","operationId":"c699b3a7-1244-4af9-a068-34203d91dc9b","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":221.16,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:58.985Z","operationId":"3ed6297a-3546-46e2-affc-d06895dc6600","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_profile_preparation","durationMs":221.67,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:58.986Z","operationId":"4219c76a-4b36-4756-9bd7-010b183aab2e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":222.87,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:58.987Z","operationId":"4219c76a-4b36-4756-9bd7-010b183aab2e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":425.73,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:59.251Z","operationId":"3ed6297a-3546-46e2-affc-d06895dc6600","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_block_time_group","durationMs":264.85,"status":"success","rowCount":4}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:59.256Z","operationId":"3ed6297a-3546-46e2-affc-d06895dc6600","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_query_group","durationMs":269.99,"status":"success","rowCount":3}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:59.265Z","operationId":"3ed6297a-3546-46e2-affc-d06895dc6600","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_login_tracking","durationMs":280.07,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:59.274Z","operationId":"3ed6297a-3546-46e2-affc-d06895dc6600","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_primary_query_group","durationMs":288.18,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:59.393Z","operationId":"3ed6297a-3546-46e2-affc-d06895dc6600","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_manual_checkout_clearance_lookup","durationMs":407.57,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:59.436Z","operationId":"3ed6297a-3546-46e2-affc-d06895dc6600","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_payment_followups","durationMs":162.83,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:59.594Z","operationId":"3ed6297a-3546-46e2-affc-d06895dc6600","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_payment_followups","durationMs":157.9,"status":"success","rowCount":0}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:59.757Z","operationId":"3ed6297a-3546-46e2-affc-d06895dc6600","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_fallbacks","durationMs":162.42,"status":"success","rowCount":3}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:59.758Z","operationId":"3ed6297a-3546-46e2-affc-d06895dc6600","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_summary_preparation","durationMs":1.01,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:05:59.759Z","operationId":"3ed6297a-3546-46e2-affc-d06895dc6600","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_total_server_page_preparation","durationMs":1198.53,"status":"success"}
+[submitStandardBankTransferProof] proof RPC failed {
+  message: 'Could not find the function public.submit_standard_bank_transfer_proof_atomic(p_booking_id, p_invoice_id, p_receipt_storage_path, p_reference) in the schema cache',
+  code: 'PGRST202',
+  details: 'Searched for the function public.submit_standard_bank_transfer_proof_atomic with parameters p_booking_id, p_invoice_id, p_receipt_storage_path, p_reference or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache.',
+  hint: 'Perhaps you meant to call the function public.reject_standard_bank_transfer_atomic',
+  bookingId: '08d0a762-227d-4902-8232-682a49366fc0',
+  invoiceId: 'c9eedb8a-aa51-4b2b-964e-8f4b740871ad',
+  userId: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd'
+}
+Error: Could not find the function public.submit_standard_bank_transfer_proof_atomic(p_booking_id, p_invoice_id, p_receipt_storage_path, p_reference) in the schema cache
+    at I (/Users/rohanjetha/Documents/OZ/M2/OZRentaplane-m4/.next/server/chunks/5471.js:11:10560)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async /Users/rohanjetha/Documents/OZ/M2/OZRentaplane-m4/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:17:286
+    at async rE (/Users/rohanjetha/Documents/OZ/M2/OZRentaplane-m4/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:15:8297)
+    at async no (/Users/rohanjetha/Documents/OZ/M2/OZRentaplane-m4/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:19:1144)
+    at async doRender (/Users/rohanjetha/Documents/OZ/M2/OZRentaplane-m4/node_modules/next/dist/server/base-server.js:1427:30)
+    at async cacheEntry.responseCache.get.routeKind (/Users/rohanjetha/Documents/OZ/M2/OZRentaplane-m4/node_modules/next/dist/server/base-server.js:1588:28)
+    at async NextNodeServer.renderToResponseWithComponentsImpl (/Users/rohanjetha/Documents/OZ/M2/OZRentaplane-m4/node_modules/next/dist/server/base-server.js:1496:28)
+    at async NextNodeServer.renderPageComponent (/Users/rohanjetha/Documents/OZ/M2/OZRentaplane-m4/node_modules/next/dist/server/base-server.js:1924:24)
+    at async NextNodeServer.renderToResponseImpl (/Users/rohanjetha/Documents/OZ/M2/OZRentaplane-m4/node_modules/next/dist/server/base-server.js:1962:32) {
+  digest: '3571897782'
+}
+[webhook] Event received: type=charge.succeeded id=evt_3TyOlMLgovzDP8yV1YkeOMvz
+[webhook] Event received: type=payment_intent.succeeded id=evt_3TyOlMLgovzDP8yV1NRgnS7T
+[webhook] Event received: type=payment_intent.created id=evt_3TyOlMLgovzDP8yV1xwB7rog
+[webhook] Event received: type=checkout.session.completed id=evt_1TyOlOLgovzDP8yVJlDNWnSZ
+[webhook] payment_intent.succeeded - payment intent details {
+  payment_intent_id: 'pi_3TyOlMLgovzDP8yV1JzOtJ7p',
+  amount_received: 405825,
+  metadata: {},
+  purchase_id: undefined,
+  purchase_type: undefined
+}
+[webhook] Skipping - non block_time payment intent
+[webhook] checkout.session.completed - session details {
+  session_id: 'cs_test_a1ve660BzRAESLxuHj6fN07O8SMQk5IvnHwD8g8aRBzfFDwRG98SnE6CSN',
+  payment_intent: 'pi_3TyOlMLgovzDP8yV1JzOtJ7p',
+  amount_total: 405825,
+  metadata: {
+    invoice_type: 'standard',
+    customer_id: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+    invoice_id: 'c9eedb8a-aa51-4b2b-964e-8f4b740871ad',
+    booking_id: '08d0a762-227d-4902-8232-682a49366fc0'
+  },
+  invoice_id: 'c9eedb8a-aa51-4b2b-964e-8f4b740871ad',
+  booking_id: '08d0a762-227d-4902-8232-682a49366fc0',
+  customer_id: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+  invoice_type: 'standard'
+}
+[webhook] Extracted metadata {
+  invoiceId: 'c9eedb8a-aa51-4b2b-964e-8f4b740871ad',
+  bookingId: '08d0a762-227d-4902-8232-682a49366fc0',
+  customerId: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+  invoiceType: 'standard',
+  sessionId: 'cs_test_a1ve660BzRAESLxuHj6fN07O8SMQk5IvnHwD8g8aRBzfFDwRG98SnE6CSN',
+  paymentIntentId: 'pi_3TyOlMLgovzDP8yV1JzOtJ7p',
+  amountPaid: 405825
+}
+[webhook] Calling mark_booking_invoice_paid_atomic { invoiceId: 'c9eedb8a-aa51-4b2b-964e-8f4b740871ad' }
+[webhook] mark_booking_invoice_paid_atomic succeeded ✓
+[email] sent {
+  resendEmailId: '5d66be9e-4f8c-45ac-92d1-f60c5f91341f',
+  eventType: 'post_flight_payment_received',
+  to: 'rohanjetha14@gmail.com'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:06:41.035Z","operationId":"80fce349-2d60-4486-93c4-5a77170beea0","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":176.65,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:06:41.035Z","operationId":"ba0572dc-be29-479a-b39c-b896bba293e9","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":177.84,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:06:41.232Z","operationId":"f70a2650-bf5b-425e-b333-aba52f3c7aa3","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":195.74,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:06:41.232Z","operationId":"ba0572dc-be29-479a-b39c-b896bba293e9","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":196.22,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:06:41.232Z","operationId":"ba0572dc-be29-479a-b39c-b896bba293e9","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":374.71,"status":"success"}
+[webhook] Standard booking receipt generated {
+  invoiceId: 'c9eedb8a-aa51-4b2b-964e-8f4b740871ad',
+  pdfUrl: 'https://grkwzsrqpzkviihxlzwu.supabase.co/storage/v1/object/public/invoice_pdfs/3bc9cd8a-9903-4997-9fbd-4d791e4716cd/BKINV-20260729040539-08D0A7.pdf'
+}
+[webhook] standard payment processed ✓ {
+  invoiceId: 'c9eedb8a-aa51-4b2b-964e-8f4b740871ad',
+  bookingId: '08d0a762-227d-4902-8232-682a49366fc0'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:06:46.232Z","operationId":"a22bb9df-e7a1-429c-bb27-51d9b3b818b4","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":175.13,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:06:46.232Z","operationId":"b889bcc9-062f-45b8-a470-fabb86b8b0c1","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_identity_preparation","durationMs":175.41,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:06:46.408Z","operationId":"9d2d4ef1-cfdf-4aac-a194-e03ab78302fa","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":175.12,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:06:46.408Z","operationId":"b889bcc9-062f-45b8-a470-fabb86b8b0c1","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_profile_preparation","durationMs":175.53,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:06:46.668Z","operationId":"b889bcc9-062f-45b8-a470-fabb86b8b0c1","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_primary_query_group","durationMs":260.57,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:06:46.670Z","operationId":"b889bcc9-062f-45b8-a470-fabb86b8b0c1","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_block_time_group","durationMs":261.42,"status":"success","rowCount":4}
+{"type":"perf_timing","timestamp":"2026-07-29T04:06:46.670Z","operationId":"b889bcc9-062f-45b8-a470-fabb86b8b0c1","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_query_group","durationMs":261.6,"status":"success","rowCount":3}
+{"type":"perf_timing","timestamp":"2026-07-29T04:06:46.800Z","operationId":"b889bcc9-062f-45b8-a470-fabb86b8b0c1","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_manual_checkout_clearance_lookup","durationMs":392.37,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:06:46.977Z","operationId":"b889bcc9-062f-45b8-a470-fabb86b8b0c1","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_fallbacks","durationMs":176.56,"status":"success","rowCount":3}
+{"type":"perf_timing","timestamp":"2026-07-29T04:06:46.978Z","operationId":"b889bcc9-062f-45b8-a470-fabb86b8b0c1","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_summary_preparation","durationMs":0.52,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:06:46.978Z","operationId":"b889bcc9-062f-45b8-a470-fabb86b8b0c1","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_total_server_page_preparation","durationMs":922.37,"status":"success"}
+[dashboard/documents] activeTermsResult {
+  data: {
+    id: '861ac297-769b-4583-9e8a-f1d9dbaedb79',
+    version: '1.0',
+    public_url: 'https://grkwzsrqpzkviihxlzwu.supabase.co/storage/v1/object/public/legal-documents/terms-and-conditions/booking-terms-v1.pdf/JAM-Aviation-Rental-Agreement.pdf',
+    content_hash: 'e9a6e66fee4f46e0863386287c3747b39a27454d49a55638210e99c31bf06c45',
+    is_active: true,
+    created_at: '2026-05-10T00:03:23.915827+00:00',
+    effective_from: '2026-05-10T00:03:23.915827+00:00'
+  },
+  error: null
+}
+[dashboard/documents] activeTerms {
+  id: '861ac297-769b-4583-9e8a-f1d9dbaedb79',
+  version: '1.0',
+  public_url: 'https://grkwzsrqpzkviihxlzwu.supabase.co/storage/v1/object/public/legal-documents/terms-and-conditions/booking-terms-v1.pdf/JAM-Aviation-Rental-Agreement.pdf',
+  content_hash: 'e9a6e66fee4f46e0863386287c3747b39a27454d49a55638210e99c31bf06c45'
+}
+[dashboard/documents] latestTermsAcceptance {
+  terms_document_id: '861ac297-769b-4583-9e8a-f1d9dbaedb79',
+  terms_version: '1.0',
+  terms_content_hash: 'e9a6e66fee4f46e0863386287c3747b39a27454d49a55638210e99c31bf06c45',
+  accepted_at: '2026-07-29T04:00:18.824+00:00'
+}
+[dashboard/documents] currentTermsAccepted true
+[dashboard/documents] termsAcceptedAt prop 2026-07-29T04:00:18.824+00:00
+[webhook] Event received: type=customer.created id=evt_1TyOlgLgovzDP8yVhu3Z0Ex1
+[webhook] Event received: type=charge.succeeded id=evt_3TyOluLgovzDP8yV0EYUvZ4x
+[webhook] Event received: type=payment_method.attached id=evt_1TyOlwLgovzDP8yV2F0rCJ3Y
+[webhook] Event received: type=payment_intent.succeeded id=evt_3TyOluLgovzDP8yV0LBvmDuR
+[webhook] Event received: type=payment_intent.created id=evt_3TyOluLgovzDP8yV0fTmVQqC
+[webhook] payment_intent.succeeded - payment intent details {
+  payment_intent_id: 'pi_3TyOluLgovzDP8yV0zaY3zQM',
+  amount_received: 775000,
+  metadata: {
+    supabase_user_id: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+    package_name: 'Regular Block',
+    package_id: '5e446c66-1911-4abc-9fbd-e89433e78a9f',
+    hours_purchased: '25',
+    validity_days: '60',
+    purchase_type: 'block_time',
+    rate_per_hour: '310',
+    purchase_id: 'e16e3f9c-b5f0-4216-bea3-f7d12c2a87d9'
+  },
+  purchase_id: 'e16e3f9c-b5f0-4216-bea3-f7d12c2a87d9',
+  purchase_type: 'block_time'
+}
+[webhook] Event received: type=checkout.session.completed id=evt_1TyOlxLgovzDP8yVuCWsvn6F
+[webhook] checkout.session.completed - session details {
+  session_id: 'cs_test_a1tksPCfcajZYcolwMy5IDy0fILCIDnsM3puPPCqtKEkZX9b3XOTTTIsOp',
+  payment_intent: 'pi_3TyOluLgovzDP8yV0zaY3zQM',
+  amount_total: 775000,
+  metadata: {
+    supabase_user_id: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+    package_name: 'Regular Block',
+    package_id: '5e446c66-1911-4abc-9fbd-e89433e78a9f',
+    hours_purchased: '25',
+    validity_days: '60',
+    purchase_type: 'block_time',
+    rate_per_hour: '310',
+    purchase_id: 'e16e3f9c-b5f0-4216-bea3-f7d12c2a87d9'
+  },
+  invoice_id: undefined,
+  booking_id: undefined,
+  customer_id: undefined,
+  invoice_type: undefined
+}
+[webhook] Skipping - unknown invoice_type: undefined
+[webhook] Saved default_payment_method_id for user 3bc9cd8a-9903-4997-9fbd-4d791e4716cd
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:16.078Z","operationId":"e976a50f-fa61-4ddd-890a-824a4b2ecd7d","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":210.81,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:16.078Z","operationId":"408a77e3-5a4a-44f1-8cb4-579009b7f3af","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_identity_preparation","durationMs":211.53,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:16.078Z","operationId":"be1ae1be-24ab-48a0-a904-b160668ef31e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":211.52,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:16.252Z","operationId":"517f3398-c97d-44fd-a7da-1ff18bdba0a9","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":173.96,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:16.252Z","operationId":"408a77e3-5a4a-44f1-8cb4-579009b7f3af","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_profile_preparation","durationMs":174.35,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:16.269Z","operationId":"be1ae1be-24ab-48a0-a904-b160668ef31e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":191.17,"status":"success","rowCount":2}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:16.269Z","operationId":"be1ae1be-24ab-48a0-a904-b160668ef31e","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":403.57,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:16.463Z","operationId":"408a77e3-5a4a-44f1-8cb4-579009b7f3af","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_primary_query_group","durationMs":210.19,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:16.491Z","operationId":"408a77e3-5a4a-44f1-8cb4-579009b7f3af","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_block_time_group","durationMs":238.17,"status":"success","rowCount":6}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:16.500Z","operationId":"408a77e3-5a4a-44f1-8cb4-579009b7f3af","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_query_group","durationMs":247.18,"status":"success","rowCount":3}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:16.590Z","operationId":"408a77e3-5a4a-44f1-8cb4-579009b7f3af","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_manual_checkout_clearance_lookup","durationMs":337.44,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:16.748Z","operationId":"408a77e3-5a4a-44f1-8cb4-579009b7f3af","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_fallbacks","durationMs":158.2,"status":"success","rowCount":3}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:16.750Z","operationId":"408a77e3-5a4a-44f1-8cb4-579009b7f3af","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_summary_preparation","durationMs":1.6,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:16.750Z","operationId":"408a77e3-5a4a-44f1-8cb4-579009b7f3af","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_total_server_page_preparation","durationMs":884.68,"status":"success"}
+[email] sent {
+  resendEmailId: '839aee3a-c26d-41d0-98a7-95d66ff7e635',
+  eventType: 'block_time_purchase_confirmed',
+  to: 'rohanjetha14@gmail.com'
+}
+[webhook] block_time payment_intent.succeeded processed successfully ✓ {
+  purchaseId: 'e16e3f9c-b5f0-4216-bea3-f7d12c2a87d9',
+  invoiceId: '8e47014a-2887-4a00-bd8f-bf37c3a250af',
+  paymentIntentId: 'pi_3TyOluLgovzDP8yV0zaY3zQM'
+}
+[webhook] Event received: type=charge.succeeded id=evt_3TyOmULgovzDP8yV0ML84pRC
+[webhook] Event received: type=payment_intent.succeeded id=evt_3TyOmULgovzDP8yV0PliSihq
+[webhook] Event received: type=payment_method.attached id=evt_1TyOmWLgovzDP8yVOriK4xGd
+[webhook] Event received: type=payment_intent.created id=evt_3TyOmULgovzDP8yV0tS0FnJW
+[webhook] payment_intent.succeeded - payment intent details {
+  payment_intent_id: 'pi_3TyOmULgovzDP8yV0juCXicg',
+  amount_received: 93000,
+  metadata: {
+    supabase_user_id: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+    package_name: 'Regular Block',
+    package_id: '5e446c66-1911-4abc-9fbd-e89433e78a9f',
+    hours_added: '3',
+    purchase_type: 'block_time_topup',
+    purchase_id: 'e16e3f9c-b5f0-4216-bea3-f7d12c2a87d9',
+    rate_per_hour: '310'
+  },
+  purchase_id: 'e16e3f9c-b5f0-4216-bea3-f7d12c2a87d9',
+  purchase_type: 'block_time_topup'
+}
+[webhook] Event received: type=checkout.session.completed id=evt_1TyOmWLgovzDP8yVVHFiR68s
+[webhook] checkout.session.completed - session details {
+  session_id: 'cs_test_a1yppv7Puhd1OlmM1Ufh67OufodZLvekxN6dfacKNPK9tFFajRZoMrnV44',
+  payment_intent: 'pi_3TyOmULgovzDP8yV0juCXicg',
+  amount_total: 93000,
+  metadata: {
+    supabase_user_id: '3bc9cd8a-9903-4997-9fbd-4d791e4716cd',
+    package_name: 'Regular Block',
+    package_id: '5e446c66-1911-4abc-9fbd-e89433e78a9f',
+    hours_added: '3',
+    purchase_type: 'block_time_topup',
+    rate_per_hour: '310',
+    purchase_id: 'e16e3f9c-b5f0-4216-bea3-f7d12c2a87d9'
+  },
+  invoice_id: undefined,
+  booking_id: undefined,
+  customer_id: undefined,
+  invoice_type: undefined
+}
+[webhook] Skipping - unknown invoice_type: undefined
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:51.174Z","operationId":"f91a791f-de5c-49e6-9ce7-9d19736462c0","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":177.39,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:51.174Z","operationId":"8f0f6d0b-ffd1-4ac8-87c7-533c286d6679","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":177.83,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:51.390Z","operationId":"06b71d82-b8d9-4db0-9b26-915c703916fd","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":215.63,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:51.390Z","operationId":"8f0f6d0b-ffd1-4ac8-87c7-533c286d6679","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":215.93,"status":"success","rowCount":2}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:51.390Z","operationId":"8f0f6d0b-ffd1-4ac8-87c7-533c286d6679","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":394.21,"status":"success"}
+[email] sent {
+  resendEmailId: 'ffff5b88-d8cf-4e5f-aab9-952b7f73e8e1',
+  eventType: 'block_time_topup_confirmed',
+  to: 'rohanjetha14@gmail.com'
+}
+[dashboard/documents] activeTermsResult {
+  data: {
+    id: '861ac297-769b-4583-9e8a-f1d9dbaedb79',
+    version: '1.0',
+    public_url: 'https://grkwzsrqpzkviihxlzwu.supabase.co/storage/v1/object/public/legal-documents/terms-and-conditions/booking-terms-v1.pdf/JAM-Aviation-Rental-Agreement.pdf',
+    content_hash: 'e9a6e66fee4f46e0863386287c3747b39a27454d49a55638210e99c31bf06c45',
+    is_active: true,
+    created_at: '2026-05-10T00:03:23.915827+00:00',
+    effective_from: '2026-05-10T00:03:23.915827+00:00'
+  },
+  error: null
+}
+[dashboard/documents] activeTerms {
+  id: '861ac297-769b-4583-9e8a-f1d9dbaedb79',
+  version: '1.0',
+  public_url: 'https://grkwzsrqpzkviihxlzwu.supabase.co/storage/v1/object/public/legal-documents/terms-and-conditions/booking-terms-v1.pdf/JAM-Aviation-Rental-Agreement.pdf',
+  content_hash: 'e9a6e66fee4f46e0863386287c3747b39a27454d49a55638210e99c31bf06c45'
+}
+[dashboard/documents] latestTermsAcceptance {
+  terms_document_id: '861ac297-769b-4583-9e8a-f1d9dbaedb79',
+  terms_version: '1.0',
+  terms_content_hash: 'e9a6e66fee4f46e0863386287c3747b39a27454d49a55638210e99c31bf06c45',
+  accepted_at: '2026-07-29T04:00:18.824+00:00'
+}
+[dashboard/documents] currentTermsAccepted true
+[dashboard/documents] termsAcceptedAt prop 2026-07-29T04:00:18.824+00:00
+[webhook] block_time_topup payment_intent.succeeded processed successfully ✓ {
+  purchaseId: 'e16e3f9c-b5f0-4216-bea3-f7d12c2a87d9',
+  topupId: 'e9338c95-e310-4f01-b73a-ca73bdc862f9',
+  invoiceId: '6b468f4f-272b-4692-b518-8f940d98496a',
+  paymentIntentId: 'pi_3TyOmULgovzDP8yV0juCXicg'
+}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.087Z","operationId":"d2661328-6ae0-4e26-b02b-dce8905544e4","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":181.38,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.087Z","operationId":"b84f4e55-037b-4412-970a-68652e0f708b","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_identity_preparation","durationMs":181.67,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.087Z","operationId":"fc038c73-9377-4c9a-bd9f-35249ec28e64","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":181.65,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.293Z","operationId":"928813a5-6259-4042-a742-cd92dba97985","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":205.76,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.293Z","operationId":"b84f4e55-037b-4412-970a-68652e0f708b","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_profile_preparation","durationMs":206.19,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.294Z","operationId":"fc038c73-9377-4c9a-bd9f-35249ec28e64","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":206.66,"status":"success","rowCount":2}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.294Z","operationId":"fc038c73-9377-4c9a-bd9f-35249ec28e64","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":389.34,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.396Z","operationId":"f8cd4364-b729-4bf5-a8c3-cfc0827b9b9a","route":"shared_auth","role":"unknown","operationName":"cached_auth_helper","phase":"authenticated_user_lookup","durationMs":223.04,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.396Z","operationId":"5462b721-22e1-4d0e-917d-3d43366f68c0","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"authenticated_user_lookup","durationMs":223.32,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.527Z","operationId":"b84f4e55-037b-4412-970a-68652e0f708b","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_primary_query_group","durationMs":233.25,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.530Z","operationId":"b84f4e55-037b-4412-970a-68652e0f708b","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_query_group","durationMs":236.35,"status":"success","rowCount":3}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.544Z","operationId":"b84f4e55-037b-4412-970a-68652e0f708b","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_block_time_group","durationMs":250.13,"status":"success","rowCount":5}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.578Z","operationId":"113e6fdc-c78d-44f6-94d8-c067d7eff1e4","route":"shared_profile","role":"customer","operationName":"cached_profile_helper","phase":"profile_query_dashboard","durationMs":181.45,"status":"success","rowCount":1}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.578Z","operationId":"5462b721-22e1-4d0e-917d-3d43366f68c0","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"profile_block_time_parallel_group","durationMs":181.76,"status":"success","rowCount":2}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.578Z","operationId":"5462b721-22e1-4d0e-917d-3d43366f68c0","route":"/dashboard/layout","role":"customer","operationName":"customer_dashboard_layout","phase":"total_layout_preparation","durationMs":406.11,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.696Z","operationId":"b84f4e55-037b-4412-970a-68652e0f708b","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_manual_checkout_clearance_lookup","durationMs":402.13,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.889Z","operationId":"b84f4e55-037b-4412-970a-68652e0f708b","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_readiness_fallbacks","durationMs":192.53,"status":"success","rowCount":3}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.889Z","operationId":"b84f4e55-037b-4412-970a-68652e0f708b","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_summary_preparation","durationMs":0.52,"status":"success"}
+{"type":"perf_timing","timestamp":"2026-07-29T04:07:58.889Z","operationId":"b84f4e55-037b-4412-970a-68652e0f708b","route":"/dashboard","role":"customer","operationName":"customer_dashboard_page","phase":"customer_dashboard_total_server_page_preparation","durationMs":984.7,"status":"success"}
