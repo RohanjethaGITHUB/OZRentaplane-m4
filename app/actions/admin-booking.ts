@@ -51,6 +51,7 @@ import {
 import { createFlightRecordForBooking } from '@/lib/booking/flight-record-submission'
 import { sydneyInputToUTC, todaySydneyDateKey } from '@/lib/utils/sydney-time'
 import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
+import { createPerfLogger } from '@/lib/perf/timing'
 
 // ─── Admin guard ──────────────────────────────────────────────────────────────
 // Mirrors requireAdmin() in app/actions/admin.ts.
@@ -881,14 +882,19 @@ export async function requestPostFlightClarification(input: {
 // Sets profiles.pilot_clearance_status → checkout_confirmed.
 
 export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
-  const { supabase, adminId } = await requireAdmin()
+  const perf = createPerfLogger({ route: 'server_action:confirmCheckoutBooking', role: 'admin' })
+  const markTotal = perf.start('checkout_approval', 'checkout_approval_total')
+  const { supabase, adminId } = await perf.time('checkout_approval', 'checkout_approval_auth', () => requireAdmin())
+  perf.timeSync('checkout_approval', 'checkout_approval_authorization', () => null)
   const now = new Date().toISOString()
 
-  const { data: booking, error: fetchErr } = await supabase
+  const { data: booking, error: fetchErr } = await perf.time('checkout_approval', 'checkout_approval_booking_read', () => supabase
     .from('bookings')
     .select('status, booking_type, aircraft_id, booking_owner_user_id, booking_reference, scheduled_start, scheduled_end')
     .eq('id', bookingId)
-    .single()
+    .single(),
+    (result) => ({ rowCount: result.data ? 1 : 0 }),
+  )
 
   if (fetchErr || !booking) throw new Error('Booking not found.')
   if (booking.booking_type !== 'checkout') {
@@ -898,46 +904,54 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
     throw new Error(`VALIDATION: Cannot confirm checkout booking with status '${booking.status}'.`)
   }
 
-  const { error: updateErr } = await supabase
-    .from('bookings')
-    .update({ status: 'checkout_confirmed', updated_at: now })
-    .eq('id', bookingId)
+  const { bookingUpdate, historyInsert, auditInsert, profileUpdate } = await perf.time('checkout_approval', 'checkout_approval_primary_write', async () => {
+    const bookingUpdate = await supabase
+      .from('bookings')
+      .update({ status: 'checkout_confirmed', updated_at: now })
+      .eq('id', bookingId)
 
-  if (updateErr) throw new Error('Failed to confirm checkout booking.')
+    if (bookingUpdate.error) {
+      return { bookingUpdate, historyInsert: null, auditInsert: null, profileUpdate: null }
+    }
 
-  await supabase.from('booking_status_history').insert({
-    booking_id:         bookingId,
-    old_status:         'checkout_requested',
-    new_status:         'checkout_confirmed',
-    changed_by_user_id: adminId,
-    note:               'Approved instructor confirmed checkout booking.',
+    const [historyInsert, auditInsert, profileUpdate] = await Promise.all([
+      supabase.from('booking_status_history').insert({
+        booking_id:         bookingId,
+        old_status:         'checkout_requested',
+        new_status:         'checkout_confirmed',
+        changed_by_user_id: adminId,
+        note:               'Approved instructor confirmed checkout booking.',
+      }),
+      supabase.from('booking_audit_events').insert({
+        booking_id:    bookingId,
+        aircraft_id:   booking.aircraft_id,
+        actor_user_id: adminId,
+        actor_role:    'admin',
+        event_type:    'checkout_confirmed',
+        event_summary: 'Approved instructor confirmed checkout booking.',
+        new_value:     { status: 'checkout_confirmed' },
+      }),
+      supabase
+        .from('profiles')
+        .update({ pilot_clearance_status: 'checkout_confirmed', updated_at: now })
+        .eq('id', booking.booking_owner_user_id),
+    ])
+
+    return { bookingUpdate, historyInsert, auditInsert, profileUpdate }
   })
 
-  await supabase.from('booking_audit_events').insert({
-    booking_id:    bookingId,
-    aircraft_id:   booking.aircraft_id,
-    actor_user_id: adminId,
-    actor_role:    'admin',
-    event_type:    'checkout_confirmed',
-    event_summary: 'Approved instructor confirmed checkout booking.',
-    new_value:     { status: 'checkout_confirmed' },
-  })
-
-  // Update pilot clearance status
-  const { error: profileErr } = await supabase
-    .from('profiles')
-    .update({ pilot_clearance_status: 'checkout_confirmed', updated_at: now })
-    .eq('id', booking.booking_owner_user_id)
-
-  if (profileErr) {
-    console.error('[confirmCheckoutBooking] profile update failed:', profileErr)
+  if (bookingUpdate.error) throw new Error('Failed to confirm checkout booking.')
+  if (historyInsert?.error) console.error('[confirmCheckoutBooking] history insert failed:', historyInsert.error.message)
+  if (auditInsert?.error) console.error('[confirmCheckoutBooking] audit insert failed:', auditInsert.error.message)
+  if (profileUpdate?.error) {
+    console.error('[confirmCheckoutBooking] profile update failed:', profileUpdate.error.message)
   }
 
   // Notify customer — non-fatal
   const fmtStart = new Date(booking.scheduled_start).toLocaleString('en-AU', {
     timeZone: 'Australia/Sydney', dateStyle: 'medium', timeStyle: 'short',
   })
-  const { error: notifErr } = await supabase.from('verification_events').insert({
+  const { error: notifErr } = await perf.time('checkout_approval', 'checkout_approval_notification_write', () => supabase.from('verification_events').insert({
     user_id:       booking.booking_owner_user_id,
     actor_user_id: adminId,
     actor_role:    'admin',
@@ -948,31 +962,39 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
     body:          `Your checkout flight has been confirmed for ${fmtStart} (Sydney time).`,
     is_read:       false,
     email_status:  'skipped',
-  })
+  }))
   if (notifErr) console.error('[confirmCheckoutBooking] notification failed:', notifErr.message)
 
-  const { data: customerProfile } = await supabase
-    .from('profiles')
-    .select('email')
-    .eq('id', booking.booking_owner_user_id)
-    .single()
-  const { data: aircraft } = await supabase
-    .from('aircraft')
-    .select('registration')
-    .eq('id', booking.aircraft_id)
-    .single()
+  const [customerProfileRes, aircraftRes] = await perf.time('checkout_approval', 'checkout_approval_email_preparation', () => Promise.all([
+    supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', booking.booking_owner_user_id)
+      .single(),
+    supabase
+      .from('aircraft')
+      .select('registration')
+      .eq('id', booking.aircraft_id)
+      .single(),
+  ]))
+  const customerProfile = customerProfileRes.data
+  const aircraft = aircraftRes.data
   if (customerProfile?.email) {
-    await notifyCheckoutConfirmed({
+    await perf.time('checkout_approval', 'checkout_approval_email_delivery', () => notifyCheckoutConfirmed({
       customerEmail: customerProfile.email,
       bookingId,
       time: fmtStart,
       aircraft: aircraft?.registration ?? 'Assigned aircraft',
-    }).catch((error) => console.error('[confirmCheckoutBooking] email failed:', error))
+    }).catch((error) => console.error('[confirmCheckoutBooking] email failed:', error)))
   }
 
-  revalidatePath(`/admin/bookings/requests/${bookingId}`)
-  revalidatePath('/admin/bookings/checkout')
-  revalidatePath(`/dashboard/bookings/${bookingId}`)
+  perf.timeSync('checkout_approval', 'checkout_approval_revalidation', () => {
+    revalidatePath(`/admin/bookings/requests/${bookingId}`)
+    revalidatePath('/admin/bookings/checkout')
+    revalidatePath(`/dashboard/bookings/${bookingId}`)
+  })
+  perf.timeSync('checkout_approval', 'checkout_approval_response_ready', () => null)
+  markTotal()
 }
 
 // ─── Mark checkout flight completed ───────────────────────────────────────────

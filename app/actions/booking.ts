@@ -39,28 +39,39 @@ import type { UserDocument } from '@/lib/supabase/types'
 // Customers must be cleared for solo hire before creating standard bookings.
 // Returns supabase client and the authenticated user id.
 
-async function requireClearedCustomer() {
-  const supabase = await createClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+async function requireClearedCustomer(perf?: ReturnType<typeof createPerfLogger>) {
+  const authCtx = await (perf
+    ? perf.time('create_booking', 'create_booking_auth', async () => {
+        const supabase = await createClient()
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        return { supabase, user, authError }
+      })
+    : (async () => {
+        const supabase = await createClient()
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        return { supabase, user, authError }
+      })())
+  const { supabase, user, authError } = authCtx
   if (authError || !user) throw new Error('Unauthorized')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, account_status, pilot_clearance_status, account_lock_reason, has_night_vfr_rating')
-    .eq('id', user.id)
-    .single()
+  const authorize = async () => {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, account_status, pilot_clearance_status, account_lock_reason, has_night_vfr_rating, full_name, email')
+      .eq('id', user.id)
+      .single()
 
-  if (!profile) throw new Error('Profile not found')
-  if (profile.role !== 'customer') throw new Error('Not a customer account')
-  if (isNoShowLockedProfile(profile)) {
-    throw new Error('ACCOUNT_BLOCKED: Your account is locked due to a checkout no-show. Please contact OZ Rent A Plane.')
-  }
-  if (profile.account_status === 'blocked') {
-    throw new Error('ACCOUNT_BLOCKED: Your account has been blocked. Please contact support.')
-  }
-  if (profile.pilot_clearance_status !== 'cleared_to_fly') {
-    throw new Error('CLEARANCE_REQUIRED: Solo hire bookings are only available to pilots cleared for solo flight.')
-  }
+    if (!profile) throw new Error('Profile not found')
+    if (profile.role !== 'customer') throw new Error('Not a customer account')
+    if (isNoShowLockedProfile(profile)) {
+      throw new Error('ACCOUNT_BLOCKED: Your account is locked due to a checkout no-show. Please contact OZ Rent A Plane.')
+    }
+    if (profile.account_status === 'blocked') {
+      throw new Error('ACCOUNT_BLOCKED: Your account has been blocked. Please contact support.')
+    }
+    if (profile.pilot_clearance_status !== 'cleared_to_fly') {
+      throw new Error('CLEARANCE_REQUIRED: Solo hire bookings are only available to pilots cleared for solo flight.')
+    }
 
   const [{ data: paidInvoice }, { data: historicalClearance }, { data: documents }, termsPrimary, { data: latestTermsAcceptance }] = await Promise.all([
     supabase
@@ -140,19 +151,19 @@ async function requireClearedCustomer() {
     throw new Error('READINESS_REQUIRED: Valid checkout clearance evidence is missing.')
   }
 
-  if (hasManualClearance) {
-    return { supabase, userId: user.id }
-  }
+    if (hasManualClearance) {
+      return { profile }
+    }
 
-  const docItems = evaluateBookingDocumentsReadiness({
-    documents: (documents ?? []) as UserDocument[],
-    hasNightVfrRating: profile.has_night_vfr_rating ?? null,
-  })
-  if (docItems.some((item) => item.state !== 'complete')) {
-    throw new Error('READINESS_REQUIRED: Required pilot file documents are incomplete.')
-  }
+    const docItems = evaluateBookingDocumentsReadiness({
+      documents: (documents ?? []) as UserDocument[],
+      hasNightVfrRating: profile.has_night_vfr_rating ?? null,
+    })
+    if (docItems.some((item) => item.state !== 'complete')) {
+      throw new Error('READINESS_REQUIRED: Required pilot file documents are incomplete.')
+    }
 
-  const authoritativeActiveTermsRow = termsPrimary.data ?? (await admin
+    const authoritativeActiveTermsRow = termsPrimary.data ?? (await admin
     .from('terms_documents')
     .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
     .eq('is_active', true)
@@ -160,27 +171,34 @@ async function requireClearedCustomer() {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()).data
-  let activeTerms = normalizeActiveCheckoutTerms((authoritativeActiveTermsRow as Record<string, unknown> | null) ?? null)
-  if (!activeTerms) {
-    const fallback = await admin
-      .from('terms_documents')
-      .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
-      .eq('is_active', true)
-      .order('effective_from', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    activeTerms = normalizeActiveCheckoutTerms((fallback.data as Record<string, unknown> | null) ?? null)
-  }
-  const termsAccepted = hasAcceptedCurrentTerms(
-    activeTerms ? { id: activeTerms.id, version: activeTerms.version, content_hash: activeTerms.content_hash } : null,
-    (authoritativeTermsAcceptance as { terms_document_id: string | null; terms_version: string | null; terms_content_hash: string | null; accepted_at: string | null } | null),
-  )
-  if (!termsAccepted) {
-    throw new Error('READINESS_REQUIRED: Current booking terms must be accepted before creating a booking.')
+    let activeTerms = normalizeActiveCheckoutTerms((authoritativeActiveTermsRow as Record<string, unknown> | null) ?? null)
+    if (!activeTerms) {
+      const fallback = await admin
+        .from('terms_documents')
+        .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
+        .eq('is_active', true)
+        .order('effective_from', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      activeTerms = normalizeActiveCheckoutTerms((fallback.data as Record<string, unknown> | null) ?? null)
+    }
+    const termsAccepted = hasAcceptedCurrentTerms(
+      activeTerms ? { id: activeTerms.id, version: activeTerms.version, content_hash: activeTerms.content_hash } : null,
+      (authoritativeTermsAcceptance as { terms_document_id: string | null; terms_version: string | null; terms_content_hash: string | null; accepted_at: string | null } | null),
+    )
+    if (!termsAccepted) {
+      throw new Error('READINESS_REQUIRED: Current booking terms must be accepted before creating a booking.')
+    }
+
+    return { profile }
   }
 
-  return { supabase, userId: user.id }
+  const { profile } = await (perf
+    ? perf.time('create_booking', 'create_booking_authorization', authorize)
+    : authorize())
+
+  return { supabase, userId: user.id, userEmail: profile.email, userFullName: profile.full_name }
 }
 
 
@@ -196,17 +214,13 @@ export async function createBooking(
   input: CreateBookingInput,
 ): Promise<{ bookingId: string; bookingReference: string; bookingStatus: string }> {
   const perf = createPerfLogger({ route: 'server_action:createBooking', role: 'customer' })
-  const markTotal = perf.start('createBooking', 'total_server_action_duration')
-  const { supabase, userId } = await perf.time(
-    'createBooking',
-    'initial_authentication_authorization',
-    () => requireClearedCustomer(),
-  )
+  const markTotal = perf.start('create_booking', 'create_booking_total')
+  const { supabase, userId, userEmail, userFullName } = await requireClearedCustomer(perf)
 
   // Overage gate — an unpaid block time overage invoice blocks new bookings.
   const outstandingOverage = await perf.time(
-    'createBooking',
-    'availability_pricing_reads',
+    'create_booking',
+    'create_booking_availability_pricing_reads',
     () => getOutstandingOverageInvoices(supabase, userId),
     (result) => ({ rowCount: result.length }),
   )
@@ -214,7 +228,7 @@ export async function createBooking(
     throw new Error(overageGateMessage(outstandingOverage))
   }
 
-  const { acceptedIp, userAgent } = await perf.time('createBooking', 'input_validation', async () => {
+  const { acceptedIp, userAgent } = await perf.time('create_booking', 'create_booking_validation', async () => {
     // Flight review date — required and must be within the last 2 years
     const flightReviewErr = validateFlightReviewDate(input.last_flight_date ?? '')
     if (flightReviewErr) throw new Error(`VALIDATION: ${flightReviewErr}`)
@@ -243,7 +257,7 @@ export async function createBooking(
     }
   })
 
-  const { data, error } = await perf.time('createBooking', 'booking_rpc_database_write', () => supabase.rpc('create_aircraft_booking_atomic', {
+  const { data, error } = await perf.time('create_booking', 'create_booking_rpc_write', () => supabase.rpc('create_aircraft_booking_atomic', {
     p_aircraft_id:                   input.aircraft_id,
     p_pic_user_id:                   input.pic_user_id                   ?? null,
     p_pic_name:                      input.pic_name                      ?? null,
@@ -277,41 +291,26 @@ export async function createBooking(
   // Save flight review date to the customer's profile so it pre-fills on future bookings.
   // Non-throwing — booking is already created; a sync failure here is not critical.
   await perf.time(
-    'createBooking',
-    'post_write_profile_update',
+    'create_booking',
+    'create_booking_profile_update',
     () => supabase
       .from('profiles')
       .update({ last_flight_date: input.last_flight_date })
       .eq('id', userId),
   )
 
-  perf.timeSync('createBooking', 'revalidation', () => {
+  perf.timeSync('create_booking', 'create_booking_revalidation', () => {
     revalidatePath('/dashboard')
     revalidatePath('/admin')
   })
 
-  // Notify customer — fire-and-forget
-  const supabase2 = await perf.time('createBooking', 'post_write_identity_client_preparation', () => createClient())
-  const { data: { user: u } } = await perf.time(
-    'createBooking',
-    'post_write_identity_read',
-    () => supabase2.auth.getUser(),
-  )
-  if (u) {
-    const { data: prof } = await perf.time(
-      'createBooking',
-      'post_write_profile_read',
-      () => supabase2
-        .from('profiles')
-        .select('full_name, email')
-        .eq('id', u.id)
-        .single(),
-      (result) => ({ rowCount: result.data ? 1 : 0 }),
-    )
-    if (prof?.email) {
-      const emailPayload = perf.timeSync('createBooking', 'email_preparation', () => ({
-        customerEmail: prof.email,
-        customerName:  prof.full_name ?? 'Pilot',
+  perf.timeSync('create_booking', 'create_booking_post_write_identity_reads', () => null, { rowCount: 0 })
+  perf.timeSync('create_booking', 'create_booking_notification_write', () => null, { rowCount: 0 })
+
+  if (userEmail) {
+      const emailPayload = perf.timeSync('create_booking', 'create_booking_email_preparation', () => ({
+        customerEmail: userEmail,
+        customerName:  userFullName ?? 'Pilot',
         ref:           result.booking_reference ?? result.booking_id.slice(0, 8).toUpperCase(),
         aircraft:      input.aircraft_id,
         start:         new Date(input.scheduled_start).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }),
@@ -319,13 +318,13 @@ export async function createBooking(
         bookingId:     result.booking_id,
       }))
       await perf.time(
-        'createBooking',
-        'email_delivery_request',
+        'create_booking',
+        'create_booking_email_delivery',
         () => notifyBookingSubmitted(emailPayload).catch(e => console.error('[createBooking] notification error:', e)),
       )
-    }
   }
 
+  perf.timeSync('create_booking', 'create_booking_response_ready', () => null)
   markTotal()
   return { bookingId: result.booking_id, bookingReference: result.booking_reference, bookingStatus: result.status }
 }

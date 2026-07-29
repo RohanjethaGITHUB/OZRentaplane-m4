@@ -5,12 +5,16 @@ import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
-import { notifyCheckoutRequestSubmitted } from '@/lib/booking/notifications'
+import {
+  notifyCheckoutRequestSubmittedAdmin,
+  notifyCheckoutRequestSubmittedCustomer,
+} from '@/lib/booking/notifications'
 import { checkAircraftAvailability } from '@/lib/booking/availability'
 import { isNoShowLockedProfile } from '@/lib/checkout-policy'
 import { isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
 import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 import { sydneyInputToUTC } from '@/lib/utils/sydney-time'
+import { createPerfLogger } from '@/lib/perf/timing'
 import type {
   CreateCheckoutBookingInput,
   CheckoutSubmitResult,
@@ -36,7 +40,7 @@ async function requireCustomer() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('email, role, pilot_clearance_status, has_night_vfr_rating, has_instrument_rating, account_status, account_lock_reason, terms_accepted_at, terms_version')
+    .select('email, full_name, role, pilot_clearance_status, has_night_vfr_rating, has_instrument_rating, account_status, account_lock_reason, terms_accepted_at, terms_version')
     .eq('id', user.id)
     .single()
 
@@ -177,23 +181,16 @@ export async function getCheckoutDocumentGateState(): Promise<
 export async function submitCheckoutRequest(
   input: CreateCheckoutBookingInput,
 ): Promise<CheckoutSubmitResult> {
+  const perf = createPerfLogger({ route: 'server_action:submitCheckoutRequest', role: 'customer' })
+  const markTotal = perf.start('checkout_submit', 'checkout_submit_total')
   const h = await headers()
-  const requestHost = h.get('host') ?? 'unknown'
-  const requestPath = h.get('x-matched-path') ?? '/dashboard/checkout'
-  const requestMethod = h.get('x-http-method-override') ?? 'POST'
-  const routeName = 'checkout-submit-debug'
-  console.info(`[${routeName}] request received`, {
-    host: requestHost,
-    path: requestPath,
-    method: requestMethod,
-    step: 'pre_auth_guard',
-  })
+  const routeName = 'checkout-submit'
 
   let supabase: Awaited<ReturnType<typeof createClient>>
   let userId = ''
   let profile: Awaited<ReturnType<typeof requireCustomer>>['profile']
   try {
-    const authCtx = await requireCustomer()
+    const authCtx = await perf.time('checkout_submit', 'checkout_submit_auth', () => requireCustomer())
     supabase = authCtx.supabase
     userId = authCtx.userId
     profile = authCtx.profile
@@ -202,12 +199,8 @@ export async function submitCheckoutRequest(
     const lower = message.toLowerCase()
     const isAuthError = lower.includes('unauthorized') || lower.includes('not authenticated') || lower.includes('invalid jwt')
     const isAccountBlocked = message.startsWith('ACCOUNT_BLOCKED:')
-    console.error(`[${routeName}] auth guard failed`, {
-      host: requestHost,
-      step: 'auth_guard',
-      auth_user_exists: false,
-      message,
-    })
+    console.error(`[${routeName}] auth guard failed`, { message })
+    markTotal()
     if (isAccountBlocked) {
       return {
         ok: false,
@@ -227,45 +220,44 @@ export async function submitCheckoutRequest(
   const ACCEPTANCE_TEXT = 'I have read and accept the Checkout Terms and Conditions.'
   const profileRecord = profile as Record<string, unknown>
   const safeEmail = typeof profileRecord.email === 'string' ? profileRecord.email : null
-  const safeAccountStatus = typeof profileRecord.account_status === 'string' ? profileRecord.account_status : null
   try {
-    console.info(`[${routeName}] submit started`, {
-      host: requestHost,
-      user_id: userId,
-      email: safeEmail,
-      auth_user_exists: true,
-      has_terms_acceptance: Boolean(profile.terms_accepted_at),
-      has_last_flight_date: Boolean(input.last_flight_date),
-      has_night_vfr: input.has_night_vfr,
-    })
-    console.info(`[${routeName}] auth/profile`, {
-      host: requestHost,
-      user_id: userId,
-      email: safeEmail,
-      role: profile.role,
-      account_status: safeAccountStatus,
-      pilot_clearance_status: profile.pilot_clearance_status,
-      has_instrument_rating: profile.has_instrument_rating,
-    })
+    perf.timeSync('checkout_submit', 'checkout_submit_profile_authorization', () => null)
 
   // ── Document gate ──────────────────────────────────────────────────────────
   // Validates all required document fields per document type.
-  const { data: docs, error: docsErr } = await supabase
-    .from('user_documents')
-    .select('document_type, status, expiry_date, issue_date, licence_type, licence_number, medical_class, id_type, document_number')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
+  const [documentsRes, termsPrimary] = await Promise.all([
+    perf.time(
+      'checkout_submit',
+      'checkout_submit_documents_read',
+      () => supabase
+        .from('user_documents')
+        .select('document_type, status, expiry_date, issue_date, licence_type, licence_number, medical_class, id_type, document_number')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false }),
+      (result) => ({ rowCount: result.data?.length ?? 0 }),
+    ),
+    perf.time(
+      'checkout_submit',
+      'checkout_submit_terms_read',
+      () => supabase
+        .from('terms_documents')
+        .select('*')
+        .eq('is_active', true)
+        .order('effective_from', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle(),
+      (result) => ({ rowCount: result.data ? 1 : 0 }),
+    ),
+  ])
+  const { data: docs, error: docsErr } = documentsRes
 
   if (docsErr) {
     console.error(`[${routeName}] user_documents query failed`, {
-      host: requestHost,
-      user_id: userId,
-      email: safeEmail,
       code: docsErr.code,
       message: docsErr.message,
-      details: docsErr.details,
-      hint: docsErr.hint,
     })
+    markTotal()
     return { ok: false, type: 'validation', message: 'Unable to verify your documents. Please try again.' }
   }
 
@@ -274,23 +266,6 @@ export async function submitCheckoutRequest(
   for (const d of (docs ?? [])) {
     if (!docsByType.has(d.document_type)) docsByType.set(d.document_type, d)
   }
-  console.info(`[${routeName}] documents loaded`, {
-    host: requestHost,
-    user_id: userId,
-    email: safeEmail,
-    count: docs?.length ?? 0,
-    summary: Array.from(docsByType.values()).map((d) => ({
-      type: d.document_type,
-      status: d.status,
-      expiry_date: d.expiry_date,
-      issue_date: d.issue_date,
-      has_licence_type: Boolean(d.licence_type),
-      has_licence_number: Boolean(d.licence_number),
-      has_medical_class: Boolean(d.medical_class),
-      has_id_type: Boolean(d.id_type),
-      has_document_number: Boolean(d.document_number),
-    })),
-  })
   const docMap: Record<string, typeof docs[0]> = {}
 
   // The user_documents query is ordered newest-first, so the first row for each
@@ -374,36 +349,36 @@ export async function submitCheckoutRequest(
     }
   }
 
-  let activeTermsRow: Record<string, unknown> | null = null
-  {
-    const primary = await supabase
-      .from('terms_documents')
-      .select('*')
-      .eq('is_active', true)
-      .order('effective_from', { ascending: false, nullsFirst: false })
-      .order('created_at', { ascending: false, nullsFirst: false })
-      .limit(1)
-      .maybeSingle()
-
-    activeTermsRow = (primary.data as Record<string, unknown> | null)
-      ?? (await supabase
+  let activeTermsRow: Record<string, unknown> | null = (termsPrimary.data as Record<string, unknown> | null)
+  if (!activeTermsRow) {
+    activeTermsRow = await perf.time(
+      'checkout_submit',
+      'checkout_submit_terms_read',
+      async () => ((await supabase
         .from('terms_documents')
         .select('*')
         .order('effective_from', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false, nullsFirst: false })
         .limit(1)
-        .maybeSingle()).data as Record<string, unknown> | null
+        .maybeSingle()).data as Record<string, unknown> | null),
+      (result) => ({ rowCount: result ? 1 : 0 }),
+    )
     if (!activeTermsRow) {
       // RLS-safe fallback: use service role for authoritative active terms lookup.
       const admin = createAdminClient()
-      const adminPrimary = await admin
-        .from('terms_documents')
-        .select('*')
-        .eq('is_active', true)
-        .order('effective_from', { ascending: false, nullsFirst: false })
-        .order('created_at', { ascending: false, nullsFirst: false })
-        .limit(1)
-        .maybeSingle()
+      const adminPrimary = await perf.time(
+        'checkout_submit',
+        'checkout_submit_terms_read',
+        () => admin
+          .from('terms_documents')
+          .select('*')
+          .eq('is_active', true)
+          .order('effective_from', { ascending: false, nullsFirst: false })
+          .order('created_at', { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle(),
+        (result) => ({ rowCount: result.data ? 1 : 0 }),
+      )
       activeTermsRow = (adminPrimary.data as Record<string, unknown> | null)
         ?? (await admin
           .from('terms_documents')
@@ -415,15 +390,6 @@ export async function submitCheckoutRequest(
     }
   }
   const normalizedTerms = normalizeActiveCheckoutTerms(activeTermsRow)
-  console.info(`[${routeName}] active terms lookup`, {
-    host: requestHost,
-    user_id: userId,
-    email: safeEmail,
-    found: Boolean(normalizedTerms),
-    terms_document_id: normalizedTerms?.id ?? null,
-    terms_version: normalizedTerms?.version ?? null,
-    terms_content_hash: normalizedTerms?.content_hash ?? null,
-  })
   if (!normalizedTerms) {
     return { ok: false, type: 'validation', message: 'No active checkout terms document is available right now. Please try again.' }
   }
@@ -450,18 +416,22 @@ export async function submitCheckoutRequest(
 
   // Idempotent recovery: if this user already has this exact checkout slot, return it.
   // This avoids duplicate submit races presenting as availability failures.
-  const { data: existingExact } = await supabase
-    .from('bookings')
-    .select('id, booking_reference, scheduled_start, scheduled_end')
-    .eq('booking_owner_user_id', userId)
-    .eq('booking_type', 'checkout')
-    .eq('aircraft_id', input.aircraft_id)
-    .eq('scheduled_start', input.scheduled_start)
-    .in('status', ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review'])
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const { data: existingExact } = await perf.time('checkout_submit', 'checkout_submit_availability_read', () => supabase
+      .from('bookings')
+      .select('id, booking_reference, scheduled_start, scheduled_end')
+      .eq('booking_owner_user_id', userId)
+      .eq('booking_type', 'checkout')
+      .eq('aircraft_id', input.aircraft_id)
+      .eq('scheduled_start', input.scheduled_start)
+      .in('status', ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    (result) => ({ rowCount: result.data ? 1 : 0 }),
+  )
   if (existingExact) {
+    perf.timeSync('checkout_submit', 'checkout_submit_response_ready', () => null)
+    markTotal()
     return {
       ok: true,
       type: 'already_exists',
@@ -476,23 +446,25 @@ export async function submitCheckoutRequest(
   // p_scheduled_end is not passed — the RPC computes it as start + 2 hours
   const requestedEnd = new Date(start.getTime() + 2 * 60 * 60 * 1000)
 
-  const [blockingBookingsRes, blockingBlocksRes] = await Promise.all([
-    supabase
-      .from('bookings')
-      .select('id, status, booking_type, scheduled_start, scheduled_end, aircraft_id, booking_owner_user_id')
-      .eq('aircraft_id', input.aircraft_id)
-      .lt('scheduled_start', requestedEnd.toISOString())
-      .gt('scheduled_end', start.toISOString())
-      .order('scheduled_start', { ascending: true }),
-    supabase
-      .from('schedule_blocks')
-      .select('id, related_booking_id, block_type, status, start_time, end_time, expires_at')
-      .eq('aircraft_id', input.aircraft_id)
-      .eq('status', 'active')
-      .lt('start_time', requestedEnd.toISOString())
-      .gt('end_time', start.toISOString())
-      .order('start_time', { ascending: true }),
-  ])
+  const [blockingBookingsRes, blockingBlocksRes] = await perf.time('checkout_submit', 'checkout_submit_availability_read', () => Promise.all([
+      supabase
+        .from('bookings')
+        .select('id, status, booking_type, scheduled_start, scheduled_end, aircraft_id, booking_owner_user_id')
+        .eq('aircraft_id', input.aircraft_id)
+        .lt('scheduled_start', requestedEnd.toISOString())
+        .gt('scheduled_end', start.toISOString())
+        .order('scheduled_start', { ascending: true }),
+      supabase
+        .from('schedule_blocks')
+        .select('id, related_booking_id, block_type, status, start_time, end_time, expires_at')
+        .eq('aircraft_id', input.aircraft_id)
+        .eq('status', 'active')
+        .lt('start_time', requestedEnd.toISOString())
+        .gt('end_time', start.toISOString())
+        .order('start_time', { ascending: true }),
+    ]),
+    ([bookings, blocks]) => ({ rowCount: (bookings.data?.length ?? 0) + (blocks.data?.length ?? 0) }),
+  )
 
   const nowIso = new Date().toISOString()
   const blockingBlocks = (blockingBlocksRes.data ?? []).filter((b) => {
@@ -500,64 +472,16 @@ export async function submitCheckoutRequest(
     if (!b.expires_at) return true
     return b.expires_at > nowIso
   })
-  console.info('CHECKOUT_AVAILABILITY_SUBMIT', {
-    host: requestHost,
-    aircraft_id: input.aircraft_id,
-    user_id: userId,
-    requested_start_utc: start.toISOString(),
-    requested_end_utc: requestedEnd.toISOString(),
-    requested_start_sydney: start.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'medium' }),
-    requested_end_sydney: requestedEnd.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'medium' }),
-    preflight_buffer_minutes: 0,
-    postflight_buffer_minutes: 0,
-    expanded_start_utc: start.toISOString(),
-    expanded_end_utc: requestedEnd.toISOString(),
-    expanded_start_sydney: start.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'medium' }),
-    expanded_end_sydney: requestedEnd.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'medium' }),
-    blocking_bookings_found: blockingBookingsRes.data?.length ?? 0,
-    blocking_schedule_blocks_found: blockingBlocks.length,
-    blocking_bookings: (blockingBookingsRes.data ?? []).map((b) => ({
-      id: b.id,
-      status: b.status,
-      booking_type: b.booking_type,
-      start: b.scheduled_start,
-      end: b.scheduled_end,
-      owner_user_id: b.booking_owner_user_id,
-    })),
-    blocking_schedule_blocks: blockingBlocks.map((b) => ({
-      id: b.id,
-      related_booking_id: b.related_booking_id,
-      block_type: b.block_type,
-      status: b.status,
-      start: b.start_time,
-      end: b.end_time,
-      expires_at: b.expires_at,
-    })),
-    available: blockingBlocks.length === 0,
-  })
-
-  console.info(`[${routeName}] RPC create_checkout_booking_atomic started`, {
-    host: requestHost,
-    user_id: userId,
-    email: safeEmail,
-    aircraft_id: input.aircraft_id,
-    scheduled_start: input.scheduled_start,
-  })
-  const { data, error } = await supabase.rpc('create_checkout_booking_atomic', {
+  const { data, error } = await perf.time('checkout_submit', 'checkout_submit_rpc_write', () => supabase.rpc('create_checkout_booking_atomic', {
     p_aircraft_id:     input.aircraft_id,
     p_scheduled_start: input.scheduled_start,
     p_customer_notes:  input.customer_notes ?? null,
-  })
+  }), (result) => ({ rowCount: result.data ? 1 : 0 }))
 
   if (error) {
     console.error(`[${routeName}] RPC create_checkout_booking_atomic failed`, {
-      host: requestHost,
-      user_id: userId,
-      email: safeEmail,
       code: error.code,
       message: error.message,
-      details: error.details,
-      hint: error.hint,
     })
     const rawMsg = error.message ?? ''
     const lower = rawMsg.toLowerCase()
@@ -637,15 +561,6 @@ export async function submitCheckoutRequest(
     }
   }
 
-  if (process.env.NODE_ENV !== 'production') {
-    console.info(
-      '[submitCheckoutRequest] booking_id=%s status=%s booking_reference=%s scheduled_start=%s',
-      bookingId,
-      result.status,
-      result.booking_reference,
-      result.scheduled_start,
-    )
-  }
 
   const forwardedFor = h.get('x-forwarded-for')
   const acceptedIp =
@@ -670,31 +585,13 @@ export async function submitCheckoutRequest(
     user_agent: userAgent,
   }
 
-  console.info(`[${routeName}] terms acceptance insert started`, {
-    host: requestHost,
-    user_id: userId,
-    email: safeEmail,
-    booking_id: bookingId,
-    terms_document_id: activeTermsId,
-    terms_version: acceptancePayload.terms_version,
-    terms_content_hash: acceptancePayload.terms_content_hash,
-  })
-  const { error: termsErr } = await admin
+  const { error: termsErr } = await perf.time('checkout_submit', 'checkout_submit_terms_acceptance_write', () => admin
     .from('booking_terms_acceptances')
-    .insert(acceptancePayload)
+    .insert(acceptancePayload))
   if (termsErr) {
     console.error(`[${routeName}] booking_terms_acceptances insert failed`, {
-      host: requestHost,
       message: termsErr.message,
-      details: termsErr.details,
-      hint: termsErr.hint,
       code: termsErr.code,
-      booking_id: bookingId,
-      user_id: userId,
-      email: safeEmail,
-      terms_document_id: activeTermsId,
-      terms_version: activeTermsVersion,
-      terms_content_hash: acceptancePayload.terms_content_hash,
     })
     const rollback: {
       attempted: boolean
@@ -714,10 +611,7 @@ export async function submitCheckoutRequest(
 
     try {
       console.info(`[${routeName}] rollback started`, {
-        host: requestHost,
-        user_id: userId,
-        email: safeEmail,
-        booking_id: bookingId || null,
+        reason: 'terms_acceptance_insert_failed',
       })
       if (!isUuid) {
         rollback.skipped_cleanup_reason = 'booking_id missing/invalid; cleanup not attempted'
@@ -750,19 +644,11 @@ export async function submitCheckoutRequest(
         }
       }
       console.info(`[${routeName}] rollback result`, {
-        host: requestHost,
-        user_id: userId,
-        email: safeEmail,
-        booking_id: bookingId || null,
         rollback,
       })
     } catch (rollbackErr) {
       rollback.error = rollbackErr instanceof Error ? rollbackErr.message : 'unknown rollback error'
       console.error(`[${routeName}] rollback failed after terms insert error`, {
-        host: requestHost,
-        booking_id: bookingId || null,
-        user_id: userId,
-        email: safeEmail,
         rollback,
       })
     }
@@ -786,14 +672,9 @@ export async function submitCheckoutRequest(
         `Unable to record your terms acceptance. DB error: ${termsErr.message}${termsErr.code ? ` (code ${termsErr.code})` : ''}. Rollback: ${JSON.stringify(rollback)}`
       }
     }
+    markTotal()
     return { ok: false, type: 'validation', message: 'Unable to record your terms acceptance. Please try again.' }
   }
-  console.info(`[${routeName}] terms acceptance insert success`, {
-    host: requestHost,
-    user_id: userId,
-    email: safeEmail,
-    booking_id: bookingId,
-  })
 
   // Save last_flight_date to both the booking and the profile so the Documents
   // page stays in sync with the most recently submitted checkout date.
@@ -809,24 +690,17 @@ export async function submitCheckoutRequest(
         .eq('id', userId),
     ])
     if (bookingUpdate.error || profileUpdate.error) {
-    console.error(`[${routeName}] last_flight_date update issue`, {
-      host: requestHost,
-      user_id: userId,
-      email: safeEmail,
+      console.error(`[${routeName}] last_flight_date update issue`, {
         booking_update_error: bookingUpdate.error
           ? {
             code: bookingUpdate.error.code,
             message: bookingUpdate.error.message,
-            details: bookingUpdate.error.details,
-            hint: bookingUpdate.error.hint,
           }
           : null,
         profile_update_error: profileUpdate.error
           ? {
             code: profileUpdate.error.code,
             message: profileUpdate.error.message,
-            details: profileUpdate.error.details,
-            hint: profileUpdate.error.hint,
           }
           : null,
       })
@@ -834,7 +708,7 @@ export async function submitCheckoutRequest(
   }
 
   // Notify customer — non-fatal
-  const { error: notifErr } = await supabase.from('verification_events').insert({
+  const { error: notifErr } = await perf.time('checkout_submit', 'checkout_submit_notification_write', () => supabase.from('verification_events').insert({
     user_id:      userId,
     actor_role:   'customer',
     event_type:   'submitted',
@@ -842,41 +716,43 @@ export async function submitCheckoutRequest(
     body:         'Your checkout request has been submitted for review. You will be notified once a decision has been made.',
     is_read:      false,
     email_status: 'skipped',
-  })
+  }))
   if (notifErr) console.error('[submitCheckoutRequest] notification failed:', notifErr.message)
 
-  const { data: profileRow } = await supabase
-    .from('profiles')
-    .select('full_name, email')
-    .eq('id', userId)
-    .single()
-
-  if (profileRow?.email) {
-    await notifyCheckoutRequestSubmitted({
-      customerEmail: profileRow.email,
-      customerName: profileRow.full_name ?? 'Pilot',
+  if (safeEmail) {
+    const emailPayload = perf.timeSync('checkout_submit', 'checkout_submit_customer_email', () => ({
+      customerEmail: safeEmail,
+      customerName: profile.full_name ?? 'Pilot',
       bookingId,
       requestedTime: new Date(result.scheduled_start).toLocaleString('en-AU', {
         timeZone: 'Australia/Sydney',
         dateStyle: 'medium',
         timeStyle: 'short',
       }),
-    }).catch((error) => console.error('[submitCheckoutRequest] email failed:', error))
+    }))
+    await Promise.all([
+      perf.time(
+        'checkout_submit',
+        'checkout_submit_customer_email',
+        () => notifyCheckoutRequestSubmittedCustomer(emailPayload).catch((error) => console.error('[submitCheckoutRequest] customer email failed:', error)),
+      ),
+      perf.time(
+        'checkout_submit',
+        'checkout_submit_admin_email',
+        () => notifyCheckoutRequestSubmittedAdmin(emailPayload).catch((error) => console.error('[submitCheckoutRequest] admin email failed:', error)),
+      ),
+    ])
   }
 
-  revalidatePath('/dashboard')
-  revalidatePath('/admin')
-  revalidatePath('/admin/checkouts')
-  revalidatePath('/admin/checkouts/all')
-
-  console.info(`[${routeName}] submit success`, {
-    host: requestHost,
-    user_id: userId,
-    email: safeEmail,
-    booking_id: bookingId,
-    booking_reference: result.booking_reference,
+  perf.timeSync('checkout_submit', 'checkout_submit_revalidation', () => {
+    revalidatePath('/dashboard')
+    revalidatePath('/admin')
+    revalidatePath('/admin/checkouts')
+    revalidatePath('/admin/checkouts/all')
   })
 
+  perf.timeSync('checkout_submit', 'checkout_submit_response_ready', () => null)
+  markTotal()
   return {
     ok: true,
     type: 'success',
@@ -890,6 +766,7 @@ export async function submitCheckoutRequest(
     const err = error instanceof Error ? error : new Error('Unknown checkout submission error')
     const lower = err.message.toLowerCase()
     if (lower.includes('unauthorized') || lower.includes('not authenticated') || lower.includes('invalid jwt')) {
+      markTotal()
       return {
         ok: false,
         type: 'auth',
@@ -897,13 +774,10 @@ export async function submitCheckoutRequest(
       }
     }
     console.error(`[${routeName}] submit failed`, {
-      host: requestHost,
-      user_id: userId,
-      email: safeEmail,
       auth_user_exists: true,
       message: err.message,
-      stack: err.stack,
     })
+    markTotal()
     return {
       ok: false,
       type: 'error',

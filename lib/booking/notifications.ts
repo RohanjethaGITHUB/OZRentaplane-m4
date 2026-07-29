@@ -248,6 +248,16 @@ export async function notifyCheckoutRequestSubmitted(opts: {
   bookingId: string
   requestedTime: string
 }) {
+  await Promise.all([
+    notifyCheckoutRequestSubmittedCustomer(opts),
+    notifyCheckoutRequestSubmittedAdmin(opts),
+  ])
+}
+
+export async function notifyCheckoutRequestSubmittedCustomer(opts: {
+  customerEmail: string
+  bookingId: string
+}) {
   const customerTemplate = checkoutRequestReceivedEmail()
   await sendEmail({
     to: opts.customerEmail,
@@ -257,7 +267,14 @@ export async function notifyCheckoutRequestSubmitted(opts: {
     entityType: 'checkout',
     entityId: opts.bookingId,
   })
+}
 
+export async function notifyCheckoutRequestSubmittedAdmin(opts: {
+  customerEmail: string
+  customerName: string
+  bookingId: string
+  requestedTime: string
+}) {
   if (ADMIN_EMAIL) {
     const adminTemplate = adminNewCheckoutRequestEmail({
       customerName: opts.customerName,
