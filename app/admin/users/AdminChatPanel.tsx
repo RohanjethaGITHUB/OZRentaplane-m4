@@ -38,8 +38,10 @@ export default function AdminChatPanel({ customerId, events, customerName }: Pro
 
   // Mark customer messages as read when this panel mounts
   useEffect(() => {
-    markAdminChatRead(customerId).catch(() => {/* non-critical */})
-  }, [customerId])
+    markAdminChatRead(customerId)
+      .then(() => router.refresh())
+      .catch(() => {/* non-critical */})
+  }, [customerId, router])
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -87,7 +89,7 @@ export default function AdminChatPanel({ customerId, events, customerName }: Pro
           </p>
         </div>
       ) : (
-        <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1 scrollbar-thin">
+        <div className="space-y-3 max-h-[520px] overflow-y-auto px-4 sm:px-5 scrollbar-thin">
           {chatEvents.map(ev => {
             const isAdmin    = ev.actor_role === 'admin'
             const isUnread   = !isAdmin && ev.admin_read_at === null
@@ -129,7 +131,7 @@ export default function AdminChatPanel({ customerId, events, customerName }: Pro
                   {/* Message body */}
                   <div className={`px-4 py-3 rounded-2xl text-[14px] leading-relaxed whitespace-pre-wrap ${
                     isAdmin
-                      ? 'bg-blue-600/15 border border-blue-400/15 text-blue-100 rounded-tr-sm'
+                      ? 'bg-blue-600/15 border border-blue-400/15 text-slate-900 rounded-tr-sm'
                       : 'bg-[#f8f9fb] border border-[rgba(12,35,64,0.08)] text-[#0C2340] rounded-tl-sm'
                   }`}>
                     {ev.body}
@@ -166,7 +168,7 @@ export default function AdminChatPanel({ customerId, events, customerName }: Pro
           onChange={e => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={loading}
-          placeholder={`Message ${customerName}…`}
+          placeholder={`Message ${customerName}...`}
           rows={3}
           className="w-full rounded-lg border border-[rgba(12,35,64,0.15)] bg-white px-3 py-2 focus:outline-none text-sm text-[#0C2340] placeholder:text-[#3d5a80] resize-none disabled:opacity-50 focus:border-[#1a4a7a]"
         />
@@ -177,7 +179,7 @@ export default function AdminChatPanel({ customerId, events, customerName }: Pro
 
         <div className="flex items-center justify-between pt-2 border-t border-[rgba(12,35,64,0.12)]">
           <p className="text-[10px] text-[#3d5a80] italic">
-            ⌘ + Enter to send · This message is visible to {customerName}
+            Ctrl/Cmd + Enter to send · This message is visible to {customerName}
           </p>
           <button
             type="button"

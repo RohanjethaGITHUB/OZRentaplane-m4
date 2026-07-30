@@ -2003,6 +2003,7 @@ export async function adminUpdateCheckoutTime(
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/bookings')
   revalidatePath(`/dashboard/bookings/${bookingId}`)
+  revalidatePath('/dashboard/messages')
 
   await Promise.all([
     emitBookingChanged({ bookingId, userId: booking.booking_owner_user_id }),

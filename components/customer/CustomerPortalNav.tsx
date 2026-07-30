@@ -16,6 +16,7 @@ type CustomerPortalNavProps = {
   firstName: string
   email: string
   hideCheckout?: boolean
+  unreadMessageCount?: number
 }
 
 const BASE_PORTAL_LINKS: PortalLink[] = [
@@ -30,6 +31,7 @@ const CHECKOUT_LINK: PortalLink = { label: 'Checkout', href: '/dashboard/checkou
 const BOTTOM_NAV_LINKS: PortalLink[] = [
   { label: 'Home', href: '/dashboard', icon: 'dashboard', exact: true },
   { label: 'Bookings', href: '/dashboard/bookings', icon: 'event' },
+  { label: 'Messages', href: '/dashboard/messages', icon: 'chat' },
   { label: 'Documents', href: '/dashboard/documents', icon: 'description' },
 ]
 
@@ -48,7 +50,12 @@ function buildPortalLinks(hideCheckout: boolean): PortalLink[] {
   return [BASE_PORTAL_LINKS[0], CHECKOUT_LINK, ...BASE_PORTAL_LINKS.slice(1)]
 }
 
-export default function CustomerPortalNav({ firstName, email, hideCheckout = false }: CustomerPortalNavProps) {
+export default function CustomerPortalNav({
+  firstName,
+  email,
+  hideCheckout = false,
+  unreadMessageCount = 0,
+}: CustomerPortalNavProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -154,61 +161,79 @@ export default function CustomerPortalNav({ firstName, email, hideCheckout = fal
             })}
           </nav>
 
-          <div className="relative shrink-0" ref={containerRef}>
-            <button
-              type="button"
-              onClick={() => setMenuOpen((open) => !open)}
-              className="w-8 h-8 rounded-full bg-[#1a4fd6] flex items-center justify-center text-white text-[13px] font-bold font-sans"
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              aria-label="Open account menu"
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/dashboard/messages"
+              className="relative inline-flex items-center justify-center w-10 h-10 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label={unreadMessageCount > 0 ? `Messages, ${unreadMessageCount} unread` : 'Messages'}
             >
-              {avatarInitial}
-            </button>
+              <span className="material-symbols-outlined text-[22px]" aria-hidden="true">
+                chat
+              </span>
+              {unreadMessageCount > 0 && (
+                <span
+                  className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[#0d1e34]"
+                  aria-hidden="true"
+                />
+              )}
+            </Link>
 
-            {menuOpen && (
-              <div className="absolute top-full right-0 mt-2 w-52 rounded-xl border border-white/[0.08] bg-[#0d1e34] shadow-2xl py-1">
-                <div className="px-4 py-3 border-b border-white/[0.06]">
-                  <div className="text-[13px] font-semibold text-white">{displayName}</div>
-                  <div className="text-[11px] text-white/50 truncate">{email}</div>
+            <div className="relative" ref={containerRef}>
+              <button
+                type="button"
+                onClick={() => setMenuOpen((open) => !open)}
+                className="w-8 h-8 rounded-full bg-[#1a4fd6] flex items-center justify-center text-white text-[13px] font-bold font-sans"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                aria-label="Open account menu"
+              >
+                {avatarInitial}
+              </button>
+
+              {menuOpen && (
+                <div className="absolute top-full right-0 mt-2 w-52 rounded-xl border border-white/[0.08] bg-[#0d1e34] shadow-2xl py-1">
+                  <div className="px-4 py-3 border-b border-white/[0.06]">
+                    <div className="text-[13px] font-semibold text-white">{displayName}</div>
+                    <div className="text-[11px] text-white/50 truncate">{email}</div>
+                  </div>
+
+                  <Link
+                    href="/dashboard/settings"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-white/75 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+                      settings
+                    </span>
+                    <span>Profile</span>
+                  </Link>
+
+                  <Link
+                    href="/"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-white/75 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+                      home
+                    </span>
+                    <span>Back to main site</span>
+                  </Link>
+
+                  <div className="my-1 h-px bg-white/[0.06]" />
+
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-white/75 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+                      logout
+                    </span>
+                    <span>Sign out</span>
+                  </button>
                 </div>
-
-                <Link
-                  href="/dashboard/settings"
-                  onClick={() => setMenuOpen(false)}
-                  className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-white/75 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
-                    settings
-                  </span>
-                  <span>Profile</span>
-                </Link>
-
-                <Link
-                  href="/"
-                  onClick={() => setMenuOpen(false)}
-                  className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-white/75 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
-                    home
-                  </span>
-                  <span>Back to main site</span>
-                </Link>
-
-                <div className="my-1 h-px bg-white/[0.06]" />
-
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-white/75 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
-                    logout
-                  </span>
-                  <span>Sign out</span>
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -223,22 +248,36 @@ export default function CustomerPortalNav({ firstName, email, hideCheckout = fal
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
       >
-        <div className="flex items-center justify-around px-2 pt-2 pb-2">
+        <div className="flex items-center justify-around px-1 pt-2 pb-2">
           {BOTTOM_NAV_LINKS.map((link) => {
             const active = isActive(pathname, link.href, link.exact)
+            const isMessages = link.href === '/dashboard/messages'
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className="flex flex-col items-center gap-0.5 px-4 py-1 rounded-lg transition-colors"
+                className="relative flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors min-w-[64px]"
+                aria-label={
+                  isMessages && unreadMessageCount > 0
+                    ? `Messages, ${unreadMessageCount} unread`
+                    : link.label
+                }
               >
-                <span
-                  className={`material-symbols-outlined text-[22px] ${
-                    active ? 'text-[#f59e0b]' : 'text-white/50 hover:text-white/80'
-                  }`}
-                  aria-hidden="true"
-                >
-                  {link.icon}
+                <span className="relative inline-flex">
+                  <span
+                    className={`material-symbols-outlined text-[22px] ${
+                      active ? 'text-[#f59e0b]' : 'text-white/50 hover:text-white/80'
+                    }`}
+                    aria-hidden="true"
+                  >
+                    {link.icon}
+                  </span>
+                  {isMessages && unreadMessageCount > 0 && (
+                    <span
+                      className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[#16305c]"
+                      aria-hidden="true"
+                    />
+                  )}
                 </span>
                 <span className={`text-[10px] font-medium font-sans tracking-wide ${active ? 'text-[#f59e0b]' : 'text-white/50'}`}>
                   {link.label}

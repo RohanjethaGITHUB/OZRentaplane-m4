@@ -6,6 +6,7 @@ import CustomerDashboardBackgroundOverlay from './CustomerDashboardBackgroundOve
 import { RealtimeProvider } from '@/components/realtime/RealtimeProvider'
 import { DashboardRealtimeListener } from '@/components/realtime/DashboardRealtimeListener'
 import { createPerfLogger } from '@/lib/perf/timing'
+import { countCustomerUnreadMessages } from '@/lib/chat/unread'
 
 export default async function CustomerPortalLayout({ children }: { children: React.ReactNode }) {
   const perf = createPerfLogger({ route: '/dashboard/layout', role: 'customer' })
@@ -18,7 +19,7 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
   )
   if (!user) redirect('/login')
 
-  const [{ data: profile }, { count: blockTimePurchaseCount }] = await perf.time(
+  const [{ data: profile }, { count: blockTimePurchaseCount }, { data: messageEvents }] = await perf.time(
     'customer_dashboard_layout',
     'profile_block_time_parallel_group',
     () => Promise.all([
@@ -27,15 +28,22 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
         .from('pilot_block_time_purchases')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', user.id),
+      supabase
+        .from('verification_events')
+        .select('event_type, title, request_kind, actor_role, is_read, body')
+        .eq('user_id', user.id),
     ]),
     (result) => ({
-      rowCount: (result[0].data ? 1 : 0) + (result[1].count ?? 0),
+      rowCount: (result[0].data ? 1 : 0) + (result[1].count ?? 0) + (result[2].data?.length ?? 0),
     }),
   )
 
   if (profile?.role === 'admin') redirect('/admin')
   const firstName = (profile as any)?.first_name ?? user.email?.split('@')[0] ?? 'Pilot'
   const email = user.email ?? ''
+  const unreadMessageCount = countCustomerUnreadMessages(
+    (messageEvents ?? []) as import('@/lib/supabase/types').VerificationEvent[],
+  )
   markTotal()
 
   return (
@@ -45,6 +53,7 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
         firstName={firstName}
         email={email}
         hideCheckout={true}
+        unreadMessageCount={unreadMessageCount}
       />
       <div
         className="relative min-h-screen pt-[64px] text-deep-ink dashboard-theme overflow-x-hidden"

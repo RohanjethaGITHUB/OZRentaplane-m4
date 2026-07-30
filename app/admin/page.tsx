@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { unstable_noStore as noStore } from 'next/cache'
 import { createClient, getCachedProfile, getCachedUser } from '@/lib/supabase/server'
 import { countAwaitingFlightRecords } from '@/lib/booking/flight-record-status'
+import { getAdminUnreadCount } from '@/app/actions/admin'
 import { ActionQueueSection } from './ActionQueueSection'
 import { createPerfLogger } from '@/lib/perf/timing'
 
@@ -897,6 +898,7 @@ export default async function AdminActionsPage({
   perf.timeSync('admin_home', 'action_feed_preparation', () => sortedActionRows.length, {
     rowCount: sortedActionRows.length,
   })
+  const unreadMessageCount = await getAdminUnreadCount()
   markTotal({ rowCount: sortedActionRows.length })
 
   return (
@@ -904,6 +906,7 @@ export default async function AdminActionsPage({
       <div className="mx-auto max-w-[1400px] px-4 py-3 pb-24 sm:px-6 sm:py-4 md:px-8 lg:px-10">
         <ActionQueueSection
           actionRows={sortedActionRows}
+          unreadMessageCount={unreadMessageCount}
           emptyMessage={getEmptyStateMessage('all')}
           filteredEmptyMessageByWorkflow={{
             checkout: getEmptyStateMessage('checkout'),

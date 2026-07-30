@@ -298,14 +298,33 @@ html {
   object-fit: cover;
 }
 
-/* Smooth scrollbar */
+/* Smooth scrollbar — transparent track so only the thumb shows on light panels */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #162a48 #000e25;
+  scrollbar-color: rgba(22, 42, 72, 0.35) transparent;
 }
-*::-webkit-scrollbar { width: 6px; }
-*::-webkit-scrollbar-track { background: #000e25; }
-*::-webkit-scrollbar-thumb { background: #162a48; border-radius: 3px; }
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: rgba(22, 42, 72, 0.35);
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(22, 42, 72, 0.55);
+}
+
+/* Dark admin chrome (sidebar etc.) — lighter thumb on dark backgrounds */
+.custom-scrollbar {
+  scrollbar-color: rgba(167, 200, 255, 0.28) transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(167, 200, 255, 0.28);
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(167, 200, 255, 0.45);
+}
 
 /* Reduced motion: show only one screen of the hero, let HomeContent extend below */
 @media (prefers-reduced-motion: reduce) {

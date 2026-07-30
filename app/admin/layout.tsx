@@ -46,7 +46,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         {/* Admin Layout with Sidebar */}
         <div className="flex flex-1 min-h-0 overflow-hidden relative">
           <Suspense fallback={<AdminSidebar displayName={adminName} unreadMessageCount={0} />}>
-            <AdminOperationalCounts displayName={adminName} unreadMessageCount={0} />
+            <AdminOperationalCounts displayName={adminName} />
           </Suspense>
           
           {/* Page content */}

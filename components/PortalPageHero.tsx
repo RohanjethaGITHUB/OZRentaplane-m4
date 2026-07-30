@@ -33,6 +33,8 @@ type Props = {
   secondaryCta?: { label: string; href: string }
   metaCards?: MetaCard[]
   variant?: 'dark' | 'light'
+  /** Shorter hero for content-first pages (e.g. messaging). */
+  compact?: boolean
 }
 
 const PILL_CLASSES: Record<StatusPillColor, string> = {
@@ -51,15 +53,20 @@ const DOT_CLASSES: Record<StatusPillColor, string> = {
   slate: 'bg-slate-500',
 }
 
-export default function PortalPageHero({ eyebrow, title, subtitle, note, backgroundImage, backgroundPosition, statusPill, backHref, backLabel, cta, secondaryCta, metaCards, variant = 'dark' }: Props) {
+export default function PortalPageHero({ eyebrow, title, subtitle, note, backgroundImage, backgroundPosition, statusPill, backHref, backLabel, cta, secondaryCta, metaCards, variant = 'dark', compact = false }: Props) {
   const isLight = variant === 'light'
   const hasPhotoBackground = Boolean(backgroundImage)
   const useLightText = isLight && !hasPhotoBackground
+  const minHeight = hasPhotoBackground
+    ? (compact ? '240px' : '460px')
+    : isLight
+      ? (compact ? '180px' : '360px')
+      : (compact ? undefined : '460px')
   return (
     <section
       className="relative overflow-hidden -mt-6"
       style={{
-        minHeight: hasPhotoBackground ? '460px' : isLight ? '360px' : '460px',
+        ...(minHeight ? { minHeight } : {}),
         marginLeft: 'calc(-50vw + 50%)',
         marginRight: 'calc(-50vw + 50%)',
         width: '100vw',
@@ -123,7 +130,11 @@ export default function PortalPageHero({ eyebrow, title, subtitle, note, backgro
         <div className="absolute inset-0" style={{ background: isLight ? 'linear-gradient(180deg, rgba(221,232,245,0.35) 0%, rgba(240,244,250,0.08) 100%)' : 'linear-gradient(90deg, rgba(8,20,50,0.88) 0%, rgba(8,20,50,0.70) 50%, rgba(8,20,50,0.25) 100%)' }} />
       )}
 
-      <div className={`relative z-10 max-w-[1440px] mx-auto px-4 md:px-5 lg:px-6 ${isLight ? 'py-12 md:py-16' : 'py-16 md:py-20'}`}>
+      <div className={`relative z-10 max-w-[1440px] mx-auto px-4 md:px-5 lg:px-6 ${
+        compact
+          ? (isLight ? 'py-6 md:py-8' : 'py-6 md:py-8')
+          : (isLight ? 'py-12 md:py-16' : 'py-16 md:py-20')
+      }`}>
         {backHref && (
           <Link
             href={backHref}
@@ -134,18 +145,18 @@ export default function PortalPageHero({ eyebrow, title, subtitle, note, backgro
           </Link>
         )}
         {eyebrow && (
-          <div className={`text-[11px] font-semibold tracking-[0.2em] uppercase mb-4 font-sans ${useLightText ? 'text-[#1a4fd6]' : 'text-white/70'}`}>
+          <div className={`text-[11px] font-semibold tracking-[0.2em] uppercase mb-3 md:mb-4 font-sans ${useLightText ? 'text-[#1a4fd6]' : 'text-white/70'}`}>
             {eyebrow}
           </div>
         )}
         <h1
-          className={`text-4xl md:text-5xl lg:text-6xl font-normal leading-tight mb-4 max-w-2xl ${useLightText ? 'text-[#152d5a]' : 'text-white font-bold'}`}
+          className={`${compact ? 'text-3xl md:text-4xl lg:text-5xl' : 'text-4xl md:text-5xl lg:text-6xl'} font-normal leading-tight mb-3 md:mb-4 max-w-2xl ${useLightText ? 'text-[#152d5a]' : 'text-white font-bold'}`}
           style={{ fontFamily: 'Newsreader, Georgia, serif' }}
         >
           {title}
         </h1>
         {subtitle && (
-          <p className={`text-[15px] max-w-lg leading-relaxed ${useLightText ? 'text-[#4a5568]' : 'text-white/80'}`}>
+          <p className={`${compact ? 'text-sm md:text-[15px] max-w-md' : 'text-[15px] max-w-lg'} leading-relaxed ${useLightText ? 'text-[#4a5568]' : 'text-white/80'} ${compact ? 'hidden sm:block' : ''}`}>
             {subtitle}
           </p>
         )}

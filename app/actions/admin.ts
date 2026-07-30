@@ -17,6 +17,8 @@ import {
   emitClearanceUpdated,
 } from '@/lib/realtime/emit'
 import type { ThreadSummary, VerificationEvent, ActorRole, RequestKind } from '@/lib/supabase/types'
+import type { AdminThreadListFilter, AdminThreadListPage } from '@/lib/chat/admin-threads'
+import { ADMIN_THREAD_PAGE_SIZE } from '@/lib/chat/admin-threads'
 
 // ─── Admin guard ──────────────────────────────────────────────────────────────
 
@@ -410,13 +412,12 @@ export async function markAdminChatRead(customerId: string): Promise<void> {
 }
 
 // ─── Admin inbox: thread list ─────────────────────────────────────────────────
-// Returns one ThreadSummary per customer who has at least one chat event.
-// Sorted: unread threads first, then by latest message timestamp desc.
+// Returns ThreadSummary rows for customers (including those with no chat history).
+// Sorted: unread first, then latest message timestamp desc (nulls last).
 
-export async function getAdminThreadList(): Promise<ThreadSummary[]> {
+async function buildAdminThreadSummaries(): Promise<ThreadSummary[]> {
   const { supabase } = await requireAdmin()
 
-  // All customers
   const { data: customers } = await supabase
     .from('profiles')
     .select('id, full_name, email, verification_status')
@@ -424,9 +425,8 @@ export async function getAdminThreadList(): Promise<ThreadSummary[]> {
 
   if (!customers || customers.length === 0) return []
 
-  const customerIds = customers.map(c => c.id)
+  const customerIds = customers.map((c) => c.id)
 
-  // All chat events for these customers — message events OR on_hold events with a body
   const { data: events } = await supabase
     .from('verification_events')
     .select('user_id, body, created_at, actor_role, admin_read_at, event_type')
@@ -435,17 +435,16 @@ export async function getAdminThreadList(): Promise<ThreadSummary[]> {
     .not('body', 'is', null)
     .order('created_at', { ascending: false })
 
-  if (!events || events.length === 0) return []
+  const agg = new Map<
+    string,
+    {
+      latestEvent: NonNullable<typeof events>[number]
+      unreadCount: number
+      total: number
+    }
+  >()
 
-  // Aggregate: latest message + unread count per customer
-  // events are sorted DESC so the first entry per user is the most recent
-  const agg = new Map<string, {
-    latestEvent: typeof events[0]
-    unreadCount: number
-    total: number
-  }>()
-
-  for (const ev of events) {
+  for (const ev of events ?? []) {
     if (!agg.has(ev.user_id)) {
       agg.set(ev.user_id, { latestEvent: ev, unreadCount: 0, total: 0 })
     }
@@ -456,25 +455,21 @@ export async function getAdminThreadList(): Promise<ThreadSummary[]> {
     }
   }
 
-  // Build thread summaries for customers who have chat events
-  const threads: ThreadSummary[] = customers
-    .filter(c => agg.has(c.id))
-    .map(c => {
-      const a = agg.get(c.id)!
-      return {
-        customerId:          c.id,
-        customerName:        c.full_name,
-        customerEmail:       c.email,
-        verificationStatus:  c.verification_status,
-        lastMessageBody:     a.latestEvent.body,
-        lastMessageAt:       a.latestEvent.created_at,
-        lastMessageRole:     a.latestEvent.actor_role as ActorRole,
-        unreadCount:         a.unreadCount,
-        totalMessages:       a.total,
-      }
-    })
+  const threads: ThreadSummary[] = customers.map((c) => {
+    const a = agg.get(c.id)
+    return {
+      customerId: c.id,
+      customerName: c.full_name,
+      customerEmail: c.email,
+      verificationStatus: c.verification_status,
+      lastMessageBody: a?.latestEvent.body ?? null,
+      lastMessageAt: a?.latestEvent.created_at ?? null,
+      lastMessageRole: (a?.latestEvent.actor_role as ActorRole | undefined) ?? null,
+      unreadCount: a?.unreadCount ?? 0,
+      totalMessages: a?.total ?? 0,
+    }
+  })
 
-  // Unread first, then most-recently-updated
   threads.sort((a, b) => {
     if (a.unreadCount > 0 && b.unreadCount === 0) return -1
     if (a.unreadCount === 0 && b.unreadCount > 0) return 1
@@ -482,6 +477,41 @@ export async function getAdminThreadList(): Promise<ThreadSummary[]> {
   })
 
   return threads
+}
+
+function applyThreadListFilter(
+  threads: ThreadSummary[],
+  filter: AdminThreadListFilter = 'all',
+): ThreadSummary[] {
+  if (filter === 'all') return threads
+  if (filter === 'unread') return threads.filter((t) => t.unreadCount > 0)
+  return threads.filter((t) => t.verificationStatus === filter)
+}
+
+export async function getAdminThreadListPage(opts?: {
+  offset?: number
+  limit?: number
+  filter?: AdminThreadListFilter
+}): Promise<AdminThreadListPage> {
+  const offset = Math.max(0, opts?.offset ?? 0)
+  const limit = Math.max(1, Math.min(opts?.limit ?? ADMIN_THREAD_PAGE_SIZE, 100))
+  const filter = opts?.filter ?? 'all'
+
+  const all = applyThreadListFilter(await buildAdminThreadSummaries(), filter)
+  const threads = all.slice(offset, offset + limit)
+
+  return {
+    threads,
+    hasMore: offset + threads.length < all.length,
+    total: all.length,
+  }
+}
+
+/** Full list helper (realtime refresh / legacy callers). */
+export async function getAdminThreadList(
+  filter: AdminThreadListFilter = 'all',
+): Promise<ThreadSummary[]> {
+  return applyThreadListFilter(await buildAdminThreadSummaries(), filter)
 }
 
 // ─── Admin inbox: single thread ───────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getAdminThreadList } from '@/app/actions/admin'
+import { getAdminThreadListPage } from '@/app/actions/admin'
 import AdminInbox from './AdminInbox'
 
 export const metadata = { title: 'Messages — Admin' }
@@ -18,7 +18,13 @@ export default async function AdminMessagesPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const threads = await getAdminThreadList()
+  const page = await getAdminThreadListPage({ offset: 0 })
 
-  return <AdminInbox initialThreads={threads} initialSelectedUserId={searchParams?.userId ?? null} />
+  return (
+    <AdminInbox
+      initialThreads={page.threads}
+      initialHasMore={page.hasMore}
+      initialSelectedUserId={searchParams?.userId ?? null}
+    />
+  )
 }

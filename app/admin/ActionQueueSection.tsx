@@ -77,6 +77,20 @@ function ToolbarChip({
   )
 }
 
+function MessagesToolbarLink({ count }: { count: number }) {
+  return (
+    <Link
+      href="/admin/messages"
+      className="inline-flex min-h-10 shrink-0 items-center rounded-full border border-white/14 bg-white/8 px-3.5 py-2 text-[13px] font-semibold text-white/82 transition-colors hover:border-white/22 hover:bg-white/14 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-primary-navy)]"
+    >
+      <span>Messages</span>
+      <span className="ml-2 rounded-full bg-white/12 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">
+        {count}
+      </span>
+    </Link>
+  )
+}
+
 function MetadataBlock({
   label,
   children,
@@ -156,10 +170,12 @@ export function ActionQueueSection({
   actionRows,
   emptyMessage,
   filteredEmptyMessageByWorkflow,
+  unreadMessageCount = 0,
 }: {
   actionRows: ActionItem[]
   emptyMessage: string
   filteredEmptyMessageByWorkflow: Record<Exclude<WorkflowFilter, 'all'>, string>
+  unreadMessageCount?: number
 }) {
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowFilter>('all')
   const [pendingQueueScroll, setPendingQueueScroll] = useState(0)
@@ -280,6 +296,7 @@ export function ActionQueueSection({
                         }}
                       />
                     ))}
+                    <MessagesToolbarLink count={unreadMessageCount} />
                   </div>
                 </div>
               </div>

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
@@ -6,25 +6,29 @@ import {
   sendAdminChatMessage,
   markAdminChatRead,
   getAdminThread,
-  getAdminThreadList,
+  getAdminThreadListPage,
   searchCustomers,
 } from '@/app/actions/admin'
+import {
+  ADMIN_THREAD_PAGE_SIZE,
+  type AdminThreadListFilter,
+} from '@/lib/chat/admin-threads'
 import type { ThreadSummary, VerificationEvent } from '@/lib/supabase/types'
 import { formatDateTime, formatDateFromISO } from '@/lib/formatDateTime'
 import { useRealtimeEvent } from '@/hooks/useRealtimeEvent'
 import { ThreadRealtimeListener } from '@/components/realtime/ThreadRealtimeListener'
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// --- Helpers ---
 
 function fmtRelative(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.floor(diff / 60_000)
-  if (m < 1)  return 'just now'
+  if (m < 1) return 'just now'
   if (m < 60) return `${m}m ago`
   const h = Math.floor(m / 60)
   if (h < 24) return `${h}h ago`
   const d = Math.floor(h / 24)
-  if (d < 7)  return `${d}d ago`
+  if (d < 7) return `${d}d ago`
   return formatDateFromISO(iso)
 }
 
@@ -38,40 +42,47 @@ function getInitials(name: string | null): string {
 }
 
 const STATUS_BADGE: Record<string, string> = {
-  not_started:    'bg-slate-800/60 text-slate-400',
-  pending_review: 'bg-blue-900/40 text-blue-300',
-  verified:       'bg-green-900/30 text-green-400',
-  rejected:       'bg-red-900/30 text-red-400',
-  on_hold:        'bg-amber-900/30 text-amber-400',
+  not_started: 'bg-slate-100 text-slate-600 border border-slate-200',
+  pending_review: 'bg-blue-50 text-blue-700 border border-blue-200',
+  verified: 'bg-green-50 text-green-700 border border-green-200',
+  rejected: 'bg-red-50 text-red-700 border border-red-200',
+  on_hold: 'bg-amber-50 text-amber-700 border border-amber-200',
+}
+
+type DiscoveredCustomer = {
+  id: string
+  full_name: string | null
+  verification_status: string
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  not_started:    'Not Started',
+  not_started: 'Not Started',
   pending_review: 'Pending',
-  verified:       'Verified',
-  rejected:       'Rejected',
-  on_hold:        'On Hold',
+  verified: 'Verified',
+  rejected: 'Rejected',
+  on_hold: 'On Hold',
 }
 
-type FilterKey = 'all' | 'unread' | 'pending_review' | 'verified' | 'on_hold' | 'rejected'
+type FilterKey = AdminThreadListFilter
 
 const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: 'all',           label: 'All' },
-  { key: 'unread',        label: 'Unread' },
-  { key: 'pending_review',label: 'Pending' },
-  { key: 'verified',      label: 'Verified' },
-  { key: 'on_hold',       label: 'On Hold' },
-  { key: 'rejected',      label: 'Rejected' },
+  { key: 'all', label: 'All' },
+  { key: 'unread', label: 'Unread' },
+  { key: 'pending_review', label: 'Pending' },
+  { key: 'verified', label: 'Verified' },
+  { key: 'on_hold', label: 'On Hold' },
+  { key: 'rejected', label: 'Rejected' },
 ]
 
-// ─── Props ───────────────────────────────────────────────────────────────────
+// --- Props ---
 
 interface Props {
   initialThreads: ThreadSummary[]
+  initialHasMore: boolean
   initialSelectedUserId?: string | null
 }
 
-// ─── New-message search modal ─────────────────────────────────────────────────
+// --- New-message search modal ---
 
 interface NewMessageModalProps {
   onSelect: (customer: { id: string; full_name: string | null; verification_status: string }) => void
@@ -79,7 +90,7 @@ interface NewMessageModalProps {
 }
 
 function NewMessageModal({ onSelect, onClose }: NewMessageModalProps) {
-  const [query, setQuery]   = useState('')
+  const [query, setQuery] = useState('')
   const [results, setResults] = useState<{ id: string; full_name: string | null; verification_status: string }[]>([])
   const [loading, setLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -106,27 +117,24 @@ function NewMessageModal({ onSelect, onClose }: NewMessageModalProps) {
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="w-full max-w-md bg-white border border-[rgba(12,35,64,0.15)] rounded-2xl shadow-2xl overflow-hidden">
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[rgba(12,35,64,0.08)]">
           <h3 className="text-sm font-bold text-[#0C2340] tracking-wide">New Message</h3>
           <button
             onClick={onClose}
             className="text-[#3d5a80] hover:text-[#0C2340] transition-colors"
           >
-            <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'wght' 300" }}>close</span>
+            <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'wght' 300" }}>close</span>
           </button>
         </div>
-
-        {/* Search */}
-        <div className="px-5 py-3 border-b border-[rgba(12,35,64,0.08)]">
-          <div className="flex items-center gap-3">
+        <div className="px-5 py-4 border-b border-[rgba(12,35,64,0.08)]">
+          <div className="flex items-center gap-2.5 bg-white border border-[rgba(12,35,64,0.15)] rounded-xl px-3 py-2.5">
             <span className="material-symbols-outlined text-[#3d5a80] text-base" style={{ fontVariationSettings: "'wght' 300" }}>search</span>
             <input
               ref={inputRef}
               type="text"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search customer by name…"
+              placeholder="Search customer by name..."
               className="flex-1 bg-white text-sm text-[#0C2340] placeholder:text-[#3d5a80] focus:outline-none"
             />
             {loading && (
@@ -134,81 +142,150 @@ function NewMessageModal({ onSelect, onClose }: NewMessageModalProps) {
             )}
           </div>
         </div>
-
-        {/* Results */}
         <div className="max-h-64 overflow-y-auto">
-          {results.length === 0 && query.trim() && !loading ? (
-            <div className="px-5 py-8 text-center text-sm text-[#3d5a80] font-light">
-              No customers found for "{query}"
-            </div>
-          ) : results.length === 0 && !query.trim() ? (
-            <div className="px-5 py-8 text-center text-sm text-[#3d5a80] font-light">
-              Start typing to search for a customer
-            </div>
-          ) : results.map(r => (
-            <button
-              key={r.id}
-              onClick={() => onSelect(r)}
-              className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-[#f6f9fc] transition-colors text-left"
-            >
-              <div className="w-8 h-8 rounded-full bg-[#dbe8f5] border border-[rgba(12,35,64,0.12)] flex items-center justify-center flex-shrink-0">
-                <span className="text-[10px] font-bold text-[#0C2340]">{getInitials(r.full_name)}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-[#0C2340] truncate">{r.full_name ?? 'Unknown'}</p>
-                <p className="text-[10px] text-[#3d5a80] uppercase tracking-widest">{STATUS_LABEL[r.verification_status] ?? r.verification_status}</p>
-              </div>
-              <span
-                className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${STATUS_BADGE[r.verification_status] ?? 'bg-white text-[#3d5a80]'}`}
+          {!query.trim() ? (
+            <p className="px-5 py-8 text-center text-sm text-[#3d5a80] font-light">Type a name to find a customer</p>
+          ) : results.length === 0 && !loading ? (
+            <p className="px-5 py-8 text-center text-sm text-[#3d5a80] font-light">No customers found</p>
+          ) : (
+            results.map(c => (
+              <button
+                key={c.id}
+                onClick={() => onSelect(c)}
+                className="w-full text-left px-5 py-3.5 hover:bg-[#f6f9fc] border-b border-[rgba(12,35,64,0.06)] transition-colors"
               >
-                {STATUS_LABEL[r.verification_status] ?? r.verification_status}
-              </span>
-            </button>
-          ))}
+                <p className="text-sm font-semibold text-[#0C2340]">{c.full_name ?? 'Unknown'}</p>
+                <p className="text-[10px] text-[#3d5a80] uppercase tracking-widest mt-0.5">
+                  {STATUS_LABEL[c.verification_status] ?? c.verification_status}
+                </p>
+              </button>
+            ))
+          )}
         </div>
       </div>
     </div>
   )
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// --- Main component ---
 
-export default function AdminInbox({ initialThreads, initialSelectedUserId }: Props) {
-  // Thread list state
-  const [threads, setThreads]             = useState<ThreadSummary[]>(initialThreads)
-  const [searchQuery, setSearchQuery]     = useState('')
-  const [activeFilter, setActiveFilter]   = useState<FilterKey>('all')
+export default function AdminInbox({
+  initialThreads,
+  initialHasMore,
+  initialSelectedUserId,
+}: Props) {
+  const [threads, setThreads] = useState<ThreadSummary[]>(initialThreads)
+  const [hasMore, setHasMore] = useState(initialHasMore)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [filterLoading, setFilterLoading] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
   const [showNewMessage, setShowNewMessage] = useState(false)
+  const [discoveredCustomers, setDiscoveredCustomers] = useState<DiscoveredCustomer[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
 
-  // Selected conversation state
-  const [selectedId, setSelectedId]       = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedThread, setSelectedThread] = useState<ThreadSummary | null>(null)
-  const [threadEvents, setThreadEvents]   = useState<VerificationEvent[]>([])
+  const [threadEvents, setThreadEvents] = useState<VerificationEvent[]>([])
   const [loadingThread, setLoadingThread] = useState(false)
 
-  // Compose state
-  const [message, setMessage]   = useState('')
-  const [sending, setSending]   = useState(false)
+  const [message, setMessage] = useState('')
+  const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState('')
 
   const bottomRef = useRef<HTMLDivElement>(null)
+  const listEndRef = useRef<HTMLDivElement>(null)
+  const listScrollRef = useRef<HTMLDivElement>(null)
   const initialSelectionDone = useRef(false)
+  const loadingMoreRef = useRef(false)
 
-  // ── Derived: filtered thread list ──────────────────────────────────────────
-
+  // While searching, filter client-side over loaded threads; status filter applied server-side.
   const filteredThreads = threads.filter(t => {
-    const matchesSearch = !searchQuery.trim() ||
+    if (!searchQuery.trim()) return true
+    return (
       (t.customerName ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (t.customerEmail ?? '').toLowerCase().includes(searchQuery.toLowerCase())
-
-    const matchesFilter = activeFilter === 'all' ? true
-      : activeFilter === 'unread' ? t.unreadCount > 0
-      : t.verificationStatus === activeFilter
-
-    return matchesSearch && matchesFilter
+    )
   })
 
-  // ── Select a thread ────────────────────────────────────────────────────────
+  const threadIds = new Set(filteredThreads.map((t) => t.customerId))
+  const discoveryResults = discoveredCustomers.filter((c) => !threadIds.has(c.id))
+  const hasSearchResults = filteredThreads.length > 0 || discoveryResults.length > 0
+
+  useEffect(() => {
+    const q = searchQuery.trim()
+    if (!q) {
+      setDiscoveredCustomers([])
+      setSearchLoading(false)
+      return
+    }
+    const t = setTimeout(async () => {
+      setSearchLoading(true)
+      try {
+        const r = await searchCustomers(q)
+        setDiscoveredCustomers(r)
+      } catch {
+        setDiscoveredCustomers([])
+      } finally {
+        setSearchLoading(false)
+      }
+    }, 200)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  const loadPage = useCallback(async (offset: number, replace: boolean, filter: FilterKey) => {
+    if (replace) setFilterLoading(true)
+    else {
+      if (loadingMoreRef.current) return
+      loadingMoreRef.current = true
+      setLoadingMore(true)
+    }
+    try {
+      const page = await getAdminThreadListPage({
+        offset,
+        limit: ADMIN_THREAD_PAGE_SIZE,
+        filter,
+      })
+      setThreads((prev) => {
+        if (replace) return page.threads
+        const seen = new Set(prev.map((t) => t.customerId))
+        return [...prev, ...page.threads.filter((t) => !seen.has(t.customerId))]
+      })
+      setHasMore(page.hasMore)
+    } catch {
+      if (replace) setThreads([])
+      setHasMore(false)
+    } finally {
+      setFilterLoading(false)
+      setLoadingMore(false)
+      loadingMoreRef.current = false
+    }
+  }, [])
+
+  async function changeFilter(next: FilterKey) {
+    if (next === activeFilter) return
+    setActiveFilter(next)
+    setSearchQuery('')
+    await loadPage(0, true, next)
+  }
+
+  // Infinite scroll sentinel
+  useEffect(() => {
+    const root = listScrollRef.current
+    const target = listEndRef.current
+    if (!root || !target) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return
+        if (!hasMore || loadingMoreRef.current || searchQuery.trim()) return
+        void loadPage(threads.length, false, activeFilter)
+      },
+      { root, rootMargin: '120px', threshold: 0 },
+    )
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [hasMore, threads.length, activeFilter, searchQuery, loadPage])
 
   const selectThread = useCallback(async (thread: ThreadSummary) => {
     setSelectedId(thread.customerId)
@@ -221,9 +298,7 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
     try {
       const events = await getAdminThread(thread.customerId)
       setThreadEvents(events)
-      // Mark as read (background — non-critical)
       markAdminChatRead(thread.customerId).then(() => {
-        // Update local unread count so the badge clears immediately
         setThreads(prev => prev.map(t =>
           t.customerId === thread.customerId ? { ...t, unreadCount: 0 } : t
         ))
@@ -233,7 +308,14 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
     }
   }, [])
 
-  // Auto-scroll to bottom when thread events change
+  function clearSelection() {
+    setSelectedId(null)
+    setSelectedThread(null)
+    setThreadEvents([])
+    setSendError('')
+    setMessage('')
+  }
+
   useEffect(() => {
     if (threadEvents.length > 0) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -252,12 +334,26 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
     selectThread(match)
   }, [initialSelectedUserId, selectThread, selectedId, threads])
 
-  // Live updates from other tabs / customer replies
+  // If deep-linked user is not in first page, fetch until found or exhausted
+  useEffect(() => {
+    if (initialSelectionDone.current) return
+    if (!initialSelectedUserId) return
+    if (selectedId) return
+    if (threads.some((t) => t.customerId === initialSelectedUserId)) return
+    if (!hasMore || loadingMoreRef.current) return
+    void loadPage(threads.length, false, activeFilter)
+  }, [initialSelectedUserId, selectedId, threads, hasMore, activeFilter, loadPage])
+
   useRealtimeEvent('chat:message', (event) => {
     void (async () => {
       try {
-        const freshThreads = await getAdminThreadList()
-        setThreads(freshThreads)
+        const page = await getAdminThreadListPage({
+          offset: 0,
+          limit: Math.max(threads.length, ADMIN_THREAD_PAGE_SIZE),
+          filter: activeFilter,
+        })
+        setThreads(page.threads)
+        setHasMore(page.hasMore)
         if (selectedId && event.threadUserId === selectedId) {
           const fresh = await getAdminThread(selectedId)
           setThreadEvents(fresh)
@@ -270,17 +366,15 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
           }).catch(() => {})
         }
       } catch {
-        // Fail soft — layout refresh may still catch up
+        // Fail soft
       }
     })()
-  }, [selectedId])
+  }, [selectedId, threads.length, activeFilter])
 
   useRealtimeEvent('chat:read', (event) => {
     if (!selectedId || event.threadUserId !== selectedId) return
     void getAdminThread(selectedId).then(setThreadEvents).catch(() => {})
   }, [selectedId])
-
-  // ── Send a message ─────────────────────────────────────────────────────────
 
   async function handleSend() {
     if (!message.trim() || !selectedId || !selectedThread) return
@@ -290,27 +384,25 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
     const body = message.trim()
     setMessage('')
 
-    // Optimistic: append temp message immediately
     const tempEvent: VerificationEvent = {
-      id:            `temp-${Date.now()}`,
-      user_id:       selectedId,
+      id: `temp-${Date.now()}`,
+      user_id: selectedId,
       actor_user_id: null,
-      actor_role:    'admin',
-      event_type:    'message',
-      from_status:   null,
-      to_status:     null,
-      title:         'Message from Admin',
+      actor_role: 'admin',
+      event_type: 'message',
+      from_status: null,
+      to_status: null,
+      title: 'Message from Admin',
       body,
-      request_kind:  null,
-      is_read:       false,
+      request_kind: null,
+      is_read: false,
       admin_read_at: new Date().toISOString(),
-      email_status:  'skipped',
+      email_status: 'skipped',
       email_sent_at: null,
-      created_at:    new Date().toISOString(),
+      created_at: new Date().toISOString(),
     }
     setThreadEvents(prev => [...prev, tempEvent])
 
-    // Update thread list preview optimistically
     setThreads(prev => prev.map(t =>
       t.customerId === selectedId
         ? { ...t, lastMessageBody: body, lastMessageAt: new Date().toISOString(), lastMessageRole: 'admin', totalMessages: t.totalMessages + 1 }
@@ -319,13 +411,11 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
 
     try {
       await sendAdminChatMessage(selectedId, body)
-      // Re-fetch to get real event ID and canonical server state
       const fresh = await getAdminThread(selectedId)
       setThreadEvents(fresh)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to send.'
       setSendError(msg.replace('VALIDATION:', '').trim())
-      // Roll back optimistic event
       setThreadEvents(prev => prev.filter(e => e.id !== tempEvent.id))
       setMessage(body)
     } finally {
@@ -340,35 +430,29 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
     }
   }
 
-  // ── New message: select a customer ─────────────────────────────────────────
-
   function handleNewMessageSelect(customer: { id: string; full_name: string | null; verification_status: string }) {
     setShowNewMessage(false)
 
-    // Check if already in thread list
     const existing = threads.find(t => t.customerId === customer.id)
     if (existing) {
       selectThread(existing)
       return
     }
 
-    // Not in list yet: create a placeholder thread and select it
     const placeholder: ThreadSummary = {
-      customerId:         customer.id,
-      customerName:       customer.full_name,
-      customerEmail:      null,
+      customerId: customer.id,
+      customerName: customer.full_name,
+      customerEmail: null,
       verificationStatus: customer.verification_status as ThreadSummary['verificationStatus'],
-      lastMessageBody:    null,
-      lastMessageAt:      null,
-      lastMessageRole:    null,
-      unreadCount:        0,
-      totalMessages:      0,
+      lastMessageBody: null,
+      lastMessageAt: null,
+      lastMessageRole: null,
+      unreadCount: 0,
+      totalMessages: 0,
     }
     setThreads(prev => [placeholder, ...prev])
     selectThread(placeholder)
   }
-
-  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -380,12 +464,15 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
         />
       )}
 
-      <div className="flex h-[calc(100vh-0px)] overflow-hidden">
+      <div className="flex h-[calc(100dvh-0px)] overflow-hidden">
 
-        {/* ── LEFT PANEL: Thread list ─────────────────────────────────── */}
-        <div className="w-80 xl:w-96 flex-shrink-0 border-r border-[rgba(12,35,64,0.12)] flex flex-col bg-white">
+        {/* LEFT PANEL: Thread list */}
+        <div
+          className={`w-full lg:w-80 xl:w-96 flex-shrink-0 border-r border-[rgba(12,35,64,0.12)] bg-white ${
+            selectedId ? 'hidden lg:flex lg:flex-col' : 'flex flex-col'
+          }`}
+        >
 
-          {/* Header */}
           <div className="px-5 pt-8 pb-4 border-b border-[rgba(12,35,64,0.08)]">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-serif text-xl tracking-tight text-[#0C2340]">Messages</h2>
@@ -398,17 +485,19 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
               </button>
             </div>
 
-            {/* Search */}
             <div className="flex items-center gap-2.5 bg-white border border-[rgba(12,35,64,0.15)] rounded-xl px-3 py-2.5">
               <span className="material-symbols-outlined text-[#3d5a80] text-base flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>search</span>
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search by name…"
+                placeholder="Search by name..."
                 className="flex-1 bg-white text-sm text-[#0C2340] placeholder:text-[#3d5a80] focus:outline-none"
               />
-              {searchQuery && (
+              {searchLoading && (
+                <span className="material-symbols-outlined animate-spin text-base text-[#3d5a80]">progress_activity</span>
+              )}
+              {searchQuery && !searchLoading && (
                 <button onClick={() => setSearchQuery('')} className="text-[#3d5a80] hover:text-[#0C2340]">
                   <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>close</span>
                 </button>
@@ -416,12 +505,11 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
             </div>
           </div>
 
-          {/* Filter tabs */}
           <div className="flex gap-1 px-3 py-2.5 border-b border-[rgba(12,35,64,0.08)] overflow-x-auto scrollbar-hide bg-white">
             {FILTERS.map(f => (
               <button
                 key={f.key}
-                onClick={() => setActiveFilter(f.key)}
+                onClick={() => void changeFilter(f.key)}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.1em] transition-all ${
                   activeFilter === f.key
                     ? 'bg-[#1a4a7a] border border-[#1a4a7a] text-white'
@@ -438,9 +526,12 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
             ))}
           </div>
 
-          {/* Thread rows */}
-          <div className="flex-1 overflow-y-auto">
-            {filteredThreads.length === 0 ? (
+          <div ref={listScrollRef} className="flex-1 overflow-y-auto">
+            {filterLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <span className="material-symbols-outlined animate-spin text-2xl text-[#3d5a80]">progress_activity</span>
+              </div>
+            ) : !hasSearchResults && !searchLoading ? (
               <div className="px-5 py-12 text-center">
                 <span
                   className="material-symbols-outlined text-3xl text-[#3d5a80] block mb-3"
@@ -449,9 +540,9 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
                   {searchQuery ? 'search_off' : 'chat'}
                 </span>
                 <p className="text-sm text-[#3d5a80] font-light">
-                  {searchQuery ? `No threads matching "${searchQuery}"` :
+                  {searchQuery ? `No customers found for "${searchQuery}"` :
                    activeFilter !== 'all' ? 'No threads in this category' :
-                   'No conversations yet'}
+                   'No customers yet'}
                 </p>
                 {!searchQuery && activeFilter === 'all' && (
                   <button
@@ -462,87 +553,145 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
                   </button>
                 )}
               </div>
-            ) : filteredThreads.map(thread => {
-              const isSelected = thread.customerId === selectedId
-              const hasUnread  = thread.unreadCount > 0
+            ) : (
+              <>
+                {filteredThreads.map(thread => {
+                  const isSelected = thread.customerId === selectedId
+                  const hasUnread = thread.unreadCount > 0
 
-              return (
-                <button
-                  key={thread.customerId}
-                  onClick={() => selectThread(thread)}
-                  className={`w-full text-left px-4 py-4 border-b border-[rgba(12,35,64,0.06)] transition-colors relative ${
-                    isSelected
-                      ? 'bg-[#f6f9fc] border-l-2 border-l-[#1a4a7a]'
-                      : 'hover:bg-[#f6f9fc]'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    {/* Avatar */}
-                    <div className="relative flex-shrink-0">
-                      <div className={`w-9 h-9 rounded-full border flex items-center justify-center text-[11px] font-bold ${
-                        thread.verificationStatus === 'on_hold'
-                          ? 'bg-amber-50 border-amber-300/30 text-amber-700'
-                          : thread.verificationStatus === 'verified'
-                          ? 'bg-green-50 border-green-300/30 text-green-700'
-                          : 'bg-blue-50 border-blue-300/30 text-blue-700'
-                      }`}>
-                        {getInitials(thread.customerName)}
-                      </div>
-                      {hasUnread && (
-                        <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-blue-500 border-2 border-[#111316]" />
-                      )}
-                    </div>
+                  return (
+                    <button
+                      key={thread.customerId}
+                      onClick={() => selectThread(thread)}
+                      className={`w-full text-left px-4 py-4 border-b border-[rgba(12,35,64,0.06)] transition-colors relative ${
+                        isSelected
+                          ? 'bg-[#f6f9fc] border-l-2 border-l-[#1a4a7a]'
+                          : 'hover:bg-[#f6f9fc]'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="relative flex-shrink-0">
+                          <div className={`w-9 h-9 rounded-full border flex items-center justify-center text-[11px] font-bold ${
+                            thread.verificationStatus === 'on_hold'
+                              ? 'bg-amber-50 border-amber-300/30 text-amber-700'
+                              : thread.verificationStatus === 'verified'
+                              ? 'bg-green-50 border-green-300/30 text-green-700'
+                              : 'bg-blue-50 border-blue-300/30 text-blue-700'
+                          }`}>
+                            {getInitials(thread.customerName)}
+                          </div>
+                          {hasUnread && (
+                            <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-blue-500 border-2 border-white" />
+                          )}
+                        </div>
 
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2 mb-0.5">
-                        <p className={`text-sm truncate ${hasUnread ? 'font-bold text-[#0C2340]' : 'font-semibold text-[#0C2340]'}`}>
-                          {thread.customerName ?? 'Unknown Customer'}
-                        </p>
-                        {thread.lastMessageAt && (
-                          <span className="text-[10px] text-[#3d5a80] whitespace-nowrap font-mono flex-shrink-0">
-                            {fmtRelative(thread.lastMessageAt)}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-0.5">
+                            <p className={`text-sm truncate ${hasUnread ? 'font-bold text-[#0C2340]' : 'font-semibold text-[#0C2340]'}`}>
+                              {thread.customerName ?? 'Unknown Customer'}
+                            </p>
+                            {thread.lastMessageAt && (
+                              <span className="text-[10px] text-[#3d5a80] whitespace-nowrap font-mono flex-shrink-0">
+                                {fmtRelative(thread.lastMessageAt)}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full flex-shrink-0 ${STATUS_BADGE[thread.verificationStatus] ?? 'bg-white text-[#3d5a80]'}`}>
+                              {STATUS_LABEL[thread.verificationStatus] ?? thread.verificationStatus}
+                            </span>
+                          </div>
+
+                          {thread.lastMessageBody ? (
+                            <p className={`text-xs mt-1 truncate leading-snug ${
+                              hasUnread ? 'text-[#3d5a80]' : 'text-[#3d5a80] font-light'
+                            }`}>
+                              {thread.lastMessageRole === 'admin' ? 'You: ' : ''}
+                              {thread.lastMessageBody}
+                            </p>
+                          ) : (
+                            <p className="text-xs mt-1 truncate leading-snug text-[#3d5a80]/70 italic">
+                              No messages yet
+                            </p>
+                          )}
+                        </div>
+
+                        {thread.unreadCount > 0 && (
+                          <span className="flex-shrink-0 self-center flex items-center justify-center min-w-[18px] h-4.5 px-1.5 rounded-full bg-[#1a4a7a] text-[9px] font-bold text-white tabular-nums">
+                            {thread.unreadCount > 9 ? '9+' : thread.unreadCount}
                           </span>
                         )}
                       </div>
+                    </button>
+                  )
+                })}
 
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full flex-shrink-0 ${STATUS_BADGE[thread.verificationStatus] ?? 'bg-white text-[#3d5a80]'}`}>
-                          {STATUS_LABEL[thread.verificationStatus] ?? thread.verificationStatus}
-                        </span>
-                      </div>
-
-                      {thread.lastMessageBody && (
-                        <p className={`text-xs mt-1 truncate leading-snug ${
-                          hasUnread ? 'text-[#3d5a80]' : 'text-[#3d5a80] font-light'
-                        }`}>
-                          {thread.lastMessageRole === 'admin' ? 'You: ' : ''}
-                          {thread.lastMessageBody}
-                        </p>
-                      )}
+                {searchQuery.trim() && discoveryResults.length > 0 && (
+                  <>
+                    <div className="px-4 py-2 bg-[#f6f9fc] border-b border-[rgba(12,35,64,0.06)]">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-[#3d5a80]">
+                        Start new conversation
+                      </p>
                     </div>
+                    {discoveryResults.map((customer) => (
+                      <button
+                        key={`discover-${customer.id}`}
+                        onClick={() => handleNewMessageSelect(customer)}
+                        className="w-full text-left px-4 py-4 border-b border-[rgba(12,35,64,0.06)] transition-colors hover:bg-[#f6f9fc]"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-[#dbe8f5] border border-[rgba(12,35,64,0.12)] flex items-center justify-center text-[11px] font-bold text-[#0C2340] flex-shrink-0">
+                            {getInitials(customer.full_name)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-[#0C2340] truncate">
+                              {customer.full_name ?? 'Unknown'}
+                            </p>
+                            <p className="text-[10px] text-[#3d5a80] uppercase tracking-widest mt-0.5">
+                              {STATUS_LABEL[customer.verification_status] ?? customer.verification_status}
+                            </p>
+                          </div>
+                          <span className="material-symbols-outlined text-base text-[#1a4a7a]" style={{ fontVariationSettings: "'wght' 300" }}>
+                            chat_add_on
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </>
+                )}
 
-                    {/* Unread count pill */}
-                    {thread.unreadCount > 0 && (
-                      <span className="flex-shrink-0 self-center flex items-center justify-center min-w-[18px] h-4.5 px-1.5 rounded-full bg-[#1a4a7a] text-[9px] font-bold text-white tabular-nums">
-                        {thread.unreadCount > 9 ? '9+' : thread.unreadCount}
-                      </span>
+                {!searchQuery.trim() && (
+                  <div ref={listEndRef} className="h-8 flex items-center justify-center py-3">
+                    {loadingMore && (
+                      <span className="material-symbols-outlined animate-spin text-base text-[#3d5a80]">progress_activity</span>
                     )}
                   </div>
-                </button>
-              )
-            })}
+                )}
+              </>
+            )}
           </div>
         </div>
 
-        {/* ── RIGHT PANEL: Conversation view ─────────────────────────── */}
-        <div className="flex-1 flex flex-col min-w-0 bg-white">
+        {/* RIGHT PANEL: Conversation view */}
+        <div
+          className={`flex-1 flex-col min-w-0 bg-white ${
+            selectedId ? 'flex' : 'hidden lg:flex'
+          }`}
+        >
 
           {selectedThread ? (
             <>
-              {/* Conversation header */}
-              <div className="flex items-center justify-between px-8 pt-8 pb-5 border-b border-[rgba(12,35,64,0.08)] flex-shrink-0">
-                <div className="flex items-center gap-4">
+              <div className="flex items-center justify-between px-4 sm:px-8 pt-6 sm:pt-8 pb-5 border-b border-[rgba(12,35,64,0.08)] flex-shrink-0 gap-3">
+                <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                  <button
+                    type="button"
+                    onClick={clearSelection}
+                    className="lg:hidden flex items-center justify-center w-10 h-10 rounded-full border border-[rgba(12,35,64,0.15)] text-[#3d5a80] hover:bg-[#f6f9fc] flex-shrink-0"
+                    aria-label="Back to conversations"
+                  >
+                    <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'wght' 300" }}>arrow_back</span>
+                  </button>
                   <div className={`w-10 h-10 rounded-full border flex items-center justify-center text-sm font-bold flex-shrink-0 ${
                     selectedThread.verificationStatus === 'on_hold'
                       ? 'bg-amber-50 border-amber-300/30 text-amber-700'
@@ -552,9 +701,9 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
                   }`}>
                     {getInitials(selectedThread.customerName)}
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2.5">
-                      <h3 className="font-semibold text-[#0C2340] text-base">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <h3 className="font-semibold text-[#0C2340] text-base truncate">
                         {selectedThread.customerName ?? 'Unknown Customer'}
                       </h3>
                       <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${STATUS_BADGE[selectedThread.verificationStatus] ?? 'bg-white text-[#3d5a80]'}`}>
@@ -562,23 +711,21 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
                       </span>
                     </div>
                     {selectedThread.customerEmail && (
-                      <p className="text-xs text-[#3d5a80] mt-0.5">{selectedThread.customerEmail}</p>
+                      <p className="text-xs text-[#3d5a80] mt-0.5 truncate">{selectedThread.customerEmail}</p>
                     )}
                   </div>
                 </div>
 
-                {/* View record link */}
                 <Link
                   href={`/admin/users/${selectedThread.customerId}`}
-                  className="flex items-center gap-2 px-4 py-2 border border-[rgba(12,35,64,0.18)] text-[#3d5a80] hover:text-[#0C2340] hover:border-[rgba(12,35,64,0.28)] hover:bg-[#f6f9fc] rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
+                  className="flex items-center gap-2 px-3 sm:px-4 py-2 border border-[rgba(12,35,64,0.18)] text-[#3d5a80] hover:text-[#0C2340] hover:border-[rgba(12,35,64,0.28)] hover:bg-[#f6f9fc] rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all flex-shrink-0"
                 >
                   <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>open_in_new</span>
-                  View Record
+                  <span className="hidden sm:inline">View Record</span>
                 </Link>
               </div>
 
-              {/* Message thread */}
-              <div className="flex-1 overflow-y-auto px-8 py-6 space-y-4 min-h-0">
+              <div className="flex-1 overflow-y-auto px-5 sm:px-10 py-6 space-y-4 min-h-0">
                 {loadingThread ? (
                   <div className="flex items-center justify-center py-16">
                     <span className="material-symbols-outlined animate-spin text-2xl text-[#3d5a80]">progress_activity</span>
@@ -597,7 +744,7 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
                   </div>
                 ) : (
                   threadEvents.map(ev => {
-                    const isAdmin  = ev.actor_role === 'admin'
+                    const isAdmin = ev.actor_role === 'admin'
                     const isUnread = !isAdmin && ev.admin_read_at === null
 
                     return (
@@ -605,7 +752,6 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
                         key={ev.id}
                         className={`flex gap-3 ${isAdmin ? 'justify-end' : 'justify-start'}`}
                       >
-                        {/* Customer avatar */}
                         {!isAdmin && (
                           <div className="w-7 h-7 rounded-full bg-[#dbe8f5] border border-[rgba(12,35,64,0.12)] flex items-center justify-center flex-shrink-0 mt-1">
                             <span className="text-[10px] font-bold text-[#0C2340]">
@@ -614,8 +760,7 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
                           </div>
                         )}
 
-                        {/* Bubble */}
-                        <div className={`max-w-[68%] space-y-1 flex flex-col ${isAdmin ? 'items-end' : 'items-start'}`}>
+                        <div className={`max-w-[85%] sm:max-w-[68%] space-y-1 flex flex-col ${isAdmin ? 'items-end' : 'items-start'}`}>
                           <div className={`flex items-center gap-2 ${isAdmin ? 'flex-row-reverse' : ''}`}>
                             <span className="text-[10px] font-bold uppercase tracking-widest text-[#3d5a80]">
                               {isAdmin ? 'You (Admin)' : (selectedThread.customerName ?? 'Customer')}
@@ -643,7 +788,6 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
                           </span>
                         </div>
 
-                        {/* Admin avatar */}
                         {isAdmin && (
                           <div className="w-7 h-7 rounded-full bg-[#dbe8f5] border border-[rgba(12,35,64,0.12)] flex items-center justify-center flex-shrink-0 mt-1">
                             <span
@@ -661,8 +805,7 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
                 <div ref={bottomRef} />
               </div>
 
-              {/* Compose */}
-              <div className="flex-shrink-0 px-8 pb-8 pt-4 border-t border-[rgba(12,35,64,0.08)]">
+              <div className="flex-shrink-0 px-4 sm:px-8 pb-6 sm:pb-8 pt-4 border-t border-[rgba(12,35,64,0.08)]">
                 {sendError && (
                   <p className="text-xs text-red-600 mb-2 leading-relaxed">{sendError}</p>
                 )}
@@ -672,17 +815,17 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
                     onChange={e => setMessage(e.target.value)}
                     onKeyDown={handleKeyDown}
                     disabled={sending}
-                    placeholder={`Message ${selectedThread.customerName ?? 'customer'}…`}
+                    placeholder={`Message ${selectedThread.customerName ?? 'customer'}...`}
                     rows={3}
                     className="w-full bg-white focus:outline-none text-sm text-[#0C2340] placeholder:text-[#3d5a80] resize-none disabled:opacity-50"
                   />
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] text-[#3d5a80] italic">⌘ + Enter to send</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[10px] text-[#3d5a80] italic">Ctrl/Cmd + Enter to send</p>
                     <button
                       type="button"
                       onClick={handleSend}
                       disabled={sending || !message.trim()}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-[#1a4a7a] border border-[#1a4a7a] text-white hover:bg-[#153d66] rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
+                      className="flex items-center gap-2 px-5 py-2.5 min-h-10 bg-[#1a4a7a] border border-[#1a4a7a] text-white hover:bg-[#153d66] rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
                     >
                       {sending ? (
                         <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
@@ -696,25 +839,24 @@ export default function AdminInbox({ initialThreads, initialSelectedUserId }: Pr
               </div>
             </>
           ) : (
-            /* Empty state — no thread selected */
-            <div className="flex-1 flex flex-col items-center justify-center gap-6 text-center px-12 bg-white">
-              <div className="w-16 h-16 rounded-full bg-[#dbe8f5] border border-[rgba(12,35,64,0.12)] flex items-center justify-center">
+            <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-8">
+              <div className="w-16 h-16 rounded-2xl bg-[#f6f9fc] border border-[rgba(12,35,64,0.1)] flex items-center justify-center">
                 <span
                   className="material-symbols-outlined text-3xl text-[#3d5a80]"
-                  style={{ fontVariationSettings: "'wght' 100, 'FILL' 0" }}
+                  style={{ fontVariationSettings: "'wght' 200, 'FILL' 0" }}
                 >
-                  chat
+                  forum
                 </span>
               </div>
-              <div className="space-y-2">
-                <h3 className="font-serif text-xl text-[#0C2340]">Select a conversation</h3>
-                <p className="text-sm text-[#3d5a80] font-light max-w-xs leading-relaxed">
-                  Choose a thread from the left to read and reply, or start a new message.
+              <div>
+                <p className="text-base font-semibold text-[#0C2340] mb-1">Select a conversation</p>
+                <p className="text-sm text-[#3d5a80] font-light">
+                  Choose a thread from the left, or start a new message.
                 </p>
               </div>
               <button
                 onClick={() => setShowNewMessage(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-[#1a4a7a] border border-[#1a4a7a] text-white hover:bg-[#153d66] rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all hover:scale-[1.02]"
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#1a4a7a]/10 border border-[rgba(26,74,122,0.25)] text-[#1a4a7a] hover:bg-[#1a4a7a]/15 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
               >
                 <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'wght' 300" }}>add</span>
                 New Message

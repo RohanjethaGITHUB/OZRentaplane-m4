@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import AdminSidebar from '../AdminSidebar'
 import { countAwaitingFlightRecords } from '@/lib/booking/flight-record-status'
 import { createPerfLogger } from '@/lib/perf/timing'
+import { getAdminUnreadCount } from '@/app/actions/admin'
 
 type BookingInvoiceRow = {
   id: string
@@ -18,12 +19,18 @@ type BookingBankTransferSubmissionRow = {
   status: string
 }
 
-export default async function AdminOperationalCounts({ displayName, unreadMessageCount = 0 }: { displayName: string, unreadMessageCount?: number }) {
+export default async function AdminOperationalCounts({ displayName }: { displayName: string }) {
   const perf = createPerfLogger({ route: '/admin/layout/counts', role: 'admin' })
   const markTotal = perf.start('admin_layout', 'admin_operational_counts_total')
-  
+  let unreadMessageCount = 0
+
   try {
     const supabase = await createClient()
+    try {
+      unreadMessageCount = await getAdminUnreadCount()
+    } catch (err) {
+      console.error('Failed to fetch admin unread message count:', err)
+    }
     
     const [
       { count: checkoutNewRequests },

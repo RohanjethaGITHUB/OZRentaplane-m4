@@ -81,6 +81,7 @@ const NAV_GROUPS: NavGroupType[] = [
     title: 'Messages',
     href: '/admin/messages',
     icon: 'chat',
+    badgeKey: 'messagesUnread',
   },
   {
     title: 'Settings',

@@ -367,7 +367,9 @@ export default function CustomerProfileTabs({
         tone: 'bg-white/5 text-white/55 border-white/10',
       }
 
-  const unreadMessages = events.filter((e) => e.event_type === 'message' && !e.is_read && e.actor_role !== 'admin').length
+  const unreadMessages = events.filter(
+    (e) => e.event_type === 'message' && e.actor_role === 'customer' && e.admin_read_at == null,
+  ).length
   const latestCheckoutBookingId = checkoutBookings[0]?.id ?? null
 
   const historicalSummary = historicalCheckoutRow
@@ -822,7 +824,7 @@ export default function CustomerProfileTabs({
                 }`}
               >
                 {tab.label}
-                {tab.key === 'messages' && unreadMessages > 0 && (
+                {tab.key === 'messages' && activeTab !== 'messages' && unreadMessages > 0 && (
                   <span className="absolute top-2.5 right-2 w-2 h-2 rounded-full bg-red-500" />
                 )}
               </button>
