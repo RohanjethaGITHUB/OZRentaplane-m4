@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import CalendarDateField from '@/components/CalendarDateField'
 import ModalPortal from '@/components/ModalPortal'
 import { manuallyCompleteCheckout } from '@/app/actions/admin-booking'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type AircraftLog = {
   id: string
@@ -655,9 +656,12 @@ export default function AdminManualCheckoutCompletion({
                       type="button"
                       onClick={confirmSubmit}
                       disabled={pending}
-                      className="flex-1 px-4 py-2.5 rounded-xl text-sm bg-amber-500 text-slate-900 font-bold hover:bg-amber-400 transition-colors disabled:opacity-50"
+                      aria-busy={pending || undefined}
+                      className="flex-1 px-4 py-2.5 rounded-xl text-sm bg-amber-500 text-slate-900 font-bold hover:bg-amber-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                      {pending ? 'Completing…' : 'Yes, complete now'}
+                      <LoadingButtonContent loading={pending} loadingLabel="Completing…">
+                        Yes, complete now
+                      </LoadingButtonContent>
                     </button>
                   </div>
                 </div>

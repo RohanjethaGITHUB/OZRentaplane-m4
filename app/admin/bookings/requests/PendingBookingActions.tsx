@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { confirmBookingRequest, cancelBookingRequest } from '@/app/actions/admin-booking'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 export default function PendingBookingActions({ bookingId }: { bookingId: string }) {
   const [loading, setLoading] = useState(false)
@@ -61,9 +62,12 @@ export default function PendingBookingActions({ bookingId }: { bookingId: string
           <button
             type="submit"
             disabled={loading}
-            className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-rose-600 hover:bg-rose-500 text-white transition-colors"
+            aria-busy={loading || undefined}
+            className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-rose-600 hover:bg-rose-500 text-white transition-colors flex items-center justify-center gap-2"
           >
-            {loading ? '...' : 'Confirm'}
+            <LoadingButtonContent loading={loading} loadingLabel="Cancelling…">
+              Confirm
+            </LoadingButtonContent>
           </button>
         </div>
         {error && <p className="text-[10px] text-rose-400 leading-tight">{error}</p>}
@@ -76,10 +80,13 @@ export default function PendingBookingActions({ bookingId }: { bookingId: string
       <button
         onClick={handleConfirm}
         disabled={loading}
+        aria-busy={loading || undefined}
         className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
       >
-        <span className="material-symbols-outlined text-[18px]">check_circle</span>
-        Confirm
+        <LoadingButtonContent loading={loading} loadingLabel="Confirming...">
+          <span className="material-symbols-outlined text-[18px]">check_circle</span>
+          Confirm
+        </LoadingButtonContent>
       </button>
       
       <button

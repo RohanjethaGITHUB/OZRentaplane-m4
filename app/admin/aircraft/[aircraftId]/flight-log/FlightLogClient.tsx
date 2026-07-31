@@ -11,6 +11,7 @@ import { searchCustomers } from '@/app/actions/admin'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import CalendarDateField from '@/components/CalendarDateField'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1029,9 +1030,11 @@ export default function FlightLogClient({
                 <button
                   type="submit"
                   disabled={pending}
-                  className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors disabled:opacity-50"
                 >
-                  {pending ? 'Saving…' : editing ? 'Save changes' : 'Add record'}
+                  <LoadingButtonContent loading={pending} loadingLabel="Saving…">
+                    {editing ? 'Save changes' : 'Add record'}
+                  </LoadingButtonContent>
                 </button>
               </div>
             </div>
@@ -1054,6 +1057,7 @@ export default function FlightLogClient({
         confirmLabel={pending ? 'Deleting…' : 'Yes, delete'}
         cancelLabel="Back"
         variant="danger"
+        isPending={pending}
         onCancel={() => {
           setDeleteConfirmOpen(false)
           setPendingDeleteId(null)

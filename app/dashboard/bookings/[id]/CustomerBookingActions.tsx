@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { cancelBookingNow, requestLateCancellation, markFlightReturned } from '@/app/actions/booking'
 import ModalPortal from '@/components/ModalPortal'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type Props = {
   bookingId:              string
@@ -154,9 +155,12 @@ export default function CustomerBookingActions({
                 <button
                   onClick={handleConfirmImmediateCancel}
                   disabled={isPending}
-                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors"
+                  aria-busy={isPending || undefined}
+                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors flex items-center justify-center gap-2"
                 >
-                  {isPending ? 'Cancelling…' : 'Cancel booking'}
+                  <LoadingButtonContent loading={isPending} loadingLabel="Cancelling…">
+                    Cancel booking
+                  </LoadingButtonContent>
                 </button>
               </div>
             </div>
@@ -200,9 +204,12 @@ export default function CustomerBookingActions({
                 <button
                   onClick={handleConfirmLateCancel}
                   disabled={isPending}
-                  className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors"
+                  aria-busy={isPending || undefined}
+                  className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors flex items-center justify-center gap-2"
                 >
-                  {isPending ? 'Submitting…' : 'Submit cancellation request'}
+                  <LoadingButtonContent loading={isPending} loadingLabel="Submitting…">
+                    Submit cancellation request
+                  </LoadingButtonContent>
                 </button>
               </div>
             </div>
@@ -232,9 +239,12 @@ export default function CustomerBookingActions({
                 <button
                   onClick={handleConfirmFlightRecord}
                   disabled={isPending}
-                  className="flex-1 py-2.5 bg-[#1a4fd6] hover:bg-[#1540a8] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors"
+                  aria-busy={isPending || undefined}
+                  className="flex-1 py-2.5 bg-[#1a4fd6] hover:bg-[#1540a8] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors flex items-center justify-center gap-2"
                 >
-                  {isPending ? 'Proceeding…' : 'Proceed to flight record'}
+                  <LoadingButtonContent loading={isPending} loadingLabel="Proceeding…">
+                    Proceed to flight record
+                  </LoadingButtonContent>
                 </button>
               </div>
             </div>

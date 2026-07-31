@@ -942,6 +942,40 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
     throw new Error(`VALIDATION: Cannot confirm checkout booking with status '${booking.status}'.`)
   }
 
+  const [{ data: profile }, { data: docs }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('has_night_vfr_rating')
+      .eq('id', booking.booking_owner_user_id)
+      .maybeSingle(),
+    supabase
+      .from('user_documents')
+      .select('document_type, status, expiry_date')
+      .eq('user_id', booking.booking_owner_user_id)
+      .in('document_type', ['pilot_licence', 'medical_certificate', 'photo_id', 'night_vfr_evidence']),
+  ])
+
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const requiredTypes: string[] = ['pilot_licence', 'medical_certificate', 'photo_id']
+  if (profile?.has_night_vfr_rating === true) {
+    requiredTypes.push('night_vfr_evidence')
+  }
+
+  for (const type of requiredTypes) {
+    const candidates = (docs ?? []).filter((d) => d.document_type === type)
+    const approved = candidates.find((d) => d.status === 'approved')
+    if (!approved) {
+      throw new Error('VALIDATION: All required documents must be approved before confirming checkout.')
+    }
+    if (
+      type !== 'pilot_licence' &&
+      approved.expiry_date &&
+      approved.expiry_date < todayIso
+    ) {
+      throw new Error(`VALIDATION: A required document (${type.replace(/_/g, ' ')}) has expired. Ask the customer to upload a replacement before confirming.`)
+    }
+  }
+
   const { bookingUpdate, historyInsert, auditInsert, profileUpdate } = await perf.time('checkout_approval', 'checkout_approval_primary_write', async () => {
     const bookingUpdate = await supabase
       .from('bookings')

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { approveCheckoutReschedule, rejectCheckoutReschedule } from '@/app/actions/checkout'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 export default function RescheduleActionButtons({
   changeRequestId,
@@ -76,11 +77,14 @@ export default function RescheduleActionButtons({
               <button
                 onClick={confirmApprove ? onApprove : onReject}
                 disabled={isPending}
-                className={`px-4 py-2 text-sm text-white rounded-lg disabled:opacity-40 ${
+                aria-busy={isPending || undefined}
+                className={`px-4 py-2 text-sm text-white rounded-lg disabled:opacity-40 flex items-center justify-center gap-2 ${
                   confirmApprove ? 'bg-blue-600 hover:bg-blue-500' : 'bg-amber-600 hover:bg-amber-500'
                 }`}
               >
-                {isPending ? 'Saving…' : confirmApprove ? 'Approve' : 'Reject'}
+                <LoadingButtonContent loading={isPending} loadingLabel="Saving…">
+                  {confirmApprove ? 'Approve' : 'Reject'}
+                </LoadingButtonContent>
               </button>
             </div>
           </div>

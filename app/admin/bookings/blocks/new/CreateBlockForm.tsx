@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createAdminScheduleBlock } from '@/app/actions/admin-booking'
 import { sydneyInputToUTC, formatAircraftTimeRange } from '@/lib/utils/sydney-time'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 const IS_DEV = process.env.NODE_ENV !== 'production'
 
@@ -252,9 +253,12 @@ export default function CreateBlockForm({ aircraftId }: { aircraftId: string }) 
         <button
           type="submit"
           disabled={loading}
-          className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-3 rounded-xl font-medium tracking-wide transition-colors"
+          aria-busy={loading || undefined}
+          className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-3 rounded-xl font-medium tracking-wide transition-colors flex items-center justify-center gap-2"
         >
-          {loading ? 'Processing…' : requireOverride ? 'Override & Create Block' : 'Create Schedule Block'}
+          <LoadingButtonContent loading={loading} loadingLabel="Processing…">
+            {requireOverride ? 'Override & Create Block' : 'Create Schedule Block'}
+          </LoadingButtonContent>
         </button>
       </div>
     </form>

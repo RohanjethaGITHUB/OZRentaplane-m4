@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type Props = {
   onClose: () => void
@@ -105,9 +106,11 @@ export default function DeactivateModal({ onClose }: Props) {
             className="flex-1 py-2.5 text-[13px] font-medium text-[#152d5a] border border-[#152d5a]/15 rounded-xl hover:bg-[#f8f9fb] transition-colors">
             Cancel
           </button>
-          <button type="button" onClick={handleDeactivate} disabled={!canSubmit || loading}
-            className="flex-1 py-2.5 text-[13px] font-semibold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-            {loading ? 'Processing…' : 'Deactivate Account'}
+          <button type="button" onClick={handleDeactivate} disabled={!canSubmit || loading} aria-busy={loading || undefined}
+            className="flex-1 py-2.5 text-[13px] font-semibold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            <LoadingButtonContent loading={loading} loadingLabel="Processing…">
+              Deactivate Account
+            </LoadingButtonContent>
           </button>
         </div>
       </div>

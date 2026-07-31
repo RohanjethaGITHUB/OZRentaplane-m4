@@ -6,6 +6,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal'
 import { refundBlockTimePurchase } from '@/app/actions/block-time'
 
 import { formatDateFromISO } from '@/lib/formatDateTime'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 export type AdminBlockTimePurchase = {
   id: string
@@ -143,9 +144,9 @@ export default function BlockTimePurchasesSection({ purchases }: { purchases: Ad
                     type="button"
                     disabled={isPending}
                     onClick={() => requestRefund(purchase)}
-                    className="rounded-full border border-red-200 px-4 py-1.5 text-[12px] font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-red-200 px-4 py-1.5 text-[12px] font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {isPending ? 'Refunding…' : 'Refund'}
+                    <LoadingButtonContent loading={isPending} loadingLabel="Refunding…">Refund</LoadingButtonContent>
                   </button>
                 ) : refundBlockedReason ? (
                   <p className="text-[11px] text-[#4b6390]/70 sm:text-right sm:max-w-[220px]">{refundBlockedReason}</p>
@@ -164,8 +165,9 @@ export default function BlockTimePurchasesSection({ purchases }: { purchases: Ad
             ? `${confirmTarget.package_name} — ${aud(Number(confirmTarget.amount_paid))} will be refunded in full to the customer's original payment method, and the package will no longer be usable for flights.`
             : undefined
         }
-        confirmLabel="Refund in full"
+        confirmLabel={isPending ? 'Refunding…' : 'Refund in full'}
         variant="danger"
+        isPending={isPending}
         onConfirm={runRefund}
         onCancel={() => setConfirmTarget(null)}
       />

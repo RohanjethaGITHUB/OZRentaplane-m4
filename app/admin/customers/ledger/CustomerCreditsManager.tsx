@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { searchCustomers, getCustomerCreditBalance, getCustomerCreditTransactions, recordAdvancePayment, reverseCreditEntry, recordRefund } from '@/app/actions/admin'
 import { createClient } from '@/lib/supabase/client'
 import { formatDateFromISO } from '@/lib/formatDateTime'
+import Spinner, { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type Customer = {
   id: string
@@ -38,6 +39,7 @@ export default function CustomerCreditsManager({ initialCustomerId }: { initialC
   const [note, setNote] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [reversingId, setReversingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (initialCustomerId && !selectedCustomer) {
@@ -140,6 +142,7 @@ export default function CustomerCreditsManager({ initialCustomerId }: { initialC
     const reason = window.prompt('Please enter a reason for this reversal:')
     if (!reason) return
 
+    setReversingId(txId)
     try {
       await reverseCreditEntry(txId, reason)
       // Refresh
@@ -151,6 +154,8 @@ export default function CustomerCreditsManager({ initialCustomerId }: { initialC
       setTransactions(txs as Transaction[])
     } catch (err: any) {
       alert(err.message)
+    } finally {
+      setReversingId(null)
     }
   }
 
@@ -306,11 +311,14 @@ export default function CustomerCreditsManager({ initialCustomerId }: { initialC
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className={`w-full text-white font-medium py-3 rounded-xl transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                aria-busy={isSubmitting || undefined}
+                className={`w-full text-white font-medium py-3 rounded-xl transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
                   formMode === 'payment' ? 'bg-blue-600 hover:bg-blue-500' : 'bg-amber-600 hover:bg-amber-500'
                 }`}
               >
-                {isSubmitting ? 'Recording...' : formMode === 'payment' ? 'Record Payment' : 'Record Refund'}
+                <LoadingButtonContent loading={isSubmitting} loadingLabel="Recording...">
+                  {formMode === 'payment' ? 'Record Payment' : 'Record Refund'}
+                </LoadingButtonContent>
               </button>
 
             </form>
@@ -341,7 +349,10 @@ export default function CustomerCreditsManager({ initialCustomerId }: { initialC
               </div>
               
               {loadingData ? (
-                <div className="p-10 text-center text-slate-500 text-sm">Loading ledger...</div>
+                <div className="p-10 flex items-center justify-center gap-2 text-slate-500 text-sm">
+                  <Spinner size="sm" />
+                  Loading ledger...
+                </div>
               ) : transactions.length === 0 ? (
                 <div className="p-10 text-center text-slate-500 text-sm">No credit history found.</div>
               ) : (
@@ -386,9 +397,13 @@ export default function CustomerCreditsManager({ initialCustomerId }: { initialC
                               {canReverse ? (
                                 <button
                                   onClick={() => handleReverse(tx.id)}
-                                  className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-red-400 transition-colors"
+                                  disabled={reversingId === tx.id}
+                                  aria-busy={reversingId === tx.id || undefined}
+                                  className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-red-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                  Reverse
+                                  <LoadingButtonContent loading={reversingId === tx.id} loadingLabel="Reversing...">
+                                    Reverse
+                                  </LoadingButtonContent>
                                 </button>
                               ) : isReversed ? (
                                 <span className="text-[10px] font-bold uppercase tracking-widest text-slate-600">Reversed</span>

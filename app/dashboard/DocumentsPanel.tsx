@@ -973,8 +973,14 @@ export default function DocumentsPanel({
     ) as Record<DocumentType, DocUiState>,
     [docMap],
   )
-  const currentYear = new Date().getFullYear()
+  const sydneyToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
+  const currentYear = Number(sydneyToday.slice(0, 4))
+  const currentMonth = Number(sydneyToday.slice(5, 7))
   const redCardYearOptions = Array.from({ length: 11 }, (_, idx) => currentYear + idx)
+  const redCardMonthOptions = useMemo(() => {
+    const minMonth = redCardExpiryYear === currentYear ? currentMonth : 1
+    return RED_CARD_MONTH_OPTIONS.filter((option) => option.value >= minMonth)
+  }, [redCardExpiryYear, currentYear, currentMonth])
 
   // Documents can always be replaced
   const canModify = true
@@ -1076,6 +1082,14 @@ export default function DocumentsPanel({
   }
 
   async function persistRedCard(nextMonth: number, nextYear: number) {
+    if (
+      nextYear < currentYear ||
+      (nextYear === currentYear && nextMonth < currentMonth)
+    ) {
+      setRedCardError('Red Card expiry must be the current month or a future date.')
+      return
+    }
+
     setRedCardSaving(true)
     setRedCardError('')
     setRedCardSaved(false)
@@ -1414,7 +1428,7 @@ export default function DocumentsPanel({
                       className="w-full bg-white border border-[#152d5a]/20 focus:border-[#1a4fd6]/40 focus:outline-none text-sm text-[#152d5a] rounded-xl px-4 py-2.5"
                     >
                       <option value="">Select month</option>
-                      {RED_CARD_MONTH_OPTIONS.map((option) => (
+                      {redCardMonthOptions.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
                         </option>
@@ -1433,6 +1447,10 @@ export default function DocumentsPanel({
                         setRedCardExpiryYear(nextYear)
                         setRedCardSaved(false)
                         setRedCardError('')
+                        if (nextYear === currentYear && redCardExpiryMonth !== null && redCardExpiryMonth < currentMonth) {
+                          setRedCardExpiryMonth(null)
+                          return
+                        }
                         if (redCardExpiryMonth && nextYear) {
                           void persistRedCard(redCardExpiryMonth, nextYear).catch((error: unknown) => {
                             setRedCardError(error instanceof Error ? error.message : 'Could not save Red Card details.')

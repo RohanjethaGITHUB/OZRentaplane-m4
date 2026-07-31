@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateAccountStatus } from '@/app/actions/admin'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 export default function UnblockCustomerButton({ customerId }: { customerId: string }) {
   const router = useRouter()
@@ -55,9 +56,12 @@ export default function UnblockCustomerButton({ customerId }: { customerId: stri
                 type="button"
                 onClick={handleConfirm}
                 disabled={isPending}
-                className="rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-500 disabled:opacity-60"
+                aria-busy={isPending || undefined}
+                className="rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-500 disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                {isPending ? 'Unblocking...' : 'Confirm Unblock'}
+                <LoadingButtonContent loading={isPending} loadingLabel="Unblocking...">
+                  Confirm Unblock
+                </LoadingButtonContent>
               </button>
             </div>
           </div>

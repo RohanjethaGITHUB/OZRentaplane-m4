@@ -6,6 +6,7 @@ import { submitFlightRecord, uploadFlightRecordEvidence } from '@/app/actions/bo
 import TotalOnlyReadingsForm from '@/components/aircraft/TotalOnlyReadingsForm'
 import { type TotalOnlyFormValues, validateTotalOnlyReadings } from '@/lib/aircraft-readings'
 import { resolveMinimumVdoBilling } from '@/lib/booking/standard-booking-billing'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type Airport = {
   id:        string
@@ -520,9 +521,12 @@ export default function FlightRecordForm({
         <button
           type="submit"
           disabled={isSubmitBlocked}
-          className="w-full sm:w-auto flex-shrink-0 px-7 py-2.5 bg-[#1a4fd6] hover:bg-[#1540a8] disabled:opacity-45 disabled:cursor-not-allowed text-white text-xs font-semibold uppercase tracking-[0.14em] rounded-lg transition-colors shadow-sm"
+          aria-busy={loading || undefined}
+          className="w-full sm:w-auto flex-shrink-0 px-7 py-2.5 bg-[#1a4fd6] hover:bg-[#1540a8] disabled:opacity-45 disabled:cursor-not-allowed text-white text-xs font-semibold uppercase tracking-[0.14em] rounded-lg transition-colors shadow-sm flex items-center justify-center gap-2"
         >
-          {loading ? 'Submitting…' : 'Submit Flight Record'}
+          <LoadingButtonContent loading={loading} loadingLabel="Submitting…">
+            Submit Flight Record
+          </LoadingButtonContent>
         </button>
       </div>
 

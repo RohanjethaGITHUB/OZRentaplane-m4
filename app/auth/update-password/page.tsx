@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 const INVALID_LINK_ERROR = 'This link has expired or is invalid. Please contact us for a new one.'
 
@@ -130,9 +131,12 @@ export default function UpdatePasswordPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-md bg-slate-100 px-3 py-2 text-sm font-medium text-slate-900 hover:bg-white disabled:opacity-60"
+              aria-busy={loading || undefined}
+              className="w-full rounded-md bg-slate-100 px-3 py-2 text-sm font-medium text-slate-900 hover:bg-white disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              {loading ? 'Saving...' : 'Save password'}
+              <LoadingButtonContent loading={loading} loadingLabel="Saving...">
+                Save password
+              </LoadingButtonContent>
             </button>
           </form>
         ) : (

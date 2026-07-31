@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type Props = {
   onClose: () => void
@@ -94,9 +95,11 @@ export default function ChangePasswordInline({ onClose }: Props) {
         </div>
       )}
       <div className="flex items-center gap-3 pt-1">
-        <button type="submit" disabled={loading}
-          className="flex-1 bg-[#152d5a] hover:bg-[#1e3d7a] text-white font-semibold text-[13px] py-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-          {loading ? 'Updating…' : 'Update Password'}
+        <button type="submit" disabled={loading} aria-busy={loading || undefined}
+          className="flex-1 bg-[#152d5a] hover:bg-[#1e3d7a] text-white font-semibold text-[13px] py-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+          <LoadingButtonContent loading={loading} loadingLabel="Updating…">
+            Update Password
+          </LoadingButtonContent>
         </button>
         <button type="button" onClick={onClose}
           className="px-4 py-2.5 text-[13px] text-[#6b7ea8] border border-[#152d5a]/15 rounded-xl hover:bg-[#f8f9fb] transition-colors">

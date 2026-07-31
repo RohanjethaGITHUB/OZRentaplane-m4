@@ -533,8 +533,12 @@ export default function DocumentUploadPanel({
   const router = useRouter()
   const docMap = useMemo(() => Object.fromEntries(documents.map(d => [d.document_type, d])), [documents])
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
-  const currentYear = new Date().getFullYear()
-  const redCardYearOptions = useMemo(() => Array.from({ length: 11 }, (_, i) => currentYear - 2 + i), [currentYear])
+  const currentYear = Number(today.slice(0, 4))
+  const currentMonth = Number(today.slice(5, 7))
+  const redCardYearOptions = useMemo(
+    () => Array.from({ length: 11 }, (_, i) => currentYear + i),
+    [currentYear],
+  )
 
   const [modalDocType, setModalDocType] = useState<DocumentType | null>(null)
   const [replacing, setReplacing] = useState(false)
@@ -557,6 +561,22 @@ export default function DocumentUploadPanel({
   const [redCardSaved, setRedCardSaved] = useState(false)
   const [redCardError, setRedCardError] = useState('')
   const redCardSavedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const redCardMonthOptions = useMemo(() => {
+    const minMonth = redCardYear === currentYear ? currentMonth : 1
+    return RED_CARD_MONTH_OPTIONS.filter((option) => option.value >= minMonth)
+  }, [redCardYear, currentYear, currentMonth])
+
+  // Drop any previously saved past expiry so the user must pick current/future.
+  useEffect(() => {
+    if (
+      redCardYear !== null &&
+      (redCardYear < currentYear || (redCardYear === currentYear && redCardMonth !== null && redCardMonth < currentMonth))
+    ) {
+      setRedCardMonth(null)
+      setRedCardYear(null)
+      setRedCardError('Red Card expiry must be the current month or a future date.')
+    }
+  }, [redCardYear, redCardMonth, currentYear, currentMonth])
 
   const [nightVfr, setNightVfr] = useState<boolean | null>(hasNightVfrRating ?? null)
   const [nightVfrSaving, setNightVfrSaving] = useState(false)
@@ -646,6 +666,10 @@ export default function DocumentUploadPanel({
 
   async function handleRedCardChange(month: number | null, year: number | null) {
     if (!month || !year) return
+    if (year < currentYear || (year === currentYear && month < currentMonth)) {
+      setRedCardError('Red Card expiry must be the current month or a future date.')
+      return
+    }
     setRedCardSaving(true); setRedCardError(''); setRedCardSaved(false)
     try {
       const { saveCheckoutRedCardDetails } = await import('@/app/actions/documents')
@@ -796,15 +820,32 @@ export default function DocumentUploadPanel({
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-[11px] font-bold text-[#64748b] uppercase tracking-widest mb-1.5">Month</label>
-                      <select value={redCardMonth ?? ''} onChange={e => { const m = e.target.value ? Number(e.target.value) : null; setRedCardMonth(m); setRedCardSaved(false); setValidationErrors(p => ({ ...p, s2: undefined })); if (m && redCardYear) void handleRedCardChange(m, redCardYear) }}
+                      <select value={redCardMonth ?? ''} onChange={e => {
+                        const m = e.target.value ? Number(e.target.value) : null
+                        setRedCardMonth(m)
+                        setRedCardSaved(false)
+                        setValidationErrors(p => ({ ...p, s2: undefined }))
+                        if (m && redCardYear) void handleRedCardChange(m, redCardYear)
+                      }}
                         className="w-full h-10 border border-[#152d5a]/15 rounded-xl px-2.5 text-sm text-[#152d5a] bg-white focus:outline-none">
                         <option value="">Month</option>
-                        {RED_CARD_MONTH_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        {redCardMonthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-[#64748b] uppercase tracking-widest mb-1.5">Year</label>
-                      <select value={redCardYear ?? ''} onChange={e => { const y = e.target.value ? Number(e.target.value) : null; setRedCardYear(y); setRedCardSaved(false); setValidationErrors(p => ({ ...p, s2: undefined })); if (redCardMonth && y) void handleRedCardChange(redCardMonth, y) }}
+                      <select value={redCardYear ?? ''} onChange={e => {
+                        const y = e.target.value ? Number(e.target.value) : null
+                        setRedCardYear(y)
+                        setRedCardSaved(false)
+                        setValidationErrors(p => ({ ...p, s2: undefined }))
+                        // If switching to current year and month is already in the past, clear month.
+                        if (y === currentYear && redCardMonth !== null && redCardMonth < currentMonth) {
+                          setRedCardMonth(null)
+                          return
+                        }
+                        if (redCardMonth && y) void handleRedCardChange(redCardMonth, y)
+                      }}
                         className="w-full h-10 border border-[#152d5a]/15 rounded-xl px-2.5 text-sm text-[#152d5a] bg-white focus:outline-none">
                         <option value="">Year</option>
                         {redCardYearOptions.map(y => <option key={y} value={y}>{y}</option>)}

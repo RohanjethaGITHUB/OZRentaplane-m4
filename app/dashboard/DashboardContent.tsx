@@ -358,15 +358,15 @@ function SnapshotRow({ icon, label, children }: { icon: string; label: string; c
 
 function readinessTone(state: 'complete' | 'missing' | 'needs_review' | 'expired') {
   if (state === 'complete') {
-    return { icon: 'check_circle', iconClassName: 'text-emerald-500', labelClassName: 'text-emerald-700' }
+    return { icon: 'check_circle', iconClassName: 'text-emerald-500', labelClassName: 'text-emerald-700', label: 'COMPLETE' }
   }
   if (state === 'expired') {
-    return { icon: 'warning', iconClassName: 'text-amber-500', labelClassName: 'text-amber-700' }
+    return { icon: 'error', iconClassName: 'text-red-600', labelClassName: 'text-red-600', label: 'EXPIRED' }
   }
   if (state === 'needs_review') {
-    return { icon: 'pending', iconClassName: 'text-blue-500', labelClassName: 'text-blue-700' }
+    return { icon: 'pending', iconClassName: 'text-blue-500', labelClassName: 'text-blue-700', label: 'NEEDS REVIEW' }
   }
-  return { icon: 'radio_button_unchecked', iconClassName: 'text-slate-300', labelClassName: 'text-slate-500' }
+  return { icon: 'radio_button_unchecked', iconClassName: 'text-slate-300', labelClassName: 'text-slate-500', label: 'MISSING' }
 }
 
 function progressStatusTone(status: 'not_started' | 'in_progress' | 'complete') {
@@ -946,17 +946,29 @@ export default function DashboardContent({
           <div className="space-y-3 mb-5">
             {documentReadinessItems.map((item) => {
               const tone = readinessTone(item.state)
+              const isExpired = item.state === 'expired'
               return (
-                <div key={item.key} className="flex items-start gap-3 rounded-xl border border-[#152d5a]/8 bg-[#f8fbff] px-3 py-3">
+                <div
+                  key={item.key}
+                  className={`flex items-start gap-3 rounded-xl border px-3 py-3 ${
+                    isExpired
+                      ? 'border-red-200 bg-red-50'
+                      : 'border-[#152d5a]/8 bg-[#f8fbff]'
+                  }`}
+                >
                   <span className={`material-symbols-outlined text-[18px] ${tone.iconClassName}`}>{tone.icon}</span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-[12px] font-semibold text-[#152d5a]">{item.label}</span>
+                      <span className={`text-[12px] font-semibold ${isExpired ? 'text-red-800' : 'text-[#152d5a]'}`}>
+                        {item.label}
+                      </span>
                       <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${tone.labelClassName}`}>
-                        {item.state.replace('_', ' ')}
+                        {tone.label}
                       </span>
                     </div>
-                    <p className="mt-1 text-[11px] leading-relaxed text-[#4b6390]">{item.detail}</p>
+                    <p className={`mt-1 text-[11px] leading-relaxed ${isExpired ? 'font-medium text-red-700' : 'text-[#4b6390]'}`}>
+                      {item.detail}
+                    </p>
                   </div>
                 </div>
               )

@@ -876,6 +876,7 @@ export function DocumentReviewCards({
         }
         confirmLabel={bulkLoading ? (bulkAction === 'approved' ? 'Approving…' : 'Rejecting…') : bulkAction === 'approved' ? 'Approve All' : 'Reject All'}
         variant={bulkAction === 'approved' ? 'primary' : 'danger'}
+        isPending={bulkLoading}
         onCancel={() => {
           if (bulkLoading) return
           setBulkAction(null)

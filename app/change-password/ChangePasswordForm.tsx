@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { changePassword } from './actions'
 import Link from 'next/link'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 export default function ChangePasswordForm() {
   const [error, setError] = useState<string | null>(null)
@@ -53,9 +54,12 @@ export default function ChangePasswordForm() {
       <button
         type="submit"
         disabled={isPending}
-        className="w-full rounded-xl bg-[#152d5a] text-white py-3 text-base font-semibold shadow-sm transition-colors hover:bg-[#1e3f7a] disabled:opacity-50"
+        aria-busy={isPending || undefined}
+        className="w-full rounded-xl bg-[#152d5a] text-white py-3 text-base font-semibold shadow-sm transition-colors hover:bg-[#1e3f7a] disabled:opacity-50 flex items-center justify-center gap-2"
       >
-        {isPending ? 'Setting password...' : 'Set password'}
+        <LoadingButtonContent loading={isPending} loadingLabel="Setting password...">
+          Set password
+        </LoadingButtonContent>
       </button>
 
       <Link 

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { recordManualPayment } from "@/app/actions/payment"
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type Props = {
   bookingId: string
@@ -151,9 +152,12 @@ export default function AdminBankTransferPanel({ bookingId, amountCents, booking
         type="button"
         onClick={handleSubmit}
         disabled={isPending}
-        className="w-full md:w-auto px-6 py-3.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[13px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50"
+        aria-busy={isPending || undefined}
+        className="w-full md:w-auto px-6 py-3.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[13px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
       >
-        {isPending ? "Recording..." : "Mark as paid"}
+        <LoadingButtonContent loading={isPending} loadingLabel="Recording...">
+          Mark as paid
+        </LoadingButtonContent>
       </button>
     </div>
   )

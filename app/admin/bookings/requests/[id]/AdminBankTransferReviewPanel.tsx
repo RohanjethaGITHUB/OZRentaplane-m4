@@ -6,6 +6,7 @@ import { adminApproveBankTransfer, adminRejectBankTransfer } from "@/app/actions
 import DocumentViewerModal from "@/components/ui/DocumentViewerModal"
 import type { DocumentFile } from "@/components/ui/DocumentViewerModal"
 import { formatDateFromISO } from "@/lib/formatDateTime"
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type Submission = {
   id: string
@@ -118,17 +119,23 @@ export default function AdminBankTransferReviewPanel({ bookingId, submission }: 
             type="button"
             onClick={handleApprove}
             disabled={loading !== null}
-            className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold text-[13px] py-2.5 rounded-xl transition-colors disabled:opacity-50"
+            aria-busy={loading === 'approve' || undefined}
+            className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold text-[13px] py-2.5 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {loading === 'approve' ? 'Confirming...' : 'Confirm Payment Received'}
+            <LoadingButtonContent loading={loading === 'approve'} loadingLabel="Confirming...">
+              Confirm Payment Received
+            </LoadingButtonContent>
           </button>
           <button
             type="button"
             onClick={handleReject}
             disabled={loading !== null}
-            className="flex-1 border border-red-300 text-red-600 hover:bg-red-50 font-semibold text-[13px] py-2.5 rounded-xl transition-colors disabled:opacity-50"
+            aria-busy={loading === 'reject' || undefined}
+            className="flex-1 border border-red-300 text-red-600 hover:bg-red-50 font-semibold text-[13px] py-2.5 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {loading === 'reject' ? 'Rejecting...' : 'Reject Submission'}
+            <LoadingButtonContent loading={loading === 'reject'} loadingLabel="Rejecting...">
+              Reject Submission
+            </LoadingButtonContent>
           </button>
         </div>
       </div>

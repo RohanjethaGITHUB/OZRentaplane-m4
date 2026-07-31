@@ -4,6 +4,7 @@ import { useState } from "react"
 import { adminConfirmStandardBankTransfer, adminRejectStandardBankTransfer } from "@/app/actions/admin-booking"
 import DocumentViewerModal from "@/components/ui/DocumentViewerModal"
 import type { DocumentFile } from "@/components/ui/DocumentViewerModal"
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type Submission = {
   id: string
@@ -165,9 +166,12 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
                     <button
                       onClick={() => handleReject(sub.id)}
                       disabled={!!loading}
+                      aria-busy={loading === sub.id || undefined}
                       className="inline-flex min-h-11 flex-1 items-center justify-center rounded-lg border border-[#b42318] bg-[#b42318] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white transition-colors hover:bg-[#912018] hover:border-[#912018] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b42318]/25 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:border-[#d6a6a2] disabled:bg-[#d6a6a2] disabled:text-white/85"
                     >
-                      {loading === sub.id ? "Rejecting..." : "Confirm Reject"}
+                      <LoadingButtonContent loading={loading === sub.id} loadingLabel="Rejecting...">
+                        Confirm Reject
+                      </LoadingButtonContent>
                     </button>
                     <button
                       onClick={() => { setRejectingId(null); setRejectNote(""); setError(null) }}
@@ -182,10 +186,13 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
                   <button
                     onClick={() => handleApprove(sub.id)}
                     disabled={!!loading}
+                    aria-busy={loading === sub.id || undefined}
                     className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#15803d] bg-[#15803d] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white transition-colors hover:bg-[#166534] hover:border-[#166534] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#15803d]/25 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:border-[#8fcca4] disabled:bg-[#8fcca4] disabled:text-white/85"
                   >
-                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                    {loading === sub.id ? "Confirming..." : "Confirm Payment"}
+                    <LoadingButtonContent loading={loading === sub.id} loadingLabel="Confirming...">
+                      <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                      Confirm Payment
+                    </LoadingButtonContent>
                   </button>
                   <button
                     onClick={() => { setRejectingId(sub.id); setError(null) }}

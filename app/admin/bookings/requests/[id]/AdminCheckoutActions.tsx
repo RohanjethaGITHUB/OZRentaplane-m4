@@ -15,6 +15,7 @@ import {
 } from '@/lib/aircraft-readings'
 import { CHECKOUT_RATE_PER_HOUR } from '@/lib/pricing-constants'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type CheckoutStatus =
   | 'checkout_confirmed'
@@ -375,8 +376,8 @@ export default function AdminCheckoutActions({
         />
         <div className="flex gap-2">
           <button type="button" onClick={() => { setIsCancelling(false); setError(null) }} disabled={isPending} className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-white/5 text-slate-300 hover:bg-white/10 transition-colors">Back</button>
-          <button type="button" disabled={isPending || !cancelReason.trim()} onClick={() => run(() => cancelCheckoutBooking(bookingId, cancelReason))} className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-rose-700 hover:bg-rose-600 text-white transition-colors disabled:opacity-50">
-            {isPending ? 'Cancelling…' : 'Cancel Booking'}
+          <button type="button" disabled={isPending || !cancelReason.trim()} onClick={() => run(() => cancelCheckoutBooking(bookingId, cancelReason))} className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-rose-700 hover:bg-rose-600 text-white transition-colors disabled:opacity-50">
+            <LoadingButtonContent loading={isPending} loadingLabel="Cancelling…">Cancel Booking</LoadingButtonContent>
           </button>
         </div>
         {error && <p className="text-[10px] text-rose-400 leading-tight">{error}</p>}
@@ -393,8 +394,10 @@ export default function AdminCheckoutActions({
       <>
         <div className="space-y-3">
         <button onClick={() => run(() => markCheckoutFlightCompleted(bookingId))} disabled={isPending} className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50">
-          <span className="material-symbols-outlined text-[18px]">flight_land</span>
-          {isPending ? 'Updating…' : 'Mark Checkout Completed'}
+          <LoadingButtonContent loading={isPending} loadingLabel="Updating…">
+            <span className="material-symbols-outlined text-[18px]">flight_land</span>
+            Mark Checkout Completed
+          </LoadingButtonContent>
         </button>
         <p className="text-[9px] text-slate-600 leading-relaxed text-center">Click after the checkout flight has physically occurred. You will then record the full aircraft readings and checkout outcome.</p>
         <button onClick={() => setIsCancelling(true)} disabled={isPending} className="w-full flex items-center justify-center gap-2 bg-transparent border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50">
@@ -429,6 +432,7 @@ export default function AdminCheckoutActions({
         confirmLabel={isPending ? 'Saving…' : 'Yes, mark no-show'}
         cancelLabel="Back"
         variant="danger"
+        isPending={isPending}
         onCancel={() => setNoShowConfirmOpen(false)}
         onConfirm={() => {
           setNoShowConfirmOpen(false)
@@ -443,6 +447,7 @@ export default function AdminCheckoutActions({
         confirmLabel={isPending ? 'Unlocking…' : 'Yes, unlock'}
         cancelLabel="Back"
         variant="primary"
+        isPending={isPending}
         onCancel={() => setUnlockNoShowConfirmOpen(false)}
         onConfirm={() => {
           setUnlockNoShowConfirmOpen(false)
@@ -765,11 +770,11 @@ export default function AdminCheckoutActions({
                             : 'bg-green-600 hover:bg-green-700'
                         }`}
                       >
-                        {isPending
-                          ? 'Saving…'
-                          : submissionConfirmation === 'send_invoice'
+                        <LoadingButtonContent loading={isPending} loadingLabel="Saving…">
+                          {submissionConfirmation === 'send_invoice'
                             ? 'Yes, send invoice — customer will be asked to pay'
                             : 'Yes, mark as paid — no invoice will be sent'}
+                        </LoadingButtonContent>
                       </button>
                     </div>
                   </div>
@@ -779,17 +784,21 @@ export default function AdminCheckoutActions({
                       type="button"
                       onClick={handleSaveAndSendInvoice}
                       disabled={isPending}
-                      className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
                     >
-                      {isPending ? 'Saving…' : 'Send Invoice (customer pays later)'}
+                      <LoadingButtonContent loading={isPending} loadingLabel="Saving…">
+                        Send Invoice (customer pays later)
+                      </LoadingButtonContent>
                     </button>
                     <button
                       type="button"
                       onClick={handleMarkPaidAction}
                       disabled={isPending || paymentWaived}
-                      className="rounded-lg bg-green-700 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-green-800 disabled:opacity-50"
+                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-700 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-green-800 disabled:opacity-50"
                     >
-                      {isPending ? 'Saving…' : showManualPaymentFields ? 'Confirm and Complete' : 'Mark as Already Paid (settle now)'}
+                      <LoadingButtonContent loading={isPending} loadingLabel="Saving…">
+                        {showManualPaymentFields ? 'Confirm and Complete' : 'Mark as Already Paid (settle now)'}
+                      </LoadingButtonContent>
                     </button>
                   </div>
                 )}

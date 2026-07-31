@@ -18,6 +18,7 @@ import {
   type TotalOnlyFormValues,
   validateTotalOnlyReadings,
 } from '@/lib/aircraft-readings'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type Airport = {
   id: string
@@ -591,9 +592,12 @@ export default function AdminSubmitFlightRecordPanel({
         type="button"
         onClick={handleSubmit}
         disabled={isPending || minimumDecisionRequired}
-        className="w-full rounded-xl bg-[#1a4fd6] hover:bg-[#1540a8] text-white px-4 py-3.5 text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm"
+        aria-busy={isPending || undefined}
+        className="w-full rounded-xl bg-[#1a4fd6] hover:bg-[#1540a8] text-white px-4 py-3.5 text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
       >
-        {isPending ? 'Submitting…' : 'Submit Post-Flight Record'}
+        <LoadingButtonContent loading={isPending} loadingLabel="Submitting…">
+          Submit Post-Flight Record
+        </LoadingButtonContent>
       </button>
     </div>
   )

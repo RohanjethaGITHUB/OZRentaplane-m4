@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { createBlockTimePurchaseIntent } from '@/app/actions/payment'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type Props = {
   packageId: string
@@ -59,9 +60,12 @@ export default function BlockTimePurchaseButton({
         type="button"
         onClick={handleClick}
         disabled={isPending}
-        className={`w-full rounded-xl px-4 py-3 text-center text-[12px] font-bold uppercase tracking-[0.12em] transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${buttonClassName}`}
+        aria-busy={isPending || undefined}
+        className={`w-full rounded-xl px-4 py-3 text-center text-[12px] font-bold uppercase tracking-[0.12em] transition-colors disabled:cursor-not-allowed disabled:opacity-70 flex items-center justify-center gap-2 ${buttonClassName}`}
       >
-        {isPending ? 'Starting…' : `Buy ${packageHours} Hours`}
+        <LoadingButtonContent loading={isPending} loadingLabel="Starting…">
+          {`Buy ${packageHours} Hours`}
+        </LoadingButtonContent>
       </button>
 
       {error ? (

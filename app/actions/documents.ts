@@ -88,6 +88,16 @@ export async function saveCheckoutRedCardDetails(input: {
     throw new Error('Invalid Red Card expiry year.')
   }
 
+  const sydneyToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
+  const currentYear = Number(sydneyToday.slice(0, 4))
+  const currentMonth = Number(sydneyToday.slice(5, 7))
+  if (
+    redCardExpiryYear < currentYear ||
+    (redCardExpiryYear === currentYear && redCardExpiryMonth < currentMonth)
+  ) {
+    throw new Error('Red Card expiry must be the current month or a future date.')
+  }
+
   const { data: pilotDoc, error: pilotDocErr } = await supabase
     .from('user_documents')
     .select('id')
@@ -132,8 +142,15 @@ export async function saveRedCardDetails(
   if (!expiryMonth || expiryMonth < 1 || expiryMonth > 12) {
     throw new Error('Please select a valid Red Card expiry month.')
   }
-  if (!expiryYear || expiryYear < new Date().getFullYear() || expiryYear > new Date().getFullYear() + 10) {
+
+  const sydneyToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
+  const currentYear = Number(sydneyToday.slice(0, 4))
+  const currentMonth = Number(sydneyToday.slice(5, 7))
+  if (!expiryYear || expiryYear < currentYear || expiryYear > currentYear + 10) {
     throw new Error('Please select a valid Red Card expiry year.')
+  }
+  if (expiryYear === currentYear && expiryMonth < currentMonth) {
+    throw new Error('Red Card expiry must be the current month or a future date.')
   }
 
   const { data: pilotDoc, error: pilotDocErr } = await supabase

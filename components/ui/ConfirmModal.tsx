@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { AlertTriangle, CheckCircle2, X } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
+import Spinner from '@/components/ui/Spinner'
 
 type ConfirmModalProps = {
   open: boolean
@@ -11,6 +12,7 @@ type ConfirmModalProps = {
   confirmLabel?: string
   cancelLabel?: string
   variant?: 'primary' | 'danger'
+  isPending?: boolean
   onConfirm: () => void | Promise<void>
   onCancel: () => void
 }
@@ -22,6 +24,7 @@ export default function ConfirmModal({
   confirmLabel,
   cancelLabel = 'Cancel',
   variant = 'primary',
+  isPending = false,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -33,12 +36,12 @@ export default function ConfirmModal({
     confirmButtonRef.current?.focus()
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onCancel()
+      if (event.key === 'Escape' && !isPending) onCancel()
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, onCancel])
+  }, [open, onCancel, isPending])
 
   if (!open) return null
 
@@ -50,8 +53,8 @@ export default function ConfirmModal({
   )
 
   const confirmButtonClass = isDanger
-    ? 'bg-rose-600 hover:bg-rose-500 text-white'
-    : 'bg-[#1a4fd6] hover:bg-[#1540a8] text-white'
+    ? 'bg-rose-600 hover:bg-rose-500 text-white disabled:opacity-70'
+    : 'bg-[#1a4fd6] hover:bg-[#1540a8] text-white disabled:opacity-70'
 
   const panelAccentClass = isDanger
     ? 'border-rose-200 bg-rose-50'
@@ -65,14 +68,16 @@ export default function ConfirmModal({
         <button
           type="button"
           aria-label="Close confirmation dialog"
-          onClick={onCancel}
-          className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+          onClick={isPending ? undefined : onCancel}
+          disabled={isPending}
+          className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm disabled:cursor-default"
         />
 
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="confirm-modal-title"
+          aria-busy={isPending || undefined}
           className={`relative z-10 w-full max-w-md rounded-2xl border shadow-2xl ${panelAccentClass} bg-white`}
           onClick={e => e.stopPropagation()}
         >
@@ -93,7 +98,8 @@ export default function ConfirmModal({
             <button
               type="button"
               onClick={onCancel}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              disabled={isPending}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
               aria-label="Close confirmation dialog"
             >
               <X className="h-4 w-4" />
@@ -104,7 +110,8 @@ export default function ConfirmModal({
             <button
               type="button"
               onClick={onCancel}
-              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              disabled={isPending}
+              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
             >
               {cancelLabel}
             </button>
@@ -112,8 +119,11 @@ export default function ConfirmModal({
               ref={confirmButtonRef}
               type="button"
               onClick={onConfirm}
-              className={`inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${confirmButtonClass}`}
+              disabled={isPending}
+              aria-busy={isPending || undefined}
+              className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${confirmButtonClass}`}
             >
+              {isPending && <Spinner size="sm" variant="ring" />}
               {resolvedConfirmLabel}
             </button>
           </div>

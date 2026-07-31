@@ -177,15 +177,19 @@ function DocRow({
   }
 
   const resolvedStatus = statusOverride ?? currentStatus
+  // Expiry wins over "approved" for medical/photo/night VFR (pilot licence expiry is not a blocker).
+  const treatExpiryAsBlocker = docType !== 'pilot_licence'
+  const showExpired = Boolean(expired && treatExpiryAsBlocker && resolvedStatus !== 'rejected')
+
   const statusLabel = statusOverride ?? (
-    resolvedStatus === 'approved'
-      ? 'Approved'
-      : resolvedStatus === 'rejected'
-        ? 'Rejected'
-        : !doc
-          ? 'Not uploaded'
-          : expired
-            ? 'Expired'
+    showExpired
+      ? 'Expired'
+      : resolvedStatus === 'approved'
+        ? 'Approved'
+        : resolvedStatus === 'rejected'
+          ? 'Rejected'
+          : !doc
+            ? 'Not uploaded'
             : doc.status === 'rejected'
               ? 'Rejected'
               : 'Uploaded'
@@ -193,14 +197,14 @@ function DocRow({
 
   const statusClass = statusOverride
     ? 'bg-amber-50 text-amber-700 border border-amber-200'
-    : resolvedStatus === 'approved'
-      ? 'bg-green-50 text-green-700 border border-green-200'
-      : resolvedStatus === 'rejected'
-        ? 'bg-red-50 text-red-700 border border-red-200'
-        : !doc
-          ? 'bg-gray-50 text-gray-500 border border-gray-200'
-          : expired
-            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+    : showExpired
+      ? 'bg-red-50 text-red-700 border border-red-200'
+      : resolvedStatus === 'approved'
+        ? 'bg-green-50 text-green-700 border border-green-200'
+        : resolvedStatus === 'rejected'
+          ? 'bg-red-50 text-red-700 border border-red-200'
+          : !doc
+            ? 'bg-gray-50 text-gray-500 border border-gray-200'
             : doc.status === 'rejected'
               ? 'bg-red-50 text-red-700 border border-red-200'
               : 'bg-green-50 text-green-700 border border-green-200'
@@ -228,7 +232,11 @@ function DocRow({
               {doc.licence_number  && <span>ARN: {doc.licence_number}</span>}
               {doc.document_number && <span>#{doc.document_number}</span>}
               {doc.issue_date      && <span>Issued: {doc.issue_date}</span>}
-              {doc.expiry_date     && <span>{expired ? 'Expired' : 'Expires'}: {doc.expiry_date}</span>}
+              {doc.expiry_date     && (
+                <span className={showExpired ? 'font-semibold text-red-600' : undefined}>
+                  {showExpired ? 'Expired' : 'Expires'}: {doc.expiry_date}
+                </span>
+              )}
               {doc.uploaded_at     && <span>Uploaded: {formatDateFromISO(doc.uploaded_at)}</span>}
             </div>
           )}
@@ -257,7 +265,11 @@ function DocRow({
             </div>
 
             <div className="flex items-center gap-1.5 w-[180px] justify-end">
-              {currentStatus === 'approved' ? (
+              {showExpired ? (
+                <span className="inline-flex items-center gap-1 text-xs text-red-600 font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
+                  <XCircle className="w-3 h-3" /> Expired
+                </span>
+              ) : currentStatus === 'approved' ? (
                 <span className="inline-flex items-center gap-1 text-xs text-green-600 font-semibold bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
                   <CheckCircle2 className="w-3 h-3" /> Approved
                 </span>
@@ -465,6 +477,11 @@ export default function AdminCheckoutReviewPanel({
   }
 
   function handleConfirm() {
+    if (!canConfirmCheckout) {
+      setActionError('All required documents must be approved (and not expired) before confirming checkout.')
+      return
+    }
+    setActionError(null)
     setConfirmCheckoutOpen(true)
   }
 
@@ -597,17 +614,33 @@ export default function AdminCheckoutReviewPanel({
   const medicalDoc        = documents.find(d => d.document_type === 'medical_certificate')
   const photoIdDoc        = documents.find(d => d.document_type === 'photo_id')
   const nightVfrEvidenceDoc = documents.find(d => d.document_type === 'night_vfr_evidence')
-  const requiredDocs = hasNightVfrRating
-    ? [licenceDoc, medicalDoc, photoIdDoc, nightVfrEvidenceDoc]
-    : [licenceDoc, medicalDoc, photoIdDoc]
-  const allDocsOk  = [licenceDoc, medicalDoc, photoIdDoc].every(d => {
-    if (!d) return false
-    if (d.status === 'rejected') return false
-    const today = new Date().toISOString().split('T')[0]!
-    if (d.expiry_date && d.expiry_date < today) return false
+  const requiredDocEntries = hasNightVfrRating
+    ? [
+        { type: 'pilot_licence', doc: licenceDoc },
+        { type: 'medical_certificate', doc: medicalDoc },
+        { type: 'photo_id', doc: photoIdDoc },
+        { type: 'night_vfr_evidence', doc: nightVfrEvidenceDoc },
+      ]
+    : [
+        { type: 'pilot_licence', doc: licenceDoc },
+        { type: 'medical_certificate', doc: medicalDoc },
+        { type: 'photo_id', doc: photoIdDoc },
+      ]
+  const todayIso = new Date().toISOString().split('T')[0]!
+  function isCheckoutDocReady(type: string, doc: DocSummary | undefined): boolean {
+    if (!doc || doc.status !== 'approved') return false
+    // Match customer readiness: pilot licence expiry is not a blocker.
+    if (type !== 'pilot_licence' && doc.expiry_date && doc.expiry_date < todayIso) return false
     return true
+  }
+  // After bulk-approve, props may lag one refresh; treat status as approved but still honour expiry.
+  const canConfirmCheckout = requiredDocEntries.every(({ type, doc }) => {
+    if (!doc) return false
+    const status = forceAllApproved ? 'approved' : doc.status
+    return isCheckoutDocReady(type, { ...doc, status })
   })
-  const allRequiredApproved = forceAllApproved || requiredDocs.every((d) => d?.status === 'approved')
+  const allRequiredApproved = canConfirmCheckout
+  const allDocsOk = canConfirmCheckout
   const nightVfrStatusOverride =
     nightVfrEvidenceDoc && nightVfrEvidenceDoc.status !== 'approved' && nightVfrEvidenceDoc.status !== 'rejected'
       ? 'Claimed'
@@ -668,7 +701,7 @@ export default function AdminCheckoutReviewPanel({
 
         <div className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-3 py-1 mb-4">
           <CheckCircle2 className="w-3.5 h-3.5" />
-          {allDocsOk ? 'All uploaded' : 'Incomplete'}
+          {allDocsOk ? 'All approved' : 'Incomplete'}
         </div>
 
         <div className="space-y-0">
@@ -685,9 +718,9 @@ export default function AdminCheckoutReviewPanel({
           />
         </div>
 
-        {!allDocsOk && (
+        {!canConfirmCheckout && (
           <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            One or more required documents are not yet approved. Review document status before proceeding.
+            One or more required documents are not yet approved or have expired. Review document status before confirming checkout.
           </div>
         )}
 
@@ -950,24 +983,26 @@ export default function AdminCheckoutReviewPanel({
         </div>
       </section>
 
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] px-4 py-3 md:px-6 md:py-4">
-        <div className="mx-auto max-w-7xl flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="hidden sm:flex items-center gap-3 bg-[#eef2ff] rounded-xl px-4 py-2.5 border border-[#c7d2fe]">
-            <div className="w-7 h-7 rounded-lg bg-[#4f46e5] flex items-center justify-center flex-shrink-0">
-              <HelpCircle className="w-3.5 h-3.5 text-white" />
+      <div className="@container fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] md:px-6 md:py-4 lg:left-72">
+        <div className="mx-auto flex max-w-7xl flex-col-reverse gap-3 @[720px]:flex-row @[720px]:items-center @[720px]:justify-between">
+          <div className="flex w-full min-w-0 items-start gap-3 rounded-xl border border-[#c7d2fe] bg-[#eef2ff] px-4 py-2.5 @[720px]:max-w-md @[720px]:flex-1 @[720px]:items-center">
+            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[#4f46e5]">
+              <HelpCircle className="h-3.5 w-3.5 text-white" />
             </div>
-            <div>
-              <p className="text-sm font-semibold text-[#3730a3] leading-none">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold leading-snug text-[#3730a3]">
                 Ready to decide?
               </p>
-              <p className="text-xs text-[#6366f1] mt-0.5">
-                Choose the best action for this request.
+              <p className="mt-0.5 text-xs leading-relaxed text-[#6366f1]">
+                {canConfirmCheckout
+                  ? 'Choose the best action for this request.'
+                  : 'Approve all required documents (none expired) before confirming checkout.'}
               </p>
+              {actionError && <p className="mt-1 text-xs text-rose-500">{actionError}</p>}
             </div>
-            {actionError && <p className="mt-1 text-xs text-rose-500">{actionError}</p>}
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-end w-full sm:w-auto">
+          <div className="flex w-full flex-shrink-0 flex-wrap items-center justify-center gap-2 @[720px]:w-auto @[720px]:justify-end">
             <button
               type="button"
               onClick={() => {
@@ -975,36 +1010,41 @@ export default function AdminCheckoutReviewPanel({
                 timeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
               }}
               disabled={confirmPending || cancelPending}
-              className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border border-red-200 text-red-600 text-xs font-medium hover:bg-red-50 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 sm:px-4 sm:py-2.5"
             >
-              <XCircle className="w-4 h-4" />
+              <XCircle className="h-4 w-4" />
               Cancel Request
             </button>
             <button
               type="button"
               onClick={handleRequestDocuments}
               disabled={msgLoading}
-              className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border border-gray-200 bg-white text-[#152d5a] text-xs font-medium hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-[#152d5a] shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50 sm:px-4 sm:py-2.5"
             >
-              <FileText className="w-4 h-4" />
+              <FileText className="h-4 w-4" />
               Request Documents
             </button>
             <button
               type="button"
               onClick={handleProposeDifferentTime}
               disabled={timeUpdateStatus === 'saving'}
-              className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border border-gray-200 bg-white text-[#152d5a] text-xs font-medium hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-[#152d5a] shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50 sm:px-4 sm:py-2.5"
             >
-              <CalendarDays className="w-4 h-4" />
+              <CalendarDays className="h-4 w-4" />
               Propose New Time
             </button>
             <button
               type="button"
               onClick={handleConfirm}
-              disabled={confirmPending}
-              className="inline-flex items-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-[#152d5a] text-white text-xs font-semibold hover:bg-[#1a4fd6] transition-colors shadow-md disabled:opacity-50"
+              disabled={confirmPending || !canConfirmCheckout}
+              title={
+                canConfirmCheckout
+                  ? undefined
+                  : 'All required documents must be approved and not expired'
+              }
+              className="inline-flex items-center gap-2 rounded-xl bg-[#152d5a] px-4 py-2 text-xs font-semibold text-white shadow-md transition-colors hover:bg-[#1a4fd6] disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:py-2.5"
             >
-              <CheckCircle2 className="w-4 h-4" />
+              <CheckCircle2 className="h-4 w-4" />
               {confirmPending ? 'Confirming…' : 'Confirm Checkout'}
             </button>
           </div>
@@ -1017,6 +1057,7 @@ export default function AdminCheckoutReviewPanel({
         description={`Confirm checkout request for ${formatDate(newStartUTC ?? scheduledStart)} at ${ALL_TIME_OPTIONS.find((o) => o.value === newStartTime)?.label ?? newStartTime} (Sydney time).`}
         confirmLabel={confirmPending ? 'Confirming…' : 'Confirm Checkout'}
         variant="primary"
+        isPending={confirmPending}
         onCancel={() => setConfirmCheckoutOpen(false)}
         onConfirm={handleConfirmCheckout}
       />
@@ -1028,6 +1069,7 @@ export default function AdminCheckoutReviewPanel({
         confirmLabel={cancelPending ? 'Cancelling…' : 'Yes, cancel request'}
         cancelLabel="Back"
         variant="danger"
+        isPending={cancelPending}
         onCancel={() => setCancelConfirmOpen(false)}
         onConfirm={handleCancelCheckout}
       />
@@ -1042,6 +1084,7 @@ export default function AdminCheckoutReviewPanel({
         }
         confirmLabel={bulkLoading ? (bulkAction === 'approved' ? 'Approving…' : 'Rejecting…') : bulkAction === 'approved' ? 'Approve All' : 'Reject All'}
         variant={bulkAction === 'approved' ? 'primary' : 'danger'}
+        isPending={bulkLoading}
         onCancel={() => {
           if (bulkLoading) return
           setBulkAction(null)

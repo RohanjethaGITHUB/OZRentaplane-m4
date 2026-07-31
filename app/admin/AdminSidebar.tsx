@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useMemo, type MouseEvent as ReactMouseEvent } from 'react'
+import { Suspense, useState, useEffect, useMemo, type MouseEvent as ReactMouseEvent } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getAdminSkeleton } from '@/components/ui/PageSkeletons'
 
 type NavItem = { label: string; href: string; badgeKey?: string }
 
@@ -454,5 +455,45 @@ export default function AdminSidebar({
         </div>
       </aside>
     </>
+  )
+}
+
+/** Shows the destination admin page's skeleton immediately on sidebar/nav clicks. */
+export function AdminRouteSuspense({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+  const [pendingPath, setPendingPath] = useState<string | null>(null)
+
+  useEffect(() => {
+    setPendingPath(null)
+  }, [pathname])
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+      const anchor = (e.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null
+      if (!anchor || anchor.hasAttribute('download') || anchor.target === '_blank') return
+      let url: URL
+      try {
+        url = new URL(anchor.href, window.location.href)
+      } catch {
+        return
+      }
+      if (url.origin !== window.location.origin) return
+      if (!url.pathname.startsWith('/admin')) return
+      if (url.pathname === pathname) return
+      setPendingPath(url.pathname)
+    }
+    document.addEventListener('click', onClick, true)
+    return () => document.removeEventListener('click', onClick, true)
+  }, [pathname])
+
+  if (pendingPath) return getAdminSkeleton(pendingPath)
+
+  const path = pathname ?? '/admin'
+
+  return (
+    <Suspense key={path} fallback={getAdminSkeleton(path)}>
+      {children}
+    </Suspense>
   )
 }

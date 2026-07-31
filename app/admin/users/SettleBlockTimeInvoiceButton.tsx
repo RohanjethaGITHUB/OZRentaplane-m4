@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { adminSettleBlockTimeInvoice } from '@/app/actions/payment'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type ManualPaymentMethod = 'cash' | 'card_in_person' | 'bank_transfer'
 
@@ -98,9 +99,12 @@ export default function SettleBlockTimeInvoiceButton({
           type="button"
           onClick={handleSettle}
           disabled={isPending}
-          className="flex-1 rounded-lg bg-[#1a4fd6] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-[#1540a8] disabled:opacity-50"
+          aria-busy={isPending || undefined}
+          className="flex-1 rounded-lg bg-[#1a4fd6] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-[#1540a8] disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          {isPending ? 'Settling…' : 'Confirm settled'}
+          <LoadingButtonContent loading={isPending} loadingLabel="Settling…">
+            Confirm settled
+          </LoadingButtonContent>
         </button>
         <button
           type="button"

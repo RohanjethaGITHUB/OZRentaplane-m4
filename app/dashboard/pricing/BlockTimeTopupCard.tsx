@@ -7,6 +7,7 @@ import {
   blockTimeTopupExtensionDays,
 } from '@/lib/payments/block-time-topup'
 import { formatDateFromISO } from '@/lib/formatDateTime'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type Props = {
   purchaseId: string
@@ -153,13 +154,14 @@ export default function BlockTimeTopupCard({
           type="button"
           onClick={handleTopup}
           disabled={!canSubmit}
-          className="rounded-xl bg-[#f59e0b] px-6 py-3 text-[12px] font-bold uppercase tracking-[0.12em] text-white transition-colors hover:bg-[#e08c00] disabled:cursor-not-allowed disabled:opacity-60"
+          aria-busy={isPending || undefined}
+          className="rounded-xl bg-[#f59e0b] px-6 py-3 text-[12px] font-bold uppercase tracking-[0.12em] text-white transition-colors hover:bg-[#e08c00] disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
         >
-          {isPending
-            ? 'Starting…'
-            : hours !== null && cost !== null && !belowMinimum
+          <LoadingButtonContent loading={isPending} loadingLabel="Starting…">
+            {hours !== null && cost !== null && !belowMinimum
               ? `Top up ${hours}h for ${formatAud(cost)}`
               : 'Top up'}
+          </LoadingButtonContent>
         </button>
         <p className="text-[11px] text-[#4b6390]/80">
           You will be sent to Stripe checkout to complete payment securely. Prices include GST.

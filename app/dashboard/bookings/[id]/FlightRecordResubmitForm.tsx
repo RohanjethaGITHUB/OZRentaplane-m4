@@ -10,6 +10,7 @@ import {
   numberInputValue,
 } from '@/lib/aircraft-readings'
 import type { FlightRecord } from '@/lib/supabase/booking-types'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type UploadedFile = { file: File; preview: string }
 type RejectedFile = { name: string; reason: string }
@@ -272,9 +273,12 @@ export default function FlightRecordResubmitForm({ flightRecord, bookingId, onSu
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-[#1a4fd6] hover:bg-[#1540a8] disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-3 text-sm font-semibold transition-colors shadow-sm"
+            aria-busy={loading || undefined}
+            className="w-full rounded-xl bg-[#1a4fd6] hover:bg-[#1540a8] disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-3 text-sm font-semibold transition-colors shadow-sm flex items-center justify-center gap-2"
           >
-            {loading ? 'Resubmitting...' : 'Resubmit Flight Record'}
+            <LoadingButtonContent loading={loading} loadingLabel="Resubmitting...">
+              Resubmit Flight Record
+            </LoadingButtonContent>
           </button>
         </section>
       </div>

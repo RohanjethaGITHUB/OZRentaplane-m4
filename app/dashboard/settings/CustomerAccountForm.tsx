@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type Props = {
   userId: string
@@ -168,16 +169,15 @@ export default function CustomerAccountForm({
           <button
             type="submit"
             disabled={loading}
+            aria-busy={loading || undefined}
             className="flex items-center gap-2 bg-[#e8a020] hover:bg-[#d4911a] text-white font-semibold text-sm px-6 py-3 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Saving…' : (
-              <>
-                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/>
-                </svg>
-                Save Changes
-              </>
-            )}
+            <LoadingButtonContent loading={loading} loadingLabel="Saving…">
+              <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/>
+              </svg>
+              Save Changes
+            </LoadingButtonContent>
           </button>
         </div>
       </section>

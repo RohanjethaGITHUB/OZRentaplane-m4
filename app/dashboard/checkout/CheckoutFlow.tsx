@@ -32,6 +32,7 @@ import CalendarDateField from '@/components/CalendarDateField'
 import ModalPortal from '@/components/ModalPortal'
 import CheckoutDocumentsStep from './CheckoutDocumentsStep'
 import CheckoutChangeActions from './CheckoutChangeActions'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -664,9 +665,12 @@ function CheckoutRescheduleModal({
           <button
             onClick={handleSubmit}
             disabled={submitting}
-            className="px-4 py-2 text-sm text-white rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40"
+            aria-busy={submitting || undefined}
+            className="px-4 py-2 text-sm text-white rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 flex items-center justify-center gap-2"
           >
-            {submitting ? 'Sending…' : 'Send reschedule request'}
+            <LoadingButtonContent loading={submitting} loadingLabel="Sending…">
+              Send reschedule request
+            </LoadingButtonContent>
           </button>
         </div>
       </div>
@@ -1600,9 +1604,12 @@ export default function CheckoutFlow({
                 isSubmitting ||
                 (nightVfrRating === false && !!startTime && !!date && !isWithinDayVfrWindow(startTime, date, 120))
               }
-              className="w-[256px] h-12 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-base font-semibold transition-all shadow-[0_0_24px_rgba(37,99,235,0.35)]"
+              aria-busy={(isPending || isSubmitting) || undefined}
+              className="w-[256px] h-12 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-base font-semibold transition-all shadow-[0_0_24px_rgba(37,99,235,0.35)] flex items-center justify-center gap-2"
             >
-              {(isPending || isSubmitting) ? 'Submitting…' : 'Submit Checkout Request'}
+              <LoadingButtonContent loading={isPending || isSubmitting} loadingLabel="Submitting…">
+                Submit Checkout Request
+              </LoadingButtonContent>
             </button>
           </div>
 

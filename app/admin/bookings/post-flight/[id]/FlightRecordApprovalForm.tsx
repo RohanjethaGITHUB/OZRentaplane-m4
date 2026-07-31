@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { approvePostFlightReview } from '@/app/actions/admin-booking'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type Props = {
   flightRecordId: string
@@ -146,13 +147,12 @@ export default function FlightRecordApprovalForm({ flightRecordId, currentStatus
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-8 py-4 rounded-xl font-medium tracking-wide transition-colors mt-6 shadow-xl shadow-blue-900/20"
+        aria-busy={loading || undefined}
+        className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-8 py-4 rounded-xl font-medium tracking-wide transition-colors mt-6 shadow-xl shadow-blue-900/20 flex items-center justify-center gap-2"
       >
-        {loading
-          ? 'Processing...'
-          : mode === 'correction'
-          ? 'Commit With Correction'
-          : 'Commit & Commit Meter Readings'}
+        <LoadingButtonContent loading={loading} loadingLabel="Processing...">
+          {mode === 'correction' ? 'Commit With Correction' : 'Commit & Commit Meter Readings'}
+        </LoadingButtonContent>
       </button>
     </form>
   )

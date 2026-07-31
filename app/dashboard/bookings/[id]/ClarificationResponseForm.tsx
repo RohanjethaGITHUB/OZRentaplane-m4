@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { submitClarificationResponse } from '@/app/actions/booking'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 export default function ClarificationResponseForm({ bookingId }: { bookingId: string }) {
   const router   = useRouter()
@@ -51,10 +52,13 @@ export default function ClarificationResponseForm({ bookingId }: { bookingId: st
       <button
         type="submit"
         disabled={loading}
+        aria-busy={loading || undefined}
         className="w-full flex items-center justify-center gap-2 bg-[#f59e0b] hover:bg-[#d97706] disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-sm"
       >
-        <span className="material-symbols-outlined text-[16px]">send</span>
-        {loading ? 'Submitting…' : 'Submit Response'}
+        <LoadingButtonContent loading={loading} loadingLabel="Submitting…">
+          <span className="material-symbols-outlined text-[16px]">send</span>
+          Submit Response
+        </LoadingButtonContent>
       </button>
     </form>
   )

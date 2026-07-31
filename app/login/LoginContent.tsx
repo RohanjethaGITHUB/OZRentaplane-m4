@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type AuthMode = 'signin' | 'signup'
 
@@ -408,14 +409,13 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                     <button
                       type="submit"
                       disabled={anyLoading}
+                      aria-busy={loading || undefined}
                       className="w-full bg-[#e8a020] hover:bg-[#d4911a] text-white font-semibold text-sm py-4 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2"
                     >
-                      {loading ? 'Signing in…' : (
-                        <>
-                          SIGN IN
-                          <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-                        </>
-                      )}
+                      <LoadingButtonContent loading={loading} loadingLabel="Signing in…">
+                        SIGN IN
+                        <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                      </LoadingButtonContent>
                     </button>
 
                     <div className="flex items-center justify-between pt-3 border-t border-[#152d5a]/8">
@@ -480,9 +480,12 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                           void handleForgotPasswordSubmit()
                         }}
                         disabled={forgotLoading}
+                        aria-busy={forgotLoading || undefined}
                         className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1a4fd6] px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[#1847be] disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {forgotLoading ? 'Sending...' : 'Send reset link'}
+                        <LoadingButtonContent loading={forgotLoading} loadingLabel="Sending...">
+                          Send reset link
+                        </LoadingButtonContent>
                       </button>
                       <button
                         type="button"
@@ -628,14 +631,13 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                     <button
                       type="submit"
                       disabled={anyLoading}
+                      aria-busy={loading || undefined}
                       className="w-full bg-[#e8a020] hover:bg-[#d4911a] text-white font-semibold text-sm py-4 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-1"
                     >
-                      {loading ? 'Processing…' : (
-                        <>
-                          Create account
-                          <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-                        </>
-                      )}
+                      <LoadingButtonContent loading={loading} loadingLabel="Processing…">
+                        Create account
+                        <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                      </LoadingButtonContent>
                     </button>
 
                     <div className="flex items-center justify-between pt-3 border-t border-[#152d5a]/8">

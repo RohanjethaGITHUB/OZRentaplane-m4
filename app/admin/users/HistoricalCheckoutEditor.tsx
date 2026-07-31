@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import CalendarDateField from '@/components/CalendarDateField'
 import { getHistoricalCheckoutLogBaseline, recordHistoricalCheckoutCompletion } from '@/app/actions/historical-checkout'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 const SHOW_ADMIN_DIRECT_CHECKOUT_COMPLETE_ACTION = true
 
@@ -538,8 +539,10 @@ export default function HistoricalCheckoutEditor({ renderMode = 'card', ...props
 
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => setOpen(false)} disabled={isPending} className="rounded-xl border border-[#152d5a]/15 px-4 py-2 text-[14px] text-[#4b6390]">Cancel</button>
-                <button type="submit" disabled={isPending} className="rounded-xl bg-blue-600 px-4 py-2 text-[14px] font-semibold text-white hover:bg-blue-500 disabled:opacity-60">
-                  {isPending ? 'Recording...' : 'Create Checkout Flight Record'}
+                <button type="submit" disabled={isPending} aria-busy={isPending || undefined} className="rounded-xl bg-blue-600 px-4 py-2 text-[14px] font-semibold text-white hover:bg-blue-500 disabled:opacity-60 flex items-center justify-center gap-2">
+                  <LoadingButtonContent loading={isPending} loadingLabel="Recording...">
+                    Create Checkout Flight Record
+                  </LoadingButtonContent>
                 </button>
               </div>
             </form>

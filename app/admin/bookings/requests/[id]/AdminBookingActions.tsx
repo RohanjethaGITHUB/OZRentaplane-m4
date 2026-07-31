@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { confirmBookingRequest, cancelBookingRequest } from '@/app/actions/admin-booking'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 export default function AdminBookingActions({ bookingId }: { bookingId: string }) {
   const router = useRouter()
@@ -64,9 +65,12 @@ export default function AdminBookingActions({ bookingId }: { bookingId: string }
           <button
             type="submit"
             disabled={loading}
-            className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-rose-600 hover:bg-rose-500 text-white transition-colors disabled:opacity-50"
+            aria-busy={loading || undefined}
+            className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-rose-600 hover:bg-rose-500 text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {loading ? 'Cancelling...' : 'Cancel Booking'}
+            <LoadingButtonContent loading={loading} loadingLabel="Cancelling...">
+              Cancel Booking
+            </LoadingButtonContent>
           </button>
         </div>
         {error && <p className="text-[10px] text-rose-400 leading-tight">{error}</p>}
@@ -79,10 +83,13 @@ export default function AdminBookingActions({ bookingId }: { bookingId: string }
       <button
         onClick={handleConfirm}
         disabled={loading}
+        aria-busy={loading || undefined}
         className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-3 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
       >
-        <span className="material-symbols-outlined text-[18px]">check_circle</span>
-        {loading ? 'Confirming...' : 'Confirm Booking'}
+        <LoadingButtonContent loading={loading} loadingLabel="Confirming...">
+          <span className="material-symbols-outlined text-[18px]">check_circle</span>
+          Confirm Booking
+        </LoadingButtonContent>
       </button>
 
       <button

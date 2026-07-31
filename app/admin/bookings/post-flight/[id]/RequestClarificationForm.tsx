@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { requestPostFlightClarification } from '@/app/actions/admin-booking'
 import type { ClarificationCategory } from '@/lib/supabase/booking-types'
 import { CLARIFICATION_CATEGORY_LABELS } from '@/lib/supabase/booking-types'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 const CATEGORIES = Object.entries(CLARIFICATION_CATEGORY_LABELS) as [ClarificationCategory, string][]
 
@@ -103,9 +104,12 @@ export default function RequestClarificationForm({
         <button
           type="submit"
           disabled={loading}
-          className="flex-1 bg-[#1a4fd6] hover:bg-[#1540a8] border border-[#1a4fd6] disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-colors shadow-sm"
+          aria-busy={loading || undefined}
+          className="flex-1 bg-[#1a4fd6] hover:bg-[#1540a8] border border-[#1a4fd6] disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-colors shadow-sm flex items-center justify-center gap-2"
         >
-          {loading ? 'Sending…' : 'Send Clarification Request'}
+          <LoadingButtonContent loading={loading} loadingLabel="Sending…">
+            Send Clarification Request
+          </LoadingButtonContent>
         </button>
         <button
           type="button"

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { createCustomerAccount } from '@/app/actions/admin-customers'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 export default function NewCustomerForm() {
   const [isPending, startTransition] = useTransition()
@@ -91,9 +92,12 @@ export default function NewCustomerForm() {
         <button
           type="submit"
           disabled={isPending}
+          aria-busy={isPending || undefined}
           className="inline-flex items-center rounded-lg bg-[#152d5a] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#1d3d79] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isPending ? 'Creating account...' : 'Create customer account'}
+          <LoadingButtonContent loading={isPending} loadingLabel="Creating account...">
+            Create customer account
+          </LoadingButtonContent>
         </button>
       </div>
     </form>

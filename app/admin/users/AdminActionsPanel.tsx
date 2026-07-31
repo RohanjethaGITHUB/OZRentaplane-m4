@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { updatePilotClearanceStatus } from '@/app/actions/admin'
 import HistoricalCheckoutEditor from './HistoricalCheckoutEditor'
+import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type Props = {
   customerId: string
@@ -322,9 +323,12 @@ export function AdminActionsPanel({
             <button
               onClick={handleUpdate}
               disabled={isPending || !canSubmit}
-              className="w-full bg-[#152d5a] hover:bg-[#0e1f3d] text-white text-sm font-semibold py-2.5 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-busy={isPending || undefined}
+              className="w-full bg-[#152d5a] hover:bg-[#0e1f3d] text-white text-sm font-semibold py-2.5 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {isPending ? 'Updating...' : 'Update checkout status'}
+              <LoadingButtonContent loading={isPending} loadingLabel="Updating...">
+                Update checkout status
+              </LoadingButtonContent>
             </button>
 
             {successMessage && (
