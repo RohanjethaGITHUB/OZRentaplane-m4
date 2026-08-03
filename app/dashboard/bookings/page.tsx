@@ -101,6 +101,7 @@ type BookingRow = {
   status:            string
   booking_type:      string
   checkout_lifecycle_status?: string | null
+  admin_notes?:      string | null
   scheduled_start:   string
   scheduled_end:     string
   estimated_hours:   number | null
@@ -330,7 +331,7 @@ export default async function CustomerBookingsPage() {
       .from('bookings')
       .select(`
         id, booking_reference, status, booking_type,
-        checkout_lifecycle_status,
+        checkout_lifecycle_status, admin_notes,
         scheduled_start, scheduled_end,
         estimated_hours, estimated_amount, pic_name, created_at,
         aircraft ( registration ),
@@ -380,7 +381,7 @@ export default async function CustomerBookingsPage() {
   const completedFlights = rowsWithInvoices.filter(b => {
     if (b.booking_type === 'checkout') {
       // Include checkout flights that are fully done (not active/in-progress)
-      const checkoutDoneStatuses = ['completed', 'checkout_payment_required', 'awaiting_outcome', 'checkout_completed_under_review', 'additional_checkout_required', 'not_currently_eligible', 'checkout_reschedule_required']
+      const checkoutDoneStatuses = ['completed', 'checkout_payment_required', 'awaiting_outcome', 'checkout_completed_under_review', 'additional_checkout_required', 'not_currently_eligible', 'checkout_reschedule_required', 'cancelled']
       return checkoutDoneStatuses.includes(b.status)
     }
     return !ACTIVE_STATUSES.includes(b.status)
@@ -811,7 +812,21 @@ export default async function CustomerBookingsPage() {
                               {(booking.aircraft_name ?? 'Cessna 172N').replace(/Cessna 172(?!N)/g, 'Cessna 172N')}
                             </p>
                             <p className="text-[12px] text-[#4b6390] mt-0.5">{booking.aircraft_registration ?? aircraft?.registration ?? 'VH-KZG'}</p>
-                            {booking.booking_type === 'checkout' && checkoutOutcome && (
+                            {booking.booking_type === 'checkout' && booking.status === 'cancelled' && (
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="material-symbols-outlined text-[13px] text-red-500 leading-none shrink-0">cancel</span>
+                                <span className="text-[12px] font-semibold text-red-500 leading-none">
+                                  {booking.checkout_lifecycle_status === 'cancelled_by_admin'
+                                    ? (booking.admin_notes
+                                        ? `Checkout cancelled by admin — ${booking.admin_notes}`
+                                        : 'Checkout cancelled by admin')
+                                    : booking.checkout_lifecycle_status === 'cancelled_by_customer'
+                                    ? 'Checkout cancelled by customer'
+                                    : 'Checkout cancelled'}
+                                </span>
+                              </div>
+                            )}
+                            {booking.booking_type === 'checkout' && booking.status !== 'cancelled' && checkoutOutcome && (
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="material-symbols-outlined text-[13px] text-[#4b6390]">assignment_turned_in</span>
                                 <span className={`text-[12px] font-semibold ${
