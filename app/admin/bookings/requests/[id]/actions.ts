@@ -20,12 +20,12 @@ async function requireAdmin() {
   return { supabase, adminId: user.id }
 }
 
-export async function cancelOnHoldBooking(bookingId: string, formData: FormData): Promise<void> {
+async function cancelOnHoldBookingCore(bookingId: string, reason: string): Promise<void> {
   const { supabase, adminId } = await requireAdmin()
   const now = new Date().toISOString()
-  const reason = String(formData.get('reason') ?? '').trim()
+  const trimmedReason = reason.trim()
 
-  if (!reason) {
+  if (!trimmedReason) {
     throw new Error('VALIDATION: A cancellation reason is required.')
   }
 
@@ -44,7 +44,7 @@ export async function cancelOnHoldBooking(bookingId: string, formData: FormData)
     .from('bookings')
     .update({
       status: 'cancelled',
-      admin_notes: reason,
+      admin_notes: trimmedReason,
       cancellation_category: 'admin',
       pre_hold_status: null,
       updated_at: now,
@@ -65,7 +65,7 @@ export async function cancelOnHoldBooking(bookingId: string, formData: FormData)
     old_status: 'on_hold_pending_documents',
     new_status: 'cancelled',
     changed_by_user_id: adminId,
-    note: `Admin cancelled booking while on hold. Reason: ${reason}`,
+    note: `Admin cancelled booking while on hold. Reason: ${trimmedReason}`,
   })
 
   await supabase.from('booking_audit_events').insert({
@@ -74,8 +74,8 @@ export async function cancelOnHoldBooking(bookingId: string, formData: FormData)
     actor_user_id: adminId,
     actor_role: 'admin',
     event_type: 'booking_cancelled',
-    event_summary: `Admin cancelled booking while on hold. Reason: ${reason}`,
-    new_value: { status: 'cancelled', reason, pre_hold_status: 'on_hold_pending_documents' },
+    event_summary: `Admin cancelled booking while on hold. Reason: ${trimmedReason}`,
+    new_value: { status: 'cancelled', reason: trimmedReason, pre_hold_status: 'on_hold_pending_documents' },
   })
 
   const { data: notifyData } = await supabase
@@ -92,7 +92,7 @@ export async function cancelOnHoldBooking(bookingId: string, formData: FormData)
         customerEmail: email,
         customerName: (prof as { full_name?: string | null } | null)?.full_name ?? 'Pilot',
         ref: notifyData.booking_reference ?? bookingId.slice(0, 8).toUpperCase(),
-        reason,
+        reason: trimmedReason,
         bookingId,
       }).catch((error) => console.error('[cancelOnHoldBooking] notification error:', error))
     }
@@ -103,6 +103,16 @@ export async function cancelOnHoldBooking(bookingId: string, formData: FormData)
   revalidatePath('/admin/bookings/on-hold')
   revalidatePath(`/admin/bookings/requests/${bookingId}`)
   revalidatePath('/dashboard')
+}
 
-  redirect('/admin/bookings/on-hold')
+/** Form-action variant (legacy). Prefer cancelOnHoldBookingAction for client navigation. */
+export async function cancelOnHoldBooking(bookingId: string, formData: FormData): Promise<void> {
+  const reason = String(formData.get('reason') ?? '').trim()
+  await cancelOnHoldBookingCore(bookingId, reason)
+  redirect('/admin/bookings')
+}
+
+/** Client-callable cancel that does not force a server redirect. */
+export async function cancelOnHoldBookingAction(bookingId: string, reason: string): Promise<void> {
+  await cancelOnHoldBookingCore(bookingId, reason)
 }

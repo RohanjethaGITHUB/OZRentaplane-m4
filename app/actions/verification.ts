@@ -46,6 +46,10 @@ function revalidateVerificationPaths(userId: string) {
   revalidatePath('/dashboard/checkout')
   revalidatePath(`/admin/users/${userId}`)
   revalidatePath(`/admin/users/${userId}/documents`)
+  revalidatePath('/admin/bookings')
+  revalidatePath('/admin/bookings/on-hold')
+  revalidatePath('/admin/bookings/checkout')
+  revalidatePath('/admin/bookings/requests')
 }
 
 async function applyDocumentStatusUpdate(
@@ -89,6 +93,38 @@ async function applyDocumentStatusUpdate(
 
     if (eventError) {
       return { success: false, error: eventError.message || 'Document was rejected, but notification failed.' }
+    }
+
+    // Checkout requests stay in checkout_requested so admins can keep reviewing
+    // docs in place. The DB trigger historically put them on hold; undo that.
+    const { data: heldCheckoutRequests } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('booking_owner_user_id', input.userId)
+      .eq('status', 'on_hold_pending_documents')
+      .eq('pre_hold_status', 'checkout_requested')
+
+    for (const held of heldCheckoutRequests ?? []) {
+      const { error: restoreError } = await supabase
+        .from('bookings')
+        .update({
+          status: 'checkout_requested',
+          pre_hold_status: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', held.id)
+        .eq('status', 'on_hold_pending_documents')
+
+      if (!restoreError) {
+        await supabase.from('booking_status_history').insert({
+          booking_id: held.id,
+          old_status: 'on_hold_pending_documents',
+          new_status: 'checkout_requested',
+          changed_by_user_id: adminId,
+          note: 'Kept checkout_requested after document rejection so review can continue in place.',
+        })
+        revalidatePath(`/admin/bookings/requests/${held.id}`)
+      }
     }
   }
 

@@ -19,7 +19,7 @@ import {
 import AdminSubmitFlightRecordPanel from './AdminSubmitFlightRecordPanel'
 import AdminStandardBankTransferPanel from './AdminStandardBankTransferPanel'
 import AdminCancellationReviewCard from './AdminCancellationReviewCard'
-import AdminHoldBookingActions from './AdminHoldBookingActions'
+import AdminRejectDocsPanel from './AdminRejectDocsPanel'
 import { deriveBookingLifecycleStage } from '@/lib/booking/booking-lifecycle-stage'
 import { isStandardBookingInvoicePaid } from '@/lib/booking/standard-booking-payment-state'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
@@ -381,11 +381,12 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       .lt('start_time', expandedWindowEnd)
       .gt('end_time', expandedWindowStart)
       .order('start_time'),
-    // Customer documents — used in checkout review panel
+    // Customer documents — used in checkout review + on-hold reject docs panel
     supabase
       .from('user_documents')
-      .select('id, document_type, status, expiry_date, issue_date, file_name, licence_type, licence_number, medical_class, id_type, document_number, uploaded_at, user_document_files(id, file_name, storage_path)')
-      .eq('user_id', booking.booking_owner_user_id),
+      .select('id, document_type, status, expiry_date, issue_date, file_name, licence_type, licence_number, medical_class, id_type, document_number, uploaded_at, review_notes, reviewed_at, created_at, user_document_files(id, file_name, storage_path)')
+      .eq('user_id', booking.booking_owner_user_id)
+      .order('created_at', { ascending: false }),
     // Customer messages (verification_events) — used in checkout review panel
     supabase
       .from('verification_events')
@@ -448,10 +449,13 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     id_type?: string | null
     document_number?: string | null
     uploaded_at?: string | null
+    review_notes?: string | null
+    reviewed_at?: string | null
+    created_at?: string | null
     user_document_files?: { id: string; file_name: string; storage_path: string }[] | null
   }
 
-  const documents = ((rawDocuments ?? []) as RawCheckoutDocument[]).map((doc) => ({
+  const allDocuments = ((rawDocuments ?? []) as RawCheckoutDocument[]).map((doc) => ({
     ...doc,
     files: (doc.user_document_files ?? []).map((file) => ({
       id: file.id,
@@ -459,6 +463,23 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       storage_path: file.storage_path,
     })),
   }))
+
+  // Latest document per type (query is newest-first).
+  const latestByType = new Map<string, (typeof allDocuments)[number]>()
+  for (const doc of allDocuments) {
+    if (!latestByType.has(doc.document_type)) {
+      latestByType.set(doc.document_type, doc)
+    }
+  }
+  const documents = Array.from(latestByType.values())
+  const rejectedDocuments = documents
+    .filter((doc) => doc.status === 'rejected')
+    .map((doc) => ({
+      id: doc.id,
+      document_type: doc.document_type,
+      review_notes: doc.review_notes ?? null,
+      reviewed_at: doc.reviewed_at ?? null,
+    }))
   const messages         = rawMessages  ?? []
   const aircraftLogs     = (aircraftLogsRaw ?? []) as Record<string, unknown>[]
   const [checkoutInvoiceResult, suggestionsResult] = await Promise.all([
@@ -921,7 +942,22 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               </div>
             </div>
             <div className="w-full max-w-md">
-              <AdminHoldBookingActions bookingId={booking.id} />
+              <AdminRejectDocsPanel
+                bookingId={booking.id}
+                bookingReference={bookingRef}
+                customerId={booking.booking_owner_user_id}
+                customerName={(customer as { full_name?: string | null } | null)?.full_name ?? null}
+                customerEmail={(customer as { email?: string | null } | null)?.email ?? null}
+                aircraftLabel={[
+                  (aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/^Cessna 172$/, 'Cessna 172N'),
+                  (aircraft as { registration?: string } | null)?.registration,
+                ].filter(Boolean).join(' · ') || null}
+                scheduleLabel={[
+                  bookingSchedule.dateRange,
+                  bookingSchedule.timeRange,
+                ].filter(Boolean).join(' · ') || null}
+                rejectedDocuments={rejectedDocuments}
+              />
             </div>
           </div>
         </div>

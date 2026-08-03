@@ -1,5 +1,6 @@
 import { cancelOnHoldBooking } from './actions'
 
+/** @deprecated Prefer AdminRejectDocsPanel for on-hold document context. */
 export default function AdminHoldBookingActions({ bookingId }: { bookingId: string }) {
   const action = cancelOnHoldBooking.bind(null, bookingId)
 

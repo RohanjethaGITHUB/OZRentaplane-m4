@@ -790,6 +790,16 @@ export default async function CustomerBookingsPage() {
                     const bookingInvoice = booking.bookingInvoice
                     const bookingInvoiceHref = bookingInvoice?.pdf_url ?? `/dashboard/bookings/${booking.id}/invoice`
                     const bookingInvoiceLabel = bookingInvoice?.status === 'paid' ? 'DOWNLOAD RECEIPT' : 'DOWNLOAD INVOICE'
+                    const checkoutCancelMessage =
+                      booking.booking_type === 'checkout' && booking.status === 'cancelled'
+                        ? booking.checkout_lifecycle_status === 'cancelled_by_admin'
+                          ? (booking.admin_notes
+                              ? `Checkout cancelled by admin — ${booking.admin_notes}`
+                              : 'Checkout cancelled by admin')
+                          : booking.checkout_lifecycle_status === 'cancelled_by_customer'
+                            ? 'Checkout cancelled by customer'
+                            : 'Checkout cancelled'
+                        : null
                     return (
                       <div key={booking.id} className="bg-white border border-[#152d5a]/10 rounded-2xl overflow-hidden flex">
                         <div
@@ -812,18 +822,27 @@ export default async function CustomerBookingsPage() {
                               {(booking.aircraft_name ?? 'Cessna 172N').replace(/Cessna 172(?!N)/g, 'Cessna 172N')}
                             </p>
                             <p className="text-[12px] text-[#4b6390] mt-0.5">{booking.aircraft_registration ?? aircraft?.registration ?? 'VH-KZG'}</p>
-                            {booking.booking_type === 'checkout' && booking.status === 'cancelled' && (
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="material-symbols-outlined text-[13px] text-red-500 leading-none shrink-0">cancel</span>
-                                <span className="text-[12px] font-semibold text-red-500 leading-none">
-                                  {booking.checkout_lifecycle_status === 'cancelled_by_admin'
-                                    ? (booking.admin_notes
-                                        ? `Checkout cancelled by admin — ${booking.admin_notes}`
-                                        : 'Checkout cancelled by admin')
-                                    : booking.checkout_lifecycle_status === 'cancelled_by_customer'
-                                    ? 'Checkout cancelled by customer'
-                                    : 'Checkout cancelled'}
+                            {checkoutCancelMessage && (
+                              <div className="mt-1 flex min-w-0 max-w-full items-center gap-2">
+                                <span className="material-symbols-outlined shrink-0 text-[13px] leading-none text-red-500">
+                                  cancel
                                 </span>
+                                {booking.checkout_lifecycle_status === 'cancelled_by_admin' && booking.admin_notes ? (
+                                  <span
+                                    className="min-w-0 truncate text-[12px] font-medium leading-snug"
+                                    title={`Checkout cancelled by admin — ${booking.admin_notes}`}
+                                  >
+                                    <span className="text-red-500">Checkout cancelled by admin</span>
+                                    <span className="text-[#4b6390]"> — {booking.admin_notes}</span>
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="min-w-0 truncate text-[12px] font-medium leading-snug text-red-500"
+                                    title={checkoutCancelMessage}
+                                  >
+                                    {checkoutCancelMessage}
+                                  </span>
+                                )}
                               </div>
                             )}
                             {booking.booking_type === 'checkout' && booking.status !== 'cancelled' && checkoutOutcome && (

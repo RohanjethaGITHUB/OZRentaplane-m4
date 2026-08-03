@@ -20,6 +20,7 @@ import type { VerificationEvent } from '@/lib/supabase/types'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import { CHECKOUT_RATE_PER_HOUR } from '@/lib/pricing-constants'
 import {
+  AlertTriangle,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
@@ -27,7 +28,6 @@ import {
   DollarSign,
   Eye,
   FileText,
-  HelpCircle,
   XCircle,
 } from 'lucide-react'
 
@@ -150,7 +150,7 @@ function DocRow({
   const expired = doc?.expiry_date && doc.expiry_date < today
   const [viewLoadingIndex, setViewLoadingIndex] = useState<number | null>(null)
   const [viewError, setViewError] = useState<string | null>(null)
-  const [actionPending, setActionPending] = useState<'approved' | 'rejected' | null>(null)
+  const [actionPending, setActionPending] = useState<'approved' | 'rejected' | 'uploaded' | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [currentStatus, setCurrentStatus] = useState(doc?.status ?? '')
 
@@ -158,8 +158,8 @@ function DocRow({
     setCurrentStatus(doc?.status ?? '')
   }, [doc?.id, doc?.status])
 
-  async function handleDocAction(newStatus: 'approved' | 'rejected') {
-    if (!doc?.id) return
+  async function handleDocAction(newStatus: 'approved' | 'rejected' | 'uploaded') {
+    if (!doc?.id || actionPending) return
     setActionPending(newStatus)
     setActionError(null)
     const result = await updateDocumentStatus({
@@ -169,17 +169,22 @@ function DocRow({
     })
     if (result.success) {
       setCurrentStatus(newStatus)
-      router.refresh()
+      try {
+        await Promise.resolve(router.refresh())
+      } finally {
+        setActionPending(null)
+      }
     } else {
       setActionError(result.error ?? 'Action failed.')
+      setActionPending(null)
     }
-    setActionPending(null)
   }
 
   const resolvedStatus = statusOverride ?? currentStatus
   // Expiry wins over "approved" for medical/photo/night VFR (pilot licence expiry is not a blocker).
   const treatExpiryAsBlocker = docType !== 'pilot_licence'
   const showExpired = Boolean(expired && treatExpiryAsBlocker && resolvedStatus !== 'rejected')
+  const decisionRecorded = currentStatus === 'approved' || currentStatus === 'rejected'
 
   const statusLabel = statusOverride ?? (
     showExpired
@@ -252,7 +257,7 @@ function DocRow({
                     <button
                       key={f.id}
                       onClick={() => onOpenDocumentViewer(documentFiles, fileIndex, label)}
-                      disabled={viewLoadingIndex === fileIndex}
+                      disabled={viewLoadingIndex === fileIndex || !!actionPending}
                       title={f.file_name ?? `File ${fileIndex + 1}`}
                       className="inline-flex items-center gap-1 text-xs text-[#1a4fd6] hover:text-[#152d5a] font-medium transition-colors disabled:opacity-40 whitespace-nowrap underline-offset-2 hover:underline"
                     >
@@ -264,34 +269,48 @@ function DocRow({
               })()}
             </div>
 
-            <div className="flex items-center gap-1.5 w-[180px] justify-end">
+            <div className="flex items-center gap-1.5 min-w-[180px] justify-end">
               {showExpired ? (
                 <span className="inline-flex items-center gap-1 text-xs text-red-600 font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
                   <XCircle className="w-3 h-3" /> Expired
                 </span>
-              ) : currentStatus === 'approved' ? (
-                <span className="inline-flex items-center gap-1 text-xs text-green-600 font-semibold bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
-                  <CheckCircle2 className="w-3 h-3" /> Approved
-                </span>
-              ) : currentStatus === 'rejected' ? (
-                <span className="inline-flex items-center gap-1 text-xs text-red-500 font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
-                  <XCircle className="w-3 h-3" /> Rejected
-                </span>
+              ) : decisionRecorded ? (
+                <>
+                  {currentStatus === 'approved' ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-green-600 font-semibold bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
+                      <CheckCircle2 className="w-3 h-3" /> Approved
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs text-red-500 font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
+                      <XCircle className="w-3 h-3" /> Rejected
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDocAction('uploaded')}
+                    disabled={!!actionPending}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-white text-[#152d5a] border border-gray-200 font-semibold hover:bg-gray-50 transition-colors disabled:opacity-40 whitespace-nowrap"
+                  >
+                    {actionPending === 'uploaded' ? 'Undoing…' : 'Undo'}
+                  </button>
+                </>
               ) : (
                 <>
                   <button
+                    type="button"
                     onClick={() => handleDocAction('approved')}
                     disabled={!!actionPending}
                     className="text-xs px-3 py-1.5 rounded-lg bg-green-50 text-green-700 border border-green-200 font-semibold hover:bg-green-100 transition-colors disabled:opacity-40 whitespace-nowrap"
                   >
-                    {actionPending === 'approved' ? '…' : 'Approve'}
+                    {actionPending === 'approved' ? 'Approving…' : 'Approve'}
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleDocAction('rejected')}
                     disabled={!!actionPending}
                     className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600 border border-red-200 font-semibold hover:bg-red-100 transition-colors disabled:opacity-40 whitespace-nowrap"
                   >
-                    {actionPending === 'rejected' ? '…' : 'Reject'}
+                    {actionPending === 'rejected' ? 'Rejecting…' : 'Reject'}
                   </button>
                 </>
               )}
@@ -639,6 +658,9 @@ export default function AdminCheckoutReviewPanel({
     const status = forceAllApproved ? 'approved' : doc.status
     return isCheckoutDocReady(type, { ...doc, status })
   })
+  const confirmCheckoutDisabledReason = canConfirmCheckout
+    ? null
+    : 'Confirm Checkout is disabled until all required documents are approved and none are expired.'
   const allRequiredApproved = canConfirmCheckout
   const allDocsOk = canConfirmCheckout
   const nightVfrStatusOverride =
@@ -717,12 +739,6 @@ export default function AdminCheckoutReviewPanel({
             onOpenDocumentViewer={openDocumentViewer}
           />
         </div>
-
-        {!canConfirmCheckout && (
-          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            One or more required documents are not yet approved or have expired. Review document status before confirming checkout.
-          </div>
-        )}
 
         {bulkMessage && (
           <div className={`mt-4 rounded-2xl border px-4 py-3 ${bulkMessage.status === 'rejected' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
@@ -984,25 +1000,17 @@ export default function AdminCheckoutReviewPanel({
       </section>
 
       <div className="@container fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] md:px-6 md:py-4 lg:left-72">
-        <div className="mx-auto flex max-w-7xl flex-col-reverse gap-3 @[720px]:flex-row @[720px]:items-center @[720px]:justify-between">
-          <div className="flex w-full min-w-0 items-start gap-3 rounded-xl border border-[#c7d2fe] bg-[#eef2ff] px-4 py-2.5 @[720px]:max-w-md @[720px]:flex-1 @[720px]:items-center">
-            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[#4f46e5]">
-              <HelpCircle className="h-3.5 w-3.5 text-white" />
+        <div className="mx-auto flex max-w-7xl flex-col gap-2">
+          {!canConfirmCheckout && (
+            <div className="flex items-start gap-2.5 rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" aria-hidden="true" />
+              <span>
+                One or more required documents are not yet approved or have expired. Review document status before confirming checkout.
+              </span>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold leading-snug text-[#3730a3]">
-                Ready to decide?
-              </p>
-              <p className="mt-0.5 text-xs leading-relaxed text-[#6366f1]">
-                {canConfirmCheckout
-                  ? 'Choose the best action for this request.'
-                  : 'Approve all required documents (none expired) before confirming checkout.'}
-              </p>
-              {actionError && <p className="mt-1 text-xs text-rose-500">{actionError}</p>}
-            </div>
-          </div>
-
-          <div className="flex w-full flex-shrink-0 flex-wrap items-center justify-center gap-2 @[720px]:w-auto @[720px]:justify-end">
+          )}
+          {actionError && <p className="text-xs text-rose-500 text-center @[720px]:text-right">{actionError}</p>}
+          <div className="flex w-full flex-shrink-0 flex-wrap items-center justify-center gap-2 @[720px]:justify-end">
             <button
               type="button"
               onClick={() => {
@@ -1033,20 +1041,27 @@ export default function AdminCheckoutReviewPanel({
               <CalendarDays className="h-4 w-4" />
               Propose New Time
             </button>
-            <button
-              type="button"
-              onClick={handleConfirm}
-              disabled={confirmPending || !canConfirmCheckout}
-              title={
-                canConfirmCheckout
-                  ? undefined
-                  : 'All required documents must be approved and not expired'
-              }
-              className="inline-flex items-center gap-2 rounded-xl bg-[#152d5a] px-4 py-2 text-xs font-semibold text-white shadow-md transition-colors hover:bg-[#1a4fd6] disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:py-2.5"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              {confirmPending ? 'Confirming…' : 'Confirm Checkout'}
-            </button>
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={handleConfirm}
+                disabled={confirmPending || !canConfirmCheckout}
+                aria-describedby={!canConfirmCheckout && !confirmPending ? 'confirm-checkout-disabled-tooltip' : undefined}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#152d5a] px-4 py-2 text-xs font-semibold text-white shadow-md transition-colors hover:bg-[#1a4fd6] disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:py-2.5"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                {confirmPending ? 'Confirming…' : 'Confirm Checkout'}
+              </button>
+              {confirmCheckoutDisabledReason && !confirmPending ? (
+                <div
+                  id="confirm-checkout-disabled-tooltip"
+                  role="tooltip"
+                  className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-64 -translate-x-1/2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-center text-[11px] font-medium leading-snug text-slate-700 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                >
+                  {confirmCheckoutDisabledReason}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

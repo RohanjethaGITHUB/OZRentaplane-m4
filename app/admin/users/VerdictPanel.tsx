@@ -544,6 +544,8 @@ export function DocumentReviewCards({
 }) {
   const router = useRouter()
   const [loadingDocId, setLoadingDocId] = useState<string | null>(null)
+  const [loadingAction, setLoadingAction] = useState<'approved' | 'rejected' | 'uploaded' | null>(null)
+  const [statusByDocId, setStatusByDocId] = useState<Record<string, DocumentCardStatus>>({})
   const [errorByDocId, setErrorByDocId] = useState<Record<string, string>>({})
   const [bulkAction, setBulkAction] = useState<'approved' | 'rejected' | null>(null)
   const [bulkLoading, setBulkLoading] = useState(false)
@@ -591,7 +593,10 @@ export function DocumentReviewCards({
 
   async function updateStatus(doc: UserDocument | null, status: 'approved' | 'rejected' | 'uploaded') {
     if (!doc) return
+    const optimisticStatus: DocumentCardStatus = status === 'uploaded' ? 'pending' : status
     setLoadingDocId(doc.id)
+    setLoadingAction(status)
+    setStatusByDocId((prev) => ({ ...prev, [doc.id]: optimisticStatus }))
     setErrorByDocId((prev) => ({ ...prev, [doc.id]: '' }))
     try {
       const result = await updateDocumentStatus({
@@ -600,12 +605,28 @@ export function DocumentReviewCards({
         status,
       })
       if (!result.success) {
+        setStatusByDocId((prev) => {
+          const next = { ...prev }
+          delete next[doc.id]
+          return next
+        })
         setErrorByDocId((prev) => ({ ...prev, [doc.id]: result.error }))
         return
       }
-      router.refresh()
+      await Promise.resolve(router.refresh())
+    } catch (error) {
+      setStatusByDocId((prev) => {
+        const next = { ...prev }
+        delete next[doc.id]
+        return next
+      })
+      setErrorByDocId((prev) => ({
+        ...prev,
+        [doc.id]: error instanceof Error ? error.message : 'Action failed.',
+      }))
     } finally {
       setLoadingDocId(null)
+      setLoadingAction(null)
     }
   }
 
@@ -720,7 +741,7 @@ export function DocumentReviewCards({
       <div className="grid grid-cols-1 gap-4">
         {latestDocuments.map(({ documentType, doc }) => {
           const config = DOCUMENT_CARD_CONFIG[documentType]
-          const status = getDocumentStatus(doc)
+          const status = (doc && statusByDocId[doc.id]) || getDocumentStatus(doc)
           const isLoading = doc ? loadingDocId === doc.id : false
           const uploadDate = formatUploadedTimestamp(doc?.uploaded_at ?? null)
           const hasDocument = Boolean(doc)
@@ -797,30 +818,40 @@ export function DocumentReviewCards({
                   </div>
 
                   {status === 'pending' && doc ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => updateStatus(doc, 'approved')}
-                        disabled={isLoading}
-                        className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500 px-4 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateStatus(doc, 'rejected')}
-                        disabled={isLoading}
-                        className="inline-flex items-center rounded-full border border-red-200 bg-white px-4 py-2 text-[12px] font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Reject
-                      </button>
-                    </>
+                    isLoading && loadingAction === 'uploaded' ? (
+                      <span className="text-base font-medium text-[var(--admin-text-secondary)]">
+                        Undoing…
+                      </span>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => updateStatus(doc, 'approved')}
+                          disabled={isLoading}
+                          className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500 px-4 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {loadingAction === 'approved' && isLoading ? 'Approving…' : 'Approve'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateStatus(doc, 'rejected')}
+                          disabled={isLoading}
+                          className="inline-flex items-center rounded-full border border-red-200 bg-white px-4 py-2 text-[12px] font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {loadingAction === 'rejected' && isLoading ? 'Rejecting…' : 'Reject'}
+                        </button>
+                      </>
+                    )
                   ) : null}
 
                   {status === 'approved' || status === 'rejected' ? (
                     <>
-                      <span className="text-base font-medium text-[var(--admin-text-secondary)]">
-                        Decision recorded
+                      <span
+                        className={`text-base font-semibold ${
+                          status === 'approved' ? 'text-emerald-700' : 'text-red-700'
+                        }`}
+                      >
+                        {status === 'approved' ? 'Approved' : 'Rejected'}
                       </span>
                       <button
                         type="button"
@@ -828,7 +859,7 @@ export function DocumentReviewCards({
                         disabled={isLoading}
                         className="inline-flex items-center rounded-full border border-[var(--admin-border)] bg-white px-3 py-1.5 text-[11px] font-semibold text-[var(--admin-text)] transition-colors hover:bg-[var(--admin-panel-bg-soft)] disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        Undo
+                        {loadingAction === 'uploaded' && isLoading ? 'Undoing…' : 'Undo'}
                       </button>
                     </>
                   ) : null}
