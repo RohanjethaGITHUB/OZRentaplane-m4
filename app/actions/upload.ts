@@ -57,10 +57,9 @@ export async function uploadVerificationDocument(formData: FormData) {
     if (!expiryDate)   throw new Error('Expiry date is required for the Medical Certificate.')
   }
 
-  // Pilot licence requires licence type and instrument rating.
+  // Pilot licence requires licence type.
   if (docType === 'pilot_licence') {
-    if (!licenceType)                throw new Error('Licence type is required for the Pilot Licence.')
-    if (hasInstrumentRating === null) throw new Error('Instrument rating status is required for the Pilot Licence.')
+    if (!licenceType) throw new Error('Licence type is required for the Pilot Licence.')
     if (hasRedCard === true && (!redCardExpiryMonth || !redCardExpiryYear)) {
       throw new Error('Red Card expiry month and year are required when Red Card is set to Yes.')
     }
@@ -180,16 +179,17 @@ export async function uploadVerificationDocument(formData: FormData) {
 
     // When a pilot licence is uploaded, sync ARN and ratings to the customer's profile.
     if (docType === 'pilot_licence') {
-      const profileUpdate: Record<string, unknown> = {
-        has_instrument_rating: hasInstrumentRating,
-      }
+      const profileUpdate: Record<string, unknown> = {}
+      if (hasInstrumentRating !== null) profileUpdate.has_instrument_rating = hasInstrumentRating
       if (hasNightVfrRating !== null) profileUpdate.has_night_vfr_rating = hasNightVfrRating
       if (licenceNumber?.trim()) profileUpdate.pilot_arn = licenceNumber.trim()
 
-      await supabase
-        .from('profiles')
-        .update(profileUpdate)
-        .eq('id', user.id)
+      if (Object.keys(profileUpdate).length > 0) {
+        await supabase
+          .from('profiles')
+          .update(profileUpdate)
+          .eq('id', user.id)
+      }
       // Non-throwing — profile sync failure is not critical; document is already saved.
     }
   }

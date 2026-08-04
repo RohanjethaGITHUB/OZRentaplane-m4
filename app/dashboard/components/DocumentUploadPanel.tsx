@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
 import type { UserDocument, DocumentType } from '@/lib/supabase/types'
 import { uploadVerificationDocument, replaceVerificationDocument } from '@/app/actions/upload'
@@ -26,7 +27,7 @@ type DocUiState = 'missing' | 'under_review' | 'approved' | 'rejected' | 'expire
 type DocDef = { type: DocumentType; label: string; icon: string; desc: string }
 type UploadForm = {
   file: File[]; licenceType: string; licenceNumber: string
-  instrumentRating: boolean | null; medicalClass: string
+  medicalClass: string
   issueDate: string; expiryDate: string; idType: string; documentNumber: string
 }
 
@@ -45,7 +46,7 @@ export type DocumentUploadPanelProps = {
 }
 
 const EMPTY_FORM: UploadForm = {
-  file: [], licenceType: '', licenceNumber: '', instrumentRating: null,
+  file: [], licenceType: '', licenceNumber: '',
   medicalClass: '', issueDate: '', expiryDate: '', idType: '', documentNumber: '',
 }
 
@@ -225,7 +226,6 @@ export function UploadModal({ docType, existingDoc, onClose, onSuccess }: {
     if (form.file.length === 0) return 'Please select a file to upload.'
     if (docType === 'pilot_licence') {
       if (!form.licenceType) return 'Please select a licence type.'
-      if (form.instrumentRating === null) return 'Please confirm your Instrument Rating status.'
       if (!form.licenceNumber) return 'Please enter your pilot licence number / ARN.'
     }
     if (docType === 'medical_certificate') {
@@ -251,7 +251,6 @@ export function UploadModal({ docType, existingDoc, onClose, onSuccess }: {
         singleFd.append('file', f)
         singleFd.append('docType', docType)
         if (form.licenceType) singleFd.append('licenceType', form.licenceType)
-        if (form.instrumentRating !== null) singleFd.append('instrumentRating', String(form.instrumentRating))
         if (form.licenceNumber) singleFd.append('licenceNumber', form.licenceNumber)
         if (form.medicalClass) singleFd.append('medicalClass', form.medicalClass)
         if (form.issueDate) singleFd.append('issueDate', form.issueDate)
@@ -318,17 +317,6 @@ export function UploadModal({ docType, existingDoc, onClose, onSuccess }: {
               <label className="block text-[13px] font-semibold text-[#152d5a] mb-2">Licence number / ARN <span className="text-red-500">*</span></label>
               <input type="text" value={form.licenceNumber} onChange={e => set('licenceNumber', e.target.value)}
                 placeholder="e.g. 123456" className="w-full h-10 border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] bg-white focus:outline-none focus:border-blue-500/60" />
-            </div>
-            <div>
-              <label className="block text-[13px] font-semibold text-[#152d5a] mb-2">Instrument Rating <span className="text-red-500">*</span></label>
-              <div className="flex gap-3">
-                {([true, false] as const).map(val => (
-                  <button key={String(val)} type="button" onClick={() => set('instrumentRating', val)}
-                    className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all ${form.instrumentRating === val ? 'bg-[#dbeafe] border-[#93c5fd] text-[#152d5a]' : 'bg-white border-[#152d5a]/15 text-[#4b6390]'}`}>
-                    {val ? 'Yes' : 'No'}
-                  </button>
-                ))}
-              </div>
             </div>
           </>)}
           {docType === 'medical_certificate' && (<>
@@ -720,6 +708,12 @@ export default function DocumentUploadPanel({
     setIsScrolledToBottom(el.scrollTop + el.clientHeight >= el.scrollHeight - 10)
   }
 
+  function scrollTermsToBottom() {
+    const el = termsScrollRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+  }
+
   function validateAndScroll(): boolean {
     const errors: { s1?: string; s2?: string; s3?: string; s4?: string } = {}
     if (docChecks.some(({ state }) => state === 'missing')) errors.s1 = 'Please upload all required documents.'
@@ -972,10 +966,15 @@ export default function DocumentUploadPanel({
                       <TermsContent />
                     </div>
                     {!isScrolledToBottom && (
-                      <div className="flex items-center gap-2 border-t border-amber-500/20 bg-amber-50 px-4 py-2.5">
+                      <button
+                        type="button"
+                        onClick={scrollTermsToBottom}
+                        className="w-full flex items-center gap-2 border-t border-amber-500/20 bg-amber-50 hover:bg-amber-100/80 px-4 py-2.5 transition-colors cursor-pointer text-left"
+                        aria-label="Scroll to the bottom of the terms"
+                      >
                         <span className="material-symbols-outlined text-amber-600 text-[14px] animate-bounce">keyboard_arrow_down</span>
                         <p className="text-[13px] text-amber-700 font-medium">Scroll to the bottom to continue</p>
-                      </div>
+                      </button>
                     )}
                   </div>
                   <label className="flex items-start gap-3 rounded-xl border border-[#152d5a]/15 bg-[#f8fbff] px-4 py-3 cursor-pointer hover:border-[#1a4fd6]/30 transition-colors">
@@ -1021,14 +1020,14 @@ export default function DocumentUploadPanel({
       </div>
 
       {!onSubmit && (
-        <div className={`rounded-2xl border px-5 py-4 flex items-center gap-3 ${
+        <div className={`rounded-2xl border px-5 py-4 space-y-3 ${
           fullyReady ? 'border-green-500/20 bg-green-500/5' : allDocsUploaded && termsAccepted ? 'border-amber-500/20 bg-amber-500/5' : 'border-[#152d5a]/10 bg-white'
         }`}>
-          <span className={`material-symbols-outlined text-[20px] flex-shrink-0 ${fullyReady ? 'text-green-600' : allDocsUploaded && termsAccepted ? 'text-amber-600' : 'text-[#94a3b8]'}`}
-            style={{ fontVariationSettings: "'FILL' 1" }}>
-            {fullyReady ? 'check_circle' : allDocsUploaded && termsAccepted ? 'hourglass_top' : 'radio_button_unchecked'}
-          </span>
-          <div>
+          <div className="flex items-start gap-3">
+            <span className={`material-symbols-outlined text-[20px] flex-shrink-0 mt-0.5 ${fullyReady ? 'text-green-600' : allDocsUploaded && termsAccepted ? 'text-amber-600' : 'text-[#94a3b8]'}`}
+              style={{ fontVariationSettings: "'FILL' 1" }}>
+              {fullyReady ? 'check_circle' : allDocsUploaded && termsAccepted ? 'hourglass_top' : 'radio_button_unchecked'}
+            </span>
             <p className={`text-[14px] font-semibold ${fullyReady ? 'text-green-700' : allDocsUploaded && termsAccepted ? 'text-amber-700' : 'text-[#4b6390]'}`}>
               {fullyReady
                 ? "All documents approved — you're ready to request a checkout flight"
@@ -1037,6 +1036,17 @@ export default function DocumentUploadPanel({
                 : 'Complete all steps above to become eligible for a checkout flight'}
             </p>
           </div>
+          {allDocsUploaded && termsAccepted && (
+            <div className="flex justify-center">
+              <Link
+                href="/dashboard/checkout"
+                className="inline-flex items-center gap-1.5 bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e] font-semibold text-[13px] px-4 py-2.5 rounded-xl transition-colors whitespace-nowrap"
+              >
+                Book a Checkout
+                <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+              </Link>
+            </div>
+          )}
         </div>
       )}
 

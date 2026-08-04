@@ -314,15 +314,6 @@ export async function submitCheckoutRequest(
     }
   }
 
-  // Instrument rating must be answered on the stored profile.
-  if (profile.has_instrument_rating === null) {
-    return {
-      ok: false,
-      type: 'validation',
-      message: 'Please confirm your Instrument Rating status before submitting a checkout request.',
-    }
-  }
-
   // Night VFR gate: require at least one valid night_vfr_evidence document.
   if (input.has_night_vfr === true) {
     const nightVfrEvidence = docMap['night_vfr_evidence']

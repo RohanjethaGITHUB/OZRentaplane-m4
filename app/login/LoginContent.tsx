@@ -32,6 +32,7 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
 
   const [siEmail, setSiEmail] = useState('')
   const [siPassword, setSiPassword] = useState('')
+  const [siShowPassword, setSiShowPassword] = useState(false)
   const [siError, setSiError] = useState('')
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
   const [forgotEmail, setForgotEmail] = useState('')
@@ -46,6 +47,8 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
   const [suEmail, setSuEmail] = useState('')
   const [suPassword, setSuPassword] = useState('')
   const [suConfirm, setSuConfirm] = useState('')
+  const [suShowPassword, setSuShowPassword] = useState(false)
+  const [suShowConfirm, setSuShowConfirm] = useState(false)
   const [suError, setSuError] = useState('')
   const [suSuccess, setSuSuccess] = useState(false)
 
@@ -372,14 +375,24 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                       <div className="relative">
                         <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[#94a3b8] text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>lock</span>
                         <input
-                          type="password"
+                          type={siShowPassword ? 'text' : 'password'}
                           placeholder="Enter your password"
                           value={siPassword}
                           onChange={e => setSiPassword(e.target.value)}
                           required
                           disabled={loading}
-                          className={`${FIELD_INPUT_CLASS} pl-10 font-mono disabled:opacity-60`}
+                          className={`${FIELD_INPUT_CLASS} pl-10 pr-11 font-mono disabled:opacity-60`}
                         />
+                        <button
+                          type="button"
+                          onClick={() => setSiShowPassword(v => !v)}
+                          aria-label={siShowPassword ? 'Hide password' : 'Show password'}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-[#94a3b8] hover:text-[#4b6390] transition-colors leading-none"
+                        >
+                          <span className="material-symbols-outlined text-[18px] leading-none block" style={{ fontVariationSettings: "'wght' 300" }}>
+                            {siShowPassword ? 'visibility_off' : 'visibility'}
+                          </span>
+                        </button>
                       </div>
                     </div>
 
@@ -594,14 +607,24 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                         <div className="relative">
                           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[#94a3b8] text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>lock</span>
                           <input
-                            type="password"
+                            type={suShowPassword ? 'text' : 'password'}
                             placeholder="••••••••"
                             value={suPassword}
                             onChange={e => setSuPassword(e.target.value)}
                             required
                             disabled={loading}
-                            className={`${FIELD_INPUT_CLASS} pl-10 font-mono disabled:opacity-60`}
+                            className={`${FIELD_INPUT_CLASS} pl-10 pr-11 font-mono disabled:opacity-60`}
                           />
+                          <button
+                            type="button"
+                            onClick={() => setSuShowPassword(v => !v)}
+                            aria-label={suShowPassword ? 'Hide password' : 'Show password'}
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-[#94a3b8] hover:text-[#4b6390] transition-colors leading-none"
+                          >
+                            <span className="material-symbols-outlined text-[18px] leading-none block" style={{ fontVariationSettings: "'wght' 300" }}>
+                              {suShowPassword ? 'visibility_off' : 'visibility'}
+                            </span>
+                          </button>
                         </div>
                       </div>
                       <div>
@@ -609,14 +632,24 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                         <div className="relative">
                           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[#94a3b8] text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>lock</span>
                           <input
-                            type="password"
+                            type={suShowConfirm ? 'text' : 'password'}
                             placeholder="••••••••"
                             value={suConfirm}
                             onChange={e => setSuConfirm(e.target.value)}
                             required
                             disabled={loading}
-                            className={`${FIELD_INPUT_CLASS} pl-10 font-mono disabled:opacity-60`}
+                            className={`${FIELD_INPUT_CLASS} pl-10 pr-11 font-mono disabled:opacity-60`}
                           />
+                          <button
+                            type="button"
+                            onClick={() => setSuShowConfirm(v => !v)}
+                            aria-label={suShowConfirm ? 'Hide confirm password' : 'Show confirm password'}
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-[#94a3b8] hover:text-[#4b6390] transition-colors leading-none"
+                          >
+                            <span className="material-symbols-outlined text-[18px] leading-none block" style={{ fontVariationSettings: "'wght' 300" }}>
+                              {suShowConfirm ? 'visibility_off' : 'visibility'}
+                            </span>
+                          </button>
                         </div>
                       </div>
                     </div>
