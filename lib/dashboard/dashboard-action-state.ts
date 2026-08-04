@@ -443,6 +443,40 @@ export function resolveDashboardActionState(input: DashboardActionStateInput): D
     })
   }
 
+  // Checkout-first for new customers: the checkout wizard collects docs, terms,
+  // Night VFR, and flight review — so do not trap them on "Open Documents".
+  if (clearanceStatus === 'checkout_required' && !checkoutSubmitted) {
+    const fileIncomplete =
+      readiness.missingDocumentItems.length > 0 ||
+      readiness.hasExpiredDocument ||
+      readiness.termsIncomplete ||
+      readiness.nightVfrUnanswered ||
+      readiness.flightRecencyMissing
+
+    return buildState({
+      phase: 'checkout',
+      statusKey: 'checkout_required',
+      tone: 'warning',
+      responsibleActor: 'customer',
+      customerActionRequired: true,
+      heroLabel: 'Checkout Required',
+      heroMessage: fileIncomplete
+        ? 'Book your checkout flight — you can upload required documents as part of the request.'
+        : 'Your pilot file is ready for the next step: requesting your checkout flight.',
+      actionHeading: 'Request your checkout',
+      actionDescription: fileIncomplete
+        ? 'Choose a checkout time, then complete your documents, terms, and flight details in the same request flow.'
+        : 'Choose a checkout time so the team can review and confirm your assessment booking.',
+      primaryAction: { label: 'Request Checkout', href: '/dashboard/checkout' },
+      secondaryAction: { label: 'View Documents', href: '/dashboard/documents' },
+      nextMilestone: fileIncomplete
+        ? 'After you pick a time and upload your documents, the team will review your request and confirm the checkout booking.'
+        : 'After you submit a request, the team will review your file and confirm the checkout booking.',
+      journeyStep: 'checkout',
+      severityReason: 'checkout_required',
+    })
+  }
+
   if (readiness.hasExpiredDocument) {
     return buildState({
       phase: 'documents',
@@ -556,25 +590,6 @@ export function resolveDashboardActionState(input: DashboardActionStateInput): D
       nextMilestone: 'After your flight review date is saved, the remaining readiness checks can continue.',
       journeyStep: 'documents',
       severityReason: 'flight_recency_missing_or_invalid',
-    })
-  }
-
-  if (clearanceStatus === 'checkout_required' && !checkoutSubmitted && readiness.checkoutRequestReady) {
-    return buildState({
-      phase: 'checkout',
-      statusKey: 'checkout_required',
-      tone: 'warning',
-      responsibleActor: 'customer',
-      customerActionRequired: true,
-      heroLabel: 'Checkout Required',
-      heroMessage: 'Your pilot file is ready for the next step: requesting your checkout flight.',
-      actionHeading: 'Request your checkout',
-      actionDescription: 'Choose a checkout time so the team can review and confirm your assessment booking.',
-      primaryAction: { label: 'Request Checkout', href: '/dashboard/checkout' },
-      secondaryAction: { label: 'View Documents', href: '/dashboard/documents' },
-      nextMilestone: 'After you submit a request, the team will review your file and confirm the checkout booking.',
-      journeyStep: 'checkout',
-      severityReason: 'checkout_required',
     })
   }
 

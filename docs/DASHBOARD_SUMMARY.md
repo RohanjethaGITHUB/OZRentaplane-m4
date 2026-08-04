@@ -58,26 +58,27 @@ Side branches:
 ```
 1. Sign Up
 2. Login → Dashboard (clearance_status = checkout_required)
-3. Upload 3 required documents (Pilot Licence, Medical, Photo ID)
-4. Book Checkout Flight
-   - Pick date/time → confirm Night VFR rating → check doc gate → accept terms → submit
+   - Primary CTA: Request Checkout (not Documents first)
+3. Book Checkout Flight
+   - Pick date/time → upload required documents (Pilot Licence, Medical, Photo ID)
+     → confirm Night VFR rating → accept terms → submit
    [Status: checkout_requested]
-5. Admin reviews request → confirms
+4. Admin reviews request → confirms
    [Status: checkout_confirmed]
-6. Checkout flight day
+5. Checkout flight day
    [Status: checkout_completed_under_review]
-7. Admin reviews checkout result → clears pilot
+6. Admin reviews checkout result → clears pilot
    [Status: checkout_payment_required]
-8. Pay Checkout Invoice (credit card or bank transfer)
+7. Pay Checkout Invoice (credit card or bank transfer)
    [Status: cleared_to_fly]
-9. Book Aircraft Rental
+8. Book Aircraft Rental
    - Pick date/time → confirm flight recency → accept terms → submit
    [Status: pending_confirmation]
-10. Admin confirms rental
-    [Status: confirmed → ready_for_dispatch → dispatched]
-11. Post-flight: submit VDO & tacho readings
+9. Admin confirms rental
+   [Status: confirmed → ready_for_dispatch → dispatched]
+10. Post-flight: submit VDO & tacho readings
     [Status: awaiting_flight_record → pending_post_flight_review]
-12. Admin reviews → completes booking
+11. Admin reviews → completes booking
     [Status: completed]
 ```
 

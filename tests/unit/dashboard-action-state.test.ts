@@ -201,6 +201,131 @@ test('night vfr false completes that requirement and allows checkout request sta
   assert.equal(state.primaryAction?.href, '/dashboard/checkout')
 })
 
+test('checkout required with missing documents still routes to checkout', () => {
+  const documents = [approvedDocument('pilot_licence')]
+  const state = resolveDashboardActionState(
+    buildInput({
+      documents,
+      bookingReadiness: evaluateBookingReadinessDecision({
+        clearanceStatus: 'checkout_required',
+        hasHistoricalClearance: false,
+        hasPaidCheckoutInvoice: false,
+        documents,
+        hasNightVfrRating: false,
+        lastFlightDate: '2026-06-15',
+        termsAccepted: true,
+      }),
+    }),
+  )
+
+  assert.equal(state.statusKey, 'checkout_required')
+  assert.equal(state.primaryAction?.href, '/dashboard/checkout')
+  assert.equal(state.secondaryAction?.href, '/dashboard/documents')
+  assert.match(state.heroMessage, /upload required documents/i)
+})
+
+test('checkout required with incomplete terms still routes to checkout', () => {
+  const documents = baseDocuments(false)
+  const state = resolveDashboardActionState(
+    buildInput({
+      documents,
+      bookingReadiness: evaluateBookingReadinessDecision({
+        clearanceStatus: 'checkout_required',
+        hasHistoricalClearance: false,
+        hasPaidCheckoutInvoice: false,
+        documents,
+        hasNightVfrRating: false,
+        lastFlightDate: '2026-06-15',
+        termsAccepted: false,
+      }),
+    }),
+  )
+
+  assert.equal(state.statusKey, 'checkout_required')
+  assert.equal(state.primaryAction?.href, '/dashboard/checkout')
+})
+
+test('checkout required with unanswered night vfr still routes to checkout', () => {
+  const documents = baseDocuments(false)
+  const state = resolveDashboardActionState(
+    buildInput({
+      profile: {
+        account_status: 'active',
+        account_lock_reason: null,
+        pilot_clearance_status: 'checkout_required',
+        has_night_vfr_rating: null,
+        last_flight_date: '2026-06-15',
+      },
+      documents,
+      bookingReadiness: evaluateBookingReadinessDecision({
+        clearanceStatus: 'checkout_required',
+        hasHistoricalClearance: false,
+        hasPaidCheckoutInvoice: false,
+        documents,
+        hasNightVfrRating: null,
+        lastFlightDate: '2026-06-15',
+        termsAccepted: true,
+      }),
+    }),
+  )
+
+  assert.equal(state.statusKey, 'checkout_required')
+  assert.equal(state.primaryAction?.href, '/dashboard/checkout')
+})
+
+test('night vfr proof missing after clearance still requires documents', () => {
+  const documents = baseDocuments(false)
+  const state = resolveDashboardActionState(
+    buildInput({
+      profile: {
+        account_status: 'active',
+        account_lock_reason: null,
+        pilot_clearance_status: 'cleared_to_fly',
+        has_night_vfr_rating: true,
+        last_flight_date: '2026-06-15',
+      },
+      documents,
+      bookingReadiness: evaluateBookingReadinessDecision({
+        clearanceStatus: 'cleared_to_fly',
+        hasHistoricalClearance: true,
+        hasPaidCheckoutInvoice: false,
+        documents,
+        hasNightVfrRating: true,
+        lastFlightDate: '2026-06-15',
+        termsAccepted: true,
+      }),
+    }),
+  )
+
+  assert.equal(state.statusKey, 'night_vfr_proof_required')
+  assert.equal(state.primaryAction?.href, '/dashboard/documents')
+})
+
+test('rejected documents still take priority over checkout request', () => {
+  const documents = [
+    rejectedDocument('pilot_licence'),
+    approvedDocument('medical_certificate'),
+    approvedDocument('photo_id'),
+  ]
+  const state = resolveDashboardActionState(
+    buildInput({
+      documents,
+      bookingReadiness: evaluateBookingReadinessDecision({
+        clearanceStatus: 'checkout_required',
+        hasHistoricalClearance: false,
+        hasPaidCheckoutInvoice: false,
+        documents,
+        hasNightVfrRating: false,
+        lastFlightDate: '2026-06-15',
+        termsAccepted: true,
+      }),
+    }),
+  )
+
+  assert.equal(state.statusKey, 'documents_rejected')
+  assert.equal(state.primaryAction?.href, '/dashboard/documents')
+})
+
 test('night vfr true requires proof when evidence is missing', () => {
   const documents = baseDocuments(false)
   const state = resolveDashboardActionState(
@@ -225,7 +350,9 @@ test('night vfr true requires proof when evidence is missing', () => {
     }),
   )
 
-  assert.equal(state.statusKey, 'night_vfr_proof_required')
+  // Checkout-first: missing Night VFR proof no longer blocks the checkout CTA.
+  assert.equal(state.statusKey, 'checkout_required')
+  assert.equal(state.primaryAction?.href, '/dashboard/checkout')
 })
 
 test('pending checkout bank proof becomes an admin-waiting state', () => {
