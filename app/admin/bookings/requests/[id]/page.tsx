@@ -357,6 +357,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     { data: standardBookingInvoiceRow },
     { data: flightRecordRow },
     { data: aircraftLogsRaw },
+    { data: clearanceOverrideAuditRows },
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -434,6 +435,19 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           .order('log_number', { ascending: false })
           .limit(50)
       : Promise.resolve({ data: null, error: null }),
+    bookingType === 'checkout'
+      ? supabase
+          .from('booking_audit_events')
+          .select('id, event_type, event_summary, new_value, created_at, actor_user_id')
+          .eq('booking_id', booking.id)
+          .in('event_type', [
+            'checkout_manual_completion_submitted',
+            'checkout_outcome_recorded',
+            'checkout_cancelled',
+          ])
+          .order('created_at', { ascending: false })
+          .limit(10)
+      : Promise.resolve({ data: null, error: null }),
   ])
 
   type RawCheckoutDocument = {
@@ -453,6 +467,69 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     reviewed_at?: string | null
     created_at?: string | null
     user_document_files?: { id: string; file_name: string; storage_path: string }[] | null
+  }
+
+  const clearanceOverrideAudit = ((clearanceOverrideAuditRows ?? []) as Array<{
+    id: string
+    event_type: string
+    event_summary: string | null
+    new_value: unknown
+    created_at: string
+    actor_user_id: string | null
+  }>).find((row) => {
+    const value = row.new_value
+    if (value && typeof value === 'object' && (value as { source?: string }).source === 'clearance_override') {
+      return true
+    }
+    return (row.event_summary ?? '').toLowerCase().includes('clearance override')
+  }) ?? null
+
+  let clearanceOverrideNotice: {
+    outcomeLabel: string
+    recordedAt: string
+    recordedByName: string | null
+    actionLabel: string
+  } | null = null
+
+  if (clearanceOverrideAudit) {
+    const value = (clearanceOverrideAudit.new_value ?? {}) as {
+      outcome?: string
+      booking_status?: string
+    }
+    const outcome = value.outcome ?? 'updated'
+    const outcomeLabel = outcome.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    const actionLabel =
+      clearanceOverrideAudit.event_type === 'checkout_cancelled'
+        ? 'cancelled via Update Checkout Result'
+        : 'completed via Update Checkout Result'
+
+    let recordedByName: string | null = null
+    if (clearanceOverrideAudit.actor_user_id) {
+      const { data: actorProfile } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', clearanceOverrideAudit.actor_user_id)
+        .maybeSingle()
+      recordedByName = actorProfile?.full_name || actorProfile?.email || null
+    }
+
+    clearanceOverrideNotice = {
+      outcomeLabel,
+      recordedAt: clearanceOverrideAudit.created_at,
+      recordedByName,
+      actionLabel,
+    }
+  } else if (
+    bookingType === 'checkout' &&
+    typeof booking.admin_notes === 'string' &&
+    booking.admin_notes.toLowerCase().includes('clearance override')
+  ) {
+    clearanceOverrideNotice = {
+      outcomeLabel: 'Cleared To Fly',
+      recordedAt: booking.updated_at,
+      recordedByName: null,
+      actionLabel: 'completed via Update Checkout Result',
+    }
   }
 
   const allDocuments = ((rawDocuments ?? []) as RawCheckoutDocument[]).map((doc) => ({
@@ -492,7 +569,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         checkout_duration_hours,
         checkout_final_amount_cents,
         total_paid_cents,
-        status
+        status,
+        paid_at
       `)
       .eq('booking_id', booking.id)
       .maybeSingle(),
@@ -701,16 +779,43 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             : 'Not recorded',
           totalChargedLabel: checkoutInvoice.checkout_final_amount_cents
             ? `$${(checkoutInvoice.checkout_final_amount_cents / 100).toFixed(2)}`
-            : '$—',
-          isPaid: (checkoutInvoice.total_paid_cents ?? 0) > 0,
-          paidAmountLabel: checkoutInvoice.total_paid_cents != null
-            ? `$${(checkoutInvoice.total_paid_cents / 100).toFixed(2)}`
-            : null,
-          paymentDetailLabel: checkoutInvoice.total_paid_cents && checkoutInvoice.total_paid_cents > 0
-            ? `Bank transfer · in person · ${formatDateTime(booking.updated_at)}`
-            : null,
+            : ((checkoutInvoice.total_paid_cents ?? 0) > 0
+                ? `$${(checkoutInvoice.total_paid_cents / 100).toFixed(2)}`
+                : '$0.00'),
+          isPaid:
+            (checkoutInvoice.total_paid_cents ?? 0) > 0 ||
+            checkoutInvoice.status === 'paid' ||
+            checkoutInvoice.status === 'waived' ||
+            (booking.status === 'completed' && checkoutInvoice.status === 'void'),
+          paidAmountLabel:
+            (checkoutInvoice.total_paid_cents ?? 0) > 0
+              ? `$${(checkoutInvoice.total_paid_cents / 100).toFixed(2)}`
+              : checkoutInvoice.status === 'paid' ||
+                  checkoutInvoice.status === 'waived' ||
+                  (booking.status === 'completed' && checkoutInvoice.status === 'void')
+                ? '$0.00'
+                : null,
+          paymentDetailLabel:
+            (checkoutInvoice.total_paid_cents ?? 0) > 0 ||
+            checkoutInvoice.status === 'paid' ||
+            checkoutInvoice.status === 'waived' ||
+            (booking.status === 'completed' && checkoutInvoice.status === 'void')
+              ? `Bank transfer · in person · ${formatDateTime(
+                  (checkoutInvoice as { paid_at?: string | null }).paid_at ?? booking.updated_at,
+                )}`
+              : null,
         }
-      : null
+      : bookingType === 'checkout' && booking.status === 'completed'
+        // Legacy clearance-override completes before settled invoices existed.
+        ? {
+            hourlyRateLabel: `$${CHECKOUT_RATE_PER_HOUR}.00/hr`,
+            vdoDurationLabel: 'Not recorded',
+            totalChargedLabel: '$0.00',
+            isPaid: true,
+            paidAmountLabel: '$0.00',
+            paymentDetailLabel: `Bank transfer · in person · ${formatDateTime(booking.updated_at)}`,
+          }
+        : null
   // bookingType is already declared above (const bookingType = ...)
   const statusCfgBase = STATUS_CFG[status] ?? {
     label:  status.replace(/_/g, ' '),
@@ -917,6 +1022,28 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             </div>
           </div>
         </div>
+
+      {clearanceOverrideNotice && (
+        <div className="mb-6 rounded-2xl border border-[#1a4fd6]/20 bg-[#f0f6ff] px-5 py-4">
+          <div className="flex items-start gap-3">
+            <span className="material-symbols-outlined text-[#1a4fd6] text-[22px] mt-0.5">info</span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-[#152d5a]">
+                Completed by admin clearance override
+              </h2>
+              <p className="mt-1 text-sm text-[#4b6390] leading-relaxed">
+                This checkout was {clearanceOverrideNotice.actionLabel}
+                {clearanceOverrideNotice.recordedByName
+                  ? ` by ${clearanceOverrideNotice.recordedByName}`
+                  : ''}
+                {' '}on {formatDateTime(clearanceOverrideNotice.recordedAt)}.
+                Outcome set to <span className="font-semibold text-[#152d5a]">{clearanceOverrideNotice.outcomeLabel}</span>.
+                Document approval, booking completion, and payment settlement were applied automatically — the normal confirm → mark completed → finalise charges steps were bypassed.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isOnHold && (
         <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-4">
@@ -1375,6 +1502,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                       <div className="text-[10px] text-green-600 mt-1">
                         {chargesAndPayment?.paymentDetailLabel ?? 'Paid'}
                       </div>
+                      {clearanceOverrideNotice && (
+                        <p className="text-[10px] text-green-700/80 mt-1.5 leading-relaxed">
+                          Settled via admin clearance override (Mark as Already Paid bypass).
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <div className="bg-amber-50 rounded-xl p-3 mt-2">

@@ -68,7 +68,7 @@ type Props = {
 
 const STATUS_OPTIONS = [
   { value: 'cleared_to_fly', label: 'Cleared to fly' },
-  { value: 'checkout_requested', label: 'Checkout required' },
+  { value: 'checkout_required', label: 'Checkout required' },
   { value: 'additional_checkout_required', label: 'Additional checkout required' },
   { value: 'not_currently_eligible', label: 'Not eligible' },
 ]
@@ -77,7 +77,7 @@ function getStatusBadge(status: string): { label: string; className: string } {
   if (status === 'cleared_to_fly') {
     return { label: 'Cleared to fly', className: 'bg-green-50 text-green-700 border border-green-200' }
   }
-  if (status === 'checkout_requested') {
+  if (status === 'checkout_required' || status === 'checkout_requested') {
     return { label: 'Checkout required', className: 'bg-amber-50 text-amber-700 border border-amber-200' }
   }
   if (status === 'additional_checkout_required') {

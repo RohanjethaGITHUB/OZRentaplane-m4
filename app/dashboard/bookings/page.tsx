@@ -8,6 +8,10 @@ import { formatDateFromISO } from '@/lib/formatDateTime'
 import { formatSydTime } from '@/lib/utils/sydney-time'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
+import {
+  CHECKOUT_OUTCOME_AUDIT_EVENT_TYPES,
+  outcomeFromAuditNewValue,
+} from '@/lib/checkout-outcome'
 
 export const metadata = { title: 'My Bookings | OZRentAPlane' }
 export const dynamic = 'force-dynamic'
@@ -50,6 +54,7 @@ const ACTIVE_STATUSES = [
 const CHECKOUT_OUTCOME_BADGE: Record<string, { label: string; color: string; bg: string; border: string; icon: string }> = {
   cleared_to_fly:               { label: 'Cleared to Fly',               color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', icon: 'verified'    },
   additional_checkout_required: { label: 'Additional Checkout Required', color: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-200',  icon: 'schedule'    },
+  checkout_required:            { label: 'Checkout Required',            color: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-200',  icon: 'how_to_reg'  },
   checkout_reschedule_required: { label: 'Reschedule Required',          color: 'text-blue-700',   bg: 'bg-blue-50',   border: 'border-blue-200',   icon: 'event_repeat'},
   not_currently_eligible:       { label: 'Not Currently Eligible',       color: 'text-red-700',    bg: 'bg-red-50',    border: 'border-red-200',    icon: 'block'       },
 }
@@ -399,6 +404,23 @@ export default async function CustomerBookingsPage() {
         checkoutOutcomeMap[row.booking_id] = row.checkout_outcome
       }
     }
+
+    const missingOutcomeIds = completedCheckoutIds.filter((id) => !checkoutOutcomeMap[id])
+    if (missingOutcomeIds.length > 0) {
+      const { data: auditRows } = await supabase
+        .from('booking_audit_events')
+        .select('booking_id, event_type, new_value, created_at')
+        .in('booking_id', missingOutcomeIds)
+        .in('event_type', [...CHECKOUT_OUTCOME_AUDIT_EVENT_TYPES])
+        .order('created_at', { ascending: false })
+
+      for (const row of auditRows ?? []) {
+        const bookingId = row.booking_id as string
+        if (!bookingId || checkoutOutcomeMap[bookingId]) continue
+        const outcome = outcomeFromAuditNewValue(row.new_value)
+        if (outcome) checkoutOutcomeMap[bookingId] = outcome
+      }
+    }
   }
 
   const checkoutBooking = rowsWithInvoices.find(b =>
@@ -708,7 +730,15 @@ export default async function CustomerBookingsPage() {
                               }`}>
                                 {booking.booking_type === 'checkout' ? 'Checkout Flight' : 'Rental Booking'}
                               </span>
-                              <StatusBadge status={booking.status} />
+                              <StatusBadge
+                                status={booking.status}
+                                bookingType={booking.booking_type}
+                                checkoutOutcome={
+                                  booking.booking_type === 'checkout'
+                                    ? checkoutOutcomeMap[booking.id] ?? null
+                                    : null
+                                }
+                              />
                             </div>
                             <div>
                               <p className="text-[18px] font-semibold text-[#152d5a] leading-snug">
@@ -815,7 +845,11 @@ export default async function CustomerBookingsPage() {
                             }`}>
                               {booking.booking_type === 'checkout' ? 'Checkout Flight' : 'Rental Booking'}
                             </span>
-                            <StatusBadge status={booking.status} />
+                            <StatusBadge
+                              status={booking.status}
+                              bookingType={booking.booking_type}
+                              checkoutOutcome={checkoutOutcome}
+                            />
                           </div>
                           <div>
                             <p className="text-[18px] font-semibold text-[#152d5a] leading-snug">
@@ -857,6 +891,7 @@ export default async function CustomerBookingsPage() {
                                 }`}>
                                   {checkoutOutcome === 'cleared_to_fly' ? 'Outcome: Cleared to fly' :
                                    checkoutOutcome === 'additional_checkout_required' ? 'Outcome: Additional checkout required' :
+                                   checkoutOutcome === 'checkout_required' ? 'Outcome: Checkout required' :
                                    checkoutOutcome === 'not_currently_eligible' ? 'Outcome: Not currently eligible' :
                                    checkoutOutcome === 'checkout_reschedule_required' ? 'Outcome: Reschedule required' :
                                    `Outcome: ${checkoutOutcome.replace(/_/g, ' ')}`}

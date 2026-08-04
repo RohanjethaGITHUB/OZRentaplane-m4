@@ -15,10 +15,19 @@ import {
   emitOpsChanged,
   emitLedgerUpdated,
   emitClearanceUpdated,
+  emitBookingChanged,
+  emitPaymentUpdated,
 } from '@/lib/realtime/emit'
 import type { ThreadSummary, VerificationEvent, ActorRole, RequestKind } from '@/lib/supabase/types'
 import type { AdminThreadListFilter, AdminThreadListPage } from '@/lib/chat/admin-threads'
 import { ADMIN_THREAD_PAGE_SIZE } from '@/lib/chat/admin-threads'
+import {
+  MID_FLOW_CHECKOUT_STATUSES,
+  OVERRIDE_APPROVABLE_DOC_TYPES,
+  clearanceOverrideNotification,
+  resolveCheckoutBookingAction,
+} from '@/lib/admin/clearance-override'
+import { settleClearanceOverrideInvoice } from '@/lib/admin/clearance-override-settlement'
 
 // ─── Admin guard ──────────────────────────────────────────────────────────────
 
@@ -848,9 +857,9 @@ export async function updateAccountStatus(
 }
 
 // ─── Update pilot clearance status ───────────────────────────────────────────
-// Admin manually overrides a customer's pilot clearance status.
-// Used for edge cases such as manually clearing a pilot or marking them
-// not eligible without going through the full checkout flow.
+// Admin power override (friend path): sets clearance without the full
+// confirm → mark completed → outcome → payment flow. Cascades docs,
+// open checkout bookings, historical evidence, notifications, and sockets.
 
 export async function updatePilotClearanceStatus(
   customerId: string,
@@ -859,6 +868,7 @@ export async function updatePilotClearanceStatus(
 ) {
   const { supabase, adminId } = await requireAdmin()
   const now = new Date().toISOString()
+  const trimmedNote = note?.trim() || null
 
   const ALLOWED = [
     'checkout_required',
@@ -876,11 +886,256 @@ export async function updatePilotClearanceStatus(
     throw new Error(`VALIDATION: Invalid clearance status: ${status}`)
   }
 
+  // ── 1. Auto-approve uploaded required docs (bypass doc review) ────────────
+  let docsApproved = false
+  if (
+    status === 'cleared_to_fly' ||
+    status === 'checkout_required' ||
+    status === 'additional_checkout_required' ||
+    status === 'not_currently_eligible'
+  ) {
+    const { data: uploadedDocs, error: docsFetchError } = await supabase
+      .from('user_documents')
+      .select('id, document_type, status')
+      .eq('user_id', customerId)
+      .eq('status', 'uploaded')
+      .in('document_type', [...OVERRIDE_APPROVABLE_DOC_TYPES])
+
+    if (docsFetchError) {
+      throw new Error(`Failed to load documents for clearance override: ${docsFetchError.message}`)
+    }
+
+    const ids = (uploadedDocs ?? []).map((d) => d.id)
+    if (ids.length > 0) {
+      const { error: docsUpdateError } = await supabase
+        .from('user_documents')
+        .update({
+          status: 'approved',
+          review_notes: trimmedNote || 'Auto-approved via admin clearance override.',
+          reviewed_at: now,
+        })
+        .in('id', ids)
+        .eq('user_id', customerId)
+
+      if (docsUpdateError) {
+        throw new Error(`Failed to auto-approve documents: ${docsUpdateError.message}`)
+      }
+      docsApproved = true
+    }
+  }
+
+  // ── 2. Resolve open mid-flow checkout bookings ────────────────────────────
+  const { data: openBookings, error: bookingsFetchError } = await supabase
+    .from('bookings')
+    .select('id, status, aircraft_id, booking_type')
+    .eq('booking_owner_user_id', customerId)
+    .eq('booking_type', 'checkout')
+    .in('status', [...MID_FLOW_CHECKOUT_STATUSES])
+
+  if (bookingsFetchError) {
+    throw new Error(`Failed to load checkout bookings: ${bookingsFetchError.message}`)
+  }
+
+  const touchedBookingIds: string[] = []
+  const settledPayments: Array<{ bookingId: string; invoiceId: string }> = []
+
+  for (const booking of openBookings ?? []) {
+    const action = resolveCheckoutBookingAction(status, booking.status)
+    if (!action) continue
+
+    const oldStatus = booking.status
+
+    if (action === 'complete') {
+      const { error: bookingUpdateErr } = await supabase
+        .from('bookings')
+        .update({
+          status: 'completed',
+          checkout_lifecycle_status: 'completed',
+          updated_at: now,
+          admin_notes: trimmedNote || `Completed via admin clearance override (${status}).`,
+        })
+        .eq('id', booking.id)
+
+      if (bookingUpdateErr) {
+        throw new Error(`Failed to complete checkout booking ${booking.id}.`)
+      }
+
+      await supabase
+        .from('schedule_blocks')
+        .update({ status: 'cancelled' })
+        .eq('related_booking_id', booking.id)
+        .eq('status', 'active')
+
+      // Mirror "Mark as Already Paid": settle/create a paid checkout invoice
+      // so Charges & payment shows Paid in full (not Awaiting payment).
+      const settled = await settleClearanceOverrideInvoice({
+        supabase,
+        adminId,
+        customerId,
+        bookingId: booking.id,
+        outcome: status,
+        note: trimmedNote,
+        now,
+      })
+      settledPayments.push({ bookingId: booking.id, invoiceId: settled.invoiceId })
+
+      await supabase.from('booking_status_history').insert({
+        booking_id: booking.id,
+        old_status: oldStatus,
+        new_status: 'completed',
+        changed_by_user_id: adminId,
+        note: `Admin clearance override: ${status}.`,
+      })
+
+      if (status === 'cleared_to_fly') {
+        await supabase.from('booking_audit_events').insert([
+          {
+            booking_id: booking.id,
+            aircraft_id: booking.aircraft_id,
+            actor_user_id: adminId,
+            actor_role: 'admin',
+            event_type: 'checkout_manual_completion_started',
+            event_summary: 'Admin initiated clearance override (cleared_to_fly).',
+            new_value: {
+              outcome: 'cleared_to_fly',
+              source: 'clearance_override',
+            },
+          },
+          {
+            booking_id: booking.id,
+            aircraft_id: booking.aircraft_id,
+            actor_user_id: adminId,
+            actor_role: 'admin',
+            event_type: 'checkout_manual_completion_submitted',
+            event_summary: 'Checkout completed via admin clearance override: cleared_to_fly.',
+            new_value: {
+              outcome: 'cleared_to_fly',
+              pilot_clearance_status: 'cleared_to_fly',
+              booking_status: 'completed',
+              source: 'clearance_override',
+              invoice_created: settled.created,
+              invoice_id: settled.invoiceId,
+              payment_required: false,
+              payment_settled: true,
+            },
+          },
+        ])
+      } else {
+        await supabase.from('booking_audit_events').insert([
+          {
+            booking_id: booking.id,
+            aircraft_id: booking.aircraft_id,
+            actor_user_id: adminId,
+            actor_role: 'admin',
+            event_type: 'checkout_manual_completion_started',
+            event_summary: `Admin initiated clearance override (${status}).`,
+            new_value: {
+              outcome: status,
+              source: 'clearance_override',
+            },
+          },
+          {
+            booking_id: booking.id,
+            aircraft_id: booking.aircraft_id,
+            actor_user_id: adminId,
+            actor_role: 'admin',
+            event_type: 'checkout_manual_completion_submitted',
+            event_summary: `Checkout completed via admin clearance override: ${status}.`,
+            new_value: {
+              outcome: status,
+              pilot_clearance_status: status,
+              booking_status: 'completed',
+              source: 'clearance_override',
+              invoice_created: settled.created,
+              invoice_id: settled.invoiceId,
+              payment_required: false,
+              payment_settled: true,
+            },
+          },
+          {
+            booking_id: booking.id,
+            aircraft_id: booking.aircraft_id,
+            actor_user_id: adminId,
+            actor_role: 'admin',
+            event_type: 'checkout_outcome_recorded',
+            event_summary: `Checkout outcome recorded via admin clearance override: ${status}.`,
+            new_value: {
+              outcome: status,
+              pilot_clearance_status: status,
+              booking_status: 'completed',
+              source: 'clearance_override',
+              invoice_created: settled.created,
+              invoice_id: settled.invoiceId,
+              payment_required: false,
+              payment_settled: true,
+            },
+          },
+        ])
+      }
+    } else {
+      // cancel
+      const { error: bookingUpdateErr } = await supabase
+        .from('bookings')
+        .update({
+          status: 'cancelled',
+          checkout_lifecycle_status: 'cancelled_by_admin',
+          updated_at: now,
+          admin_notes: trimmedNote || `Cancelled via admin clearance override (${status}).`,
+        })
+        .eq('id', booking.id)
+
+      if (bookingUpdateErr) {
+        throw new Error(`Failed to cancel checkout booking ${booking.id}.`)
+      }
+
+      await supabase
+        .from('schedule_blocks')
+        .update({ status: 'cancelled' })
+        .eq('related_booking_id', booking.id)
+        .eq('status', 'active')
+
+      await supabase
+        .from('checkout_invoices')
+        .update({ status: 'void', updated_at: now })
+        .eq('booking_id', booking.id)
+        .eq('status', 'payment_required')
+
+      await supabase.from('booking_status_history').insert({
+        booking_id: booking.id,
+        old_status: oldStatus,
+        new_status: 'cancelled',
+        changed_by_user_id: adminId,
+        note: `Admin clearance override cancelled open checkout: ${status}.`,
+      })
+
+      await supabase.from('booking_audit_events').insert({
+        booking_id: booking.id,
+        aircraft_id: booking.aircraft_id,
+        actor_user_id: adminId,
+        actor_role: 'admin',
+        event_type: 'checkout_cancelled',
+        event_summary: `Checkout cancelled via admin clearance override: ${status}.`,
+        new_value: {
+          outcome: status,
+          pilot_clearance_status: status,
+          booking_status: 'cancelled',
+          checkout_lifecycle_status: 'cancelled_by_admin',
+          source: 'clearance_override',
+        },
+      })
+    }
+
+    touchedBookingIds.push(booking.id)
+    revalidatePath(`/admin/bookings/requests/${booking.id}`)
+    revalidatePath(`/dashboard/bookings/${booking.id}`)
+  }
+
+  // ── 3. Profile clearance ──────────────────────────────────────────────────
   const { error } = await supabase
     .from('profiles')
     .update({
       pilot_clearance_status: status,
-      admin_review_note:      note?.trim() || null,
+      admin_review_note:      trimmedNote,
       reviewed_at:            now,
       reviewed_by:            adminId,
       updated_at:             now,
@@ -892,8 +1147,7 @@ export async function updatePilotClearanceStatus(
     throw new Error('Failed to update pilot clearance status.')
   }
 
-  // Deactivate any existing active historical checkout record so the
-  // override can become the new source of truth when appropriate.
+  // ── 4. Historical clearance evidence ──────────────────────────────────────
   const { error: deactivateError } = await supabase
     .from('historical_checkout_completions')
     .update({ is_active: false, updated_at: now })
@@ -904,7 +1158,6 @@ export async function updatePilotClearanceStatus(
     throw new Error(`Failed to deactivate prior historical checkout record: ${deactivateError.message}`)
   }
 
-  // Only cleared_to_fly needs a fresh historical_checkout_completions row.
   if (status === 'cleared_to_fly') {
     const { error: insertError } = await supabase
       .from('historical_checkout_completions')
@@ -912,7 +1165,7 @@ export async function updatePilotClearanceStatus(
         customer_id: customerId,
         checkout_date: now.split('T')[0],
         checkout_outcome: 'cleared_to_fly',
-        admin_notes: note?.trim() || 'Cleared via admin clearance override (no checkout flight on file).',
+        admin_notes: trimmedNote || 'Cleared via admin clearance override (no checkout flight on file).',
         recorded_by_admin_id: adminId,
         linked_aircraft_flight_log_id: null,
         created_flight_log: false,
@@ -926,11 +1179,46 @@ export async function updatePilotClearanceStatus(
     }
   }
 
+  // ── 5. Customer-visible notification ──────────────────────────────────────
+  const notification = clearanceOverrideNotification(status)
+  await supabase.from('verification_events').insert({
+    user_id: customerId,
+    actor_user_id: adminId,
+    actor_role: 'admin',
+    event_type: status === 'cleared_to_fly' ? 'approved' : 'message',
+    request_kind: 'booking_update',
+    title: notification.title,
+    body: notification.body,
+    is_read: false,
+    email_status: 'skipped',
+  })
+
+  // ── 6. Revalidate ─────────────────────────────────────────────────────────
   revalidatePath('/admin/customers')
   revalidatePath('/admin/customers/all')
   revalidatePath(`/admin/users/${customerId}`)
+  revalidatePath('/admin/bookings/checkout')
   revalidatePath('/dashboard')
+  revalidatePath('/dashboard/bookings')
+  revalidatePath('/dashboard/documents')
 
+  // ── 7. Sockets ────────────────────────────────────────────────────────────
   void emitClearanceUpdated(customerId)
   void emitOpsChanged()
+  if (docsApproved) {
+    void emitVerificationUpdated(customerId)
+  }
+  for (const bookingId of touchedBookingIds) {
+    void emitBookingChanged({ bookingId, userId: customerId })
+  }
+  for (const payment of settledPayments) {
+    void emitPaymentUpdated({
+      userId: customerId,
+      bookingId: payment.bookingId,
+      invoiceId: payment.invoiceId,
+    })
+  }
+  if (settledPayments.length > 0) {
+    void emitLedgerUpdated(customerId)
+  }
 }

@@ -21,6 +21,10 @@ import CheckoutChangeActions from '@/app/dashboard/checkout/CheckoutChangeAction
 import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
 import { getStandardBookingPaymentDisplayState } from '@/lib/booking/standard-booking-payment-state'
 import { BookingRealtimeListener } from '@/components/realtime/BookingRealtimeListener'
+import {
+  CHECKOUT_OUTCOME_AUDIT_EVENT_TYPES,
+  outcomeFromAuditNewValue,
+} from '@/lib/checkout-outcome'
 
 export const metadata = { title: 'Booking Details | Pilot Dashboard' }
 
@@ -977,8 +981,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
   }
 
   // Fetch the checkout outcome for completed checkout bookings.
-  // checkout_invoices.checkout_outcome is the authoritative source set by
-  // complete_checkout_outcome_atomic when the admin records the outcome.
+  // Prefer checkout_invoices; fall back to audit events for override / manual complete (no invoice).
   let checkoutOutcome: string | null = null
   if (bookingType === 'checkout' && (status === 'completed' || status === 'post_flight_approved')) {
     const { data: outcomeRow } = await supabase
@@ -987,6 +990,18 @@ export default async function BookingDetailPage({ params }: PageProps) {
       .eq('booking_id', booking.id)
       .maybeSingle()
     checkoutOutcome = (outcomeRow as { checkout_outcome?: string | null } | null)?.checkout_outcome ?? null
+
+    if (!checkoutOutcome) {
+      const { data: auditRow } = await supabase
+        .from('booking_audit_events')
+        .select('new_value')
+        .eq('booking_id', booking.id)
+        .in('event_type', [...CHECKOUT_OUTCOME_AUDIT_EVENT_TYPES])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      checkoutOutcome = outcomeFromAuditNewValue(auditRow?.new_value ?? null)
+    }
   }
 
   const cfg = { ...(STATUS_CFG[status] ?? { label: status.replace(/_/g, ' '), sublabel: '', color: 'text-slate-400', bg: 'bg-white/5', border: 'border-white/10', icon: 'info' }) }

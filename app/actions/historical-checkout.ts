@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { type AircraftReadings, validateAircraftReadings } from '@/lib/aircraft-readings'
 import { getLastFinalizedLogStop, upsertAircraftFlightLogRecord } from '@/lib/aircraft-flight-log'
+import { emitClearanceUpdated, emitOpsChanged } from '@/lib/realtime/emit'
 
 type HistoricalCheckoutOutcome = 'cleared_to_fly' | 'additional_checkout_required' | 'not_currently_eligible'
 
@@ -257,6 +258,11 @@ export async function recordHistoricalCheckoutCompletion(input: RecordHistorical
   revalidatePath('/admin/customers/all')
   revalidatePath('/admin/customers/ledger')
   revalidatePath('/dashboard')
+  revalidatePath('/dashboard/bookings')
+  revalidatePath('/dashboard/documents')
+
+  void emitClearanceUpdated(input.customerId)
+  void emitOpsChanged()
 
   return { ok: true, historicalCheckoutId: createdRecord.id }
 }
