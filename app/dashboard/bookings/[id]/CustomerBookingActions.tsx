@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { cancelBookingNow, requestLateCancellation, markFlightReturned } from '@/app/actions/booking'
 import ModalPortal from '@/components/ModalPortal'
 import { LoadingButtonContent } from '@/components/ui/Spinner'
@@ -13,6 +14,8 @@ type Props = {
   departureSydney:        string
   heroLayout?:            boolean
   yellowPrimary?:         boolean
+  /** `listCard` matches upcoming-flight action column styles on /dashboard/bookings */
+  variant?:               'default' | 'listCard'
 }
 
 // Three possible modal states — null means no modal is open.
@@ -26,7 +29,10 @@ export default function CustomerBookingActions({
   departureSydney,
   heroLayout = false,
   yellowPrimary = false,
+  variant = 'default',
 }: Props) {
+  const router = useRouter()
+  const isListCard = variant === 'listCard'
   const [isPending, startTransition] = useTransition()
   const [activeModal, setActiveModal] = useState<ActiveModal>(null)
   const [reason, setReason]           = useState('')
@@ -52,6 +58,7 @@ export default function CustomerBookingActions({
       try {
         await cancelBookingNow(bookingId)
         setActiveModal(null)
+        router.refresh()
       } catch (err) {
         setError(err instanceof Error ? err.message.replace('VALIDATION: ', '') : 'Failed to cancel booking.')
       }
@@ -65,6 +72,7 @@ export default function CustomerBookingActions({
         await requestLateCancellation(bookingId, reason.trim() || null)
         setActiveModal(null)
         setReason('')
+        router.refresh()
       } catch (err) {
         setError(err instanceof Error ? err.message.replace('VALIDATION: ', '') : 'Failed to submit cancellation request.')
       }
@@ -77,19 +85,33 @@ export default function CustomerBookingActions({
       try {
         await markFlightReturned(bookingId)
         setActiveModal(null)
+        router.refresh()
       } catch (err) {
         setError(err instanceof Error ? err.message.replace('VALIDATION: ', '') : 'Failed to advance booking.')
       }
     })
   }
 
+  const cancelButtonClass = isListCard
+    ? 'flex items-center justify-center whitespace-nowrap border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors w-full'
+    : heroLayout
+      ? 'inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-transparent hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed border border-red-500/50 hover:border-red-500/70 text-red-400 hover:text-red-300 rounded-lg text-[11px] font-bold uppercase tracking-[0.14em] transition-colors w-full'
+      : 'inline-flex items-center gap-1.5 px-4 py-2 bg-transparent hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed border border-red-500/40 hover:border-red-500/60 text-red-400 hover:text-red-300 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-colors'
+
   return (
     <>
       {/* ── Trigger buttons ─────────────────────────────────────────────── */}
-      <div className={heroLayout ? 'flex flex-col gap-3 w-full max-w-[400px]' : 'flex flex-wrap gap-2 mt-3'}>
+      <div className={
+        isListCard
+          ? 'flex flex-col gap-2 w-full'
+          : heroLayout
+            ? 'flex flex-col gap-3 w-full max-w-[400px]'
+            : 'flex flex-wrap gap-2 mt-3'
+      }>
 
         {showFlightRecordButton && (
           <button
+            type="button"
             onClick={() => openModal('flight_record')}
             disabled={isPending}
             className={heroLayout
@@ -107,15 +129,13 @@ export default function CustomerBookingActions({
 
         {showCancelButton && (
           <button
+            type="button"
             onClick={() => openModal(isWithin24Hours ? 'cancel_late' : 'cancel_immediate')}
             disabled={isPending}
-            className={heroLayout
-              ? 'inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-transparent hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed border border-red-500/50 hover:border-red-500/70 text-red-400 hover:text-red-300 rounded-lg text-[11px] font-bold uppercase tracking-[0.14em] transition-colors w-full'
-              : 'inline-flex items-center gap-1.5 px-4 py-2 bg-transparent hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed border border-red-500/40 hover:border-red-500/60 text-red-400 hover:text-red-300 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-colors'
-            }
+            className={cancelButtonClass}
           >
-            <span className="material-symbols-outlined text-sm">cancel</span>
-            Cancel Booking
+            {!isListCard && <span className="material-symbols-outlined text-sm">cancel</span>}
+            {isListCard ? 'Cancel Request' : 'Cancel Booking'}
           </button>
         )}
       </div>

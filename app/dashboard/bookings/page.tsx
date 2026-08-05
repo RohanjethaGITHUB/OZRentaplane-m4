@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import PortalPageHero from '@/components/PortalPageHero'
 import BookingsViewedTracker from './BookingsViewedTracker'
+import UpcomingBookingActions from './UpcomingBookingActions'
 import type { Profile, PilotClearanceStatus } from '@/lib/supabase/types'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import { formatSydTime } from '@/lib/utils/sydney-time'
@@ -105,6 +106,7 @@ type BookingRow = {
   booking_reference: string | null
   status:            string
   booking_type:      string
+  aircraft_id?:      string | null
   checkout_lifecycle_status?: string | null
   admin_notes?:      string | null
   scheduled_start:   string
@@ -118,6 +120,14 @@ type BookingRow = {
   aircraft:          { registration: string } | null
   flight_records?:   { status: string | null; submitted_at: string | null }[] | null
   bookingInvoice?:   { status: string; pdf_url: string | null; invoice_number: string } | null
+}
+
+type RescheduleRequestLite = {
+  id: string
+  status: string
+  checkout_request_id: string
+  requested_scheduled_start: string | null
+  requested_scheduled_end: string | null
 }
 
 function isMultiDayBooking(startISO: string | null | undefined, endISO: string | null | undefined): boolean {
@@ -335,7 +345,7 @@ export default async function CustomerBookingsPage() {
     supabase
       .from('bookings')
       .select(`
-        id, booking_reference, status, booking_type,
+        id, booking_reference, status, booking_type, aircraft_id,
         checkout_lifecycle_status, admin_notes,
         scheduled_start, scheduled_end,
         estimated_hours, estimated_amount, pic_name, created_at,
@@ -428,17 +438,30 @@ export default async function CustomerBookingsPage() {
     ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required'].includes(b.status)
   ) ?? null
 
+  const activeCheckoutIds = checkoutRequests
+    .filter((r) => ['checkout_requested', 'checkout_confirmed'].includes(r.status))
+    .map((r) => r.id)
+
+  const rescheduleByCheckoutId = new Map<string, RescheduleRequestLite>()
+  if (activeCheckoutIds.length > 0) {
+    const { data: rescheduleRows } = await supabase
+      .from('checkout_change_requests')
+      .select('id, status, checkout_request_id, requested_scheduled_start, requested_scheduled_end, created_at')
+      .in('checkout_request_id', activeCheckoutIds)
+      .eq('request_type', 'reschedule')
+      .order('created_at', { ascending: false })
+
+    for (const row of (rescheduleRows ?? []) as RescheduleRequestLite[]) {
+      if (!rescheduleByCheckoutId.has(row.checkout_request_id)) {
+        rescheduleByCheckoutId.set(row.checkout_request_id, row)
+      }
+    }
+  }
+
   let hasPendingReschedule = false
   let latestRescheduleStatus: string | null = null
   if (checkoutBooking) {
-    const { data: rescheduleRows } = await supabase
-      .from('checkout_change_requests')
-      .select('status, request_type, created_at')
-      .eq('checkout_request_id', checkoutBooking.id)
-      .eq('request_type', 'reschedule')
-      .order('created_at', { ascending: false })
-      .limit(1)
-    const latest = (rescheduleRows?.[0] as { status?: string } | undefined) ?? null
+    const latest = rescheduleByCheckoutId.get(checkoutBooking.id) ?? null
     latestRescheduleStatus = latest?.status ?? null
     hasPendingReschedule = latestRescheduleStatus === 'pending'
   }
@@ -778,24 +801,25 @@ export default async function CustomerBookingsPage() {
                               )}
                             </div>
                           </div>
-                          <div className="flex flex-col gap-2 p-4 justify-center border-l border-[#152d5a]/[0.07] w-[180px] flex-shrink-0">
-                            <Link
-                              href={`/dashboard/bookings/${booking.id}`}
-                              className="flex items-center justify-between whitespace-nowrap bg-[#152d5a] hover:bg-[#1a3a6e] text-white text-[13px] font-bold px-4 py-2.5 rounded-xl transition-colors"
-                            >
-                              VIEW DETAILS
-                              <span className="material-symbols-outlined text-[16px] ml-2">chevron_right</span>
-                            </Link>
-                            <Link
-                              href={`/dashboard/bookings/${booking.id}`}
-                              className="flex items-center justify-center whitespace-nowrap border border-[#152d5a]/20 text-[#152d5a] hover:bg-[#f0f6ff] text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors"
-                            >
-                              MODIFY BOOKING
-                            </Link>
-                            <button className="flex items-center justify-center whitespace-nowrap border border-red-200 text-red-500 hover:bg-red-50 text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors">
-                              CANCEL REQUEST
-                            </button>
-                          </div>
+                          {(() => {
+                            const latestReschedule = rescheduleByCheckoutId.get(booking.id) ?? null
+                            const pendingReschedule =
+                              latestReschedule?.status === 'pending' ? latestReschedule : null
+                            return (
+                              <UpcomingBookingActions
+                                booking={{
+                                  id: booking.id,
+                                  booking_type: booking.booking_type,
+                                  status: booking.status,
+                                  scheduled_start: booking.scheduled_start,
+                                  checkout_lifecycle_status: booking.checkout_lifecycle_status ?? null,
+                                  aircraft_id: booking.aircraft_id ?? null,
+                                }}
+                                pendingRescheduleRequest={pendingReschedule}
+                                latestRescheduleRequest={latestReschedule}
+                              />
+                            )
+                          })()}
                         </div>
                       )
                     })}
@@ -1048,7 +1072,10 @@ export default async function CustomerBookingsPage() {
                 </div>
                 <Link href="/dashboard/bookings" className="text-[12px] text-[#1a4fd6] hover:underline font-medium">View all</Link>
               </div>
-              {rows.slice(0, 4).map((row) => (
+              {[...rows]
+                .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
+                .slice(0, 4)
+                .map((row) => (
                 <div key={row.id} className="py-3 border-b border-[#152d5a]/[0.06] last:border-0">
                   <div className="mb-1.5">
                     <StatusBadge
@@ -1062,10 +1089,9 @@ export default async function CustomerBookingsPage() {
                   <p className="text-[11px] text-[#4b6390]">
                     {(row.aircraft_name ?? 'Cessna 172N').replace(/Cessna 172(?!N)/g, 'Cessna 172N')} · {row.aircraft_registration ?? 'VH-KZG'}
                   </p>
-                  {row.scheduled_start && (
+                  {row.created_at && (
                     <p className="text-[11px] text-[#4b6390]">
-                      {formatDateFromISO(row.scheduled_start)}
-                      {row.scheduled_start ? ` · ${formatSydTime(row.scheduled_start)}` : ''}
+                      {formatDateFromISO(row.created_at)} · {formatSydTime(row.created_at)}
                     </p>
                   )}
                   {(row.status === 'checkout_payment_required' || row.status === 'payment_pending') && (

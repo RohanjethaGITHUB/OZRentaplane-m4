@@ -31,6 +31,8 @@ type Props = {
   aircraftId: string
   pendingRescheduleRequest: RescheduleRequestLite | null
   latestRescheduleRequest: RescheduleRequestLite | null
+  /** `listCard` matches upcoming-flight action column styles on /dashboard/bookings */
+  variant?: 'default' | 'listCard'
 }
 
 type AvailabilityState =
@@ -531,8 +533,10 @@ export default function CheckoutChangeActions({
   aircraftId,
   pendingRescheduleRequest,
   latestRescheduleRequest,
+  variant = 'default',
 }: Props) {
   const router = useRouter()
+  const isListCard = variant === 'listCard'
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionSuccess, setActionSuccess] = useState<string | null>(null)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
@@ -609,6 +613,19 @@ export default function CheckoutChangeActions({
 
   if (!canModify && !selfServiceBlockedByCutoff && checkout.checkout_lifecycle_status !== 'cancelled_by_customer') return null
 
+  const showActionButtons =
+    checkout.checkout_lifecycle_status !== 'cancelled_by_customer' &&
+    checkout.checkout_lifecycle_status !== 'cancelled_by_admin' &&
+    checkout.checkout_lifecycle_status !== 'completed'
+
+  const modifyButtonClass = isListCard
+    ? 'flex items-center justify-center whitespace-nowrap border border-[#152d5a]/20 text-[#152d5a] hover:bg-[#f0f6ff] disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors w-full'
+    : 'inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-[#e2e8f0] disabled:text-[#94a3b8] text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all'
+
+  const cancelButtonClass = isListCard
+    ? 'flex items-center justify-center whitespace-nowrap border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors w-full'
+    : 'inline-flex items-center gap-2 px-6 py-3 border border-rose-300/25 hover:border-rose-300/40 text-rose-200 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all'
+
   return (
     <>
       {cancelModalOpen && canModify && (
@@ -656,7 +673,7 @@ export default function CheckoutChangeActions({
                 </p>
                 <p className="text-sm text-[#152d5a]">
                   Call:{' '}
-                  <a href={`tel:${ADMIN_CONTACT_PHONE_TEL}`} className="text-blue-300 hover:text-blue-200 underline underline-offset-2">
+                  <a href={`tel:${ADMIN_CONTACT_PHONE_TEL}`} className="text-[#1a4fd6] hover:text-[#1540a8] underline underline-offset-2">
                     {ADMIN_CONTACT_PHONE_DISPLAY}
                   </a>
                 </p>
@@ -683,40 +700,45 @@ export default function CheckoutChangeActions({
         />
       )}
 
-      <div className="mt-4 space-y-3">
-        {checkout.checkout_lifecycle_status === 'cancelled_by_customer' && (
+      <div className={isListCard ? 'space-y-2' : 'mt-4 space-y-3'}>
+        {!isListCard && checkout.checkout_lifecycle_status === 'cancelled_by_customer' && (
           <p className="text-sm text-emerald-600">Your checkout flight has been cancelled.</p>
         )}
-        {hasPendingReschedule && (
+        {!isListCard && hasPendingReschedule && (
           <p className="text-sm text-amber-600">
             Your reschedule request is waiting for admin review. Your current checkout time remains active.
             {requestedRescheduleLabel ? ` Requested time: ${requestedRescheduleLabel}.` : ''}
           </p>
         )}
-        {!hasPendingReschedule && latestApproved && (
+        {!isListCard && !hasPendingReschedule && latestApproved && (
           <p className="text-sm text-emerald-600">Your checkout flight has been rescheduled.</p>
         )}
-        {!hasPendingReschedule && latestRejected && (
+        {!isListCard && !hasPendingReschedule && latestRejected && (
           <p className="text-sm text-amber-600">Your reschedule request was not approved. Your original checkout time remains active.</p>
         )}
-        {actionError && <p className="text-sm text-red-600">{actionError}</p>}
-        {!hasPendingReschedule && actionSuccess && <p className="text-sm text-emerald-600">{actionSuccess}</p>}
+        {actionError && <p className={`text-red-600 ${isListCard ? 'text-[11px] leading-snug' : 'text-sm'}`}>{actionError}</p>}
+        {!isListCard && !hasPendingReschedule && actionSuccess && <p className="text-sm text-emerald-600">{actionSuccess}</p>}
+        {isListCard && hasPendingReschedule && (
+          <p className="text-[10px] text-amber-600 leading-snug">Reschedule pending review</p>
+        )}
 
-        {checkout.checkout_lifecycle_status !== 'cancelled_by_customer' && checkout.checkout_lifecycle_status !== 'cancelled_by_admin' && checkout.checkout_lifecycle_status !== 'completed' && (
-          <div className="flex flex-wrap items-center gap-3">
+        {showActionButtons && (
+          <div className={isListCard ? 'flex flex-col gap-2' : 'flex flex-wrap items-center gap-3'}>
             <button
+              type="button"
               onClick={() => setRescheduleModalOpen(true)}
               disabled={hasPendingReschedule || isRescheduling || checkout.status === 'cancelled'}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-[#e2e8f0] disabled:text-[#94a3b8] text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
+              className={modifyButtonClass}
             >
-              {isRescheduling ? 'Sending...' : 'Reschedule checkout'}
+              {isRescheduling ? 'Sending...' : isListCard ? 'Modify Booking' : 'Reschedule checkout'}
             </button>
             <button
+              type="button"
               onClick={() => setCancelModalOpen(true)}
               disabled={isCancelling || checkout.status === 'cancelled'}
-              className="inline-flex items-center gap-2 px-6 py-3 border border-rose-300/25 hover:border-rose-300/40 text-rose-200 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all"
+              className={cancelButtonClass}
             >
-              {isCancelling ? 'Cancelling...' : 'Cancel checkout'}
+              {isCancelling ? 'Cancelling...' : isListCard ? 'Cancel Request' : 'Cancel checkout'}
             </button>
           </div>
         )}

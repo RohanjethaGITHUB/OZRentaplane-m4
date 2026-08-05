@@ -237,10 +237,16 @@ function NextActionCard({
   standardBilling,
   cancellationRequest,
   showFlightRecordButton,
+  showCancelButton,
   isWithin24Hours,
   departureSydney,
   activePackage,
   is24HourBooking,
+  scheduledStart,
+  aircraftId,
+  checkoutLifecycleStatus,
+  pendingRescheduleRequest,
+  latestRescheduleRequest,
 }: {
   status:                   string
   bookingType:              string
@@ -265,10 +271,26 @@ function NextActionCard({
   standardBankDetails?:     { accountName: string; bsb: string; accountNumber: string } | null
   cancellationRequest?:     { status: string; charge_amount_cents: number | null; customer_message: string | null } | null
   showFlightRecordButton?:  boolean
+  showCancelButton?:        boolean
   isWithin24Hours?:         boolean
   departureSydney?:         string
   activePackage?:           ActiveBlockTimePackage | null
   is24HourBooking?:         boolean
+  scheduledStart?:          string
+  aircraftId?:              string | null
+  checkoutLifecycleStatus?: string | null
+  pendingRescheduleRequest?: {
+    id: string
+    status: string
+    requested_scheduled_start: string | null
+    requested_scheduled_end: string | null
+  } | null
+  latestRescheduleRequest?: {
+    id: string
+    status: string
+    requested_scheduled_start: string | null
+    requested_scheduled_end: string | null
+  } | null
 }) {
   const isCancelled             = status === 'cancelled' || status === 'no_show'
   const isCancellationRequested = status === 'cancellation_requested'
@@ -368,6 +390,20 @@ function NextActionCard({
         <p className="text-sm text-[#4b6390] leading-relaxed">
           Your checkout booking is currently in progress. Aircraft bookings will become available after your checkout is completed and paid.
         </p>
+        {!isUnderReview && scheduledStart && aircraftId && (
+          <CheckoutChangeActions
+            checkout={{
+              id: bookingId,
+              booking_type: bookingType,
+              status,
+              scheduled_start: scheduledStart,
+              checkout_lifecycle_status: checkoutLifecycleStatus ?? null,
+            }}
+            aircraftId={aircraftId}
+            pendingRescheduleRequest={pendingRescheduleRequest ?? null}
+            latestRescheduleRequest={latestRescheduleRequest ?? null}
+          />
+        )}
       </div>
     )
   }
@@ -447,15 +483,25 @@ function NextActionCard({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-2">
-              <p className="text-[18px] font-semibold text-[#152d5a]">Booking Confirmed</p>
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest text-blue-400 bg-blue-500/10 border border-blue-500/20">
-                <span className="material-symbols-outlined text-[11px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                Confirmed
+              <p className="text-[18px] font-semibold text-[#152d5a]">Booking under review</p>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/20">
+                <span className="material-symbols-outlined text-[11px]" style={{ fontVariationSettings: "'FILL' 1" }}>pending</span>
+                Pending
               </span>
             </div>
-            <p className="text-[13px] text-[#4b6390] leading-relaxed">
-              Your booking is confirmed. Please arrive at the aircraft at least 30 minutes before your scheduled departure for pre-flight checks.
+            <p className="text-[13px] text-[#4b6390] leading-relaxed mb-5">
+              Your booking request is under review. The slot is held pending confirmation.
             </p>
+            {showCancelButton && (
+              <CustomerBookingActions
+                bookingId={bookingId}
+                showCancelButton
+                showFlightRecordButton={false}
+                isWithin24Hours={isWithin24Hours ?? false}
+                departureSydney={departureSydney ?? ''}
+                heroLayout
+              />
+            )}
           </div>
         </div>
       </div>
@@ -487,11 +533,11 @@ function NextActionCard({
             <p className="text-[13px] text-[#4b6390] leading-relaxed mb-5 max-w-2xl">
               Once you have completed your flight, submit the post flight records. Our team will verify these records and generate the final invoice for payment.
             </p>
-            {showFlightRecordButton && (
+            {(showFlightRecordButton || showCancelButton) && (
               <CustomerBookingActions
                 bookingId={bookingId}
-                showCancelButton={false}
-                showFlightRecordButton
+                showCancelButton={!!showCancelButton}
+                showFlightRecordButton={!!showFlightRecordButton}
                 isWithin24Hours={isWithin24Hours ?? false}
                 departureSydney={departureSydney ?? ''}
                 heroLayout
@@ -1750,10 +1796,16 @@ export default async function BookingDetailPage({ params }: PageProps) {
           standardBankDetails={standardBankDetails}
           cancellationRequest={cancellationRequest}
           showFlightRecordButton={showFlightRecordButton}
+          showCancelButton={showCancelButton}
           isWithin24Hours={isWithin24Hours}
           departureSydney={departureSydney}
           activePackage={activePackage as ActiveBlockTimePackage | null}
           is24HourBooking={is24HourBooking}
+          scheduledStart={booking.scheduled_start}
+          aircraftId={(booking as { aircraft_id?: string | null }).aircraft_id ?? null}
+          checkoutLifecycleStatus={(booking as { checkout_lifecycle_status?: string | null }).checkout_lifecycle_status ?? null}
+          pendingRescheduleRequest={pendingRescheduleRequest}
+          latestRescheduleRequest={latestRescheduleRequest}
         />
 
         {/* Terms accepted — shown at the bottom if present */}
