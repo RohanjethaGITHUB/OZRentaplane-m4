@@ -74,7 +74,7 @@ export default function AdminCancellationReviewCard({
               Cancellation Request — Review Required
             </h3>
             <p className="text-[10px] text-amber-400/60 mt-0.5">
-              Late cancellation (within 24 hours of departure)
+              Late cancellation pending admin review
             </p>
           </div>
         </div>

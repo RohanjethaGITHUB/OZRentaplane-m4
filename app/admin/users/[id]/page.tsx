@@ -164,7 +164,7 @@ export default async function AdminUserPage({
       .eq('bookings.booking_owner_user_id', params.id),
     supabase
       .from('booking_cancellation_requests')
-      .select('created_at, booking_start_time, status, bookings!inner(booking_owner_user_id)')
+      .select('created_at, booking_start_time, status, booking_id, bookings!inner(booking_owner_user_id)')
       .eq('status', 'pending')
       .eq('bookings.booking_owner_user_id', params.id),
     supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_owner_user_id', params.id).eq('status', 'on_hold_pending_documents'),

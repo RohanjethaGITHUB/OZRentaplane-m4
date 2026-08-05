@@ -39,6 +39,7 @@ const STATUS_CFG: Record<string, {
   completed:                  { label: 'Completed',                             sublabel: 'Booking closed',            color: 'text-slate-600',  bg: 'bg-slate-50',  border: 'border-slate-200',  icon: 'done_all'           },
   cancelled:                  { label: 'Cancelled',                             sublabel: 'Will not proceed',          color: 'text-red-700',    bg: 'bg-red-50',    border: 'border-red-200',    icon: 'cancel'             },
   no_show:                    { label: 'No Show',                               sublabel: 'Marked absent',             color: 'text-red-700',    bg: 'bg-red-50',    border: 'border-red-200',    icon: 'person_off'         },
+  cancellation_requested:     { label: 'Cancel Under Review',                   sublabel: 'Awaiting ops decision',     color: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-200',  icon: 'pending_actions'    },
   checkout_requested:         { label: 'Awaiting Review',                       sublabel: 'Awaiting team review',      color: 'text-blue-700',   bg: 'bg-blue-50',   border: 'border-blue-200',   icon: 'pending_actions'    },
   checkout_confirmed:         { label: 'Checkout Confirmed',                    sublabel: 'Confirmed by our team',     color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200',  icon: 'event_available'    },
   checkout_completed_under_review: { label: 'Checkout completed, under review', sublabel: 'Awaiting team review',      color: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-200',  icon: 'rate_review'        },
@@ -72,8 +73,8 @@ const STAT_ICONS: Record<string, string> = {
   'Upcoming Aircraft Bookings': 'calendar_month',
 }
 
-function StatusBadge({ status, bookingType, checkoutOutcome, isAwaitingManualPayment }: {
-  status: string; bookingType?: string; checkoutOutcome?: string | null; isAwaitingManualPayment?: boolean
+function StatusBadge({ status, bookingType, checkoutOutcome, isAwaitingManualPayment, pendingReschedule }: {
+  status: string; bookingType?: string; checkoutOutcome?: string | null; isAwaitingManualPayment?: boolean; pendingReschedule?: boolean
 }) {
   let cfg: { label: string; color: string; bg: string; border: string; icon?: string } = STATUS_CFG[status] ?? {
     label:  status.replace(/_/g, ' '),
@@ -81,10 +82,11 @@ function StatusBadge({ status, bookingType, checkoutOutcome, isAwaitingManualPay
     bg:     'bg-slate-50',
     border: 'border-slate-200',
   }
-  if (bookingType === 'checkout' && status === 'completed' && checkoutOutcome) {
+  if (pendingReschedule) {
+    cfg = { label: 'Reschedule Under Review', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200', icon: 'event_repeat' }
+  } else if (bookingType === 'checkout' && status === 'completed' && checkoutOutcome) {
     cfg = CHECKOUT_OUTCOME_BADGE[checkoutOutcome] ?? { label: 'Checkout Complete', color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' }
-  }
-  if (status === 'checkout_payment_required' && isAwaitingManualPayment) {
+  } else if (status === 'checkout_payment_required' && isAwaitingManualPayment) {
     cfg = { label: 'Awaiting Payment Confirmation', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', icon: 'account_balance' }
   }
 
@@ -94,7 +96,9 @@ function StatusBadge({ status, bookingType, checkoutOutcome, isAwaitingManualPay
     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider border ${cfg.color} ${cfg.bg} ${cfg.border}`}>
       {isConfirmed && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />}
       {bookingType === 'checkout' && !isConfirmed && (
-        <span className="material-symbols-outlined text-[11px]" style={{ fontVariationSettings: "'wght' 400" }}>how_to_reg</span>
+        <span className="material-symbols-outlined text-[11px]" style={{ fontVariationSettings: "'wght' 400" }}>
+          {pendingReschedule ? 'event_repeat' : 'how_to_reg'}
+        </span>
       )}
       {cfg.label}
     </span>
@@ -171,6 +175,31 @@ function ClearanceGateBanner({
     )
   }
   if (clearanceStatus === 'checkout_requested') {
+    if (hasPendingReschedule) {
+      return (
+        <div className="border rounded-2xl p-8 bg-amber-50/80 border-amber-200 mb-8">
+          <div className="flex items-start gap-4">
+            <span className="material-symbols-outlined text-2xl text-amber-600 flex-shrink-0 mt-0.5 animate-pulse" style={{ fontVariationSettings: "'wght' 200" }}>event_repeat</span>
+            <div>
+              <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-amber-700 mb-1">Reschedule Under Review</p>
+              <h2 className="text-lg font-serif text-[#152d5a] mb-2">Your new time is waiting for approval</h2>
+              <p className="text-[#4b6390] text-base leading-relaxed">
+                Our team is reviewing your reschedule request. Your current checkout time stays active until a decision is made.
+              </p>
+              {checkoutBooking && (
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
+                  <div className="bg-white border border-[#152d5a]/10 rounded-lg px-4 py-3 text-[11px] text-[#4b6390]">
+                    <p className="text-[9px] uppercase tracking-widest text-[#4b6390] mb-1">Current time</p>
+                    <p className="font-semibold text-[#152d5a]">{formatDateFromISO(checkoutBooking.scheduled_start)}</p>
+                    <p className="tabular-nums">{formatSydTime(checkoutBooking.scheduled_start)} – {formatSydTime(checkoutBooking.scheduled_end)}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="border rounded-2xl p-8 bg-white border-[#152d5a]/10 mb-8">
         <div className="flex items-start gap-4">
@@ -180,19 +209,14 @@ function ClearanceGateBanner({
             <p className="text-[#4b6390] text-base leading-relaxed">
               Our team is reviewing your checkout request. We will contact you once it is confirmed or if another time is needed.
             </p>
-            {hasPendingReschedule && (
-              <p className="text-amber-700 text-sm mt-3">
-                Your reschedule request is waiting for admin review. Your current checkout time remains active.
-              </p>
-            )}
             {latestRescheduleStatus === 'approved' && (
               <p className="text-emerald-700 text-sm mt-3">
-                Your checkout flight has been rescheduled.
+                Your checkout flight has been rescheduled — the new time is now confirmed.
               </p>
             )}
             {latestRescheduleStatus === 'rejected' && (
               <p className="text-amber-700 text-sm mt-3">
-                Your reschedule request was not approved. Your original checkout time remains active.
+                Your reschedule request was not approved. Your original checkout time remains active. You can request a different time if needed.
               </p>
             )}
             {checkoutBooking && (
@@ -504,7 +528,7 @@ export default async function CustomerBookingsPage() {
   ]
 
   const allUpcoming = [
-    ...(checkoutRequests?.filter((r) => ['checkout_requested', 'checkout_confirmed'].includes(r.status)) ?? []),
+    ...(checkoutRequests?.filter((r) => ['checkout_requested', 'checkout_confirmed', 'cancellation_requested'].includes(r.status)) ?? []),
     ...(upcomingAircraft ?? []),
   ].sort((a, b) => {
     const dateA = a.scheduled_start ?? ''
@@ -616,17 +640,31 @@ export default async function CustomerBookingsPage() {
             ctaStyle = 'bg-[#152d5a] hover:bg-[#1a3a6e] text-white'
             cardStyle = 'bg-white border border-blue-200 border-l-4 border-l-[#1a4fd6] rounded-2xl p-5 mb-6'
           } else if (status === 'checkout_requested') {
-            icon = 'hourglass_empty'
-            iconBg = 'bg-blue-100'
-            iconColor = 'text-[#1a4fd6]'
-            label = 'IN REVIEW'
-            labelColor = 'text-[#1a4fd6]'
-            heading = 'Checkout Request Under Review'
-            body = 'Our team is reviewing your checkout request. We\'ll be in touch to confirm your time or suggest an alternative.'
-            ctaLabel = 'View Status'
-            ctaHref = '/dashboard/checkout'
-            ctaStyle = 'bg-[#152d5a] hover:bg-[#1a3a6e] text-white'
-            cardStyle = 'bg-white border border-blue-200 border-l-4 border-l-[#1a4fd6] rounded-2xl p-5 mb-6'
+            if (hasPendingReschedule) {
+              icon = 'event_repeat'
+              iconBg = 'bg-amber-100'
+              iconColor = 'text-amber-600'
+              label = 'RESCHEDULE REVIEW'
+              labelColor = 'text-amber-600'
+              heading = 'Reschedule Request Under Review'
+              body = 'Our team is reviewing your proposed new checkout time. Your current slot stays active until a decision is made.'
+              ctaLabel = 'View Details'
+              ctaHref = checkoutBooking?.id ? `/dashboard/bookings/${checkoutBooking.id}` : '/dashboard/checkout'
+              ctaStyle = 'bg-[#152d5a] hover:bg-[#1a3a6e] text-white'
+              cardStyle = 'bg-white border border-amber-200 border-l-4 border-l-amber-500 rounded-2xl p-5 mb-6'
+            } else {
+              icon = 'hourglass_empty'
+              iconBg = 'bg-blue-100'
+              iconColor = 'text-[#1a4fd6]'
+              label = 'IN REVIEW'
+              labelColor = 'text-[#1a4fd6]'
+              heading = 'Checkout Request Under Review'
+              body = 'Our team is reviewing your checkout request. We\'ll be in touch to confirm your time or suggest an alternative.'
+              ctaLabel = 'View Status'
+              ctaHref = '/dashboard/checkout'
+              ctaStyle = 'bg-[#152d5a] hover:bg-[#1a3a6e] text-white'
+              cardStyle = 'bg-white border border-blue-200 border-l-4 border-l-[#1a4fd6] rounded-2xl p-5 mb-6'
+            }
           } else if (status === 'checkout_payment_required') {
             if (paymentSubmittedAwaitingConfirmation) {
               icon = 'hourglass_empty'
@@ -738,6 +776,11 @@ export default async function CustomerBookingsPage() {
                   <div className="space-y-4">
                     {allUpcoming.map((booking) => {
                       const aircraft = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
+                      const latestReschedule = rescheduleByCheckoutId.get(booking.id) ?? null
+                      const pendingReschedule =
+                        latestReschedule?.status === 'pending' ? latestReschedule : null
+                      const requestedStart = pendingReschedule?.requested_scheduled_start
+                      const requestedEnd = pendingReschedule?.requested_scheduled_end
                       return (
                         <div key={booking.id} className="bg-white border border-[#152d5a]/10 rounded-2xl overflow-hidden flex">
                           <div
@@ -761,6 +804,7 @@ export default async function CustomerBookingsPage() {
                                     ? checkoutOutcomeMap[booking.id] ?? null
                                     : null
                                 }
+                                pendingReschedule={!!pendingReschedule}
                               />
                             </div>
                             <div>
@@ -800,26 +844,33 @@ export default async function CustomerBookingsPage() {
                                 </>
                               )}
                             </div>
+                            {pendingReschedule && requestedStart && (
+                              <div className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800 w-fit">
+                                <span className="material-symbols-outlined text-[14px]">event_repeat</span>
+                                <span>
+                                  Requested:{' '}
+                                  <span className="font-semibold">
+                                    {formatDateFromISO(requestedStart)}
+                                    {requestedEnd
+                                      ? ` · ${formatSydTime(requestedStart)} – ${formatSydTime(requestedEnd)}`
+                                      : ` · ${formatSydTime(requestedStart)}`}
+                                  </span>
+                                </span>
+                              </div>
+                            )}
                           </div>
-                          {(() => {
-                            const latestReschedule = rescheduleByCheckoutId.get(booking.id) ?? null
-                            const pendingReschedule =
-                              latestReschedule?.status === 'pending' ? latestReschedule : null
-                            return (
-                              <UpcomingBookingActions
-                                booking={{
-                                  id: booking.id,
-                                  booking_type: booking.booking_type,
-                                  status: booking.status,
-                                  scheduled_start: booking.scheduled_start,
-                                  checkout_lifecycle_status: booking.checkout_lifecycle_status ?? null,
-                                  aircraft_id: booking.aircraft_id ?? null,
-                                }}
-                                pendingRescheduleRequest={pendingReschedule}
-                                latestRescheduleRequest={latestReschedule}
-                              />
-                            )
-                          })()}
+                          <UpcomingBookingActions
+                            booking={{
+                              id: booking.id,
+                              booking_type: booking.booking_type,
+                              status: booking.status,
+                              scheduled_start: booking.scheduled_start,
+                              checkout_lifecycle_status: booking.checkout_lifecycle_status ?? null,
+                              aircraft_id: booking.aircraft_id ?? null,
+                            }}
+                            pendingRescheduleRequest={pendingReschedule}
+                            latestRescheduleRequest={latestReschedule}
+                          />
                         </div>
                       )
                     })}

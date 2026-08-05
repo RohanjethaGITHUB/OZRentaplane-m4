@@ -159,7 +159,13 @@ export default async function CheckoutReschedulePage({ searchParams }: { searchP
                 <td className="px-5 py-4 text-[var(--admin-text-muted)]">{formatSydneyDateTime(row.created_at)}</td>
                 <td className="px-5 py-4 text-right">
                   {isPending ? (
-                    <RescheduleActionButtons changeRequestId={row.id} />
+                    <RescheduleActionButtons
+                      changeRequestId={row.id}
+                      currentStart={row.original_scheduled_start}
+                      currentEnd={row.original_scheduled_end}
+                      requestedStart={row.requested_scheduled_start}
+                      requestedEnd={row.requested_scheduled_end}
+                    />
                   ) : (
                     <Link
                       href={`/admin/bookings/requests/${row.checkout_request_id}`}

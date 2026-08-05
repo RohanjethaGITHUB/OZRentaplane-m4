@@ -2247,6 +2247,7 @@ type CancellationRequestRow = {
   status:             string
   bookings: {
     status:             string
+    booking_type:       string
     aircraft_id:        string
     booking_reference:  string | null
     estimated_amount:   number | null
@@ -2271,7 +2272,7 @@ export async function adminApproveCancellationWaived(
     .from('booking_cancellation_requests')
     .select(`
       id, booking_id, user_id, booking_start_time, is_within_24_hours, customer_message, status,
-      bookings ( status, aircraft_id, booking_reference, estimated_amount, estimated_hours, booking_owner_user_id )
+      bookings ( status, booking_type, aircraft_id, booking_reference, estimated_amount, estimated_hours, booking_owner_user_id )
     `)
     .eq('id', cancellationRequestId)
     .single()
@@ -2285,6 +2286,7 @@ export async function adminApproveCancellationWaived(
   if (!booking) throw new Error('Booking data missing from cancellation request.')
 
   const oldBookingStatus = booking.status
+  const isCheckout = booking.booking_type === 'checkout'
 
   // Cancel the booking
   const { error: bookingErr } = await supabase
@@ -2292,6 +2294,12 @@ export async function adminApproveCancellationWaived(
     .update({
       status:                'cancelled',
       cancellation_category: 'customer',
+      ...(isCheckout
+        ? {
+            checkout_lifecycle_status: 'cancelled_by_customer',
+            cancellation_reason: 'Late checkout cancellation approved — charge waived.',
+          }
+        : {}),
       updated_at:            now,
     })
     .eq('id', r.booking_id)
@@ -2303,6 +2311,39 @@ export async function adminApproveCancellationWaived(
     .from('schedule_blocks')
     .update({ status: 'cancelled' })
     .eq('related_booking_id', r.booking_id)
+
+  if (isCheckout) {
+    await supabase
+      .from('checkout_change_requests')
+      .update({
+        status: 'approved',
+        admin_note: adminNote?.trim() || 'Late cancel approved — charge waived.',
+        reviewed_by: adminId,
+        reviewed_at: now,
+        updated_at: now,
+      })
+      .eq('checkout_request_id', r.booking_id)
+      .eq('request_type', 'cancel')
+      .eq('status', 'pending')
+
+    await supabase
+      .from('checkout_change_requests')
+      .update({
+        status: 'cancelled',
+        admin_note: 'Superseded by approved late cancellation.',
+        reviewed_by: adminId,
+        reviewed_at: now,
+        updated_at: now,
+      })
+      .eq('checkout_request_id', r.booking_id)
+      .eq('request_type', 'reschedule')
+      .eq('status', 'pending')
+
+    await supabase
+      .from('profiles')
+      .update({ pilot_clearance_status: 'checkout_required', updated_at: now })
+      .eq('id', booking.booking_owner_user_id)
+  }
 
   // Update the cancellation request
   await supabase
@@ -2364,8 +2405,11 @@ export async function adminApproveCancellationWaived(
   revalidatePath(`/admin/bookings/requests/${r.booking_id}`)
   revalidatePath(`/dashboard/bookings/${r.booking_id}`)
   revalidatePath('/dashboard/bookings')
+  revalidatePath('/dashboard/checkout')
+  revalidatePath('/admin/checkouts/cancelled')
 
   void emitBookingChanged({ bookingId: r.booking_id, userId: booking.booking_owner_user_id })
+  if (isCheckout) void emitClearanceUpdated(booking.booking_owner_user_id)
   void emitOpsChanged()
 }
 
@@ -3563,7 +3607,7 @@ export async function adminApproveCancellationCharged(
     .from('booking_cancellation_requests')
     .select(`
       id, booking_id, user_id, booking_start_time, is_within_24_hours, customer_message, status,
-      bookings ( status, aircraft_id, booking_reference, estimated_amount, estimated_hours, booking_owner_user_id )
+      bookings ( status, booking_type, aircraft_id, booking_reference, estimated_amount, estimated_hours, booking_owner_user_id )
     `)
     .eq('id', cancellationRequestId)
     .single()
@@ -3581,6 +3625,8 @@ export async function adminApproveCancellationCharged(
     : 0
 
   const oldBookingStatus = booking.status
+  const isCheckout = booking.booking_type === 'checkout'
+  const lateWindowLabel = isCheckout ? '12-hour' : '24-hour'
 
   // Cancel the booking and set payment_status to indicate a charge is due
   const { error: bookingErr } = await supabase
@@ -3589,6 +3635,12 @@ export async function adminApproveCancellationCharged(
       status:                'cancelled',
       cancellation_category: 'customer',
       payment_status:        chargeCents > 0 ? 'invoice_generated' : 'not_required',
+      ...(isCheckout
+        ? {
+            checkout_lifecycle_status: 'cancelled_by_customer',
+            cancellation_reason: `Late checkout cancellation approved — charge of $${(chargeCents / 100).toFixed(2)} applies.`,
+          }
+        : {}),
       updated_at:            now,
     })
     .eq('id', r.booking_id)
@@ -3600,6 +3652,39 @@ export async function adminApproveCancellationCharged(
     .from('schedule_blocks')
     .update({ status: 'cancelled' })
     .eq('related_booking_id', r.booking_id)
+
+  if (isCheckout) {
+    await supabase
+      .from('checkout_change_requests')
+      .update({
+        status: 'approved',
+        admin_note: adminNote?.trim() || `Late cancel approved — charge applied (${chargeCents} cents).`,
+        reviewed_by: adminId,
+        reviewed_at: now,
+        updated_at: now,
+      })
+      .eq('checkout_request_id', r.booking_id)
+      .eq('request_type', 'cancel')
+      .eq('status', 'pending')
+
+    await supabase
+      .from('checkout_change_requests')
+      .update({
+        status: 'cancelled',
+        admin_note: 'Superseded by approved late cancellation.',
+        reviewed_by: adminId,
+        reviewed_at: now,
+        updated_at: now,
+      })
+      .eq('checkout_request_id', r.booking_id)
+      .eq('request_type', 'reschedule')
+      .eq('status', 'pending')
+
+    await supabase
+      .from('profiles')
+      .update({ pilot_clearance_status: 'checkout_required', updated_at: now })
+      .eq('id', booking.booking_owner_user_id)
+  }
 
   // Update cancellation request
   await supabase
@@ -3616,8 +3701,8 @@ export async function adminApproveCancellationCharged(
 
   const chargeDisplay = chargeCents > 0 ? `$${(chargeCents / 100).toFixed(2)}` : 'to be determined'
   const historyNote = adminNote?.trim()
-    ? `Booking cancelled inside 24-hour window. Cancellation charge of ${chargeDisplay} applies. Admin note: ${adminNote.trim()}`
-    : `Booking cancelled inside 24-hour window. Cancellation charge of ${chargeDisplay} applies. Please contact operations to arrange payment.`
+    ? `Booking cancelled inside ${lateWindowLabel} window. Cancellation charge of ${chargeDisplay} applies. Admin note: ${adminNote.trim()}`
+    : `Booking cancelled inside ${lateWindowLabel} window. Cancellation charge of ${chargeDisplay} applies. Please contact operations to arrange payment.`
 
   await supabase.from('booking_status_history').insert({
     booking_id:         r.booking_id,
@@ -3653,7 +3738,7 @@ export async function adminApproveCancellationCharged(
         customerName:  (prof as { full_name?: string | null } | null)?.full_name ?? 'Pilot',
         ref:           notifyData.booking_reference ?? r.booking_id.slice(0, 8).toUpperCase(),
         reason: chargeCents > 0
-          ? `Your cancellation request has been approved. As the booking was cancelled inside the 24-hour window, a cancellation charge of ${chargeDisplay} applies. Please contact operations to arrange payment.`
+          ? `Your cancellation request has been approved. As the booking was cancelled inside the ${lateWindowLabel} window, a cancellation charge of ${chargeDisplay} applies. Please contact operations to arrange payment.`
           : 'Your cancellation request has been approved. A cancellation charge may apply — please contact operations.',
         bookingId: r.booking_id,
       }).catch(e => console.error('[adminApproveCancellationCharged] notification error:', e))
@@ -3665,8 +3750,11 @@ export async function adminApproveCancellationCharged(
   revalidatePath(`/admin/bookings/requests/${r.booking_id}`)
   revalidatePath(`/dashboard/bookings/${r.booking_id}`)
   revalidatePath('/dashboard/bookings')
+  revalidatePath('/dashboard/checkout')
+  revalidatePath('/admin/checkouts/cancelled')
 
   void emitBookingChanged({ bookingId: r.booking_id, userId: booking.booking_owner_user_id })
+  if (isCheckout) void emitClearanceUpdated(booking.booking_owner_user_id)
   void emitPaymentUpdated({ userId: booking.booking_owner_user_id, bookingId: r.booking_id })
   void emitOpsChanged()
 }

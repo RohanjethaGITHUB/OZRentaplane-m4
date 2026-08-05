@@ -1065,6 +1065,25 @@ export default async function BookingDetailPage({ params }: PageProps) {
     }
     cfg.sublabel = ''
   }
+  if (pendingRescheduleRequest?.status === 'pending') {
+    cfg.label = 'Reschedule Under Review'
+    cfg.sublabel = 'Awaiting ops approval of your new time'
+    cfg.color = 'text-amber-600'
+    cfg.bg = 'bg-amber-50'
+    cfg.border = 'border-amber-200'
+    cfg.icon = 'event_repeat'
+  } else if (
+    !pendingRescheduleRequest &&
+    latestRescheduleRequest?.status === 'approved' &&
+    ['checkout_requested', 'checkout_confirmed'].includes(status)
+  ) {
+    cfg.label = 'New Time Confirmed'
+    cfg.sublabel = 'Your reschedule was approved'
+    cfg.color = 'text-emerald-600'
+    cfg.bg = 'bg-emerald-50'
+    cfg.border = 'border-emerald-200'
+    cfg.icon = 'event_available'
+  }
 
   // ── Checkout invoice + bank transfer fetch ────────────────────────────────────
   // Must run before activePipeline so isAwaitingManualPayment is available.
@@ -1735,6 +1754,77 @@ export default async function BookingDetailPage({ params }: PageProps) {
                 </div>
               )}
             </div>
+            {pendingRescheduleRequest?.requested_scheduled_start && (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/90 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="material-symbols-outlined text-amber-600 text-[16px]">event_repeat</span>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Requested New Time</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="rounded-lg border border-[#152d5a]/10 bg-white px-3 py-2.5">
+                    <p className="text-[9px] uppercase tracking-widest text-[#4b6390] mb-1">Current (still held)</p>
+                    <p className="text-[13px] font-semibold text-[#152d5a]">{formatDateFromISO(booking.scheduled_start)}</p>
+                    <p className="text-[12px] tabular-nums text-[#4b6390]">
+                      {new Date(booking.scheduled_start).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}
+                      {' – '}
+                      {new Date(booking.scheduled_end).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-amber-300 bg-amber-100/50 px-3 py-2.5">
+                    <p className="text-[9px] uppercase tracking-widest text-amber-700/80 mb-1">You requested</p>
+                    <p className="text-[13px] font-semibold text-amber-950">{formatDateFromISO(pendingRescheduleRequest.requested_scheduled_start)}</p>
+                    <p className="text-[12px] tabular-nums text-amber-900/80">
+                      {new Date(pendingRescheduleRequest.requested_scheduled_start).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}
+                      {pendingRescheduleRequest.requested_scheduled_end
+                        ? ` – ${new Date(pendingRescheduleRequest.requested_scheduled_end).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}`
+                        : ''}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-[12px] text-amber-800/80 leading-relaxed">
+                  Review is pending with operations. Your current checkout time remains active until they approve or reject this change.
+                </p>
+              </div>
+            )}
+            {!pendingRescheduleRequest && latestRescheduleRequest?.status === 'approved' && (
+              <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="material-symbols-outlined text-emerald-600 text-[16px]">event_available</span>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">New Time Confirmed</p>
+                </div>
+                <p className="text-[13px] text-emerald-900 leading-relaxed">
+                  Your reschedule was approved. The flight details above show your confirmed checkout time.
+                </p>
+              </div>
+            )}
+            {!pendingRescheduleRequest && latestRescheduleRequest?.status === 'rejected' && latestRescheduleRequest.requested_scheduled_start && (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/90 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-amber-600 text-[16px]">event_busy</span>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Reschedule Not Approved</p>
+                </div>
+                <p className="text-[13px] text-amber-900 leading-relaxed">
+                  Your request for{' '}
+                  <span className="font-semibold">
+                    {formatDateFromISO(latestRescheduleRequest.requested_scheduled_start)}
+                    {' · '}
+                    {new Date(latestRescheduleRequest.requested_scheduled_start).toLocaleTimeString('en-AU', {
+                      timeZone: 'Australia/Sydney',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                    {latestRescheduleRequest.requested_scheduled_end
+                      ? ` – ${new Date(latestRescheduleRequest.requested_scheduled_end).toLocaleTimeString('en-AU', {
+                          timeZone: 'Australia/Sydney',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}`
+                      : ''}
+                  </span>
+                  {' '}was not approved. Your original checkout time above remains active. You can request a different time if needed.
+                </p>
+              </div>
+            )}
             {booking.customer_notes && (
               <div className="mt-3 bg-[#f0f6ff] border border-[#152d5a]/10 rounded-xl p-3.5">
                 <div className="flex items-center gap-1.5 mb-1.5">
@@ -1749,12 +1839,18 @@ export default async function BookingDetailPage({ params }: PageProps) {
           {/* ── Booking Status ──────────────────────────────────────────── */}
           <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6 relative overflow-hidden">
             <div className="flex items-center gap-2 mb-4">
-              <span className={`material-symbols-outlined text-[13px] ${cfg.color}`} style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+              <span className={`material-symbols-outlined text-[13px] ${cfg.color}`} style={{ fontVariationSettings: "'FILL' 1" }}>
+                {cfg.icon === 'event_repeat' ? 'event_repeat' : cfg.icon === 'event_available' ? 'event_available' : 'check_circle'}
+              </span>
               <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#4b6390]">Booking Status</h3>
             </div>
             <p className="text-[18px] font-semibold text-[#152d5a] mb-3">{cfg.label}</p>
             <p className="text-[13px] text-[#4b6390] leading-relaxed relative z-10">
-              {(status === 'confirmed' || status === 'ready_for_dispatch' || status === 'dispatched')
+              {pendingRescheduleRequest?.status === 'pending'
+                ? 'Your reschedule request is with the operations team. Current time stays held until they confirm your new slot.'
+                : !pendingRescheduleRequest && latestRescheduleRequest?.status === 'approved' && ['checkout_requested', 'checkout_confirmed'].includes(status)
+                ? 'Your new checkout time has been confirmed by operations.'
+                : (status === 'confirmed' || status === 'ready_for_dispatch' || status === 'dispatched')
                 ? 'Your booking is confirmed. Please arrive at the aircraft at least 30 minutes before your scheduled departure for pre-flight checks.'
                 : status === 'awaiting_flight_record'
                 ? 'Your flight is complete. Please submit your post flight records.'

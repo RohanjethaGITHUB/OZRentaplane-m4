@@ -9,6 +9,10 @@ import {
   enqueueCheckoutRequestSubmittedAdminEmail,
   enqueueCheckoutRequestSubmittedCustomerEmail,
 } from '@/lib/email/outbox'
+import {
+  notifyCancellationRequested,
+  notifyAdminCancellationReviewRequired,
+} from '@/lib/booking/notifications'
 import { checkAircraftAvailability } from '@/lib/booking/availability'
 import { isNoShowLockedProfile } from '@/lib/checkout-policy'
 import { isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
@@ -901,6 +905,137 @@ export async function cancelCheckoutRequest(checkoutId: string): Promise<void> {
   void emitOpsChanged()
 }
 
+/**
+ * Late checkout cancellation (≤12 hours before start).
+ * Mirrors standard rental late cancel: creates a pending review request and
+ * moves the booking to `cancellation_requested`. Slot is held until admin
+ * waives or applies a charge.
+ */
+export async function requestLateCheckoutCancellation(
+  checkoutId: string,
+  customerMessage: string | null,
+): Promise<void> {
+  const { supabase, userId } = await requireCustomer()
+  const now = new Date()
+
+  const { data: booking, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('id, status, booking_type, scheduled_start, scheduled_end, aircraft_id, checkout_lifecycle_status')
+    .eq('id', checkoutId)
+    .eq('booking_owner_user_id', userId)
+    .single()
+
+  if (fetchErr || !booking) throw new Error('Checkout request not found.')
+  if (booking.booking_type !== 'checkout') {
+    throw new Error('VALIDATION: Only checkout bookings can use this cancellation path.')
+  }
+  if (!['checkout_requested', 'checkout_confirmed'].includes(booking.status)) {
+    throw new Error(`VALIDATION: Checkout cannot be cancelled from status "${booking.status}".`)
+  }
+  if (!booking.scheduled_start || isCheckoutSelfServiceAllowed(booking.scheduled_start, now)) {
+    throw new Error(
+      'VALIDATION: Checkout is more than 12 hours away. Use self-service cancellation instead.',
+    )
+  }
+
+  const { data: existingRequest } = await supabase
+    .from('booking_cancellation_requests')
+    .select('id')
+    .eq('booking_id', checkoutId)
+    .eq('status', 'pending')
+    .maybeSingle()
+
+  if (existingRequest) {
+    throw new Error('VALIDATION: A cancellation request is already pending for this checkout.')
+  }
+
+  const oldStatus = booking.status
+  const nowIso = now.toISOString()
+
+  const { error: updateErr } = await supabase
+    .from('bookings')
+    .update({
+      status: 'cancellation_requested',
+      updated_at: nowIso,
+    })
+    .eq('id', checkoutId)
+
+  if (updateErr) throw new Error('Failed to submit cancellation request.')
+
+  await supabase.from('booking_cancellation_requests').insert({
+    booking_id: checkoutId,
+    user_id: userId,
+    booking_start_time: booking.scheduled_start,
+    is_within_24_hours: true,
+    customer_message: customerMessage?.trim() || null,
+    status: 'pending',
+  })
+
+  await supabase.from('checkout_change_requests').insert({
+    checkout_request_id: booking.id,
+    customer_id: userId,
+    request_type: 'cancel',
+    status: 'pending',
+    original_scheduled_start: booking.scheduled_start,
+    original_scheduled_end: booking.scheduled_end,
+    customer_note: customerMessage?.trim() || null,
+  })
+
+  const note = customerMessage?.trim()
+    ? `Customer requested checkout cancellation less than 12 hours before departure. Message: "${customerMessage.trim()}"`
+    : 'Customer requested checkout cancellation less than 12 hours before departure. Admin review required.'
+
+  await supabase.from('booking_status_history').insert({
+    booking_id: checkoutId,
+    old_status: oldStatus,
+    new_status: 'cancellation_requested',
+    changed_by_user_id: userId,
+    note,
+  })
+
+  await supabase.from('booking_audit_events').insert({
+    booking_id: checkoutId,
+    aircraft_id: booking.aircraft_id,
+    actor_user_id: userId,
+    actor_role: 'customer',
+    event_type: 'cancellation_requested',
+    event_summary: 'Customer requested late checkout cancellation (<12 h). Pending admin review.',
+    new_value: { status: 'cancellation_requested', customer_message: customerMessage },
+  })
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name, email')
+    .eq('id', userId)
+    .single()
+
+  if (profile?.email) {
+    await notifyCancellationRequested({
+      customerEmail: profile.email,
+      bookingId: checkoutId,
+    }).catch((error) => console.error('[requestLateCheckoutCancellation] customer email failed:', error))
+
+    await notifyAdminCancellationReviewRequired({
+      bookingId: checkoutId,
+      customerName: profile.full_name ?? 'Customer',
+      customerEmail: profile.email,
+      reason: customerMessage ?? null,
+    }).catch((error) => console.error('[requestLateCheckoutCancellation] admin email failed:', error))
+  }
+
+  revalidatePath(`/dashboard/bookings/${checkoutId}`)
+  revalidatePath('/dashboard/bookings')
+  revalidatePath('/dashboard/checkout')
+  revalidatePath('/dashboard')
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings/cancellations')
+  revalidatePath('/admin/checkouts/cancelled')
+  revalidatePath(`/admin/bookings/requests/${checkoutId}`)
+
+  void emitBookingChanged({ bookingId: checkoutId, userId })
+  void emitOpsChanged()
+}
+
 export async function requestCheckoutReschedule(
   checkoutId: string,
   newDate: string,
@@ -1096,7 +1231,7 @@ export async function approveCheckoutReschedule(changeRequestId: string): Promis
   if (releaseErr) throw new Error('Failed to release existing checkout slot.')
   const releasedBlockIds = (releasedBlocks ?? []).map((b) => b.id)
 
-  const newBlocks = [
+  const newBlocks: Array<Record<string, unknown>> = [
     {
       aircraft_id: booking.aircraft_id,
       related_booking_id: booking.id,
@@ -1110,7 +1245,11 @@ export async function approveCheckoutReschedule(changeRequestId: string): Promis
       is_public_visible: true,
       status: 'active',
     },
-    {
+  ]
+  // Only insert buffers with positive duration — zero-length rows violate
+  // schedule_blocks_time_order_check (end_time > start_time).
+  if (preBufMs > 0) {
+    newBlocks.push({
       aircraft_id: booking.aircraft_id,
       related_booking_id: booking.id,
       block_type: 'buffer',
@@ -1122,8 +1261,10 @@ export async function approveCheckoutReschedule(changeRequestId: string): Promis
       created_by_role: 'admin',
       is_public_visible: false,
       status: 'active',
-    },
-    {
+    })
+  }
+  if (postBufMs > 0) {
+    newBlocks.push({
       aircraft_id: booking.aircraft_id,
       related_booking_id: booking.id,
       block_type: 'buffer',
@@ -1135,8 +1276,8 @@ export async function approveCheckoutReschedule(changeRequestId: string): Promis
       created_by_role: 'admin',
       is_public_visible: false,
       status: 'active',
-    },
-  ]
+    })
+  }
 
   const { error: blockInsertErr } = await admin.from('schedule_blocks').insert(newBlocks)
   if (blockInsertErr) {
@@ -1146,7 +1287,10 @@ export async function approveCheckoutReschedule(changeRequestId: string): Promis
         .update({ status: 'active' })
         .in('id', releasedBlockIds)
     }
-    throw new Error('Failed to reserve the approved checkout slot.')
+    console.error('[approveCheckoutReschedule] schedule_blocks insert failed:', blockInsertErr)
+    throw new Error(
+      `Failed to reserve the approved checkout slot.${blockInsertErr.message ? ` ${blockInsertErr.message}` : ''}`,
+    )
   }
 
   const { error: bookingErr } = await admin

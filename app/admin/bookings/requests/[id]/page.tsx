@@ -19,6 +19,7 @@ import {
 import AdminSubmitFlightRecordPanel from './AdminSubmitFlightRecordPanel'
 import AdminStandardBankTransferPanel from './AdminStandardBankTransferPanel'
 import AdminCancellationReviewCard from './AdminCancellationReviewCard'
+import AdminRescheduleReviewCard from './AdminRescheduleReviewCard'
 import AdminRejectDocsPanel from './AdminRejectDocsPanel'
 import { deriveBookingLifecycleStage } from '@/lib/booking/booking-lifecycle-stage'
 import { isStandardBookingInvoicePaid } from '@/lib/booking/standard-booking-payment-state'
@@ -955,6 +956,37 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       .maybeSingle()
     cancellationReqAdmin = (crData as CancellationReqAdmin | null) ?? null
   }
+
+  type PendingRescheduleAdmin = {
+    id: string
+    requested_scheduled_start: string
+    requested_scheduled_end: string
+    customer_note: string | null
+  }
+  let pendingRescheduleAdmin: PendingRescheduleAdmin | null = null
+  if (bookingType === 'checkout' && ['checkout_requested', 'checkout_confirmed'].includes(status)) {
+    const { data: rescheduleData } = await supabase
+      .from('checkout_change_requests')
+      .select('id, requested_scheduled_start, requested_scheduled_end, customer_note, status')
+      .eq('checkout_request_id', booking.id)
+      .eq('request_type', 'reschedule')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (
+      rescheduleData?.requested_scheduled_start &&
+      rescheduleData?.requested_scheduled_end
+    ) {
+      pendingRescheduleAdmin = {
+        id: rescheduleData.id,
+        requested_scheduled_start: rescheduleData.requested_scheduled_start,
+        requested_scheduled_end: rescheduleData.requested_scheduled_end,
+        customer_note: (rescheduleData as { customer_note?: string | null }).customer_note ?? null,
+      }
+    }
+  }
+  const hasPendingReschedule = !!pendingRescheduleAdmin
   const canRequestClarification = status === 'pending_confirmation' || status === 'confirmed'
   const clarificationQuestion = [...statusHistory].reverse().find(r => r.new_status === 'needs_clarification')?.note ?? null
   const clarificationResponse = [...statusHistory].reverse().find(r => r.old_status === 'needs_clarification' && r.new_status === 'pending_confirmation')?.note ?? null
@@ -965,8 +997,10 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const isCheckoutConfirmed     = isCheckout && status === 'checkout_confirmed'
   const isCheckoutOutcomePending = isCheckout && status === 'checkout_completed_under_review'
   const isOnHold                = status === 'on_hold_pending_documents'
-  // Checkout bookings need their own action panel — not the standard one
-  const needsCheckoutActions    = isCheckoutRequestedStatus || isCheckoutConfirmed || isCheckoutOutcomePending
+  // When a reschedule is pending, show the reschedule review card instead of Confirm Checkout
+  const needsCheckoutActions    =
+    (isCheckoutRequestedStatus || isCheckoutConfirmed || isCheckoutOutcomePending) &&
+    !hasPendingReschedule
 
   const activeOwnBlocks = ((ownBlocks ?? []) as ScheduleBlockRow[]).filter(b => b.status === 'active')
   const slotHeld        = activeOwnBlocks.length > 0
@@ -981,6 +1015,32 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     displayBookingTypeLabel = 'Rental - Block time'
     displayBookingRate = `$${activeBlockTime.ratePerHour}/h`
   }
+
+  const requestedSchedule = pendingRescheduleAdmin
+    ? formatBookingSchedule(
+        pendingRescheduleAdmin.requested_scheduled_start,
+        pendingRescheduleAdmin.requested_scheduled_end,
+      )
+    : null
+  const displayPageTitle = hasPendingReschedule
+    ? 'Review Reschedule Request'
+    : isCancellationRequested
+      ? 'Review Cancellation Request'
+      : pageTitle
+  const displayLifecycleLabel = hasPendingReschedule
+    ? 'Reschedule Requested'
+    : isCancellationRequested
+      ? 'Cancellation Requested'
+      : lifecycleStage.label
+  const displayLifecycleSublabel = hasPendingReschedule
+    ? 'Awaiting approval of the requested new time'
+    : isCancellationRequested
+      ? 'Awaiting admin decision on cancellation'
+      : (lifecycleStage.sublabel ?? (bookingType === 'checkout' ? 'Current checkout state' : 'Current booking state'))
+  const displayLifecycleTone =
+    hasPendingReschedule || isCancellationRequested
+      ? lifecycleToneCfg.amber
+      : lifecycleTone
 
   return (
     <AdminFlightReadingsDisclosureProvider>
@@ -1007,14 +1067,18 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="text-2xl font-semibold text-[#152d5a]">{pageTitle}</h1>
+              <h1 className="text-2xl font-semibold text-[#152d5a]">{displayPageTitle}</h1>
               <p className="text-sm text-gray-400 mt-1">
-                View and manage this booking.
+                {hasPendingReschedule
+                  ? 'Compare the current and requested times, then approve or reject.'
+                  : isCancellationRequested
+                    ? 'Review the cancellation request and decide waive or charge.'
+                    : 'View and manage this booking.'}
               </p>
             </div>
             <div className="flex flex-col items-end gap-1">
-              <span className={`inline-flex items-center px-3 py-1 rounded-full border text-xs font-semibold uppercase tracking-wide ${lifecycleTone.bg} ${lifecycleTone.text} ${lifecycleTone.border}`}>
-                {lifecycleStage.label}
+              <span className={`inline-flex items-center px-3 py-1 rounded-full border text-xs font-semibold uppercase tracking-wide ${displayLifecycleTone.bg} ${displayLifecycleTone.text} ${displayLifecycleTone.border}`}>
+                {displayLifecycleLabel}
               </span>
               <span className="text-xs text-gray-400">
                 Submitted {formatDateTime(booking.created_at)}
@@ -1130,19 +1194,40 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             </div>
           </div>
 
-          <div className="h-full rounded-[20px] border border-[rgba(12,35,64,0.10)] bg-white p-4 shadow-[0_8px_20px_rgba(15,30,52,0.04)]">
+          <div className={`h-full rounded-[20px] border p-4 shadow-[0_8px_20px_rgba(15,30,52,0.04)] ${
+            hasPendingReschedule
+              ? 'border-amber-200 bg-amber-50/70'
+              : 'border-[rgba(12,35,64,0.10)] bg-white'
+          }`}>
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.9)]">
                 <CalendarDays className="w-4 h-4 text-[var(--admin-text-muted)]" />
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">Schedule</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
+                {hasPendingReschedule ? 'Schedule Change' : 'Schedule'}
+              </span>
             </div>
             <div className="mt-3 space-y-1.5">
-              <p className="text-[15px] font-semibold text-[var(--admin-text)]">{bookingSchedule.dateRange}</p>
-              <p className="text-[12.5px] text-[var(--admin-text-muted)]">{bookingSchedule.timeRange}</p>
-              <p className="text-[12px] text-[var(--admin-text-muted)]">
-                {bookingSchedule.duration ? `${bookingSchedule.duration} · ${bookingSchedule.timezone}` : bookingSchedule.timezone}
-              </p>
+              {hasPendingReschedule && requestedSchedule ? (
+                <>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b6390]">Current (held)</p>
+                  <p className="text-[14px] font-semibold text-[var(--admin-text)]">{bookingSchedule.dateRange}</p>
+                  <p className="text-[12px] text-[var(--admin-text-muted)]">{bookingSchedule.timeRange}</p>
+                  <div className="pt-2 mt-2 border-t border-amber-200/80">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-700">Requested new time</p>
+                    <p className="text-[14px] font-semibold text-amber-900 mt-1">{requestedSchedule.dateRange}</p>
+                    <p className="text-[12px] text-amber-800/80">{requestedSchedule.timeRange}</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-[15px] font-semibold text-[var(--admin-text)]">{bookingSchedule.dateRange}</p>
+                  <p className="text-[12.5px] text-[var(--admin-text-muted)]">{bookingSchedule.timeRange}</p>
+                  <p className="text-[12px] text-[var(--admin-text-muted)]">
+                    {bookingSchedule.duration ? `${bookingSchedule.duration} · ${bookingSchedule.timezone}` : bookingSchedule.timezone}
+                  </p>
+                </>
+              )}
               <p className="text-[12px] text-[var(--admin-text-muted)]">
                 {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/^Cessna 172$/, 'Cessna 172N') ?? 'Cessna 172N'} · {(aircraft as { registration?: string } | null)?.registration ?? 'VH-KZG'}
               </p>
@@ -1157,11 +1242,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">Lifecycle</span>
             </div>
             <div className="mt-3 space-y-2">
-              <span className={`inline-flex items-center rounded-full border px-3 py-1.5 text-[12px] font-semibold ${lifecycleTone.bg} ${lifecycleTone.border} ${lifecycleTone.text}`}>
-                {lifecycleStage.label}
+              <span className={`inline-flex items-center rounded-full border px-3 py-1.5 text-[12px] font-semibold ${displayLifecycleTone.bg} ${displayLifecycleTone.border} ${displayLifecycleTone.text}`}>
+                {displayLifecycleLabel}
               </span>
               <p className="text-[12.5px] leading-[1.45] text-[var(--admin-text-muted)]">
-                {lifecycleStage.sublabel ?? (bookingType === 'checkout' ? 'Current checkout state' : 'Current booking state')}
+                {displayLifecycleSublabel}
               </p>
             </div>
           </div>
@@ -1312,6 +1397,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               clearanceBorder={clearanceCfg.border}
               documents={documents as import('@/app/admin/bookings/requests/[id]/AdminCheckoutReviewPanel').DocSummary[]}
               messages={messages as import('@/lib/supabase/types').VerificationEvent[]}
+              pendingRescheduleReview={hasPendingReschedule}
             />
           )}
 
@@ -1338,7 +1424,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
           {/* ── Checkout action panel ─────────────────────────────────────── */}
           {/* checkout_requested uses AdminCheckoutReviewPanel above in the left column */}
-          {(isCheckoutConfirmed || isCheckoutOutcomePending) && (
+          {(isCheckoutConfirmed || isCheckoutOutcomePending) && !hasPendingReschedule && (
             <div className={`rounded-2xl p-6 border ${
               isCheckoutConfirmed ? 'bg-white border-green-500/15' : 'bg-white border-amber-500/15'
             }`}>
@@ -1397,6 +1483,18 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 bookingStartTime={cancellationReqAdmin.booking_start_time}
                 estimatedAmount={(booking as { estimated_amount?: number | null }).estimated_amount ?? null}
                 estimatedHours={(booking as { estimated_hours?: number | null }).estimated_hours ?? null}
+              />
+            )}
+
+            {/* Reschedule request review — approve/reject new proposed time */}
+            {hasPendingReschedule && pendingRescheduleAdmin && (
+              <AdminRescheduleReviewCard
+                changeRequestId={pendingRescheduleAdmin.id}
+                currentStart={booking.scheduled_start}
+                currentEnd={booking.scheduled_end}
+                requestedStart={pendingRescheduleAdmin.requested_scheduled_start}
+                requestedEnd={pendingRescheduleAdmin.requested_scheduled_end}
+                customerNote={pendingRescheduleAdmin.customer_note}
               />
             )}
 

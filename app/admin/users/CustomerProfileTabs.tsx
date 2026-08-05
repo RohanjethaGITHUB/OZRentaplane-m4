@@ -57,6 +57,7 @@ type PendingCancellationRow = {
   created_at: string
   booking_start_time: string | null
   status: string
+  booking_id: string
   bookings: { booking_owner_user_id: string } | { booking_owner_user_id: string }[]
 }
 
@@ -432,6 +433,36 @@ export default function CustomerProfileTabs({
 
   const currentStatus = getCurrentStatusText(clearanceStatus, accountStatus)
   const currentStatusAction = accountStatus === 'blocked' ? null : CLEARANCE_ACTION[clearanceStatus]
+  const pendingReschedule = pendingRescheduleRows[0] ?? null
+  const pendingCancellation = pendingCancellationRows[0] ?? null
+  const overrideStatusCard = (() => {
+    if (pendingCancellation) {
+      return {
+        label: 'Cancellation Requested',
+        description: 'Customer requested cancellation inside the review window. Open the booking to waive or charge.',
+        tone: 'amber' as const,
+        primaryCta: {
+          label: 'Review Cancellation',
+          href: `/admin/bookings/requests/${pendingCancellation.booking_id}`,
+        },
+      }
+    }
+    if (pendingReschedule) {
+      return {
+        label: 'Reschedule Requested',
+        description: 'Customer proposed a new checkout time. Review and approve or reject the requested slot.',
+        tone: 'amber' as const,
+        primaryCta: {
+          label: 'Review Reschedule Request',
+          href: `/admin/bookings/requests/${pendingReschedule.checkout_request_id}`,
+        },
+      }
+    }
+    return null
+  })()
+  const statusCardLabel = overrideStatusCard?.label ?? currentStatus.label
+  const statusCardDescription = overrideStatusCard?.description ?? currentStatus.description
+  const statusCardTone = overrideStatusCard?.tone ?? currentStatus.tone
 
   function setTab(tab: TabType) {
     const nextParams = new URLSearchParams(searchParams?.toString())
@@ -582,18 +613,37 @@ export default function CustomerProfileTabs({
           <p className="text-[11px] font-semibold uppercase tracking-widest text-[#3d5a80]">
             Current Status
           </p>
-          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ${getStatusBadgeClass(currentStatus.tone)}`}>
-            {currentStatus.label}
+          <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest ${getStatusBadgeClass(statusCardTone)}`}>
+            {statusCardLabel}
           </span>
         </div>
 
         <p className="text-[15px] text-[#3d5a80] mb-3 leading-relaxed">
-          {currentStatus.description}
+          {statusCardDescription}
         </p>
 
         {accountStatus === 'blocked' ? (
           <div className="flex flex-wrap items-center gap-3">
             <UnblockCustomerButton customerId={customerProfile.id} />
+          </div>
+        ) : overrideStatusCard ? (
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={overrideStatusCard.primaryCta.href}
+              className="text-[15px] font-medium text-[#185FA5] inline-flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors"
+            >
+              {overrideStatusCard.primaryCta.label}
+              <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'wght' 300" }}>arrow_forward</span>
+            </Link>
+            {latestCheckoutBookingId && overrideStatusCard.primaryCta.href !== `/admin/bookings/requests/${latestCheckoutBookingId}` && (
+              <Link
+                href={`/admin/bookings/requests/${latestCheckoutBookingId}`}
+                className="text-[15px] font-medium text-[#3d5a80] inline-flex items-center gap-1 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors"
+              >
+                View booking
+                <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'wght' 300" }}>arrow_forward</span>
+              </Link>
+            )}
           </div>
         ) : currentStatusAction && currentStatusAction.ctas.length > 0 ? (
           <div className="flex flex-wrap gap-2">

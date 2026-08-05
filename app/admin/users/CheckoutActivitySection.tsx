@@ -26,6 +26,7 @@ type Props = {
 }
 
 const BOOKING_STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  cancellation_requested:          { label: 'Cancellation Requested', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/20' },
   checkout_requested:              { label: 'Checkout Requested',    cls: 'bg-blue-500/10 text-[#1a4fd6] border-blue-500/20'      },
   checkout_confirmed:              { label: 'Checkout Confirmed',    cls: 'bg-green-500/10 text-green-400 border-green-500/20'   },
   checkout_completed_under_review: { label: 'Awaiting Outcome',      cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20'   },
@@ -85,13 +86,33 @@ function formatDateTimeParts(booking: BookingSummary): { start: string; end: str
 }
 
 function getLifecycleLabel(booking: BookingSummary): string {
+  if (booking.booking_type === 'checkout' && booking.checkout_lifecycle_status === 'reschedule_requested') {
+    return 'Reschedule Requested'
+  }
+  if (booking.status === 'cancellation_requested') {
+    return 'Cancellation Requested'
+  }
   return BOOKING_STATUS_BADGE[booking.status]?.label ?? prettyStatus(booking.status)
+}
+
+function getPrimaryStatusBadge(booking: BookingSummary): { label: string; cls: string } {
+  if (booking.booking_type === 'checkout' && booking.checkout_lifecycle_status === 'reschedule_requested') {
+    return { label: 'Reschedule Requested', cls: 'bg-amber-500/10 text-amber-700 border-amber-500/25' }
+  }
+  if (booking.status === 'cancellation_requested') {
+    return { label: 'Cancellation Requested', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/20' }
+  }
+  return BOOKING_STATUS_BADGE[booking.status] ?? { label: booking.status, cls: 'bg-white/5 text-[#4b6390] border-[#152d5a]/10' }
 }
 
 function getCheckoutLifecycleLabel(booking: BookingSummary): string | null {
   if (booking.booking_type !== 'checkout') return null
   if (!booking.checkout_lifecycle_status) return null
   if (booking.checkout_lifecycle_status === booking.status) return null
+  // Already surfaced as the primary badge
+  if (booking.checkout_lifecycle_status === 'reschedule_requested') {
+    return 'Approve or reject the requested new time'
+  }
   return prettyStatus(booking.checkout_lifecycle_status)
 }
 
@@ -102,7 +123,7 @@ function BookingRow({
   booking: BookingSummary
   activeBlockTime: ActiveBlockTimeSummary
 }) {
-  const statusCfg = BOOKING_STATUS_BADGE[booking.status] ?? { label: booking.status, cls: 'bg-white/5 text-[#4b6390] border-[#152d5a]/10' }
+  const statusCfg = getPrimaryStatusBadge(booking)
   const reg = getAircraftReg(booking.aircraft)
   const windowParts = formatDateTimeParts(booking)
   const timingLabel = getFlightTimingLabel(booking)

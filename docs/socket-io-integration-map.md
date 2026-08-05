@@ -92,7 +92,7 @@ When `pilot_clearance_status` or verification phase changes, push to `user:{id}`
 ### 9. Cancellations
 | Trigger | Action | Notify |
 |---------|--------|--------|
-| Customer cancel / late cancel request | `cancelBookingNow`, `requestLateCancellation`, `cancelCheckoutRequest` | Admin cancellations queue |
+| Customer cancel / late cancel request | `cancelBookingNow`, `requestLateCancellation`, `cancelCheckoutRequest`, `requestLateCheckoutCancellation` | Admin cancellations queue |
 | Admin waive / charge | `adminApproveCancellationWaived`, `adminApproveCancellationCharged` | Customer booking detail |
 
 ---

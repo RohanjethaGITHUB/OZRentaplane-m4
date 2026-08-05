@@ -146,8 +146,15 @@ export function getAttentionAssessment(context: AttentionContext): { reason: str
   const status = context.pilotClearanceStatus ?? 'checkout_required'
   if (status === 'additional_checkout_required') issues.push('Additional checkout required, review checkout outcome')
   if (status === 'not_currently_eligible') issues.push('Customer marked not currently eligible, review outcome notes')
-  if (status === 'checkout_reschedule_required') issues.push('Reschedule request pending admin approval')
-  if (status === 'checkout_requested') issues.push(CHECKOUT_REQUEST_ATTENTION_REASON)
+  // Avoid stacking clearance-outcome "reschedule required" with an active pending change request
+  if (status === 'checkout_reschedule_required' && !pendingReschedule) {
+    issues.push('Reschedule request pending admin approval')
+  }
+  // Pending reschedule/cancel already explains why the checkout needs attention —
+  // don't also stack the generic "checkout request submitted" copy.
+  if (status === 'checkout_requested' && !pendingReschedule && !pendingCancellation) {
+    issues.push(CHECKOUT_REQUEST_ATTENTION_REASON)
+  }
   if (status === 'checkout_completed_under_review') issues.push(CHECKOUT_OUTCOME_ATTENTION_REASON)
 
   const shouldSuppressGenericDocumentReview =
@@ -179,8 +186,10 @@ export function getAttentionAssessment(context: AttentionContext): { reason: str
   if (issues.length === 0) return { reason: '', hasIssue: false }
 
   const primary = issues[0]
+  if (issues.length === 1) return { reason: primary, hasIssue: true }
+  // Surface the next concrete issue instead of an opaque "plus N other issues" count
   return {
-    reason: issues.length > 1 ? `${primary}, plus ${issues.length - 1} other issue${issues.length - 1 === 1 ? '' : 's'}` : primary,
+    reason: `${primary}. Also: ${issues[1]}${issues.length > 2 ? ` (+${issues.length - 2} more)` : ''}`,
     hasIssue: true,
   }
 }

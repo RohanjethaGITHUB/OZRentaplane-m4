@@ -69,6 +69,8 @@ type Props = {
   clearanceBorder:    string
   documents:          DocSummary[]
   messages:           VerificationEvent[]
+  /** When true, hide Confirm Checkout / Propose New Time — use the reschedule review card instead */
+  pendingRescheduleReview?: boolean
 }
 
 // ── Time option helpers ────────────────────────────────────────────────────────
@@ -409,6 +411,7 @@ export default function AdminCheckoutReviewPanel({
   hasNightVfrRating = false,
   clearanceLabel, clearanceColor, clearanceBg, clearanceBorder,
   documents, messages,
+  pendingRescheduleReview = false,
 }: Props) {
   const router = useRouter()
 
@@ -678,7 +681,7 @@ export default function AdminCheckoutReviewPanel({
     : ALL_TIME_OPTIONS
 
   return (
-    <div className="space-y-4 pb-24">
+      <div className={`space-y-4 ${pendingRescheduleReview ? 'pb-8' : 'pb-24'}`}>
       <section className="bg-white border-t border-r border-b border-gray-100 border-l-4 border-l-[#1a4fd6] rounded-xl p-6 mb-4 shadow-sm">
         <div className="flex items-center gap-3 mb-5">
           <div className="w-8 h-8 rounded-full bg-[#152d5a] text-white text-sm font-semibold flex items-center justify-center flex-shrink-0">
@@ -999,6 +1002,7 @@ export default function AdminCheckoutReviewPanel({
         </div>
       </section>
 
+      {!pendingRescheduleReview && (
       <div className="@container fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] md:px-6 md:py-4 lg:left-72">
         <div className="mx-auto flex max-w-7xl flex-col gap-2">
           {!canConfirmCheckout && (
@@ -1065,6 +1069,7 @@ export default function AdminCheckoutReviewPanel({
           </div>
         </div>
       </div>
+      )}
 
       <ConfirmModal
         open={confirmCheckoutOpen}

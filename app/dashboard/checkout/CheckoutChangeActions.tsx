@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { cancelCheckoutRequest, requestCheckoutReschedule } from '@/app/actions/checkout'
+import { cancelCheckoutRequest, requestCheckoutReschedule, requestLateCheckoutCancellation } from '@/app/actions/checkout'
 import { checkCustomerAvailability, getDayAvailability, type SafeConflict } from '@/app/actions/customer-availability'
 import CalendarDateField from '@/components/CalendarDateField'
 import ModalPortal from '@/components/ModalPortal'
@@ -114,7 +114,10 @@ function TimeDropdown({
   useEffect(() => {
     if (!open || !listRef.current) return
     const selected = listRef.current.querySelector('[data-selected="true"]') as HTMLElement | null
-    if (selected) return selected.scrollIntoView({ block: 'nearest' })
+    if (selected) {
+      selected.scrollIntoView({ block: 'nearest' })
+      return
+    }
     const defaultStart = listRef.current.querySelector('[data-default-start="true"]') as HTMLElement | null
     defaultStart?.scrollIntoView({ block: 'center' })
   }, [open])
@@ -540,7 +543,10 @@ export default function CheckoutChangeActions({
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionSuccess, setActionSuccess] = useState<string | null>(null)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
+  const [lateCancelModalOpen, setLateCancelModalOpen] = useState(false)
+  const [lateCancelReason, setLateCancelReason] = useState('')
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false)
+  const [rescheduleBlockedModalOpen, setRescheduleBlockedModalOpen] = useState(false)
   const [isCancelling, startCancelTransition] = useTransition()
   const [isRescheduling, startRescheduleTransition] = useTransition()
   const [pendingState, setPendingState] = useState<RescheduleRequestLite | null>(pendingRescheduleRequest)
@@ -554,6 +560,7 @@ export default function CheckoutChangeActions({
     checkout.booking_type === 'checkout' &&
     ['checkout_requested', 'checkout_confirmed'].includes(checkout.status) &&
     !isCheckoutSelfServiceAllowed(checkout.scheduled_start, new Date())
+  const isLateCancelPending = checkout.status === 'cancellation_requested'
   const hasPendingReschedule = pendingState?.status === 'pending'
 
   const requestedRescheduleLabel = useMemo(() => {
@@ -564,6 +571,24 @@ export default function CheckoutChangeActions({
       timeStyle: 'short',
     })
   }, [pendingState])
+
+  const rejectedRescheduleLabel = useMemo(() => {
+    if (latestRescheduleRequest?.status !== 'rejected' || !latestRescheduleRequest.requested_scheduled_start) {
+      return null
+    }
+    const start = new Date(latestRescheduleRequest.requested_scheduled_start).toLocaleString('en-AU', {
+      timeZone: 'Australia/Sydney',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    })
+    if (!latestRescheduleRequest.requested_scheduled_end) return start
+    const end = new Date(latestRescheduleRequest.requested_scheduled_end).toLocaleString('en-AU', {
+      timeZone: 'Australia/Sydney',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+    return `${start} – ${end}`
+  }, [latestRescheduleRequest])
 
   const latestApproved = latestRescheduleRequest?.status === 'approved'
   const latestRejected = latestRescheduleRequest?.status === 'rejected'
@@ -584,6 +609,41 @@ export default function CheckoutChangeActions({
         setActionError(msg.replace(/^VALIDATION: /, ''))
       }
     })
+  }
+
+  const handleLateCancel = () => {
+    setActionError(null)
+    setActionSuccess(null)
+    startCancelTransition(async () => {
+      try {
+        await requestLateCheckoutCancellation(checkout.id, lateCancelReason.trim() || null)
+        setLateCancelModalOpen(false)
+        setLateCancelReason('')
+        setActionSuccess('Your cancellation request has been submitted for review.')
+        router.refresh()
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Could not submit cancellation request.'
+        setActionError(msg.replace(/^VALIDATION: /, ''))
+      }
+    })
+  }
+
+  const openCancelFlow = () => {
+    setActionError(null)
+    if (selfServiceBlockedByCutoff) {
+      setLateCancelModalOpen(true)
+      return
+    }
+    setCancelModalOpen(true)
+  }
+
+  const openRescheduleFlow = () => {
+    setActionError(null)
+    if (selfServiceBlockedByCutoff) {
+      setRescheduleBlockedModalOpen(true)
+      return
+    }
+    setRescheduleModalOpen(true)
   }
 
   const handleRescheduleSubmit = (date: string, time: string) => {
@@ -611,20 +671,28 @@ export default function CheckoutChangeActions({
     })
   }
 
-  if (!canModify && !selfServiceBlockedByCutoff && checkout.checkout_lifecycle_status !== 'cancelled_by_customer') return null
+  if (
+    !canModify &&
+    !selfServiceBlockedByCutoff &&
+    !isLateCancelPending &&
+    checkout.checkout_lifecycle_status !== 'cancelled_by_customer'
+  ) {
+    return null
+  }
 
   const showActionButtons =
+    !isLateCancelPending &&
     checkout.checkout_lifecycle_status !== 'cancelled_by_customer' &&
     checkout.checkout_lifecycle_status !== 'cancelled_by_admin' &&
     checkout.checkout_lifecycle_status !== 'completed'
 
+  const cancelButtonClass = isListCard
+    ? 'flex items-center justify-center whitespace-nowrap border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors w-full'
+    : 'inline-flex items-center gap-2 px-6 py-3 border border-rose-300 bg-white text-rose-600 hover:bg-rose-50 disabled:bg-[#f8fafc] disabled:border-[#e2e8f0] disabled:text-[#94a3b8] rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all'
+
   const modifyButtonClass = isListCard
     ? 'flex items-center justify-center whitespace-nowrap border border-[#152d5a]/20 text-[#152d5a] hover:bg-[#f0f6ff] disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors w-full'
-    : 'inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-[#e2e8f0] disabled:text-[#94a3b8] text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all'
-
-  const cancelButtonClass = isListCard
-    ? 'flex items-center justify-center whitespace-nowrap border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors w-full'
-    : 'inline-flex items-center gap-2 px-6 py-3 border border-rose-300/25 hover:border-rose-300/40 text-rose-200 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all'
+    : 'inline-flex items-center gap-2 px-6 py-3 bg-[#152d5a] hover:bg-[#1a3a6e] disabled:bg-[#e2e8f0] disabled:text-[#64748b] text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all'
 
   return (
     <>
@@ -657,7 +725,60 @@ export default function CheckoutChangeActions({
         </ModalPortal>
       )}
 
-      {selfServiceBlockedByCutoff && (cancelModalOpen || rescheduleModalOpen) && (
+      {lateCancelModalOpen && selfServiceBlockedByCutoff && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <div className="w-full max-w-lg bg-white border border-[#152d5a]/10 rounded-2xl shadow-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#152d5a]/10">
+                <h3 className="text-lg font-semibold text-[#152d5a]">Request cancellation?</h3>
+              </div>
+              <div className="px-5 py-5 space-y-4">
+                <p className="text-sm text-[#4b6390] leading-relaxed">
+                  Your checkout flight is less than 12 hours away. You can submit a cancellation request for operations review.
+                  A cancellation charge may apply — the team can waive or apply the charge when they review your request.
+                </p>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4b6390] mb-2">
+                    Reason for cancellation
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={lateCancelReason}
+                    onChange={(e) => setLateCancelReason(e.target.value)}
+                    disabled={isCancelling}
+                    placeholder="Add a short note for the operations team..."
+                    className="w-full px-4 py-3 bg-white border border-[#152d5a]/15 focus:border-[#1a4fd6]/50 focus:outline-none focus:ring-1 focus:ring-[#1a4fd6]/20 rounded-xl text-[#152d5a] text-sm placeholder:text-[#94a3b8] transition-colors resize-none leading-relaxed"
+                  />
+                </div>
+                {actionError && <p className="text-sm text-red-600">{actionError}</p>}
+              </div>
+              <div className="px-5 py-4 border-t border-[#152d5a]/10 flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    if (isCancelling) return
+                    setLateCancelModalOpen(false)
+                    setLateCancelReason('')
+                    setActionError(null)
+                  }}
+                  disabled={isCancelling}
+                  className="px-4 py-2 text-sm text-[#4b6390] border border-[#152d5a]/15 rounded-lg disabled:opacity-50"
+                >
+                  Keep checkout
+                </button>
+                <button
+                  onClick={handleLateCancel}
+                  disabled={isCancelling}
+                  className="px-4 py-2 text-sm text-white bg-amber-500 hover:bg-amber-600 rounded-lg disabled:opacity-40"
+                >
+                  {isCancelling ? 'Submitting...' : 'Submit cancellation request'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
+      {rescheduleBlockedModalOpen && selfServiceBlockedByCutoff && (
         <ModalPortal>
           <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
             <div className="w-full max-w-lg bg-white border border-[#152d5a]/10 rounded-2xl shadow-2xl overflow-hidden">
@@ -669,7 +790,7 @@ export default function CheckoutChangeActions({
                   Your checkout flight is less than 12 hours away.
                 </p>
                 <p className="text-sm text-[#4b6390] leading-relaxed">
-                  To cancel or reschedule at this stage, please call OZ Rent A Plane so the team can review and approve the change manually.
+                  To reschedule at this stage, please call OZ Rent A Plane so the team can review and approve the change manually.
                 </p>
                 <p className="text-sm text-[#152d5a]">
                   Call:{' '}
@@ -680,7 +801,7 @@ export default function CheckoutChangeActions({
               </div>
               <div className="px-5 py-4 border-t border-[#152d5a]/10 flex justify-end">
                 <button
-                  onClick={() => { setCancelModalOpen(false); setRescheduleModalOpen(false) }}
+                  onClick={() => setRescheduleBlockedModalOpen(false)}
                   className="px-4 py-2 text-sm text-[#4b6390] border border-[#152d5a]/15 rounded-lg"
                 >
                   Close
@@ -704,37 +825,80 @@ export default function CheckoutChangeActions({
         {!isListCard && checkout.checkout_lifecycle_status === 'cancelled_by_customer' && (
           <p className="text-sm text-emerald-600">Your checkout flight has been cancelled.</p>
         )}
-        {!isListCard && hasPendingReschedule && (
+        {isLateCancelPending && !isListCard && (
           <p className="text-sm text-amber-600">
-            Your reschedule request is waiting for admin review. Your current checkout time remains active.
-            {requestedRescheduleLabel ? ` Requested time: ${requestedRescheduleLabel}.` : ''}
+            Your cancellation request is waiting for admin review. A charge may apply.
           </p>
         )}
+        {!isListCard && hasPendingReschedule && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Reschedule Under Review</p>
+            <p className="text-sm text-amber-900/90 leading-relaxed">
+              Your reschedule request is waiting for admin review. Your current checkout time remains active.
+              {requestedRescheduleLabel ? (
+                <>
+                  {' '}
+                  <span className="font-semibold">Requested time: {requestedRescheduleLabel}.</span>
+                </>
+              ) : null}
+            </p>
+          </div>
+        )}
         {!isListCard && !hasPendingReschedule && latestApproved && (
-          <p className="text-sm text-emerald-600">Your checkout flight has been rescheduled.</p>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 space-y-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">New Time Confirmed</p>
+            <p className="text-sm text-emerald-800">Your checkout flight has been rescheduled to the approved time.</p>
+          </div>
         )}
         {!isListCard && !hasPendingReschedule && latestRejected && (
-          <p className="text-sm text-amber-600">Your reschedule request was not approved. Your original checkout time remains active.</p>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Reschedule Not Approved</p>
+            <p className="text-sm text-amber-900/90 leading-relaxed">
+              Your reschedule request was not approved. Your original checkout time remains active.
+              {rejectedRescheduleLabel ? (
+                <>
+                  {' '}
+                  <span className="font-semibold">Rejected request: {rejectedRescheduleLabel}.</span>
+                </>
+              ) : null}
+              {' '}You can submit a different time if needed.
+            </p>
+          </div>
         )}
-        {actionError && <p className={`text-red-600 ${isListCard ? 'text-[11px] leading-snug' : 'text-sm'}`}>{actionError}</p>}
+        {isListCard && !hasPendingReschedule && latestRejected && rejectedRescheduleLabel && (
+          <p className="text-[11px] text-amber-700 leading-snug font-medium">
+            Reschedule not approved · {rejectedRescheduleLabel}
+          </p>
+        )}
+        {actionError && !lateCancelModalOpen && (
+          <p className={`text-red-600 ${isListCard ? 'text-[11px] leading-snug' : 'text-sm'}`}>{actionError}</p>
+        )}
         {!isListCard && !hasPendingReschedule && actionSuccess && <p className="text-sm text-emerald-600">{actionSuccess}</p>}
         {isListCard && hasPendingReschedule && (
-          <p className="text-[10px] text-amber-600 leading-snug">Reschedule pending review</p>
+          <p className="text-[11px] text-amber-700 leading-snug font-medium">
+            Reschedule pending review
+            {requestedRescheduleLabel ? ` · ${requestedRescheduleLabel}` : ''}
+          </p>
+        )}
+        {isListCard && isLateCancelPending && (
+          <p className="text-[11px] text-amber-700 leading-snug font-medium">Cancellation pending review</p>
         )}
 
         {showActionButtons && (
           <div className={isListCard ? 'flex flex-col gap-2' : 'flex flex-wrap items-center gap-3'}>
+            {!hasPendingReschedule && (
+              <button
+                type="button"
+                onClick={openRescheduleFlow}
+                disabled={isRescheduling || checkout.status === 'cancelled'}
+                className={modifyButtonClass}
+              >
+                {isRescheduling ? 'Sending...' : isListCard ? 'Modify Booking' : 'Reschedule checkout'}
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setRescheduleModalOpen(true)}
-              disabled={hasPendingReschedule || isRescheduling || checkout.status === 'cancelled'}
-              className={modifyButtonClass}
-            >
-              {isRescheduling ? 'Sending...' : isListCard ? 'Modify Booking' : 'Reschedule checkout'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setCancelModalOpen(true)}
+              onClick={openCancelFlow}
               disabled={isCancelling || checkout.status === 'cancelled'}
               className={cancelButtonClass}
             >
