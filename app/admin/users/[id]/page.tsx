@@ -148,14 +148,14 @@ export default async function AdminUserPage({
       .select('id, status, booking_type, checkout_lifecycle_status, scheduled_start, scheduled_end, payment_status, aircraft ( id, registration )')
       .eq('booking_owner_user_id', params.id)
       .eq('booking_type', 'checkout')
-      .order('scheduled_start', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(3),
     supabase
       .from('bookings')
       .select('id, status, booking_type, scheduled_start, scheduled_end, payment_status, aircraft ( id, registration )')
       .eq('booking_owner_user_id', params.id)
       .eq('booking_type', 'standard')
-      .order('scheduled_start', { ascending: false }),
+      .order('created_at', { ascending: false }),
     supabase
       .from('checkout_change_requests')
       .select('created_at, original_scheduled_start, checkout_request_id, status, bookings!inner(booking_owner_user_id)')
