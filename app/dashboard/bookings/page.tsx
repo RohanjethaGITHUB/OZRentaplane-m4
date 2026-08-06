@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import PortalPageHero from '@/components/PortalPageHero'
 import BookingsViewedTracker from './BookingsViewedTracker'
 import UpcomingBookingActions from './UpcomingBookingActions'
+import AdminCancelNote from './AdminCancelNote'
 import type { Profile, PilotClearanceStatus } from '@/lib/supabase/types'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import { formatSydTime } from '@/lib/utils/sydney-time'
@@ -857,33 +858,35 @@ export default async function CustomerBookingsPage() {
                               </p>
                               <p className="text-[12px] text-[#4b6390] mt-0.5">{booking.aircraft_registration ?? aircraft?.registration ?? 'VH-KZG'}</p>
                             </div>
-                            <div className="flex items-center gap-3 text-[12px] text-[#4b6390] flex-wrap">
+                            <div className="flex items-center gap-3 text-[12px] leading-none text-[#4b6390] flex-wrap">
                               {booking.scheduled_start && (
-                                <span className="flex items-center gap-1">
-                                  <span className="material-symbols-outlined text-[13px]">calendar_today</span>
-                                  {formatDateFromISO(booking.scheduled_start)}
+                                <span className="inline-flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-[14px] leading-none">calendar_today</span>
+                                  <span className="leading-none">{formatDateFromISO(booking.scheduled_start)}</span>
                                 </span>
                               )}
                               {booking.scheduled_start && (
                                 <>
-                                  <span className="text-[#152d5a]/20">·</span>
-                                  <span className="flex items-center gap-1">
-                                    <span className="material-symbols-outlined text-[13px]">schedule</span>
-                                    {formatSydTime(booking.scheduled_start)} – {formatSydTime(booking.scheduled_end)}
+                                  <span className="text-[#152d5a]/20 leading-none" aria-hidden>·</span>
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span className="material-symbols-outlined text-[14px] leading-none">schedule</span>
+                                    <span className="leading-none tabular-nums">
+                                      {formatSydTime(booking.scheduled_start)} – {formatSydTime(booking.scheduled_end)}
+                                    </span>
                                   </span>
                                 </>
                               )}
                               {booking.estimated_hours && (
                                 <>
-                                  <span className="text-[#152d5a]/20">·</span>
-                                  <span className="flex items-center gap-1">
-                                    <span className="material-symbols-outlined text-[13px]">timer</span>
-                                    <span className="text-[#4b6390]">
+                                  <span className="text-[#152d5a]/20 leading-none" aria-hidden>·</span>
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span className="material-symbols-outlined text-[14px] leading-none">timer</span>
+                                    <span className="leading-none text-[#4b6390]">
                                       {isMultiDayBooking(booking.scheduled_start, booking.scheduled_end)
                                         ? 'Booking Window'
                                         : 'Est. Duration'}
                                     </span>
-                                    <span className="font-semibold text-[#152d5a]">{booking.estimated_hours} hrs</span>
+                                    <span className="font-semibold leading-none text-[#152d5a]">{booking.estimated_hours} hrs</span>
                                   </span>
                                 </>
                               )}
@@ -950,9 +953,9 @@ export default async function CustomerBookingsPage() {
                             : 'Checkout cancelled'
                         : null
                     return (
-                      <div key={booking.id} className="bg-white border border-[#152d5a]/10 rounded-2xl overflow-hidden flex flex-col sm:flex-row">
+                      <div key={booking.id} className="bg-white border border-[#152d5a]/10 rounded-2xl overflow-visible flex flex-col sm:flex-row relative">
                         <div
-                          className="w-full h-36 sm:w-[220px] sm:h-auto sm:min-h-[160px] flex-shrink-0 bg-cover bg-center"
+                          className="w-full h-36 sm:w-[220px] sm:h-auto sm:min-h-[160px] flex-shrink-0 bg-cover bg-center rounded-t-2xl sm:rounded-t-none sm:rounded-l-2xl overflow-hidden"
                           style={{ backgroundImage: `url('/Cessna-172.webp')` }}
                         />
                         <div className="flex-1 min-w-0 p-4 sm:p-5 flex flex-col justify-between gap-3">
@@ -976,37 +979,29 @@ export default async function CustomerBookingsPage() {
                             </p>
                             <p className="text-[12px] text-[#4b6390] mt-0.5">{booking.aircraft_registration ?? aircraft?.registration ?? 'VH-KZG'}</p>
                             {checkoutCancelMessage && (
-                              <div className="mt-1.5 flex min-w-0 max-w-full items-center gap-1.5 group/cancel relative">
-                                <span
-                                  className="material-symbols-outlined shrink-0 text-[16px] leading-none text-red-500"
-                                  style={{ fontVariationSettings: "'FILL' 1" }}
-                                >
-                                  cancel
-                                </span>
-                                {booking.checkout_lifecycle_status === 'cancelled_by_admin' && booking.admin_notes ? (
-                                  <span className="min-w-0 text-[12px] font-medium leading-none break-words sm:truncate">
-                                    <span className="text-red-500">Checkout cancelled by admin</span>
-                                    <span className="text-[#334155]"> — {booking.admin_notes}</span>
+                              booking.checkout_lifecycle_status === 'cancelled_by_admin' && booking.admin_notes?.trim() ? (
+                                <div className="mt-1.5 min-w-0 max-w-full">
+                                  <AdminCancelNote note={booking.admin_notes.trim()} />
+                                </div>
+                              ) : (
+                                <div className="mt-1.5 flex min-w-0 max-w-full items-center gap-1.5 text-red-500">
+                                  <span
+                                    className="material-symbols-outlined shrink-0 text-[14px] leading-none"
+                                    style={{ fontVariationSettings: "'FILL' 1" }}
+                                    aria-hidden
+                                  >
+                                    cancel
                                   </span>
-                                ) : (
-                                  <span className="min-w-0 text-[12px] font-medium leading-none text-red-500 break-words sm:truncate">
+                                  <span className="min-w-0 truncate text-[12px] font-medium leading-none">
                                     {checkoutCancelMessage}
                                   </span>
-                                )}
-                                <span
-                                  role="tooltip"
-                                  className="pointer-events-none absolute left-0 top-full z-20 mt-1.5 hidden max-w-[min(100%,20rem)] rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium leading-snug text-slate-700 shadow-lg group-hover/cancel:block"
-                                >
-                                  {booking.checkout_lifecycle_status === 'cancelled_by_admin' && booking.admin_notes
-                                    ? `Checkout cancelled by admin — ${booking.admin_notes}`
-                                    : checkoutCancelMessage}
-                                </span>
-                              </div>
+                                </div>
+                              )
                             )}
                             {booking.booking_type === 'checkout' && booking.status !== 'cancelled' && checkoutOutcome && (
                               <div className="flex items-center gap-2 mt-1">
-                                <span className="material-symbols-outlined text-[13px] text-[#4b6390]">assignment_turned_in</span>
-                                <span className={`text-[12px] font-semibold ${
+                                <span className="material-symbols-outlined text-[14px] leading-none text-[#4b6390]">assignment_turned_in</span>
+                                <span className={`text-[12px] font-semibold leading-none ${
                                   checkoutOutcome === 'cleared_to_fly'
                                     ? 'text-green-600'
                                     : checkoutOutcome === 'additional_checkout_required' || checkoutOutcome === 'not_currently_eligible'
@@ -1023,35 +1018,37 @@ export default async function CustomerBookingsPage() {
                               </div>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 text-[12px] text-[#4b6390] flex-wrap">
+                          <div className="flex items-center gap-3 text-[12px] leading-none text-[#4b6390] flex-wrap">
                             {booking.scheduled_start && (
-                              <span className="flex items-center gap-1.5">
-                                <span className="material-symbols-outlined text-[13px]">calendar_today</span>
-                                {formatDateFromISO(booking.scheduled_start)}
+                              <span className="inline-flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[14px] leading-none">calendar_today</span>
+                                <span className="leading-none">{formatDateFromISO(booking.scheduled_start)}</span>
                               </span>
                             )}
                             {booking.scheduled_start && booking.scheduled_end && (
                               <>
-                                <span className="text-[#152d5a]/20">•</span>
-                                <span className="flex items-center gap-1.5">
-                                  <span className="material-symbols-outlined text-[13px]">schedule</span>
-                                  {new Date(booking.scheduled_start).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })}
-                                  {' – '}
-                                  {new Date(booking.scheduled_end).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                <span className="text-[#152d5a]/20 leading-none" aria-hidden>•</span>
+                                <span className="inline-flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-[14px] leading-none">schedule</span>
+                                  <span className="leading-none">
+                                    {new Date(booking.scheduled_start).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                    {' – '}
+                                    {new Date(booking.scheduled_end).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                  </span>
                                 </span>
                               </>
                             )}
                             {booking.estimated_hours && (
                               <>
-                                <span className="text-[#152d5a]/20">•</span>
-                                <span className="flex items-center gap-1.5">
-                                  <span className="material-symbols-outlined text-[13px]">timer</span>
-                                  <span className="text-[#4b6390]">
+                                <span className="text-[#152d5a]/20 leading-none" aria-hidden>•</span>
+                                <span className="inline-flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-[14px] leading-none">timer</span>
+                                  <span className="leading-none text-[#4b6390]">
                                     {isMultiDayBooking(booking.scheduled_start, booking.scheduled_end)
                                       ? 'Booking Window'
                                       : 'Est. Duration'}
                                   </span>
-                                  <span className="font-semibold text-[#152d5a]">{booking.estimated_hours} hrs</span>
+                                  <span className="font-semibold leading-none text-[#152d5a]">{booking.estimated_hours} hrs</span>
                                 </span>
                               </>
                             )}

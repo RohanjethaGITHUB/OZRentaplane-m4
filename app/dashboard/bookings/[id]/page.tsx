@@ -448,22 +448,22 @@ function NextActionCard({
 
   if (isCancelled) {
     return (
-      <div className="bg-red-500/10 border border-red-500/20 rounded-[1.25rem] p-6">
+      <div className="bg-red-50 border border-red-200 rounded-[1.25rem] p-6">
         <div className="flex items-center gap-3 mb-3">
-          <span className="material-symbols-outlined text-red-400 text-lg">cancel</span>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-red-400">
+          <span className="material-symbols-outlined text-red-600 text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>cancel</span>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-red-700">
             {status === 'no_show' ? 'Marked No Show' : 'Booking Cancelled'}
           </h3>
         </div>
-        <p className="text-sm text-oz-muted leading-relaxed">
+        <p className="text-sm text-[#334155] leading-relaxed">
           {status === 'no_show'
             ? 'This booking was marked as no show by the operations team.'
             : 'This booking has been cancelled and will not proceed.'}
         </p>
-        {adminNotes && (
-          <div className="mt-3 pt-3 border-t border-red-500/15">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-red-400/60 mb-1">Reason</p>
-            <p className="text-xs text-red-300/80 leading-relaxed">{adminNotes}</p>
+        {adminNotes?.trim() && (
+          <div className="mt-3 pt-3 border-t border-red-200">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-red-700/80 mb-1.5">Reason</p>
+            <p className="text-sm text-[#152d5a] leading-relaxed font-medium">{adminNotes.trim()}</p>
           </div>
         )}
       </div>
@@ -1786,7 +1786,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
                 </p>
               </div>
             )}
-            {!pendingRescheduleRequest && latestRescheduleRequest?.status === 'approved' && (
+            {!isCancelled && !pendingRescheduleRequest && latestRescheduleRequest?.status === 'approved' && (
               <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="material-symbols-outlined text-emerald-600 text-[16px]">event_available</span>
@@ -1797,7 +1797,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
                 </p>
               </div>
             )}
-            {!pendingRescheduleRequest && latestRescheduleRequest?.status === 'rejected' && latestRescheduleRequest.requested_scheduled_start && (
+            {!isCancelled && !pendingRescheduleRequest && latestRescheduleRequest?.status === 'rejected' && latestRescheduleRequest.requested_scheduled_start && (
               <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/90 p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="material-symbols-outlined text-amber-600 text-[16px]">event_busy</span>
@@ -1840,13 +1840,17 @@ export default async function BookingDetailPage({ params }: PageProps) {
           <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6 relative overflow-hidden">
             <div className="flex items-center gap-2 mb-4">
               <span className={`material-symbols-outlined text-[13px] ${cfg.color}`} style={{ fontVariationSettings: "'FILL' 1" }}>
-                {cfg.icon === 'event_repeat' ? 'event_repeat' : cfg.icon === 'event_available' ? 'event_available' : 'check_circle'}
+                {cfg.icon || 'info'}
               </span>
               <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#4b6390]">Booking Status</h3>
             </div>
             <p className="text-[18px] font-semibold text-[#152d5a] mb-3">{cfg.label}</p>
             <p className="text-[13px] text-[#334155] leading-relaxed relative z-10">
-              {pendingRescheduleRequest?.status === 'pending'
+              {isCancelled
+                ? status === 'no_show'
+                  ? 'This booking was marked as no show and will not proceed.'
+                  : 'This booking has been cancelled and will not proceed.'
+                : pendingRescheduleRequest?.status === 'pending'
                 ? 'Your reschedule request is with the operations team. Current time stays held until they confirm your new slot.'
                 : !pendingRescheduleRequest && latestRescheduleRequest?.status === 'approved' && ['checkout_requested', 'checkout_confirmed'].includes(status)
                 ? 'Your new checkout time has been confirmed by operations.'
@@ -1864,6 +1868,18 @@ export default async function BookingDetailPage({ params }: PageProps) {
                 ? 'Your booking request is under review. The slot is held pending confirmation.'
                 : cfg.sublabel || '—'}
             </p>
+            {isCancelled && adminNotes?.trim() && (
+              <div className="mt-4 rounded-xl border border-red-200 bg-red-50/90 px-3.5 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-red-700 mb-1.5">
+                  {(booking as { checkout_lifecycle_status?: string | null }).checkout_lifecycle_status === 'cancelled_by_admin'
+                    ? 'Message from operations'
+                    : 'Cancellation note'}
+                </p>
+                <p className="text-[13px] font-medium text-[#152d5a] leading-relaxed whitespace-pre-wrap">
+                  {adminNotes.trim()}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
