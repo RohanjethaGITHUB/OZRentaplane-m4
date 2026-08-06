@@ -119,6 +119,7 @@ type BookingRow = {
   estimated_amount:  number | null
   pic_name:          string | null
   created_at:        string
+  updated_at?:       string | null
   aircraft_name?:    string | null
   aircraft_registration?: string | null
   aircraft:          { registration: string } | null
@@ -424,6 +425,14 @@ export default async function CustomerBookingsPage() {
       return checkoutDoneStatuses.includes(b.status)
     }
     return !ACTIVE_STATUSES.includes(b.status)
+  }).sort((a, b) => {
+    // Newest booking first (most recently created), then most recently updated
+    const createdA = Date.parse(a.created_at || '') || 0
+    const createdB = Date.parse(b.created_at || '') || 0
+    if (createdA !== createdB) return createdB - createdA
+    const updatedA = Date.parse(a.updated_at || a.scheduled_end || a.scheduled_start || '') || 0
+    const updatedB = Date.parse(b.updated_at || b.scheduled_end || b.scheduled_start || '') || 0
+    return updatedB - updatedA
   })
 
   const completedCheckoutIds = checkoutRequests.filter(b => b.status === 'completed').map(b => b.id)
@@ -514,9 +523,24 @@ export default async function CustomerBookingsPage() {
   }
   const paymentSubmittedAwaitingConfirmation = isAwaitingManualPayment
 
+  // Active checkout requests only — completed/cancelled history should not inflate the stat
+  const ACTIVE_CHECKOUT_STATUSES = [
+    'checkout_requested',
+    'checkout_confirmed',
+    'checkout_completed_under_review',
+    'checkout_payment_required',
+    'cancellation_requested',
+  ]
+  const activeCheckoutRequestCount = checkoutRequests.filter((b) =>
+    ACTIVE_CHECKOUT_STATUSES.includes(b.status),
+  ).length
+  const completedCheckoutHistoryCount = checkoutRequests.filter((b) => b.status === 'completed').length
+  const cancelledCheckoutCount = checkoutRequests.filter((b) => b.status === 'cancelled').length
+  const finishedCheckoutCount = completedCheckoutHistoryCount + cancelledCheckoutCount
+
   // ── Derived stat values ───────────────────────────────────────────────────
   const statCards = !isCleared ? [
-    { label: 'Checkout Request',           value: String(checkoutRequests.length),                      icon: 'how_to_reg'    },
+    { label: 'Checkout Request',           value: String(activeCheckoutRequestCount),                      icon: 'how_to_reg'    },
     { label: 'Awaiting Review',            value: String(rowsWithInvoices.filter(b => ['checkout_requested', 'pending_confirmation', 'checkout_completed_under_review'].includes(b.status)).length), icon: 'hourglass_top' },
     { label: 'Upcoming Aircraft Bookings', value: String(upcomingAircraft.length),                      icon: 'calendar_month'},
     { label: 'Completed Flights',          value: String(rowsWithInvoices.filter(b => b.booking_type !== 'checkout' && b.status === 'completed').length), icon: 'check_circle'  },
@@ -555,31 +579,51 @@ export default async function CustomerBookingsPage() {
         <div className="relative z-10 -mt-16 mb-8 px-0">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
               {[
-                { icon: 'person_check', value: checkoutRequests.length, label: 'Checkout Requests' },
+                {
+                  icon: 'person_check',
+                  value: activeCheckoutRequestCount,
+                  label: finishedCheckoutCount > 0 && activeCheckoutRequestCount === 0
+                    ? 'Active Checkouts'
+                    : finishedCheckoutCount > 0
+                      ? 'Active Checkouts'
+                      : 'Checkout Requests',
+                  hint: finishedCheckoutCount > 0
+                    ? [
+                        completedCheckoutHistoryCount > 0 ? `${completedCheckoutHistoryCount} completed` : null,
+                        cancelledCheckoutCount > 0 ? `${cancelledCheckoutCount} cancelled` : null,
+                      ].filter(Boolean).join(' · ')
+                    : null,
+                },
                 {
                   icon: 'hourglass_empty',
                   value: rowsWithInvoices.filter((r) => ['checkout_requested', 'pending_confirmation', 'checkout_completed_under_review'].includes(r.status)).length,
                   label: 'Pending Review',
+                  hint: null as string | null,
                 },
-                { icon: 'calendar_month', value: upcomingAircraft.length, label: 'Upcoming Flights' },
+                { icon: 'calendar_month', value: upcomingAircraft.length, label: 'Upcoming Flights', hint: null as string | null },
                 {
                   icon: 'check_circle',
                   value: rowsWithInvoices.filter((r) => r.booking_type !== 'checkout' && r.status === 'completed').length,
                   label: 'Completed Flights',
+                  hint: null as string | null,
                 },
                 {
                   icon: 'schedule',
                   value: `${rowsWithInvoices.filter((r) => r.booking_type !== 'checkout' && r.status === 'completed').reduce((acc, r) => acc + (r.estimated_hours ?? 0), 0).toFixed(1)}h`,
                   label: 'Total Booked Hours',
+                  hint: null as string | null,
                 },
               ].map((stat) => (
-                <div key={stat.label} className="bg-[#152d5a] rounded-2xl px-6 py-6 flex items-center gap-4 min-h-[96px]">
-                  <div className="w-12 h-12 rounded-full border-2 border-white/20 flex items-center justify-center flex-shrink-0">
-                    <span className="material-symbols-outlined text-[22px] text-white/70">{stat.icon}</span>
+                <div key={stat.label} className="bg-[#152d5a] rounded-2xl px-4 sm:px-6 py-5 sm:py-6 flex items-center gap-3 sm:gap-4 min-h-[96px]">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-white/20 flex items-center justify-center flex-shrink-0">
+                    <span className="material-symbols-outlined text-[20px] sm:text-[22px] text-white/70">{stat.icon}</span>
                   </div>
-                  <div>
-                    <p className="text-[36px] font-bold text-white leading-none tracking-tight">{stat.value}</p>
-                    <p className="text-[10px] text-white/50 uppercase tracking-[0.12em] mt-2">{stat.label}</p>
+                  <div className="min-w-0">
+                    <p className="text-[28px] sm:text-[36px] font-bold text-white leading-none tracking-tight">{stat.value}</p>
+                    <p className="text-[10px] text-white/50 uppercase tracking-[0.12em] mt-2 leading-snug">{stat.label}</p>
+                    {stat.hint ? (
+                      <p className="text-[10px] text-white/40 mt-0.5 leading-snug">{stat.hint}</p>
+                    ) : null}
                   </div>
                 </div>
               ))}
@@ -729,7 +773,7 @@ export default async function CustomerBookingsPage() {
               </div>
               <div className="pl-0">
                 <p className="text-[17px] font-bold text-[#152d5a] leading-snug mb-1">{heading}</p>
-                <p className="text-[13px] text-[#4b6390] leading-relaxed">{body}</p>
+                <p className="text-[13px] text-[#334155] leading-relaxed">{body}</p>
               </div>
             </div>
           )
@@ -782,12 +826,12 @@ export default async function CustomerBookingsPage() {
                       const requestedStart = pendingReschedule?.requested_scheduled_start
                       const requestedEnd = pendingReschedule?.requested_scheduled_end
                       return (
-                        <div key={booking.id} className="bg-white border border-[#152d5a]/10 rounded-2xl overflow-hidden flex">
+                        <div key={booking.id} className="bg-white border border-[#152d5a]/10 rounded-2xl overflow-hidden flex flex-col sm:flex-row">
                           <div
-                            className="w-[220px] min-h-[160px] flex-shrink-0 bg-cover bg-center hidden sm:block"
+                            className="w-full h-36 sm:w-[220px] sm:h-auto sm:min-h-[160px] flex-shrink-0 bg-cover bg-center"
                             style={{ backgroundImage: `url('/Cessna-172.webp')` }}
                           />
-                          <div className="flex-1 min-w-0 p-5 flex flex-col justify-between gap-3">
+                          <div className="flex-1 min-w-0 p-4 sm:p-5 flex flex-col justify-between gap-3">
                             <div className="flex items-center justify-between gap-2 flex-wrap">
                               <span className={`text-[11px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full ${
                                 booking.booking_type === 'checkout'
@@ -845,9 +889,9 @@ export default async function CustomerBookingsPage() {
                               )}
                             </div>
                             {pendingReschedule && requestedStart && (
-                              <div className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800 w-fit">
-                                <span className="material-symbols-outlined text-[14px]">event_repeat</span>
-                                <span>
+                              <div className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800 w-fit max-w-full">
+                                <span className="material-symbols-outlined text-[14px] flex-shrink-0">event_repeat</span>
+                                <span className="min-w-0 break-words">
                                   Requested:{' '}
                                   <span className="font-semibold">
                                     {formatDateFromISO(requestedStart)}
@@ -906,12 +950,12 @@ export default async function CustomerBookingsPage() {
                             : 'Checkout cancelled'
                         : null
                     return (
-                      <div key={booking.id} className="bg-white border border-[#152d5a]/10 rounded-2xl overflow-hidden flex">
+                      <div key={booking.id} className="bg-white border border-[#152d5a]/10 rounded-2xl overflow-hidden flex flex-col sm:flex-row">
                         <div
-                          className="w-[220px] min-h-[160px] flex-shrink-0 bg-cover bg-center hidden sm:block"
+                          className="w-full h-36 sm:w-[220px] sm:h-auto sm:min-h-[160px] flex-shrink-0 bg-cover bg-center"
                           style={{ backgroundImage: `url('/Cessna-172.webp')` }}
                         />
-                        <div className="flex-1 min-w-0 p-5 flex flex-col justify-between gap-3">
+                        <div className="flex-1 min-w-0 p-4 sm:p-5 flex flex-col justify-between gap-3">
                           <div className="flex items-center justify-between gap-2 flex-wrap">
                             <span className={`text-[11px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full ${
                               booking.booking_type === 'checkout'
@@ -932,26 +976,31 @@ export default async function CustomerBookingsPage() {
                             </p>
                             <p className="text-[12px] text-[#4b6390] mt-0.5">{booking.aircraft_registration ?? aircraft?.registration ?? 'VH-KZG'}</p>
                             {checkoutCancelMessage && (
-                              <div className="mt-1 flex min-w-0 max-w-full items-center gap-2">
-                                <span className="material-symbols-outlined shrink-0 text-[13px] leading-none text-red-500">
+                              <div className="mt-1.5 flex min-w-0 max-w-full items-center gap-1.5 group/cancel relative">
+                                <span
+                                  className="material-symbols-outlined shrink-0 text-[16px] leading-none text-red-500"
+                                  style={{ fontVariationSettings: "'FILL' 1" }}
+                                >
                                   cancel
                                 </span>
                                 {booking.checkout_lifecycle_status === 'cancelled_by_admin' && booking.admin_notes ? (
-                                  <span
-                                    className="min-w-0 truncate text-[12px] font-medium leading-snug"
-                                    title={`Checkout cancelled by admin — ${booking.admin_notes}`}
-                                  >
+                                  <span className="min-w-0 text-[12px] font-medium leading-none break-words sm:truncate">
                                     <span className="text-red-500">Checkout cancelled by admin</span>
-                                    <span className="text-[#4b6390]"> — {booking.admin_notes}</span>
+                                    <span className="text-[#334155]"> — {booking.admin_notes}</span>
                                   </span>
                                 ) : (
-                                  <span
-                                    className="min-w-0 truncate text-[12px] font-medium leading-snug text-red-500"
-                                    title={checkoutCancelMessage}
-                                  >
+                                  <span className="min-w-0 text-[12px] font-medium leading-none text-red-500 break-words sm:truncate">
                                     {checkoutCancelMessage}
                                   </span>
                                 )}
+                                <span
+                                  role="tooltip"
+                                  className="pointer-events-none absolute left-0 top-full z-20 mt-1.5 hidden max-w-[min(100%,20rem)] rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium leading-snug text-slate-700 shadow-lg group-hover/cancel:block"
+                                >
+                                  {booking.checkout_lifecycle_status === 'cancelled_by_admin' && booking.admin_notes
+                                    ? `Checkout cancelled by admin — ${booking.admin_notes}`
+                                    : checkoutCancelMessage}
+                                </span>
                               </div>
                             )}
                             {booking.booking_type === 'checkout' && booking.status !== 'cancelled' && checkoutOutcome && (
@@ -1008,7 +1057,7 @@ export default async function CustomerBookingsPage() {
                             )}
                           </div>
                         </div>
-                        <div className="flex flex-col gap-2 p-4 justify-center border-l border-[#152d5a]/[0.07] w-[180px] flex-shrink-0">
+                        <div className="flex flex-col gap-2 p-4 justify-center sm:border-l border-t sm:border-t-0 border-[#152d5a]/[0.07] w-full sm:w-[180px] flex-shrink-0">
                           <Link
                             href={`/dashboard/bookings/${booking.id}`}
                             className="flex items-center justify-between whitespace-nowrap bg-[#152d5a] hover:bg-[#1a3a6e] text-white text-[13px] font-bold px-4 py-2.5 rounded-xl transition-colors"

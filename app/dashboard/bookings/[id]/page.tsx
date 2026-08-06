@@ -387,7 +387,7 @@ function NextActionCard({
             {isConfirmed ? 'Checkout Confirmed' : isUnderReview ? 'Awaiting Outcome' : 'Under Review'}
           </h3>
         </div>
-        <p className="text-sm text-[#4b6390] leading-relaxed">
+        <p className="text-sm text-[#334155] leading-relaxed">
           Your checkout booking is currently in progress. Aircraft bookings will become available after your checkout is completed and paid.
         </p>
         {!isUnderReview && scheduledStart && aircraftId && (
@@ -1781,7 +1781,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
                     </p>
                   </div>
                 </div>
-                <p className="mt-3 text-[12px] text-amber-800/80 leading-relaxed">
+                <p className="mt-3 text-[12px] text-amber-950 leading-relaxed">
                   Review is pending with operations. Your current checkout time remains active until they approve or reject this change.
                 </p>
               </div>
@@ -1845,7 +1845,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
               <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#4b6390]">Booking Status</h3>
             </div>
             <p className="text-[18px] font-semibold text-[#152d5a] mb-3">{cfg.label}</p>
-            <p className="text-[13px] text-[#4b6390] leading-relaxed relative z-10">
+            <p className="text-[13px] text-[#334155] leading-relaxed relative z-10">
               {pendingRescheduleRequest?.status === 'pending'
                 ? 'Your reschedule request is with the operations team. Current time stays held until they confirm your new slot.'
                 : !pendingRescheduleRequest && latestRescheduleRequest?.status === 'approved' && ['checkout_requested', 'checkout_confirmed'].includes(status)

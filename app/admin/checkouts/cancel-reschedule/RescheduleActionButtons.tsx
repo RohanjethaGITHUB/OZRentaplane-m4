@@ -20,6 +20,7 @@ function formatSydney(iso: string) {
 export default function RescheduleActionButtons({
   changeRequestId,
   tone = 'dark',
+  layout = 'inline',
   currentStart,
   currentEnd,
   requestedStart,
@@ -27,6 +28,7 @@ export default function RescheduleActionButtons({
 }: {
   changeRequestId: string
   tone?: 'dark' | 'light'
+  layout?: 'inline' | 'footer'
   currentStart?: string | null
   currentEnd?: string | null
   requestedStart?: string | null
@@ -75,11 +77,15 @@ export default function RescheduleActionButtons({
 
   const approveClass =
     tone === 'light'
-      ? 'inline-flex items-center rounded-lg border border-blue-200 bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40'
+      ? layout === 'footer'
+        ? 'inline-flex flex-1 items-center justify-center rounded-xl border border-blue-200 bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40'
+        : 'inline-flex items-center rounded-lg border border-blue-200 bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40'
       : 'inline-flex items-center rounded-lg border border-[rgba(96,165,250,0.24)] bg-[rgba(37,99,235,0.14)] px-3 py-1.5 text-sm font-medium text-[#bfdbfe] hover:bg-[rgba(37,99,235,0.24)] disabled:opacity-40'
   const rejectClass =
     tone === 'light'
-      ? 'inline-flex items-center rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-50 disabled:opacity-40'
+      ? layout === 'footer'
+        ? 'inline-flex flex-1 items-center justify-center rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-40'
+        : 'inline-flex items-center rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-50 disabled:opacity-40'
       : 'inline-flex items-center rounded-lg border border-[rgba(251,191,36,0.24)] bg-[rgba(180,120,30,0.13)] px-3 py-1.5 text-sm font-medium text-amber-200 hover:bg-[rgba(194,65,12,0.2)] disabled:opacity-40'
   const errorClass = tone === 'light' ? 'text-xs text-red-600 text-right max-w-[320px]' : 'text-xs text-red-300 text-right max-w-[320px]'
   const successClass = tone === 'light' ? 'text-xs text-emerald-700 text-right max-w-[260px]' : 'text-xs text-emerald-300 text-right max-w-[260px]'
@@ -87,9 +93,9 @@ export default function RescheduleActionButtons({
   const hasTimes = !!(currentStart && requestedStart)
 
   return (
-    <div className="flex flex-col items-end gap-2">
+    <div className={`flex flex-col gap-2 ${layout === 'footer' ? 'w-full items-stretch' : 'items-end'}`}>
       {(confirmApprove || confirmReject) && (
-        <div className="fixed inset-0 z-[90] flex items-start justify-center p-4 pt-24 md:pt-28 bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[1200] flex items-start justify-center p-4 pt-24 md:pt-28 bg-black/70 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-[#13243a] border border-[#4c6b8f] rounded-2xl shadow-2xl overflow-hidden">
             <div className="px-5 py-4 border-b border-white/[0.06]">
               <h3 className="text-lg font-semibold text-white">
@@ -160,14 +166,7 @@ export default function RescheduleActionButtons({
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-2">
-        <button
-          onClick={() => setConfirmApprove(true)}
-          disabled={isPending}
-          className={approveClass}
-        >
-          Approve
-        </button>
+      <div className={`flex items-center gap-2 ${layout === 'footer' ? 'w-full flex-col-reverse sm:flex-row' : 'justify-end'}`}>
         <button
           onClick={() => setConfirmReject(true)}
           disabled={isPending}
@@ -175,9 +174,16 @@ export default function RescheduleActionButtons({
         >
           Reject
         </button>
+        <button
+          onClick={() => setConfirmApprove(true)}
+          disabled={isPending}
+          className={approveClass}
+        >
+          Approve
+        </button>
       </div>
-      {error && <p className={errorClass}>{error}</p>}
-      {success && <p className={successClass}>{success}</p>}
+      {error && <p className={`${errorClass} ${layout === 'footer' ? 'text-left sm:text-right w-full' : ''}`}>{error}</p>}
+      {success && <p className={`${successClass} ${layout === 'footer' ? 'text-left sm:text-right w-full' : ''}`}>{success}</p>}
     </div>
   )
 }

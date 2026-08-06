@@ -46,7 +46,7 @@ export default function UpcomingBookingActions({
     !isCheckout && CANCELLABLE_STATUSES.includes(booking.status)
 
   return (
-    <div className="flex flex-col gap-2 p-4 justify-center border-l border-[#152d5a]/[0.07] w-[180px] flex-shrink-0">
+    <div className="flex flex-col gap-2 p-4 justify-center sm:border-l border-t sm:border-t-0 border-[#152d5a]/[0.07] w-full sm:w-[200px] flex-shrink-0">
       <Link
         href={`/dashboard/bookings/${booking.id}`}
         className="flex items-center justify-between whitespace-nowrap bg-[#152d5a] hover:bg-[#1a3a6e] text-white text-[13px] font-bold px-4 py-2.5 rounded-xl transition-colors"

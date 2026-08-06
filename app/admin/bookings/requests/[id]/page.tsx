@@ -19,7 +19,10 @@ import {
 import AdminSubmitFlightRecordPanel from './AdminSubmitFlightRecordPanel'
 import AdminStandardBankTransferPanel from './AdminStandardBankTransferPanel'
 import AdminCancellationReviewCard from './AdminCancellationReviewCard'
-import AdminRescheduleReviewCard from './AdminRescheduleReviewCard'
+import AdminRescheduleReviewProvider, {
+  AdminRescheduleStickyBar,
+  RescheduleReviewButton,
+} from './AdminRescheduleReviewProvider'
 import AdminRejectDocsPanel from './AdminRejectDocsPanel'
 import { deriveBookingLifecycleStage } from '@/lib/booking/booking-lifecycle-stage'
 import { isStandardBookingInvoicePaid } from '@/lib/booking/standard-booking-payment-state'
@@ -1042,9 +1045,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       ? lifecycleToneCfg.amber
       : lifecycleTone
 
-  return (
-    <AdminFlightReadingsDisclosureProvider>
-      <BookingRealtimeListener bookingId={params.id} />
+  const pageContent = (
+      <>
       <div className="min-h-screen bg-gray-100">
         <div className="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-8 pb-24">
 
@@ -1213,10 +1215,13 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b6390]">Current (held)</p>
                   <p className="text-[14px] font-semibold text-[var(--admin-text)]">{bookingSchedule.dateRange}</p>
                   <p className="text-[12px] text-[var(--admin-text-muted)]">{bookingSchedule.timeRange}</p>
-                  <div className="pt-2 mt-2 border-t border-amber-200/80">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-700">Requested new time</p>
-                    <p className="text-[14px] font-semibold text-amber-900 mt-1">{requestedSchedule.dateRange}</p>
-                    <p className="text-[12px] text-amber-800/80">{requestedSchedule.timeRange}</p>
+                  <div className="pt-2 mt-2 border-t border-amber-200/80 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-700">Requested new time</p>
+                      <p className="text-[14px] font-semibold text-amber-900 mt-1">{requestedSchedule.dateRange}</p>
+                      <p className="text-[12px] text-amber-800/80">{requestedSchedule.timeRange}</p>
+                    </div>
+                    <RescheduleReviewButton className="inline-flex flex-shrink-0 items-center gap-1 rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-800 shadow-sm transition-colors hover:bg-amber-50" />
                   </div>
                 </>
               ) : (
@@ -1486,18 +1491,6 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               />
             )}
 
-            {/* Reschedule request review — approve/reject new proposed time */}
-            {hasPendingReschedule && pendingRescheduleAdmin && (
-              <AdminRescheduleReviewCard
-                changeRequestId={pendingRescheduleAdmin.id}
-                currentStart={booking.scheduled_start}
-                currentEnd={booking.scheduled_end}
-                requestedStart={pendingRescheduleAdmin.requested_scheduled_start}
-                requestedEnd={pendingRescheduleAdmin.requested_scheduled_end}
-                customerNote={pendingRescheduleAdmin.customer_note}
-              />
-            )}
-
             {/* Waiting for clarification response */}
             {isClarificationState && (
               <div className="bg-orange-500/[0.06] border border-orange-500/20 rounded-2xl p-5">
@@ -1661,6 +1654,28 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         </div>
 
       </div>
+      {hasPendingReschedule && !isCheckoutRequestedStatus ? <AdminRescheduleStickyBar /> : null}
+      </>
+  )
+
+  return (
+    <AdminFlightReadingsDisclosureProvider>
+      <BookingRealtimeListener bookingId={params.id} />
+      {hasPendingReschedule && pendingRescheduleAdmin ? (
+        <AdminRescheduleReviewProvider
+          changeRequestId={pendingRescheduleAdmin.id}
+          currentStart={booking.scheduled_start}
+          currentEnd={booking.scheduled_end}
+          requestedStart={pendingRescheduleAdmin.requested_scheduled_start}
+          requestedEnd={pendingRescheduleAdmin.requested_scheduled_end}
+          customerNote={pendingRescheduleAdmin.customer_note}
+          customerName={(customer as { full_name?: string | null } | null)?.full_name ?? booking.pic_name ?? null}
+        >
+          {pageContent}
+        </AdminRescheduleReviewProvider>
+      ) : (
+        pageContent
+      )}
     </AdminFlightReadingsDisclosureProvider>
   )
 }

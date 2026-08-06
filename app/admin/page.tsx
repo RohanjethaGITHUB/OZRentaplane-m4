@@ -539,6 +539,12 @@ export default async function AdminActionsPage({
     })
     .filter(Boolean) as ActionItem[]
 
+  const pendingRescheduleBookingIds = new Set(
+    (checkoutRescheduleRows ?? [])
+      .map((row) => firstItem((row as CancelRequestRow).bookings)?.id)
+      .filter((id): id is string => Boolean(id)),
+  )
+
   const checkoutRescheduleItems = (checkoutRescheduleRows ?? [])
     .map((row) => {
       const booking = firstItem((row as CancelRequestRow).bookings)
@@ -551,9 +557,11 @@ export default async function AdminActionsPage({
         key: `checkout-reschedule-${row.checkout_request_id}`,
         groups: ['checkout'] as WorkflowFilter[],
         badge: 'Checkout' as const,
-        badgeTone: 'primary' as const,
-        title: 'Checkout reschedule request',
-        description: row.customer_message ? 'Customer wants to adjust the checkout timing.' : 'Pending reschedule request awaiting review.',
+        badgeTone: 'warning' as const,
+        title: 'Reschedule requested',
+        description: row.customer_message
+          ? 'Customer proposed a new checkout time — review and approve or reject.'
+          : 'Pending reschedule request awaiting your approval.',
         customerLabel,
         customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
         referenceLabel: bookingReference(booking),
@@ -567,7 +575,9 @@ export default async function AdminActionsPage({
     })
     .filter(Boolean) as ActionItem[]
 
-  const checkoutRequestItems = (checkoutRequestedRows ?? []).map((row) => {
+  const checkoutRequestItems = (checkoutRequestedRows ?? [])
+    .filter((row) => !pendingRescheduleBookingIds.has((row as BookingRow).id))
+    .map((row) => {
     const booking = row as BookingRow
     const aircraft = firstItem(booking.aircraft)
     const profile = profileFor(booking.booking_owner_user_id)
@@ -578,7 +588,7 @@ export default async function AdminActionsPage({
       badge: 'Checkout' as const,
       badgeTone: 'primary' as const,
       title: 'New checkout request',
-      description: 'Review and confirm the new checkout request.',
+      description: 'Review documents and confirm the new checkout request.',
       customerLabel,
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: bookingReference(booking),
@@ -600,9 +610,9 @@ export default async function AdminActionsPage({
       key: `checkout-review-${booking.id}`,
       groups: ['checkout'] as WorkflowFilter[],
       badge: 'Checkout' as const,
-      badgeTone: 'primary' as const,
-      title: 'Checkout outcome review',
-      description: 'Record the checkout outcome and move the booking forward.',
+      badgeTone: 'success' as const,
+      title: 'Checkout completed — record outcome',
+      description: 'Flight is done. Record the checkout outcome and move the booking forward.',
       customerLabel,
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: bookingReference(booking),
@@ -625,7 +635,7 @@ export default async function AdminActionsPage({
       key: `checkout-payment-${booking.id}`,
       groups: [workflow] as WorkflowFilter[],
       badge: badgeFromWorkflow(workflow),
-      badgeTone: 'primary' as const,
+      badgeTone: 'warning' as const,
       title: 'Checkout payment required',
       description: 'Follow up with the customer regarding payment.',
       customerLabel,

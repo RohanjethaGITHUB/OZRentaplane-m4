@@ -621,6 +621,10 @@ function CheckoutRescheduleModal({
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-[#64748b] mb-2">Departure time</p>
               <TimeDropdown value={startTime} options={timeOptions} onChange={(v) => { setStartTime(v); setError(null) }} />
+              <p className="mt-2 text-[11px] text-[#152d5a] leading-snug">
+                Expected duration: <span className="font-semibold">2 hours</span>
+                <span className="text-[#334155]"> · Approx. 1 hr familiarisation + 1 hr checkout</span>
+              </p>
             </div>
           </div>
 

@@ -70,7 +70,22 @@ function fullCustomerName(profile: { first_name: string | null; last_name: strin
   return profile?.email ?? 'Customer'
 }
 
-function getStatusBadge(displayStatus: string, appearance: 'default' | 'light-operational') {
+function getStatusBadge(
+  displayStatus: string,
+  appearance: 'default' | 'light-operational',
+  options?: { pendingReschedule?: boolean },
+) {
+  if (options?.pendingReschedule) {
+    return appearance === 'light-operational'
+      ? {
+          label: 'Reschedule Requested',
+          className: 'bg-[rgba(178,106,18,0.12)] text-[var(--admin-warning)] border-[rgba(178,106,18,0.24)]',
+        }
+      : {
+          label: 'Reschedule Requested',
+          className: 'bg-amber-500/10 text-amber-300 border-amber-500/20',
+        }
+  }
   const fallbackClassName = appearance === 'light-operational'
     ? 'bg-[rgba(100,116,139,0.10)] text-[var(--admin-neutral)] border-[rgba(148,163,184,0.24)]'
     : 'bg-white/5 text-slate-300 border-white/10'
@@ -149,6 +164,7 @@ export default async function AdminBookingList({
 
   const customerIds = Array.from(new Set(bookings.map((b) => b.booking_owner_user_id).filter(Boolean)))
   const profileMap = new Map<string, { first_name: string | null; last_name: string | null; full_name: string | null; email: string | null }>()
+  const pendingRescheduleIds = new Set<string>()
 
   if (customerIds.length > 0) {
     const { data: customerProfiles } = await supabase
@@ -163,6 +179,19 @@ export default async function AdminBookingList({
         full_name: p.full_name,
         email: p.email,
       })
+    }
+  }
+
+  if (bookingTypeFilter === 'checkout' && bookings.length > 0) {
+    const { data: pendingRescheduleRows } = await supabase
+      .from('checkout_change_requests')
+      .select('checkout_request_id')
+      .eq('request_type', 'reschedule')
+      .eq('status', 'pending')
+      .in('checkout_request_id', bookings.map((b) => b.id))
+
+    for (const row of pendingRescheduleRows ?? []) {
+      if (row.checkout_request_id) pendingRescheduleIds.add(row.checkout_request_id as string)
     }
   }
 
@@ -316,8 +345,16 @@ export default async function AdminBookingList({
                     const customerName = fullCustomerName(prof, booking.pic_name)
                     const email = prof?.email ?? '—'
                     const displayStatus = deriveBookingStatusForFlightRecord(booking)
-                    const badge = getStatusBadge(displayStatus, appearance)
-                    const actionLabel = basePath.includes('/awaiting-outcome') ? 'Record Outcome' : basePath.includes('/new-requests') ? 'Review' : 'View'
+                    const badge = getStatusBadge(displayStatus, appearance, {
+                      pendingReschedule: pendingRescheduleIds.has(booking.id),
+                    })
+                    const actionLabel = pendingRescheduleIds.has(booking.id)
+                      ? 'Review Reschedule'
+                      : basePath.includes('/awaiting-outcome')
+                        ? 'Record Outcome'
+                        : basePath.includes('/new-requests')
+                          ? 'Review'
+                          : 'View'
                     return (
                       <tr key={booking.id} className={rowClassName}>
                         <td className={customerCellClassName}>
@@ -349,7 +386,9 @@ export default async function AdminBookingList({
                 const customerName = fullCustomerName(prof, booking.pic_name)
                 const email = prof?.email ?? '—'
                 const displayStatus = deriveBookingStatusForFlightRecord(booking)
-                const badge = getStatusBadge(displayStatus, appearance)
+                const badge = getStatusBadge(displayStatus, appearance, {
+                  pendingReschedule: pendingRescheduleIds.has(booking.id),
+                })
                 return (
                   <div key={booking.id} className={mobileCardClassName}>
                     <div className="flex items-start justify-between gap-3">
@@ -368,7 +407,7 @@ export default async function AdminBookingList({
                         {booking.booking_reference || booking.id.slice(0, 8).toUpperCase()}
                       </Link>
                       <Link href={`/admin/bookings/requests/${booking.id}`} className={actionButtonClassName}>
-                        View
+                        {pendingRescheduleIds.has(booking.id) ? 'Review Reschedule' : 'View'}
                       </Link>
                     </div>
                   </div>

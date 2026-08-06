@@ -472,6 +472,10 @@ function CheckoutRescheduleModal({
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-[#64748b] mb-2">Departure time</p>
               <TimeDropdown value={startTime} options={timeOptions} onChange={(v) => { setStartTime(v); setError(null) }} />
+              <p className="mt-2 text-[11px] text-[#152d5a] leading-snug">
+                Expected duration: <span className="font-semibold">2 hours</span>
+                <span className="text-[#334155]"> · Approx. 1 hr familiarisation + 1 hr checkout</span>
+              </p>
             </div>
           </div>
 
@@ -687,11 +691,11 @@ export default function CheckoutChangeActions({
     checkout.checkout_lifecycle_status !== 'completed'
 
   const cancelButtonClass = isListCard
-    ? 'flex items-center justify-center whitespace-nowrap border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors w-full'
+    ? 'flex items-center justify-center whitespace-nowrap border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed text-[10px] font-bold tracking-[0.06em] uppercase px-5 py-2.5 rounded-xl transition-colors w-full min-h-[40px]'
     : 'inline-flex items-center gap-2 px-6 py-3 border border-rose-300 bg-white text-rose-600 hover:bg-rose-50 disabled:bg-[#f8fafc] disabled:border-[#e2e8f0] disabled:text-[#94a3b8] rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all'
 
   const modifyButtonClass = isListCard
-    ? 'flex items-center justify-center whitespace-nowrap border border-[#152d5a]/20 text-[#152d5a] hover:bg-[#f0f6ff] disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors w-full'
+    ? 'flex items-center justify-center whitespace-nowrap border border-[#152d5a]/20 text-[#152d5a] hover:bg-[#f0f6ff] disabled:opacity-50 disabled:cursor-not-allowed text-[10px] font-bold tracking-[0.06em] uppercase px-5 py-2.5 rounded-xl transition-colors w-full min-h-[40px]'
     : 'inline-flex items-center gap-2 px-6 py-3 bg-[#152d5a] hover:bg-[#1a3a6e] disabled:bg-[#e2e8f0] disabled:text-[#64748b] text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all'
 
   return (
@@ -893,7 +897,7 @@ export default function CheckoutChangeActions({
                 disabled={isRescheduling || checkout.status === 'cancelled'}
                 className={modifyButtonClass}
               >
-                {isRescheduling ? 'Sending...' : isListCard ? 'Modify Booking' : 'Reschedule checkout'}
+                {isRescheduling ? 'Sending...' : 'Reschedule checkout'}
               </button>
             )}
             <button
@@ -902,7 +906,7 @@ export default function CheckoutChangeActions({
               disabled={isCancelling || checkout.status === 'cancelled'}
               className={cancelButtonClass}
             >
-              {isCancelling ? 'Cancelling...' : isListCard ? 'Cancel Request' : 'Cancel checkout'}
+              {isCancelling ? 'Cancelling...' : 'Cancel checkout'}
             </button>
           </div>
         )}

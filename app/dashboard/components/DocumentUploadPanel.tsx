@@ -40,6 +40,7 @@ export type DocumentUploadPanelProps = {
   termsAcceptedAt?: string | null
   initialRedCardMonth?: number | null
   initialRedCardYear?: number | null
+  clearanceStatus?: string | null
   onSuccess: () => void
   onSubmit?: (note: string) => void
   onBackToStep1?: () => void
@@ -514,6 +515,7 @@ export default function DocumentUploadPanel({
   termsAcceptedAt,
   initialRedCardMonth,
   initialRedCardYear,
+  clearanceStatus,
   onSuccess,
   onSubmit,
   onBackToStep1,
@@ -631,6 +633,7 @@ export default function DocumentUploadPanel({
   const s4: SectionStatus = termsAccepted ? 'complete' : 'not_started'
   const completedCount = [s1, s2, s3, s4].filter(s => s === 'complete').length
   const fullyReady = allDocsApproved && s2 === 'complete' && s3 === 'complete' && s4 === 'complete'
+  const isClearedToFly = clearanceStatus === 'cleared_to_fly'
 
   function handleFlightDateChange(val: string) {
     setFlightDate(val)
@@ -1030,7 +1033,9 @@ export default function DocumentUploadPanel({
             </span>
             <p className={`text-[14px] font-semibold ${fullyReady ? 'text-green-700' : allDocsUploaded && termsAccepted ? 'text-amber-700' : 'text-[#4b6390]'}`}>
               {fullyReady
-                ? "All documents approved — you're ready to request a checkout flight"
+                ? isClearedToFly
+                  ? "All documents approved — you're cleared to fly and ready to book an aircraft"
+                  : "All documents approved — you're ready to request a checkout flight"
                 : allDocsUploaded && termsAccepted
                 ? 'Documents under review — we\'ll notify you once approved'
                 : 'Complete all steps above to become eligible for a checkout flight'}
@@ -1039,10 +1044,10 @@ export default function DocumentUploadPanel({
           {allDocsUploaded && termsAccepted && (
             <div className="flex justify-center">
               <Link
-                href="/dashboard/checkout"
+                href={isClearedToFly ? '/dashboard/bookings/new' : '/dashboard/checkout'}
                 className="inline-flex items-center gap-1.5 bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e] font-semibold text-[13px] px-4 py-2.5 rounded-xl transition-colors whitespace-nowrap"
               >
-                Book a Checkout
+                {isClearedToFly ? 'Book an Aircraft' : 'Book a Checkout'}
                 <span className="material-symbols-outlined text-[14px]">chevron_right</span>
               </Link>
             </div>

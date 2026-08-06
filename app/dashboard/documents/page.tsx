@@ -18,7 +18,7 @@ export default async function CustomerDocumentsPage() {
   const [profileResult, documentsResult, activeTermsResult, latestTermsAcceptanceResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('role, last_flight_date, has_night_vfr_rating, has_instrument_rating, terms_accepted_at, terms_version')
+      .select('role, last_flight_date, has_night_vfr_rating, has_instrument_rating, terms_accepted_at, terms_version, pilot_clearance_status')
       .eq('id', user.id)
       .single(),
     supabase
@@ -90,6 +90,7 @@ export default async function CustomerDocumentsPage() {
           hasNightVfrRating={profile?.has_night_vfr_rating ?? null}
           hasInstrumentRating={profile?.has_instrument_rating ?? null}
           termsAcceptedAt={termsAcceptedAt}
+          clearanceStatus={(profile as { pilot_clearance_status?: string | null } | null)?.pilot_clearance_status ?? null}
         />
       </div>
     </>

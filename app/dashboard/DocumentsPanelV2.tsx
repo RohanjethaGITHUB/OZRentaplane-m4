@@ -13,6 +13,7 @@ type Props = {
   hasNightVfrRating: boolean | null
   hasInstrumentRating: boolean | null
   termsAcceptedAt: string | null
+  clearanceStatus?: string | null
 }
 
 export default function DocumentsPanelV2({
@@ -22,6 +23,7 @@ export default function DocumentsPanelV2({
   lastFlightDate,
   hasNightVfrRating,
   termsAcceptedAt,
+  clearanceStatus,
 }: Props) {
   const router = useRouter()
   const pilotDoc = pilotLicenceDocument
@@ -36,6 +38,7 @@ export default function DocumentsPanelV2({
       termsAcceptedAt={termsAcceptedAt}
       initialRedCardMonth={pilotDoc?.red_card_expiry_month ?? null}
       initialRedCardYear={pilotDoc?.red_card_expiry_year ?? null}
+      clearanceStatus={clearanceStatus}
       onSuccess={() => router.refresh()}
     />
   )

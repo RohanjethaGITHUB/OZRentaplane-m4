@@ -30,6 +30,7 @@ import {
   FileText,
   XCircle,
 } from 'lucide-react'
+import { RescheduleReviewFooterWarning } from './AdminRescheduleReviewProvider'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -69,7 +70,7 @@ type Props = {
   clearanceBorder:    string
   documents:          DocSummary[]
   messages:           VerificationEvent[]
-  /** When true, hide Confirm Checkout / Propose New Time — use the reschedule review card instead */
+  /** When true, keep the action footer but block Confirm Checkout until the new time is reviewed */
   pendingRescheduleReview?: boolean
 }
 
@@ -661,9 +662,12 @@ export default function AdminCheckoutReviewPanel({
     const status = forceAllApproved ? 'approved' : doc.status
     return isCheckoutDocReady(type, { ...doc, status })
   })
-  const confirmCheckoutDisabledReason = canConfirmCheckout
-    ? null
-    : 'Confirm Checkout is disabled until all required documents are approved and none are expired.'
+  const confirmBlockedByReschedule = pendingRescheduleReview
+  const confirmCheckoutDisabledReason = confirmBlockedByReschedule
+    ? 'Confirm Checkout is disabled until you approve or reject the requested new time.'
+    : canConfirmCheckout
+      ? null
+      : 'Confirm Checkout is disabled until all required documents are approved and none are expired.'
   const allRequiredApproved = canConfirmCheckout
   const allDocsOk = canConfirmCheckout
   const nightVfrStatusOverride =
@@ -679,9 +683,10 @@ export default function AdminCheckoutReviewPanel({
   const timeOptions = newDate === sydToday
     ? ALL_TIME_OPTIONS.filter((o) => o.value >= sydNowHm)
     : ALL_TIME_OPTIONS
+  const confirmEnabled = canConfirmCheckout && !confirmBlockedByReschedule
 
   return (
-      <div className={`space-y-4 ${pendingRescheduleReview ? 'pb-8' : 'pb-24'}`}>
+      <div className="space-y-4 pb-24">
       <section className="bg-white border-t border-r border-b border-gray-100 border-l-4 border-l-[#1a4fd6] rounded-xl p-6 mb-4 shadow-sm">
         <div className="flex items-center gap-3 mb-5">
           <div className="w-8 h-8 rounded-full bg-[#152d5a] text-white text-sm font-semibold flex items-center justify-center flex-shrink-0">
@@ -724,8 +729,16 @@ export default function AdminCheckoutReviewPanel({
           <ChevronDown className="ml-auto w-5 h-5 text-gray-400" />
         </div>
 
-        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-3 py-1 mb-4">
-          <CheckCircle2 className="w-3.5 h-3.5" />
+        <div className={`inline-flex items-center gap-1.5 text-xs font-medium rounded-full px-3 py-1 mb-4 border ${
+          allDocsOk
+            ? 'text-green-700 bg-green-50 border-green-200'
+            : 'text-amber-800 bg-amber-50 border-amber-200'
+        }`}>
+          {allDocsOk ? (
+            <CheckCircle2 className="w-3.5 h-3.5" />
+          ) : (
+            <AlertTriangle className="w-3.5 h-3.5" />
+          )}
           {allDocsOk ? 'All approved' : 'Incomplete'}
         </div>
 
@@ -1002,19 +1015,21 @@ export default function AdminCheckoutReviewPanel({
         </div>
       </section>
 
-      {!pendingRescheduleReview && (
       <div className="@container fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] md:px-6 md:py-4 lg:left-72">
         <div className="mx-auto flex max-w-7xl flex-col gap-2">
-          {!canConfirmCheckout && (
+          {confirmBlockedByReschedule ? (
+            <RescheduleReviewFooterWarning />
+          ) : !canConfirmCheckout ? (
             <div className="flex items-start gap-2.5 rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
               <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" aria-hidden="true" />
               <span>
                 One or more required documents are not yet approved or have expired. Review document status before confirming checkout.
               </span>
             </div>
-          )}
-          {actionError && <p className="text-xs text-rose-500 text-center @[720px]:text-right">{actionError}</p>}
-          <div className="flex w-full flex-shrink-0 flex-wrap items-center justify-center gap-2 @[720px]:justify-end">
+          ) : null}
+          {actionError && <p className="text-xs text-rose-500 text-center">{actionError}</p>}
+          {/* Mobile: 2x2 grid. sm+: original single-row footer actions */}
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-full sm:flex-shrink-0 sm:flex-wrap sm:items-center sm:justify-center sm:gap-2">
             <button
               type="button"
               onClick={() => {
@@ -1022,38 +1037,38 @@ export default function AdminCheckoutReviewPanel({
                 timeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
               }}
               disabled={confirmPending || cancelPending}
-              className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 sm:px-4 sm:py-2.5"
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-red-200 px-2.5 py-2 text-[11px] font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 sm:w-auto sm:gap-2 sm:px-4 sm:py-2.5 sm:text-xs sm:justify-start"
             >
-              <XCircle className="h-4 w-4" />
+              <XCircle className="h-4 w-4 flex-shrink-0" />
               Cancel Request
             </button>
             <button
               type="button"
               onClick={handleRequestDocuments}
               disabled={msgLoading}
-              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-[#152d5a] shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50 sm:px-4 sm:py-2.5"
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-[11px] font-medium text-[#152d5a] shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50 sm:w-auto sm:gap-2 sm:px-4 sm:py-2.5 sm:text-xs sm:justify-start"
             >
-              <FileText className="h-4 w-4" />
+              <FileText className="h-4 w-4 flex-shrink-0" />
               Request Documents
             </button>
             <button
               type="button"
               onClick={handleProposeDifferentTime}
-              disabled={timeUpdateStatus === 'saving'}
-              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-[#152d5a] shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50 sm:px-4 sm:py-2.5"
+              disabled={timeUpdateStatus === 'saving' || confirmBlockedByReschedule}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-[11px] font-medium text-[#152d5a] shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50 sm:w-auto sm:gap-2 sm:px-4 sm:py-2.5 sm:text-xs sm:justify-start"
             >
-              <CalendarDays className="h-4 w-4" />
+              <CalendarDays className="h-4 w-4 flex-shrink-0" />
               Propose New Time
             </button>
-            <div className="relative group">
+            <div className="relative group w-full sm:w-auto">
               <button
                 type="button"
                 onClick={handleConfirm}
-                disabled={confirmPending || !canConfirmCheckout}
-                aria-describedby={!canConfirmCheckout && !confirmPending ? 'confirm-checkout-disabled-tooltip' : undefined}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#152d5a] px-4 py-2 text-xs font-semibold text-white shadow-md transition-colors hover:bg-[#1a4fd6] disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:py-2.5"
+                disabled={confirmPending || !confirmEnabled}
+                aria-describedby={!confirmEnabled && !confirmPending ? 'confirm-checkout-disabled-tooltip' : undefined}
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#152d5a] px-2.5 py-2 text-[11px] font-semibold text-white shadow-md transition-colors hover:bg-[#1a4fd6] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:gap-2 sm:px-5 sm:py-2.5 sm:text-xs sm:justify-start"
               >
-                <CheckCircle2 className="h-4 w-4" />
+                <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
                 {confirmPending ? 'Confirming…' : 'Confirm Checkout'}
               </button>
               {confirmCheckoutDisabledReason && !confirmPending ? (
@@ -1069,7 +1084,6 @@ export default function AdminCheckoutReviewPanel({
           </div>
         </div>
       </div>
-      )}
 
       <ConfirmModal
         open={confirmCheckoutOpen}
