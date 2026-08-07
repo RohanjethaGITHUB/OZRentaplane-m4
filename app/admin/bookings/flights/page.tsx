@@ -9,7 +9,7 @@ import BookingDirectoryClient, { type BookingDirectoryRow } from './BookingDirec
 
 export const metadata = { title: 'Flight Bookings | Admin' }
 
-type SortKey = 'customer' | 'email' | 'aircraft' | 'scheduled' | 'status' | 'ref'
+type SortKey = 'created' | 'customer' | 'email' | 'aircraft' | 'scheduled' | 'status' | 'ref'
 type SortDir = 'asc' | 'desc'
 
 type BookingRecord = {
@@ -67,6 +67,7 @@ type BookingTypePresentation = {
 const STATUS_LABEL: Record<string, string> = {
   pending_confirmation: 'Requested',
   confirmed: 'Upcoming',
+  checkout_confirmed: 'Scheduled',
   ready_for_dispatch: 'Upcoming',
   dispatched: 'In Progress',
   awaiting_flight_record: 'Awaiting Flight Record',
@@ -247,7 +248,7 @@ export default async function FlightBookingsPage({
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
-  const sort = (searchParams.sort as SortKey | undefined) ?? 'scheduled'
+  const sort = (searchParams.sort as SortKey | undefined) ?? 'created'
   const dir = (searchParams.dir as SortDir | undefined) === 'asc' ? 'asc' : 'desc'
   const initialFilter = searchParams.status ?? 'all'
 
@@ -259,7 +260,7 @@ export default async function FlightBookingsPage({
       aircraft ( id, registration, aircraft_type ),
       flight_records ( status, submitted_at )
     `)
-    .eq('booking_type', 'standard')
+    .in('booking_type', ['standard', 'checkout'])
 
   const bookings = (data ?? []) as BookingRecord[]
   const bookingIds = bookings.map((booking) => booking.id)
@@ -363,6 +364,7 @@ export default async function FlightBookingsPage({
       customerEmail: customerProfile?.email ?? '—',
       aircraftRegistration: aircraft?.registration ?? 'VH-KZG',
       aircraftType: aircraft?.aircraft_type ?? null,
+      createdAt: booking.created_at,
       scheduledStart: booking.scheduled_start,
       scheduledEnd: booking.scheduled_end,
       scheduledLabel: formatDateTime(booking.scheduled_start),
@@ -381,6 +383,7 @@ export default async function FlightBookingsPage({
 
   const sortedRows = [...rows].sort((a, b) => {
     const valueA: Record<SortKey, string | number> = {
+      created: new Date(a.createdAt).getTime(),
       customer: a.customerName.toLowerCase(),
       email: a.customerEmail.toLowerCase(),
       aircraft: `${a.bookingTypePrimaryLabel} ${a.bookingTypeSecondaryLabel}`.toLowerCase(),
@@ -389,6 +392,7 @@ export default async function FlightBookingsPage({
       ref: a.bookingReference.toLowerCase(),
     }
     const valueB: Record<SortKey, string | number> = {
+      created: new Date(b.createdAt).getTime(),
       customer: b.customerName.toLowerCase(),
       email: b.customerEmail.toLowerCase(),
       aircraft: `${b.bookingTypePrimaryLabel} ${b.bookingTypeSecondaryLabel}`.toLowerCase(),
@@ -405,9 +409,9 @@ export default async function FlightBookingsPage({
       <AdminPageHeader
         eyebrow="Operations"
         title="Flight Bookings"
-        subtitle="Manage standard aircraft hire bookings."
+        subtitle="Manage flight bookings, including upcoming checkouts and rentals."
       />
-      <div className="admin-booking-directory-pilot mx-auto max-w-[1440px] space-y-6 px-4 py-6 pb-24 sm:px-6 sm:py-8 md:px-8 lg:px-10">
+      <div className="admin-booking-directory-pilot mx-auto max-w-[1440px] space-y-5 px-4 py-4 pb-4 sm:px-6 sm:py-6 sm:pb-4 md:px-8 lg:px-10">
         <BookingDirectoryClient
           rows={sortedRows}
           initialFilter={initialFilter}

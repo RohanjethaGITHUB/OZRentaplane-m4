@@ -13,6 +13,7 @@ export type BookingDirectoryRow = {
   customerEmail: string
   aircraftRegistration: string
   aircraftType: string | null
+  createdAt: string
   scheduledStart: string
   scheduledEnd: string
   scheduledLabel: string
@@ -28,7 +29,7 @@ export type BookingDirectoryRow = {
   bookingTypeSecondaryLabel: string
 }
 
-type SortKey = 'customer' | 'email' | 'aircraft' | 'scheduled' | 'status' | 'ref'
+type SortKey = 'created' | 'customer' | 'email' | 'aircraft' | 'scheduled' | 'status' | 'ref'
 type SortDir = 'asc' | 'desc'
 
 type SummaryTone = 'info' | 'warning' | 'accent' | 'orange' | 'success'
@@ -67,7 +68,7 @@ const SUMMARY_CARDS: SummaryConfig[] = [
   {
     key: 'confirmed',
     label: 'Upcoming',
-    helper: 'Scheduled standard flights',
+    helper: 'Scheduled flights',
     icon: 'calendar_month',
     tone: 'info',
   },
@@ -110,13 +111,15 @@ const FILTER_TABS: Array<{ key: BookingFilterKey; label: string }> = [
   { key: 'completed', label: 'Completed' },
 ]
 
+const PAGE_SIZE = 10
+
 function isBookingFilterKey(filter: string): filter is BookingFilterKey {
   return FILTER_TABS.some((tab) => tab.key === filter)
 }
 
 function matchesBookingFilter(row: BookingDirectoryRow, filter: string) {
   if (filter === 'all') return true
-  if (filter === 'confirmed') return row.rawStatus === 'confirmed'
+  if (filter === 'confirmed') return row.rawStatus === 'confirmed' || row.rawStatus === 'checkout_confirmed'
   if (filter === 'awaiting_flight_record') return row.displayStatus === 'awaiting_flight_record'
   if (filter === 'pending_post_flight_review') return row.rawStatus === 'pending_post_flight_review'
   if (filter === 'payment_pending') return row.rawStatus === 'payment_pending'
@@ -420,6 +423,8 @@ export default function BookingDirectoryClient({
   const listRef = useRef<HTMLElement | null>(null)
   const [activeFilter, setActiveFilter] = useState<BookingFilterKey>(isBookingFilterKey(initialFilter) ? initialFilter : 'all')
   const [pendingListScroll, setPendingListScroll] = useState(0)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     setActiveFilter(isBookingFilterKey(initialFilter) ? initialFilter : 'all')
@@ -440,6 +445,17 @@ export default function BookingDirectoryClient({
   )
 
   useEffect(() => {
+    setVisibleCount(PAGE_SIZE)
+  }, [activeFilter, rows.length])
+
+  const visibleRows = useMemo(
+    () => filteredRows.slice(0, visibleCount),
+    [filteredRows, visibleCount],
+  )
+
+  const hasMoreRows = visibleCount < filteredRows.length
+
+  useEffect(() => {
     if (pendingListScroll === 0) return
 
     const frame = window.requestAnimationFrame(() => {
@@ -453,6 +469,28 @@ export default function BookingDirectoryClient({
 
     return () => window.cancelAnimationFrame(frame)
   }, [filteredRows.length, activeFilter, pendingListScroll])
+
+  const listScrollRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!loadMoreRef.current || !hasMoreRows || !listScrollRef.current) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisibleCount((current) => Math.min(current + PAGE_SIZE, filteredRows.length))
+        }
+      },
+      {
+        root: listScrollRef.current,
+        rootMargin: '0px 0px 240px 0px',
+        threshold: 0.1,
+      },
+    )
+
+    observer.observe(loadMoreRef.current)
+    return () => observer.disconnect()
+  }, [filteredRows.length, hasMoreRows])
 
   function replaceFilter(nextFilter: BookingFilterKey) {
     setActiveFilter(nextFilter)
@@ -478,7 +516,7 @@ export default function BookingDirectoryClient({
   const activeFilterLabel = hasActiveFilter ? prettifyFilterLabel(activeFilter) : null
 
   return (
-    <div className="space-y-5 lg:space-y-6">
+    <div className="space-y-4 lg:space-y-5">
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {SUMMARY_CARDS.map((card) => (
           <div key={card.key} className={card.key === 'completed' ? 'col-span-2 lg:col-span-1' : ''}>
@@ -547,7 +585,7 @@ export default function BookingDirectoryClient({
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-[12.5px] font-semibold text-white/80">
-                  Showing {filteredRows.length} of {rows.length} bookings
+                  Showing {visibleRows.length} of {filteredRows.length} bookings
                 </p>
                 {activeFilterLabel ? (
                   <span className="inline-flex min-h-8 items-center rounded-full border border-white/14 bg-white/8 px-3 py-1 text-[11.5px] font-semibold text-white/82">
@@ -597,9 +635,9 @@ export default function BookingDirectoryClient({
             </div>
           ) : (
             <>
-              <div className="hidden lg:block">
-                <div className="divide-y divide-[rgba(12,35,64,0.08)]">
-                  {filteredRows.map((row) => {
+              <div ref={listScrollRef} className="max-h-[calc(100vh-9.5rem)] overflow-y-auto sm:max-h-[calc(100vh-11.5rem)] lg:max-h-[calc(100vh-13.5rem)]">
+                <div className="divide-y divide-[rgba(12,35,64,0.08)] lg:block hidden">
+                  {visibleRows.map((row) => {
                     const status = getStatusPresentation(row)
                     const schedule = formatSchedulePresentation(row.scheduledStart, row.scheduledEnd)
 
@@ -654,70 +692,72 @@ export default function BookingDirectoryClient({
                     )
                   })}
                 </div>
-              </div>
 
-              <div className="grid gap-3 lg:hidden">
-                {filteredRows.map((row) => {
-                  const status = getStatusPresentation(row)
-                  const schedule = formatSchedulePresentation(row.scheduledStart, row.scheduledEnd)
+                <div className="grid gap-3 lg:hidden">
+                  {visibleRows.map((row) => {
+                    const status = getStatusPresentation(row)
+                    const schedule = formatSchedulePresentation(row.scheduledStart, row.scheduledEnd)
 
-                  return (
-                    <article key={row.id} className="group relative cursor-pointer overflow-hidden rounded-[12px] border border-[rgba(12,35,64,0.10)] bg-white">
-                      <Link
-                        href={`/admin/bookings/requests/${row.bookingId}`}
-                        aria-label={`Open booking ${row.bookingReference} for ${row.customerName}`}
-                        className="absolute inset-0 z-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-inset"
-                      >
-                        <span className="sr-only">Open booking {row.bookingReference}</span>
-                      </Link>
+                    return (
+                      <article key={row.id} className="group relative cursor-pointer overflow-hidden rounded-[12px] border border-[rgba(12,35,64,0.10)] bg-white">
+                        <Link
+                          href={`/admin/bookings/requests/${row.bookingId}`}
+                          aria-label={`Open booking ${row.bookingReference} for ${row.customerName}`}
+                          className="absolute inset-0 z-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-inset"
+                        >
+                          <span className="sr-only">Open booking {row.bookingReference}</span>
+                        </Link>
 
-                      <div className="relative z-0 flex flex-col gap-4 px-5 py-4 transition-colors group-hover:bg-[var(--booking-directory-row-hover)]">
-                        <div className="flex items-start gap-3">
-                          <div className="min-w-0 flex-1">
-                            <Link
-                              href={`/admin/users/${row.bookingOwnerUserId}`}
-                              className="relative z-20 inline-flex max-w-full flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                            >
-                              <span className="break-words text-[15px] font-[650] leading-[1.3] text-[var(--admin-text)] transition-colors hover:text-[var(--admin-accent-blue)]">
-                                {row.customerName}
-                              </span>
-                              <span className="mt-1 break-words text-[13px] text-[var(--admin-text-muted)]">
-                                {row.customerEmail}
-                              </span>
-                            </Link>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          {formatStatusIconLabel(status)}
-                          <div className="min-w-0 flex-1">
-                            <span className={`inline-flex min-h-9 items-center rounded-full border px-3 py-1.5 text-[12.5px] font-semibold leading-none ${status.badgeClassName}`}>
-                              {status.label}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="grid gap-2 text-[13px] sm:grid-cols-2">
-                          <div className="rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5">
-                            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-dim)]">Booking Type</p>
-                            <div title={row.billingBasisIsProvisional ? 'Billing basis may change before flight finalisation.' : undefined}>
-                              <p className="mt-1 text-[var(--admin-text)]">{row.bookingTypePrimaryLabel}</p>
-                              <p className="mt-1 text-[12px] text-[var(--admin-text-muted)]">{row.bookingTypeSecondaryLabel}</p>
+                        <div className="relative z-0 flex flex-col gap-4 px-5 py-4 transition-colors group-hover:bg-[var(--booking-directory-row-hover)]">
+                          <div className="flex items-start gap-3">
+                            <div className="min-w-0 flex-1">
+                              <Link
+                                href={`/admin/users/${row.bookingOwnerUserId}`}
+                                className="relative z-20 inline-flex max-w-full flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                              >
+                                <span className="break-words text-[15px] font-[650] leading-[1.3] text-[var(--admin-text)] transition-colors hover:text-[var(--admin-accent-blue)]">
+                                  {row.customerName}
+                                </span>
+                                <span className="mt-1 break-words text-[13px] text-[var(--admin-text-muted)]">
+                                  {row.customerEmail}
+                                </span>
+                              </Link>
                             </div>
                           </div>
-                          <div className="rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5">
-                            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-dim)]">Schedule</p>
-                            <p className="mt-1 text-[var(--admin-text)]">{schedule.dateRangeLabel}</p>
-                            <p className="mt-1 text-[12px] text-[var(--admin-text-muted)]">{schedule.timeRangeLabel}</p>
-                            <p className="mt-1 text-[12px] text-[var(--admin-text-muted)]">
-                              {schedule.durationLabel ? `${schedule.durationLabel} · ${schedule.timezoneLabel}` : schedule.timezoneLabel}
-                            </p>
+
+                          <div className="flex items-center gap-3">
+                            {formatStatusIconLabel(status)}
+                            <div className="min-w-0 flex-1">
+                              <span className={`inline-flex min-h-9 items-center rounded-full border px-3 py-1.5 text-[12.5px] font-semibold leading-none ${status.badgeClassName}`}>
+                                {status.label}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid gap-2 text-[13px] sm:grid-cols-2">
+                            <div className="rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5">
+                              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-dim)]">Booking Type</p>
+                              <div title={row.billingBasisIsProvisional ? 'Billing basis may change before flight finalisation.' : undefined}>
+                                <p className="mt-1 text-[var(--admin-text)]">{row.bookingTypePrimaryLabel}</p>
+                                <p className="mt-1 text-[12px] text-[var(--admin-text-muted)]">{row.bookingTypeSecondaryLabel}</p>
+                              </div>
+                            </div>
+                            <div className="rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5">
+                              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-dim)]">Schedule</p>
+                              <p className="mt-1 text-[var(--admin-text)]">{schedule.dateRangeLabel}</p>
+                              <p className="mt-1 text-[12px] text-[var(--admin-text-muted)]">{schedule.timeRangeLabel}</p>
+                              <p className="mt-1 text-[12px] text-[var(--admin-text-muted)]">
+                                {schedule.durationLabel ? `${schedule.durationLabel} · ${schedule.timezoneLabel}` : schedule.timezoneLabel}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </article>
-                  )
-                })}
+                      </article>
+                    )
+                  })}
+                </div>
+
+                {hasMoreRows ? <div ref={loadMoreRef} className="h-px" /> : null}
               </div>
             </>
           )}
