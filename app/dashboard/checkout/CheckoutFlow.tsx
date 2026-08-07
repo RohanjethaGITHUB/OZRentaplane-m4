@@ -1016,6 +1016,9 @@ export default function CheckoutFlow({
         }
         if (result.type === 'availability') {
           setSubmitError(result.message)
+          requestAnimationFrame(() => {
+            document.querySelector('[role="alert"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          })
           return
         }
         if (result.type === 'account_blocked' || result.type === 'auth') {
@@ -1573,11 +1576,29 @@ export default function CheckoutFlow({
 
           {/* ── Submit error ── */}
           {submitError && (
-            <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-              <span className="material-symbols-outlined text-red-400 flex-shrink-0 mt-0.5" style={{ fontVariationSettings: "'wght' 300" }}>
+            <div
+              role="alert"
+              className="flex items-start gap-3.5 rounded-2xl border-2 border-red-500 bg-red-50 px-5 py-4 shadow-[0_8px_20px_rgba(185,28,28,0.12)]"
+            >
+              <span
+                className="material-symbols-outlined text-[26px] text-red-600 flex-shrink-0 mt-0.5"
+                style={{ fontVariationSettings: "'FILL' 1, 'wght' 500" }}
+                aria-hidden
+              >
                 error
               </span>
-              <p className="text-[13px] text-red-700 leading-relaxed">{submitError}</p>
+              <div className="min-w-0 space-y-1">
+                <p className="text-[16px] font-bold text-red-800 leading-snug">Unable to submit checkout request</p>
+                <p className="text-[15px] font-medium text-red-700 leading-relaxed">{submitError}</p>
+                <button
+                  type="button"
+                  onClick={() => { setSubmitError(null); setStep('time') }}
+                  className="mt-2 inline-flex items-center gap-1 text-[14px] font-semibold text-red-800 underline underline-offset-2 hover:text-red-950"
+                >
+                  Go back and choose another time
+                  <span className="material-symbols-outlined text-[16px]" aria-hidden>arrow_forward</span>
+                </button>
+              </div>
             </div>
           )}
 

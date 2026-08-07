@@ -10,6 +10,7 @@ export default function CheckoutFlightsPage({ searchParams }: { searchParams: { 
       pageTitle="Checkout Flights"
       pageSubtitle="Review new checkout flight requests and outcomes."
       basePath="/admin/bookings/checkout"
+      appearance="light-operational"
     />
   )
 }

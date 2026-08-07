@@ -15,12 +15,67 @@ export type AvailabilityCheckResult =
 
 type AvailabilityMode = 'default' | 'checkout'
 
+/** Booking statuses that still reserve the aircraft calendar. */
+const CALENDAR_BLOCKING_BOOKING_STATUSES = [
+  'checkout_requested',
+  'checkout_confirmed',
+  'checkout_completed_under_review',
+  'pending_confirmation',
+  'confirmed',
+  'ready_for_dispatch',
+  'dispatched',
+  'awaiting_flight_record',
+  'on_hold_pending_documents',
+  'pending_post_flight_review',
+  'payment_pending',
+  'cancellation_requested',
+] as const
+
+function bookingConflictLabel(bookingType: string | null): string {
+  return bookingType === 'checkout' ? 'Checkout flight' : 'Booked'
+}
+
+/**
+ * Merge schedule-block conflicts with active overlapping bookings that may be
+ * missing an active schedule_block (so selection matches submit).
+ */
+function mergeConflicts(
+  blocks: SafeConflict[],
+  bookings: Array<{
+    scheduled_start: string
+    scheduled_end: string
+    booking_type: string | null
+    status: string
+  }>,
+): SafeConflict[] {
+  const merged = [...blocks]
+  const covered = (start: string, end: string) =>
+    merged.some((c) => c.start_time === start && c.end_time === end)
+
+  for (const booking of bookings) {
+    if (!CALENDAR_BLOCKING_BOOKING_STATUSES.includes(booking.status as (typeof CALENDAR_BLOCKING_BOOKING_STATUSES)[number])) {
+      continue
+    }
+    if (covered(booking.scheduled_start, booking.scheduled_end)) continue
+    merged.push({
+      start_time: booking.scheduled_start,
+      end_time: booking.scheduled_end,
+      label: bookingConflictLabel(booking.booking_type),
+    })
+  }
+
+  return merged.sort(
+    (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
+  )
+}
+
 
 /**
  * Customer-safe live availability check for an exact time window.
  *
- * Queries get_customer_aircraft_calendar_blocks for the exact window.
- * No artificial buffer expansion — back-to-back bookings are allowed.
+ * Queries get_customer_aircraft_calendar_blocks for the exact window, and also
+ * treats overlapping active bookings as conflicts (covers missing/cancelled
+ * schedule_blocks so selection matches submit).
  *
  * Returns only public-safe fields — no internal_reason, no admin notes.
  */
@@ -78,9 +133,18 @@ export async function checkCustomerAvailability(
     .from('bookings')
     .select('id, status, booking_type, scheduled_start, scheduled_end, booking_owner_user_id')
     .eq('aircraft_id', aircraftId)
+    .in('status', [...CALENDAR_BLOCKING_BOOKING_STATUSES])
     .lt('scheduled_start', queryEnd.toISOString())
     .gt('scheduled_end', queryStart.toISOString())
     .order('scheduled_start', { ascending: true })
+
+  const blockConflicts: SafeConflict[] = blocks.map(b => ({
+    start_time: b.start_time,
+    end_time:   b.end_time,
+    label:      b.label,
+  }))
+  const conflicts = mergeConflicts(blockConflicts, blockingBookings ?? [])
+  const available = conflicts.length === 0
 
   console.info('CHECKOUT_AVAILABILITY_STEP1', {
     mode,
@@ -97,6 +161,7 @@ export async function checkCustomerAvailability(
     postflight_buffer_minutes: 0,
     blocking_bookings_found: blockingBookings?.length ?? 0,
     blocking_schedule_blocks_found: blocks.length,
+    merged_conflicts_found: conflicts.length,
     blocking_bookings: (blockingBookings ?? []).map((b) => ({
       id: b.id,
       status: b.status,
@@ -112,21 +177,15 @@ export async function checkCustomerAvailability(
       end_time: b.end_time,
       label: b.label,
     })),
-    available: blocks.length === 0,
+    available,
   })
 
-  if (blocks.length === 0) {
+  if (available) {
     return {
       available: true,
       message:   'Aircraft appears available for this window. Final confirmation is subject to admin review.',
     }
   }
-
-  const conflicts: SafeConflict[] = blocks.map(b => ({
-    start_time: b.start_time,
-    end_time:   b.end_time,
-    label:      b.label,
-  }))
 
   return {
     available: false,
@@ -142,6 +201,9 @@ export async function checkCustomerAvailability(
  * Used by the Day Availability side panel. Throws on RPC failure so the
  * calling component can display an error state (instead of falsely showing
  * "No unavailable periods").
+ *
+ * Also merges overlapping active bookings so orphan bookings (missing active
+ * schedule_blocks) still appear on the daily timeline.
  *
  * @param aircraftId      UUID of the aircraft
  * @param selectedDateSyd "YYYY-MM-DD" in Sydney local time
@@ -186,10 +248,20 @@ export async function getDayAvailability(
   }
 
   const blocks = (data as CustomerCalendarBlock[]) || []
-
-  return blocks.map(b => ({
+  const blockConflicts: SafeConflict[] = blocks.map(b => ({
     start_time: b.start_time,
     end_time:   b.end_time,
     label:      b.label,
   }))
+
+  const { data: dayBookings } = await supabase
+    .from('bookings')
+    .select('status, booking_type, scheduled_start, scheduled_end')
+    .eq('aircraft_id', aircraftId)
+    .in('status', [...CALENDAR_BLOCKING_BOOKING_STATUSES])
+    .lt('scheduled_start', endUTC.toISOString())
+    .gt('scheduled_end', startUTC.toISOString())
+    .order('scheduled_start', { ascending: true })
+
+  return mergeConflicts(blockConflicts, dayBookings ?? [])
 }

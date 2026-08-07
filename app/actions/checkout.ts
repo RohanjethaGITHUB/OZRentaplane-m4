@@ -472,6 +472,39 @@ export async function submitCheckoutRequest(
     if (!b.expires_at) return true
     return b.expires_at > nowIso
   })
+  const CALENDAR_BLOCKING_BOOKING_STATUSES = new Set([
+    'checkout_requested',
+    'checkout_confirmed',
+    'checkout_completed_under_review',
+    'pending_confirmation',
+    'confirmed',
+    'ready_for_dispatch',
+    'dispatched',
+    'awaiting_flight_record',
+    'on_hold_pending_documents',
+    'pending_post_flight_review',
+    'payment_pending',
+    'cancellation_requested',
+  ])
+  const blockingBookings = (blockingBookingsRes.data ?? []).filter((b) =>
+    CALENDAR_BLOCKING_BOOKING_STATUSES.has(b.status),
+  )
+  // Early availability gate (same rules as selection UI). RPC still re-checks
+  // under lock to prevent races after this read.
+  if (blockingBlocks.length > 0 || blockingBookings.length > 0) {
+    console.info(`[${routeName}] availability blocked before RPC`, {
+      aircraft_id: input.aircraft_id,
+      scheduled_start: input.scheduled_start,
+      blocking_blocks: blockingBlocks.length,
+      blocking_bookings: blockingBookings.length,
+    })
+    markTotal()
+    return {
+      ok: false,
+      type: 'availability',
+      message: 'This checkout time is no longer available. Please go back and choose another time.',
+    }
+  }
   const { data, error } = await perf.time('checkout_submit', 'checkout_submit_rpc_write', () => supabase.rpc('create_checkout_booking_atomic', {
     p_aircraft_id:     input.aircraft_id,
     p_scheduled_start: input.scheduled_start,
