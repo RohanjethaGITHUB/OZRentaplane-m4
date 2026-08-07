@@ -1484,6 +1484,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               <AdminCancellationReviewCard
                 cancellationRequestId={cancellationReqAdmin.id}
                 bookingReference={(booking as { booking_reference?: string | null }).booking_reference ?? null}
+                bookingType={bookingType}
                 customerMessage={cancellationReqAdmin.customer_message}
                 bookingStartTime={cancellationReqAdmin.booking_start_time}
                 estimatedAmount={(booking as { estimated_amount?: number | null }).estimated_amount ?? null}

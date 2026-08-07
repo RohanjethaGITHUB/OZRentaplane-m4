@@ -10,12 +10,14 @@ import { sydneyInputToUTC } from '@/lib/utils/sydney-time'
 import { getDayVfrWindow, isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
 import { isCheckoutSelfServiceAllowed } from '@/lib/checkout-policy'
 import { ADMIN_CONTACT_PHONE_DISPLAY, ADMIN_CONTACT_PHONE_TEL } from '@/lib/contact'
+import { formatDateTime } from '@/lib/formatDateTime'
 
 type BookingLite = {
   id: string
   booking_type: string
   status: string
   scheduled_start: string
+  scheduled_end?: string | null
   checkout_lifecycle_status: string | null
 }
 
@@ -741,6 +743,23 @@ export default function CheckoutChangeActions({
                   Your checkout flight is less than 12 hours away. You can submit a cancellation request for operations review.
                   A cancellation charge may apply — the team can waive or apply the charge when they review your request.
                 </p>
+                <div className="rounded-xl border border-[#1a4fd6]/15 bg-[#f7faff] px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b6390]">Checkout details</p>
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b6390]">Departure</p>
+                      <p className="mt-1 text-[13px] font-semibold text-[#152d5a] leading-snug">
+                        {formatDateTime(checkout.scheduled_start)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b6390]">Return</p>
+                      <p className="mt-1 text-[13px] font-semibold text-[#152d5a] leading-snug">
+                        {formatDateTime(checkout.scheduled_end)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
                 <div>
                   <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4b6390] mb-2">
                     Reason for cancellation

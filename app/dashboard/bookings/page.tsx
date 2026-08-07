@@ -912,6 +912,7 @@ export default async function CustomerBookingsPage() {
                               booking_type: booking.booking_type,
                               status: booking.status,
                               scheduled_start: booking.scheduled_start,
+                              scheduled_end: booking.scheduled_end,
                               checkout_lifecycle_status: booking.checkout_lifecycle_status ?? null,
                               aircraft_id: booking.aircraft_id ?? null,
                             }}

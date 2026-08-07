@@ -19,6 +19,7 @@ type Props = {
     booking_type: string
     status: string
     scheduled_start: string
+    scheduled_end?: string | null
     checkout_lifecycle_status?: string | null
     aircraft_id?: string | null
   }
@@ -63,6 +64,7 @@ export default function UpcomingBookingActions({
             booking_type: booking.booking_type,
             status: booking.status,
             scheduled_start: booking.scheduled_start,
+            scheduled_end: booking.scheduled_end ?? null,
             checkout_lifecycle_status: booking.checkout_lifecycle_status ?? null,
           }}
           aircraftId={booking.aircraft_id}

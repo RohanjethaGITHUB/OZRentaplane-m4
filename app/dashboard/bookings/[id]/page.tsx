@@ -298,18 +298,18 @@ function NextActionCard({
   // ── Cancellation requested ────────────────────────────────────────────────
   if (isCancellationRequested) {
     return (
-      <div className="bg-amber-500/10 border border-amber-500/20 rounded-[1.25rem] p-6">
+      <div className="rounded-[1.25rem] border border-amber-200 bg-amber-50 p-6">
         <div className="flex items-center gap-3 mb-3">
-          <span className="material-symbols-outlined text-amber-400 text-lg animate-pulse">pending_actions</span>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-amber-400">Cancellation Under Review</h3>
+          <span className="material-symbols-outlined text-amber-600 text-lg animate-pulse">pending_actions</span>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-amber-800">Cancellation Under Review</h3>
         </div>
-        <p className="text-sm text-oz-muted leading-relaxed">
+        <p className="text-sm text-[#334155] leading-relaxed">
           Your cancellation request has been submitted and is awaiting review by the operations team. The booking slot is held until a decision is made.
         </p>
         {cancellationRequest?.customer_message && (
-          <div className="mt-3 pt-3 border-t border-amber-500/15">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-amber-400/60 mb-1">Your Message</p>
-            <p className="text-xs text-amber-300/70 leading-relaxed">{cancellationRequest.customer_message}</p>
+          <div className="mt-3 pt-3 border-t border-amber-200">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-amber-700 mb-1">Your Message</p>
+            <p className="text-sm text-[#152d5a] leading-relaxed">{cancellationRequest.customer_message}</p>
           </div>
         )}
       </div>
@@ -323,17 +323,18 @@ function NextActionCard({
     (cancellationRequest.charge_amount_cents ?? 0) > 0
   ) {
     const chargeDisplay = `$${((cancellationRequest.charge_amount_cents ?? 0) / 100).toFixed(2)}`
+    const lateWindowLabel = bookingType === 'checkout' ? '12-hour' : '24-hour'
     return (
-      <div className="bg-orange-500/10 border border-orange-500/20 rounded-[1.25rem] p-6 space-y-3">
+      <div className="rounded-[1.25rem] border border-orange-200 bg-orange-50 p-6 space-y-3">
         <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-orange-400 text-lg">payments</span>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-orange-400">Cancellation Charge Applies</h3>
+          <span className="material-symbols-outlined text-orange-600 text-lg">payments</span>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-orange-800">Cancellation Charge Applies</h3>
         </div>
-        <p className="text-sm text-oz-muted leading-relaxed">
-          This booking was cancelled inside the 24-hour window. A cancellation charge of{' '}
-          <span className="text-orange-300 font-medium">{chargeDisplay}</span> applies.
+        <p className="text-sm text-[#334155] leading-relaxed">
+          This booking was cancelled inside the {lateWindowLabel} window. A cancellation charge of{' '}
+          <span className="text-orange-800 font-semibold">{chargeDisplay}</span> applies.
         </p>
-        <div className="bg-orange-500/10 p-3 rounded-lg border border-orange-500/20 text-xs text-orange-400/80">
+        <div className="rounded-lg border border-orange-200 bg-white px-3 py-2.5 text-xs text-[#334155]">
           Please contact the operations team to arrange payment.
         </div>
       </div>
@@ -343,12 +344,12 @@ function NextActionCard({
   // ── Cancelled with waiver ─────────────────────────────────────────────────
   if (isCancelled && cancellationRequest?.status === 'approved_waived') {
     return (
-      <div className="bg-green-500/10 border border-green-500/20 rounded-[1.25rem] p-6">
+      <div className="rounded-[1.25rem] border border-green-200 bg-green-50 p-6">
         <div className="flex items-center gap-3 mb-3">
-          <span className="material-symbols-outlined text-green-400 text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-green-400">Cancellation Approved — No Charge</h3>
+          <span className="material-symbols-outlined text-green-600 text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-green-800">Cancellation Approved — No Charge</h3>
         </div>
-        <p className="text-sm text-oz-muted leading-relaxed">
+        <p className="text-sm text-[#334155] leading-relaxed">
           Your cancellation has been approved and the cancellation charge has been waived. No further action is required.
         </p>
       </div>
@@ -397,6 +398,7 @@ function NextActionCard({
               booking_type: bookingType,
               status,
               scheduled_start: scheduledStart,
+              scheduled_end: scheduledEnd ?? null,
               checkout_lifecycle_status: checkoutLifecycleStatus ?? null,
             }}
             aircraftId={aircraftId}

@@ -3594,11 +3594,12 @@ export async function adminSubmitFlightRecord(input: {
 /**
  * Admin approves a late cancellation and applies a cancellation charge.
  * Booking → cancelled, schedule blocks released, request → approved_charged.
- * The charge amount is set to booking.estimated_amount (already computed at booking time).
+ * Prefer an explicit admin-entered amount; fall back to booking.estimated_amount.
  */
 export async function adminApproveCancellationCharged(
   cancellationRequestId: string,
   adminNote: string | null,
+  chargeAmountDollars?: number | null,
 ): Promise<void> {
   const { supabase, adminId } = await requireAdmin()
   const now = new Date().toISOString()
@@ -3620,9 +3621,17 @@ export async function adminApproveCancellationCharged(
   const booking = r.bookings
   if (!booking) throw new Error('Booking data missing from cancellation request.')
 
-  const chargeCents = booking.estimated_amount
-    ? Math.round(booking.estimated_amount * 100)
-    : 0
+  let chargeCents = 0
+  if (chargeAmountDollars != null && Number.isFinite(chargeAmountDollars)) {
+    if (chargeAmountDollars <= 0) {
+      throw new Error('VALIDATION: Charge amount must be greater than zero.')
+    }
+    chargeCents = Math.round(chargeAmountDollars * 100)
+  } else if (booking.estimated_amount && booking.estimated_amount > 0) {
+    chargeCents = Math.round(booking.estimated_amount * 100)
+  } else {
+    throw new Error('VALIDATION: Enter a charge amount greater than zero.')
+  }
 
   const oldBookingStatus = booking.status
   const isCheckout = booking.booking_type === 'checkout'

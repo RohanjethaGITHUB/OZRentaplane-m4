@@ -1079,6 +1079,7 @@ export default function CheckoutFlow({
                 booking_type: activeBookingState.booking_type,
                 status: activeBookingState.status,
                 scheduled_start: activeBookingState.scheduled_start,
+                scheduled_end: activeBookingState.scheduled_end,
                 checkout_lifecycle_status: activeBookingState.checkout_lifecycle_status ?? null,
               }}
               aircraftId={aircraftId}
