@@ -447,6 +447,8 @@ export default function AdminCheckoutReviewPanel({
   } | null>(null)
   const [bulkError, setBulkError] = useState('')
   const [forceAllApproved, setForceAllApproved] = useState(false)
+  /** True when the last bulk approve also targeted Night VFR evidence. */
+  const [forceApprovedIncludesNightVfr, setForceApprovedIncludesNightVfr] = useState(false)
 
   // ── Message state ────────────────────────────────────────────────────────────
   const [message, setMessage]     = useState('')
@@ -622,8 +624,15 @@ export default function AdminCheckoutReviewPanel({
       })
       if (bulkAction === 'approved') {
         setForceAllApproved(true)
+        // Bulk now includes Night VFR when evidence exists; keep optimistic UI in sync.
+        const nightVfrDoc = documents.find((d) => d.document_type === 'night_vfr_evidence')
+        setForceApprovedIncludesNightVfr(
+          hasNightVfrRating === true ||
+            Boolean(nightVfrDoc && nightVfrDoc.status !== 'rejected'),
+        )
       } else {
         setForceAllApproved(false)
+        setForceApprovedIncludesNightVfr(false)
       }
       router.refresh()
     } finally {
@@ -637,18 +646,19 @@ export default function AdminCheckoutReviewPanel({
   const medicalDoc        = documents.find(d => d.document_type === 'medical_certificate')
   const photoIdDoc        = documents.find(d => d.document_type === 'photo_id')
   const nightVfrEvidenceDoc = documents.find(d => d.document_type === 'night_vfr_evidence')
-  const requiredDocEntries = hasNightVfrRating
-    ? [
-        { type: 'pilot_licence', doc: licenceDoc },
-        { type: 'medical_certificate', doc: medicalDoc },
-        { type: 'photo_id', doc: photoIdDoc },
-        { type: 'night_vfr_evidence', doc: nightVfrEvidenceDoc },
-      ]
-    : [
-        { type: 'pilot_licence', doc: licenceDoc },
-        { type: 'medical_certificate', doc: medicalDoc },
-        { type: 'photo_id', doc: photoIdDoc },
-      ]
+  // Night VFR evidence is required when the profile claims Night VFR OR when
+  // evidence has been uploaded and not rejected (covers "Claimed" pending review).
+  const nightVfrRequired =
+    hasNightVfrRating === true ||
+    Boolean(nightVfrEvidenceDoc && nightVfrEvidenceDoc.status !== 'rejected')
+  const requiredDocEntries = [
+    { type: 'pilot_licence', doc: licenceDoc },
+    { type: 'medical_certificate', doc: medicalDoc },
+    { type: 'photo_id', doc: photoIdDoc },
+    ...(nightVfrRequired
+      ? [{ type: 'night_vfr_evidence', doc: nightVfrEvidenceDoc }]
+      : []),
+  ]
   const todayIso = new Date().toISOString().split('T')[0]!
   function isCheckoutDocReady(type: string, doc: DocSummary | undefined): boolean {
     if (!doc || doc.status !== 'approved') return false
@@ -656,18 +666,29 @@ export default function AdminCheckoutReviewPanel({
     if (type !== 'pilot_licence' && doc.expiry_date && doc.expiry_date < todayIso) return false
     return true
   }
-  // After bulk-approve, props may lag one refresh; treat status as approved but still honour expiry.
-  const canConfirmCheckout = requiredDocEntries.every(({ type, doc }) => {
-    if (!doc) return false
-    const status = forceAllApproved ? 'approved' : doc.status
-    return isCheckoutDocReady(type, { ...doc, status })
+  // After bulk-approve, props may lag one refresh; treat core docs as approved.
+  // Only force Night VFR approved when the bulk action actually included it.
+  function effectiveDocStatus(type: string, doc: DocSummary): string {
+    const forceApprovedForType =
+      forceAllApproved && (type !== 'night_vfr_evidence' || forceApprovedIncludesNightVfr)
+    return forceApprovedForType ? 'approved' : doc.status
+  }
+  const incompleteRequiredDocs = requiredDocEntries.filter(({ type, doc }) => {
+    if (!doc) return true
+    return !isCheckoutDocReady(type, { ...doc, status: effectiveDocStatus(type, doc) })
   })
+  const canConfirmCheckout = incompleteRequiredDocs.length === 0
   const confirmBlockedByReschedule = pendingRescheduleReview
+  const onlyNightVfrBlocking =
+    incompleteRequiredDocs.length === 1 &&
+    incompleteRequiredDocs[0]?.type === 'night_vfr_evidence'
   const confirmCheckoutDisabledReason = confirmBlockedByReschedule
     ? 'Confirm Checkout is disabled until you approve or reject the requested new time.'
     : canConfirmCheckout
       ? null
-      : 'Confirm Checkout is disabled until all required documents are approved and none are expired.'
+      : onlyNightVfrBlocking
+        ? 'Confirm Checkout is disabled until Night VFR evidence is approved (or rejected if not applicable).'
+        : 'Confirm Checkout is disabled until all required documents are approved and none are expired.'
   const allRequiredApproved = canConfirmCheckout
   const allDocsOk = canConfirmCheckout
   const nightVfrStatusOverride =
@@ -1023,7 +1044,9 @@ export default function AdminCheckoutReviewPanel({
             <div className="flex items-start gap-2.5 rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
               <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" aria-hidden="true" />
               <span>
-                One or more required documents are not yet approved or have expired. Review document status before confirming checkout.
+                {onlyNightVfrBlocking
+                  ? 'Night VFR evidence is still claimed and not approved. Approve or reject it before confirming checkout.'
+                  : 'One or more required documents are not yet approved or have expired. Review document status before confirming checkout.'}
               </span>
             </div>
           ) : null}

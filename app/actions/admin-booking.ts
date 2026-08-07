@@ -956,8 +956,12 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
   ])
 
   const todayIso = new Date().toISOString().slice(0, 10)
+  const nightVfrDocs = (docs ?? []).filter((d) => d.document_type === 'night_vfr_evidence')
+  const nightVfrPendingOrApproved = nightVfrDocs.some((d) => d.status !== 'rejected')
+  // Require Night VFR when the profile claims it, or when evidence was uploaded
+  // and has not been rejected (blocks Confirm while status is still "Claimed").
   const requiredTypes: string[] = ['pilot_licence', 'medical_certificate', 'photo_id']
-  if (profile?.has_night_vfr_rating === true) {
+  if (profile?.has_night_vfr_rating === true || nightVfrPendingOrApproved) {
     requiredTypes.push('night_vfr_evidence')
   }
 
@@ -965,6 +969,9 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
     const candidates = (docs ?? []).filter((d) => d.document_type === type)
     const approved = candidates.find((d) => d.status === 'approved')
     if (!approved) {
+      if (type === 'night_vfr_evidence') {
+        throw new Error('VALIDATION: Night VFR evidence must be approved before confirming checkout.')
+      }
       throw new Error('VALIDATION: All required documents must be approved before confirming checkout.')
     }
     if (

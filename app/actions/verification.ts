@@ -415,7 +415,22 @@ export async function bulkUpdateDocumentStatus(
       return { success: false, error: profileError.message || 'Failed to load customer profile.' }
     }
 
-    const requiredTypes = profile?.has_night_vfr_rating
+    // Include Night VFR in bulk actions when the profile claims it OR when
+    // evidence already exists (so "Approve All" also clears a Claimed Night VFR).
+    const { data: nightVfrExisting } = await supabase
+      .from('user_documents')
+      .select('id, status')
+      .eq('user_id', input.userId)
+      .eq('document_type', OPTIONAL_NIGHT_VFR_TYPE)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const includeNightVfr =
+      profile?.has_night_vfr_rating === true ||
+      Boolean(nightVfrExisting && nightVfrExisting.status !== 'rejected')
+
+    const requiredTypes = includeNightVfr
       ? [...REQUIRED_DOCUMENT_TYPES, OPTIONAL_NIGHT_VFR_TYPE]
       : [...REQUIRED_DOCUMENT_TYPES]
 
