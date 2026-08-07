@@ -167,13 +167,19 @@ export default function CalendarDateField({
         type="button"
         disabled={disabled}
         onClick={() => setOpen(v => !v)}
-        className={
+        className={[
+          'flex items-center justify-between gap-2 text-left',
           className ??
-          `w-full bg-white/[0.03] border border-white/8 focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5 text-left flex items-center justify-between ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`
-        }
+            `w-full bg-white/[0.03] border border-white/8 focus:border-oz-blue/40 focus:outline-none text-sm text-white/80 rounded-xl px-4 py-2.5 ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`,
+        ].join(' ')}
       >
-        <span>{value ? toDisplayDate(value) : placeholder}</span>
-      <span className="material-symbols-outlined text-[#94a3b8] text-[18px]">calendar_month</span>
+        <span className="min-w-0 truncate">{value ? toDisplayDate(value) : placeholder}</span>
+        <span
+          className="material-symbols-outlined shrink-0 text-[#94a3b8] text-[18px] leading-none"
+          aria-hidden="true"
+        >
+          calendar_month
+        </span>
       </button>
 
       {open && mounted && createPortal(

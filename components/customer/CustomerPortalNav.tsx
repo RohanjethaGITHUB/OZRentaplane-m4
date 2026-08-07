@@ -321,13 +321,16 @@ export function PortalRouteSuspense({ children }: { children: React.ReactNode })
     return () => document.removeEventListener('click', onClick, true)
   }, [pathname])
 
-  if (pendingPath) return getCustomerSkeleton(pendingPath)
-
   const path = pathname ?? '/dashboard'
+  const skeletonPath = pendingPath ?? path
 
+  // Keep a stable Suspense boundary in the tree. Replacing it with a bare
+  // skeleton (or remounting via key) during nav/HMR can throw
+  // "Cannot read properties of undefined (reading 'call')" in
+  // updateDehydratedSuspenseComponent.
   return (
-    <Suspense key={path} fallback={getCustomerSkeleton(path)}>
-      {children}
+    <Suspense fallback={getCustomerSkeleton(skeletonPath)}>
+      {pendingPath ? getCustomerSkeleton(pendingPath) : children}
     </Suspense>
   )
 }

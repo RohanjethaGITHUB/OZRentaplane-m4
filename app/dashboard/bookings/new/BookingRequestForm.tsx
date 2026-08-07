@@ -205,6 +205,7 @@ function DateInput({
         w-full px-4 py-3 bg-white border border-[#d1d5db]
         focus:border-[#1a4fd6] focus:ring-2 focus:ring-[#1a4fd6]/20 focus:outline-none rounded-xl
         text-[#152d5a] text-sm transition-colors shadow-sm
+        flex items-center justify-between gap-2 text-left
         ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:border-[#cbd5e1]"}
       `}
     />
@@ -1415,28 +1416,11 @@ export default function BookingRequestForm({
                       Sydney time (AEST/AEDT)
                     </span>
                   </div>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]">
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={1.5}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        />
-                      </svg>
-                    </span>
-                    <DateInput
-                      value={startDate}
-                      min={minDate}
-                      onChange={handleStartDateChange}
-                    />
-                  </div>
+                  <DateInput
+                    value={startDate}
+                    min={minDate}
+                    onChange={handleStartDateChange}
+                  />
                   {startDate && (
                     <p className="text-[11px] text-[#64748b] mt-1.5">
                       {formatDateDisplay(startDate)}
@@ -1448,62 +1432,26 @@ export default function BookingRequestForm({
                   <label className="block text-xs font-medium text-[#6b7280] mb-1.5">
                     Start time
                   </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]">
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={1.5}
-                      >
-                        <circle cx="12" cy="12" r="9" />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M12 7v5l3 2"
-                        />
-                      </svg>
-                    </span>
-                    <TimeSelect
-                      value={startTime}
-                      options={startTimeOptions}
-                      disabled={!startDate}
-                      placeholder="Select time"
-                      onChange={handleStartTimeChange}
-                    />
-                  </div>
+                  <TimeSelect
+                    value={startTime}
+                    options={startTimeOptions}
+                    disabled={!startDate}
+                    placeholder="Select time"
+                    onChange={handleStartTimeChange}
+                  />
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-[#6b7280] mb-1.5">
                     End time
                   </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]">
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={1.5}
-                      >
-                        <circle cx="12" cy="12" r="9" />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M12 7v5l3 2"
-                        />
-                      </svg>
-                    </span>
-                    <TimeSelect
-                      value={endTime}
-                      options={endTimeOptions}
-                      disabled={!startDate}
-                      placeholder="Select time"
-                      onChange={setEndTime}
-                    />
-                  </div>
+                  <TimeSelect
+                    value={endTime}
+                    options={endTimeOptions}
+                    disabled={!startDate}
+                    placeholder="Select time"
+                    onChange={setEndTime}
+                  />
                   {endIsBeforeStart && (
                     <p className="text-[11px] text-[#e11d48] mt-1.5">
                       Must be after departure
