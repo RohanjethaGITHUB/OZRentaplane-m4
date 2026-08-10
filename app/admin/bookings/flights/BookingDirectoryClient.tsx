@@ -117,12 +117,32 @@ function isBookingFilterKey(filter: string): filter is BookingFilterKey {
   return FILTER_TABS.some((tab) => tab.key === filter)
 }
 
+function isCheckoutBooking(row: BookingDirectoryRow) {
+  return row.bookingType === 'checkout' || row.billingMode === 'checkout'
+}
+
 function matchesBookingFilter(row: BookingDirectoryRow, filter: string) {
   if (filter === 'all') return true
-  if (filter === 'confirmed') return row.rawStatus === 'confirmed' || row.rawStatus === 'checkout_confirmed'
+  if (filter === 'confirmed') {
+    // Upcoming = confirmed/scheduled flights that are not yet past end / awaiting a record.
+    // Include checkout_confirmed so confirmed checkouts appear alongside standard upcoming flights.
+    const isUpcomingStatus =
+      row.rawStatus === 'confirmed' ||
+      row.rawStatus === 'checkout_confirmed' ||
+      row.rawStatus === 'ready_for_dispatch'
+    return isUpcomingStatus && row.displayStatus !== 'awaiting_flight_record'
+  }
   if (filter === 'awaiting_flight_record') return row.displayStatus === 'awaiting_flight_record'
-  if (filter === 'pending_post_flight_review') return row.rawStatus === 'pending_post_flight_review'
-  if (filter === 'payment_pending') return row.rawStatus === 'payment_pending'
+  if (filter === 'pending_post_flight_review') {
+    return (
+      row.rawStatus === 'pending_post_flight_review' ||
+      row.rawStatus === 'checkout_completed_under_review'
+    )
+  }
+  if (filter === 'payment_pending') {
+    // Standard invoices use payment_pending; checkout invoices use checkout_payment_required.
+    return row.rawStatus === 'payment_pending' || row.rawStatus === 'checkout_payment_required'
+  }
   if (filter === 'completed') return row.rawStatus === 'completed'
   return row.displayStatus === filter || row.rawStatus === filter
 }
@@ -293,6 +313,8 @@ function formatStatusIconLabel(status: BookingStatusPresentation) {
 }
 
 function getStatusPresentation(row: BookingDirectoryRow): BookingStatusPresentation {
+  const isCheckout = isCheckoutBooking(row)
+
   if (row.displayStatus === 'awaiting_flight_record') {
     return {
       label: 'Awaiting Flight Record',
@@ -302,18 +324,27 @@ function getStatusPresentation(row: BookingDirectoryRow): BookingStatusPresentat
       iconClass: 'text-amber-600',
     }
   }
-  if (row.rawStatus === 'pending_post_flight_review') {
+  if (row.rawStatus === 'checkout_requested') {
     return {
-      label: 'Post-flight Review',
+      label: 'Checkout Requested',
+      badgeClassName: 'border-slate-200 bg-slate-50 text-slate-700',
+      icon: 'pending',
+      iconWrapClass: 'bg-slate-50 border-slate-100',
+      iconClass: 'text-slate-600',
+    }
+  }
+  if (row.rawStatus === 'checkout_completed_under_review' || row.rawStatus === 'pending_post_flight_review') {
+    return {
+      label: isCheckout ? 'Awaiting Checkout Review' : 'Post-flight Review',
       badgeClassName: 'border-violet-200 bg-violet-50 text-violet-700',
       icon: 'rate_review',
       iconWrapClass: 'bg-violet-50 border-violet-100',
       iconClass: 'text-violet-600',
     }
   }
-  if (row.rawStatus === 'payment_pending') {
+  if (row.rawStatus === 'checkout_payment_required' || row.rawStatus === 'payment_pending') {
     return {
-      label: 'Payment Pending',
+      label: isCheckout ? 'Checkout Payment Due' : 'Payment Pending',
       badgeClassName: 'border-orange-200 bg-orange-50 text-orange-700',
       icon: 'payments',
       iconWrapClass: 'bg-orange-50 border-orange-100',
@@ -338,11 +369,15 @@ function getStatusPresentation(row: BookingDirectoryRow): BookingStatusPresentat
       iconClass: 'text-red-600',
     }
   }
-  if (row.rawStatus === 'confirmed' || row.rawStatus === 'ready_for_dispatch') {
+  if (
+    row.rawStatus === 'confirmed' ||
+    row.rawStatus === 'checkout_confirmed' ||
+    row.rawStatus === 'ready_for_dispatch'
+  ) {
     return {
       label: 'Upcoming',
       badgeClassName: 'border-blue-200 bg-blue-50 text-blue-700',
-      icon: 'calendar_month',
+      icon: isCheckout ? 'assignment_turned_in' : 'calendar_month',
       iconWrapClass: 'bg-blue-50 border-blue-100',
       iconClass: 'text-blue-600',
     }
@@ -359,10 +394,38 @@ function getStatusPresentation(row: BookingDirectoryRow): BookingStatusPresentat
   return {
     label: row.statusLabel,
     badgeClassName: 'border-slate-200 bg-slate-50 text-slate-700',
-    icon: 'flight',
+    icon: isCheckout ? 'assignment_turned_in' : 'flight',
     iconWrapClass: 'bg-slate-50 border-slate-100',
     iconClass: 'text-slate-600',
   }
+}
+
+function BookingTypePresentation({ row }: { row: BookingDirectoryRow }) {
+  const isCheckout = isCheckoutBooking(row)
+  const detailLabel = isCheckout
+    ? row.bookingTypeSecondaryLabel
+    : row.bookingTypePrimaryLabel.replace(/^Rental\s*[—–-]\s*/i, '')
+
+  return (
+    <div title={row.billingBasisIsProvisional ? 'Billing basis may change before flight finalisation.' : undefined}>
+      <span
+        className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.08em] ${
+          isCheckout
+            ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+            : 'border-slate-200 bg-slate-50 text-slate-600'
+        }`}
+      >
+        <span className="material-symbols-outlined text-[14px]" aria-hidden="true">
+          {isCheckout ? 'assignment_turned_in' : 'flight'}
+        </span>
+        {isCheckout ? 'Checkout' : 'Rental'}
+      </span>
+      <p className="mt-1.5 text-[13px] font-medium text-[var(--admin-text)]">{detailLabel}</p>
+      {!isCheckout ? (
+        <p className="mt-1 text-[12.5px] text-[var(--admin-text-muted)]">{row.bookingTypeSecondaryLabel}</p>
+      ) : null}
+    </div>
+  )
 }
 
 function SummaryCard({
@@ -640,6 +703,7 @@ export default function BookingDirectoryClient({
                   {visibleRows.map((row) => {
                     const status = getStatusPresentation(row)
                     const schedule = formatSchedulePresentation(row.scheduledStart, row.scheduledEnd)
+                    const isCheckout = isCheckoutBooking(row)
 
                     return (
                       <article key={row.id} className="group relative cursor-pointer">
@@ -652,6 +716,12 @@ export default function BookingDirectoryClient({
                         </Link>
 
                         <div className={`relative z-0 ${DESKTOP_ROW_GRID} bg-white ${DESKTOP_ROW_PADDING} py-0 transition-colors group-hover:bg-[var(--booking-directory-row-hover)]`}>
+                          {isCheckout ? (
+                            <span
+                              aria-hidden="true"
+                              className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-indigo-500"
+                            />
+                          ) : null}
                           <div className="relative z-0 min-w-0 py-5">
                             <Link
                               href={`/admin/users/${row.bookingOwnerUserId}`}
@@ -674,10 +744,7 @@ export default function BookingDirectoryClient({
                           </div>
 
                           <div className="pointer-events-none relative z-0 py-5">
-                            <div title={row.billingBasisIsProvisional ? 'Billing basis may change before flight finalisation.' : undefined}>
-                              <p className="text-[13px] font-medium text-[var(--admin-text)]">{row.bookingTypePrimaryLabel}</p>
-                              <p className="mt-1 text-[12.5px] text-[var(--admin-text-muted)]">{row.bookingTypeSecondaryLabel}</p>
-                            </div>
+                            <BookingTypePresentation row={row} />
                           </div>
 
                           <div className="pointer-events-none relative z-0 py-5">
@@ -697,9 +764,16 @@ export default function BookingDirectoryClient({
                   {visibleRows.map((row) => {
                     const status = getStatusPresentation(row)
                     const schedule = formatSchedulePresentation(row.scheduledStart, row.scheduledEnd)
+                    const isCheckout = isCheckoutBooking(row)
 
                     return (
                       <article key={row.id} className="group relative cursor-pointer overflow-hidden rounded-[12px] border border-[rgba(12,35,64,0.10)] bg-white">
+                        {isCheckout ? (
+                          <span
+                            aria-hidden="true"
+                            className="pointer-events-none absolute inset-y-0 left-0 z-20 w-[3px] bg-indigo-500"
+                          />
+                        ) : null}
                         <Link
                           href={`/admin/bookings/requests/${row.bookingId}`}
                           aria-label={`Open booking ${row.bookingReference} for ${row.customerName}`}
@@ -737,9 +811,8 @@ export default function BookingDirectoryClient({
                           <div className="grid gap-2 text-[13px] sm:grid-cols-2">
                             <div className="rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5">
                               <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-dim)]">Booking Type</p>
-                              <div title={row.billingBasisIsProvisional ? 'Billing basis may change before flight finalisation.' : undefined}>
-                                <p className="mt-1 text-[var(--admin-text)]">{row.bookingTypePrimaryLabel}</p>
-                                <p className="mt-1 text-[12px] text-[var(--admin-text-muted)]">{row.bookingTypeSecondaryLabel}</p>
+                              <div className="mt-1.5">
+                                <BookingTypePresentation row={row} />
                               </div>
                             </div>
                             <div className="rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5">

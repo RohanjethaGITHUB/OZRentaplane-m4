@@ -67,7 +67,10 @@ type BookingTypePresentation = {
 const STATUS_LABEL: Record<string, string> = {
   pending_confirmation: 'Requested',
   confirmed: 'Upcoming',
-  checkout_confirmed: 'Scheduled',
+  checkout_requested: 'Checkout Requested',
+  checkout_confirmed: 'Upcoming',
+  checkout_completed_under_review: 'Awaiting Checkout Review',
+  checkout_payment_required: 'Payment Pending',
   ready_for_dispatch: 'Upcoming',
   dispatched: 'In Progress',
   awaiting_flight_record: 'Awaiting Flight Record',
