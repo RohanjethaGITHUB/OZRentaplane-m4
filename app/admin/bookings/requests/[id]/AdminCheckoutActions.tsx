@@ -364,23 +364,45 @@ export default function AdminCheckoutActions({
 
   if (isCancelling) {
     return (
-      <div className="space-y-3">
-        <h4 className="text-[10px] font-bold uppercase tracking-widest text-rose-400">Cancel Checkout Booking</h4>
+      <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm">
+        <div className="mb-3">
+          <h4 className="text-sm font-semibold text-slate-900">Cancel checkout</h4>
+          <p className="mt-1 text-sm text-slate-600">Provide a clear reason so the cancellation is recorded neatly in the audit trail.</p>
+        </div>
+
+        <label htmlFor="cancel-checkout-reason" className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-600">
+          Reason for cancellation
+        </label>
         <textarea
+          id="cancel-checkout-reason"
           value={cancelReason}
           onChange={e => setCancelReason(e.target.value)}
-          rows={4}
-          placeholder="Reason for cancellation (will be recorded in audit trail)…"
-          className="w-full bg-[#0a0b0d] border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-rose-500/50 resize-none"
+          rows={5}
+          placeholder="Enter the reason for cancelling this checkout…"
+          className="w-full resize-none rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
           disabled={isPending}
         />
-        <div className="flex gap-2">
-          <button type="button" onClick={() => { setIsCancelling(false); setError(null) }} disabled={isPending} className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-white/5 text-slate-300 hover:bg-white/10 transition-colors">Back</button>
-          <button type="button" disabled={isPending || !cancelReason.trim()} onClick={() => run(() => cancelCheckoutBooking(bookingId, cancelReason))} className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-rose-700 hover:bg-rose-600 text-white transition-colors disabled:opacity-50">
-            <LoadingButtonContent loading={isPending} loadingLabel="Cancelling…">Cancel Booking</LoadingButtonContent>
+
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => { setIsCancelling(false); setError(null) }}
+            disabled={isPending}
+            className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Go back
+          </button>
+          <button
+            type="button"
+            disabled={isPending || !cancelReason.trim()}
+            onClick={() => run(() => cancelCheckoutBooking(bookingId, cancelReason))}
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <LoadingButtonContent loading={isPending} loadingLabel="Cancelling…">Cancel booking</LoadingButtonContent>
           </button>
         </div>
-        {error && <p className="text-[10px] text-rose-400 leading-tight">{error}</p>}
+
+        {error && <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
       </div>
     )
   }

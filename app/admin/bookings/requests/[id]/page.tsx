@@ -1430,12 +1430,9 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           {/* ── Checkout action panel ─────────────────────────────────────── */}
           {/* checkout_requested uses AdminCheckoutReviewPanel above in the left column */}
           {(isCheckoutConfirmed || isCheckoutOutcomePending) && !hasPendingReschedule && (
-            <div className={`rounded-2xl p-6 border ${
-              isCheckoutConfirmed ? 'bg-white border-green-500/15' : 'bg-white border-amber-500/15'
+            <div className={`rounded-2xl border p-6 shadow-sm ${
+              isCheckoutConfirmed ? 'border-green-500/15 bg-white' : 'border-amber-500/15 bg-white'
             }`}>
-              <h2 className="text-xs uppercase tracking-widest font-semibold text-[#152d5a] mb-4">
-                {isCheckoutConfirmed ? 'Checkout Flight Actions' : 'Record Checkout Outcome'}
-              </h2>
               <AdminCheckoutActions
                 bookingId={booking.id}
                 status={status as 'checkout_confirmed' | 'checkout_completed_under_review'}
