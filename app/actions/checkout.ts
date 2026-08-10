@@ -548,6 +548,38 @@ export async function submitCheckoutRequest(
       }
     }
     if (lower.includes('no longer available') || lower.includes('schedule block')) {
+      // Pre-check saw no active conflicts, but RPC still rejected — usually the live
+      // create_checkout_booking_atomic still counts cancelled schedule_blocks (needs migration 117).
+      try {
+        const admin = createAdminClient()
+        const [{ data: anyStatusBlocks }, { data: anyStatusBookings }] = await Promise.all([
+          admin
+            .from('schedule_blocks')
+            .select('id, status, block_type, start_time, end_time, related_booking_id, expires_at')
+            .eq('aircraft_id', input.aircraft_id)
+            .lt('start_time', requestedEnd.toISOString())
+            .gt('end_time', start.toISOString())
+            .order('start_time', { ascending: true }),
+          admin
+            .from('bookings')
+            .select('id, status, booking_type, scheduled_start, scheduled_end, checkout_lifecycle_status')
+            .eq('aircraft_id', input.aircraft_id)
+            .lt('scheduled_start', requestedEnd.toISOString())
+            .gt('scheduled_end', start.toISOString())
+            .order('scheduled_start', { ascending: true }),
+        ])
+        console.error(`[${routeName}] availability RPC rejected after empty active pre-check`, {
+          aircraft_id: input.aircraft_id,
+          scheduled_start: input.scheduled_start,
+          scheduled_end: requestedEnd.toISOString(),
+          precheck_blocking_blocks: blockingBlocks.length,
+          precheck_blocking_bookings: blockingBookings.length,
+          overlapping_blocks_any_status: anyStatusBlocks ?? [],
+          overlapping_bookings_any_status: anyStatusBookings ?? [],
+        })
+      } catch (diagErr) {
+        console.error(`[${routeName}] failed to diagnose availability mismatch`, diagErr)
+      }
       return {
         ok: false,
         type: 'availability',

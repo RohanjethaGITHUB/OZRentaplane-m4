@@ -1031,10 +1031,8 @@ export default async function CustomerBookingsPage() {
                                 <span className="text-[#152d5a]/20 leading-none" aria-hidden>•</span>
                                 <span className="inline-flex items-center gap-1.5">
                                   <span className="material-symbols-outlined text-[14px] leading-none">schedule</span>
-                                  <span className="leading-none">
-                                    {new Date(booking.scheduled_start).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })}
-                                    {' – '}
-                                    {new Date(booking.scheduled_end).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                  <span className="leading-none tabular-nums">
+                                    {formatSydTime(booking.scheduled_start)} – {formatSydTime(booking.scheduled_end)}
                                   </span>
                                 </span>
                               </>

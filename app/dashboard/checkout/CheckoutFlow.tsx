@@ -1593,10 +1593,10 @@ export default function CheckoutFlow({
                 <button
                   type="button"
                   onClick={() => { setSubmitError(null); setStep('time') }}
-                  className="mt-2 inline-flex items-center gap-1 text-[14px] font-semibold text-red-800 underline underline-offset-2 hover:text-red-950"
+                  className="mt-2 inline-flex items-center gap-1 text-[14px] font-semibold text-red-800 hover:text-red-950"
                 >
-                  Go back and choose another time
-                  <span className="material-symbols-outlined text-[16px]" aria-hidden>arrow_forward</span>
+                  <span className="underline underline-offset-2">Go back and choose another time</span>
+                  <span className="material-symbols-outlined text-[16px] no-underline" aria-hidden>arrow_forward</span>
                 </button>
               </div>
             </div>
