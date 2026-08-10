@@ -57,7 +57,7 @@ export function checkoutPaymentRequiredEmail(details: Record<string, string | nu
         'Payment is required before the checkout process can be completed. You can pay by card or bank transfer.',
       details: [{ label: 'Amount', value: details.amount }],
       ctaLabel: 'Pay Now',
-      ctaUrl: `${appUrl}/dashboard/bookings/${details.bookingId ?? ''}`,
+      ctaUrl: `${appUrl}/dashboard/bookings/${details.bookingId ?? ''}#payment`,
     }),
   }
 }

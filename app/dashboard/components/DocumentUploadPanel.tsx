@@ -41,6 +41,7 @@ export type DocumentUploadPanelProps = {
   initialRedCardMonth?: number | null
   initialRedCardYear?: number | null
   clearanceStatus?: string | null
+  checkoutPaymentBookingId?: string | null
   onSuccess: () => void
   onSubmit?: (note: string) => void
   onBackToStep1?: () => void
@@ -516,6 +517,7 @@ export default function DocumentUploadPanel({
   initialRedCardMonth,
   initialRedCardYear,
   clearanceStatus,
+  checkoutPaymentBookingId,
   onSuccess,
   onSubmit,
   onBackToStep1,
@@ -634,6 +636,55 @@ export default function DocumentUploadPanel({
   const completedCount = [s1, s2, s3, s4].filter(s => s === 'complete').length
   const fullyReady = allDocsApproved && s2 === 'complete' && s3 === 'complete' && s4 === 'complete'
   const isClearedToFly = clearanceStatus === 'cleared_to_fly'
+  const isCheckoutPaymentRequired = clearanceStatus === 'checkout_payment_required'
+  const checkoutPaymentHref = checkoutPaymentBookingId
+    ? `/dashboard/bookings/${checkoutPaymentBookingId}#payment`
+    : '/dashboard/bookings'
+
+  const docsReadyBanner = (() => {
+    if (!fullyReady) {
+      if (allDocsUploaded && termsAccepted) {
+        return {
+          tone: 'review' as const,
+          icon: 'hourglass_top',
+          message: "Documents under review — we'll notify you once approved",
+          cta: isCheckoutPaymentRequired
+            ? { label: 'Pay Invoice', href: checkoutPaymentHref }
+            : isClearedToFly
+              ? { label: 'Book an Aircraft', href: '/dashboard/bookings/new' }
+              : { label: 'Book a Checkout', href: '/dashboard/checkout' },
+        }
+      }
+      return {
+        tone: 'pending' as const,
+        icon: 'radio_button_unchecked',
+        message: 'Complete all steps above to become eligible for a checkout flight',
+        cta: null as { label: string; href: string } | null,
+      }
+    }
+    if (isClearedToFly) {
+      return {
+        tone: 'ready' as const,
+        icon: 'check_circle',
+        message: "All documents approved — you're cleared to fly and ready to book an aircraft",
+        cta: { label: 'Book an Aircraft', href: '/dashboard/bookings/new' },
+      }
+    }
+    if (isCheckoutPaymentRequired) {
+      return {
+        tone: 'payment' as const,
+        icon: 'payments',
+        message: 'All documents approved — checkout payment is required before you can book aircraft',
+        cta: { label: 'Pay Invoice', href: checkoutPaymentHref },
+      }
+    }
+    return {
+      tone: 'ready' as const,
+      icon: 'check_circle',
+      message: "All documents approved — you're ready to request a checkout flight",
+      cta: { label: 'Book a Checkout', href: '/dashboard/checkout' },
+    }
+  })()
 
   function handleFlightDateChange(val: string) {
     setFlightDate(val)
@@ -1024,30 +1075,42 @@ export default function DocumentUploadPanel({
 
       {!onSubmit && (
         <div className={`rounded-2xl border px-5 py-4 space-y-3 ${
-          fullyReady ? 'border-green-500/20 bg-green-500/5' : allDocsUploaded && termsAccepted ? 'border-amber-500/20 bg-amber-500/5' : 'border-[#152d5a]/10 bg-white'
+          docsReadyBanner.tone === 'ready'
+            ? 'border-green-500/20 bg-green-500/5'
+            : docsReadyBanner.tone === 'payment'
+              ? 'border-amber-500/20 bg-amber-500/5'
+              : docsReadyBanner.tone === 'review'
+                ? 'border-amber-500/20 bg-amber-500/5'
+                : 'border-[#152d5a]/10 bg-white'
         }`}>
           <div className="flex items-start gap-3">
-            <span className={`material-symbols-outlined text-[20px] flex-shrink-0 mt-0.5 ${fullyReady ? 'text-green-600' : allDocsUploaded && termsAccepted ? 'text-amber-600' : 'text-[#94a3b8]'}`}
+            <span className={`material-symbols-outlined text-[20px] flex-shrink-0 mt-0.5 ${
+              docsReadyBanner.tone === 'ready'
+                ? 'text-green-600'
+                : docsReadyBanner.tone === 'payment' || docsReadyBanner.tone === 'review'
+                  ? 'text-amber-600'
+                  : 'text-[#94a3b8]'
+            }`}
               style={{ fontVariationSettings: "'FILL' 1" }}>
-              {fullyReady ? 'check_circle' : allDocsUploaded && termsAccepted ? 'hourglass_top' : 'radio_button_unchecked'}
+              {docsReadyBanner.icon}
             </span>
-            <p className={`text-[14px] font-semibold ${fullyReady ? 'text-green-700' : allDocsUploaded && termsAccepted ? 'text-amber-700' : 'text-[#4b6390]'}`}>
-              {fullyReady
-                ? isClearedToFly
-                  ? "All documents approved — you're cleared to fly and ready to book an aircraft"
-                  : "All documents approved — you're ready to request a checkout flight"
-                : allDocsUploaded && termsAccepted
-                ? 'Documents under review — we\'ll notify you once approved'
-                : 'Complete all steps above to become eligible for a checkout flight'}
+            <p className={`text-[14px] font-semibold ${
+              docsReadyBanner.tone === 'ready'
+                ? 'text-green-700'
+                : docsReadyBanner.tone === 'payment' || docsReadyBanner.tone === 'review'
+                  ? 'text-amber-700'
+                  : 'text-[#4b6390]'
+            }`}>
+              {docsReadyBanner.message}
             </p>
           </div>
-          {allDocsUploaded && termsAccepted && (
+          {docsReadyBanner.cta && (
             <div className="flex justify-center">
               <Link
-                href={isClearedToFly ? '/dashboard/bookings/new' : '/dashboard/checkout'}
+                href={docsReadyBanner.cta.href}
                 className="inline-flex items-center gap-1.5 bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e] font-semibold text-[13px] px-4 py-2.5 rounded-xl transition-colors whitespace-nowrap"
               >
-                {isClearedToFly ? 'Book an Aircraft' : 'Book a Checkout'}
+                {docsReadyBanner.cta.label}
                 <span className="material-symbols-outlined text-[14px]">chevron_right</span>
               </Link>
             </div>

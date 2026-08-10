@@ -280,7 +280,7 @@ function ClearanceGateBanner({
             <p className="text-[#4b6390] text-sm leading-relaxed mb-4">
               Your checkout flight has been completed. Please pay your checkout invoice before aircraft bookings become available.
             </p>
-            <Link href={`/dashboard/bookings/${checkoutBooking.id}`} className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all">
+            <Link href={`/dashboard/bookings/${checkoutBooking.id}#payment`} className="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all">
               Pay Checkout Invoice
             </Link>
           </div>
@@ -523,6 +523,9 @@ export default async function CustomerBookingsPage() {
     }
   }
   const paymentSubmittedAwaitingConfirmation = isAwaitingManualPayment
+  const checkoutPaymentHref = checkoutBooking?.id
+    ? `/dashboard/bookings/${checkoutBooking.id}#payment`
+    : '/dashboard/bookings'
 
   // Active checkout requests only — completed/cancelled history should not inflate the stat
   const ACTIVE_CHECKOUT_STATUSES = [
@@ -573,7 +576,15 @@ export default async function CustomerBookingsPage() {
         backgroundPosition="center"
         {...(isCleared
           ? { cta: { label: 'Book New Flight', href: '/dashboard/bookings/new', icon: 'flight_takeoff' } }
-          : { cta: { label: 'Book a Checkout', href: '/dashboard/checkout', icon: 'flight_takeoff' } })}
+          : clearanceStatus === 'checkout_payment_required'
+            ? {
+                cta: {
+                  label: paymentSubmittedAwaitingConfirmation ? 'View Payment' : 'Pay Invoice',
+                  href: checkoutPaymentHref,
+                  icon: 'payments',
+                },
+              }
+            : { cta: { label: 'Book a Checkout', href: '/dashboard/checkout', icon: 'flight_takeoff' } })}
       />
 
       <div className="max-w-[1320px] mx-auto pt-0 pb-16">
@@ -720,7 +731,7 @@ export default async function CustomerBookingsPage() {
               heading = 'Payment Proof Submitted'
               body = 'Your payment proof has been submitted. Our team will review it and update your status once confirmed.'
               ctaLabel = 'View Details'
-              ctaHref = allUpcoming[0]?.id ? `/dashboard/bookings/${allUpcoming[0].id}` : '/dashboard/bookings'
+              ctaHref = checkoutPaymentHref
               ctaStyle = 'bg-[#152d5a] hover:bg-[#1a3a6e] text-white'
             } else {
               icon = 'payments'
@@ -731,7 +742,7 @@ export default async function CustomerBookingsPage() {
               heading = 'Checkout Payment Required'
               body = 'Your checkout flight is complete. Please pay your invoice to unlock aircraft bookings.'
               ctaLabel = 'Pay Invoice'
-              ctaHref = '/dashboard/checkout'
+              ctaHref = checkoutPaymentHref
               ctaStyle = 'bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e]'
             }
           } else if (status === 'checkout_completed_under_review') {
@@ -1125,7 +1136,7 @@ export default async function CustomerBookingsPage() {
                   <p className="text-[15px] font-semibold text-amber-600">Checkout payment required</p>
                   <p className="text-[12px] text-[#4b6390] mt-1 mb-3">Your checkout invoice is ready. Pay now to unlock aircraft bookings.</p>
                   <Link
-                    href={allUpcoming[0]?.id ? `/dashboard/bookings/${allUpcoming[0].id}` : '/dashboard/bookings'}
+                    href={checkoutPaymentHref}
                     className="inline-flex items-center gap-2 bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e] font-semibold text-[13px] px-4 py-2.5 rounded-xl transition-colors w-full justify-center"
                   >
                     <span className="material-symbols-outlined text-[15px]">credit_card</span>

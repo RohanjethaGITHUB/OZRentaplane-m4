@@ -62,7 +62,7 @@ export default function BookingPaymentCard({ bookingId, invoice, bankTransferSub
   // ── Awaiting payment confirmation ─────────────────────────────────────────
   if (displayState === 'payment_review_pending') {
     return (
-      <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
+      <div id="payment" className="scroll-mt-28 bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
         <div className="flex items-center gap-3 mb-3">
           <span className="material-symbols-outlined text-[#1a4fd6] text-lg">account_balance</span>
           <h3 className="text-xs font-bold uppercase tracking-widest text-[#1a4fd6]">Payment Submitted</h3>
@@ -84,7 +84,7 @@ export default function BookingPaymentCard({ bookingId, invoice, bankTransferSub
   // ── Paid ──────────────────────────────────────────────────────────────────
   if (displayState === 'paid' || displayState === 'waived') {
     return (
-      <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
+      <div id="payment" className="scroll-mt-28 bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
         <div className="flex items-center gap-3 mb-3">
           <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span>
           <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-600">{displayState === 'waived' ? 'Payment Waived' : 'Payment Confirmed'}</h3>
@@ -113,7 +113,7 @@ export default function BookingPaymentCard({ bookingId, invoice, bankTransferSub
   }
 
   return (
-    <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
+    <div id="payment" className="scroll-mt-28 bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
       <div className="flex items-center gap-3 mb-3">
         <span className="material-symbols-outlined text-[#1a4fd6] text-lg">payments</span>
         <h3 className="text-xs font-bold uppercase tracking-widest text-[#1a4fd6]">

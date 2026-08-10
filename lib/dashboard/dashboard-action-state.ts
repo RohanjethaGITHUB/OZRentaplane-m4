@@ -6,6 +6,10 @@ import {
 import { ADMIN_CONTACT_PHONE_TEL } from '@/lib/contact'
 import type { PilotClearanceStatus, Profile, UserDocument } from '@/lib/supabase/types'
 
+function bookingPaymentHref(bookingId: string | null | undefined): string {
+  return bookingId ? `/dashboard/bookings/${bookingId}#payment` : '/dashboard/bookings'
+}
+
 export type DashboardTone = 'neutral' | 'info' | 'warning' | 'success' | 'danger'
 export type DashboardResponsibleActor = 'customer' | 'admin' | 'instructor' | 'system' | 'none'
 export type DashboardJourneyStep = 'account' | 'documents' | 'checkout' | 'approved' | 'ready'
@@ -266,9 +270,9 @@ export function resolveDashboardActionState(input: DashboardActionStateInput): D
         : 'Your checkout payment proof was rejected. Please upload a new bank transfer receipt or pay by card to continue.',
       primaryAction: {
         label: 'Upload New Proof',
-        href: input.checkoutPayment?.bookingId ? `/dashboard/bookings/${input.checkoutPayment.bookingId}` : '/dashboard/bookings',
+        href: bookingPaymentHref(input.checkoutPayment?.bookingId),
       },
-      secondaryAction: { label: 'View Payment Details', href: input.checkoutPayment?.bookingId ? `/dashboard/bookings/${input.checkoutPayment.bookingId}` : '/dashboard/bookings' },
+      secondaryAction: { label: 'View Payment Details', href: bookingPaymentHref(input.checkoutPayment?.bookingId) },
       nextMilestone: 'Once valid proof is submitted, the team can review and confirm your payment.',
       journeyStep: 'approved',
       severityReason: 'checkout_payment_rejected',
@@ -286,8 +290,8 @@ export function resolveDashboardActionState(input: DashboardActionStateInput): D
       heroMessage: 'Your booking payment proof was rejected and needs to be uploaded again.',
       actionHeading: 'Upload new payment proof',
       actionDescription: 'Your post-flight bank transfer proof was rejected. Open the booking and upload a replacement so the team can finish the booking.',
-      primaryAction: { label: 'Upload New Proof', href: `/dashboard/bookings/${input.bookingFocusState.bookingId}` },
-      secondaryAction: { label: 'View Booking Details', href: `/dashboard/bookings/${input.bookingFocusState.bookingId}` },
+      primaryAction: { label: 'Upload New Proof', href: bookingPaymentHref(input.bookingFocusState.bookingId) },
+      secondaryAction: { label: 'View Booking Details', href: bookingPaymentHref(input.bookingFocusState.bookingId) },
       nextMilestone: 'Once valid proof is submitted, the team can review and close the booking.',
       journeyStep: 'ready',
       severityReason: 'booking_payment_rejected',
@@ -342,8 +346,8 @@ export function resolveDashboardActionState(input: DashboardActionStateInput): D
       heroMessage: 'Your post-flight invoice is ready and payment is needed to close the booking.',
       actionHeading: 'Complete your post-flight payment',
       actionDescription: 'Open the booking to pay by card or upload bank transfer proof so the team can close the flight.',
-      primaryAction: { label: 'Complete Payment', href: `/dashboard/bookings/${input.bookingFocusState.bookingId}` },
-      secondaryAction: { label: 'View Booking Details', href: `/dashboard/bookings/${input.bookingFocusState.bookingId}` },
+      primaryAction: { label: 'Complete Payment', href: bookingPaymentHref(input.bookingFocusState.bookingId) },
+      secondaryAction: { label: 'View Booking Details', href: bookingPaymentHref(input.bookingFocusState.bookingId) },
       nextMilestone: 'After payment is confirmed, the booking will be finalised and closed.',
       journeyStep: 'ready',
       severityReason: 'booking_payment_required',
@@ -607,7 +611,7 @@ export function resolveDashboardActionState(input: DashboardActionStateInput): D
         actionDescription: 'You have already completed this step. The team is reviewing your bank transfer proof before your checkout result is finalised.',
         secondaryAction: {
           label: 'View Payment Details',
-          href: input.checkoutPayment?.bookingId ? `/dashboard/bookings/${input.checkoutPayment.bookingId}` : '/dashboard/bookings',
+          href: bookingPaymentHref(input.checkoutPayment?.bookingId),
         },
         waitingMessage: 'No action is required from you right now.',
         nextMilestone: 'After payment is confirmed, your checkout outcome can continue to the next stage.',
@@ -629,7 +633,7 @@ export function resolveDashboardActionState(input: DashboardActionStateInput): D
         actionDescription: 'Your bank transfer has already been approved. The team is finalising the related checkout status update now.',
         secondaryAction: {
           label: 'View Checkout Details',
-          href: input.checkoutPayment?.bookingId ? `/dashboard/bookings/${input.checkoutPayment.bookingId}` : '/dashboard/bookings',
+          href: bookingPaymentHref(input.checkoutPayment?.bookingId),
         },
         waitingMessage: 'No action is required from you right now.',
         nextMilestone: 'After processing completes, your checkout status will advance automatically.',
@@ -650,9 +654,9 @@ export function resolveDashboardActionState(input: DashboardActionStateInput): D
       actionDescription: 'Open your checkout booking to pay by card or upload bank transfer proof so the team can confirm payment.',
       primaryAction: {
         label: 'Complete Payment',
-        href: input.checkoutPayment?.bookingId ? `/dashboard/bookings/${input.checkoutPayment.bookingId}` : '/dashboard/bookings',
+        href: bookingPaymentHref(input.checkoutPayment?.bookingId),
       },
-      secondaryAction: { label: 'View Checkout Details', href: input.checkoutPayment?.bookingId ? `/dashboard/bookings/${input.checkoutPayment.bookingId}` : '/dashboard/bookings' },
+      secondaryAction: { label: 'View Checkout Details', href: bookingPaymentHref(input.checkoutPayment?.bookingId) },
       nextMilestone: 'After payment is confirmed, your checkout result can move to the next approval stage.',
       journeyStep: 'approved',
       severityReason: 'checkout_payment_required',
@@ -708,7 +712,7 @@ export function resolveDashboardActionState(input: DashboardActionStateInput): D
       heroMessage: 'Your payment proof is already with the team for review.',
       actionHeading: 'Payment proof received',
       actionDescription: 'You have already submitted your payment proof. The team will confirm it and advance the next checkout step.',
-      secondaryAction: { label: 'View Details', href: input.checkoutPayment?.bookingId ? `/dashboard/bookings/${input.checkoutPayment.bookingId}` : '/dashboard/bookings' },
+      secondaryAction: { label: 'View Details', href: bookingPaymentHref(input.checkoutPayment?.bookingId) },
       waitingMessage: 'No action is required from you right now.',
       nextMilestone: 'After confirmation, the next checkout status will appear automatically.',
       journeyStep: 'approved',

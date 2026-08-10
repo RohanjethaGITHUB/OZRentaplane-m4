@@ -220,7 +220,7 @@ export default async function NewBookingPage() {
         heading="Checkout Payment Required"
         body="Your checkout flight has been approved. Please pay your checkout invoice before booking the aircraft."
         primaryLabel="Pay Checkout Invoice"
-        primaryHref={`/dashboard/bookings/${unpaidCheckout.id}`}
+        primaryHref={`/dashboard/bookings/${unpaidCheckout.id}#payment`}
         secondaryLabel="Go to Overview"
         secondaryHref="/dashboard"
         testId="checkout-payment-required-gate"

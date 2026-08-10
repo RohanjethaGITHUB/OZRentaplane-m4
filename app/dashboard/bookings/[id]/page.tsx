@@ -9,6 +9,7 @@ import PostFlightHero from './PostFlightHero'
 import PostFlightClarificationPanel from './PostFlightClarificationPanel'
 import CheckoutPaymentCard from './CheckoutPaymentCard'
 import BookingPaymentCard from './BookingPaymentCard'
+import ScrollToHash from './ScrollToHash'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
 import type { BookingStatus, FlightRecord, FlightRecordAttachment, FlightRecordClarification } from '@/lib/supabase/booking-types'
@@ -1380,6 +1381,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
     return (
       <CustomerBookingShell user={user as User} profile={profile as Profile | null}>
         <BookingRealtimeListener bookingId={booking.id} />
+        <ScrollToHash hash="payment" />
         <div className="w-full">
 
           {/* Hero — full bleed, starts immediately after the Pilot Portal subnav */}
@@ -1553,6 +1555,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
   return (
     <CustomerBookingShell user={user as User} profile={profile as Profile | null}>
       <BookingRealtimeListener bookingId={booking.id} />
+      <ScrollToHash hash="payment" />
       <div className="w-full pb-16 pt-0">
 
         <PortalPageHero

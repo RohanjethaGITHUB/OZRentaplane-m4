@@ -51,6 +51,22 @@ export default async function CustomerDocumentsPage() {
 
   if (profile?.role === 'admin') redirect('/admin')
 
+  const clearanceStatus = (profile as { pilot_clearance_status?: string | null } | null)?.pilot_clearance_status ?? null
+
+  let checkoutPaymentBookingId: string | null = null
+  if (clearanceStatus === 'checkout_payment_required') {
+    const { data: paymentBooking } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('booking_owner_user_id', user.id)
+      .eq('booking_type', 'checkout')
+      .eq('status', 'checkout_payment_required')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    checkoutPaymentBookingId = (paymentBooking as { id: string } | null)?.id ?? null
+  }
+
   const documents = documentsResult.data
   const activeTerms = normalizeActiveCheckoutTerms((activeTermsResult.data as Record<string, unknown> | null) ?? null)
   const latestTermsAcceptance = latestTermsAcceptanceResult.data
@@ -90,7 +106,8 @@ export default async function CustomerDocumentsPage() {
           hasNightVfrRating={profile?.has_night_vfr_rating ?? null}
           hasInstrumentRating={profile?.has_instrument_rating ?? null}
           termsAcceptedAt={termsAcceptedAt}
-          clearanceStatus={(profile as { pilot_clearance_status?: string | null } | null)?.pilot_clearance_status ?? null}
+          clearanceStatus={clearanceStatus}
+          checkoutPaymentBookingId={checkoutPaymentBookingId}
         />
       </div>
     </>

@@ -62,7 +62,7 @@ export default function CheckoutPaymentCard({ bookingId, checkoutInvoice, bankTr
   // to review and confirm — do NOT show "Pay invoice" or "Payment Required".
   if (displayState === 'awaiting_manual_payment_confirmation') {
     return (
-      <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
+      <div id="payment" className="scroll-mt-28 bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
         <div className="flex items-center gap-3 mb-3">
           <span className="material-symbols-outlined text-[#1a4fd6] text-lg">account_balance</span>
           <h3 className="text-xs font-bold uppercase tracking-widest text-[#1a4fd6]">Awaiting Payment Confirmation</h3>
@@ -84,7 +84,7 @@ export default function CheckoutPaymentCard({ bookingId, checkoutInvoice, bankTr
   // ── paid ───────────────────────────────────────────────────────────────────
   if (displayState === 'paid') {
     return (
-      <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
+      <div id="payment" className="scroll-mt-28 bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
         <div className="flex items-center gap-3 mb-3">
           <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span>
           <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-600">Payment Confirmed</h3>
@@ -99,7 +99,7 @@ export default function CheckoutPaymentCard({ bookingId, checkoutInvoice, bankTr
   // ── waived ─────────────────────────────────────────────────────────────────
   if (displayState === 'waived') {
     return (
-      <div className="bg-green-500/10 border border-green-500/20 rounded-[1.25rem] p-6">
+      <div id="payment" className="scroll-mt-28 bg-green-500/10 border border-green-500/20 rounded-[1.25rem] p-6">
         <div className="flex items-center gap-3 mb-3">
           <span className="material-symbols-outlined text-green-400 text-lg">verified</span>
           <h3 className="text-xs font-bold uppercase tracking-widest text-green-400">Payment Waived</h3>
@@ -129,7 +129,7 @@ export default function CheckoutPaymentCard({ bookingId, checkoutInvoice, bankTr
   }
 
   return (
-    <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
+    <div id="payment" className="scroll-mt-28 bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
       <div className="flex items-center gap-3 mb-3">
         <span className="material-symbols-outlined text-[#1a4fd6] text-lg">payments</span>
         <h3 className="text-xs font-bold uppercase tracking-widest text-[#1a4fd6]">Payment Required</h3>
