@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Plane } from "lucide-react";
+import Spinner from "@/components/ui/Spinner";
 
 type Props = {
   onConfirm: () => Promise<void>;
   onError?: (message: string) => void;
   label?: string;
+  disabled?: boolean;
 };
 
 const HANDLE_WIDTH = 58;
@@ -16,6 +18,7 @@ export default function RunwaySwipeConfirm({
   onConfirm,
   onError,
   label = "Slide to confirm booking",
+  disabled = false,
 }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<HTMLButtonElement>(null);
@@ -23,6 +26,7 @@ export default function RunwaySwipeConfirm({
   const pointerIdRef = useRef<number | null>(null);
   const dragOffsetRef = useRef(0);
   const maxTravelRef = useRef(0);
+  const isProcessingRef = useRef(false);
 
   const [position, setPosition] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -57,7 +61,14 @@ export default function RunwaySwipeConfirm({
       return;
     }
 
-    if (mountedRef.current) setIsProcessing(true);
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+
+    if (mountedRef.current) {
+      setPosition(maxTravel);
+      setIsProcessing(true);
+    }
+
     try {
       await onConfirm();
     } catch (error: unknown) {
@@ -65,10 +76,11 @@ export default function RunwaySwipeConfirm({
       onError?.(message);
       if (mountedRef.current) {
         setPosition(0);
+        setIsProcessing(false);
       }
+      isProcessingRef.current = false;
     } finally {
       if (mountedRef.current) {
-        setIsProcessing(false);
         pointerIdRef.current = null;
         setIsDragging(false);
       }
@@ -92,7 +104,7 @@ export default function RunwaySwipeConfirm({
   }
 
   function handlePointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (isProcessing) return;
+    if (isProcessing || disabled || isProcessingRef.current) return;
     const track = trackRef.current;
     if (!track) return;
 
@@ -104,35 +116,33 @@ export default function RunwaySwipeConfirm({
   }
 
   function handlePointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (!isDragging || pointerIdRef.current !== event.pointerId || isProcessing) return;
-    const nextPosition = updatePositionFromPointer(event.clientX);
-    if (nextPosition >= maxTravelRef.current * CONFIRM_THRESHOLD) {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }
+    if (!isDragging || pointerIdRef.current !== event.pointerId || isProcessing || disabled) return;
+    updatePositionFromPointer(event.clientX);
   }
 
   async function handlePointerUp(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (pointerIdRef.current !== event.pointerId || isProcessing) return;
+    if (pointerIdRef.current !== event.pointerId || isProcessing || disabled) return;
     const nextPosition = updatePositionFromPointer(event.clientX);
     resetInteraction();
     await confirmIfReachedEnd(nextPosition);
   }
 
   function handlePointerCancel() {
-    if (isProcessing) return;
+    if (isProcessing || isProcessingRef.current) return;
     setPosition(0);
     resetInteraction();
   }
 
-  const statusLabel = isProcessing
-    ? "Confirming booking..."
+  const locked = isProcessing || disabled;
+  const statusLabel = locked
+    ? "Submitting booking..."
     : isDragging
       ? "Release near the end to confirm"
       : label;
 
   return (
     <div className="w-full">
-      <p className={`mb-2 text-sm font-medium transition-colors ${isDragging ? "text-[#1a4fd6]" : "text-[#4b6390]"}`}>
+      <p className={`mb-2 text-sm font-medium transition-colors ${isDragging || locked ? "text-[#1a4fd6]" : "text-[#4b6390]"}`}>
         {statusLabel}
       </p>
 
@@ -181,7 +191,7 @@ export default function RunwaySwipeConfirm({
             ref={handleRef}
             type="button"
             aria-label="Drag to confirm booking"
-            disabled={isProcessing}
+            disabled={locked}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
@@ -189,15 +199,19 @@ export default function RunwaySwipeConfirm({
             className="absolute left-0 top-1/2 z-10 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-[#152d5a] shadow-[0_10px_24px_rgba(15,23,42,0.28)] transition-transform duration-75 touch-none disabled:cursor-not-allowed"
             style={{ transform: `translateX(${position}px) translateY(-50%)` }}
           >
-            <Plane className="h-5 w-5 rotate-45" />
+            {locked ? (
+              <Spinner size="sm" className="text-[#1a4fd6]" />
+            ) : (
+              <Plane className="h-5 w-5 rotate-45" />
+            )}
           </button>
         </div>
 
-        {isProcessing ? (
-          <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-slate-950/10 backdrop-blur-[1px]">
+        {locked ? (
+          <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-slate-950/45 backdrop-blur-[2px]">
             <div className="flex items-center gap-2 rounded-full border border-[#1a4fd6]/20 bg-white px-4 py-2 text-sm font-semibold text-[#1a4fd6] shadow-sm">
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#1a4fd6]/25 border-t-[#1a4fd6]" />
-              Confirming...
+              <Spinner size="sm" className="text-[#1a4fd6]" />
+              Submitting...
             </div>
           </div>
         ) : null}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CalendarDays, Clock3, PencilLine, X } from "lucide-react";
 import ModalPortal from "@/components/ModalPortal";
 import { formatDate } from "@/lib/formatDateTime";
@@ -55,18 +55,37 @@ export default function BookingReviewModal({
   onSwipeError,
 }: Props) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setIsSubmitting(false);
+      return;
+    }
     closeButtonRef.current?.focus();
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape" && !isSubmitting) onClose();
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose]);
+  }, [open, onClose, isSubmitting]);
+
+  async function handleConfirm() {
+    setIsSubmitting(true);
+    try {
+      await onConfirm();
+    } catch (error) {
+      setIsSubmitting(false);
+      throw error;
+    }
+  }
+
+  function handleClose() {
+    if (isSubmitting) return;
+    onClose();
+  }
 
   if (!open || !draft) return null;
 
@@ -81,14 +100,16 @@ export default function BookingReviewModal({
         <button
           type="button"
           aria-label="Close booking review dialog"
-          onClick={onClose}
-          className="absolute inset-0 bg-slate-950/65 backdrop-blur-sm"
+          onClick={handleClose}
+          disabled={isSubmitting}
+          className="absolute inset-0 bg-slate-950/65 backdrop-blur-sm disabled:cursor-not-allowed"
         />
 
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="booking-review-title"
+          aria-busy={isSubmitting || undefined}
           className="relative z-10 w-full max-w-3xl overflow-hidden rounded-3xl border border-[#dbe3ef] bg-[#ffffff] text-[#152d5a] shadow-[0_24px_80px_rgba(21,45,90,0.18)]"
           onClick={(event) => event.stopPropagation()}
         >
@@ -117,8 +138,9 @@ export default function BookingReviewModal({
             <button
               ref={closeButtonRef}
               type="button"
-              onClick={onClose}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#6b7280] transition-colors hover:bg-[#f1f5f9] hover:text-[#152d5a]"
+              onClick={handleClose}
+              disabled={isSubmitting}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#6b7280] transition-colors hover:bg-[#f1f5f9] hover:text-[#152d5a] disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="Close booking review dialog"
             >
               <X className="h-4 w-4" />
@@ -206,7 +228,11 @@ export default function BookingReviewModal({
             ) : null}
 
             <div className="mt-5 rounded-2xl border border-[#e2e8f0] bg-[#f8fbff] p-4">
-              <RunwaySwipeConfirm onConfirm={onConfirm} onError={onSwipeError} />
+              <RunwaySwipeConfirm
+                onConfirm={handleConfirm}
+                onError={onSwipeError}
+                disabled={isSubmitting}
+              />
             </div>
           </div>
         </div>
