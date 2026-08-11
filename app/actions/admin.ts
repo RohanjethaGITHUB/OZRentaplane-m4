@@ -541,8 +541,9 @@ export async function getAdminThread(customerId: string): Promise<VerificationEv
 }
 
 // ─── Admin inbox: total unread count ─────────────────────────────────────────
-// Fast scalar count of all customer messages not yet read by admin.
-// Used to power the sidebar badge.
+// Fast scalar count of unread customer chat events (message / on_hold with body).
+// Must match buildAdminThreadSummaries unread logic so the Action Queue /
+// sidebar "Messages" badge agrees with the inbox Unread filter.
 
 export async function getAdminUnreadCount(): Promise<number> {
   const { supabase } = await requireAdmin()
@@ -551,6 +552,8 @@ export async function getAdminUnreadCount(): Promise<number> {
     .from('verification_events')
     .select('*', { count: 'exact', head: true })
     .eq('actor_role', 'customer')
+    .in('event_type', ['message', 'on_hold'])
+    .not('body', 'is', null)
     .is('admin_read_at', null)
 
   return count ?? 0

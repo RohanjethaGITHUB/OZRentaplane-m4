@@ -357,15 +357,15 @@ export default async function AdminUserPage({
     pendingCancellationByUser,
   })
 
-  // Unread count: customer messages that admin hasn't read yet
-  const adminUnreadCount = (events ?? []).filter(
-    (ev: VerificationEvent) => ev.actor_role === 'customer' && ev.admin_read_at === null
-  ).length
-
   // Chat events (messages + on_hold events with body), newest last for rendering
   const chatEvents = (events as VerificationEvent[] ?? []).filter(
     ev => ev.event_type === 'message' || (ev.event_type === 'on_hold' && ev.body)
   )
+
+  // Unread count: must match inbox / getAdminUnreadCount (chat events only)
+  const adminUnreadCount = chatEvents.filter(
+    (ev: VerificationEvent) => ev.actor_role === 'customer' && ev.admin_read_at === null
+  ).length
 
   // Section visibility logic
   const currentActionDefaultOpen = ACTION_REQUIRED.includes(clearanceStatus)
