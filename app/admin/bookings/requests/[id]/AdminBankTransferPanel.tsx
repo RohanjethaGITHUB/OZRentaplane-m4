@@ -10,6 +10,8 @@ type Props = {
   amountCents: number
   bookingType: "checkout" | "standard"
   variant?: "pre_invoice" | "admin_override"
+  /** When true, invoice has already been issued to the customer. */
+  invoiceIssued?: boolean
 }
 
 type PaymentMethod = "cash" | "card_in_person" | "bank_transfer"
@@ -20,14 +22,28 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
   bank_transfer: "Bank transfer",
 }
 
-export default function AdminBankTransferPanel({ bookingId, amountCents, bookingType, variant = "pre_invoice" }: Props) {
+const DISABLED_MARK_PAID_TOOLTIP =
+  "Mark as Paid is disabled until the customer submits payment proof in the portal, or you confirm a direct settlement with the checkbox above."
+
+export default function AdminBankTransferPanel({
+  bookingId,
+  amountCents,
+  bookingType,
+  variant = "pre_invoice",
+  invoiceIssued = false,
+}: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [method, setMethod] = useState<PaymentMethod>("bank_transfer")
   const [amount, setAmount] = useState((amountCents / 100).toFixed(2))
   const [note, setNote] = useState("")
+  const [directSettlementConfirmed, setDirectSettlementConfirmed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
+  const isOverride = variant === "admin_override"
+  const canMarkAsPaid = !isOverride || directSettlementConfirmed
+  const markAsPaidDisabled = isPending || !canMarkAsPaid
 
   function handleSubmit() {
     setError(null)
@@ -39,7 +55,12 @@ export default function AdminBankTransferPanel({ bookingId, amountCents, booking
       return
     }
 
-    if (variant === "admin_override" && note.trim().length === 0) {
+    if (isOverride && !directSettlementConfirmed) {
+      setError("Confirm the direct settlement checkbox before marking this invoice as paid.")
+      return
+    }
+
+    if (isOverride && note.trim().length === 0) {
       setError("A note is required when confirming payment without customer-submitted proof (e.g. bank statement reference, date sighted).")
       return
     }
@@ -68,7 +89,13 @@ export default function AdminBankTransferPanel({ bookingId, amountCents, booking
     })
   }
 
-  const isOverride = variant === "admin_override"
+  const overrideTitle = invoiceIssued
+    ? "Record Direct Payment Settlement"
+    : "Confirm Payment Without Portal Submission"
+
+  const overrideDescription = invoiceIssued
+    ? "An invoice has been sent and is awaiting customer payment in the portal. Use this only if you have spoken with the customer and payment was settled directly (cash, card in person, or bank transfer sighted). A note is required."
+    : "Use this only when the customer has paid directly (e.g. bank transfer sighted in the account) but has not logged in to submit proof. Adding a note is required."
 
   return (
     <div
@@ -84,7 +111,7 @@ export default function AdminBankTransferPanel({ bookingId, amountCents, booking
           payments
         </span>
         <h2 className={`text-[11px] uppercase tracking-widest font-bold ${isOverride ? "text-amber-700" : "text-[#4b6390]"}`}>
-          {isOverride ? "Confirm Payment Without Portal Submission" : "Manual Payment"}
+          {isOverride ? overrideTitle : "Manual Payment"}
         </h2>
         <span className="ml-auto px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-[#1a4fd6] border border-blue-500/20">
           {bookingType === "checkout" ? "Checkout" : "Standard"}
@@ -92,7 +119,7 @@ export default function AdminBankTransferPanel({ bookingId, amountCents, booking
       </div>
       {isOverride && (
         <p className="text-[14px] text-amber-800 -mt-2">
-          Use this only when the customer has paid directly (e.g. bank transfer sighted in the account) but has not logged in to submit proof. Adding a note is required.
+          {overrideDescription}
         </p>
       )}
 
@@ -145,20 +172,46 @@ export default function AdminBankTransferPanel({ bookingId, amountCents, booking
         </label>
       </div>
 
+      {isOverride ? (
+        <label className="flex items-start gap-3 rounded-xl border border-amber-300/80 bg-white/70 px-4 py-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={directSettlementConfirmed}
+            onChange={(e) => setDirectSettlementConfirmed(e.target.checked)}
+            disabled={isPending}
+            className="mt-1 h-4 w-4 rounded border-[#152d5a]/30 text-[#1a4fd6] focus:ring-[#1a4fd6]/30"
+          />
+          <span className="text-[13px] leading-relaxed text-[#152d5a]">
+            I have spoken with the customer and confirmed payment was settled directly. I am proceeding to mark this as paid without portal-submitted proof.
+          </span>
+        </label>
+      ) : null}
+
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       {success ? <p className="text-sm text-green-600">{success}</p> : null}
 
-      <button
-        type="button"
-        onClick={handleSubmit}
-        disabled={isPending}
-        aria-busy={isPending || undefined}
-        className="w-full md:w-auto px-6 py-3.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[13px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-      >
-        <LoadingButtonContent loading={isPending} loadingLabel="Recording...">
-          Mark as paid
-        </LoadingButtonContent>
-      </button>
+      <div className="relative group/mark-paid inline-flex w-full md:w-auto">
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={markAsPaidDisabled}
+          aria-busy={isPending || undefined}
+          aria-disabled={markAsPaidDisabled || undefined}
+          className="w-full md:w-auto px-6 py-3.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[13px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50 disabled:hover:bg-green-600 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          <LoadingButtonContent loading={isPending} loadingLabel="Recording...">
+            Mark as paid
+          </LoadingButtonContent>
+        </button>
+        {markAsPaidDisabled && !isPending ? (
+          <div
+            role="tooltip"
+            className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden w-72 rounded-lg border border-[#152d5a]/15 bg-[#0f1c33] px-3 py-2 text-[12px] font-medium leading-relaxed text-white shadow-lg group-hover/mark-paid:block"
+          >
+            {DISABLED_MARK_PAID_TOOLTIP}
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }

@@ -27,6 +27,7 @@ export type BookingDirectoryRow = {
   billingBasisIsProvisional: boolean
   bookingTypePrimaryLabel: string
   bookingTypeSecondaryLabel: string
+  paymentProofPendingReview?: boolean
 }
 
 type SortKey = 'created' | 'customer' | 'email' | 'aircraft' | 'scheduled' | 'status' | 'ref'
@@ -343,6 +344,15 @@ function getStatusPresentation(row: BookingDirectoryRow): BookingStatusPresentat
     }
   }
   if (row.rawStatus === 'checkout_payment_required' || row.rawStatus === 'payment_pending') {
+    if (row.paymentProofPendingReview) {
+      return {
+        label: isCheckout ? 'Payment Verification Pending' : 'Payment Review Pending',
+        badgeClassName: 'border-blue-200 bg-blue-50 text-blue-700',
+        icon: 'hourglass_top',
+        iconWrapClass: 'bg-blue-50 border-blue-100',
+        iconClass: 'text-blue-600',
+      }
+    }
     return {
       label: isCheckout ? 'Checkout Payment Due' : 'Payment Pending',
       badgeClassName: 'border-orange-200 bg-orange-50 text-orange-700',

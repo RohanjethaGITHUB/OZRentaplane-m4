@@ -1034,16 +1034,22 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     ? 'Reschedule Requested'
     : isCancellationRequested
       ? 'Cancellation Requested'
-      : lifecycleStage.label
+      : isAwaitingManualPayment
+        ? 'Payment Verification Pending'
+        : lifecycleStage.label
   const displayLifecycleSublabel = hasPendingReschedule
     ? 'Awaiting approval of the requested new time'
     : isCancellationRequested
       ? 'Awaiting admin decision on cancellation'
-      : (lifecycleStage.sublabel ?? (bookingType === 'checkout' ? 'Current checkout state' : 'Current booking state'))
+      : isAwaitingManualPayment
+        ? 'Bank transfer proof submitted — verify receipt and confirm payment'
+        : (lifecycleStage.sublabel ?? (bookingType === 'checkout' ? 'Current checkout state' : 'Current booking state'))
   const displayLifecycleTone =
     hasPendingReschedule || isCancellationRequested
       ? lifecycleToneCfg.amber
-      : lifecycleTone
+      : isAwaitingManualPayment
+        ? lifecycleToneCfg.blue
+        : lifecycleTone
 
   const pageContent = (
       <>
@@ -1320,15 +1326,20 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         <div className="space-y-6">
 
           {/* ── Checkout bank transfer panel — shown when checkout payment required ── */}
-          {isPaymentRequired && !invoiceSentViaStripe && (
-            <ManualPaymentDisclosure>
+          {isPaymentRequired && !invoiceSentViaStripe && !isAwaitingManualPayment && (
+            <ManualPaymentDisclosure label="Need to record a direct payment settlement?">
               <AdminBankTransferPanel
                 bookingId={booking.id}
                 bookingType="checkout"
                 amountCents={checkoutInvoice?.stripe_amount_due_cents ?? 0}
                 variant="admin_override"
+                invoiceIssued={Boolean(checkoutInvoice)}
               />
             </ManualPaymentDisclosure>
+          )}
+
+          {isPaymentRequired && !invoiceSentViaStripe && latestBankTransferSub && isAwaitingManualPayment && (
+            <AdminBankTransferReviewPanel bookingId={booking.id} submission={latestBankTransferSub} />
           )}
 
           {isPaymentRequired && invoiceSentViaStripe && (
@@ -1339,7 +1350,9 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               <div>
                 <p className="text-[13px] font-semibold text-[#152d5a]">Invoice sent to customer</p>
                 <p className="text-[12px] text-[#4b6390] mt-1">
-                  A payment invoice has been issued. Awaiting customer payment.
+                  {isAwaitingManualPayment
+                    ? 'Customer submitted bank transfer proof. Review the receipt and confirm payment.'
+                    : 'A payment invoice has been issued. Awaiting customer payment.'}
                   {checkoutInvoice?.stripe_amount_due_cents
                     ? ` Amount due: $${(checkoutInvoice.stripe_amount_due_cents / 100).toFixed(2)}`
                     : ''}
@@ -1348,13 +1361,14 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             </div>
           )}
 
-          {isPaymentRequired && invoiceSentViaStripe && (
-            <ManualPaymentDisclosure>
+          {isPaymentRequired && invoiceSentViaStripe && !isAwaitingManualPayment && (
+            <ManualPaymentDisclosure label="Need to record a direct payment settlement?">
               <AdminBankTransferPanel
                 bookingId={booking.id}
                 bookingType="checkout"
                 amountCents={checkoutInvoice?.stripe_amount_due_cents ?? 0}
                 variant="admin_override"
+                invoiceIssued
               />
             </ManualPaymentDisclosure>
           )}
@@ -1370,12 +1384,13 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               submissions={standardPendingReviewSubmissions}
             />
           ) : isStandardPaymentPending ? (
-            <ManualPaymentDisclosure>
+            <ManualPaymentDisclosure label="Need to record a direct payment settlement?">
               <AdminBankTransferPanel
                 bookingId={booking.id}
                 bookingType="standard"
                 amountCents={standardInvoiceAmountDueCents}
                 variant="admin_override"
+                invoiceIssued
               />
             </ManualPaymentDisclosure>
           ) : null}
@@ -1678,12 +1693,18 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   )
 }
 
-function ManualPaymentDisclosure({ children }: { children: React.ReactNode }) {
+function ManualPaymentDisclosure({
+  children,
+  label,
+}: {
+  children: React.ReactNode
+  label: string
+}) {
   return (
     <details className="group">
       <summary className="cursor-pointer text-[11px] font-semibold text-amber-600 uppercase tracking-wider select-none list-none flex items-center gap-1.5">
         <span className="material-symbols-outlined text-[16px] group-open:rotate-90 transition-transform">chevron_right</span>
-        Payment received but customer hasn't submitted proof?
+        {label}
       </summary>
       <div className="mt-3">
         {children}

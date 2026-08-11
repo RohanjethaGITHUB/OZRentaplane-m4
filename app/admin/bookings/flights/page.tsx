@@ -279,6 +279,8 @@ export default async function FlightBookingsPage({
     bookingInvoicesResult,
     blockTimeUsageResult,
     activeBlockTimePurchasesResult,
+    checkoutBankTransferResult,
+    bookingBankTransferResult,
   ] = await Promise.all([
     customerIds.length > 0
       ? supabase
@@ -320,6 +322,22 @@ export default async function FlightBookingsPage({
           .order('queue_position', { ascending: true, nullsFirst: false })
           .order('activated_at', { ascending: true })
       : Promise.resolve({ data: [], error: null }),
+    bookingIds.length > 0
+      ? supabase
+          .from('checkout_bank_transfer_submissions')
+          .select('booking_id, status, submitted_at')
+          .in('booking_id', bookingIds)
+          .eq('status', 'pending_review')
+          .order('submitted_at', { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+    bookingIds.length > 0
+      ? supabase
+          .from('booking_bank_transfer_submissions')
+          .select('booking_id, status, submitted_at')
+          .in('booking_id', bookingIds)
+          .eq('status', 'pending_review')
+          .order('submitted_at', { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
   ])
 
   for (const customerProfile of customerProfilesResult.data ?? []) {
@@ -347,6 +365,14 @@ export default async function FlightBookingsPage({
     }
   }
 
+  const paymentProofPendingByBookingId = new Set<string>()
+  for (const row of checkoutBankTransferResult.data ?? []) {
+    if (row.booking_id) paymentProofPendingByBookingId.add(row.booking_id)
+  }
+  for (const row of bookingBankTransferResult.data ?? []) {
+    if (row.booking_id) paymentProofPendingByBookingId.add(row.booking_id)
+  }
+
   const rows = bookings.map((booking) => {
     const aircraft = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
     const customerProfile = profileMap.get(booking.booking_owner_user_id)
@@ -357,6 +383,7 @@ export default async function FlightBookingsPage({
       usage: blockTimeUsageMap.get(booking.id) ?? null,
       activePurchase: activePurchaseMap.get(booking.booking_owner_user_id) ?? null,
     })
+    const paymentProofPendingReview = paymentProofPendingByBookingId.has(booking.id)
 
     return {
       id: booking.id,
@@ -373,7 +400,9 @@ export default async function FlightBookingsPage({
       scheduledLabel: formatDateTime(booking.scheduled_start),
       rawStatus: booking.status,
       displayStatus,
-      statusLabel: getStatusLabel(displayStatus),
+      statusLabel: paymentProofPendingReview
+        ? (booking.booking_type === 'checkout' ? 'Payment Verification Pending' : 'Payment Review Pending')
+        : getStatusLabel(displayStatus),
       bookingType: bookingTypePresentation.bookingType,
       billingMode: bookingTypePresentation.billingMode,
       billingRateCentsPerHour: bookingTypePresentation.billingRateCentsPerHour,
@@ -381,6 +410,7 @@ export default async function FlightBookingsPage({
       billingBasisIsProvisional: bookingTypePresentation.billingBasisIsProvisional,
       bookingTypePrimaryLabel: bookingTypePresentation.bookingTypePrimaryLabel,
       bookingTypeSecondaryLabel: bookingTypePresentation.bookingTypeSecondaryLabel,
+      paymentProofPendingReview,
     } satisfies BookingDirectoryRow
   })
 

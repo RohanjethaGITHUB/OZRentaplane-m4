@@ -197,6 +197,44 @@ function joinDocumentLabels(labels: string[]) {
   return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`
 }
 
+type CheckoutBankTransferSubmissionRow = {
+  id: string
+  booking_id: string
+  reference: string | null
+  receipt_storage_path: string | null
+  status: string
+  submitted_at: string
+  created_at: string
+}
+
+function getCheckoutPaymentActionState(
+  booking: BookingRow,
+  submissions: CheckoutBankTransferSubmissionRow[],
+): Pick<ActionItem, 'title' | 'description' | 'nextStep' | 'href' | 'receivedAt'> {
+  const latestSubmission = submissions[0] ?? null
+
+  if (latestSubmission?.status === 'pending_review') {
+    const hasReceipt = Boolean(latestSubmission.receipt_storage_path)
+    return {
+      title: 'Payment verification pending',
+      description: hasReceipt
+        ? 'The customer submitted bank transfer proof. Verify the receipt and confirm payment.'
+        : 'The customer reported the bank transfer as completed. Verify and approve or reject the payment.',
+      nextStep: 'Open payment review',
+      href: `/admin/bookings/requests/${booking.id}`,
+      receivedAt: latestSubmission.submitted_at ?? latestSubmission.created_at,
+    }
+  }
+
+  return {
+    title: 'Checkout payment required',
+    description: 'Follow up with the customer regarding payment.',
+    nextStep: 'Review payment',
+    href: `/admin/bookings/requests/${booking.id}`,
+    receivedAt: booking.updated_at,
+  }
+}
+
 function getRentalPaymentActionState(
   booking: BookingRow,
   invoice: BookingInvoiceRow | null,
@@ -410,12 +448,14 @@ export default async function AdminActionsPage({
 
   const documentReviewUserIds = Array.from(pendingDocumentsByUser.keys())
   const standardPaymentBookingIds = Array.from(new Set((standardPaymentRows ?? []).map((row) => (row as BookingRow).id)))
+  const checkoutPaymentBookingIds = Array.from(new Set((checkoutPaymentRows ?? []).map((row) => (row as BookingRow).id)))
 
   const [
     { data: ownerProfiles },
     { data: documentReviewBookingRows },
     { data: bookingInvoiceRows },
     { data: bookingBankTransferSubmissionRows },
+    { data: checkoutBankTransferSubmissionRows },
   ] = await perf.time(
     'admin_home',
     'followup_parallel_group',
@@ -467,6 +507,16 @@ export default async function AdminActionsPage({
               .order('submitted_at', { ascending: false }),
           )
         : Promise.resolve({ data: [] as BookingBankTransferSubmissionRow[] }),
+      checkoutPaymentBookingIds.length
+        ? safeQuery(
+            'checkout bank transfer submission rows',
+            supabase
+              .from('checkout_bank_transfer_submissions')
+              .select('id, booking_id, reference, receipt_storage_path, status, submitted_at, created_at')
+              .in('booking_id', checkoutPaymentBookingIds)
+              .order('submitted_at', { ascending: false }),
+          )
+        : Promise.resolve({ data: [] as CheckoutBankTransferSubmissionRow[] }),
     ]),
     (result) => ({
       rowCount: result.reduce((sum, source) => sum + (source.data?.length ?? 0), 0),
@@ -503,6 +553,14 @@ export default async function AdminActionsPage({
     const list = bookingBankTransferSubmissionsByBookingId.get(submission.booking_id) ?? []
     list.push(submission)
     bookingBankTransferSubmissionsByBookingId.set(submission.booking_id, list)
+  }
+
+  const checkoutBankTransferSubmissionsByBookingId = new Map<string, CheckoutBankTransferSubmissionRow[]>()
+  for (const row of checkoutBankTransferSubmissionRows ?? []) {
+    const submission = row as CheckoutBankTransferSubmissionRow
+    const list = checkoutBankTransferSubmissionsByBookingId.get(submission.booking_id) ?? []
+    list.push(submission)
+    checkoutBankTransferSubmissionsByBookingId.set(submission.booking_id, list)
   }
 
   const awaitingFlightRecords = perf.timeSync(
@@ -631,22 +689,26 @@ export default async function AdminActionsPage({
     const profile = profileFor(booking.booking_owner_user_id)
     const customerLabel = fullCustomerName(profile, booking.pic_name)
     const workflow = parentWorkflowFromBookingType(booking.booking_type)
+    const paymentState = getCheckoutPaymentActionState(
+      booking,
+      checkoutBankTransferSubmissionsByBookingId.get(booking.id) ?? [],
+    )
     return {
       key: `checkout-payment-${booking.id}`,
       groups: [workflow] as WorkflowFilter[],
       badge: badgeFromWorkflow(workflow),
       badgeTone: 'warning' as const,
-      title: 'Checkout payment required',
-      description: 'Follow up with the customer regarding payment.',
+      title: paymentState.title,
+      description: paymentState.description,
       customerLabel,
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: bookingReference(booking),
       referenceHref: `/admin/bookings/requests/${booking.id}`,
       aircraftLabel: aircraft?.registration ?? null,
       aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
-      receivedAt: booking.updated_at,
-      nextStep: 'Review payment',
-      href: `/admin/bookings/requests/${booking.id}`,
+      receivedAt: paymentState.receivedAt,
+      nextStep: paymentState.nextStep,
+      href: paymentState.href,
     } satisfies ActionItem
   })
 

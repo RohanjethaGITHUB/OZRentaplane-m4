@@ -17,7 +17,7 @@ export default async function AllCustomersPage({ searchParams }: { searchParams:
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
-  const [{ data: profiles }, { data: checkoutBookings }, { data: pendingRescheduleRows }, { data: pendingCancellationRows }, { data: userDocuments }] = await Promise.all([
+  const [{ data: profiles }, { data: checkoutBookings }, { data: pendingRescheduleRows }, { data: pendingCancellationRows }, { data: userDocuments }, { data: pendingCheckoutPaymentProofs }] = await Promise.all([
     supabase
     .from('profiles')
     .select('id, full_name, email, pilot_clearance_status, account_status, updated_at, phone_country_code, phone_number')
@@ -40,12 +40,21 @@ export default async function AllCustomersPage({ searchParams }: { searchParams:
     supabase
       .from('user_documents')
       .select('user_id, document_type, status, expiry_date, medical_class'),
+    supabase
+      .from('checkout_bank_transfer_submissions')
+      .select('customer_id, booking_id, status')
+      .eq('status', 'pending_review'),
   ])
 
   const usersWithActiveCheckoutRequests = new Set(
     (checkoutBookings ?? [])
       .filter((b) => hasActiveCheckoutBooking({ status: b.status as string | null, checkout_lifecycle_status: (b as any).checkout_lifecycle_status ?? null }))
       .map((b) => b.booking_owner_user_id)
+      .filter(Boolean),
+  )
+  const usersWithPendingPaymentProof = new Set(
+    (pendingCheckoutPaymentProofs ?? [])
+      .map((row) => row.customer_id)
       .filter(Boolean),
   )
   const docsByUser = new Map<string, Array<{ user_id: string; document_type: string; status: string; expiry_date: string | null; medical_class?: string | null }>>()
@@ -98,6 +107,8 @@ export default async function AllCustomersPage({ searchParams }: { searchParams:
         lifecycleStatus: derivedStatus,
         needsAttention: attention.hasIssue,
         attentionReason: attention.hasIssue ? attention.reason : null,
+        hasPendingPaymentProof:
+          derivedStatus === 'payment_required' && usersWithPendingPaymentProof.has(p.id),
       }
     })
 

@@ -20,6 +20,7 @@ type Row = {
   lifecycleStatus: CustomerLifecycleStatus
   needsAttention: boolean
   attentionReason: string | null
+  hasPendingPaymentProof?: boolean
 }
 
 type SummaryTone = 'success' | 'info' | 'warning' | 'danger'
@@ -187,6 +188,16 @@ function getRowPresentation(row: Row): RowPresentation {
     }
   }
   if (row.lifecycleStatus === 'payment_required') {
+    if (row.hasPendingPaymentProof) {
+      return {
+        badgeLabel: 'Payment Verification Pending',
+        badgeToneClass: 'border-blue-200 bg-blue-50 text-blue-700',
+        accentClass: 'bg-blue-500',
+        icon: 'hourglass_top',
+        iconClass: 'text-blue-600',
+        iconWrapClass: 'bg-blue-50 border-blue-100',
+      }
+    }
     return {
       badgeLabel: 'Payment Required',
       badgeToneClass: 'border-amber-200 bg-amber-50 text-amber-700',
@@ -601,7 +612,11 @@ export default function CustomerDirectoryTable({
                                 {presentation.badgeLabel}
                               </span>
                               <p className="mt-2 max-w-[28rem] text-[13px] leading-[1.45] text-[var(--admin-text-muted)]">
-                                {row.needsAttention ? row.attentionReason ?? status.description : status.description}
+                                {row.needsAttention
+                                  ? row.attentionReason ?? status.description
+                                  : row.hasPendingPaymentProof
+                                    ? 'Customer submitted bank transfer proof. Verify the receipt and confirm payment.'
+                                    : status.description}
                               </p>
                             </div>
 
@@ -661,7 +676,11 @@ export default function CustomerDirectoryTable({
                           </div>
 
                           <p className="text-[13px] leading-[1.45] text-[var(--admin-text-muted)]">
-                            {row.needsAttention ? row.attentionReason ?? status.description : status.description}
+                            {row.needsAttention
+                              ? row.attentionReason ?? status.description
+                              : row.hasPendingPaymentProof
+                                ? 'Customer submitted bank transfer proof. Verify the receipt and confirm payment.'
+                                : status.description}
                           </p>
 
                           <div className="grid gap-2 text-[13px] sm:grid-cols-2">
