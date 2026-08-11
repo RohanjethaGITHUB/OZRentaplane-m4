@@ -1,10 +1,9 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import CustomerCreditsManager from './CustomerCreditsManager'
+import CustomerBillingTable from './CustomerBillingTable'
 import AdminPortalHero from '@/components/AdminPortalHero'
-import { AdminDataTable, AdminStatusBadge } from '@/app/admin/components/AdminListView'
-import { getCustomerDerivedStatus, getCustomerDerivedStatusMeta, hasActiveCheckoutBooking } from '@/app/admin/customers/customer-status'
+import { getCustomerDerivedStatus, hasActiveCheckoutBooking } from '@/app/admin/customers/customer-status'
 
 export const metadata = { title: 'Customer Billing | Admin' }
 export default async function CustomerCreditsPage({ searchParams }: { searchParams: { customerId?: string; q?: string } }) {
@@ -45,10 +44,8 @@ export default async function CustomerCreditsPage({ searchParams }: { searchPara
       status,
     }
   })
-  const q = (searchParams.q ?? '').trim().toLowerCase()
-  const filteredRows = q ? rows.filter((r) => r.name.toLowerCase().includes(q)) : rows
-  const money = (cents: number) =>
-    new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(Math.abs(cents) / 100)
+
+  const selectedCustomerId = searchParams.customerId
 
   return (
     <>
@@ -57,52 +54,20 @@ export default async function CustomerCreditsPage({ searchParams }: { searchPara
         title="Customer Billing"
         subtitle="Cumulative money paid in, alongside customer credit history and adjustments."
       />
-      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-10 pb-24 space-y-8">
-        <section className="space-y-4">
-          <form className="rounded-2xl border border-[rgba(12,35,64,0.15)] bg-white p-4">
-            <input
-              type="search"
-              name="q"
-              defaultValue={searchParams.q ?? ''}
-              placeholder="Search customers..."
-              className="w-full md:w-[360px] rounded-lg border border-[rgba(12,35,64,0.18)] bg-white px-3.5 py-2.5 text-sm text-[#0C2340] placeholder:text-[#3d5a80] focus:outline-none focus:ring-1 focus:ring-[#1a4a7a]/40"
+      <div className="mx-auto max-w-[1400px] px-6 py-8 pb-24 md:px-10 md:py-10">
+        {selectedCustomerId ? (
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] xl:items-start">
+            <CustomerBillingTable
+              rows={rows}
+              initialQuery={searchParams.q ?? ''}
+              selectedCustomerId={selectedCustomerId}
+              compact
             />
-          </form>
-          <AdminDataTable columns={['Customer', 'Total Paid', 'Status']}>
-            {filteredRows.length === 0 ? (
-              <tr>
-                <td colSpan={3} className="px-5 py-12 text-center text-[var(--admin-text-muted)]">
-                  {q ? 'No customers match your search.' : 'No customer ledger records found.'}
-                </td>
-              </tr>
-            ) : (
-              filteredRows.map((r) => {
-                const status = getCustomerDerivedStatusMeta(r.status)
-                const amountClass = r.totalPaidCents > 0 ? 'text-[#86efac]' : 'text-[var(--admin-text-muted)]'
-                return (
-                  <tr key={r.id} className="border-t border-[var(--admin-divider)] hover:bg-[var(--admin-row-hover)] transition-colors">
-                    <td className="px-5 py-[16px]">
-                      <Link href={`/admin/customers/ledger?customerId=${r.id}`} className="block">
-                        <p className="text-lg leading-tight font-semibold text-[var(--admin-text)]">{r.name}</p>
-                        <p className="mt-1 text-sm text-[var(--admin-text-muted)]">{r.email}</p>
-                      </Link>
-                    </td>
-                    <td className={`px-5 py-[16px] text-[15px] font-semibold tabular-nums ${amountClass}`}>
-                      <Link href={`/admin/customers/ledger?customerId=${r.id}`} className="block">
-                        {money(r.totalPaidCents)}
-                      </Link>
-                    </td>
-                    <td className="px-5 py-[16px]">
-                      <Link href={`/admin/customers/ledger?customerId=${r.id}`} className="block"><AdminStatusBadge label={status.label} tone={status.tone} /></Link>
-                    </td>
-                  </tr>
-                )
-              })
-            )}
-          </AdminDataTable>
-        </section>
-
-        <CustomerCreditsManager initialCustomerId={searchParams.customerId} />
+            <CustomerCreditsManager initialCustomerId={selectedCustomerId} />
+          </div>
+        ) : (
+          <CustomerBillingTable rows={rows} initialQuery={searchParams.q ?? ''} />
+        )}
       </div>
     </>
   )

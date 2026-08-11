@@ -2,11 +2,13 @@
 
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AdminStatusBadge } from './components/AdminUi'
 import type { ActionItem } from './page'
 
 type WorkflowFilter = 'all' | 'checkout' | 'rental' | 'document_review'
+
+const PAGE_SIZE = 10
 
 function formatRelativeAge(timestamp: string | null) {
   if (!timestamp) return 'Unknown'
@@ -179,20 +181,36 @@ export function ActionQueueSection({
 }) {
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowFilter>('all')
   const [pendingQueueScroll, setPendingQueueScroll] = useState(0)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const actionQueueRef = useRef<HTMLElement | null>(null)
   const workflowTabsRef = useRef<HTMLDivElement | null>(null)
   const workflowTabRefs = useRef<Partial<Record<WorkflowFilter, HTMLButtonElement | null>>>({})
+  const listScrollRef = useRef<HTMLDivElement | null>(null)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
-  const filteredRows =
-    activeWorkflow === 'all'
-      ? actionRows
-      : actionRows.filter((item) => item.groups.includes(activeWorkflow))
+  const filteredRows = useMemo(
+    () =>
+      activeWorkflow === 'all'
+        ? actionRows
+        : actionRows.filter((item) => item.groups.includes(activeWorkflow)),
+    [actionRows, activeWorkflow],
+  )
   const counts: Record<WorkflowFilter, number> = {
     all: actionRows.length,
     checkout: actionRows.filter((item) => item.groups.includes('checkout')).length,
     rental: actionRows.filter((item) => item.groups.includes('rental')).length,
     document_review: actionRows.filter((item) => item.groups.includes('document_review')).length,
   }
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE)
+  }, [activeWorkflow, actionRows.length])
+
+  const visibleRows = useMemo(
+    () => filteredRows.slice(0, visibleCount),
+    [filteredRows, visibleCount],
+  )
+  const hasMoreRows = visibleCount < filteredRows.length
 
   const emptyStateMessage = activeWorkflow === 'all' ? emptyMessage : filteredEmptyMessageByWorkflow[activeWorkflow]
 
@@ -212,6 +230,26 @@ export function ActionQueueSection({
 
     return () => window.cancelAnimationFrame(frame)
   }, [activeWorkflow, filteredRows.length, pendingQueueScroll])
+
+  useEffect(() => {
+    if (!loadMoreRef.current || !hasMoreRows || !listScrollRef.current) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisibleCount((current) => Math.min(current + PAGE_SIZE, filteredRows.length))
+        }
+      },
+      {
+        root: listScrollRef.current,
+        rootMargin: '0px 0px 240px 0px',
+        threshold: 0.1,
+      },
+    )
+
+    observer.observe(loadMoreRef.current)
+    return () => observer.disconnect()
+  }, [filteredRows.length, hasMoreRows])
 
   useEffect(() => {
     const container = workflowTabsRef.current
@@ -269,6 +307,9 @@ export function ActionQueueSection({
                   Latest operational actions for active admin follow-up.
                 </p>
               </div>
+              <p className="text-[12.5px] font-semibold text-white/80">
+                Showing {visibleRows.length} of {filteredRows.length} actions
+              </p>
             </div>
 
             <div className="flex flex-col gap-3 border-t border-white/10 pt-3">
@@ -306,10 +347,16 @@ export function ActionQueueSection({
 
         <div className="px-3 py-2 sm:px-4 sm:py-3 md:px-5 md:py-4">
           {filteredRows.length > 0 ? (
-            <div className="divide-y divide-[var(--admin-divider)]">
-              {filteredRows.map((item) => (
-                <QueueActionRow key={item.key} item={item} />
-              ))}
+            <div
+              ref={listScrollRef}
+              className="max-h-[calc(100vh-9.5rem)] overflow-y-auto sm:max-h-[calc(100vh-11.5rem)] lg:max-h-[calc(100vh-13.5rem)]"
+            >
+              <div className="divide-y divide-[var(--admin-divider)]">
+                {visibleRows.map((item) => (
+                  <QueueActionRow key={item.key} item={item} />
+                ))}
+              </div>
+              {hasMoreRows ? <div ref={loadMoreRef} className="h-px" /> : null}
             </div>
           ) : (
             <div className="rounded-[var(--admin-radius-card)] border border-dashed border-[var(--admin-border-default)] bg-[var(--admin-inset)] px-5 py-10 text-center">

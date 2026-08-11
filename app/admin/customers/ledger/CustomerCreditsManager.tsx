@@ -1,7 +1,14 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { searchCustomers, getCustomerCreditBalance, getCustomerCreditTransactions, recordAdvancePayment, reverseCreditEntry, recordRefund } from '@/app/actions/admin'
+import {
+  getCustomerCreditBalance,
+  getCustomerCreditTransactions,
+  recordAdvancePayment,
+  reverseCreditEntry,
+  recordRefund,
+} from '@/app/actions/admin'
 import { createClient } from '@/lib/supabase/client'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import Spinner, { LoadingButtonContent } from '@/components/ui/Spinner'
@@ -9,6 +16,7 @@ import Spinner, { LoadingButtonContent } from '@/components/ui/Spinner'
 type Customer = {
   id: string
   full_name: string | null
+  email?: string | null
   verification_status: string
 }
 
@@ -23,15 +31,12 @@ type Transaction = {
 }
 
 export default function CustomerCreditsManager({ initialCustomerId }: { initialCustomerId?: string }) {
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState<Customer[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
-  
   const [balanceCents, setBalanceCents] = useState(0)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loadingData, setLoadingData] = useState(false)
+  const [loadingCustomer, setLoadingCustomer] = useState(Boolean(initialCustomerId))
 
-  // Form state
   const [formMode, setFormMode] = useState<'payment' | 'refund'>('payment')
   const [amount, setAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('bank_transfer')
@@ -42,27 +47,31 @@ export default function CustomerCreditsManager({ initialCustomerId }: { initialC
   const [reversingId, setReversingId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (initialCustomerId && !selectedCustomer) {
-      const fetchCustomer = async () => {
-        const supabase = createClient()
-        const { data } = await supabase.from('profiles').select('id, full_name, verification_status').eq('id', initialCustomerId).single()
-        if (data) setSelectedCustomer(data)
-      }
-      fetchCustomer()
-    }
-  }, [initialCustomerId, selectedCustomer])
-
-  useEffect(() => {
-    if (query.length < 2) {
-      setResults([])
+    if (!initialCustomerId) {
+      setSelectedCustomer(null)
+      setLoadingCustomer(false)
       return
     }
-    const timer = setTimeout(async () => {
-      const users = await searchCustomers(query)
-      setResults(users)
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [query])
+
+    let isMounted = true
+    setLoadingCustomer(true)
+    const fetchCustomer = async () => {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, verification_status')
+        .eq('id', initialCustomerId)
+        .single()
+      if (isMounted) {
+        setSelectedCustomer(data)
+        setLoadingCustomer(false)
+      }
+    }
+    fetchCustomer()
+    return () => {
+      isMounted = false
+    }
+  }, [initialCustomerId])
 
   useEffect(() => {
     if (!selectedCustomer) {
@@ -74,18 +83,22 @@ export default function CustomerCreditsManager({ initialCustomerId }: { initialC
     setLoadingData(true)
     Promise.all([
       getCustomerCreditBalance(selectedCustomer.id),
-      getCustomerCreditTransactions(selectedCustomer.id)
-    ]).then(([balance, txs]) => {
-      if (isMounted) {
-        setBalanceCents(balance)
-        setTransactions(txs as Transaction[])
-        setLoadingData(false)
-      }
-    }).catch(err => {
-      console.error(err)
-      if (isMounted) setLoadingData(false)
-    })
-    return () => { isMounted = false }
+      getCustomerCreditTransactions(selectedCustomer.id),
+    ])
+      .then(([balance, txs]) => {
+        if (isMounted) {
+          setBalanceCents(balance)
+          setTransactions(txs as Transaction[])
+          setLoadingData(false)
+        }
+      })
+      .catch((err) => {
+        console.error(err)
+        if (isMounted) setLoadingData(false)
+      })
+    return () => {
+      isMounted = false
+    }
   }, [selectedCustomer])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -93,13 +106,13 @@ export default function CustomerCreditsManager({ initialCustomerId }: { initialC
     if (!selectedCustomer) return
     setError(null)
     setIsSubmitting(true)
-    
+
     try {
       const amountNum = parseFloat(amount)
       if (isNaN(amountNum) || amountNum <= 0) {
         throw new Error('Please enter a valid amount greater than 0.')
       }
-      
+
       if (formMode === 'payment') {
         await recordAdvancePayment(
           selectedCustomer.id,
@@ -107,30 +120,22 @@ export default function CustomerCreditsManager({ initialCustomerId }: { initialC
           paymentMethod,
           new Date().toISOString(),
           reference,
-          note
+          note,
         )
       } else {
-        await recordRefund(
-          selectedCustomer.id,
-          amountNum,
-          paymentMethod,
-          reference,
-          note
-        )
+        await recordRefund(selectedCustomer.id, amountNum, paymentMethod, reference, note)
       }
-      
-      // Reset form and refresh data
+
       setAmount('')
       setReference('')
       setNote('')
-      
+
       const [balance, txs] = await Promise.all([
         getCustomerCreditBalance(selectedCustomer.id),
-        getCustomerCreditTransactions(selectedCustomer.id)
+        getCustomerCreditTransactions(selectedCustomer.id),
       ])
       setBalanceCents(balance)
       setTransactions(txs as Transaction[])
-      
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -145,10 +150,9 @@ export default function CustomerCreditsManager({ initialCustomerId }: { initialC
     setReversingId(txId)
     try {
       await reverseCreditEntry(txId, reason)
-      // Refresh
       const [balance, txs] = await Promise.all([
         getCustomerCreditBalance(selectedCustomer!.id),
-        getCustomerCreditTransactions(selectedCustomer!.id)
+        getCustomerCreditTransactions(selectedCustomer!.id),
       ])
       setBalanceCents(balance)
       setTransactions(txs as Transaction[])
@@ -165,85 +169,112 @@ export default function CustomerCreditsManager({ initialCustomerId }: { initialC
 
   const getEntryLabel = (type: string) => {
     switch (type) {
-      case 'advance_credit': return 'Advance payment received'
-      case 'advance_applied': return 'Advance payment applied'
-      case 'refund': return 'Refunded'
-      case 'credit_refunded': return 'Cash refunded to customer'
-      case 'credit_reversed': return 'Reversed mistaken entry'
-      case 'manual_adjustment': return 'Manual adjustment'
-      case 'bank_transfer': return 'Bank transfer'
-      default: return type
+      case 'advance_credit':
+        return 'Advance payment received'
+      case 'advance_applied':
+        return 'Advance payment applied'
+      case 'refund':
+        return 'Refunded'
+      case 'credit_refunded':
+        return 'Cash refunded to customer'
+      case 'credit_reversed':
+        return 'Reversed mistaken entry'
+      case 'manual_adjustment':
+        return 'Manual adjustment'
+      case 'bank_transfer':
+        return 'Bank transfer'
+      default:
+        return type
     }
   }
 
+  if (!initialCustomerId) return null
+
+  if (loadingCustomer) {
+    return (
+      <div className="flex min-h-[280px] items-center justify-center rounded-[16px] border border-[rgba(12,35,64,0.12)] bg-white shadow-[0_12px_28px_rgba(15,30,52,0.08)]">
+        <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]">
+          <Spinner size="sm" />
+          Loading customer…
+        </div>
+      </div>
+    )
+  }
+
+  if (!selectedCustomer) {
+    return (
+      <div className="rounded-[16px] border border-dashed border-[rgba(12,35,64,0.16)] bg-white px-6 py-10 text-center shadow-[0_12px_28px_rgba(15,30,52,0.06)]">
+        <p className="text-[15px] font-semibold text-[var(--admin-text)]">Customer not found</p>
+        <Link
+          href="/admin/customers/ledger"
+          className="mt-4 inline-flex min-h-10 items-center justify-center rounded-[12px] border border-[rgba(12,35,64,0.12)] bg-white px-4 text-[13px] font-semibold text-[var(--admin-text)] transition-colors hover:border-[rgba(26,79,214,0.2)] hover:text-[var(--admin-accent-blue)]"
+        >
+          Back to billing directory
+        </Link>
+      </div>
+    )
+  }
+
+  const inputClass =
+    'w-full rounded-[12px] border border-[rgba(12,35,64,0.12)] bg-[rgba(247,251,255,0.95)] px-3.5 py-2.5 text-sm text-[var(--admin-text)] placeholder:text-[var(--admin-text-muted)] focus:outline-none focus:ring-2 focus:ring-[rgba(26,79,214,0.16)]'
+  const labelClass = 'mb-1.5 block text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--admin-text-muted)]'
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-      {/* LEFT COLUMN: SEARCH & FORM */}
-      <div className="lg:col-span-5 space-y-8">
-        
-        {/* Search */}
-        <div className="bg-[#0c1326]/50 border border-white/5 rounded-2xl p-6 backdrop-blur-xl">
-          <h3 className="text-white font-medium mb-4">Select Customer</h3>
-          
-          {!selectedCustomer ? (
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search by name..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors"
-              />
-              {results.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-white/10 rounded-xl overflow-hidden shadow-2xl z-10">
-                  {results.map(user => (
-                    <button
-                      key={user.id}
-                      onClick={() => {
-                        setSelectedCustomer(user)
-                        setQuery('')
-                        setResults([])
-                      }}
-                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm text-slate-300 transition-colors border-b border-white/5 last:border-0 flex items-center justify-between"
-                    >
-                      <span>{user.full_name || 'Unnamed Pilot'}</span>
-                      <span className="text-xs text-slate-500 bg-white/5 px-2 py-1 rounded-md">{user.verification_status}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center justify-between bg-blue-900/20 border border-blue-500/20 rounded-xl p-4">
-              <div>
-                <div className="text-sm text-slate-400 mb-1">Selected Customer</div>
-                <div className="text-lg text-white font-medium">{selectedCustomer.full_name || 'Unnamed Pilot'}</div>
-              </div>
-              <button 
-                onClick={() => setSelectedCustomer(null)}
-                className="text-xs font-semibold uppercase tracking-wider text-slate-400 hover:text-white transition-colors bg-white/5 px-3 py-2 rounded-lg"
-              >
-                Change
-              </button>
-            </div>
-          )}
+    <div className="space-y-5">
+      <div className="overflow-hidden rounded-[16px] border border-[rgba(12,35,64,0.12)] bg-white shadow-[0_12px_28px_rgba(15,30,52,0.08)]">
+        <div className="flex flex-col gap-4 border-b border-[rgba(12,35,64,0.08)] bg-[linear-gradient(135deg,#0C2340_0%,#163a66_100%)] px-5 py-5 text-white sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/65">Available credit</p>
+            <p className="mt-1 truncate text-[18px] font-semibold leading-tight">
+              {selectedCustomer.full_name || 'Unnamed customer'}
+            </p>
+            {selectedCustomer.email ? (
+              <p className="mt-1 truncate text-[13px] text-white/70">{selectedCustomer.email}</p>
+            ) : null}
+          </div>
+          <div className="flex items-end justify-between gap-4 sm:flex-col sm:items-end">
+            <p className="font-serif text-[40px] font-semibold leading-none tracking-tight tabular-nums">
+              {formatMoney(balanceCents)}
+            </p>
+            <Link
+              href="/admin/customers/ledger"
+              className="inline-flex min-h-9 items-center rounded-lg border border-white/20 bg-white/10 px-3 text-[12px] font-semibold text-white/90 transition-colors hover:bg-white/16"
+            >
+              Clear selection
+            </Link>
+          </div>
         </div>
 
-        {/* Record Form */}
-        {selectedCustomer && (
-          <div className="bg-[#0c1326]/50 border border-white/5 rounded-2xl p-6 backdrop-blur-xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-white font-medium">Record Entry</h3>
-              <div className="flex bg-slate-900/50 rounded-lg p-1 border border-white/10">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <div className="border-b border-[rgba(12,35,64,0.08)] p-5 lg:border-b-0 lg:border-r">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <h3 className="text-[15px] font-semibold text-[var(--admin-text)]">Record entry</h3>
+              <div className="flex rounded-[10px] border border-[rgba(12,35,64,0.10)] bg-[rgba(247,251,255,0.95)] p-1">
                 <button
-                  onClick={() => { setFormMode('payment'); setError(null) }}
-                  className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors ${formMode === 'payment' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-white'}`}
+                  type="button"
+                  onClick={() => {
+                    setFormMode('payment')
+                    setError(null)
+                  }}
+                  className={`rounded-[8px] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider transition-colors ${
+                    formMode === 'payment'
+                      ? 'bg-[var(--admin-primary-navy)] text-white shadow-sm'
+                      : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-text)]'
+                  }`}
                 >
                   Payment
                 </button>
                 <button
-                  onClick={() => { setFormMode('refund'); setError(null) }}
-                  className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors ${formMode === 'refund' ? 'bg-amber-600 text-white' : 'text-slate-500 hover:text-white'}`}
+                  type="button"
+                  onClick={() => {
+                    setFormMode('refund')
+                    setError(null)
+                  }}
+                  className={`rounded-[8px] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider transition-colors ${
+                    formMode === 'refund'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-text)]'
+                  }`}
                 >
                   Refund
                 </button>
@@ -251,27 +282,26 @@ export default function CustomerCreditsManager({ initialCustomerId }: { initialC
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs uppercase tracking-wider text-slate-500 mb-2">Amount (AUD)</label>
+                  <label className={labelClass}>Amount (AUD)</label>
                   <input
                     type="number"
                     step="0.01"
                     min="0.01"
                     required
                     value={amount}
-                    onChange={e => setAmount(e.target.value)}
-                    className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 transition-colors"
+                    onChange={(e) => setAmount(e.target.value)}
+                    className={inputClass}
                     placeholder="e.g. 1500.00"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs uppercase tracking-wider text-slate-500 mb-2">Payment Method</label>
+                  <label className={labelClass}>Payment method</label>
                   <select
                     value={paymentMethod}
-                    onChange={e => setPaymentMethod(e.target.value)}
-                    className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 transition-colors appearance-none"
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className={`${inputClass} appearance-none`}
                   >
                     <option value="bank_transfer">Bank Transfer</option>
                     <option value="cash">Cash</option>
@@ -281,151 +311,141 @@ export default function CustomerCreditsManager({ initialCustomerId }: { initialC
               </div>
 
               <div>
-                <label className="block text-xs uppercase tracking-wider text-slate-500 mb-2">Reference Number (Optional)</label>
+                <label className={labelClass}>Reference number (optional)</label>
                 <input
                   type="text"
                   value={reference}
-                  onChange={e => setReference(e.target.value)}
-                  className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors"
-                  placeholder="e.g. Receipt # or Bank Ref"
+                  onChange={(e) => setReference(e.target.value)}
+                  className={inputClass}
+                  placeholder="Receipt # or bank ref"
                 />
               </div>
 
               <div>
-                <label className="block text-xs uppercase tracking-wider text-slate-500 mb-2">Note {formMode === 'refund' ? '(Required)' : '(Optional)'}</label>
+                <label className={labelClass}>
+                  Note {formMode === 'refund' ? '(required)' : '(optional)'}
+                </label>
                 <textarea
                   value={note}
-                  onChange={e => setNote(e.target.value)}
+                  onChange={(e) => setNote(e.target.value)}
                   required={formMode === 'refund'}
-                  className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors resize-none h-24"
-                  placeholder="Additional details..."
+                  className={`${inputClass} h-24 resize-none`}
+                  placeholder="Additional details…"
                 />
               </div>
 
-              {error && (
-                <div className="text-red-400 text-sm bg-red-400/10 p-3 rounded-lg border border-red-400/20">
+              {error ? (
+                <div className="rounded-[12px] border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700">
                   {error}
                 </div>
-              )}
+              ) : null}
 
               <button
                 type="submit"
                 disabled={isSubmitting}
                 aria-busy={isSubmitting || undefined}
-                className={`w-full text-white font-medium py-3 rounded-xl transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
-                  formMode === 'payment' ? 'bg-blue-600 hover:bg-blue-500' : 'bg-amber-600 hover:bg-amber-500'
+                className={`inline-flex w-full min-h-11 items-center justify-center gap-2 rounded-[12px] px-4 text-[14px] font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  formMode === 'payment'
+                    ? 'bg-[var(--admin-primary-navy)] hover:bg-[#163a66]'
+                    : 'bg-amber-600 hover:bg-amber-500'
                 }`}
               >
                 <LoadingButtonContent loading={isSubmitting} loadingLabel="Recording...">
-                  {formMode === 'payment' ? 'Record Payment' : 'Record Refund'}
+                  {formMode === 'payment' ? 'Record payment' : 'Record refund'}
                 </LoadingButtonContent>
               </button>
-
             </form>
           </div>
-        )}
-      </div>
 
-      {/* RIGHT COLUMN: BALANCE & LEDGER */}
-      <div className="lg:col-span-7 space-y-8">
-        
-        {selectedCustomer ? (
-          <>
-            {/* Balance Card */}
-            <div className="bg-gradient-to-br from-blue-900/40 to-[#0c1326]/80 border border-blue-500/20 rounded-2xl p-8 backdrop-blur-xl flex items-center justify-between">
-              <div>
-                <div className="text-sm font-medium text-blue-200/70 mb-1 uppercase tracking-widest">Available Credit</div>
-                <div className="text-5xl font-serif tracking-tight text-white">{formatMoney(balanceCents)}</div>
+          <div className="p-5">
+            <h3 className="mb-4 text-[15px] font-semibold text-[var(--admin-text)]">Credit history</h3>
+
+            {loadingData ? (
+              <div className="flex items-center justify-center gap-2 py-16 text-sm text-[var(--admin-text-muted)]">
+                <Spinner size="sm" />
+                Loading ledger…
               </div>
-              <span className="material-symbols-outlined text-6xl text-blue-500/20" style={{ fontVariationSettings: "'FILL' 1" }}>
-                account_balance_wallet
-              </span>
-            </div>
-
-            {/* Ledger Table */}
-            <div className="bg-[#0c1326]/50 border border-white/5 rounded-2xl overflow-hidden backdrop-blur-xl">
-              <div className="p-6 border-b border-white/5">
-                <h3 className="text-white font-medium">Customer Credit History</h3>
+            ) : transactions.length === 0 ? (
+              <div className="rounded-[12px] border border-dashed border-[rgba(12,35,64,0.14)] bg-[rgba(247,251,255,0.7)] px-5 py-12 text-center text-[13px] text-[var(--admin-text-muted)]">
+                No credit history yet for this customer.
               </div>
-              
-              {loadingData ? (
-                <div className="p-10 flex items-center justify-center gap-2 text-slate-500 text-sm">
-                  <Spinner size="sm" />
-                  Loading ledger...
-                </div>
-              ) : transactions.length === 0 ? (
-                <div className="p-10 text-center text-slate-500 text-sm">No credit history found.</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-white/5 text-slate-500 uppercase tracking-wider text-[10px] font-semibold bg-white/[0.02]">
-                        <th className="px-6 py-4 font-medium">Date</th>
-                        <th className="px-6 py-4 font-medium">Type</th>
-                        <th className="px-6 py-4 font-medium">Details</th>
-                        <th className="px-6 py-4 font-medium text-right">Amount</th>
-                        <th className="px-6 py-4 font-medium text-right">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {transactions.map(tx => {
-                        const isPositive = tx.amount_cents > 0
-                        const isReversed = transactions.some(t => t.entry_type === 'credit_reversed' && t.reversed_entry_id === tx.id)
-                        const canReverse = tx.entry_type === 'advance_credit' && !isReversed
+            ) : (
+              <div className="overflow-x-auto rounded-[12px] border border-[rgba(12,35,64,0.10)]">
+                <table className="w-full min-w-[480px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-[rgba(12,35,64,0.08)] bg-[rgba(12,35,64,0.03)] text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-muted)]">
+                      <th className="px-4 py-3 font-bold">Date</th>
+                      <th className="px-4 py-3 font-bold">Type</th>
+                      <th className="px-4 py-3 font-bold">Details</th>
+                      <th className="px-4 py-3 text-right font-bold">Amount</th>
+                      <th className="px-4 py-3 text-right font-bold">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[rgba(12,35,64,0.08)]">
+                    {transactions.map((tx) => {
+                      const isPositive = tx.amount_cents > 0
+                      const isReversed = transactions.some(
+                        (t) => t.entry_type === 'credit_reversed' && t.reversed_entry_id === tx.id,
+                      )
+                      const canReverse = tx.entry_type === 'advance_credit' && !isReversed
 
-                        return (
-                          <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors">
-                            <td className="px-6 py-4 text-slate-400 whitespace-nowrap">
-                              {formatDateFromISO(tx.created_at)}
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className={`inline-flex items-center px-2 py-1 rounded text-[10px] uppercase tracking-wider font-semibold ${
-                                isPositive 
-                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                              }`}>
-                                {getEntryLabel(tx.entry_type)}
+                      return (
+                        <tr key={tx.id} className="bg-white transition-colors hover:bg-[rgba(247,251,255,0.9)]">
+                          <td className="whitespace-nowrap px-4 py-3.5 text-[var(--admin-text-muted)]">
+                            {formatDateFromISO(tx.created_at)}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span
+                              className={`inline-flex items-center rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${
+                                isPositive
+                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                  : 'border-amber-200 bg-amber-50 text-amber-700'
+                              }`}
+                            >
+                              {getEntryLabel(tx.entry_type)}
+                            </span>
+                          </td>
+                          <td className="max-w-[180px] px-4 py-3.5 text-[var(--admin-text)]">
+                            {tx.note || <span className="italic text-[var(--admin-text-muted)]">No notes</span>}
+                          </td>
+                          <td
+                            className={`px-4 py-3.5 text-right font-semibold tabular-nums ${
+                              isPositive ? 'text-emerald-700' : 'text-[var(--admin-text)]'
+                            }`}
+                          >
+                            {isPositive ? '+' : ''}
+                            {formatMoney(tx.amount_cents)}
+                          </td>
+                          <td className="px-4 py-3.5 text-right">
+                            {canReverse ? (
+                              <button
+                                type="button"
+                                onClick={() => handleReverse(tx.id)}
+                                disabled={reversingId === tx.id}
+                                aria-busy={reversingId === tx.id || undefined}
+                                className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[var(--admin-text-muted)] transition-colors hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <LoadingButtonContent loading={reversingId === tx.id} loadingLabel="Reversing...">
+                                  Reverse
+                                </LoadingButtonContent>
+                              </button>
+                            ) : isReversed ? (
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--admin-text-muted)]">
+                                Reversed
                               </span>
-                            </td>
-                            <td className="px-6 py-4 text-slate-300">
-                              {tx.note || <span className="text-slate-600 italic">No notes</span>}
-                            </td>
-                            <td className={`px-6 py-4 text-right font-medium tabular-nums ${isPositive ? 'text-emerald-400' : 'text-slate-300'}`}>
-                              {isPositive ? '+' : ''}{formatMoney(tx.amount_cents)}
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              {canReverse ? (
-                                <button
-                                  onClick={() => handleReverse(tx.id)}
-                                  disabled={reversingId === tx.id}
-                                  aria-busy={reversingId === tx.id || undefined}
-                                  className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-red-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <LoadingButtonContent loading={reversingId === tx.id} loadingLabel="Reversing...">
-                                    Reverse
-                                  </LoadingButtonContent>
-                                </button>
-                              ) : isReversed ? (
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-600">Reversed</span>
-                              ) : (
-                                <span></span>
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="h-full min-h-[400px] border border-white/5 border-dashed rounded-2xl flex flex-col items-center justify-center text-slate-500 p-10 text-center">
-            <span className="material-symbols-outlined text-4xl mb-4 opacity-50">search</span>
-            <p>Select a customer to view their available credit<br/>and transaction history.</p>
+                            ) : (
+                              <span />
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

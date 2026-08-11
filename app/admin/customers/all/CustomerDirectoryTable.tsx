@@ -105,6 +105,8 @@ function hasTextSelection() {
   return Boolean(selection && selection.toString().trim().length > 0)
 }
 
+const PAGE_SIZE = 10
+
 function getStatusFilterLabel(key: CustomerFilterKey) {
   return FILTERS.find((filter) => filter.key === key)?.label ?? 'All'
 }
@@ -307,9 +309,12 @@ export default function CustomerDirectoryTable({
 }) {
   const router = useRouter()
   const listRef = useRef<HTMLElement | null>(null)
+  const listScrollRef = useRef<HTMLDivElement | null>(null)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const [query, setQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState<CustomerFilterKey>(getStatusFromQuery(initialFilter))
   const [pendingListScroll, setPendingListScroll] = useState(0)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
   useEffect(() => {
     setActiveFilter(getStatusFromQuery(initialFilter))
@@ -338,6 +343,16 @@ export default function CustomerDirectoryTable({
   }, [rows, query, activeFilter])
 
   useEffect(() => {
+    setVisibleCount(PAGE_SIZE)
+  }, [activeFilter, query, rows.length])
+
+  const visibleRows = useMemo(
+    () => filteredRows.slice(0, visibleCount),
+    [filteredRows, visibleCount],
+  )
+  const hasMoreRows = visibleCount < filteredRows.length
+
+  useEffect(() => {
     if (pendingListScroll === 0) return
 
     const frame = window.requestAnimationFrame(() => {
@@ -351,6 +366,26 @@ export default function CustomerDirectoryTable({
 
     return () => window.cancelAnimationFrame(frame)
   }, [filteredRows.length, activeFilter, pendingListScroll])
+
+  useEffect(() => {
+    if (!loadMoreRef.current || !hasMoreRows || !listScrollRef.current) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisibleCount((current) => Math.min(current + PAGE_SIZE, filteredRows.length))
+        }
+      },
+      {
+        root: listScrollRef.current,
+        rootMargin: '0px 0px 240px 0px',
+        threshold: 0.1,
+      },
+    )
+
+    observer.observe(loadMoreRef.current)
+    return () => observer.disconnect()
+  }, [filteredRows.length, hasMoreRows])
 
   const hasFiltersApplied = activeFilter !== 'all' || query.trim().length > 0
 
@@ -485,7 +520,7 @@ export default function CustomerDirectoryTable({
                 </h2>
               </div>
               <p className="text-[12.5px] font-semibold text-white/80">
-                Showing {filteredRows.length} of {rows.length} customers
+                Showing {visibleRows.length} of {filteredRows.length} customers
               </p>
             </div>
           </div>
@@ -518,13 +553,76 @@ export default function CustomerDirectoryTable({
             </div>
           ) : (
             <>
-              <div className="hidden lg:block">
-                <div className="divide-y divide-[rgba(12,35,64,0.08)]">
-                  {filteredRows.map((row) => {
+              <div
+                ref={listScrollRef}
+                className="max-h-[calc(100vh-9.5rem)] overflow-y-auto sm:max-h-[calc(100vh-11.5rem)] lg:max-h-[calc(100vh-13.5rem)]"
+              >
+                <div className="hidden lg:block">
+                  <div className="divide-y divide-[rgba(12,35,64,0.08)]">
+                    {visibleRows.map((row) => {
+                      const status = getCustomerDerivedStatusMeta(row.lifecycleStatus)
+                      const presentation = getRowPresentation(row)
+                      const phoneText = formatPhone(row.phone)
+                      const initials = getCustomerInitials(row.fullName)
+                      const href = customerDetailHref(row.id)
+
+                      return (
+                        <RowLink
+                          key={row.id}
+                          href={href}
+                          label={`Open ${row.fullName} customer profile`}
+                          className="group block cursor-pointer select-text focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-inset"
+                        >
+                          <div className="grid min-h-[120px] grid-cols-[4px_minmax(0,0.48fr)_minmax(0,1.08fr)_minmax(0,1.7fr)_minmax(0,1.04fr)] items-center gap-x-5 bg-white px-0 py-0 transition-colors group-hover:bg-[var(--customer-directory-row-hover)] group-focus-visible:bg-[var(--customer-directory-row-hover)] group-active:bg-[rgba(26,79,214,0.04)]">
+                            <div className={`h-full min-h-[120px] ${presentation.accentClass}`} />
+
+                            <div className="flex justify-center py-5">
+                              <div className={`flex h-12 w-12 items-center justify-center rounded-full border ${presentation.iconWrapClass}`}>
+                                <span className={`material-symbols-outlined text-[18px] ${presentation.iconClass}`} aria-hidden="true">
+                                  {presentation.icon}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="min-w-0 py-5">
+                              <div className="flex items-start gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[rgba(12,35,64,0.10)] bg-[rgba(242,246,251,0.95)] text-[12px] font-bold text-[var(--admin-text)]">
+                                  {initials}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="truncate text-[15px] font-[650] text-[var(--admin-text)]">{row.fullName}</p>
+                                  <p className="mt-1 text-[12.5px] text-[var(--admin-text-muted)]">{presentation.badgeLabel}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="min-w-0 py-5">
+                              <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11.5px] font-semibold ${presentation.badgeToneClass}`}>
+                                {presentation.badgeLabel}
+                              </span>
+                              <p className="mt-2 max-w-[28rem] text-[13px] leading-[1.45] text-[var(--admin-text-muted)]">
+                                {row.needsAttention ? row.attentionReason ?? status.description : status.description}
+                              </p>
+                            </div>
+
+                            <div className="min-w-0 py-5 pr-6">
+                              <p className="break-words text-[13px] font-medium text-[var(--admin-text)]">{row.email}</p>
+                              <p className="mt-1 break-words text-[12.5px] text-[var(--admin-text-muted)]">{phoneText}</p>
+                              <p className="mt-1 text-[12px] text-[var(--admin-text-muted)]">
+                                {phoneText === '—' ? 'Email only on file' : 'Email and phone on file'}
+                              </p>
+                            </div>
+                          </div>
+                        </RowLink>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 lg:hidden">
+                  {visibleRows.map((row) => {
                     const status = getCustomerDerivedStatusMeta(row.lifecycleStatus)
                     const presentation = getRowPresentation(row)
-                    const phoneText = formatPhone(row.phone)
-                    const initials = getCustomerInitials(row.fullName)
                     const href = customerDetailHref(row.id)
 
                     return (
@@ -532,117 +630,61 @@ export default function CustomerDirectoryTable({
                         key={row.id}
                         href={href}
                         label={`Open ${row.fullName} customer profile`}
-                        className="group block cursor-pointer select-text focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-inset"
+                        className="group relative block min-h-[180px] cursor-pointer overflow-hidden rounded-[12px] border border-[rgba(12,35,64,0.10)] bg-white transition-colors hover:bg-[var(--customer-directory-row-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-inset active:bg-[rgba(26,79,214,0.04)]"
                       >
-                        <div className="grid min-h-[120px] grid-cols-[4px_minmax(0,0.48fr)_minmax(0,1.08fr)_minmax(0,1.7fr)_minmax(0,1.04fr)] items-center gap-x-5 bg-white px-0 py-0 transition-colors group-hover:bg-[var(--customer-directory-row-hover)] group-focus-visible:bg-[var(--customer-directory-row-hover)] group-active:bg-[rgba(26,79,214,0.04)]">
-                          <div className={`h-full min-h-[120px] ${presentation.accentClass}`} />
+                        <div className={`absolute inset-y-0 left-0 w-1 ${presentation.accentClass}`} />
 
-                          <div className="flex justify-center py-5">
-                            <div className={`flex h-12 w-12 items-center justify-center rounded-full border ${presentation.iconWrapClass}`}>
+                        <div className="relative flex flex-col gap-4 p-4 transition-colors group-focus-visible:bg-[var(--customer-directory-row-hover)]">
+                          <div className="flex items-start gap-3">
+                            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${presentation.iconWrapClass}`}>
                               <span className={`material-symbols-outlined text-[18px] ${presentation.iconClass}`} aria-hidden="true">
                                 {presentation.icon}
                               </span>
                             </div>
-                          </div>
-
-                          <div className="min-w-0 py-5">
-                            <div className="flex items-start gap-3">
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[rgba(12,35,64,0.10)] bg-[rgba(242,246,251,0.95)] text-[12px] font-bold text-[var(--admin-text)]">
-                                {initials}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <p className="break-words text-[15px] font-[650] leading-[1.3] text-[var(--admin-text)]">
+                                    {row.fullName}
+                                  </p>
+                                  <p className="mt-1 break-words text-[13px] text-[var(--admin-text-muted)]">
+                                    {row.email}
+                                  </p>
+                                </div>
                               </div>
-                              <div className="min-w-0">
-                                <p className="truncate text-[15px] font-[650] text-[var(--admin-text)]">{row.fullName}</p>
-                                <p className="mt-1 text-[12.5px] text-[var(--admin-text-muted)]">{presentation.badgeLabel}</p>
+                              <div className="mt-3">
+                                <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11.5px] font-semibold ${presentation.badgeToneClass}`}>
+                                  {presentation.badgeLabel}
+                                </span>
                               </div>
                             </div>
                           </div>
 
-                          <div className="min-w-0 py-5">
-                            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11.5px] font-semibold ${presentation.badgeToneClass}`}>
-                              {presentation.badgeLabel}
-                            </span>
-                            <p className="mt-2 max-w-[28rem] text-[13px] leading-[1.45] text-[var(--admin-text-muted)]">
-                              {row.needsAttention ? row.attentionReason ?? status.description : status.description}
-                            </p>
-                          </div>
+                          <p className="text-[13px] leading-[1.45] text-[var(--admin-text-muted)]">
+                            {row.needsAttention ? row.attentionReason ?? status.description : status.description}
+                          </p>
 
-                          <div className="min-w-0 py-5 pr-6">
-                            <p className="break-words text-[13px] font-medium text-[var(--admin-text)]">{row.email}</p>
-                            <p className="mt-1 break-words text-[12.5px] text-[var(--admin-text-muted)]">{phoneText}</p>
-                            <p className="mt-1 text-[12px] text-[var(--admin-text-muted)]">
-                              {phoneText === '—' ? 'Email only on file' : 'Email and phone on file'}
-                            </p>
+                          <div className="grid gap-2 text-[13px] sm:grid-cols-2">
+                            <div className="rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5">
+                              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-dim)]">Phone</p>
+                              <p className="mt-1 text-[var(--admin-text)]">{formatPhone(row.phone)}</p>
+                              <p className="mt-1 text-[12px] text-[var(--admin-text-muted)]">
+                                {formatPhone(row.phone) === '—' ? 'No phone on file' : 'Phone available'}
+                              </p>
+                            </div>
+                            <div className="rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5">
+                              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-dim)]">Email</p>
+                              <p className="mt-1 break-words text-[var(--admin-text)]">{row.email}</p>
+                              <p className="mt-1 text-[12px] text-[var(--admin-text-muted)]">Primary email on file</p>
+                            </div>
                           </div>
                         </div>
                       </RowLink>
                     )
                   })}
                 </div>
-              </div>
 
-              <div className="grid gap-3 lg:hidden">
-                {filteredRows.map((row) => {
-                  const status = getCustomerDerivedStatusMeta(row.lifecycleStatus)
-                  const presentation = getRowPresentation(row)
-                  const href = customerDetailHref(row.id)
-
-                  return (
-                    <RowLink
-                      key={row.id}
-                      href={href}
-                      label={`Open ${row.fullName} customer profile`}
-                      className="group relative block min-h-[180px] cursor-pointer overflow-hidden rounded-[12px] border border-[rgba(12,35,64,0.10)] bg-white transition-colors hover:bg-[var(--customer-directory-row-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-inset active:bg-[rgba(26,79,214,0.04)]"
-                    >
-                      <div className={`absolute inset-y-0 left-0 w-1 ${presentation.accentClass}`} />
-
-                      <div className="relative flex flex-col gap-4 p-4 transition-colors group-focus-visible:bg-[var(--customer-directory-row-hover)]">
-                        <div className="flex items-start gap-3">
-                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${presentation.iconWrapClass}`}>
-                            <span className={`material-symbols-outlined text-[18px] ${presentation.iconClass}`} aria-hidden="true">
-                              {presentation.icon}
-                            </span>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start gap-2">
-                              <div className="min-w-0 flex-1">
-                                <p className="break-words text-[15px] font-[650] leading-[1.3] text-[var(--admin-text)]">
-                                  {row.fullName}
-                                </p>
-                                <p className="mt-1 break-words text-[13px] text-[var(--admin-text-muted)]">
-                                  {row.email}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="mt-3">
-                              <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11.5px] font-semibold ${presentation.badgeToneClass}`}>
-                                {presentation.badgeLabel}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <p className="text-[13px] leading-[1.45] text-[var(--admin-text-muted)]">
-                          {row.needsAttention ? row.attentionReason ?? status.description : status.description}
-                        </p>
-
-                        <div className="grid gap-2 text-[13px] sm:grid-cols-2">
-                          <div className="rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5">
-                            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-dim)]">Phone</p>
-                            <p className="mt-1 text-[var(--admin-text)]">{formatPhone(row.phone)}</p>
-                            <p className="mt-1 text-[12px] text-[var(--admin-text-muted)]">
-                              {formatPhone(row.phone) === '—' ? 'No phone on file' : 'Phone available'}
-                            </p>
-                          </div>
-                          <div className="rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5">
-                            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-dim)]">Email</p>
-                            <p className="mt-1 break-words text-[var(--admin-text)]">{row.email}</p>
-                            <p className="mt-1 text-[12px] text-[var(--admin-text-muted)]">Primary email on file</p>
-                          </div>
-                        </div>
-                      </div>
-                    </RowLink>
-                  )
-                })}
+                {hasMoreRows ? <div ref={loadMoreRef} className="h-px" /> : null}
               </div>
             </>
           )}
