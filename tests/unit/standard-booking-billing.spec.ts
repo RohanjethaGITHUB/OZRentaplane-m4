@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import { buildReadingsFromTotals } from '@/lib/aircraft-flight-log'
 import { calculateAircraftReadingsTotals } from '@/lib/aircraft-readings'
 import {
+  resolveMaximumVdoHours,
   resolveMinimumVdoBilling,
   resolveStandardBookingBillingBranch,
 } from '@/lib/booking/standard-booking-billing'
@@ -122,4 +123,20 @@ test('minimum VDO billing resolves the per-day 4-hour minimum and requires a dec
     requiresDecision: false,
     appliedDecision: null,
   })
+})
+
+test('maximum VDO hours is 24h for same-day bookings and 24h per day for multi-day', () => {
+  // Same-day / sub-24h slots: bookingDays resolves to 0 for the minimum, but
+  // the max must still allow a full day of flying (was previously 0 and blocked all finals).
+  expect(resolveMaximumVdoHours(0)).toBe(24)
+  expect(resolveMaximumVdoHours(1)).toBe(24)
+  expect(resolveMaximumVdoHours(7)).toBe(168)
+
+  const sameDay = resolveMinimumVdoBilling({
+    bookingSlotHours: 2.5,
+    actualVdoHours: 2,
+  })
+  expect(sameDay.bookingDays).toBe(0)
+  expect(sameDay.billedVdoHours).toBe(2)
+  expect(2 > resolveMaximumVdoHours(sameDay.bookingDays)).toBe(false)
 })

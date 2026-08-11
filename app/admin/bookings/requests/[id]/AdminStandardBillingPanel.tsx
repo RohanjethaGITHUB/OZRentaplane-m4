@@ -40,11 +40,17 @@ type BlockTimeSummary = {
   expiresAt: string
 }
 
+type InitialLandingCharge = {
+  airportId: string
+  landingCount: number
+}
+
 type Props = {
   bookingId: string
   airports: Airport[]
   customerCreditCents: number
   initialFlightRecord: FlightRecord
+  initialLandingCharges?: InitialLandingCharge[]
   startSuggestions: AircraftContinuityBaseline
   bookingSlotHours: number
   activeBlockTime?: BlockTimeSummary | null
@@ -72,6 +78,7 @@ export default function AdminStandardBillingPanel({
   airports,
   customerCreditCents,
   initialFlightRecord,
+  initialLandingCharges = [],
   startSuggestions,
   bookingSlotHours,
   activeBlockTime,
@@ -91,7 +98,13 @@ export default function AdminStandardBillingPanel({
   const initialHourlyRate = lockedHourlyRate ?? defaultHourlyRate
   const [hourlyRate, setHourlyRate] = useState(String(initialHourlyRate))
   const [adminNotes, setAdminNotes] = useState(initialFlightRecord.customer_notes ?? '')
-  const [landings, setLandings] = useState(numberInputValue(initialFlightRecord.landings))
+  const [landings, setLandings] = useState(() => {
+    if (initialLandingCharges.length > 0) {
+      const total = initialLandingCharges.reduce((sum, row) => sum + row.landingCount, 0)
+      return total > 0 ? String(total) : numberInputValue(initialFlightRecord.landings)
+    }
+    return numberInputValue(initialFlightRecord.landings)
+  })
   const [readings, setReadings] = useState<TotalOnlyFormValues>({
     tacho_total:      numberInputValue(initialFlightRecord.tacho_total),
     vdo_total:        numberInputValue(initialFlightRecord.vdo_total),
@@ -103,10 +116,19 @@ export default function AdminStandardBillingPanel({
     fuel_returned:    numberInputValue(initialFlightRecord.fuel_returned),
   })
   const [landingRows, setLandingRows] = useState<LandingChargeRow[]>(() => {
+    if (initialLandingCharges.length > 0) {
+      return initialLandingCharges.map((row) => ({
+        id: ++rowIdCounter,
+        airportId: row.airportId,
+        landingCount: String(row.landingCount),
+      }))
+    }
     const initialAirportId = getInitialAirportId(airports)
+    // Optional landings: leave a blank row (empty count) so we do not show
+    // "Airport is required" until the admin starts filling a landing charge.
     return initialFlightRecord.landings != null && initialFlightRecord.landings > 0
       ? [{ id: ++rowIdCounter, airportId: initialAirportId, landingCount: String(initialFlightRecord.landings) }]
-      : [{ id: ++rowIdCounter, airportId: '', landingCount: '1' }]
+      : [{ id: ++rowIdCounter, airportId: '', landingCount: '' }]
   })
 
   useEffect(() => {
@@ -188,11 +210,9 @@ export default function AdminStandardBillingPanel({
     readingsError = validationError instanceof Error
       ? validationError.message.replace(/^VALIDATION: /, '')
       : 'Invalid readings.'
-    console.log("TEMP-DEBUG: AdminStandardBillingPanel.tsx readingsError set to:", readingsError, "triggered by:", validationError); // TEMP-DEBUG
   }
 
   const totals      = readingsError ? null : normalisedReadings
-  console.log("TEMP-DEBUG: AdminStandardBillingPanel.tsx totals evaluated to:", totals, "because readingsError is:", readingsError); // TEMP-DEBUG
   const vdoReading  = totals?.vdo_total ?? null
   const minimumVdoBilling = resolveMinimumVdoBilling({
     bookingSlotHours,
@@ -239,7 +259,6 @@ export default function AdminStandardBillingPanel({
   const subtotalCents      = vdoBaseCents + landingSubtotalCents
   const creditApplicable   = Math.min(customerCreditCents, subtotalCents)
   const estimatedAmountDue = Math.max(subtotalCents - creditApplicable, 0)
-  console.log("TEMP-DEBUG: AdminStandardBillingPanel.tsx vdoBaseCents:", vdoBaseCents, "subtotalCents:", subtotalCents, "estimatedAmountDue:", estimatedAmountDue); // TEMP-DEBUG
 
   function handleSubmit() {
     if (readingsError) {

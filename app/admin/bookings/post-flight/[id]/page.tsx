@@ -142,9 +142,10 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
   let airports: { id: string; icao_code: string; name: string; default_landing_fee_cents: number }[] = []
   let customerCreditCents = 0
   let activeBlockTime: { hoursRemaining: number; ratePerHour: number; expiresAt: string } | null = null
+  let initialLandingCharges: { airportId: string; landingCount: number }[] = []
 
   if (isStandardBillingReady && customerId) {
-    const [{ data: airportRows }, { data: creditRow }, { data: activeBlockTimeRow }] = await Promise.all([
+    const [{ data: airportRows }, { data: creditRow }, { data: activeBlockTimeRow }, { data: landingRows }] = await Promise.all([
       supabase
         .from('airports')
         .select('id, icao_code, name, default_landing_fee_cents')
@@ -165,6 +166,10 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
         .order('activated_at', { ascending: true })
         .limit(1)
         .maybeSingle(),
+      supabase
+        .from('flight_record_landings')
+        .select('airport_id, landing_count')
+        .eq('flight_record_id', record.id),
     ])
 
     const rawAirports = (airportRows ?? []) as typeof airports
@@ -177,6 +182,12 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
       return a.name.localeCompare(b.name)
     })
     customerCreditCents = (creditRow as { balance_cents?: number } | null)?.balance_cents ?? 0
+    initialLandingCharges = ((landingRows ?? []) as { airport_id: string; landing_count: number }[])
+      .filter((row) => row.airport_id && Number(row.landing_count) > 0)
+      .map((row) => ({
+        airportId: row.airport_id,
+        landingCount: Number(row.landing_count),
+      }))
     activeBlockTime = (activeBlockTimeRow as { hours_remaining: number; rate_per_hour: number; expires_at: string } | null)
       ? {
           hoursRemaining: Number((activeBlockTimeRow as { hours_remaining: number }).hours_remaining),
@@ -354,6 +365,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
             airports={airports}
             customerCreditCents={customerCreditCents}
             initialFlightRecord={record}
+            initialLandingCharges={initialLandingCharges}
             startSuggestions={flightLogStartSuggestions}
             bookingSlotHours={bookingSlotHours}
             activeBlockTime={activeBlockTime}

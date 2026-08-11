@@ -1082,6 +1082,15 @@ export default async function CustomerBookingsPage() {
                               >
                                 {bookingInvoiceLabel}
                               </Link>
+                              {booking.status === 'payment_pending' && (
+                                <Link
+                                  href={`/dashboard/bookings/${booking.id}#payment`}
+                                  className="flex items-center justify-center gap-1.5 whitespace-nowrap bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e] text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">payments</span>
+                                  Pay Invoice
+                                </Link>
+                              )}
                             </>
                           )}
                         </div>

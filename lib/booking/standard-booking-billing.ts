@@ -46,6 +46,16 @@ export function resolveStandardBookingBillingBranch(input: {
   }
 }
 
+/**
+ * Maximum billable VDO hours for a booking.
+ * Sub-24h (same-day) slots still allow up to 24h; multi-day slots allow 24h × days.
+ * Important: do not multiply by bookingDays when it is 0 — that incorrectly
+ * rejects every positive VDO readi ng on normal short bookings.
+ */
+export function resolveMaximumVdoHours(bookingDays: number): number {
+  return 24.0 * Math.max(1, bookingDays)
+}
+
 export function resolveMinimumVdoBilling(input: {
   bookingSlotHours: number
   actualVdoHours: number | null
@@ -55,10 +65,8 @@ export function resolveMinimumVdoBilling(input: {
     ? Math.floor(input.bookingSlotHours / 24)
     : 0
   const minimumVdoHours = bookingDays * 4
-  console.log("TEMP-DEBUG: standard-booking-billing.ts entering resolveMinimumVdoBilling", "input:", input, "minimumVdoHours:", minimumVdoHours); // TEMP-DEBUG
 
   if (input.actualVdoHours == null) {
-    console.log("TEMP-DEBUG: standard-booking-billing.ts taking null short-circuit branch (59-69)"); // TEMP-DEBUG
     return {
       bookingDays,
       minimumVdoHours,
@@ -72,7 +80,6 @@ export function resolveMinimumVdoBilling(input: {
 
   const isBelowMinimum = input.actualVdoHours < minimumVdoHours
   if (!isBelowMinimum) {
-    console.log("TEMP-DEBUG: standard-booking-billing.ts taking !isBelowMinimum branch (72-82)"); // TEMP-DEBUG
     return {
       bookingDays,
       minimumVdoHours,
@@ -85,7 +92,6 @@ export function resolveMinimumVdoBilling(input: {
   }
 
   if (input.decision == null) {
-    console.log("TEMP-DEBUG: standard-booking-billing.ts taking input.decision == null branch (84-94)"); // TEMP-DEBUG
     return {
       bookingDays,
       minimumVdoHours,
@@ -101,7 +107,6 @@ export function resolveMinimumVdoBilling(input: {
     ? minimumVdoHours
     : input.actualVdoHours
 
-  console.log("TEMP-DEBUG: standard-booking-billing.ts taking default branch"); // TEMP-DEBUG
   return {
     bookingDays,
     minimumVdoHours,

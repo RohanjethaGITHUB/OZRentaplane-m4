@@ -426,9 +426,15 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           .eq('booking_id', booking.id)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
-    // Flight record — fetched for standard billing panel
+    // Flight record — fetched for standard billing panel (include per-airport landings)
     isStandardBillingPending
-      ? supabase.from('flight_records').select('*').eq('booking_id', booking.id).order('submitted_at', { ascending: false }).limit(1).maybeSingle()
+      ? supabase
+          .from('flight_records')
+          .select('*, flight_record_landings(airport_id, landing_count)')
+          .eq('booking_id', booking.id)
+          .order('submitted_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     isCheckoutRequested
       ? supabase
@@ -613,6 +619,17 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         expiresAt: (activeBlockTimeRow as { expires_at: string }).expires_at,
       }
     : null
+  const flightRecordLandingRows = (
+    (flightRecordRow as {
+      flight_record_landings?: { airport_id: string; landing_count: number }[] | null
+    } | null)?.flight_record_landings ?? []
+  )
+  const initialLandingCharges = flightRecordLandingRows
+    .filter((row) => row.airport_id && Number(row.landing_count) > 0)
+    .map((row) => ({
+      airportId: row.airport_id,
+      landingCount: Number(row.landing_count),
+    }))
   const bookingInvoiceStatus = (standardBookingInvoiceRow as { status?: string | null } | null)?.status ?? null
   const billingStatusLabel = bookingInvoiceStatus ?? (booking as { payment_status?: string | null }).payment_status ?? null
   const standardInvoice = (standardBookingInvoiceRow as {
@@ -1655,6 +1672,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               airports={airports}
               customerCreditCents={customerCreditCents}
               initialFlightRecord={flightRecordRow}
+              initialLandingCharges={initialLandingCharges}
               startSuggestions={flightLogStartSuggestions}
               bookingSlotHours={bookingSlotHours}
               activeBlockTime={activeBlockTime}
