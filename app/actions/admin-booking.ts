@@ -41,6 +41,7 @@ import {
   resolveStandardBookingBillingBranch,
   resolveBlockTimeLandingSettlement,
   resolveMinimumVdoBilling,
+  resolveMaximumVdoHours,
   type ManualSettlementMethod,
   type MinimumVdoDecision,
 } from '@/lib/booking/standard-booking-billing'
@@ -2627,7 +2628,7 @@ export async function finaliseStandardBookingInvoice(input: {
     )
   }
 
-  const maximumVdoHours = 24.0 * minimumVdoBilling.bookingDays
+  const maximumVdoHours = resolveMaximumVdoHours(minimumVdoBilling.bookingDays)
   if (vdoReading > maximumVdoHours) {
     throw new Error(`VALIDATION: VDO total (${vdoReading}h) exceeds maximum of ${maximumVdoHours.toFixed(1)}h.`)
   }
