@@ -769,13 +769,21 @@ export async function adminMarkAircraftReturned(bookingId: string) {
 // post_flight_approved → completed
 // All records approved, booking fully closed.
 export async function adminMarkCompleted(bookingId: string) {
-  return adminTransition(
+  await adminTransition(
     bookingId,
     'post_flight_approved',
     'completed',
     'Admin marked booking as completed.',
     'Booking closed as completed.',
   )
+
+  // Completed bookings must not keep active schedule holds (same as checkout / mark-paid).
+  const { supabase } = await requireAdmin()
+  await supabase
+    .from('schedule_blocks')
+    .update({ status: 'cancelled' })
+    .eq('related_booking_id', bookingId)
+    .eq('status', 'active')
 }
 
 // ─── Request post-flight clarification ───────────────────────────────────────
@@ -2960,6 +2968,14 @@ export async function finaliseStandardBookingInvoice(input: {
       throw new Error('Failed to update booking status after block time finalisation.')
     }
 
+    // Flight is closed — release any leftover active schedule holds so the
+    // slot is bookable again (availability keys off schedule_blocks.status).
+    await supabase
+      .from('schedule_blocks')
+      .update({ status: 'cancelled' })
+      .eq('related_booking_id', input.bookingId)
+      .eq('status', 'active')
+
     try {
       const { data: authData } = await supabase.auth.getUser()
       const blockTimeHistoryNote = minimumVdoOutcomeMessage
@@ -3480,6 +3496,16 @@ export async function finaliseStandardBookingInvoice(input: {
     }).catch((error) => console.error('[finaliseStandardBookingInvoice] email failed:', error))
   }
 
+  // When billing closes the booking (waived / credit / mark-paid), release any
+  // leftover active schedule holds. payment_pending keeps the hold until paid.
+  if (finalBookingStatus === 'completed') {
+    await supabase
+      .from('schedule_blocks')
+      .update({ status: 'cancelled' })
+      .eq('related_booking_id', input.bookingId)
+      .eq('status', 'active')
+  }
+
   revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
   revalidatePath(`/dashboard/bookings/${input.bookingId}`)
 
@@ -3593,15 +3619,13 @@ export async function adminSubmitFlightRecord(input: {
     minimumVdoDecision: input.minimumVdoDecision,
   })
 
-  // If the booking finished before its scheduled window ended, release any
-  // still-active schedule blocks so the aircraft slot frees up.
-  if (new Date(booking.scheduled_end).getTime() > Date.now()) {
-    await supabase
-      .from('schedule_blocks')
-      .update({ status: 'cancelled' })
-      .eq('related_booking_id', input.bookingId)
-      .eq('status', 'active')
-  }
+  // After post-flight finalisation the aircraft is free — release any leftover
+  // active schedule holds (including early-finish remaining window).
+  await supabase
+    .from('schedule_blocks')
+    .update({ status: 'cancelled' })
+    .eq('related_booking_id', input.bookingId)
+    .eq('status', 'active')
 }
 
 /**
