@@ -1,10 +1,9 @@
 'use client'
 
-import { Suspense, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { getCustomerSkeleton } from '@/components/ui/PageSkeletons'
 
 type PortalLink = {
   label: string
@@ -289,48 +288,5 @@ export default function CustomerPortalNav({
         </div>
       </nav>
     </>
-  )
-}
-
-/** Shows the destination page's skeleton immediately on in-app tab/route clicks. */
-export function PortalRouteSuspense({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
-  const [pendingPath, setPendingPath] = useState<string | null>(null)
-
-  useEffect(() => {
-    setPendingPath(null)
-  }, [pathname])
-
-  useEffect(() => {
-    function onClick(e: MouseEvent) {
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
-      const anchor = (e.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null
-      if (!anchor || anchor.hasAttribute('download') || anchor.target === '_blank') return
-      let url: URL
-      try {
-        url = new URL(anchor.href, window.location.href)
-      } catch {
-        return
-      }
-      if (url.origin !== window.location.origin) return
-      if (!url.pathname.startsWith('/dashboard')) return
-      if (url.pathname === pathname) return
-      setPendingPath(url.pathname)
-    }
-    document.addEventListener('click', onClick, true)
-    return () => document.removeEventListener('click', onClick, true)
-  }, [pathname])
-
-  const path = pathname ?? '/dashboard'
-  const skeletonPath = pendingPath ?? path
-
-  // Keep a stable Suspense boundary in the tree. Replacing it with a bare
-  // skeleton (or remounting via key) during nav/HMR can throw
-  // "Cannot read properties of undefined (reading 'call')" in
-  // updateDehydratedSuspenseComponent.
-  return (
-    <Suspense fallback={getCustomerSkeleton(skeletonPath)}>
-      {pendingPath ? getCustomerSkeleton(pendingPath) : children}
-    </Suspense>
   )
 }

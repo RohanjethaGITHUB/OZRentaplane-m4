@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient, getCachedProfile, getCachedUser } from '@/lib/supabase/server'
 import AtmoClouds from '@/components/AtmoClouds'
-import CustomerPortalNav, { PortalRouteSuspense } from '@/components/customer/CustomerPortalNav'
+import CustomerPortalNav from '@/components/customer/CustomerPortalNav'
 import CustomerDashboardBackgroundOverlay from './CustomerDashboardBackgroundOverlay'
 import { RealtimeProvider } from '@/components/realtime/RealtimeProvider'
 import { DashboardRealtimeListener } from '@/components/realtime/DashboardRealtimeListener'
@@ -80,9 +80,7 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
         <main className="relative z-10 mx-auto w-full max-w-[1440px] px-3 md:px-4 lg:px-6 pb-24 pt-4 md:pb-14 md:pt-4">
           <div className="relative">
             <div className="space-y-6">
-              <PortalRouteSuspense>
-                {children}
-              </PortalRouteSuspense>
+              {children}
             </div>
           </div>
         </main>

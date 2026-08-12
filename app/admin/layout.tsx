@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getCachedProfile, getCachedUser } from '@/lib/supabase/server'
-import AdminSidebar, { AdminRouteSuspense } from './AdminSidebar'
+import AdminSidebar from './AdminSidebar'
 import AdminOperationalCounts from './components/AdminOperationalCounts'
 import { RealtimeProvider } from '@/components/realtime/RealtimeProvider'
 import { AdminRealtimeListener } from '@/components/realtime/AdminRealtimeListener'
@@ -52,9 +52,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           {/* Page content */}
           <main className="flex-1 min-w-0 overflow-y-auto overflow-x-clip bg-[var(--admin-content-bg)] relative lg:pl-72 pb-[env(safe-area-inset-bottom)]">
             <div className="min-h-full">
-              <AdminRouteSuspense>
-                {children}
-              </AdminRouteSuspense>
+              {children}
             </div>
           </main>
         </div>
