@@ -10,6 +10,10 @@
 
 BEGIN;
 
+-- Ensure column exists before functions below write to it (added in 112; safe if already present).
+ALTER TABLE public.booking_bank_transfer_submissions
+  ADD COLUMN IF NOT EXISTS reviewed_by uuid REFERENCES auth.users(id) ON DELETE SET NULL;
+
 CREATE OR REPLACE FUNCTION public.release_related_schedule_blocks(p_booking_id uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -29,7 +33,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.release_related_schedule_blocks(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.release_related_schedule_blocks(uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.release_related_schedule_blocks(uuid) TO service_role;
 
 -- ── mark_booking_invoice_paid_atomic ─────────────────────────────────────────
@@ -83,8 +87,11 @@ BEGIN
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.mark_booking_invoice_paid_atomic(uuid, text, text, integer) FROM PUBLIC;
-GRANT  EXECUTE ON FUNCTION public.mark_booking_invoice_paid_atomic(uuid, text, text, integer) TO service_role;
+-- Match migration 109 lockdown: service_role only (Stripe / admin service client).
+REVOKE EXECUTE ON FUNCTION public.mark_booking_invoice_paid_atomic(uuid, text, text, integer)
+  FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.mark_booking_invoice_paid_atomic(uuid, text, text, integer)
+  TO service_role;
 
 -- ── approve_standard_bank_transfer_atomic ────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.approve_standard_bank_transfer_atomic(
@@ -191,8 +198,11 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.approve_standard_bank_transfer_atomic(uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.approve_standard_bank_transfer_atomic(uuid) TO authenticated;
+-- Self-guarded admin RPC: authenticated only (same posture as migration 109).
+REVOKE EXECUTE ON FUNCTION public.approve_standard_bank_transfer_atomic(uuid)
+  FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.approve_standard_bank_transfer_atomic(uuid)
+  TO authenticated;
 
 -- ── finalise_standard_booking_invoice_atomic ─────────────────────────────────
 -- When credit covers the full invoice the booking goes straight to completed;
@@ -373,6 +383,10 @@ BEGIN
 END;
 $$;
 
+-- Self-guarded admin RPC: keep authenticated, strip anon/PUBLIC (migration 109).
+REVOKE EXECUTE ON FUNCTION public.finalise_standard_booking_invoice_atomic(
+  uuid, uuid, numeric, integer, jsonb, text
+) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.finalise_standard_booking_invoice_atomic(
   uuid, uuid, numeric, integer, jsonb, text
 ) TO authenticated;

@@ -2429,6 +2429,132 @@ export async function adminApproveCancellationWaived(
   void emitOpsChanged()
 }
 
+function isMissingReviewedByColumnError(error: { message?: string; code?: string; details?: string } | null): boolean {
+  const text = `${error?.message ?? ''} ${error?.details ?? ''}`.toLowerCase()
+  return text.includes('reviewed_by') && text.includes('does not exist')
+}
+
+/** Fallback when DB is missing booking_bank_transfer_submissions.reviewed_by (migration 112). */
+async function approveStandardBankTransferWithoutReviewedBy(
+  adminId: string,
+  submissionId: string,
+  bookingId: string,
+): Promise<void> {
+  const admin = createAdminClient()
+  const now = new Date().toISOString()
+
+  const { data: sub, error: subErr } = await admin
+    .from('booking_bank_transfer_submissions')
+    .select('id, invoice_id, booking_id, customer_id, status, submitted_at, created_at')
+    .eq('id', submissionId)
+    .single()
+
+  if (subErr || !sub) throw new Error(subErr?.message || 'Submission not found.')
+  if (sub.booking_id !== bookingId) throw new Error('Submission does not belong to this booking.')
+  if (sub.status !== 'pending_review') throw new Error(`Submission is not pending review: ${sub.status}`)
+
+  const { data: invoice, error: invErr } = await admin
+    .from('booking_invoices')
+    .select('id, status, subtotal_cents, advance_applied_cents')
+    .eq('id', sub.invoice_id)
+    .single()
+
+  if (invErr || !invoice) throw new Error(invErr?.message || 'Invoice not found.')
+  if (!['payment_required', 'bank_transfer_pending_review'].includes(invoice.status)) {
+    throw new Error(`Invoice is not awaiting payment review: ${invoice.status}`)
+  }
+
+  const amountCents = (invoice.subtotal_cents ?? 0) - (invoice.advance_applied_cents ?? 0)
+
+  const { error: subUpdateErr } = await admin
+    .from('booking_bank_transfer_submissions')
+    .update({ status: 'approved', reviewed_at: now, updated_at: now })
+    .eq('id', submissionId)
+    .eq('status', 'pending_review')
+  if (subUpdateErr) throw new Error(subUpdateErr.message)
+
+  const { error: invUpdateErr } = await admin
+    .from('booking_invoices')
+    .update({
+      status: 'paid',
+      payment_method: 'bank_transfer',
+      total_paid_cents: amountCents,
+      paid_at: now,
+      updated_at: now,
+    })
+    .eq('id', sub.invoice_id)
+  if (invUpdateErr) throw new Error(invUpdateErr.message)
+
+  const { error: ledgerErr } = await admin.from('customer_payment_ledger').insert({
+    customer_id: sub.customer_id,
+    booking_id: sub.booking_id,
+    invoice_id: sub.invoice_id,
+    invoice_source_type: 'booking',
+    amount_cents: amountCents,
+    entry_type: 'bank_transfer',
+    payment_method: 'bank_transfer',
+    note: 'Bank transfer approved by admin',
+    created_by: adminId,
+  })
+  if (ledgerErr) throw new Error(ledgerErr.message)
+
+  const { error: bookingErr } = await admin
+    .from('bookings')
+    .update({ status: 'completed', updated_at: now })
+    .eq('id', sub.booking_id)
+  if (bookingErr) throw new Error(bookingErr.message)
+
+  await admin
+    .from('schedule_blocks')
+    .update({ status: 'cancelled', updated_at: now })
+    .eq('related_booking_id', sub.booking_id)
+    .eq('status', 'active')
+}
+
+async function rejectStandardBankTransferWithoutReviewedBy(
+  submissionId: string,
+  bookingId: string,
+  adminNote: string,
+): Promise<void> {
+  const admin = createAdminClient()
+  const now = new Date().toISOString()
+
+  const { data: sub, error: subErr } = await admin
+    .from('booking_bank_transfer_submissions')
+    .select('id, invoice_id, booking_id, status')
+    .eq('id', submissionId)
+    .single()
+
+  if (subErr || !sub) throw new Error(subErr?.message || 'Submission not found.')
+  if (sub.booking_id !== bookingId) throw new Error('Submission does not belong to this booking.')
+  if (sub.status !== 'pending_review') {
+    throw new Error(`Submission not found or not in pending_review state: ${submissionId}`)
+  }
+
+  const { error: subUpdateErr } = await admin
+    .from('booking_bank_transfer_submissions')
+    .update({
+      status: 'rejected',
+      admin_note: adminNote,
+      reviewed_at: now,
+      updated_at: now,
+    })
+    .eq('id', submissionId)
+    .eq('status', 'pending_review')
+  if (subUpdateErr) throw new Error(subUpdateErr.message)
+
+  const { error: invUpdateErr } = await admin
+    .from('booking_invoices')
+    .update({
+      status: 'payment_required',
+      paid_at: null,
+      updated_at: now,
+    })
+    .eq('id', sub.invoice_id)
+    .in('status', ['payment_required', 'bank_transfer_pending_review'])
+  if (invUpdateErr) throw new Error(invUpdateErr.message)
+}
+
 // ─── Confirm standard bank transfer ───────────────────────────────────────────
 export async function adminConfirmStandardBankTransfer(submissionId: string, bookingId: string): Promise<void> {
   const { supabase, adminId } = await requireAdmin()
@@ -2437,8 +2563,21 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
     p_submission_id: submissionId,
   })
   if (error) {
-    console.error('[adminConfirmStandardBankTransfer] RPC failed:', error)
-    throw new Error(error.message || 'Failed to confirm payment.')
+    if (isMissingReviewedByColumnError(error)) {
+      console.warn(
+        '[adminConfirmStandardBankTransfer] reviewed_by column missing — using fallback. Apply fix-reviewed-by-column.sql / migration 112.',
+        { message: error.message, code: error.code },
+      )
+      try {
+        await approveStandardBankTransferWithoutReviewedBy(adminId, submissionId, bookingId)
+      } catch (fallbackError: any) {
+        console.error('[adminConfirmStandardBankTransfer] fallback failed:', fallbackError)
+        throw new Error(fallbackError?.message || 'Failed to confirm payment.')
+      }
+    } else {
+      console.error('[adminConfirmStandardBankTransfer] RPC failed:', error)
+      throw new Error(error.message || 'Failed to confirm payment.')
+    }
   }
 
   const { data: sub } = await supabase
@@ -2515,8 +2654,21 @@ export async function adminRejectStandardBankTransfer(
     p_admin_note:    adminNote,
   })
   if (error) {
-    console.error('[adminRejectStandardBankTransfer] RPC failed:', error)
-    throw new Error(error.message || 'Failed to reject payment.')
+    if (isMissingReviewedByColumnError(error)) {
+      console.warn(
+        '[adminRejectStandardBankTransfer] reviewed_by column missing — using fallback. Apply fix-reviewed-by-column.sql / migration 112.',
+        { message: error.message, code: error.code },
+      )
+      try {
+        await rejectStandardBankTransferWithoutReviewedBy(submissionId, bookingId, adminNote.trim())
+      } catch (fallbackError: any) {
+        console.error('[adminRejectStandardBankTransfer] fallback failed:', fallbackError)
+        throw new Error(fallbackError?.message || 'Failed to reject payment.')
+      }
+    } else {
+      console.error('[adminRejectStandardBankTransfer] RPC failed:', error)
+      throw new Error(error.message || 'Failed to reject payment.')
+    }
   }
 
   const { data: sub } = await supabase
