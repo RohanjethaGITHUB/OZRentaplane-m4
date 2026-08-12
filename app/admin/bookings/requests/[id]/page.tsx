@@ -34,6 +34,15 @@ import { isSameSydneyCalendarDay, formatSydTime } from '@/lib/utils/sydney-time'
 
 export const metadata = { title: 'Booking Details | Admin' }
 
+function paymentMethodToLabel(method: string | null | undefined): string | null {
+  if (!method) return null
+  if (method === 'bank_transfer') return 'Bank transfer'
+  if (method === 'card') return 'Card'
+  if (method === 'cash') return 'Cash'
+  if (method === 'card_in_person') return 'Card (in person)'
+  return method.replace(/_/g, ' ')
+}
+
 // ── Status display config ─────────────────────────────────────────────────────
 
 const STATUS_CFG: Record<string, {
@@ -666,13 +675,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     rawSettlementNote && !/^Manual payment recorded by admin/i.test(rawSettlementNote)
       ? rawSettlementNote
       : null
-  const ledgerPaymentMethodLabel = (() => {
-    const method = settlementLedger?.payment_method
-    if (method === 'cash') return 'Cash'
-    if (method === 'card_in_person') return 'Card (in person)'
-    if (method === 'bank_transfer') return 'Bank transfer'
-    return null
-  })()
+  const ledgerPaymentMethodLabel = paymentMethodToLabel(settlementLedger?.payment_method)
   const rawPhoneCountry = (customer as { phone_country_code?: string | null } | null)?.phone_country_code ?? null
   const rawPhoneNumber  = (customer as { phone_number?: string | null } | null)?.phone_number ?? null
   const customerPhone   = rawPhoneNumber
@@ -802,6 +805,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           totalChargedLabel: standardInvoice.subtotal_cents != null
             ? `$${(standardInvoice.subtotal_cents / 100).toFixed(2)}`
             : '$—',
+          isWaived: standardInvoice.status === 'waived',
           isPaid: isStandardBookingInvoicePaid({
             invoiceStatus: standardInvoice.status,
             invoicePaidAt: standardInvoice.paid_at,
@@ -815,18 +819,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             const paidAtLabel = standardInvoice.paid_at
               ? formatDateTime(standardInvoice.paid_at)
               : formatDateTime(booking.updated_at)
-            if (ledgerPaymentMethodLabel) return `${ledgerPaymentMethodLabel} · ${paidAtLabel}`
-            if (standardInvoice.payment_method) {
-              const methodLabel =
-                standardInvoice.payment_method === 'bank_transfer'
-                  ? 'Bank transfer'
-                  : standardInvoice.payment_method === 'cash'
-                    ? 'Cash'
-                    : standardInvoice.payment_method === 'card_in_person'
-                      ? 'Card (in person)'
-                      : 'Card'
-              return `${methodLabel} · ${paidAtLabel}`
-            }
+            const methodLabel = ledgerPaymentMethodLabel ?? paymentMethodToLabel(standardInvoice.payment_method)
+            if (methodLabel) return `${methodLabel} · ${paidAtLabel}`
             return standardInvoice.paid_at ? paidAtLabel : null
           })(),
           settlementNote: settlementAdminNote,
@@ -1105,6 +1099,10 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       : isAwaitingManualPayment
         ? 'Bank transfer proof submitted — verify receipt and confirm payment'
         : (lifecycleStage.sublabel ?? (bookingType === 'checkout' ? 'Current checkout state' : 'Current booking state'))
+  const lifecyclePaymentModeLabel =
+    lifecycleStage.key === 'paid_closed'
+      ? (ledgerPaymentMethodLabel ?? paymentMethodToLabel(standardInvoice?.payment_method ?? null))
+      : null
   const displayLifecycleTone =
     hasPendingReschedule || isCancellationRequested
       ? lifecycleToneCfg.amber
@@ -1320,6 +1318,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               <p className="text-[12.5px] leading-[1.45] text-[var(--admin-text-muted)]">
                 {displayLifecycleSublabel}
               </p>
+              {lifecyclePaymentModeLabel && (
+                <p className="text-[12px] leading-[1.45] text-[var(--admin-text-muted)]">
+                  Payment mode: {lifecyclePaymentModeLabel}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -1650,7 +1653,18 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                       </a>
                     </div>
                   )}
-                  {chargesAndPayment?.isPaid ? (
+                  {chargesAndPayment?.isWaived ? (
+                    <div className="bg-[#e8f5e9] rounded-xl p-3 mt-2">
+                      <div className="flex items-center gap-1.5">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
+                          <circle cx="7" cy="7" r="6.5" stroke="#2e7d32" fill="#e8f5e9"/>
+                          <path d="M4.5 7l2 2 3-3" stroke="#2e7d32" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        <span className="text-xs font-semibold text-green-700">Payment waived</span>
+                      </div>
+                      <div className="text-[10px] text-green-600 mt-1">No payment required</div>
+                    </div>
+                  ) : chargesAndPayment?.isPaid ? (
                     <div className="bg-[#e8f5e9] rounded-xl p-3 mt-2">
                       <div className="flex justify-between items-center">
                         <span className="text-xs font-semibold text-green-700 flex items-center gap-1">
