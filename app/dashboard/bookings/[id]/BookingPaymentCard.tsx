@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState } from "react"
 import { createBookingPaymentSession, submitStandardBankTransferProof } from "@/app/actions/payment"
@@ -13,6 +13,10 @@ type Props = {
   invoice: {
     id: string
     invoice_number: string
+    vdo_reading?: number | null
+    rate_cents_per_hour?: number | null
+    base_amount_cents?: number | null
+    landing_subtotal_cents?: number | null
     subtotal_cents: number
     advance_applied_cents: number
     stripe_amount_due_cents: number
@@ -21,6 +25,13 @@ type Props = {
     status: string
     payment_method: string | null
   }
+  landingCharges?: Array<{
+    airportLabel: string
+    icaoCode: string | null
+    landingCount: number
+    unitAmountCents: number
+    totalAmountCents: number
+  }>
   bankTransferSubmission?: { id: string; status: string } | null
   bankDetails?: {
     accountName: string
@@ -29,7 +40,17 @@ type Props = {
   } | null
 }
 
-export default function BookingPaymentCard({ bookingId, invoice, bankTransferSubmission, bankDetails }: Props) {
+function money(cents: number) {
+  return (cents / 100).toFixed(2)
+}
+
+export default function BookingPaymentCard({
+  bookingId,
+  invoice,
+  landingCharges = [],
+  bankTransferSubmission,
+  bankDetails,
+}: Props) {
   const [method, setMethod] = useState<"stripe" | "bank_transfer">("stripe")
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -44,9 +65,9 @@ export default function BookingPaymentCard({ bookingId, invoice, bankTransferSub
   })
 
   const baseAmountCents = invoice.stripe_amount_due_cents
-  const baseAmount      = (baseAmountCents / 100).toFixed(2)
-  const subtotal        = (invoice.subtotal_cents / 100).toFixed(2)
-  const advanceApplied  = (invoice.advance_applied_cents / 100).toFixed(2)
+  const baseAmount      = money(baseAmountCents)
+  const subtotal        = money(invoice.subtotal_cents)
+  const advanceApplied  = money(invoice.advance_applied_cents)
 
   let surchargeCents  = 0
   let grossAmountCents = baseAmountCents
@@ -56,8 +77,43 @@ export default function BookingPaymentCard({ bookingId, invoice, bankTransferSub
     )
     surchargeCents = grossAmountCents - baseAmountCents
   }
-  const surchargeAmount = (surchargeCents / 100).toFixed(2)
-  const grossAmount     = (grossAmountCents / 100).toFixed(2)
+  const surchargeAmount = money(surchargeCents)
+  const grossAmount     = money(grossAmountCents)
+
+  const vdoHours = invoice.vdo_reading
+  const ratePerHour =
+    invoice.rate_cents_per_hour != null ? money(invoice.rate_cents_per_hour) : null
+  const flightChargeCents = invoice.base_amount_cents
+  const landingCents = invoice.landing_subtotal_cents
+  const hasFlightDetails =
+    vdoHours != null ||
+    flightChargeCents != null ||
+    (landingCents != null && landingCents > 0) ||
+    landingCharges.length > 0
+
+  const totalLandingCount = landingCharges.reduce((sum, charge) => sum + charge.landingCount, 0)
+  const sameLandingUnitRate =
+    landingCharges.length > 0 &&
+    landingCharges.every((charge) => charge.unitAmountCents === landingCharges[0].unitAmountCents)
+  const landingAirportSummary = landingCharges
+    .map((charge) => {
+      // Prefer full airport name; fall back to label without ICAO prefix if needed
+      const label = charge.airportLabel || ''
+      const withoutIcao = charge.icaoCode && label.startsWith(`${charge.icaoCode} · `)
+        ? label.slice(charge.icaoCode.length + 3)
+        : label
+      return withoutIcao || charge.icaoCode || 'Airport'
+    })
+    .join(' + ')
+  const landingCalcSummary = sameLandingUnitRate
+    ? `$${money(landingCharges[0].unitAmountCents)} × ${totalLandingCount}`
+    : landingCharges
+        .map((charge) => `$${money(charge.unitAmountCents)} × ${charge.landingCount}`)
+        .join(' + ')
+  const landingCalcTotal =
+    landingCents != null && landingCents > 0
+      ? money(landingCents)
+      : money(landingCharges.reduce((sum, charge) => sum + charge.totalAmountCents, 0))
 
   // ── Awaiting payment confirmation ─────────────────────────────────────────
   if (displayState === 'payment_review_pending') {
@@ -120,11 +176,102 @@ export default function BookingPaymentCard({ bookingId, invoice, bankTransferSub
           {displayState === 'payment_still_due' ? 'Payment Still Due' : 'Payment Required'}
         </h3>
       </div>
-      <p className="text-sm text-[#4b6390] leading-relaxed mb-2">
+      <p className="text-sm text-[#4b6390] leading-relaxed mb-4">
         {displayState === 'payment_still_due'
           ? 'A partial payment is recorded on this invoice, but the remaining balance still needs to be settled before the booking can close.'
           : 'Your flight records have been reviewed and your invoice is ready. The amount below is calculated from the VDO meter reading and any applicable landing fees.'}
       </p>
+
+      {/* Invoice details — shown above payment method choice */}
+      <div className="mb-5 rounded-xl border border-[#152d5a]/10 bg-[#f0f6ff] p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px] text-[#1a4fd6]">receipt_long</span>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-[#1a4fd6]">Invoice details</p>
+          </div>
+          <p className="font-mono text-[11px] font-semibold text-[#4b6390]">{invoice.invoice_number}</p>
+        </div>
+
+        <div className="space-y-3 text-sm">
+          {hasFlightDetails ? (
+            <>
+              {flightChargeCents != null ? (
+                <div className="flex items-start justify-between gap-4 text-[#152d5a]">
+                  <p className="font-medium">Flight charge (VDO)</p>
+                  <div className="shrink-0 text-right">
+                    <p className="font-medium tabular-nums">${money(flightChargeCents)}</p>
+                    {vdoHours != null && ratePerHour != null ? (
+                      <p className="mt-1 text-[12px] tabular-nums text-[#4b6390]">
+                        ${ratePerHour} × {Number(vdoHours).toFixed(1)} hrs = ${money(flightChargeCents)}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+
+              {(landingCharges.length > 0 || (landingCents != null && landingCents > 0)) && (
+                <div className="border-t border-[#152d5a]/10 pt-3">
+                  <div className="flex items-start justify-between gap-4 text-[#152d5a]">
+                    <div className="min-w-0 flex-1 pr-3">
+                      <p className="font-medium">Landing fees</p>
+                      {landingCharges.length > 0 ? (
+                        <p className="mt-1 text-[12px] leading-relaxed text-[#4b6390]">
+                          {landingAirportSummary}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="font-medium tabular-nums">${landingCalcTotal}</p>
+                      {landingCharges.length > 0 ? (
+                        <p className="mt-1 text-[12px] tabular-nums text-[#4b6390]">
+                          {landingCalcSummary} = ${landingCalcTotal}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-start justify-between gap-4 border-t border-[#152d5a]/10 pt-3 font-semibold text-[#152d5a]">
+                <p>Flight total</p>
+                <div className="shrink-0 text-right">
+                  <p className="tabular-nums">${subtotal}</p>
+                  {(flightChargeCents != null || (landingCents != null && landingCents > 0) || landingCharges.length > 0) ? (
+                    <p className="mt-1 text-[12px] font-medium tabular-nums text-[#4b6390]">
+                      {[
+                        flightChargeCents != null ? `$${money(flightChargeCents)}` : null,
+                        (landingCents != null && landingCents > 0) || landingCharges.length > 0
+                          ? `$${landingCalcTotal}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' + ')}
+                      {' = '}${subtotal}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-between gap-4 text-[#152d5a]">
+              <span>Flight Total (VDO + landings)</span>
+              <span className="font-medium tabular-nums">${subtotal}</span>
+            </div>
+          )}
+
+          {invoice.advance_applied_cents > 0 && (
+            <div className="flex justify-between gap-4 text-emerald-600">
+              <span>Account Credit Applied</span>
+              <span className="font-medium tabular-nums">-${advanceApplied}</span>
+            </div>
+          )}
+
+          <div className="flex justify-between gap-4 border-t border-[#152d5a]/10 pt-3 font-bold text-[#1a4fd6]">
+            <span>Amount due</span>
+            <span className="tabular-nums">${baseAmount}</span>
+          </div>
+        </div>
+      </div>
 
       {bankTransferSubmission?.status === "rejected" && (
         <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-600">
@@ -136,7 +283,7 @@ export default function BookingPaymentCard({ bookingId, invoice, bankTransferSub
       )}
 
       {/* Payment method selector */}
-      <div className="grid grid-cols-2 gap-3 mb-6 mt-4">
+      <div className="grid grid-cols-2 gap-3 mb-6">
         <button
           onClick={() => setMethod("stripe")}
           className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-colors ${
@@ -164,16 +311,6 @@ export default function BookingPaymentCard({ bookingId, invoice, bankTransferSub
       {method === "stripe" ? (
         <>
           <div className="mb-6 space-y-2 p-4 rounded-xl bg-white border border-[#152d5a]/10 text-sm">
-            <div className="flex justify-between text-[#152d5a]">
-              <span>Flight Total (VDO + landings)</span>
-              <span>${subtotal}</span>
-            </div>
-            {invoice.advance_applied_cents > 0 && (
-              <div className="flex justify-between text-emerald-600">
-                <span>Account Credit Applied</span>
-                <span>-${advanceApplied}</span>
-              </div>
-            )}
             <div className="flex justify-between text-[#152d5a]">
               <span>Base Amount Due</span>
               <span>${baseAmount}</span>

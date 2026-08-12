@@ -952,8 +952,9 @@ export default async function CustomerBookingsPage() {
                     const aircraft = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
                     const checkoutOutcome = booking.booking_type === 'checkout' ? checkoutOutcomeMap[booking.id] ?? null : null
                     const bookingInvoice = booking.bookingInvoice
-                    const bookingInvoiceHref = bookingInvoice?.pdf_url ?? `/dashboard/bookings/${booking.id}/invoice`
-                    const bookingInvoiceLabel = bookingInvoice?.status === 'paid' ? 'DOWNLOAD RECEIPT' : 'DOWNLOAD INVOICE'
+                    // TODO: restore when Download Invoice is re-enabled
+                    // const bookingInvoiceHref = bookingInvoice?.pdf_url ?? `/dashboard/bookings/${booking.id}/invoice`
+                    // const bookingInvoiceLabel = bookingInvoice?.status === 'paid' ? 'DOWNLOAD RECEIPT' : 'DOWNLOAD INVOICE'
                     const checkoutCancelMessage =
                       booking.booking_type === 'checkout' && booking.status === 'cancelled'
                         ? booking.checkout_lifecycle_status === 'cancelled_by_admin'
@@ -1074,6 +1075,7 @@ export default async function CustomerBookingsPage() {
                           </Link>
                           {booking.booking_type !== 'checkout' && bookingInvoice && bookingInvoice.status !== 'waived' && (
                             <>
+                              {/* TODO: re-enable Download Invoice / Receipt once PDF download is ready
                               <Link
                                 href={bookingInvoiceHref}
                                 className="flex items-center justify-center whitespace-nowrap border border-[#152d5a]/20 text-[#152d5a] hover:bg-[#f0f6ff] text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors"
@@ -1082,6 +1084,7 @@ export default async function CustomerBookingsPage() {
                               >
                                 {bookingInvoiceLabel}
                               </Link>
+                              */}
                               {booking.status === 'payment_pending' && (
                                 <Link
                                   href={`/dashboard/bookings/${booking.id}#payment`}

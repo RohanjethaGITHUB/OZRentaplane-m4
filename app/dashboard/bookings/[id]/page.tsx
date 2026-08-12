@@ -130,6 +130,10 @@ type ActiveBlockTimePackage = {
 type StandardBookingInvoicePreview = {
   id: string
   invoice_number: string
+  vdo_reading: number | null
+  rate_cents_per_hour: number | null
+  base_amount_cents: number | null
+  landing_subtotal_cents: number | null
   subtotal_cents: number
   advance_applied_cents: number
   stripe_amount_due_cents: number
@@ -137,6 +141,14 @@ type StandardBookingInvoicePreview = {
   paid_at: string | null
   status: string
   payment_method: string | null
+}
+
+type InvoiceLandingChargePreview = {
+  airportLabel: string
+  icaoCode: string | null
+  landingCount: number
+  unitAmountCents: number
+  totalAmountCents: number
 }
 
 function BlockTimeInfoBanner({
@@ -221,6 +233,7 @@ function NextActionCard({
   clarificationQuestion,
   bookingId,
   bookingInvoice,
+  invoiceLandingCharges,
   bookingSlotHours,
   standardBankTransferSub,
   standardBankDetails,
@@ -267,6 +280,7 @@ function NextActionCard({
   checkoutOutcome?:         string | null
   standardBilling?:         { subtotal_cents: number; advance_applied_cents: number; amount_due_cents: number } | null
   bookingInvoice?:          StandardBookingInvoicePreview | null
+  invoiceLandingCharges?:   InvoiceLandingChargePreview[]
   bookingSlotHours:         number
   standardBankTransferSub?: { id: string; status: string } | null
   standardBankDetails?:     { accountName: string; bsb: string; accountNumber: string } | null
@@ -428,6 +442,7 @@ function NextActionCard({
         <BookingPaymentCard
           bookingId={bookingId}
           invoice={bookingInvoice}
+          landingCharges={invoiceLandingCharges}
           bankTransferSubmission={standardBankTransferSub}
           bankDetails={standardBankDetails}
         />
@@ -1124,28 +1139,57 @@ export default async function BookingDetailPage({ params }: PageProps) {
 
   // ── Standard booking invoice + bank transfer fetch ────────────────────────────
   let bookingInvoice: StandardBookingInvoicePreview | null = null
+  let invoiceLandingCharges: InvoiceLandingChargePreview[] = []
   let standardBankTransferSub: { id: string; status: string } | null = null
   let standardBankDetails: { accountName: string; bsb: string; accountNumber: string } | null = null
 
   if (status === 'payment_pending') {
     const { data: bInv } = await supabase
       .from('booking_invoices')
-      .select('id, invoice_number, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, total_paid_cents, paid_at, status, payment_method')
+      .select('id, invoice_number, vdo_reading, rate_cents_per_hour, base_amount_cents, landing_subtotal_cents, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, total_paid_cents, paid_at, status, payment_method')
       .eq('booking_id', booking.id)
       .maybeSingle()
     bookingInvoice = bInv as StandardBookingInvoicePreview | null
 
     if (bInv) {
-      const { data: bSub } = await supabase
-        .from('booking_bank_transfer_submissions')
-        .select('id, status')
-        .eq('invoice_id', bInv.id)
-        .order('submitted_at', { ascending: false })
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      const [{ data: bSub }, { data: landingRows }] = await Promise.all([
+        supabase
+          .from('booking_bank_transfer_submissions')
+          .select('id, status')
+          .eq('invoice_id', bInv.id)
+          .order('submitted_at', { ascending: false })
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('booking_landing_charges')
+          .select('landing_count, unit_amount_cents, total_amount_cents, airports(icao_code, name)')
+          .eq('booking_invoice_id', bInv.id)
+          .order('created_at', { ascending: true }),
+      ])
       standardBankTransferSub = bSub
+
+      invoiceLandingCharges = ((landingRows ?? []) as Array<{
+        landing_count: number
+        unit_amount_cents: number
+        total_amount_cents: number
+        airports?: { icao_code?: string | null; name?: string | null } | { icao_code?: string | null; name?: string | null }[] | null
+      }>).map((row, index) => {
+        const airport = Array.isArray(row.airports) ? row.airports[0] : row.airports
+        const icao = airport?.icao_code?.trim() || null
+        const name = airport?.name?.trim() || null
+        const airportLabel = icao && name
+          ? `${icao} · ${name}`
+          : icao || name || `Airport ${index + 1}`
+        return {
+          airportLabel,
+          icaoCode: icao,
+          landingCount: Number(row.landing_count) || 0,
+          unitAmountCents: Number(row.unit_amount_cents) || 0,
+          totalAmountCents: Number(row.total_amount_cents) || 0,
+        }
+      }).filter((row) => row.landingCount > 0)
     }
 
     const name = PAYMENT_CONFIG.BANK_ACCOUNT_NAME
@@ -1908,6 +1952,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
           checkoutOutcome={checkoutOutcome}
           standardBilling={standardBilling}
           bookingInvoice={bookingInvoice}
+          invoiceLandingCharges={invoiceLandingCharges}
           bookingSlotHours={bookingSlotHours}
           standardBankTransferSub={standardBankTransferSub}
           standardBankDetails={standardBankDetails}
