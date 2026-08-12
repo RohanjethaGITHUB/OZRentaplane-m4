@@ -45,6 +45,7 @@ const STATUS_CFG: Record<string, {
   checkout_confirmed:         { label: 'Checkout Confirmed',                    sublabel: 'Confirmed by our team',     color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200',  icon: 'event_available'    },
   checkout_completed_under_review: { label: 'Checkout completed, under review', sublabel: 'Awaiting team review',      color: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-200',  icon: 'rate_review'        },
   checkout_payment_required:       { label: 'Payment Required',                 sublabel: 'Pay to unlock bookings',    color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200', icon: 'payments'           },
+  payment_pending:                 { label: 'Payment Required',                 sublabel: 'Pay to close booking',      color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200', icon: 'payments'           },
 }
 
 const ACTIVE_STATUSES = [
@@ -88,6 +89,8 @@ function StatusBadge({ status, bookingType, checkoutOutcome, isAwaitingManualPay
   } else if (bookingType === 'checkout' && status === 'completed' && checkoutOutcome) {
     cfg = CHECKOUT_OUTCOME_BADGE[checkoutOutcome] ?? { label: 'Checkout Complete', color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' }
   } else if (status === 'checkout_payment_required' && isAwaitingManualPayment) {
+    cfg = { label: 'Awaiting Payment Confirmation', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', icon: 'account_balance' }
+  } else if (status === 'payment_pending' && isAwaitingManualPayment) {
     cfg = { label: 'Awaiting Payment Confirmation', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', icon: 'account_balance' }
   }
 
@@ -984,6 +987,7 @@ export default async function CustomerBookingsPage() {
                               status={booking.status}
                               bookingType={booking.booking_type}
                               checkoutOutcome={checkoutOutcome}
+                              isAwaitingManualPayment={bookingInvoice?.status === 'bank_transfer_pending_review'}
                             />
                           </div>
                           <div>
@@ -1088,10 +1092,18 @@ export default async function CustomerBookingsPage() {
                               {booking.status === 'payment_pending' && (
                                 <Link
                                   href={`/dashboard/bookings/${booking.id}#payment`}
-                                  className="flex items-center justify-center gap-1.5 whitespace-nowrap bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e] text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors"
+                                  className={`flex items-center justify-center gap-1.5 whitespace-nowrap text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors ${
+                                    bookingInvoice.status === 'bank_transfer_pending_review'
+                                      ? 'border border-[#152d5a]/20 bg-white text-[#152d5a] hover:bg-[#f0f6ff]'
+                                      : 'bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e]'
+                                  }`}
                                 >
-                                  <span className="material-symbols-outlined text-[14px]">payments</span>
-                                  Pay Invoice
+                                  <span className="material-symbols-outlined text-[14px]">
+                                    {bookingInvoice.status === 'bank_transfer_pending_review' ? 'hourglass_empty' : 'payments'}
+                                  </span>
+                                  {bookingInvoice.status === 'bank_transfer_pending_review'
+                                    ? 'View Payment'
+                                    : 'Pay Invoice'}
                                 </Link>
                               )}
                             </>
@@ -1199,7 +1211,13 @@ export default async function CustomerBookingsPage() {
                   <div className="mb-1.5">
                     <StatusBadge
                       status={row.status}
-                      isAwaitingManualPayment={row.status === 'checkout_payment_required' ? paymentSubmittedAwaitingConfirmation : false}
+                      isAwaitingManualPayment={
+                        row.status === 'checkout_payment_required'
+                          ? paymentSubmittedAwaitingConfirmation
+                          : row.status === 'payment_pending'
+                            ? standardInvoiceByBookingId.get(row.id)?.status === 'bank_transfer_pending_review'
+                            : false
+                      }
                     />
                   </div>
                   <p className="text-[12px] font-semibold text-[#152d5a] leading-snug mb-1">
@@ -1214,11 +1232,13 @@ export default async function CustomerBookingsPage() {
                     </p>
                   )}
                   {(row.status === 'checkout_payment_required' || row.status === 'payment_pending') && (
-                    paymentSubmittedAwaitingConfirmation ? (
+                    (row.status === 'checkout_payment_required'
+                      ? paymentSubmittedAwaitingConfirmation
+                      : standardInvoiceByBookingId.get(row.id)?.status === 'bank_transfer_pending_review') ? (
                       <span className="text-[11px] text-[#1a4fd6] mt-1 block">Awaiting confirmation</span>
                     ) : (
                       <Link
-                        href={`/dashboard/bookings/${row.id}`}
+                        href={`/dashboard/bookings/${row.id}#payment`}
                         className="text-[11px] font-semibold text-[#f59e0b] hover:underline mt-1 block"
                       >
                         Pay invoice →

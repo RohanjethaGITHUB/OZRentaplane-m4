@@ -56,10 +56,24 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       reconnectionDelayMax: 8000,
     }) as AppSocket
 
-    next.on('connect', () => setConnected(true))
-    next.on('disconnect', () => setConnected(false))
+    next.on('connect', () => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[realtime] connected')
+      }
+      setConnected(true)
+    })
+    next.on('disconnect', (reason) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[realtime] disconnected:', reason)
+      }
+      setConnected(false)
+    })
     next.on('connect_error', (err) => {
-      console.warn('[realtime] connect_error:', err.message)
+      // Transient "WebSocket is closed before the connection is established"
+      // happens during HMR / tab switches; polling fallback + reconnect handle it.
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[realtime] connect_error:', err.message)
+      }
       setConnected(false)
     })
 

@@ -362,6 +362,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     { data: flightRecordRow },
     { data: aircraftLogsRaw },
     { data: clearanceOverrideAuditRows },
+    { data: settlementLedgerRow },
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -458,6 +459,15 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           .order('created_at', { ascending: false })
           .limit(10)
       : Promise.resolve({ data: null, error: null }),
+    // Latest manual settlement ledger row — surfaces the admin note after Mark as Paid
+    supabase
+      .from('customer_payment_ledger')
+      .select('note, payment_method, created_at')
+      .eq('booking_id', booking.id)
+      .not('note', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   type RawCheckoutDocument = {
@@ -645,6 +655,24 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     paid_at?: string | null
     pdf_url?: string | null
   } | null)
+  const settlementLedger = settlementLedgerRow as {
+    note?: string | null
+    payment_method?: string | null
+    created_at?: string | null
+  } | null
+  const rawSettlementNote = settlementLedger?.note?.trim() || null
+  // Prefer the admin-written settlement note; skip the auto-generated fallback copy.
+  const settlementAdminNote =
+    rawSettlementNote && !/^Manual payment recorded by admin/i.test(rawSettlementNote)
+      ? rawSettlementNote
+      : null
+  const ledgerPaymentMethodLabel = (() => {
+    const method = settlementLedger?.payment_method
+    if (method === 'cash') return 'Cash'
+    if (method === 'card_in_person') return 'Card (in person)'
+    if (method === 'bank_transfer') return 'Bank transfer'
+    return null
+  })()
   const rawPhoneCountry = (customer as { phone_country_code?: string | null } | null)?.phone_country_code ?? null
   const rawPhoneNumber  = (customer as { phone_number?: string | null } | null)?.phone_number ?? null
   const customerPhone   = rawPhoneNumber
@@ -783,11 +811,25 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           paidAmountLabel: standardInvoice.total_paid_cents != null
             ? `$${(standardInvoice.total_paid_cents / 100).toFixed(2)}`
             : null,
-          paymentDetailLabel: standardInvoice.payment_method
-            ? `${standardInvoice.payment_method === 'bank_transfer' ? 'Bank transfer' : 'Card'} · ${standardInvoice.paid_at ? formatDateTime(standardInvoice.paid_at) : formatDateTime(booking.updated_at)}`
-            : standardInvoice.paid_at
+          paymentDetailLabel: (() => {
+            const paidAtLabel = standardInvoice.paid_at
               ? formatDateTime(standardInvoice.paid_at)
-              : null,
+              : formatDateTime(booking.updated_at)
+            if (ledgerPaymentMethodLabel) return `${ledgerPaymentMethodLabel} · ${paidAtLabel}`
+            if (standardInvoice.payment_method) {
+              const methodLabel =
+                standardInvoice.payment_method === 'bank_transfer'
+                  ? 'Bank transfer'
+                  : standardInvoice.payment_method === 'cash'
+                    ? 'Cash'
+                    : standardInvoice.payment_method === 'card_in_person'
+                      ? 'Card (in person)'
+                      : 'Card'
+              return `${methodLabel} · ${paidAtLabel}`
+            }
+            return standardInvoice.paid_at ? paidAtLabel : null
+          })(),
+          settlementNote: settlementAdminNote,
         }
       : null
     : checkoutInvoice
@@ -821,10 +863,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             checkoutInvoice.status === 'paid' ||
             checkoutInvoice.status === 'waived' ||
             (booking.status === 'completed' && checkoutInvoice.status === 'void')
-              ? `Bank transfer · in person · ${formatDateTime(
+              ? `${ledgerPaymentMethodLabel ?? 'Bank transfer'} · ${formatDateTime(
                   (checkoutInvoice as { paid_at?: string | null }).paid_at ?? booking.updated_at,
                 )}`
               : null,
+          settlementNote: settlementAdminNote,
         }
       : bookingType === 'checkout' && booking.status === 'completed'
         // Legacy clearance-override completes before settled invoices existed.
@@ -834,7 +877,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             totalChargedLabel: '$0.00',
             isPaid: true,
             paidAmountLabel: '$0.00',
-            paymentDetailLabel: `Bank transfer · in person · ${formatDateTime(booking.updated_at)}`,
+            paymentDetailLabel: `${ledgerPaymentMethodLabel ?? 'Bank transfer'} · ${formatDateTime(booking.updated_at)}`,
+            settlementNote: settlementAdminNote,
           }
         : null
   // bookingType is already declared above (const bookingType = ...)
@@ -1627,6 +1671,26 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                         <p className="text-[10px] text-green-700/80 mt-1.5 leading-relaxed">
                           Settled via admin clearance override (Mark as Already Paid bypass).
                         </p>
+                      )}
+                      {chargesAndPayment.settlementNote && (
+                        <div className="mt-3 pt-3 border-t border-green-200/90">
+                          <div className="flex items-start gap-2.5 rounded-lg bg-white/80 border border-green-200/70 px-3 py-2.5">
+                            <span
+                              className="material-symbols-outlined text-[18px] text-green-700/75 mt-0.5 shrink-0"
+                              style={{ fontVariationSettings: "'FILL' 1" }}
+                            >
+                              sticky_note_2
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-green-700/70 mb-1">
+                                Admin settlement note
+                              </p>
+                              <p className="text-sm text-[#152d5a] leading-relaxed">
+                                {chargesAndPayment.settlementNote}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
                       )}
                     </div>
                   ) : (

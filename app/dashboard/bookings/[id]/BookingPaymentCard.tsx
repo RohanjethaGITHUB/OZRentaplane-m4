@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { createBookingPaymentSession, submitStandardBankTransferProof } from "@/app/actions/payment"
 import { getStandardBookingPaymentDisplayState } from "@/lib/booking/standard-booking-payment-state"
 
@@ -51,6 +52,7 @@ export default function BookingPaymentCard({
   bankTransferSubmission,
   bankDetails,
 }: Props) {
+  const router = useRouter()
   const [method, setMethod] = useState<"stripe" | "bank_transfer">("stripe")
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -162,6 +164,7 @@ export default function BookingPaymentCard({
     try {
       const formData = new FormData(e.currentTarget)
       await submitStandardBankTransferProof(invoice.id, bookingId, invoice.invoice_number, formData)
+      router.refresh()
     } catch (err: any) {
       setError(err.message || "Failed to submit bank transfer proof")
       setUploading(false)

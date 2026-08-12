@@ -2481,6 +2481,8 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
   revalidatePath('/admin')
   revalidatePath(`/admin/bookings/requests/${bookingId}`)
   revalidatePath(`/dashboard/bookings/${bookingId}`)
+  revalidatePath('/dashboard/bookings')
+  revalidatePath('/admin/bookings/payments')
 
   if (sub) {
     void emitPaymentUpdated({ userId: sub.customer_id, bookingId })
@@ -2545,9 +2547,12 @@ export async function adminRejectStandardBankTransfer(
   revalidatePath('/admin')
   revalidatePath(`/admin/bookings/requests/${bookingId}`)
   revalidatePath(`/dashboard/bookings/${bookingId}`)
+  revalidatePath('/dashboard/bookings')
+  revalidatePath('/admin/bookings/payments')
 
   if (sub) {
     void emitPaymentUpdated({ userId: sub.customer_id, bookingId })
+    void emitBookingChanged({ bookingId, userId: sub.customer_id })
   }
   void emitOpsChanged()
 }

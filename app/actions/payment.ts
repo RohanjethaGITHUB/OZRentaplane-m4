@@ -949,6 +949,42 @@ export async function submitStandardBankTransferProof(
     throw new Error("File is too large. Maximum size is 5MB.");
   }
 
+  // Verify ownership + eligibility before uploading.
+  const { data: invoice, error: invoiceError } = await supabase
+    .from("booking_invoices")
+    .select("id, status, booking_id, customer_id, bookings!inner(id, booking_owner_user_id, booking_type)")
+    .eq("id", invoiceId)
+    .eq("booking_id", bookingId)
+    .maybeSingle();
+
+  if (invoiceError || !invoice) {
+    throw new Error("Booking invoice not found.");
+  }
+
+  const booking = Array.isArray(invoice.bookings) ? invoice.bookings[0] : invoice.bookings;
+  if (
+    invoice.customer_id !== user.id ||
+    booking?.booking_owner_user_id !== user.id ||
+    booking?.booking_type !== "standard"
+  ) {
+    throw new Error("You are not allowed to submit payment proof for this booking.");
+  }
+
+  if (["paid", "waived", "void", "failed"].includes(invoice.status)) {
+    throw new Error("This invoice is not eligible for bank transfer submission.");
+  }
+
+  const { data: pendingSubmission } = await supabase
+    .from("booking_bank_transfer_submissions")
+    .select("id")
+    .eq("invoice_id", invoiceId)
+    .eq("status", "pending_review")
+    .maybeSingle();
+
+  if (pendingSubmission) {
+    throw new Error("A bank transfer proof is already awaiting review.");
+  }
+
   const fileExt = file.name.split(".").pop();
   const filePath = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
@@ -961,26 +997,7 @@ export async function submitStandardBankTransferProof(
     throw new Error("Failed to upload receipt. Please try again.");
   }
 
-  const { data: submissionId, error: proofError } = await supabase.rpc(
-    "submit_standard_bank_transfer_proof_atomic",
-    {
-      p_invoice_id: invoiceId,
-      p_booking_id: bookingId,
-      p_reference: reference,
-      p_receipt_storage_path: filePath,
-    }
-  );
-
-  if (proofError || !submissionId) {
-    console.error("[submitStandardBankTransferProof] proof RPC failed", {
-      message: proofError?.message,
-      code: proofError?.code,
-      details: proofError?.details,
-      hint: proofError?.hint,
-      bookingId,
-      invoiceId,
-      userId: user.id,
-    });
+  const cleanupUpload = async () => {
     const { error: cleanupError } = await supabase.storage.from("bank_transfer_receipts").remove([filePath]);
     if (cleanupError) {
       console.error("[submitStandardBankTransferProof] cleanup failed", {
@@ -990,11 +1007,94 @@ export async function submitStandardBankTransferProof(
         path: filePath,
       });
     }
-    throw new Error(
-      proofError?.message === "Unauthorized"
-        ? "You are not allowed to submit payment proof for this booking."
-        : proofError?.message ?? "Failed to submit proof. Please try again."
+  };
+
+  // Prefer atomic RPC when migration 112 is applied; fall back for DBs that don't have it yet.
+  const { data: submissionIdFromRpc, error: proofError } = await supabase.rpc(
+    "submit_standard_bank_transfer_proof_atomic",
+    {
+      p_invoice_id: invoiceId,
+      p_booking_id: bookingId,
+      p_reference: reference,
+      p_receipt_storage_path: filePath,
+    }
+  );
+
+  let submissionId = submissionIdFromRpc as string | null;
+
+  if (proofError || !submissionId) {
+    const missingRpc =
+      proofError?.code === "PGRST202" ||
+      proofError?.message?.includes("Could not find the function") ||
+      proofError?.message?.includes("schema cache");
+
+    if (!missingRpc) {
+      console.error("[submitStandardBankTransferProof] proof RPC failed", {
+        message: proofError?.message,
+        code: proofError?.code,
+        details: proofError?.details,
+        hint: proofError?.hint,
+        bookingId,
+        invoiceId,
+        userId: user.id,
+      });
+      await cleanupUpload();
+      throw new Error(
+        proofError?.message === "Unauthorized"
+          ? "You are not allowed to submit payment proof for this booking."
+          : proofError?.message ?? "Failed to submit proof. Please try again."
+      );
+    }
+
+    console.warn(
+      "[submitStandardBankTransferProof] RPC missing — using admin fallback. Apply migration 112.",
+      { message: proofError?.message, code: proofError?.code }
     );
+
+    try {
+      const admin = createAdminClient();
+      const { data: inserted, error: insertError } = await admin
+        .from("booking_bank_transfer_submissions")
+        .insert({
+          invoice_id: invoiceId,
+          booking_id: bookingId,
+          customer_id: user.id,
+          reference: reference.trim() || null,
+          receipt_storage_path: filePath,
+          status: "pending_review",
+        })
+        .select("id")
+        .single();
+
+      if (insertError || !inserted?.id) {
+        throw new Error(insertError?.message ?? "Failed to create bank transfer submission.");
+      }
+
+      const { error: invoiceUpdateError } = await admin
+        .from("booking_invoices")
+        .update({
+          status: "bank_transfer_pending_review",
+          payment_method: "bank_transfer",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", invoiceId);
+
+      if (invoiceUpdateError) {
+        await admin.from("booking_bank_transfer_submissions").delete().eq("id", inserted.id);
+        throw new Error(invoiceUpdateError.message);
+      }
+
+      submissionId = inserted.id;
+    } catch (fallbackError: any) {
+      console.error("[submitStandardBankTransferProof] admin fallback failed", {
+        message: fallbackError?.message,
+        bookingId,
+        invoiceId,
+        userId: user.id,
+      });
+      await cleanupUpload();
+      throw new Error(fallbackError?.message ?? "Failed to submit proof. Please try again.");
+    }
   }
 
   const { data: profile } = await supabase
