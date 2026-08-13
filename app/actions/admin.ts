@@ -28,7 +28,7 @@ import {
   resolveCheckoutBookingAction,
 } from '@/lib/admin/clearance-override'
 import { settleClearanceOverrideInvoice } from '@/lib/admin/clearance-override-settlement'
-import { fetchAdminShellBadges } from '@/lib/admin/operational-counts'
+import { getCachedAdminShellBadges } from '@/lib/admin/operational-counts'
 
 // ─── Admin guard ──────────────────────────────────────────────────────────────
 
@@ -547,26 +547,43 @@ export async function getAdminThread(customerId: string): Promise<VerificationEv
 // sidebar "Messages" badge agrees with the inbox Unread filter.
 
 export async function getAdminUnreadCount(): Promise<number> {
-  const { supabase } = await requireAdmin()
+  try {
+    const { supabase } = await requireAdmin()
 
-  const { count } = await supabase
-    .from('verification_events')
-    .select('*', { count: 'exact', head: true })
-    .eq('actor_role', 'customer')
-    .in('event_type', ['message', 'on_hold'])
-    .not('body', 'is', null)
-    .is('admin_read_at', null)
+    const { count } = await supabase
+      .from('verification_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('actor_role', 'customer')
+      .in('event_type', ['message', 'on_hold'])
+      .not('body', 'is', null)
+      .is('admin_read_at', null)
 
-  return count ?? 0
+    return count ?? 0
+  } catch {
+    // Soft-fail for badge sync when Supabase/auth is briefly unreachable.
+    return 0
+  }
 }
 
-/** Soft realtime sync for sidebar badges — avoids full admin page RSC refresh. */
+/**
+ * Soft realtime sync for sidebar badges — avoids full admin page RSC refresh.
+ * Returns null on auth/network failure so the client can keep last-known badges
+ * without surfacing a 500 from requireAdmin().
+ */
 export async function getAdminShellBadges(): Promise<{
   unreadMessageCount: number
   actionCounts: Record<string, number>
-}> {
-  const { supabase } = await requireAdmin()
-  return fetchAdminShellBadges(supabase)
+} | null> {
+  try {
+    await requireAdmin()
+    return await getCachedAdminShellBadges()
+  } catch (err) {
+    console.warn(
+      '[getAdminShellBadges] soft-fail:',
+      err instanceof Error ? err.message : err,
+    )
+    return null
+  }
 }
 
 // ─── Customer search ──────────────────────────────────────────────────────────

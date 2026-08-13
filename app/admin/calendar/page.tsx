@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { unstable_noStore as noStore } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getCachedProfile, getCachedUser } from '@/lib/supabase/server'
 import AdminPortalHero from '@/components/AdminPortalHero'
 import type { ScheduleBlock } from '@/lib/supabase/booking-types'
 import AdminCalendarClient from './AdminCalendarClient'
@@ -32,10 +32,10 @@ function getAircraftStatusLabel(status: string | null) {
 export default async function AdminCalendarPage({ searchParams }: { searchParams?: SearchParams }) {
   noStore()
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await getCachedUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const { data: profile } = await getCachedProfile(user.id, 'admin')
   if (profile?.role !== 'admin') redirect('/dashboard')
 
   const view: AdminCalendarView = isCalendarView(searchParams?.view) ? searchParams.view : 'month'

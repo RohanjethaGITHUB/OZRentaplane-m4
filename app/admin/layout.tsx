@@ -40,8 +40,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <AdminRealtimeListener />
       <div className="admin-theme min-h-[100dvh] flex flex-col bg-[var(--admin-bg)] text-[var(--admin-text)] font-sans relative isolate overflow-x-clip">
 
-        {/* Ambient glow */}
-        <div className="fixed top-0 left-0 w-[520px] h-[420px] bg-[var(--admin-sidebar-glow)] blur-[130px] rounded-full pointer-events-none -z-10" />
+        {/* Ambient glow — lighter blur to reduce compositor cost */}
+        <div className="fixed top-0 left-0 w-[420px] h-[340px] bg-[var(--admin-sidebar-glow)] blur-[80px] rounded-full pointer-events-none -z-10" />
 
         {/* Admin Layout with Sidebar */}
         <div className="flex flex-1 min-h-0 overflow-hidden relative">

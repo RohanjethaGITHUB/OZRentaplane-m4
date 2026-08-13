@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -145,8 +146,8 @@ export default function CustomerPortalNav({
         className="fixed top-0 left-0 right-0 z-50"
         style={{
           backgroundColor: 'rgba(22, 48, 92, 0.97)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
           borderBottom: '1px solid rgba(167, 200, 255, 0.12)',
         }}
       >
@@ -159,10 +160,13 @@ export default function CustomerPortalNav({
               paddingLeft: '12px',
             }}
           >
-            <img
+            <Image
               src="/Logo/ozrentaplane-transparent-bg.png"
               alt="OZRentAPlane logo"
+              width={160}
+              height={48}
               className="block h-12 w-auto object-contain bg-transparent"
+              priority
               style={{
                 filter: 'drop-shadow(0 0 8px rgba(167,200,255,0.45)) drop-shadow(0 0 3px rgba(167,200,255,0.3))',
               }}
@@ -297,8 +301,8 @@ export default function CustomerPortalNav({
         className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
         style={{
           backgroundColor: 'rgba(22, 48, 92, 0.97)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
           borderTop: '1px solid rgba(167, 200, 255, 0.12)',
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}

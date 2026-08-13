@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getCachedProfile, getCachedUser } from '@/lib/supabase/server'
 import { AdminPageHeader } from '@/app/admin/components/AdminUi'
 import CustomerDirectoryTable from './CustomerDirectoryTable'
 import { getCustomerDerivedStatus, getStatusFromQuery, hasActiveCheckoutBooking } from '@/app/admin/customers/customer-status'
@@ -11,10 +11,10 @@ export const metadata = { title: 'Customer Directory | Admin' }
 export default async function AllCustomersPage({ searchParams }: { searchParams: { status?: string } }) {
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await getCachedUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const { data: profile } = await getCachedProfile(user.id, 'admin')
   if (profile?.role !== 'admin') redirect('/dashboard')
 
   const [{ data: profiles }, { data: checkoutBookings }, { data: pendingRescheduleRows }, { data: pendingCancellationRows }, { data: userDocuments }, { data: pendingCheckoutPaymentProofs }] = await Promise.all([

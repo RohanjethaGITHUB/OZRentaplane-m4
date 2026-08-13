@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getCachedUser } from '@/lib/supabase/server'
 import CustomerProfileTabs from '../CustomerProfileTabs'
 import type { UserDocument, VerificationEvent } from '@/lib/supabase/types'
 import { formatDateTime } from '@/lib/formatDateTime'
@@ -75,7 +75,7 @@ export default async function AdminUserPage({
 }) {
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await getCachedUser()
   if (!user) redirect('/login')
 
   // Admin guard + customer profile in parallel
@@ -122,6 +122,7 @@ export default async function AdminUserPage({
     { data: activeBlockTimeRow },
     { data: blockTimePurchaseRows },
     { data: blockTimeTopupRows },
+    { data: blockTimeFlightInvoiceRows },
   ] = await Promise.all([
     supabase
       .from('user_documents')
@@ -132,7 +133,8 @@ export default async function AdminUserPage({
       .from('verification_events')
       .select('*')
       .eq('user_id', params.id)
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .limit(200),
     getCustomerCreditBalance(params.id),
     supabase
       .from('customer_payment_ledger')
@@ -140,9 +142,9 @@ export default async function AdminUserPage({
       .eq('customer_id', params.id)
       .gt('amount_cents', 0),
     getCustomerCreditTransactions(params.id),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_owner_user_id', params.id),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_owner_user_id', params.id).eq('booking_type', 'checkout'),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_owner_user_id', params.id).eq('booking_type', 'standard'),
+    supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('booking_owner_user_id', params.id),
+    supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('booking_owner_user_id', params.id).eq('booking_type', 'checkout'),
+    supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('booking_owner_user_id', params.id).eq('booking_type', 'standard'),
     supabase
       .from('bookings')
       .select('id, status, booking_type, checkout_lifecycle_status, scheduled_start, scheduled_end, payment_status, aircraft ( id, registration )')
@@ -155,7 +157,8 @@ export default async function AdminUserPage({
       .select('id, status, booking_type, scheduled_start, scheduled_end, payment_status, aircraft ( id, registration )')
       .eq('booking_owner_user_id', params.id)
       .eq('booking_type', 'standard')
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .limit(100),
     supabase
       .from('checkout_change_requests')
       .select('created_at, original_scheduled_start, checkout_request_id, status, bookings!inner(booking_owner_user_id)')
@@ -167,7 +170,7 @@ export default async function AdminUserPage({
       .select('created_at, booking_start_time, status, booking_id, bookings!inner(booking_owner_user_id)')
       .eq('status', 'pending')
       .eq('bookings.booking_owner_user_id', params.id),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_owner_user_id', params.id).eq('status', 'on_hold_pending_documents'),
+    supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('booking_owner_user_id', params.id).eq('status', 'on_hold_pending_documents'),
     supabase
       .from('historical_checkout_completions')
       .select('id, checkout_date, checkout_outcome, admin_notes, recorded_by_admin_id, recorded_at, linked_aircraft_flight_log_id')
@@ -203,6 +206,14 @@ export default async function AdminUserPage({
       .select('id, purchase_id, hours_added, rate_per_hour, amount_paid, validity_extension_days, hours_remaining_before, hours_remaining_after, expires_at_after, created_at, purchase:pilot_block_time_purchases ( package:block_time_packages ( name ) )')
       .eq('user_id', params.id)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('invoices')
+      .select('id, invoice_number, booking_id, total, status, is_block_time_overage, created_at, paid_at, pdf_url, invoice_line_items ( type )')
+      .eq('user_id', params.id)
+      .eq('type', 'flight')
+      .eq('billing_mode', 'block_time')
+      .order('created_at', { ascending: false })
+      .limit(50),
   ])
 
   const blockTimePurchases = (blockTimePurchaseRows ?? []).map((row: any) => {
@@ -249,17 +260,6 @@ export default async function AdminUserPage({
         expiresAt: (activeBlockTimeRow as { expires_at: string }).expires_at,
       }
     : null
-
-  // Block time flight invoices — usage deductions, overage invoices (flagged),
-  // and separately-invoiced landing fees for the Billing tab.
-  const { data: blockTimeFlightInvoiceRows } = await supabase
-    .from('invoices')
-    .select('id, invoice_number, booking_id, total, status, is_block_time_overage, created_at, paid_at, pdf_url, invoice_line_items ( type )')
-    .eq('user_id', params.id)
-    .eq('type', 'flight')
-    .eq('billing_mode', 'block_time')
-    .order('created_at', { ascending: false })
-    .limit(50)
 
   const blockTimeFlightInvoices = (blockTimeFlightInvoiceRows ?? []).map((row: any) => {
     const lineTypes: string[] = (row.invoice_line_items ?? []).map((item: any) => item.type)

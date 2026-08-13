@@ -316,7 +316,7 @@ export async function getCustomerUnreadMessageCount(): Promise<number> {
 
   const { count } = await supabase
     .from('verification_events')
-    .select('*', { count: 'exact', head: true })
+    .select('id', { count: 'exact', head: true })
     .eq('user_id', user.id)
     .eq('actor_role', 'admin')
     .in('event_type', ['message', 'on_hold'])

@@ -2,7 +2,10 @@ import { redirect } from 'next/navigation'
 import { unstable_noStore as noStore } from 'next/cache'
 import { createClient, getCachedProfile, getCachedUser } from '@/lib/supabase/server'
 import { countAwaitingFlightRecords } from '@/lib/booking/flight-record-status'
-import { getAdminUnreadCount } from '@/app/actions/admin'
+import {
+  getCachedAdminDocumentReviewRows,
+  getCachedAdminShellBadges,
+} from '@/lib/admin/operational-counts'
 import { ActionQueueSection } from './ActionQueueSection'
 import { createPerfLogger } from '@/lib/perf/timing'
 
@@ -327,8 +330,9 @@ export default async function AdminActionsPage({
 
   const nowIso = new Date().toISOString()
   const [
+    shellBadges,
+    customerDocumentRows,
     { data: overageInvoiceRows },
-    { data: customerDocumentRows },
     { count: manualCheckoutPaymentsReview },
     { count: checkoutIssues },
     { data: checkoutRequestedRows },
@@ -341,16 +345,10 @@ export default async function AdminActionsPage({
     { data: standardPaymentRows },
     { data: bookingCancellationRows },
   ] = await perf.time('admin_home', 'primary_query_group', () => Promise.all([
+    // Shares request cache with admin layout sidebar badges (no duplicate unread/doc fan-out).
+    getCachedAdminShellBadges(),
+    getCachedAdminDocumentReviewRows(),
     safeQuery('block time overage invoices', supabase.from('invoices').select('id, invoice_number, created_at, user_id, bookings ( booking_type, pic_name, aircraft ( id, registration ) )').eq('is_block_time_overage', true).eq('status', 'awaiting')),
-    safeQuery(
-      'customer document rows',
-      supabase
-        .from('user_documents')
-        .select('id, user_id, document_type, status, uploaded_at, created_at, updated_at')
-        .in('document_type', [...REQUIRED_DOCUMENT_TYPES])
-        .in('status', ['uploaded', 'approved', 'rejected'])
-        .order('uploaded_at', { ascending: false }),
-    ),
     safeQuery('checkout manual review count', supabase.from('checkout_bank_transfer_submissions').select('id', { count: 'exact', head: true }).eq('status', 'pending_review')),
     safeQuery('checkout issue count', supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'customer').in('pilot_clearance_status', ['additional_checkout_required', 'checkout_reschedule_required', 'not_currently_eligible'])),
     safeQuery('checkout requested rows', supabase
@@ -429,7 +427,7 @@ export default async function AdminActionsPage({
   }
 
   const latestDocumentByUserType = new Map<string, UserDocumentRow>()
-  for (const row of customerDocumentRows ?? []) {
+  for (const row of customerDocumentRows) {
     const doc = row as UserDocumentRow
     const key = `${doc.user_id}:${doc.document_type}`
     if (!latestDocumentByUserType.has(key)) {
@@ -970,7 +968,7 @@ export default async function AdminActionsPage({
   perf.timeSync('admin_home', 'action_feed_preparation', () => sortedActionRows.length, {
     rowCount: sortedActionRows.length,
   })
-  const unreadMessageCount = await getAdminUnreadCount()
+  const unreadMessageCount = shellBadges.unreadMessageCount
   markTotal({ rowCount: sortedActionRows.length })
 
   return (

@@ -1,6 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getCachedProfile, getCachedUser } from '@/lib/supabase/server'
 import CustomerBookingShell from '../CustomerBookingShell'
 import PortalPageHero from '@/components/PortalPageHero'
 import ClarificationResponseForm from './ClarificationResponseForm'
@@ -939,23 +939,14 @@ type PageProps = { params: { id: string } }
 
 export default async function BookingDetailPage({ params }: PageProps) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await getCachedUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
-  if (profile?.role === 'admin') redirect('/admin')
-
-  // ── SECURITY: ownership filter ─────────────────────────────────────────────
-  // .eq('booking_owner_user_id', user.id) ensures customers can only read
-  // their own bookings. The query returns null for any other user's ID,
-  // and notFound() below converts that to a 404.
-  const { data: booking } = await supabase
-    .from('bookings')
-    .select(`
+  const [{ data: profile }, { data: booking }] = await Promise.all([
+    getCachedProfile(user.id, 'dashboard'),
+    supabase
+      .from('bookings')
+      .select(`
       id, aircraft_id, status, booking_type, scheduled_start, scheduled_end, checkout_lifecycle_status,
       estimated_hours, estimated_amount,
       pic_name, pic_arn, customer_notes, admin_notes,
@@ -965,15 +956,25 @@ export default async function BookingDetailPage({ params }: PageProps) {
       aircraft ( registration, aircraft_type ),
       flight_records ( status, submitted_at )
     `)
-    .eq('id', params.id)
-    .eq('booking_owner_user_id', user.id)
-    .single()
+      .eq('id', params.id)
+      .eq('booking_owner_user_id', user.id)
+      .single(),
+  ])
+  if (profile?.role === 'admin') redirect('/admin')
+
+  // ── SECURITY: ownership filter already applied via booking_owner_user_id ──
 
   if (!booking) notFound()
 
-  const { data: activePackage } = await supabase
-    .from('pilot_block_time_purchases')
-    .select(`
+  const [
+    { data: activePackage },
+    { data: latestRescheduleRequest },
+    { data: rawHistory },
+    { data: termsAcceptanceRow },
+  ] = await Promise.all([
+    supabase
+      .from('pilot_block_time_purchases')
+      .select(`
       id,
       hours_remaining,
       rate_per_hour,
@@ -981,21 +982,33 @@ export default async function BookingDetailPage({ params }: PageProps) {
       hours_purchased,
       package:block_time_packages(name)
     `)
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .gt('expires_at', new Date().toISOString())
-    .order('activated_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-
-  const { data: latestRescheduleRequest } = await supabase
-    .from('checkout_change_requests')
-    .select('id, status, requested_scheduled_start, requested_scheduled_end, created_at')
-    .eq('checkout_request_id', booking.id)
-    .eq('request_type', 'reschedule')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .gt('expires_at', new Date().toISOString())
+      .order('activated_at', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('checkout_change_requests')
+      .select('id, status, requested_scheduled_start, requested_scheduled_end, created_at')
+      .eq('checkout_request_id', booking.id)
+      .eq('request_type', 'reschedule')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('booking_status_history')
+      .select('new_status, old_status, note, created_at')
+      .eq('booking_id', booking.id)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('booking_terms_acceptances')
+      .select('accepted_at, terms_version, terms_document_id')
+      .eq('booking_id', booking.id)
+      .order('accepted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
 
   const pendingRescheduleRequest =
     latestRescheduleRequest?.status === 'pending'
@@ -1005,14 +1018,6 @@ export default async function BookingDetailPage({ params }: PageProps) {
     0,
     (new Date(booking.scheduled_end).getTime() - new Date(booking.scheduled_start).getTime()) / (1000 * 60 * 60),
   )
-
-  // ── Status history ─────────────────────────────────────────────────────────
-  // Safe to use booking.id here because the ownership check above already ran.
-  const { data: rawHistory } = await supabase
-    .from('booking_status_history')
-    .select('new_status, old_status, note, created_at')
-    .eq('booking_id', booking.id)
-    .order('created_at', { ascending: true })
 
   const statusHistory = (rawHistory ?? []) as StatusHistoryRow[]
 
@@ -1027,13 +1032,6 @@ export default async function BookingDetailPage({ params }: PageProps) {
   const daysUntilExpiry = activePackage
     ? Math.ceil((new Date(activePackage.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null
-  const { data: termsAcceptanceRow } = await supabase
-    .from('booking_terms_acceptances')
-    .select('accepted_at, terms_version, terms_document_id')
-    .eq('booking_id', booking.id)
-    .order('accepted_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
   let acceptedTermsPublicUrl: string | null = null
   if (termsAcceptanceRow?.terms_document_id) {
     const { data: termsDocRow } = await supabase

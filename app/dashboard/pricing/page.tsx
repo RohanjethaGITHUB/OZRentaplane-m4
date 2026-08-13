@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getCachedProfile, getCachedUser } from '@/lib/supabase/server'
 import PortalPageHero from '@/components/PortalPageHero'
 import PackageCard from '@/components/PackageCard'
 import { BOOKING_TYPE_CARDS } from '@/lib/booking-type-cards'
@@ -122,15 +122,11 @@ export default async function BlockTimePage({
   searchParams?: { [key: string]: string | string[] | undefined }
 }) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await getCachedUser()
   if (!user) redirect('/login')
 
   const [{ data: profile }, { data: packageRows }, { data: purchaseRows }, { data: usageRows }, { data: overageRows }] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select('pilot_clearance_status')
-      .eq('id', user.id)
-      .single(),
+    getCachedProfile(user.id, 'dashboard'),
     supabase
       .from('block_time_packages')
       .select('id, name, hours, rate_per_hour, total_price, validity_days')

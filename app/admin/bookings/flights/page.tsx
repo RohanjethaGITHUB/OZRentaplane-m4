@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getCachedProfile, getCachedUser } from '@/lib/supabase/server'
 import { AdminPageHeader } from '@/app/admin/components/AdminUi'
 import { formatDateTime } from '@/lib/formatDateTime'
 import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
@@ -245,10 +245,10 @@ export default async function FlightBookingsPage({
 }) {
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await getCachedUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const { data: profile } = await getCachedProfile(user.id, 'admin')
   if (profile?.role !== 'admin') redirect('/dashboard')
 
   const sort = (searchParams.sort as SortKey | undefined) ?? 'created'

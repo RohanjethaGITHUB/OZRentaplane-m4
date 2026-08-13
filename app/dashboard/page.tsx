@@ -155,7 +155,8 @@ export default async function DashboardPage({
       .from('verification_events')
       .select('id, user_id, actor_user_id, actor_role, event_type, from_status, to_status, title, body, request_kind, is_read, admin_read_at, email_status, email_sent_at, created_at')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .limit(20),
     paymentPending
       ? supabase
           .from('bookings')

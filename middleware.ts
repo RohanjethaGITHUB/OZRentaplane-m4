@@ -1,6 +1,37 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+/**
+ * Public marketing / auth entry paths that do not need session refresh
+ * when the visitor has no Supabase auth cookie.
+ */
+function isAnonymousSkippablePath(pathname: string): boolean {
+  if (pathname === '/') return true
+  if (pathname === '/login' || pathname === '/signup' || pathname === '/forgot-password') return true
+  if (pathname.startsWith('/auth/')) return true
+  // Static marketing sections under (marketing)
+  const publicPrefixes = [
+    '/pricing',
+    '/shop',
+    '/faq',
+    '/contact-us',
+    '/resources',
+    '/cessna-172',
+    '/checkout-process',
+    '/pilotRequirements',
+    '/safety-disclaimer',
+    '/privacy',
+    '/terms',
+  ]
+  return publicPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
+}
+
+function hasSupabaseAuthCookie(request: NextRequest): boolean {
+  return request.cookies.getAll().some(
+    (cookie) => cookie.name.startsWith('sb-') && cookie.name.includes('auth-token'),
+  )
+}
+
 export async function middleware(request: NextRequest) {
   const hostHeader = request.headers.get('host') ?? ''
   const host = hostHeader.split(':')[0]?.toLowerCase() ?? ''
@@ -15,6 +46,12 @@ export async function middleware(request: NextRequest) {
 
   let supabaseResponse = NextResponse.next({ request })
   const pathname = normalizePath(request.nextUrl.pathname)
+
+  // Anonymous visitors on public pages: skip getUser() network round-trip.
+  // Logged-in users (auth cookie present) still refresh the session everywhere.
+  if (!hasSupabaseAuthCookie(request) && isAnonymousSkippablePath(pathname)) {
+    return supabaseResponse
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -70,8 +107,8 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Run on all routes except Next.js internals and static files.
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // Exclude Next internals, images, and common static asset extensions.
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf|eot|map)$).*)',
   ],
 }
 

@@ -15,18 +15,16 @@ type Props = {
 /** Stable empty object — default `= {}` would create a new ref every render and loop. */
 const EMPTY_COUNTS: Record<string, number> = {}
 
-/** Events that can change sidebar action/booking/checkout queue badges. */
+/**
+ * Keep badge soft-refresh narrow. Broad domain events were hammering Supabase
+ * (and could 500 via requireAdmin during connect timeouts).
+ */
 const BADGE_REFRESH_EVENTS: RealtimeEventType[] = [
   'ops:counts',
   'ops:queue',
-  'booking:status',
-  'payment:updated',
-  'verification:updated',
-  'flight_record:updated',
-  'clearance:updated',
-  'block_time:updated',
-  'ledger:updated',
 ]
+
+const FAILURE_BACKOFF_MS = 30_000
 
 function countsEqual(a: Record<string, number>, b: Record<string, number>): boolean {
   const aKeys = Object.keys(a)
@@ -54,6 +52,7 @@ export default function AdminSidebarShellSync({
   const badgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const unreadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inFlightRef = useRef(false)
+  const backoffUntilRef = useRef(0)
 
   const applyBadges = useCallback((next: {
     unreadMessageCount: number
@@ -64,14 +63,23 @@ export default function AdminSidebarShellSync({
   }, [])
 
   const refreshBadges = useCallback((delayMs = 400) => {
+    if (Date.now() < backoffUntilRef.current) return
     if (badgeTimerRef.current) clearTimeout(badgeTimerRef.current)
     badgeTimerRef.current = setTimeout(() => {
       if (inFlightRef.current) return
+      if (Date.now() < backoffUntilRef.current) return
       inFlightRef.current = true
       void getAdminShellBadges()
-        .then(applyBadges)
+        .then((next) => {
+          if (!next) {
+            backoffUntilRef.current = Date.now() + FAILURE_BACKOFF_MS
+            return
+          }
+          backoffUntilRef.current = 0
+          applyBadges(next)
+        })
         .catch(() => {
-          /* non-critical — keep last known badges */
+          backoffUntilRef.current = Date.now() + FAILURE_BACKOFF_MS
         })
         .finally(() => {
           inFlightRef.current = false
@@ -80,6 +88,7 @@ export default function AdminSidebarShellSync({
   }, [applyBadges])
 
   const refreshUnread = useCallback((delayMs = 350) => {
+    if (Date.now() < backoffUntilRef.current) return
     if (unreadTimerRef.current) clearTimeout(unreadTimerRef.current)
     unreadTimerRef.current = setTimeout(() => {
       void getAdminUnreadCount()
@@ -115,7 +124,7 @@ export default function AdminSidebarShellSync({
     }
   }, [])
 
-  // Soft-update badges on any ops-related realtime event (not only ops:counts).
+  // Soft-update badges on ops count/queue events only (not every domain event).
   useEffect(() => {
     if (!socket || !connected) return
 

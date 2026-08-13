@@ -1,6 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
 import { createPerfLogger } from '@/lib/perf/timing'
-import { fetchAdminShellBadges } from '@/lib/admin/operational-counts'
+import { getCachedAdminShellBadges } from '@/lib/admin/operational-counts'
 import AdminSidebarShellSync from '../AdminSidebarShellSync'
 
 export default async function AdminOperationalCounts({ displayName }: { displayName: string }) {
@@ -8,9 +7,8 @@ export default async function AdminOperationalCounts({ displayName }: { displayN
   const markTotal = perf.start('admin_layout', 'admin_operational_counts_total')
 
   try {
-    const supabase = await createClient()
     const badges = await perf.time('admin_layout', 'admin_operational_counts_query_group', () =>
-      fetchAdminShellBadges(supabase),
+      getCachedAdminShellBadges(),
     )
 
     markTotal()

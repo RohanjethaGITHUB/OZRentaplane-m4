@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getCachedProfile, getCachedUser } from '@/lib/supabase/server'
 import PortalPageHero from '@/components/PortalPageHero'
 import BookingsViewedTracker from './BookingsViewedTracker'
 import UpcomingBookingActions from './UpcomingBookingActions'
@@ -362,15 +362,11 @@ function ClearanceGateBanner({
 
 export default async function CustomerBookingsPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await getCachedUser()
   if (!user) redirect('/login')
 
   const [profileResult, bookingsResult] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single(),
+    getCachedProfile(user.id, 'dashboard'),
     supabase
       .from('bookings')
       .select(`

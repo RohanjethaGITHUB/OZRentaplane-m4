@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { countAwaitingFlightRecords } from '@/lib/booking/flight-record-status'
 
@@ -6,6 +7,16 @@ export type AdminShellActionCounts = Record<string, number>
 export type AdminShellBadges = {
   unreadMessageCount: number
   actionCounts: AdminShellActionCounts
+}
+
+export type AdminDocumentReviewRow = {
+  id: string
+  user_id: string
+  document_type: string
+  status: string
+  uploaded_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 type BookingInvoiceRow = {
@@ -25,10 +36,32 @@ type BookingBankTransferSubmissionRow = {
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
 
+const REQUIRED_DOCUMENT_TYPES = ['pilot_licence', 'medical_certificate', 'photo_id'] as const
+
+/**
+ * Shared across admin layout badges + command board in the same RSC request.
+ */
+export const getCachedAdminDocumentReviewRows = cache(async (): Promise<AdminDocumentReviewRow[]> => {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('user_documents')
+    .select('id, user_id, document_type, status, uploaded_at, created_at, updated_at')
+    .in('document_type', [...REQUIRED_DOCUMENT_TYPES])
+    .in('status', ['uploaded', 'approved', 'rejected'])
+    .order('uploaded_at', { ascending: false })
+
+  if (error) {
+    console.error('[admin badges] document rows failed:', error.message)
+    return []
+  }
+
+  return (data ?? []) as AdminDocumentReviewRow[]
+})
+
 async function countAdminUnread(supabase: SupabaseServerClient): Promise<number> {
   const { count } = await supabase
     .from('verification_events')
-    .select('*', { count: 'exact', head: true })
+    .select('id', { count: 'exact', head: true })
     .eq('actor_role', 'customer')
     .in('event_type', ['message', 'on_hold'])
     .not('body', 'is', null)
@@ -39,13 +72,14 @@ async function countAdminUnread(supabase: SupabaseServerClient): Promise<number>
 
 /**
  * Shared sidebar badge computation used by the admin layout and soft realtime sync.
+ * Unread runs in parallel with queue queries (not a waterfall).
  */
 export async function fetchAdminShellBadges(
   supabase: SupabaseServerClient,
 ): Promise<AdminShellBadges> {
-  const unreadMessageCount = await countAdminUnread(supabase)
-
   const [
+    unreadMessageCount,
+    customerDocumentRows,
     { count: checkoutNewRequests },
     { count: checkoutAwaitingOutcome },
     { count: checkoutPaymentRequired },
@@ -59,32 +93,27 @@ export async function fetchAdminShellBadges(
     { count: cancellationPending },
     { count: checkoutIssues },
     { count: overageInvoiceCount },
-    { data: customerDocumentRows },
   ] = await Promise.all([
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_requested'),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_completed_under_review'),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_payment_required'),
+    countAdminUnread(supabase),
+    getCachedAdminDocumentReviewRows(),
+    supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_requested'),
+    supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_completed_under_review'),
+    supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_payment_required'),
     supabase
       .from('bookings')
       .select('id, status, scheduled_end, flight_records(status, submitted_at)')
       .eq('booking_type', 'standard')
       .in('status', ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record', 'flight_record_overdue'])
       .lte('scheduled_end', new Date().toISOString()),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'pending_post_flight_review'),
+    supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'pending_post_flight_review'),
     supabase.from('bookings').select('id').eq('booking_type', 'standard').eq('status', 'payment_pending'),
-    supabase.from('checkout_bank_transfer_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending_review'),
-    supabase.from('checkout_change_requests').select('*', { count: 'exact', head: true }).eq('request_type', 'reschedule').eq('status', 'pending'),
+    supabase.from('checkout_bank_transfer_submissions').select('id', { count: 'exact', head: true }).eq('status', 'pending_review'),
+    supabase.from('checkout_change_requests').select('id', { count: 'exact', head: true }).eq('request_type', 'reschedule').eq('status', 'pending'),
     supabase.from('checkout_change_requests').select('checkout_request_id').eq('request_type', 'cancel'),
     supabase.from('bookings').select('id').eq('booking_type', 'checkout').in('checkout_lifecycle_status', ['cancelled_by_customer', 'cancelled_by_admin']),
-    supabase.from('booking_cancellation_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer').in('pilot_clearance_status', ['additional_checkout_required', 'checkout_reschedule_required', 'not_currently_eligible']),
-    supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('is_block_time_overage', true).eq('status', 'awaiting'),
-    supabase
-      .from('user_documents')
-      .select('user_id, document_type, status, uploaded_at, created_at')
-      .in('document_type', ['pilot_licence', 'medical_certificate', 'photo_id'])
-      .in('status', ['uploaded', 'approved', 'rejected'])
-      .order('uploaded_at', { ascending: false }),
+    supabase.from('booking_cancellation_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'customer').in('pilot_clearance_status', ['additional_checkout_required', 'checkout_reschedule_required', 'not_currently_eligible']),
+    supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('is_block_time_overage', true).eq('status', 'awaiting'),
   ])
 
   const checkoutNewQueue = checkoutNewRequests ?? 0
@@ -159,7 +188,7 @@ export async function fetchAdminShellBadges(
     overageQueue
 
   const latestDocumentByUserType = new Map<string, { status: string }>()
-  for (const row of customerDocumentRows ?? []) {
+  for (const row of customerDocumentRows) {
     const key = `${row.user_id}:${row.document_type}`
     if (!latestDocumentByUserType.has(key)) {
       latestDocumentByUserType.set(key, { status: row.status })
@@ -192,3 +221,11 @@ export async function fetchAdminShellBadges(
     },
   }
 }
+
+/**
+ * Request-scoped cache: admin layout Suspense + /admin page share one badge fetch.
+ */
+export const getCachedAdminShellBadges = cache(async (): Promise<AdminShellBadges> => {
+  const supabase = await createClient()
+  return fetchAdminShellBadges(supabase)
+})
