@@ -28,6 +28,7 @@ import {
   resolveCheckoutBookingAction,
 } from '@/lib/admin/clearance-override'
 import { settleClearanceOverrideInvoice } from '@/lib/admin/clearance-override-settlement'
+import { fetchAdminShellBadges } from '@/lib/admin/operational-counts'
 
 // ─── Admin guard ──────────────────────────────────────────────────────────────
 
@@ -557,6 +558,15 @@ export async function getAdminUnreadCount(): Promise<number> {
     .is('admin_read_at', null)
 
   return count ?? 0
+}
+
+/** Soft realtime sync for sidebar badges — avoids full admin page RSC refresh. */
+export async function getAdminShellBadges(): Promise<{
+  unreadMessageCount: number
+  actionCounts: Record<string, number>
+}> {
+  const { supabase } = await requireAdmin()
+  return fetchAdminShellBadges(supabase)
 }
 
 // ─── Customer search ──────────────────────────────────────────────────────────

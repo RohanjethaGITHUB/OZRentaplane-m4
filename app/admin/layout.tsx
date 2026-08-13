@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getCachedProfile, getCachedUser } from '@/lib/supabase/server'
-import AdminSidebar from './AdminSidebar'
+import AdminSidebarShellSync from './AdminSidebarShellSync'
 import AdminOperationalCounts from './components/AdminOperationalCounts'
 import { RealtimeProvider } from '@/components/realtime/RealtimeProvider'
 import { AdminRealtimeListener } from '@/components/realtime/AdminRealtimeListener'
@@ -45,7 +45,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
         {/* Admin Layout with Sidebar */}
         <div className="flex flex-1 min-h-0 overflow-hidden relative">
-          <Suspense fallback={<AdminSidebar displayName={adminName} unreadMessageCount={0} />}>
+          <Suspense fallback={<AdminSidebarShellSync displayName={adminName} unreadMessageCount={0} />}>
             <AdminOperationalCounts displayName={adminName} />
           </Suspense>
           

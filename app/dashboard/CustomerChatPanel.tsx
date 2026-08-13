@@ -6,6 +6,7 @@ import { sendCustomerReply, markCustomerMessagesRead } from '@/app/actions/verif
 import type { VerificationEvent } from '@/lib/supabase/types'
 import { formatDateTime } from '@/lib/formatDateTime'
 import { ThreadRealtimeListener } from '@/components/realtime/ThreadRealtimeListener'
+import { useRealtimeEvent } from '@/hooks/useRealtimeEvent'
 import { isCustomerChatEvent } from '@/lib/chat/unread'
 
 interface Props {
@@ -21,14 +22,41 @@ export default function CustomerChatPanel({ events, displayName, threadUserId }:
   const [sent, setSent] = useState(false)
   const router = useRouter()
   const bottomRef = useRef<HTMLDivElement>(null)
+  const markingReadRef = useRef(false)
 
   const chatEvents = events
     .filter(isCustomerChatEvent)
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
+  const hasUnreadAdmin = chatEvents.some(
+    (ev) => ev.actor_role === 'admin' && !ev.is_read,
+  )
+
+  async function markThreadRead() {
+    if (markingReadRef.current) return
+    markingReadRef.current = true
+    try {
+      await markCustomerMessagesRead()
+      router.refresh()
+    } catch {
+      /* non-critical */
+    } finally {
+      markingReadRef.current = false
+    }
+  }
+
+  // Mark read on open, and again whenever unread admin messages are present
+  // (e.g. realtime refresh delivered a new message while this page is open).
   useEffect(() => {
-    markCustomerMessagesRead().catch(() => {})
-  }, [])
+    if (!hasUnreadAdmin) return
+    void markThreadRead()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasUnreadAdmin, chatEvents.length])
+
+  // Admin message arrived while this panel is open — mark read immediately.
+  useRealtimeEvent('chat:message', () => {
+    void markThreadRead()
+  })
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })

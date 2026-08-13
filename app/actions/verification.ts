@@ -305,6 +305,27 @@ export async function markCustomerMessagesRead(): Promise<void> {
   void emitChatRead(user.id)
 }
 
+/** Lightweight unread badge count for soft realtime nav updates (no full RSC refresh). */
+export async function getCustomerUnreadMessageCount(): Promise<number> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+  if (authError || !user) return 0
+
+  const { count } = await supabase
+    .from('verification_events')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .eq('actor_role', 'admin')
+    .in('event_type', ['message', 'on_hold'])
+    .eq('is_read', false)
+    .not('body', 'is', null)
+
+  return count ?? 0
+}
+
 // ─── Save last flight review date ─────────────────────────────────────────────
 // Customer records their most recent flight review date.
 // Stored on profiles.last_flight_date — shared between the Documents page,

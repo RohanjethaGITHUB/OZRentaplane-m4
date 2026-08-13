@@ -1,0 +1,194 @@
+import { createClient } from '@/lib/supabase/server'
+import { countAwaitingFlightRecords } from '@/lib/booking/flight-record-status'
+
+export type AdminShellActionCounts = Record<string, number>
+
+export type AdminShellBadges = {
+  unreadMessageCount: number
+  actionCounts: AdminShellActionCounts
+}
+
+type BookingInvoiceRow = {
+  id: string
+  booking_id: string
+  status: string
+  payment_method: string | null
+  total_paid_cents: number | null
+  updated_at: string
+}
+
+type BookingBankTransferSubmissionRow = {
+  invoice_id: string
+  booking_id: string
+  status: string
+}
+
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
+
+async function countAdminUnread(supabase: SupabaseServerClient): Promise<number> {
+  const { count } = await supabase
+    .from('verification_events')
+    .select('*', { count: 'exact', head: true })
+    .eq('actor_role', 'customer')
+    .in('event_type', ['message', 'on_hold'])
+    .not('body', 'is', null)
+    .is('admin_read_at', null)
+
+  return count ?? 0
+}
+
+/**
+ * Shared sidebar badge computation used by the admin layout and soft realtime sync.
+ */
+export async function fetchAdminShellBadges(
+  supabase: SupabaseServerClient,
+): Promise<AdminShellBadges> {
+  const unreadMessageCount = await countAdminUnread(supabase)
+
+  const [
+    { count: checkoutNewRequests },
+    { count: checkoutAwaitingOutcome },
+    { count: checkoutPaymentRequired },
+    { data: awaitingFlightRecordRows },
+    { count: postFlightReview },
+    { data: bookingPaymentRows },
+    { count: checkoutManualReview },
+    { count: checkoutReschedulePending },
+    { data: checkoutCancelRequestRows },
+    { data: checkoutLifecycleCancelledRows },
+    { count: cancellationPending },
+    { count: checkoutIssues },
+    { count: overageInvoiceCount },
+    { data: customerDocumentRows },
+  ] = await Promise.all([
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_requested'),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_completed_under_review'),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'checkout').eq('status', 'checkout_payment_required'),
+    supabase
+      .from('bookings')
+      .select('id, status, scheduled_end, flight_records(status, submitted_at)')
+      .eq('booking_type', 'standard')
+      .in('status', ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record', 'flight_record_overdue'])
+      .lte('scheduled_end', new Date().toISOString()),
+    supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'pending_post_flight_review'),
+    supabase.from('bookings').select('id').eq('booking_type', 'standard').eq('status', 'payment_pending'),
+    supabase.from('checkout_bank_transfer_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending_review'),
+    supabase.from('checkout_change_requests').select('*', { count: 'exact', head: true }).eq('request_type', 'reschedule').eq('status', 'pending'),
+    supabase.from('checkout_change_requests').select('checkout_request_id').eq('request_type', 'cancel'),
+    supabase.from('bookings').select('id').eq('booking_type', 'checkout').in('checkout_lifecycle_status', ['cancelled_by_customer', 'cancelled_by_admin']),
+    supabase.from('booking_cancellation_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer').in('pilot_clearance_status', ['additional_checkout_required', 'checkout_reschedule_required', 'not_currently_eligible']),
+    supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('is_block_time_overage', true).eq('status', 'awaiting'),
+    supabase
+      .from('user_documents')
+      .select('user_id, document_type, status, uploaded_at, created_at')
+      .in('document_type', ['pilot_licence', 'medical_certificate', 'photo_id'])
+      .in('status', ['uploaded', 'approved', 'rejected'])
+      .order('uploaded_at', { ascending: false }),
+  ])
+
+  const checkoutNewQueue = checkoutNewRequests ?? 0
+  const checkoutAwaitingOutcomeQueue = checkoutAwaitingOutcome ?? 0
+  const checkoutPaymentsQueue = (checkoutPaymentRequired ?? 0) + (checkoutManualReview ?? 0)
+  const checkoutRescheduleQueue = checkoutReschedulePending ?? 0
+  const checkoutIssuesQueue = (checkoutIssues ?? 0) > 0 ? 1 : 0
+  const cancelledCheckoutIds = new Set<string>([
+    ...(checkoutCancelRequestRows ?? []).map((r) => r.checkout_request_id),
+    ...(checkoutLifecycleCancelledRows ?? []).map((r) => r.id),
+  ])
+  const checkoutCancelledQueue = cancelledCheckoutIds.size
+  const checkoutActions =
+    checkoutNewQueue +
+    checkoutAwaitingOutcomeQueue +
+    checkoutPaymentsQueue +
+    checkoutRescheduleQueue +
+    checkoutCancelledQueue +
+    checkoutIssuesQueue
+
+  const bookingAwaitingFlightQueue = countAwaitingFlightRecords(awaitingFlightRecordRows)
+  const bookingPostFlightQueue = postFlightReview ?? 0
+  const bookingPaymentIds = Array.from(new Set((bookingPaymentRows ?? []).map((row) => row.id)))
+
+  const [{ data: bookingInvoices }, { data: bookingBankTransferSubmissions }] = await Promise.all([
+    bookingPaymentIds.length
+      ? supabase
+          .from('booking_invoices')
+          .select('id, booking_id, status, payment_method, total_paid_cents, updated_at')
+          .in('booking_id', bookingPaymentIds)
+      : Promise.resolve({ data: [] as BookingInvoiceRow[] }),
+    bookingPaymentIds.length
+      ? supabase
+          .from('booking_bank_transfer_submissions')
+          .select('invoice_id, booking_id, status')
+          .in('booking_id', bookingPaymentIds)
+          .order('submitted_at', { ascending: false })
+      : Promise.resolve({ data: [] as BookingBankTransferSubmissionRow[] }),
+  ])
+
+  const invoiceByBookingId = new Map<string, BookingInvoiceRow>()
+  for (const row of bookingInvoices ?? []) {
+    const current = invoiceByBookingId.get(row.booking_id)
+    if (!current || new Date(row.updated_at).getTime() > new Date(current.updated_at).getTime()) {
+      invoiceByBookingId.set(row.booking_id, row)
+    }
+  }
+
+  const latestSubmissionByBookingId = new Map<string, BookingBankTransferSubmissionRow>()
+  for (const row of bookingBankTransferSubmissions ?? []) {
+    if (!latestSubmissionByBookingId.has(row.booking_id)) {
+      latestSubmissionByBookingId.set(row.booking_id, row)
+    }
+  }
+
+  const bookingPaymentsQueue = bookingPaymentIds.filter((bookingId) => {
+    const invoice = invoiceByBookingId.get(bookingId)
+    const latestSubmission = latestSubmissionByBookingId.get(bookingId)
+    if (!invoice) return true
+    if (invoice.status === 'paid' || (invoice.total_paid_cents ?? 0) > 0) return false
+    if (latestSubmission?.status === 'rejected') return false
+    return true
+  }).length
+
+  const bookingCancellationsQueue = cancellationPending ?? 0
+  const overageQueue = overageInvoiceCount ?? 0
+  const bookingActions =
+    bookingAwaitingFlightQueue +
+    bookingPostFlightQueue +
+    bookingPaymentsQueue +
+    bookingCancellationsQueue +
+    overageQueue
+
+  const latestDocumentByUserType = new Map<string, { status: string }>()
+  for (const row of customerDocumentRows ?? []) {
+    const key = `${row.user_id}:${row.document_type}`
+    if (!latestDocumentByUserType.has(key)) {
+      latestDocumentByUserType.set(key, { status: row.status })
+    }
+  }
+  const documentReviewUsers = new Set<string>()
+  for (const [key, doc] of Array.from(latestDocumentByUserType.entries())) {
+    if (doc.status !== 'uploaded') continue
+    documentReviewUsers.add(key.split(':')[0])
+  }
+  const documentReviewQueue = documentReviewUsers.size
+  const totalActions = checkoutActions + bookingActions + documentReviewQueue
+
+  return {
+    unreadMessageCount,
+    actionCounts: {
+      actions: totalActions,
+      checkouts: checkoutActions,
+      checkoutNewRequests: checkoutNewQueue,
+      checkoutAwaitingOutcome: checkoutAwaitingOutcomeQueue,
+      checkoutPayments: checkoutPaymentsQueue,
+      checkoutReschedule: checkoutRescheduleQueue,
+      checkoutCancelled: checkoutCancelledQueue,
+      bookings: bookingActions,
+      awaitingFlightRecord: bookingAwaitingFlightQueue,
+      bookingOnHold: 0,
+      postFlightReview: bookingPostFlightQueue,
+      bookingPayments: bookingPaymentsQueue,
+      bookingCancellations: bookingCancellationsQueue,
+    },
+  }
+}

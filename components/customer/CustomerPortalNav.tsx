@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getCustomerUnreadMessageCount } from '@/app/actions/verification'
+import { useRealtimeEvent } from '@/hooks/useRealtimeEvent'
 
 type PortalLink = {
   label: string
@@ -60,10 +62,63 @@ export default function CustomerPortalNav({
   const router = useRouter()
   const supabase = createClient()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(unreadMessageCount)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const unreadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pathnameRef = useRef(pathname)
+  pathnameRef.current = pathname
   const portalLinks = buildPortalLinks(hideCheckout)
   const avatarInitial = initialsFor(firstName, email)
   const displayName = firstName.trim() || email.split('@')[0] || 'Pilot'
+
+  useEffect(() => {
+    setUnreadCount(unreadMessageCount)
+  }, [unreadMessageCount])
+
+  // Viewing Messages — badges must stay clear.
+  useEffect(() => {
+    if (pathname?.startsWith('/dashboard/messages')) {
+      setUnreadCount(0)
+    }
+  }, [pathname])
+
+  useEffect(() => {
+    return () => {
+      if (unreadTimerRef.current) clearTimeout(unreadTimerRef.current)
+    }
+  }, [])
+
+  // Soft badge sync — avoids full dashboard RSC refresh on every chat event.
+  useRealtimeEvent('chat:message', () => {
+    // Already in the inbox: panel marks read; don't flash a red badge.
+    if (pathnameRef.current?.startsWith('/dashboard/messages')) {
+      setUnreadCount(0)
+      return
+    }
+    if (unreadTimerRef.current) clearTimeout(unreadTimerRef.current)
+    unreadTimerRef.current = setTimeout(() => {
+      void getCustomerUnreadMessageCount()
+        .then(setUnreadCount)
+        .catch(() => {
+          /* non-critical */
+        })
+    }, 400)
+  })
+
+  useRealtimeEvent('chat:read', () => {
+    if (pathnameRef.current?.startsWith('/dashboard/messages')) {
+      setUnreadCount(0)
+      return
+    }
+    if (unreadTimerRef.current) clearTimeout(unreadTimerRef.current)
+    unreadTimerRef.current = setTimeout(() => {
+      void getCustomerUnreadMessageCount()
+        .then(setUnreadCount)
+        .catch(() => {
+          /* non-critical */
+        })
+    }, 400)
+  })
 
   useEffect(() => {
     function onMouseDown(event: MouseEvent) {
@@ -165,12 +220,12 @@ export default function CustomerPortalNav({
             <Link
               href="/dashboard/messages"
               className="relative inline-flex items-center justify-center w-10 h-10 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors"
-              aria-label={unreadMessageCount > 0 ? `Messages, ${unreadMessageCount} unread` : 'Messages'}
+              aria-label={unreadCount > 0 ? `Messages, ${unreadCount} unread` : 'Messages'}
             >
               <span className="material-symbols-outlined text-[22px]" aria-hidden="true">
                 chat
               </span>
-              {unreadMessageCount > 0 && (
+              {unreadCount > 0 && (
                 <span
                   className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[#0d1e34]"
                   aria-hidden="true"
@@ -258,8 +313,8 @@ export default function CustomerPortalNav({
                 href={link.href}
                 className="relative flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors min-w-[64px]"
                 aria-label={
-                  isMessages && unreadMessageCount > 0
-                    ? `Messages, ${unreadMessageCount} unread`
+                  isMessages && unreadCount > 0
+                    ? `Messages, ${unreadCount} unread`
                     : link.label
                 }
               >
@@ -272,7 +327,7 @@ export default function CustomerPortalNav({
                   >
                     {link.icon}
                   </span>
-                  {isMessages && unreadMessageCount > 0 && (
+                  {isMessages && unreadCount > 0 && (
                     <span
                       className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[#16305c]"
                       aria-hidden="true"

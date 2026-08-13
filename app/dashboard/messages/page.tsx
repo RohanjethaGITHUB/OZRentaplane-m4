@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import CustomerChatPanel from '@/app/dashboard/CustomerChatPanel'
 import PortalPageHero from '@/components/PortalPageHero'
-import { ThreadRealtimeListener } from '@/components/realtime/ThreadRealtimeListener'
 import type { VerificationEvent } from '@/lib/supabase/types'
 import { countCustomerUnreadMessages } from '@/lib/chat/unread'
 
@@ -34,7 +33,6 @@ export default async function CustomerMessagesPage() {
 
   return (
     <>
-      <ThreadRealtimeListener threadUserId={user.id} />
       <PortalPageHero
         compact
         eyebrow="Member Support"

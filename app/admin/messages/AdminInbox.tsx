@@ -456,7 +456,7 @@ export default function AdminInbox({
 
   return (
     <>
-      {selectedId && <ThreadRealtimeListener threadUserId={selectedId} />}
+      {selectedId && <ThreadRealtimeListener threadUserId={selectedId} refresh={false} />}
       {showNewMessage && (
         <NewMessageModal
           onSelect={handleNewMessageSelect}

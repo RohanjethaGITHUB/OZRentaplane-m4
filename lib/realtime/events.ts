@@ -1,6 +1,7 @@
 /**
  * Typed Socket.io realtime contract.
- * Payloads stay thin (ids + type). Clients refresh from DB / RSC.
+ * Payloads stay thin (ids + type).
+ * Clients soft-update badges where possible; otherwise path-aware RSC refresh.
  */
 
 export type RealtimeEvent =
