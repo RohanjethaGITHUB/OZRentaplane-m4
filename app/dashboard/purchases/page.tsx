@@ -168,7 +168,7 @@ export default async function PurchaseHistoryPage({
     // overage invoices. Paid via Stripe or bank transfer (admin confirms).
     supabase
       .from('invoices')
-      .select('id, invoice_number, total, created_at, pdf_url, payment_method')
+      .select('id, invoice_number, total, created_at, pdf_url, payment_method, booking_id')
       .eq('user_id', user.id)
       .eq('billing_mode', 'block_time')
       .eq('type', 'flight')
@@ -199,6 +199,7 @@ export default async function PurchaseHistoryPage({
     created_at: string
     pdf_url: string | null
     payment_method: string | null
+    booking_id: string | null
   }[]
   const bankDetails =
     PAYMENT_CONFIG.BANK_ACCOUNT_NAME && PAYMENT_CONFIG.BANK_BSB && PAYMENT_CONFIG.BANK_ACCOUNT_NUMBER
@@ -384,14 +385,23 @@ export default async function PurchaseHistoryPage({
                   )}
                 </div>
                 {invoice.payment_method !== 'bank_transfer' && (
-                  <form action={createBlockTimeOveragePaymentSession.bind(null, invoice.id)}>
-                    <button
-                      type="submit"
+                  invoice.booking_id ? (
+                    <Link
+                      href={`/dashboard/bookings/${invoice.booking_id}#payment`}
                       className="inline-flex items-center justify-center rounded-full bg-[#1a4fd6] px-5 py-2.5 text-[12px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#1540a8]"
                     >
                       Pay ${Number(invoice.total).toFixed(2)} now
-                    </button>
-                  </form>
+                    </Link>
+                  ) : (
+                    <form action={createBlockTimeOveragePaymentSession.bind(null, invoice.id)}>
+                      <button
+                        type="submit"
+                        className="inline-flex items-center justify-center rounded-full bg-[#1a4fd6] px-5 py-2.5 text-[12px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#1540a8]"
+                      >
+                        Pay ${Number(invoice.total).toFixed(2)} now
+                      </button>
+                    </form>
+                  )
                 )}
               </div>
             ))}

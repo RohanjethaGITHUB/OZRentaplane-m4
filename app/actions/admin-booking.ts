@@ -19,7 +19,7 @@ import {
 import { enqueueCheckoutConfirmedEmail } from '@/lib/email/outbox'
 import { sendEmail } from '@/lib/email/send-email'
 import { checkoutOutcomeEmail } from '@/lib/email/templates/checkout'
-import { paymentConfirmedEmail } from '@/lib/email/templates/payment'
+import { landingFeeInvoiceReadyEmail, paymentConfirmedEmail } from '@/lib/email/templates/payment'
 import { generateInvoicePdf } from '@/lib/invoices/pdf'
 import { storeInvoicePdf } from '@/lib/invoices/pdf-storage'
 import { generateStandardBookingInvoicePdf } from '@/lib/invoices/standard-booking-pdf'
@@ -2559,24 +2559,106 @@ async function rejectStandardBankTransferWithoutReviewedBy(
 export async function adminConfirmStandardBankTransfer(submissionId: string, bookingId: string): Promise<void> {
   const { supabase, adminId } = await requireAdmin()
 
-  const { error } = await supabase.rpc('approve_standard_bank_transfer_atomic', {
-    p_submission_id: submissionId,
-  })
-  if (error) {
-    if (isMissingReviewedByColumnError(error)) {
-      console.warn(
-        '[adminConfirmStandardBankTransfer] reviewed_by column missing — using fallback. Apply fix-reviewed-by-column.sql / migration 112.',
-        { message: error.message, code: error.code },
-      )
-      try {
-        await approveStandardBankTransferWithoutReviewedBy(adminId, submissionId, bookingId)
-      } catch (fallbackError: any) {
-        console.error('[adminConfirmStandardBankTransfer] fallback failed:', fallbackError)
-        throw new Error(fallbackError?.message || 'Failed to confirm payment.')
+  const { data: subData } = await supabase
+    .from('booking_bank_transfer_submissions')
+    .select('id, invoice_id, customer_id, booking_id')
+    .eq('id', submissionId)
+    .single()
+
+  const { data: blockTimeInvoice } = subData?.invoice_id
+    ? await supabase
+        .from('invoices')
+        .select('id, total, status, invoice_number, is_block_time_overage')
+        .eq('id', subData.invoice_id)
+        .maybeSingle()
+    : { data: null }
+
+  if (blockTimeInvoice) {
+    const now = new Date().toISOString()
+    const { error: subErr } = await supabase
+      .from('booking_bank_transfer_submissions')
+      .update({
+        status: 'approved',
+        reviewed_by: adminId,
+        reviewed_at: now,
+        updated_at: now,
+      })
+      .eq('id', submissionId)
+
+    if (subErr) {
+      // Fallback if reviewed_by column missing
+      await supabase
+        .from('booking_bank_transfer_submissions')
+        .update({
+          status: 'approved',
+          reviewed_at: now,
+          updated_at: now,
+        })
+        .eq('id', submissionId)
+    }
+
+    await supabase
+      .from('invoices')
+      .update({
+        status: 'paid',
+        payment_method: 'bank_transfer',
+        paid_at: now,
+      })
+      .eq('id', blockTimeInvoice.id)
+
+    const amountCents = Math.round(Number(blockTimeInvoice.total) * 100)
+    await supabase
+      .from('customer_payment_ledger')
+      .insert({
+        customer_id: subData!.customer_id,
+        booking_id: bookingId,
+        invoice_id: blockTimeInvoice.id,
+        invoice_source_type: 'block_time',
+        amount_cents: amountCents,
+        entry_type: 'bank_transfer',
+        payment_method: 'bank_transfer',
+        note: 'Bank transfer approved by admin',
+        created_by: adminId,
+      })
+
+    const { data: remainingAwaiting } = await supabase
+      .from('invoices')
+      .select('id')
+      .eq('booking_id', bookingId)
+      .eq('status', 'awaiting')
+
+    if (!remainingAwaiting || remainingAwaiting.length === 0) {
+      await supabase
+        .from('bookings')
+        .update({ status: 'completed', updated_at: now })
+        .eq('id', bookingId)
+
+      await supabase
+        .from('schedule_blocks')
+        .update({ status: 'cancelled' })
+        .eq('related_booking_id', bookingId)
+        .eq('status', 'active')
+    }
+  } else {
+    const { error } = await supabase.rpc('approve_standard_bank_transfer_atomic', {
+      p_submission_id: submissionId,
+    })
+    if (error) {
+      if (isMissingReviewedByColumnError(error)) {
+        console.warn(
+          '[adminConfirmStandardBankTransfer] reviewed_by column missing — using fallback. Apply fix-reviewed-by-column.sql / migration 112.',
+          { message: error.message, code: error.code },
+        )
+        try {
+          await approveStandardBankTransferWithoutReviewedBy(adminId, submissionId, bookingId)
+        } catch (fallbackError: any) {
+          console.error('[adminConfirmStandardBankTransfer] fallback failed:', fallbackError)
+          throw new Error(fallbackError?.message || 'Failed to confirm payment.')
+        }
+      } else {
+        console.error('[adminConfirmStandardBankTransfer] RPC failed:', error)
+        throw new Error(error.message || 'Failed to confirm payment.')
       }
-    } else {
-      console.error('[adminConfirmStandardBankTransfer] RPC failed:', error)
-      throw new Error(error.message || 'Failed to confirm payment.')
     }
   }
 
@@ -2645,29 +2727,69 @@ export async function adminRejectStandardBankTransfer(
   bookingId: string,
   adminNote: string,
 ): Promise<void> {
-  const { supabase } = await requireAdmin()
+  const { supabase, adminId } = await requireAdmin()
 
   if (!adminNote?.trim()) throw new Error('A rejection note is required.')
 
-  const { error } = await supabase.rpc('reject_standard_bank_transfer_atomic', {
-    p_submission_id: submissionId,
-    p_admin_note:    adminNote,
-  })
-  if (error) {
-    if (isMissingReviewedByColumnError(error)) {
-      console.warn(
-        '[adminRejectStandardBankTransfer] reviewed_by column missing — using fallback. Apply fix-reviewed-by-column.sql / migration 112.',
-        { message: error.message, code: error.code },
-      )
-      try {
-        await rejectStandardBankTransferWithoutReviewedBy(submissionId, bookingId, adminNote.trim())
-      } catch (fallbackError: any) {
-        console.error('[adminRejectStandardBankTransfer] fallback failed:', fallbackError)
-        throw new Error(fallbackError?.message || 'Failed to reject payment.')
+  const { data: subData } = await supabase
+    .from('booking_bank_transfer_submissions')
+    .select('id, invoice_id, customer_id, booking_id')
+    .eq('id', submissionId)
+    .single()
+
+  const { data: blockTimeInvoice } = subData?.invoice_id
+    ? await supabase
+        .from('invoices')
+        .select('id, total, status')
+        .eq('id', subData.invoice_id)
+        .maybeSingle()
+    : { data: null }
+
+  if (blockTimeInvoice) {
+    const now = new Date().toISOString()
+    const { error: subErr } = await supabase
+      .from('booking_bank_transfer_submissions')
+      .update({
+        status: 'rejected',
+        admin_note: adminNote.trim(),
+        reviewed_by: adminId,
+        reviewed_at: now,
+        updated_at: now,
+      })
+      .eq('id', submissionId)
+
+    if (subErr) {
+      await supabase
+        .from('booking_bank_transfer_submissions')
+        .update({
+          status: 'rejected',
+          admin_note: adminNote.trim(),
+          reviewed_at: now,
+          updated_at: now,
+        })
+        .eq('id', submissionId)
+    }
+  } else {
+    const { error } = await supabase.rpc('reject_standard_bank_transfer_atomic', {
+      p_submission_id: submissionId,
+      p_admin_note:    adminNote,
+    })
+    if (error) {
+      if (isMissingReviewedByColumnError(error)) {
+        console.warn(
+          '[adminRejectStandardBankTransfer] reviewed_by column missing — using fallback. Apply fix-reviewed-by-column.sql / migration 112.',
+          { message: error.message, code: error.code },
+        )
+        try {
+          await rejectStandardBankTransferWithoutReviewedBy(submissionId, bookingId, adminNote.trim())
+        } catch (fallbackError: any) {
+          console.error('[adminRejectStandardBankTransfer] fallback failed:', fallbackError)
+          throw new Error(fallbackError?.message || 'Failed to reject payment.')
+        }
+      } else {
+        console.error('[adminRejectStandardBankTransfer] RPC failed:', error)
+        throw new Error(error.message || 'Failed to reject payment.')
       }
-    } else {
-      console.error('[adminRejectStandardBankTransfer] RPC failed:', error)
-      throw new Error(error.message || 'Failed to reject payment.')
     }
   }
 
@@ -3103,7 +3225,8 @@ export async function finaliseStandardBookingInvoice(input: {
       }
     }
 
-    const blockTimeBookingStatus = 'completed'
+    const isPaymentPending = (landingOutcome === 'awaiting') || hasOverage
+    const blockTimeBookingStatus = isPaymentPending ? 'payment_pending' : 'completed'
 
     const { error: bookingStatusErr } = await supabase
       .from('bookings')
@@ -3120,19 +3243,24 @@ export async function finaliseStandardBookingInvoice(input: {
       throw new Error('Failed to update booking status after block time finalisation.')
     }
 
-    // Flight is closed — release any leftover active schedule holds so the
-    // slot is bookable again (availability keys off schedule_blocks.status).
-    await supabase
-      .from('schedule_blocks')
-      .update({ status: 'cancelled' })
-      .eq('related_booking_id', input.bookingId)
-      .eq('status', 'active')
+    // Release schedule holds if booking is fully completed
+    if (blockTimeBookingStatus === 'completed') {
+      await supabase
+        .from('schedule_blocks')
+        .update({ status: 'cancelled' })
+        .eq('related_booking_id', input.bookingId)
+        .eq('status', 'active')
+    }
 
     try {
       const { data: authData } = await supabase.auth.getUser()
-      const blockTimeHistoryNote = minimumVdoOutcomeMessage
-        ? `Block time flight finalised. ${minimumVdoOutcomeMessage}`
-        : 'Block time flight finalised. Hours deducted from balance.'
+      const blockTimeHistoryNote = isPaymentPending
+        ? (hasOverage
+            ? `Block time flight finalised. Overage invoice ${drawdown.out_overage_invoice_number} awaiting payment.`
+            : `Block time flight finalised. Landing fee invoice ${drawdown.out_landing_invoice_number} awaiting payment.`)
+        : (minimumVdoOutcomeMessage
+            ? `Block time flight finalised. ${minimumVdoOutcomeMessage}`
+            : 'Block time flight finalised. Hours deducted from balance.')
       await supabase
         .from('booking_status_history')
         .insert({
@@ -3214,7 +3342,14 @@ export async function finaliseStandardBookingInvoice(input: {
         console.error('[finaliseStandardBookingInvoice] block time PDF generation failed:', error)
       }
     }
-    const pdfUrl = pdfUrls.get(drawdown.out_usage_invoice_id) ?? null
+    const usagePdfUrl = pdfUrls.get(drawdown.out_usage_invoice_id) ?? null
+    const landingPdfUrl = drawdown.out_landing_invoice_id
+      ? pdfUrls.get(drawdown.out_landing_invoice_id) ?? null
+      : null
+    const hasAwaitingLandingInvoice =
+      landingOutcome === 'awaiting' &&
+      Boolean(drawdown.out_landing_invoice_id) &&
+      landingFeesTotal > 0
 
     const deductedHours = Math.round((effectiveVdoHoursRounded - Number(drawdown.out_overflow_hours)) * 100) / 100
     const blockTimeMessageParts = [
@@ -3340,23 +3475,40 @@ export async function finaliseStandardBookingInvoice(input: {
       },
     })
 
+    const verificationBodyParts = [
+      ...(minimumVdoOutcomeMessage ? [minimumVdoOutcomeMessage] : []),
+      hasOverage
+        ? `${deductedHours}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h. Your flight exceeded your balance — ${drawdown.out_overflow_hours}h has been invoiced as overage at your locked rate of $${Number(drawdown.out_rate_per_hour).toFixed(2)}/hr. Please pay invoice ${drawdown.out_overage_invoice_number} from your Block Time page to keep booking.`
+        : `${deductedHours}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h.`,
+    ]
+    if (hasAwaitingLandingInvoice) {
+      verificationBodyParts.push(
+        `Landing fees of $${landingFeesTotal.toFixed(2)} (invoice ${drawdown.out_landing_invoice_number}) require payment — open Purchases to pay.`,
+      )
+    }
+
     await supabase.from('verification_events').insert({
       user_id:       booking.booking_owner_user_id,
       actor_user_id: adminId,
       actor_role:    'admin',
       event_type:    'approved',
-      title:         'Flight record approved',
-      body:          `${minimumVdoOutcomeMessage ? `${minimumVdoOutcomeMessage} ` : ''}${hasOverage
-        ? `${deductedHours}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h. Your flight exceeded your balance — ${drawdown.out_overflow_hours}h has been invoiced as overage at your locked rate of $${Number(drawdown.out_rate_per_hour).toFixed(2)}/hr. Please pay invoice ${drawdown.out_overage_invoice_number} from your Block Time page to keep booking.`
-        : `${deductedHours}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h.`}`,
+      title:         hasAwaitingLandingInvoice
+        ? 'Landing fee invoice ready — payment required'
+        : 'Flight record approved',
+      body:          verificationBodyParts.join(' '),
       is_read:       false,
       email_status:  'skipped',
     })
 
     if (pilotProfile?.email) {
-      const template = paymentConfirmedEmail(blockTimeMessage, pdfUrl ?? undefined)
-      const emailText = pdfUrl
-        ? `${blockTimeMessage}\n\nInvoice PDF: ${pdfUrl}`
+      const emailPdfUrl = hasAwaitingLandingInvoice
+        ? (landingPdfUrl ?? usagePdfUrl)
+        : usagePdfUrl
+      const template = hasAwaitingLandingInvoice
+        ? landingFeeInvoiceReadyEmail(blockTimeMessage, emailPdfUrl ?? undefined)
+        : paymentConfirmedEmail(blockTimeMessage, emailPdfUrl ?? undefined)
+      const emailText = emailPdfUrl
+        ? `${blockTimeMessage}\n\nInvoice PDF: ${emailPdfUrl}`
         : blockTimeMessage
       // The billing write is the source of truth; email delivery can continue
       // in the background so the admin does not sit on the spinner waiting for
@@ -3366,7 +3518,9 @@ export async function finaliseStandardBookingInvoice(input: {
         subject: template.subject,
         html: template.html,
         text: emailText,
-        eventType: 'block_time_flight_record',
+        eventType: hasAwaitingLandingInvoice
+          ? 'block_time_landing_fee_invoice'
+          : 'block_time_flight_record',
         entityType: 'booking',
         entityId: input.bookingId,
         metadata: {
@@ -3376,13 +3530,17 @@ export async function finaliseStandardBookingInvoice(input: {
           landingInvoiceId: drawdown.out_landing_invoice_id,
           overflowHours: drawdown.out_overflow_hours,
           hoursAfter: drawdown.out_hours_after,
-          pdfUrl: pdfUrl ?? null,
+          pdfUrl: emailPdfUrl ?? null,
+          landingSettlement: landingOutcome,
         },
       }).catch((error) => console.error('[finaliseStandardBookingInvoice] block time email failed:', error))
     }
 
     revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
     revalidatePath(`/dashboard/bookings/${input.bookingId}`)
+    revalidatePath('/dashboard/bookings')
+    revalidatePath('/dashboard/purchases')
+    revalidatePath('/dashboard')
 
     void emitBookingChanged({ bookingId: input.bookingId, userId: booking.booking_owner_user_id })
     void emitPaymentUpdated({ userId: booking.booking_owner_user_id, bookingId: input.bookingId })

@@ -354,25 +354,40 @@ export default async function DashboardPage({
 
   // ── Post-flight bank transfer status ──────────────────────────────────────
   let postFlightBankTransferStatus: string | null = null
+  let isBlockTimeLandingFeeOnly = false
   if (postFlightPaymentRequiredBooking) {
-    const { data: pfInvoiceRow } = await perf.time(
+    const [{ data: pfInvoiceRow }, { data: btInvoiceRow }] = await perf.time(
       'customer_dashboard_page',
       'customer_dashboard_payment_followups',
-      () => supabase
-        .from('booking_invoices')
-        .select('id')
-        .eq('booking_id', postFlightPaymentRequiredBooking.id)
-        .maybeSingle(),
-      (result) => ({ rowCount: result.data ? 1 : 0 }),
+      () => Promise.all([
+        supabase
+          .from('booking_invoices')
+          .select('id')
+          .eq('booking_id', postFlightPaymentRequiredBooking.id)
+          .maybeSingle(),
+        supabase
+          .from('invoices')
+          .select('id, is_block_time_overage')
+          .eq('booking_id', postFlightPaymentRequiredBooking.id)
+          .eq('billing_mode', 'block_time')
+          .eq('type', 'flight')
+          .in('status', ['awaiting', 'bank_transfer_pending_review'])
+          .maybeSingle(),
+      ]),
+      (result) => ({ rowCount: (result[0].data ? 1 : 0) + (result[1].data ? 1 : 0) }),
     )
-    if (pfInvoiceRow?.id) {
+    if (btInvoiceRow && !btInvoiceRow.is_block_time_overage) {
+      isBlockTimeLandingFeeOnly = true
+    }
+    const invoiceId = pfInvoiceRow?.id || btInvoiceRow?.id
+    if (invoiceId) {
       const { data: pfBtSub } = await perf.time(
         'customer_dashboard_page',
         'customer_dashboard_payment_followups',
         () => supabase
           .from('booking_bank_transfer_submissions')
           .select('status, admin_note')
-          .eq('invoice_id', pfInvoiceRow.id)
+          .eq('invoice_id', invoiceId)
           .order('submitted_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
@@ -403,6 +418,32 @@ export default async function DashboardPage({
       }
     : null
 
+  // Unpaid block-time landing fee invoices — hours are already settled from the
+  // package, but the customer still owes landing fees via Purchases.
+  const { data: outstandingLandingFeeRow } = await perf.time(
+    'customer_dashboard_page',
+    'customer_dashboard_landing_fee_outstanding',
+    () =>
+      supabase
+        .from('invoices')
+        .select('id, booking_id, invoice_number, total')
+        .eq('user_id', user.id)
+        .eq('billing_mode', 'block_time')
+        .eq('type', 'flight')
+        .eq('is_block_time_overage', false)
+        .eq('status', 'awaiting')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+    (result) => ({ rowCount: result.data ? 1 : 0 }),
+  )
+  const outstandingLandingFeeInvoice = outstandingLandingFeeRow as {
+    id: string
+    booking_id: string | null
+    invoice_number: string
+    total: number
+  } | null
+
   const bookingFocusState: DashboardBookingFocusState | null =
     postFlightPaymentRequiredBooking
       ? {
@@ -413,7 +454,9 @@ export default async function DashboardPage({
                 ? 'post_flight_payment_proof_under_review'
                 : postFlightBankTransferStatus === 'approved'
                   ? 'post_flight_payment_approved'
-                  : 'post_flight_payment_required',
+                  : isBlockTimeLandingFeeOnly
+                    ? 'block_time_landing_fee_required'
+                    : 'post_flight_payment_required',
           bookingId: postFlightPaymentRequiredBooking.id,
         }
       : postFlightRequiredBooking
@@ -425,9 +468,14 @@ export default async function DashboardPage({
                 : 'post_flight_under_review',
               bookingId: postFlightUnderReviewBooking.id,
             }
-          : upcomingConfirmedBooking
-            ? { mode: 'upcoming_confirmed', bookingId: upcomingConfirmedBooking.id }
-            : null
+          : outstandingLandingFeeInvoice?.booking_id
+            ? {
+                mode: 'block_time_landing_fee_required',
+                bookingId: outstandingLandingFeeInvoice.booking_id,
+              }
+            : upcomingConfirmedBooking
+              ? { mode: 'upcoming_confirmed', bookingId: upcomingConfirmedBooking.id }
+              : null
 
   // Fetch invoice data only when we have a booking ID
   let checkoutInvoice: import('./DashboardContent').CheckoutInvoiceData | null = null

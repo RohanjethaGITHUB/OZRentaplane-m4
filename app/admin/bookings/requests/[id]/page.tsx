@@ -368,6 +368,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     { data: creditRow },
     { data: activeBlockTimeRow },
     { data: standardBookingInvoiceRow },
+    { data: blockTimeInvoiceRows },
     { data: flightRecordRow },
     { data: aircraftLogsRaw },
     { data: clearanceOverrideAuditRows },
@@ -435,6 +436,15 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           .select('status, rate_cents_per_hour, vdo_reading, base_amount_cents, landing_subtotal_cents, subtotal_cents, stripe_amount_due_cents, total_paid_cents, payment_method, paid_at, pdf_url')
           .eq('booking_id', booking.id)
           .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    bookingType === 'standard'
+      ? supabase
+          .from('invoices')
+          .select('id, invoice_number, status, total, is_block_time_overage, pdf_url, paid_at, invoice_line_items ( type, description, quantity, unit_price, amount )')
+          .eq('booking_id', booking.id)
+          .eq('billing_mode', 'block_time')
+          .eq('type', 'flight')
+          .order('created_at', { ascending: true })
       : Promise.resolve({ data: null, error: null }),
     // Flight record — fetched for standard billing panel (include per-airport landings)
     isStandardBillingPending
@@ -728,13 +738,32 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       .from('booking_invoices')
       .select('id, stripe_amount_due_cents')
       .eq('booking_id', booking.id)
-      .single()
+      .maybeSingle()
+
+    let invoiceId = stdInvoiceRow?.id
     if (stdInvoiceRow) {
       standardInvoiceAmountDueCents = (stdInvoiceRow as { stripe_amount_due_cents?: number | null }).stripe_amount_due_cents ?? 0
+    } else {
+      const { data: btInvoiceRow } = await supabase
+        .from('invoices')
+        .select('id, total')
+        .eq('booking_id', booking.id)
+        .eq('billing_mode', 'block_time')
+        .in('status', ['awaiting', 'bank_transfer_pending_review'])
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      if (btInvoiceRow) {
+        invoiceId = btInvoiceRow.id
+        standardInvoiceAmountDueCents = Math.round(Number(btInvoiceRow.total) * 100)
+      }
+    }
+
+    if (invoiceId) {
       const { data: stdSubs } = await supabase
         .from('booking_bank_transfer_submissions')
         .select('id, status, reference, receipt_storage_path, admin_note, submitted_at, reviewed_at')
-        .eq('invoice_id', stdInvoiceRow.id)
+        .or(`invoice_id.eq.${invoiceId},booking_id.eq.${booking.id}`)
         .order('submitted_at', { ascending: false })
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
@@ -824,8 +853,83 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             return standardInvoice.paid_at ? paidAtLabel : null
           })(),
           settlementNote: settlementAdminNote,
+          detailLines: null as { label: string; value: string }[] | null,
         }
-      : null
+      : (() => {
+          type BlockTimeInvoiceRow = {
+            id: string
+            invoice_number: string
+            status: string
+            total: number
+            is_block_time_overage: boolean
+            pdf_url: string | null
+            paid_at: string | null
+            invoice_line_items?: { type: string; description: string; quantity: number; unit_price: number; amount: number }[] | null
+          }
+          const blockTimeInvoices = ((blockTimeInvoiceRows ?? []) as BlockTimeInvoiceRow[])
+          if (blockTimeInvoices.length === 0) return null
+
+          const usageInvoice = blockTimeInvoices.find((invoice) =>
+            (invoice.invoice_line_items ?? []).some((line) => line.type === 'flight_hours'),
+          ) ?? blockTimeInvoices.find((invoice) => !invoice.is_block_time_overage && invoice.status === 'paid')
+          const landingInvoice = blockTimeInvoices.find((invoice) =>
+            (invoice.invoice_line_items ?? []).some((line) => line.type === 'landing_fee'),
+          )
+          const overageInvoice = blockTimeInvoices.find((invoice) => invoice.is_block_time_overage)
+          const usageLine = (usageInvoice?.invoice_line_items ?? []).find((line) => line.type === 'flight_hours')
+          const landingAwaiting = landingInvoice?.status === 'awaiting'
+          const overageAwaiting = overageInvoice?.status === 'awaiting'
+          const landingWaived = landingInvoice?.status === 'waived'
+          const allSettled = !landingAwaiting && !overageAwaiting
+
+          const detailLines: { label: string; value: string }[] = []
+          if (usageInvoice) {
+            detailLines.push({
+              label: `Block time usage (${usageInvoice.invoice_number})`,
+              value: `$${Number(usageInvoice.total).toFixed(2)} · ${usageInvoice.status === 'paid' ? 'Paid via package' : usageInvoice.status}`,
+            })
+          }
+          if (overageInvoice) {
+            detailLines.push({
+              label: `Overage (${overageInvoice.invoice_number})`,
+              value: `$${Number(overageInvoice.total).toFixed(2)} · ${overageInvoice.status}`,
+            })
+          }
+          if (landingInvoice) {
+            detailLines.push({
+              label: `Landing fees (${landingInvoice.invoice_number})`,
+              value: `$${Number(landingInvoice.total).toFixed(2)} · ${landingInvoice.status}`,
+            })
+          }
+
+          return {
+            hourlyRateLabel: usageLine
+              ? `$${Number(usageLine.unit_price).toFixed(2)}/hr`
+              : '—',
+            vdoDurationLabel: usageLine
+              ? `${Number(usageLine.quantity).toFixed(1)} hrs`
+              : 'Not recorded',
+            totalChargedLabel: `$${blockTimeInvoices.reduce((sum, invoice) => sum + Number(invoice.total || 0), 0).toFixed(2)}`,
+            isWaived: false,
+            isPaid: allSettled,
+            paidAmountLabel: allSettled
+              ? `$${blockTimeInvoices
+                  .filter((invoice) => invoice.status === 'paid')
+                  .reduce((sum, invoice) => sum + Number(invoice.total || 0), 0)
+                  .toFixed(2)}`
+              : null,
+            paymentDetailLabel: landingAwaiting
+              ? `Landing fee invoice ${landingInvoice?.invoice_number} awaiting payment`
+              : overageAwaiting
+                ? `Overage invoice ${overageInvoice?.invoice_number} awaiting payment`
+                : landingWaived
+                  ? 'Hours settled via block time · landing fees waived'
+                  : 'Hours settled via block time',
+            settlementNote: settlementAdminNote,
+            detailLines,
+            isLandingAwaiting: landingAwaiting || overageAwaiting,
+          }
+        })()
     : checkoutInvoice
       ? {
           hourlyRateLabel: checkoutInvoice.checkout_rate_cents_per_hour
@@ -1640,6 +1744,14 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                       {chargesAndPayment?.totalChargedLabel ?? '$—'}
                     </span>
                   </div>
+                  {'detailLines' in (chargesAndPayment ?? {}) &&
+                    Array.isArray((chargesAndPayment as { detailLines?: { label: string; value: string }[] | null })?.detailLines) &&
+                    ((chargesAndPayment as { detailLines: { label: string; value: string }[] }).detailLines).map((line) => (
+                      <div key={line.label} className="flex justify-between items-baseline py-1">
+                        <span className="text-[11px] text-[#4b6390]">{line.label}</span>
+                        <span className="text-[11px] font-medium text-deep-ink text-right ml-3">{line.value}</span>
+                      </div>
+                    ))}
                   {bookingType === 'standard' && standardInvoice && standardInvoice.status !== 'waived' && (
                     <div className="pt-3">
                       <a
@@ -1716,6 +1828,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                         </svg>
                         <span className="text-xs font-semibold text-amber-700">Awaiting payment</span>
                       </div>
+                      {chargesAndPayment?.paymentDetailLabel && (
+                        <div className="text-[10px] text-amber-700/80 mt-1">
+                          {chargesAndPayment.paymentDetailLabel}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

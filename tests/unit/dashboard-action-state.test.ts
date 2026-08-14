@@ -519,6 +519,19 @@ test('post-flight review needs no customer action unless clarification is requir
   assert.equal(clarificationState.customerActionRequired, true)
 })
 
+test('block time landing fee invoice requires payment via Purchases', () => {
+  const state = resolveDashboardActionState(
+    buildInput({
+      bookingFocusState: { mode: 'block_time_landing_fee_required', bookingId: 'booking-21aug' },
+    }),
+  )
+
+  assert.equal(state.statusKey, 'block_time_landing_fee_required')
+  assert.equal(state.customerActionRequired, true)
+  assert.equal(state.primaryAction?.href, '/dashboard/bookings/booking-21aug#payment')
+  assert.equal(state.tone, 'warning')
+})
+
 test('generic account block has absolute precedence', () => {
   const state = resolveDashboardActionState(
     buildInput({

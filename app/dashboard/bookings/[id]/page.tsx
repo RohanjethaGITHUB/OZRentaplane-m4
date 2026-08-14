@@ -9,12 +9,12 @@ import PostFlightHero from './PostFlightHero'
 import PostFlightClarificationPanel from './PostFlightClarificationPanel'
 import CheckoutPaymentCard from './CheckoutPaymentCard'
 import BookingPaymentCard from './BookingPaymentCard'
+import { PAYMENT_CONFIG } from '@/lib/payments/config'
 import ScrollToHash from './ScrollToHash'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
 import type { BookingStatus, FlightRecord, FlightRecordAttachment, FlightRecordClarification } from '@/lib/supabase/booking-types'
 import { formatDateFromISO, formatDateTime } from '@/lib/formatDateTime'
-import { PAYMENT_CONFIG } from '@/lib/payments/config'
 import { markFlightReturned } from '@/app/actions/booking'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 import CustomerBookingActions from './CustomerBookingActions'
@@ -237,6 +237,8 @@ function NextActionCard({
   bookingSlotHours,
   standardBankTransferSub,
   standardBankDetails,
+  blockTimePayInvoice,
+  blockTimeBankDetails,
   picName,
   picArn,
   flightDate,
@@ -284,6 +286,15 @@ function NextActionCard({
   bookingSlotHours:         number
   standardBankTransferSub?: { id: string; status: string } | null
   standardBankDetails?:     { accountName: string; bsb: string; accountNumber: string } | null
+  blockTimePayInvoice?: {
+    id: string
+    invoice_number: string
+    total: number
+    status: string
+    payment_method: string | null
+    is_block_time_overage: boolean
+  } | null
+  blockTimeBankDetails?: { accountName: string; bsb: string; accountNumber: string } | null
   cancellationRequest?:     { status: string; charge_amount_cents: number | null; customer_message: string | null } | null
   showFlightRecordButton?:  boolean
   showCancelButton?:        boolean
@@ -448,6 +459,32 @@ function NextActionCard({
         />
       )
     }
+
+    if (blockTimePayInvoice) {
+      const btAmountCents = Math.round(Number(blockTimePayInvoice.total) * 100)
+      return (
+        <BookingPaymentCard
+          bookingId={bookingId}
+          isBlockTime
+          invoice={{
+            id: blockTimePayInvoice.id,
+            invoice_number: blockTimePayInvoice.invoice_number,
+            subtotal_cents: btAmountCents,
+            advance_applied_cents: 0,
+            stripe_amount_due_cents: btAmountCents,
+            total_paid_cents: 0,
+            paid_at: null,
+            status: blockTimePayInvoice.status,
+            payment_method: blockTimePayInvoice.payment_method,
+            is_block_time_overage: blockTimePayInvoice.is_block_time_overage,
+          }}
+          landingCharges={invoiceLandingCharges}
+          bankTransferSubmission={standardBankTransferSub}
+          bankDetails={blockTimeBankDetails}
+        />
+      )
+    }
+
     // Fallback if invoice not yet fetched (race condition guard)
     return (
       <div className="bg-orange-500/10 border border-orange-500/20 rounded-[1.25rem] p-6">
@@ -1198,18 +1235,118 @@ export default async function BookingDetailPage({ params }: PageProps) {
     }
   }
 
+  // Unpaid block-time landing/overage invoice for this booking (hours already settled).
+  type BlockTimePayInvoice = {
+    id: string
+    invoice_number: string
+    total: number
+    status: string
+    payment_method: string | null
+    is_block_time_overage: boolean
+  }
+  let blockTimePayInvoice: BlockTimePayInvoice | null = null
+  let blockTimeBankDetails: { accountName: string; bsb: string; accountNumber: string } | null = null
+  if (bookingType === 'standard' && (status === 'completed' || status === 'post_flight_approved' || status === 'payment_pending')) {
+    const { data: btInvoice } = await supabase
+      .from('invoices')
+      .select('id, invoice_number, total, status, payment_method, is_block_time_overage')
+      .eq('booking_id', booking.id)
+      .eq('user_id', user.id)
+      .eq('billing_mode', 'block_time')
+      .eq('type', 'flight')
+      .in('status', ['awaiting', 'bank_transfer_pending_review'])
+      .order('is_block_time_overage', { ascending: false })
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    blockTimePayInvoice = btInvoice as BlockTimePayInvoice | null
+
+    if (blockTimePayInvoice) {
+      const name = PAYMENT_CONFIG.BANK_ACCOUNT_NAME
+      const bsb = PAYMENT_CONFIG.BANK_BSB
+      const acct = PAYMENT_CONFIG.BANK_ACCOUNT_NUMBER
+      if (name && bsb && acct) {
+        blockTimeBankDetails = { accountName: name, bsb, accountNumber: acct }
+      }
+
+      const [{ data: bSub }, { data: flightRec }] = await Promise.all([
+        supabase
+          .from('booking_bank_transfer_submissions')
+          .select('id, status')
+          .eq('invoice_id', blockTimePayInvoice.id)
+          .order('submitted_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('flight_records')
+          .select('id, flight_record_landings(landing_count, airports(icao_code, name, default_landing_fee_cents))')
+          .eq('booking_id', booking.id)
+          .order('submitted_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ])
+
+      if (bSub) {
+        standardBankTransferSub = bSub
+      }
+
+      if (flightRec?.flight_record_landings && invoiceLandingCharges.length === 0) {
+        invoiceLandingCharges = ((flightRec.flight_record_landings ?? []) as Array<{
+          landing_count: number
+          airports?: { icao_code?: string | null; name?: string | null; default_landing_fee_cents?: number | null } | { icao_code?: string | null; name?: string | null; default_landing_fee_cents?: number | null }[] | null
+        }>).map((row, index) => {
+          const airport = Array.isArray(row.airports) ? row.airports[0] : row.airports
+          const icao = airport?.icao_code?.trim() || null
+          const name = airport?.name?.trim() || null
+          const airportLabel = icao && name ? `${icao} · ${name}` : icao || name || `Airport ${index + 1}`
+          const unitAmountCents = airport?.default_landing_fee_cents ?? 2895
+          return {
+            airportLabel,
+            icaoCode: icao,
+            landingCount: Number(row.landing_count) || 0,
+            unitAmountCents,
+            totalAmountCents: (Number(row.landing_count) || 0) * unitAmountCents,
+          }
+        }).filter((row) => row.landingCount > 0)
+      }
+    }
+  }
+
+  if (blockTimePayInvoice) {
+    cfg.label = 'Payment Required'
+    cfg.sublabel = blockTimePayInvoice.is_block_time_overage
+      ? 'Overage invoice unpaid'
+      : 'Landing fee invoice unpaid'
+    cfg.color = 'text-orange-400'
+    cfg.bg = 'bg-orange-500/10'
+    cfg.border = 'border-orange-500/20'
+    cfg.icon = 'payments'
+  }
+
   // Derive standard booking awaiting manual payment state
   let standardPaymentDisplayState: ReturnType<typeof getStandardBookingPaymentDisplayState> = 'unknown'
-  if (status === 'payment_pending' && bookingInvoice) {
-    const standardInvoice = bookingInvoice
-    standardPaymentDisplayState = getStandardBookingPaymentDisplayState({
-      bookingStatus: status,
-      invoiceStatus: standardInvoice.status,
-      invoicePaidAt: standardInvoice.paid_at,
-      invoiceAmountDueCents: standardInvoice.stripe_amount_due_cents,
-      invoiceTotalPaidCents: standardInvoice.total_paid_cents,
-      latestSubmissionStatus: standardBankTransferSub?.status ?? null,
-    })
+  if (status === 'payment_pending') {
+    if (bookingInvoice) {
+      const standardInvoice = bookingInvoice
+      standardPaymentDisplayState = getStandardBookingPaymentDisplayState({
+        bookingStatus: status,
+        invoiceStatus: standardInvoice.status,
+        invoicePaidAt: standardInvoice.paid_at,
+        invoiceAmountDueCents: standardInvoice.stripe_amount_due_cents,
+        invoiceTotalPaidCents: standardInvoice.total_paid_cents,
+        latestSubmissionStatus: standardBankTransferSub?.status ?? null,
+      })
+    } else if (blockTimePayInvoice) {
+      const btAmountCents = Math.round(Number(blockTimePayInvoice.total) * 100)
+      standardPaymentDisplayState = getStandardBookingPaymentDisplayState({
+        bookingStatus: status,
+        invoiceStatus: blockTimePayInvoice.status,
+        invoicePaidAt: null,
+        invoiceAmountDueCents: btAmountCents,
+        invoiceTotalPaidCents: 0,
+        latestSubmissionStatus: standardBankTransferSub?.status ?? null,
+      })
+    }
   }
 
   // ── Derive checkout payment display state ─────────────────────────────────────
@@ -1910,7 +2047,11 @@ export default async function BookingDetailPage({ params }: PageProps) {
                 : status === 'post_flight_approved'
                 ? 'Your post flight records have been reviewed and approved.'
                 : status === 'completed'
-                ? 'This booking is fully closed. Thank you for flying with OZ Rent a Plane.'
+                ? (blockTimePayInvoice
+                    ? (blockTimePayInvoice.is_block_time_overage
+                        ? 'Flight hours are settled from block time. An overage invoice still needs payment.'
+                        : 'Flight hours are settled from block time. Landing fees still need payment.')
+                    : 'This booking is fully closed. Thank you for flying with OZ Rent a Plane.')
                 : status === 'pending_confirmation'
                 ? 'Your booking request is under review. The slot is held pending confirmation.'
                 : cfg.sublabel || '—'}
@@ -1954,6 +2095,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
           bookingSlotHours={bookingSlotHours}
           standardBankTransferSub={standardBankTransferSub}
           standardBankDetails={standardBankDetails}
+          blockTimePayInvoice={blockTimePayInvoice}
+          blockTimeBankDetails={blockTimeBankDetails}
           cancellationRequest={cancellationRequest}
           showFlightRecordButton={showFlightRecordButton}
           showCancelButton={showCancelButton}

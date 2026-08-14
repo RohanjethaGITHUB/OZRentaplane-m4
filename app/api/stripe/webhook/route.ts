@@ -722,6 +722,36 @@ export async function POST(req: Request) {
           console.warn("[webhook] overage payment notification failed (non-fatal)", { message: notifEx?.message });
         }
 
+        if (overageInvoice.booking_id) {
+          const { data: remainingAwaiting } = await supabase
+            .from("invoices")
+            .select("id")
+            .eq("booking_id", overageInvoice.booking_id)
+            .eq("status", "awaiting");
+
+          if (!remainingAwaiting || remainingAwaiting.length === 0) {
+            await supabase
+              .from("bookings")
+              .update({ status: "completed", updated_at: new Date().toISOString() })
+              .eq("id", overageInvoice.booking_id);
+
+            await supabase
+              .from("schedule_blocks")
+              .update({ status: "cancelled" })
+              .eq("related_booking_id", overageInvoice.booking_id)
+              .eq("status", "active");
+
+            await supabase
+              .from("booking_status_history")
+              .insert({
+                booking_id: overageInvoice.booking_id,
+                old_status: "payment_pending",
+                new_status: "completed",
+                note: "Stripe online payment received. Booking completed.",
+              });
+          }
+        }
+
         console.log("[webhook] block_time_overage_payment processed successfully ✓", {
           invoiceId,
           paymentIntentId: paymentIntent.id,

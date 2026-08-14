@@ -1,7 +1,13 @@
 import 'server-only'
 
+import { createAdminClient } from '@/lib/supabase/admin'
+
 type StoreInvoicePdfParams = {
-  supabase: any
+  // Kept for call-site compatibility. Storage/DB writes use the service-role
+  // client because invoice PDFs are stored under the *customer* userId path,
+  // while admin finalisation runs as the admin session — session RLS would
+  // reject the upload (bucket policy requires folder = auth.uid()).
+  supabase?: any
   table: 'invoices' | 'booking_invoices'
   rowId: string
   userId: string
@@ -21,17 +27,17 @@ type StoredInvoicePdfResult = {
 }
 
 export async function storeInvoicePdf({
-  supabase,
   table,
   rowId,
   userId,
   invoiceNumber,
   pdfBuffer,
 }: StoreInvoicePdfParams): Promise<StoredInvoicePdfResult> {
+  const admin = createAdminClient()
   const storagePath = `${userId}/${invoiceNumber}.pdf`
   const fileName = `${invoiceNumber}.pdf`
 
-  const uploadResult = await supabase.storage
+  const uploadResult = await admin.storage
     .from('invoice_pdfs')
     .upload(storagePath, pdfBuffer, {
       contentType: 'application/pdf',
@@ -43,10 +49,10 @@ export async function storeInvoicePdf({
     throw uploadResult.error
   }
 
-  const { data: publicUrlData } = supabase.storage.from('invoice_pdfs').getPublicUrl(storagePath)
+  const { data: publicUrlData } = admin.storage.from('invoice_pdfs').getPublicUrl(storagePath)
   const pdfUrl = publicUrlData.publicUrl
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await admin
     .from(table)
     .update({ pdf_url: pdfUrl })
     .eq('id', rowId)

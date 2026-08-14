@@ -539,7 +539,16 @@ export async function createBlockTimeTopupIntent(purchaseId: string, hoursReques
 // invoice or a landing fee invoice — via Stripe Checkout. The webhook marks
 // the invoice paid; for overage invoices that also lifts the overage gate
 // (new bookings / purchases / top-ups) automatically.
-export async function createBlockTimeOveragePaymentSession(invoiceId: string) {
+//
+// Optional bookingIdReturn: when paying from a booking detail page, return
+// there after Stripe success/cancel instead of the Purchases list.
+// Used as a form action via .bind(null, invoiceId) or .bind(null, invoiceId, bookingId).
+// Next.js then passes FormData as the final argument — accept and ignore it.
+export async function createBlockTimeOveragePaymentSession(
+  invoiceId: string,
+  bookingIdReturn?: string | null | FormData,
+  _formData?: FormData,
+) {
   const stripeSecret = process.env.STRIPE_SECRET_KEY;
   if (!stripeSecret) {
     throw new Error("Server misconfiguration");
@@ -600,6 +609,17 @@ export async function createBlockTimeOveragePaymentSession(invoiceId: string) {
     process.env.NEXT_PUBLIC_APP_URL ||
     "http://localhost:3000";
 
+  const returnBookingId =
+    typeof bookingIdReturn === "string" && bookingIdReturn.trim()
+      ? bookingIdReturn.trim()
+      : invoice.booking_id ?? null;
+  const successUrl = returnBookingId
+    ? `${appUrl}/dashboard/bookings/${returnBookingId}?overage_payment=success#payment`
+    : `${appUrl}/dashboard/purchases?overage_payment=success`;
+  const cancelUrl = returnBookingId
+    ? `${appUrl}/dashboard/bookings/${returnBookingId}?overage_payment=cancelled#payment`
+    : `${appUrl}/dashboard/purchases?overage_payment=cancelled`;
+
   const overageMetadata = {
     purchase_type: "block_time_overage_payment",
     supabase_user_id: user.id,
@@ -633,8 +653,8 @@ export async function createBlockTimeOveragePaymentSession(invoiceId: string) {
         quantity: 1,
       },
     ],
-    success_url: `${appUrl}/dashboard/purchases?overage_payment=success`,
-    cancel_url: `${appUrl}/dashboard/purchases?overage_payment=cancelled`,
+    success_url: successUrl,
+    cancel_url: cancelUrl,
     metadata: overageMetadata,
     payment_intent_data: ({
       metadata: overageMetadata,
@@ -647,6 +667,47 @@ export async function createBlockTimeOveragePaymentSession(invoiceId: string) {
   }
 
   redirect(session.url);
+}
+
+/** Customer chooses bank transfer for an awaiting block-time landing/overage invoice. */
+export async function chooseBlockTimeInvoiceBankTransfer(invoiceId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) throw new Error("Unauthorized");
+
+  const { data: invoice, error: invoiceErr } = await supabase
+    .from("invoices")
+    .select("id, user_id, status, billing_mode, type, booking_id")
+    .eq("id", invoiceId)
+    .eq("user_id", user.id)
+    .eq("billing_mode", "block_time")
+    .eq("type", "flight")
+    .maybeSingle();
+
+  if (invoiceErr) throw new Error("Failed to load the invoice.");
+  if (!invoice) throw new Error("Invoice not found.");
+  if (invoice.status !== "awaiting") {
+    throw new Error(`VALIDATION: This invoice cannot be paid (status: ${invoice.status}).`);
+  }
+
+  const { error: updateErr } = await supabase
+    .from("invoices")
+    .update({ payment_method: "bank_transfer" })
+    .eq("id", invoice.id)
+    .eq("status", "awaiting");
+
+  if (updateErr) throw new Error("Failed to select bank transfer for this invoice.");
+
+  revalidatePath("/dashboard/purchases");
+  revalidatePath("/dashboard/bookings");
+  revalidatePath("/dashboard");
+  if (invoice.booking_id) {
+    revalidatePath(`/dashboard/bookings/${invoice.booking_id}`);
+  }
 }
 
 export async function submitBankTransferProof(
@@ -957,20 +1018,26 @@ export async function submitStandardBankTransferProof(
     .eq("booking_id", bookingId)
     .maybeSingle();
 
-  if (invoiceError || !invoice) {
+  let blockTimeInvoice: { id: string; status: string; booking_id: string | null; user_id: string } | null = null;
+  if (!invoice) {
+    const { data: btInvoice } = await supabase
+      .from("invoices")
+      .select("id, status, booking_id, user_id, billing_mode, type")
+      .eq("id", invoiceId)
+      .eq("user_id", user.id)
+      .eq("booking_id", bookingId)
+      .eq("billing_mode", "block_time")
+      .eq("type", "flight")
+      .maybeSingle();
+    blockTimeInvoice = btInvoice;
+  }
+
+  if (!invoice && !blockTimeInvoice) {
     throw new Error("Booking invoice not found.");
   }
 
-  const booking = Array.isArray(invoice.bookings) ? invoice.bookings[0] : invoice.bookings;
-  if (
-    invoice.customer_id !== user.id ||
-    booking?.booking_owner_user_id !== user.id ||
-    booking?.booking_type !== "standard"
-  ) {
-    throw new Error("You are not allowed to submit payment proof for this booking.");
-  }
-
-  if (["paid", "waived", "void", "failed"].includes(invoice.status)) {
+  const invoiceStatus = invoice ? invoice.status : blockTimeInvoice!.status;
+  if (["paid", "waived", "void", "failed"].includes(invoiceStatus)) {
     throw new Error("This invoice is not eligible for bank transfer submission.");
   }
 
@@ -1009,48 +1076,9 @@ export async function submitStandardBankTransferProof(
     }
   };
 
-  // Prefer atomic RPC when migration 112 is applied; fall back for DBs that don't have it yet.
-  const { data: submissionIdFromRpc, error: proofError } = await supabase.rpc(
-    "submit_standard_bank_transfer_proof_atomic",
-    {
-      p_invoice_id: invoiceId,
-      p_booking_id: bookingId,
-      p_reference: reference,
-      p_receipt_storage_path: filePath,
-    }
-  );
+  let submissionId: string | null = null;
 
-  let submissionId = submissionIdFromRpc as string | null;
-
-  if (proofError || !submissionId) {
-    const missingRpc =
-      proofError?.code === "PGRST202" ||
-      proofError?.message?.includes("Could not find the function") ||
-      proofError?.message?.includes("schema cache");
-
-    if (!missingRpc) {
-      console.error("[submitStandardBankTransferProof] proof RPC failed", {
-        message: proofError?.message,
-        code: proofError?.code,
-        details: proofError?.details,
-        hint: proofError?.hint,
-        bookingId,
-        invoiceId,
-        userId: user.id,
-      });
-      await cleanupUpload();
-      throw new Error(
-        proofError?.message === "Unauthorized"
-          ? "You are not allowed to submit payment proof for this booking."
-          : proofError?.message ?? "Failed to submit proof. Please try again."
-      );
-    }
-
-    console.warn(
-      "[submitStandardBankTransferProof] RPC missing — using admin fallback. Apply migration 112.",
-      { message: proofError?.message, code: proofError?.code }
-    );
-
+  if (blockTimeInvoice) {
     try {
       const admin = createAdminClient();
       const { data: inserted, error: insertError } = await admin
@@ -1070,30 +1098,112 @@ export async function submitStandardBankTransferProof(
         throw new Error(insertError?.message ?? "Failed to create bank transfer submission.");
       }
 
-      const { error: invoiceUpdateError } = await admin
-        .from("booking_invoices")
+      await admin
+        .from("invoices")
         .update({
-          status: "bank_transfer_pending_review",
           payment_method: "bank_transfer",
-          updated_at: new Date().toISOString(),
+          status: "bank_transfer_pending_review",
         })
         .eq("id", invoiceId);
 
-      if (invoiceUpdateError) {
-        await admin.from("booking_bank_transfer_submissions").delete().eq("id", inserted.id);
-        throw new Error(invoiceUpdateError.message);
-      }
-
       submissionId = inserted.id;
-    } catch (fallbackError: any) {
-      console.error("[submitStandardBankTransferProof] admin fallback failed", {
-        message: fallbackError?.message,
+    } catch (btErr: any) {
+      console.error("[submitStandardBankTransferProof] block time proof submit failed", {
+        message: btErr?.message,
         bookingId,
         invoiceId,
         userId: user.id,
       });
       await cleanupUpload();
-      throw new Error(fallbackError?.message ?? "Failed to submit proof. Please try again.");
+      throw new Error(btErr?.message ?? "Failed to submit proof. Please try again.");
+    }
+  } else {
+    // Prefer atomic RPC when migration 112 is applied; fall back for DBs that don't have it yet.
+    const { data: submissionIdFromRpc, error: proofError } = await supabase.rpc(
+      "submit_standard_bank_transfer_proof_atomic",
+      {
+        p_invoice_id: invoiceId,
+        p_booking_id: bookingId,
+        p_reference: reference,
+        p_receipt_storage_path: filePath,
+      }
+    );
+
+    submissionId = submissionIdFromRpc as string | null;
+
+    if (proofError || !submissionId) {
+      const missingRpc =
+        proofError?.code === "PGRST202" ||
+        proofError?.message?.includes("Could not find the function") ||
+        proofError?.message?.includes("schema cache");
+
+      if (!missingRpc) {
+        console.error("[submitStandardBankTransferProof] proof RPC failed", {
+          message: proofError?.message,
+          code: proofError?.code,
+          details: proofError?.details,
+          hint: proofError?.hint,
+          bookingId,
+          invoiceId,
+          userId: user.id,
+        });
+        await cleanupUpload();
+        throw new Error(
+          proofError?.message === "Unauthorized"
+            ? "You are not allowed to submit payment proof for this booking."
+            : proofError?.message ?? "Failed to submit proof. Please try again."
+        );
+      }
+
+      console.warn(
+        "[submitStandardBankTransferProof] RPC missing — using admin fallback. Apply migration 112.",
+        { message: proofError?.message, code: proofError?.code }
+      );
+
+      try {
+        const admin = createAdminClient();
+        const { data: inserted, error: insertError } = await admin
+          .from("booking_bank_transfer_submissions")
+          .insert({
+            invoice_id: invoiceId,
+            booking_id: bookingId,
+            customer_id: user.id,
+            reference: reference.trim() || null,
+            receipt_storage_path: filePath,
+            status: "pending_review",
+          })
+          .select("id")
+          .single();
+
+        if (insertError || !inserted?.id) {
+          throw new Error(insertError?.message ?? "Failed to create bank transfer submission.");
+        }
+
+        const { error: invoiceUpdateError } = await admin
+          .from("booking_invoices")
+          .update({
+            status: "bank_transfer_pending_review",
+            payment_method: "bank_transfer",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", invoiceId);
+
+        if (invoiceUpdateError) {
+          await admin.from("booking_bank_transfer_submissions").delete().eq("id", inserted.id);
+          throw new Error(invoiceUpdateError.message);
+        }
+
+        submissionId = inserted.id;
+      } catch (fallbackError: any) {
+        console.error("[submitStandardBankTransferProof] admin fallback failed", {
+          message: fallbackError?.message,
+          bookingId,
+          invoiceId,
+          userId: user.id,
+        });
+        await cleanupUpload();
+        throw new Error(fallbackError?.message ?? "Failed to submit proof. Please try again.");
+      }
     }
   }
 
@@ -1486,6 +1596,39 @@ export async function adminSettleBlockTimeInvoice(input: {
         paymentMethod,
       },
     }).catch((error) => console.error("[adminSettleBlockTimeInvoice] email failed:", error));
+  }
+
+  if (invoice.booking_id) {
+    const { data: remainingAwaiting } = await supabase
+      .from("invoices")
+      .select("id")
+      .eq("booking_id", invoice.booking_id)
+      .eq("status", "awaiting");
+
+    if (!remainingAwaiting || remainingAwaiting.length === 0) {
+      await supabase
+        .from("bookings")
+        .update({ status: "completed", updated_at: new Date().toISOString() })
+        .eq("id", invoice.booking_id);
+
+      await supabase
+        .from("schedule_blocks")
+        .update({ status: "cancelled" })
+        .eq("related_booking_id", invoice.booking_id)
+        .eq("status", "active");
+
+      await supabase
+        .from("booking_status_history")
+        .insert({
+          booking_id: invoice.booking_id,
+          old_status: "payment_pending",
+          new_status: "completed",
+          note: `Manual payment settled by admin (${methodLabel}). Booking completed.`,
+          changed_by_user_id: adminId,
+        });
+
+      void emitBookingChanged({ bookingId: invoice.booking_id, userId: invoice.user_id });
+    }
   }
 
   revalidatePath("/admin/users");

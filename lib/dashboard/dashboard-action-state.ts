@@ -32,6 +32,7 @@ export type DashboardBookingFocusMode =
   | 'post_flight_payment_proof_under_review'
   | 'post_flight_payment_proof_rejected'
   | 'post_flight_payment_approved'
+  | 'block_time_landing_fee_required'
 
 export type DashboardBookingFocusState = {
   mode: DashboardBookingFocusMode
@@ -351,6 +352,25 @@ export function resolveDashboardActionState(input: DashboardActionStateInput): D
       nextMilestone: 'After payment is confirmed, the booking will be finalised and closed.',
       journeyStep: 'ready',
       severityReason: 'booking_payment_required',
+    })
+  }
+
+  if (input.bookingFocusState?.mode === 'block_time_landing_fee_required') {
+    return buildState({
+      phase: 'booking_payment',
+      statusKey: 'block_time_landing_fee_required',
+      tone: 'warning',
+      responsibleActor: 'customer',
+      customerActionRequired: true,
+      heroLabel: 'Landing Fee Pending',
+      heroMessage: 'Flight hours were deducted from your block time balance. Your landing fee invoice is ready and payment is needed to close the booking.',
+      actionHeading: 'Pay your landing fee invoice',
+      actionDescription: 'Open the booking to pay landing fees by card or upload bank transfer proof so the team can close the flight.',
+      primaryAction: { label: 'Pay Landing Fee', href: `/dashboard/bookings/${input.bookingFocusState.bookingId}#payment` },
+      secondaryAction: { label: 'View Booking Details', href: `/dashboard/bookings/${input.bookingFocusState.bookingId}` },
+      nextMilestone: 'After payment is confirmed, the booking will be finalised and closed.',
+      journeyStep: 'ready',
+      severityReason: 'block_time_landing_fee_required',
     })
   }
 

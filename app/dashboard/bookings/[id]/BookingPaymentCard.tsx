@@ -2,7 +2,11 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createBookingPaymentSession, submitStandardBankTransferProof } from "@/app/actions/payment"
+import {
+  createBookingPaymentSession,
+  createBlockTimeOveragePaymentSession,
+  submitStandardBankTransferProof,
+} from "@/app/actions/payment"
 import { getStandardBookingPaymentDisplayState } from "@/lib/booking/standard-booking-payment-state"
 
 const STRIPE_DOMESTIC_FEE_BPS = 170
@@ -11,6 +15,7 @@ const ENABLE_SURCHARGE         = true
 
 type Props = {
   bookingId: string
+  isBlockTime?: boolean
   invoice: {
     id: string
     invoice_number: string
@@ -25,6 +30,7 @@ type Props = {
     paid_at: string | null
     status: string
     payment_method: string | null
+    is_block_time_overage?: boolean
   }
   landingCharges?: Array<{
     airportLabel: string
@@ -47,6 +53,7 @@ function money(cents: number) {
 
 export default function BookingPaymentCard({
   bookingId,
+  isBlockTime = false,
   invoice,
   landingCharges = [],
   bankTransferSubmission,
@@ -182,7 +189,11 @@ export default function BookingPaymentCard({
       <p className="text-sm text-[#4b6390] leading-relaxed mb-4">
         {displayState === 'payment_still_due'
           ? 'A partial payment is recorded on this invoice, but the remaining balance still needs to be settled before the booking can close.'
-          : 'Your flight records have been reviewed and your invoice is ready. The amount below is calculated from the VDO meter reading and any applicable landing fees.'}
+          : isBlockTime
+            ? (invoice.is_block_time_overage
+                ? 'Flight hours exceeded your block time package balance and were invoiced at your locked rate.'
+                : 'Flight hours were settled from your block time balance. Landing fees are invoiced separately and require payment.')
+            : 'Your flight records have been reviewed and your invoice is ready. The amount below is calculated from the VDO meter reading and any applicable landing fees.'}
       </p>
 
       {/* Invoice details — shown above payment method choice */}
@@ -196,6 +207,17 @@ export default function BookingPaymentCard({
         </div>
 
         <div className="space-y-3 text-sm">
+          {isBlockTime && (
+            <div className="flex items-start justify-between gap-4 text-[#152d5a]">
+              <p className="font-medium">{invoice.is_block_time_overage ? 'Block time overage' : 'Block time usage'}</p>
+              <div className="shrink-0 text-right">
+                <p className="font-medium text-emerald-600">
+                  {invoice.is_block_time_overage ? `$${baseAmount}` : 'Paid via package'}
+                </p>
+              </div>
+            </div>
+          )}
+
           {hasFlightDetails ? (
             <>
               {flightChargeCents != null ? (
@@ -255,12 +277,12 @@ export default function BookingPaymentCard({
                 </div>
               </div>
             </>
-          ) : (
+          ) : !isBlockTime ? (
             <div className="flex justify-between gap-4 text-[#152d5a]">
               <span>Flight Total (VDO + landings)</span>
               <span className="font-medium tabular-nums">${subtotal}</span>
             </div>
-          )}
+          ) : null}
 
           {invoice.advance_applied_cents > 0 && (
             <div className="flex justify-between gap-4 text-emerald-600">
@@ -330,7 +352,7 @@ export default function BookingPaymentCard({
             </div>
           </div>
 
-          <form action={createBookingPaymentSession.bind(null, bookingId)}>
+          <form action={isBlockTime ? createBlockTimeOveragePaymentSession.bind(null, invoice.id, bookingId) : createBookingPaymentSession.bind(null, bookingId)}>
             <button
               type="submit"
               className="w-full bg-orange-500 hover:bg-orange-400 text-white rounded-lg px-4 py-2.5 text-sm font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2"

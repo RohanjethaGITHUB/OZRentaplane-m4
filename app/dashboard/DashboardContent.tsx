@@ -118,6 +118,9 @@ function getSnapshotStatusDisplay(
   if (actionState.statusKey === 'booking_payment_required') {
     return { label: 'Payment Required', textColor: 'text-orange-300', dotColor: '#fb923c' }
   }
+  if (actionState.statusKey === 'block_time_landing_fee_required') {
+    return { label: 'Landing Fee Pending', textColor: 'text-orange-300', dotColor: '#fb923c' }
+  }
   if (actionState.statusKey === 'booking_payment_proof_under_review') {
     return { label: 'Payment Proof Under Review', textColor: 'text-blue-300', dotColor: '#60a5fa' }
   }
