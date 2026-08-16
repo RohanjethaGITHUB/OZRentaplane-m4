@@ -78,6 +78,27 @@ export default function ResourcesPage() {
               </a>
             </article>
 
+            {/* Garmin aera 760 Pilot's Guide */}
+            <article className="rounded-2xl border border-mkt-subtle bg-mkt-lift p-7 md:p-8 flex flex-col shadow-[0_4px_20px_rgba(15,40,90,0.09)]">
+              <p className="font-sans text-[10px] font-semibold tracking-[0.22em] uppercase text-brand-blue/50 mb-3">
+                PDF Document
+              </p>
+              <h2 className="font-serif text-2xl text-deep-ink mb-3">
+                Garmin aera 760 Pilot&apos;s Guide
+              </h2>
+              <p className="font-sans text-sm leading-relaxed text-muted-ink mb-6 grow">
+                Download the Pilot&apos;s Guide for the Garmin aera 760 portable aviation navigator.
+              </p>
+              <a
+                href="/resources/Garmin.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 self-start rounded-md bg-brand-blue text-white px-6 py-3 font-sans font-bold text-xs tracking-[0.14em] uppercase hover:bg-[#1541b1] transition-colors duration-200"
+              >
+                View / Download PDF
+              </a>
+            </article>
+
             {/* Coming soon */}
             <article className="rounded-2xl border border-mkt-subtle bg-mkt-lift p-7 md:p-8 flex flex-col shadow-[0_4px_20px_rgba(15,40,90,0.09)]">
               <h2 className="font-serif text-2xl text-deep-ink mb-3">
