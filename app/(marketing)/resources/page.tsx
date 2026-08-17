@@ -99,6 +99,48 @@ export default function ResourcesPage() {
               </a>
             </article>
 
+            {/* Flightcom 403mc Intercom Manual */}
+            <article className="rounded-2xl border border-mkt-subtle bg-mkt-lift p-7 md:p-8 flex flex-col shadow-[0_4px_20px_rgba(15,40,90,0.09)]">
+              <p className="font-sans text-[10px] font-semibold tracking-[0.22em] uppercase text-brand-blue/50 mb-3">
+                PDF Document
+              </p>
+              <h2 className="font-serif text-2xl text-deep-ink mb-3">
+                Flightcom 403mc Voice-Activated Intercom Manual
+              </h2>
+              <p className="font-sans text-sm leading-relaxed text-muted-ink mb-6 grow">
+                Download the installation and operating manual for the Flightcom Model 403mc voice-activated intercom.
+              </p>
+              <a
+                href="/resources/flightcom-403mc-intercom-user-manual.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 self-start rounded-md bg-brand-blue text-white px-6 py-3 font-sans font-bold text-xs tracking-[0.14em] uppercase hover:bg-[#1541b1] transition-colors duration-200"
+              >
+                View / Download PDF
+              </a>
+            </article>
+
+            {/* Bendix/King KMA 24/24H Audio Control System */}
+            <article className="rounded-2xl border border-mkt-subtle bg-mkt-lift p-7 md:p-8 flex flex-col shadow-[0_4px_20px_rgba(15,40,90,0.09)]">
+              <p className="font-sans text-[10px] font-semibold tracking-[0.22em] uppercase text-brand-blue/50 mb-3">
+                PDF Document
+              </p>
+              <h2 className="font-serif text-2xl text-deep-ink mb-3">
+                Bendix/King KMA 24 / 24H Audio Control Guide
+              </h2>
+              <p className="font-sans text-sm leading-relaxed text-muted-ink mb-6 grow">
+                Download the pilot&apos;s guide and operating specifications for the Bendix/King KMA 24 and KMA 24H audio control systems.
+              </p>
+              <a
+                href="/resources/KMA24_audio_panel.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 self-start rounded-md bg-brand-blue text-white px-6 py-3 font-sans font-bold text-xs tracking-[0.14em] uppercase hover:bg-[#1541b1] transition-colors duration-200"
+              >
+                View / Download PDF
+              </a>
+            </article>
+
             {/* Coming soon */}
             <article className="rounded-2xl border border-mkt-subtle bg-mkt-lift p-7 md:p-8 flex flex-col shadow-[0_4px_20px_rgba(15,40,90,0.09)]">
               <h2 className="font-serif text-2xl text-deep-ink mb-3">
