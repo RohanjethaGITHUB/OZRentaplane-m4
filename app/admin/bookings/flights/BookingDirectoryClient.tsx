@@ -304,16 +304,6 @@ function formatSchedulePresentation(startIso: string | null | undefined, endIso:
   }
 }
 
-function formatStatusIconLabel(status: BookingStatusPresentation) {
-  return (
-    <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${status.iconWrapClass}`}>
-      <span className={`material-symbols-outlined text-[18px] ${status.iconClass}`} aria-hidden="true">
-        {status.icon}
-      </span>
-    </span>
-  )
-}
-
 function getStatusPresentationBase(row: BookingDirectoryRow): BookingStatusPresentation {
   const isCheckout = isCheckoutBooking(row)
 
@@ -744,7 +734,7 @@ export default function BookingDirectoryClient({
                           <span className="sr-only">Open booking {row.bookingReference}</span>
                         </Link>
 
-                        <div className={`relative z-0 ${DESKTOP_ROW_GRID} bg-white ${DESKTOP_ROW_PADDING} py-0 transition-colors group-hover:bg-[var(--booking-directory-row-hover)]`}>
+                        <div className={`relative z-0 ${DESKTOP_ROW_GRID} ${isCheckout ? 'bg-violet-50/55' : 'bg-emerald-50/55'} ${DESKTOP_ROW_PADDING} py-0 transition-colors group-hover:bg-[var(--booking-directory-row-hover)]`}>
                           <span
                             aria-hidden="true"
                             className={`pointer-events-none absolute inset-y-0 left-0 w-[3px] ${isCheckout ? 'bg-indigo-500' : 'bg-emerald-500'}`}
@@ -766,9 +756,8 @@ export default function BookingDirectoryClient({
                             </Link>
                           </div>
 
-                          <div className="pointer-events-none relative z-0 flex min-w-0 flex-col items-center gap-2 py-5 text-center">
-                            {formatStatusIconLabel(status)}
-                            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11.5px] font-semibold ${status.badgeClassName}`}>
+                          <div className="pointer-events-none relative z-0 min-w-0 py-5 text-center">
+                            <span className="text-[13px] font-medium text-[var(--admin-text)]">
                               {status.label}
                             </span>
                           </div>
@@ -793,7 +782,7 @@ export default function BookingDirectoryClient({
                     const isCheckout = isCheckoutBooking(row)
 
                     return (
-                      <article key={row.id} className="group relative cursor-pointer overflow-hidden rounded-[12px] border border-[rgba(12,35,64,0.10)] bg-white">
+                      <article key={row.id} className={`group relative cursor-pointer overflow-hidden rounded-[12px] border border-[rgba(12,35,64,0.10)] ${isCheckout ? 'bg-violet-50/55' : 'bg-emerald-50/55'}`}>
                         <span
                           aria-hidden="true"
                           className={`pointer-events-none absolute inset-y-0 left-0 z-20 w-[3px] ${isCheckout ? 'bg-indigo-500' : 'bg-emerald-500'}`}
@@ -824,9 +813,8 @@ export default function BookingDirectoryClient({
                           </div>
 
                           <div className="flex items-center gap-3">
-                            {formatStatusIconLabel(status)}
                             <div className="min-w-0 flex-1">
-                              <span className={`inline-flex min-h-9 items-center rounded-full border px-3 py-1.5 text-[12.5px] font-semibold leading-none ${status.badgeClassName}`}>
+                              <span className="text-[13px] font-medium text-[var(--admin-text)]">
                                 {status.label}
                               </span>
                             </div>
