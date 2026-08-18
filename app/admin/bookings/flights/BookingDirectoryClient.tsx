@@ -734,7 +734,7 @@ export default function BookingDirectoryClient({
                           <span className="sr-only">Open booking {row.bookingReference}</span>
                         </Link>
 
-                        <div className={`relative z-0 ${DESKTOP_ROW_GRID} ${isCheckout ? 'bg-violet-50/55' : 'bg-emerald-50/55'} ${DESKTOP_ROW_PADDING} py-0 transition-colors group-hover:bg-[var(--booking-directory-row-hover)]`}>
+                        <div className={`relative z-0 ${DESKTOP_ROW_GRID} ${isCheckout ? 'bg-violet-50/55' : 'bg-emerald-50/30'} ${DESKTOP_ROW_PADDING} py-0 transition-colors group-hover:bg-[var(--booking-directory-row-hover)]`}>
                           <span
                             aria-hidden="true"
                             className={`pointer-events-none absolute inset-y-0 left-0 w-[3px] ${isCheckout ? 'bg-indigo-500' : 'bg-emerald-500'}`}
@@ -782,7 +782,7 @@ export default function BookingDirectoryClient({
                     const isCheckout = isCheckoutBooking(row)
 
                     return (
-                      <article key={row.id} className={`group relative cursor-pointer overflow-hidden rounded-[12px] border border-[rgba(12,35,64,0.10)] ${isCheckout ? 'bg-violet-50/55' : 'bg-emerald-50/55'}`}>
+                      <article key={row.id} className={`group relative cursor-pointer overflow-hidden rounded-[12px] border border-[rgba(12,35,64,0.10)] ${isCheckout ? 'bg-violet-50/55' : 'bg-emerald-50/30'}`}>
                         <span
                           aria-hidden="true"
                           className={`pointer-events-none absolute inset-y-0 left-0 z-20 w-[3px] ${isCheckout ? 'bg-indigo-500' : 'bg-emerald-500'}`}
