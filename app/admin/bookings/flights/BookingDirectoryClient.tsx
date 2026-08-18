@@ -435,7 +435,7 @@ function BookingTypePresentation({ row }: { row: BookingDirectoryRow }) {
         }`}
       >
         <span className="material-symbols-outlined text-[14px]" aria-hidden="true">
-          {isCheckout ? 'assignment_turned_in' : 'flight'}
+          {isCheckout ? 'flight_takeoff' : 'flight'}
         </span>
         {isCheckout ? 'Checkout' : 'Rental'}
       </span>
