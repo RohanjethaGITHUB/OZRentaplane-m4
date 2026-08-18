@@ -9,7 +9,7 @@ import BookingDirectoryClient, { type BookingDirectoryRow } from './BookingDirec
 
 export const metadata = { title: 'Flight Bookings | Admin' }
 
-type SortKey = 'created' | 'customer' | 'email' | 'aircraft' | 'scheduled' | 'status' | 'ref'
+type SortKey = 'created' | 'customer' | 'phone' | 'aircraft' | 'scheduled' | 'status' | 'ref'
 type SortDir = 'asc' | 'desc'
 
 type BookingRecord = {
@@ -89,6 +89,13 @@ function fullCustomerName(profile: { first_name: string | null; last_name: strin
   if (profile?.full_name) return profile.full_name
   if (picName) return picName
   return profile?.email ?? 'Customer'
+}
+
+function formatCustomerPhone(profile: { phone_country_code: string | null; phone_number: string | null } | undefined) {
+  const countryCode = profile?.phone_country_code?.replace(/\D/g, '') ?? ''
+  const phoneNumber = profile?.phone_number?.replace(/[^\d]/g, '') ?? ''
+  if (!phoneNumber) return '—'
+  return countryCode ? `+${countryCode} ${phoneNumber}` : phoneNumber
 }
 
 function getStatusLabel(displayStatus: string) {
@@ -268,7 +275,7 @@ export default async function FlightBookingsPage({
   const bookings = (data ?? []) as BookingRecord[]
   const bookingIds = bookings.map((booking) => booking.id)
   const customerIds = Array.from(new Set(bookings.map((booking) => booking.booking_owner_user_id).filter(Boolean)))
-  const profileMap = new Map<string, { first_name: string | null; last_name: string | null; full_name: string | null; email: string | null }>()
+  const profileMap = new Map<string, { first_name: string | null; last_name: string | null; full_name: string | null; email: string | null; phone_country_code: string | null; phone_number: string | null }>()
   const bookingInvoiceMap = new Map<string, BookingInvoiceRecord>()
   const blockTimeUsageMap = new Map<string, BlockTimeUsageRecord>()
   const activePurchaseMap = new Map<string, ActiveBlockTimePurchaseRecord>()
@@ -286,7 +293,7 @@ export default async function FlightBookingsPage({
     customerIds.length > 0
       ? supabase
           .from('profiles')
-          .select('id, first_name, last_name, full_name, email')
+          .select('id, first_name, last_name, full_name, email, phone_country_code, phone_number')
           .in('id', customerIds)
       : Promise.resolve({ data: [], error: null }),
     bookingIds.length > 0
@@ -356,6 +363,8 @@ export default async function FlightBookingsPage({
       last_name: customerProfile.last_name,
       full_name: customerProfile.full_name,
       email: customerProfile.email,
+      phone_country_code: customerProfile.phone_country_code,
+      phone_number: customerProfile.phone_number,
     })
   }
 
@@ -409,7 +418,7 @@ export default async function FlightBookingsPage({
       bookingReference: booking.booking_reference || booking.id.slice(0, 8).toUpperCase(),
       bookingOwnerUserId: booking.booking_owner_user_id,
       customerName: fullCustomerName(customerProfile, booking.pic_name),
-      customerEmail: customerProfile?.email ?? '—',
+      customerPhone: formatCustomerPhone(customerProfile),
       aircraftRegistration: aircraft?.registration ?? 'VH-KZG',
       aircraftType: aircraft?.aircraft_type ?? null,
       createdAt: booking.created_at,
@@ -443,7 +452,7 @@ export default async function FlightBookingsPage({
     const valueA: Record<SortKey, string | number> = {
       created: new Date(a.createdAt).getTime(),
       customer: a.customerName.toLowerCase(),
-      email: a.customerEmail.toLowerCase(),
+      phone: a.customerPhone.toLowerCase(),
       aircraft: `${a.bookingTypePrimaryLabel} ${a.bookingTypeSecondaryLabel}`.toLowerCase(),
       scheduled: new Date(a.scheduledStart).getTime(),
       status: a.statusLabel.toLowerCase(),
@@ -452,7 +461,7 @@ export default async function FlightBookingsPage({
     const valueB: Record<SortKey, string | number> = {
       created: new Date(b.createdAt).getTime(),
       customer: b.customerName.toLowerCase(),
-      email: b.customerEmail.toLowerCase(),
+      phone: b.customerPhone.toLowerCase(),
       aircraft: `${b.bookingTypePrimaryLabel} ${b.bookingTypeSecondaryLabel}`.toLowerCase(),
       scheduled: new Date(b.scheduledStart).getTime(),
       status: b.statusLabel.toLowerCase(),

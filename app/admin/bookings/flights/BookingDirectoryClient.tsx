@@ -10,7 +10,7 @@ export type BookingDirectoryRow = {
   bookingReference: string
   bookingOwnerUserId: string
   customerName: string
-  customerEmail: string
+  customerPhone: string
   aircraftRegistration: string
   aircraftType: string | null
   createdAt: string
@@ -31,7 +31,7 @@ export type BookingDirectoryRow = {
   isLandingFeePending?: boolean
 }
 
-type SortKey = 'created' | 'customer' | 'email' | 'aircraft' | 'scheduled' | 'status' | 'ref'
+type SortKey = 'created' | 'customer' | 'phone' | 'aircraft' | 'scheduled' | 'status' | 'ref'
 type SortDir = 'asc' | 'desc'
 
 type SummaryTone = 'info' | 'warning' | 'accent' | 'orange' | 'success'
@@ -751,7 +751,7 @@ export default function BookingDirectoryClient({
                                 {row.customerName}
                               </span>
                               <span className="mt-1 break-words text-[13px] text-[var(--admin-text-muted)]">
-                                {row.customerEmail}
+                                {row.customerPhone}
                               </span>
                             </Link>
                           </div>
@@ -806,7 +806,7 @@ export default function BookingDirectoryClient({
                                   {row.customerName}
                                 </span>
                                 <span className="mt-1 break-words text-[13px] text-[var(--admin-text-muted)]">
-                                  {row.customerEmail}
+                                  {row.customerPhone}
                                 </span>
                               </Link>
                             </div>
