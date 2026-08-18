@@ -24,6 +24,7 @@ type UpdateDocumentStatusInput = {
 type BulkUpdateDocumentStatusInput = {
   userId: string
   status: 'approved' | 'rejected'
+  reviewNotes?: string
 }
 
 type BulkUpdateDocumentStatusResult =
@@ -37,7 +38,6 @@ type UserDocumentRow = {
 }
 
 const REQUIRED_DOCUMENT_TYPES = ['pilot_licence', 'medical_certificate', 'photo_id'] as const
-const OPTIONAL_NIGHT_VFR_TYPE = 'night_vfr_evidence' as const
 
 function revalidateVerificationPaths(userId: string) {
   revalidatePath('/dashboard/documents')
@@ -58,6 +58,10 @@ async function applyDocumentStatusUpdate(
   input: UpdateDocumentStatusInput,
 ): Promise<{ success: true } | { success: false; error: string }> {
   const reviewNotes = input.reviewNotes?.trim() || null
+
+  if (input.status === 'rejected' && !reviewNotes) {
+    return { success: false, error: 'VALIDATION: A rejection message is required.' }
+  }
 
   const updatedRow = {
     status: input.status,
@@ -426,34 +430,9 @@ export async function bulkUpdateDocumentStatus(
 
     const { supabase, adminId } = await requireAdmin()
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('has_night_vfr_rating')
-      .eq('id', input.userId)
-      .single()
-
-    if (profileError) {
-      return { success: false, error: profileError.message || 'Failed to load customer profile.' }
-    }
-
-    // Include Night VFR in bulk actions when the profile claims it OR when
-    // evidence already exists (so "Approve All" also clears a Claimed Night VFR).
-    const { data: nightVfrExisting } = await supabase
-      .from('user_documents')
-      .select('id, status')
-      .eq('user_id', input.userId)
-      .eq('document_type', OPTIONAL_NIGHT_VFR_TYPE)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    const includeNightVfr =
-      profile?.has_night_vfr_rating === true ||
-      Boolean(nightVfrExisting && nightVfrExisting.status !== 'rejected')
-
-    const requiredTypes = includeNightVfr
-      ? [...REQUIRED_DOCUMENT_TYPES, OPTIONAL_NIGHT_VFR_TYPE]
-      : [...REQUIRED_DOCUMENT_TYPES]
+    // Night VFR evidence is optional for checkout review and must not be
+    // changed by the bulk required-document actions.
+    const requiredTypes = [...REQUIRED_DOCUMENT_TYPES]
 
     const { data: documents, error: docsError } = await supabase
       .from('user_documents')
@@ -487,6 +466,7 @@ export async function bulkUpdateDocumentStatus(
         documentId: doc.id,
         userId: input.userId,
         status: input.status,
+        reviewNotes: input.reviewNotes,
       })
 
       if (!result.success) {

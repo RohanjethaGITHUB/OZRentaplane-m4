@@ -443,7 +443,7 @@ function MiniDocCard({ def, doc, docState, onOpen, replacing, onViewDocument }: 
           <p className="text-[12px] text-[#4b6390] leading-relaxed">{def.desc}</p>
         </div>
       </div>
-      {doc && docState !== 'missing' && (
+      {doc && docState !== 'missing' && doc.file_name && (
         <div className="text-[11px] text-[#64748b] flex items-center gap-1.5 bg-[#f8fbff] rounded-lg px-2.5 py-1.5 border border-[#152d5a]/10 min-w-0">
           <span className="material-symbols-outlined text-[12px] flex-shrink-0" style={{ fontVariationSettings: "'wght' 300" }}>draft</span>
           <span className="truncate min-w-0 flex-1">{doc.file_name}</span>
@@ -533,7 +533,7 @@ export default function DocumentUploadPanel({
   )
 
   const [modalDocType, setModalDocType] = useState<DocumentType | null>(null)
-  const [replacing, setReplacing] = useState(false)
+  const [replacingDocType, setReplacingDocType] = useState<DocumentType | null>(null)
   const [viewerOpen, setViewerOpen] = useState(false)
   const [viewerFiles, setViewerFiles] = useState<DocumentFile[]>([])
   const [viewerInitialIndex, setViewerInitialIndex] = useState(0)
@@ -803,11 +803,11 @@ export default function DocumentUploadPanel({
             status={s1} error={validationErrors.s1}>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
               {docChecks.map(({ def, doc, state }) => (
-                <MiniDocCard key={def.type} def={def} doc={doc} docState={state} replacing={replacing} onViewDocument={openDocumentViewer} onOpen={async () => {
+                <MiniDocCard key={def.type} def={def} doc={doc} docState={state} replacing={replacingDocType === def.type} onViewDocument={openDocumentViewer} onOpen={async () => {
                   if (docMap[def.type]) {
-                    setReplacing(true)
+                    setReplacingDocType(def.type)
                     try { await replaceVerificationDocument(def.type) } catch (e) { console.error(e) }
-                    setReplacing(false)
+                    setReplacingDocType(null)
                   }
                   setModalDocType(def.type)
                 }} />
@@ -971,19 +971,19 @@ export default function DocumentUploadPanel({
                   <button
                     onClick={async () => {
                       if (docMap['night_vfr_evidence']) {
-                        setReplacing(true)
+                        setReplacingDocType('night_vfr_evidence')
                         try { await replaceVerificationDocument('night_vfr_evidence') } catch (e) { console.error(e) }
-                        setReplacing(false)
+                        setReplacingDocType(null)
                       }
                       setModalDocType('night_vfr_evidence')
                     }}
-                    disabled={replacing}
+                    disabled={replacingDocType === 'night_vfr_evidence'}
                     className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-[#1a4fd6]/30 hover:border-[#1a4fd6]/60 rounded-xl py-3 text-[#1a4fd6] hover:bg-[#1a4fd6]/5 transition-all">
                     <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'wght' 200" }}>
                       {docMap['night_vfr_evidence'] ? 'cloud_sync' : 'cloud_upload'}
                     </span>
                     <span className="text-[13px] font-semibold">
-                      {replacing ? 'Clearing…' : docMap['night_vfr_evidence'] ? 'Replace Evidence' : 'Upload Evidence'}
+                      {replacingDocType === 'night_vfr_evidence' ? 'Clearing…' : docMap['night_vfr_evidence'] ? 'Replace Evidence' : 'Upload Evidence'}
                     </span>
                   </button>
                 </div>

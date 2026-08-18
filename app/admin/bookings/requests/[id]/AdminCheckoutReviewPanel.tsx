@@ -19,6 +19,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal'
 import type { VerificationEvent } from '@/lib/supabase/types'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import { CHECKOUT_RATE_PER_HOUR } from '@/lib/pricing-constants'
+import { CHECKOUT_BLOCKING_DOCUMENT_TYPES } from '@/lib/checkout-document-gate'
 import {
   AlertTriangle,
   CalendarDays,
@@ -46,6 +47,9 @@ export type DocSummary = {
   medical_class?:  string | null
   id_type?:        string | null
   document_number?: string | null
+  red_card_expiry_month?: number | null
+  red_card_expiry_year?: number | null
+  review_notes?: string | null
   uploaded_at?:    string | null
   files?:          { id: string; file_name: string; storage_path: string }[]
 }
@@ -58,6 +62,8 @@ type Props = {
   scheduledEnd:       string       // UTC ISO — current value
   customerNotes:      string | null
   lastFlightDate:     string | null
+  redCardExpiryMonth: number | null
+  redCardExpiryYear:  number | null
   customerId:         string
   customerName:       string | null
   customerEmail:      string | null
@@ -139,6 +145,7 @@ function DocRow({
   docType,
   customerId,
   statusOverride,
+  isOptional = false,
   onOpenDocumentViewer,
 }: {
   label:      string
@@ -146,6 +153,7 @@ function DocRow({
   docType:    string
   customerId: string
   statusOverride?: string
+  isOptional?: boolean
   onOpenDocumentViewer: (files: NonNullable<DocSummary['files']>, index: number, title: string) => void
 }) {
   const router = useRouter()
@@ -156,12 +164,14 @@ function DocRow({
   const [actionPending, setActionPending] = useState<'approved' | 'rejected' | 'uploaded' | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [currentStatus, setCurrentStatus] = useState(doc?.status ?? '')
+  const [rejectionMessage, setRejectionMessage] = useState('')
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
 
   useEffect(() => {
     setCurrentStatus(doc?.status ?? '')
   }, [doc?.id, doc?.status])
 
-  async function handleDocAction(newStatus: 'approved' | 'rejected' | 'uploaded') {
+  async function handleDocAction(newStatus: 'approved' | 'rejected' | 'uploaded', reviewNotes?: string) {
     if (!doc?.id || actionPending) return
     setActionPending(newStatus)
     setActionError(null)
@@ -169,12 +179,15 @@ function DocRow({
       documentId: doc.id,
       userId: customerId,
       status: newStatus,
+      reviewNotes,
     })
     if (result.success) {
       setCurrentStatus(newStatus)
       try {
         await Promise.resolve(router.refresh())
       } finally {
+        setRejectDialogOpen(false)
+        setRejectionMessage('')
         setActionPending(null)
       }
     } else {
@@ -230,6 +243,11 @@ function DocRow({
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusClass}`}>
               {statusLabel}
             </span>
+            {isOptional && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold text-slate-600 bg-slate-100 border border-slate-200">
+                Optional · non-blocking
+              </span>
+            )}
             {doc?.licence_type   && <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs px-2 py-0.5 rounded-full font-medium">{doc.licence_type}</span>}
             {doc?.medical_class  && <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs px-2 py-0.5 rounded-full font-medium">{doc.medical_class}</span>}
             {doc?.id_type        && <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs px-2 py-0.5 rounded-full font-medium">{doc.id_type}</span>}
@@ -246,6 +264,13 @@ function DocRow({
                 </span>
               )}
               {doc.uploaded_at     && <span>Uploaded: {formatDateFromISO(doc.uploaded_at)}</span>}
+            </div>
+          )}
+
+          {resolvedStatus === 'rejected' && doc?.review_notes?.trim() && (
+            <div className="mt-2 max-w-2xl rounded-lg border border-red-100 bg-red-50 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-red-600">Rejection message</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-red-800">{doc.review_notes}</p>
             </div>
           )}
         </div>
@@ -273,7 +298,11 @@ function DocRow({
             </div>
 
             <div className="flex items-center gap-1.5 min-w-[180px] justify-end">
-              {showExpired ? (
+              {isOptional ? (
+                <span className="text-xs font-medium text-slate-500 whitespace-nowrap">
+                  No approval needed
+                </span>
+              ) : showExpired ? (
                 <span className="inline-flex items-center gap-1 text-xs text-red-600 font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
                   <XCircle className="w-3 h-3" /> Expired
                 </span>
@@ -309,7 +338,7 @@ function DocRow({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDocAction('rejected')}
+                    onClick={() => { setRejectionMessage(''); setRejectDialogOpen(true) }}
                     disabled={!!actionPending}
                     className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600 border border-red-200 font-semibold hover:bg-red-100 transition-colors disabled:opacity-40 whitespace-nowrap"
                   >
@@ -327,6 +356,42 @@ function DocRow({
           {viewError ?? actionError}
         </p>
       )}
+
+      <ConfirmModal
+        open={rejectDialogOpen}
+        title={`Reject ${label}?`}
+        description="The customer will see this message on their document and use it to correct the upload."
+        confirmLabel={actionPending === 'rejected' ? 'Rejecting…' : 'Reject document'}
+        variant="danger"
+        isPending={actionPending === 'rejected'}
+        onCancel={() => { if (!actionPending) setRejectDialogOpen(false) }}
+        onConfirm={() => {
+          const message = rejectionMessage.trim()
+          if (!message) {
+            setActionError('A rejection message is required.')
+            return
+          }
+          void handleDocAction('rejected', message)
+        }}
+      >
+        <div className="px-6 pt-4">
+          <label htmlFor={`rejection-message-${doc?.id}`} className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+            Rejection message <span className="text-rose-600">*</span>
+          </label>
+          <textarea
+            id={`rejection-message-${doc?.id}`}
+            value={rejectionMessage}
+            onChange={(event) => { setRejectionMessage(event.target.value); setActionError(null) }}
+            rows={4}
+            maxLength={1000}
+            placeholder="Tell the customer what needs to be corrected…"
+            className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+            disabled={actionPending === 'rejected'}
+          />
+          <p className="mt-1 text-[11px] text-slate-500">This message is customer-visible.</p>
+          {actionError && <p className="mt-2 text-xs font-medium text-rose-600">{actionError}</p>}
+        </div>
+      </ConfirmModal>
     </>
   )
 }
@@ -408,7 +473,7 @@ function TimeDropdown({
 export default function AdminCheckoutReviewPanel({
   bookingId, aircraftId, bookingReference,
   scheduledStart, scheduledEnd,
-  customerNotes, lastFlightDate, customerId, customerName, customerEmail, customerPhone, pilotArn,
+  customerNotes, lastFlightDate, redCardExpiryMonth, redCardExpiryYear, customerId, customerName, customerEmail, customerPhone, pilotArn,
   hasNightVfrRating = false,
   clearanceLabel, clearanceColor, clearanceBg, clearanceBorder,
   documents, messages,
@@ -446,9 +511,8 @@ export default function AdminCheckoutReviewPanel({
     requiredCount: number
   } | null>(null)
   const [bulkError, setBulkError] = useState('')
+  const [bulkRejectionMessage, setBulkRejectionMessage] = useState('')
   const [forceAllApproved, setForceAllApproved] = useState(false)
-  /** True when the last bulk approve also targeted Night VFR evidence. */
-  const [forceApprovedIncludesNightVfr, setForceApprovedIncludesNightVfr] = useState(false)
 
   // ── Message state ────────────────────────────────────────────────────────────
   const [message, setMessage]     = useState('')
@@ -598,17 +662,23 @@ export default function AdminCheckoutReviewPanel({
     if (status === 'approved' && allRequiredApproved) return
     setBulkError('')
     setBulkMessage(null)
+    setBulkRejectionMessage('')
     setBulkAction(status)
   }
 
   async function handleBulkUpdate() {
     if (!bulkAction) return
+    if (bulkAction === 'rejected' && !bulkRejectionMessage.trim()) {
+      setBulkError('A rejection message is required.')
+      return
+    }
     setBulkLoading(true)
     setBulkError('')
     try {
       const result = await bulkUpdateDocumentStatus({
         userId: customerId,
         status: bulkAction,
+        reviewNotes: bulkAction === 'rejected' ? bulkRejectionMessage.trim() : undefined,
       })
 
       if (!result.success) {
@@ -624,15 +694,8 @@ export default function AdminCheckoutReviewPanel({
       })
       if (bulkAction === 'approved') {
         setForceAllApproved(true)
-        // Bulk now includes Night VFR when evidence exists; keep optimistic UI in sync.
-        const nightVfrDoc = documents.find((d) => d.document_type === 'night_vfr_evidence')
-        setForceApprovedIncludesNightVfr(
-          hasNightVfrRating === true ||
-            Boolean(nightVfrDoc && nightVfrDoc.status !== 'rejected'),
-        )
       } else {
         setForceAllApproved(false)
-        setForceApprovedIncludesNightVfr(false)
       }
       router.refresh()
     } finally {
@@ -646,19 +709,13 @@ export default function AdminCheckoutReviewPanel({
   const medicalDoc        = documents.find(d => d.document_type === 'medical_certificate')
   const photoIdDoc        = documents.find(d => d.document_type === 'photo_id')
   const nightVfrEvidenceDoc = documents.find(d => d.document_type === 'night_vfr_evidence')
-  // Night VFR evidence is required when the profile claims Night VFR OR when
-  // evidence has been uploaded and not rejected (covers "Claimed" pending review).
-  const nightVfrRequired =
-    hasNightVfrRating === true ||
-    Boolean(nightVfrEvidenceDoc && nightVfrEvidenceDoc.status !== 'rejected')
-  const requiredDocEntries = [
-    { type: 'pilot_licence', doc: licenceDoc },
-    { type: 'medical_certificate', doc: medicalDoc },
-    { type: 'photo_id', doc: photoIdDoc },
-    ...(nightVfrRequired
-      ? [{ type: 'night_vfr_evidence', doc: nightVfrEvidenceDoc }]
-      : []),
-  ]
+  // Night VFR remains visible and reviewable, but never blocks checkout confirmation.
+  const requiredDocEntries = CHECKOUT_BLOCKING_DOCUMENT_TYPES.map((type) => ({
+    type,
+    doc: type === 'pilot_licence' ? licenceDoc
+      : type === 'medical_certificate' ? medicalDoc
+        : photoIdDoc,
+  }))
   const todayIso = new Date().toISOString().split('T')[0]!
   function isCheckoutDocReady(type: string, doc: DocSummary | undefined): boolean {
     if (!doc || doc.status !== 'approved') return false
@@ -667,11 +724,8 @@ export default function AdminCheckoutReviewPanel({
     return true
   }
   // After bulk-approve, props may lag one refresh; treat core docs as approved.
-  // Only force Night VFR approved when the bulk action actually included it.
   function effectiveDocStatus(type: string, doc: DocSummary): string {
-    const forceApprovedForType =
-      forceAllApproved && (type !== 'night_vfr_evidence' || forceApprovedIncludesNightVfr)
-    return forceApprovedForType ? 'approved' : doc.status
+    return forceAllApproved ? 'approved' : doc.status
   }
   const incompleteRequiredDocs = requiredDocEntries.filter(({ type, doc }) => {
     if (!doc) return true
@@ -679,16 +733,11 @@ export default function AdminCheckoutReviewPanel({
   })
   const canConfirmCheckout = incompleteRequiredDocs.length === 0
   const confirmBlockedByReschedule = pendingRescheduleReview
-  const onlyNightVfrBlocking =
-    incompleteRequiredDocs.length === 1 &&
-    incompleteRequiredDocs[0]?.type === 'night_vfr_evidence'
   const confirmCheckoutDisabledReason = confirmBlockedByReschedule
     ? 'Confirm Checkout is disabled until you approve or reject the requested new time.'
     : canConfirmCheckout
       ? null
-      : onlyNightVfrBlocking
-        ? 'Confirm Checkout is disabled until Night VFR evidence is approved (or rejected if not applicable).'
-        : 'Confirm Checkout is disabled until all required documents are approved and none are expired.'
+      : 'Confirm Checkout is disabled until all required documents are approved and none are expired.'
   const allRequiredApproved = canConfirmCheckout
   const allDocsOk = canConfirmCheckout
   const nightVfrStatusOverride =
@@ -717,26 +766,38 @@ export default function AdminCheckoutReviewPanel({
           <ChevronDown className="ml-auto w-5 h-5 text-gray-400" />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Name</p>
-            <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Name</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
               <Link href={`/admin/users/${customerId}`} className="text-sm font-medium text-[#152d5a] underline decoration-[#152d5a]/20 underline-offset-2 hover:text-blue-400">
                 {customerName || 'Unknown'}
               </Link>
             </div>
           </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Email</p>
-            <p className="text-sm font-medium text-[#152d5a] break-all">{customerEmail || '—'}</p>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Email</p>
+            <p className="mt-1 break-all text-sm font-medium text-[#152d5a]">{customerEmail || '—'}</p>
           </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">ARN</p>
-            <p className="text-sm font-medium text-[#152d5a]">{pilotArn || '—'}</p>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Phone</p>
+            <p className="mt-1 text-sm font-medium text-[#152d5a]">{customerPhone || '—'}</p>
           </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Phone</p>
-            <p className="text-sm font-medium text-[#152d5a]">{customerPhone ?? '—'}</p>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">ARN</p>
+            <p className="mt-1 text-sm font-medium text-[#152d5a]">{pilotArn || '—'}</p>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Last flight date</p>
+            <p className="mt-1 text-sm font-medium text-[#152d5a]">{lastFlightDate ? formatDateFromISO(lastFlightDate) : '—'}</p>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Red Card expiry</p>
+            <p className="mt-1 text-sm font-medium text-[#152d5a]">
+              {redCardExpiryMonth && redCardExpiryYear
+                ? `${String(redCardExpiryMonth).padStart(2, '0')}/${redCardExpiryYear}`
+                : '—'}
+            </p>
           </div>
         </div>
       </section>
@@ -760,8 +821,11 @@ export default function AdminCheckoutReviewPanel({
           ) : (
             <AlertTriangle className="w-3.5 h-3.5" />
           )}
-          {allDocsOk ? 'All approved' : 'Incomplete'}
+          {allDocsOk ? 'All required documents approved' : 'Required documents awaiting approval'}
         </div>
+        <p className="mb-4 text-xs text-slate-500">
+          Night VFR evidence is optional. Its status does not prevent checkout confirmation.
+        </p>
 
         <div className="space-y-0">
           <DocRow label="Pilot Licence" doc={licenceDoc} docType="pilot_licence" customerId={customerId} onOpenDocumentViewer={openDocumentViewer} />
@@ -772,6 +836,7 @@ export default function AdminCheckoutReviewPanel({
             doc={nightVfrEvidenceDoc}
             docType="night_vfr_evidence"
             customerId={customerId}
+            isOptional
             statusOverride={nightVfrStatusOverride}
             onOpenDocumentViewer={openDocumentViewer}
           />
@@ -817,7 +882,7 @@ export default function AdminCheckoutReviewPanel({
             className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="material-symbols-outlined text-sm">verified_user</span>
-            {allRequiredApproved ? 'All Documents Approved' : 'Approve All Documents'}
+            {allRequiredApproved ? 'All Required Documents Approved' : 'Approve All Required Documents'}
           </button>
           <button
             type="button"
@@ -1044,9 +1109,7 @@ export default function AdminCheckoutReviewPanel({
             <div className="flex items-start gap-2.5 rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
               <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" aria-hidden="true" />
               <span>
-                {onlyNightVfrBlocking
-                  ? 'Night VFR evidence is still claimed and not approved. Approve or reject it before confirming checkout.'
-                  : 'One or more required documents are not yet approved or have expired. Review document status before confirming checkout.'}
+                One or more required documents are not yet approved or have expired. Review document status before confirming checkout.
               </span>
             </div>
           ) : null}
@@ -1111,7 +1174,7 @@ export default function AdminCheckoutReviewPanel({
       <ConfirmModal
         open={confirmCheckoutOpen}
         title="Confirm checkout request?"
-        description={`Confirm checkout request for ${formatDate(newStartUTC ?? scheduledStart)} at ${ALL_TIME_OPTIONS.find((o) => o.value === newStartTime)?.label ?? newStartTime} (Sydney time).`}
+        description={`Confirm checkout request for ${formatDateFromISO(newStartUTC ?? scheduledStart)} at ${ALL_TIME_OPTIONS.find((o) => o.value === newStartTime)?.label ?? newStartTime} (Sydney time).`}
         confirmLabel={confirmPending ? 'Confirming…' : 'Confirm Checkout'}
         variant="primary"
         isPending={confirmPending}
@@ -1145,9 +1208,30 @@ export default function AdminCheckoutReviewPanel({
         onCancel={() => {
           if (bulkLoading) return
           setBulkAction(null)
+          setBulkRejectionMessage('')
         }}
         onConfirm={handleBulkUpdate}
-      />
+      >
+        {bulkAction === 'rejected' && (
+          <div className="px-6 pt-4">
+            <label htmlFor="bulk-rejection-message" className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              Rejection message <span className="text-rose-600">*</span>
+            </label>
+            <textarea
+              id="bulk-rejection-message"
+              value={bulkRejectionMessage}
+              onChange={(event) => { setBulkRejectionMessage(event.target.value); setBulkError('') }}
+              rows={4}
+              maxLength={1000}
+              placeholder="Tell the customer what needs to be corrected…"
+              className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+              disabled={bulkLoading}
+            />
+            <p className="mt-1 text-[11px] text-slate-500">This message is customer-visible on each rejected document.</p>
+            {bulkError && <p className="mt-2 text-xs font-medium text-rose-600">{bulkError}</p>}
+          </div>
+        )}
+      </ConfirmModal>
 
       <DocumentViewerModal
         isOpen={viewerOpen}

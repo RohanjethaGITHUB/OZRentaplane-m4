@@ -8,6 +8,7 @@ import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
 import {
   enqueueCheckoutRequestSubmittedAdminEmail,
   enqueueCheckoutRequestSubmittedCustomerEmail,
+  enqueueCheckoutRescheduleEmails,
 } from '@/lib/email/outbox'
 import {
   notifyCancellationRequested,
@@ -107,6 +108,15 @@ function getSydneyDateAndTime(isoUtc: string): { date: string; time: string } {
     hour12: false,
   })
   return { date, time }
+}
+
+function formatSydneyDateTime(isoUtc: string | null | undefined): string {
+  if (!isoUtc) return 'Unknown'
+  return new Date(isoUtc).toLocaleString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
 }
 
 export async function canModifyCheckout(checkout: {
@@ -1114,7 +1124,7 @@ export async function requestCheckoutReschedule(
   const requestedEndUtc = new Date(requestedStart.getTime() + 2 * 60 * 60 * 1000).toISOString()
   const { data: profile } = await supabase
     .from('profiles')
-    .select('has_night_vfr_rating')
+    .select('has_night_vfr_rating, full_name, email')
     .eq('id', userId)
     .single()
   if (profile?.has_night_vfr_rating !== true) {
@@ -1147,7 +1157,7 @@ export async function requestCheckoutReschedule(
 
   const { data: aircraft } = await supabase
     .from('aircraft')
-    .select('default_preflight_buffer_minutes, default_postflight_buffer_minutes')
+    .select('registration, default_preflight_buffer_minutes, default_postflight_buffer_minutes')
     .eq('id', booking.aircraft_id)
     .single()
 
@@ -1206,6 +1216,18 @@ export async function requestCheckoutReschedule(
     },
   })
 
+  if (profile?.email) {
+    await enqueueCheckoutRescheduleEmails({
+      outcome: 'requested',
+      bookingId: checkoutId,
+      customerName: profile.full_name ?? 'Pilot',
+      customerEmail: profile.email,
+      originalTime: `${formatSydneyDateTime(booking.scheduled_start)} – ${formatSydneyDateTime(booking.scheduled_end)}`,
+      requestedTime: `${formatSydneyDateTime(requestedStartUtc)} – ${formatSydneyDateTime(requestedEndUtc)}`,
+      aircraft: aircraft?.registration ?? 'Unknown aircraft',
+    }).catch((error) => console.error('[requestCheckoutReschedule] email failed:', error))
+  }
+
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/checkout')
   revalidatePath('/dashboard/bookings')
@@ -1253,7 +1275,7 @@ export async function approveCheckoutReschedule(changeRequestId: string): Promis
 
   const { data: ownerProfile } = await admin
     .from('profiles')
-    .select('has_night_vfr_rating')
+    .select('has_night_vfr_rating, full_name, email')
     .eq('id', booking.booking_owner_user_id)
     .single()
   if (ownerProfile?.has_night_vfr_rating !== true) {
@@ -1265,7 +1287,7 @@ export async function approveCheckoutReschedule(changeRequestId: string): Promis
 
   const { data: aircraft } = await admin
     .from('aircraft')
-    .select('default_preflight_buffer_minutes, default_postflight_buffer_minutes')
+    .select('registration, default_preflight_buffer_minutes, default_postflight_buffer_minutes')
     .eq('id', booking.aircraft_id)
     .single()
 
@@ -1425,6 +1447,18 @@ export async function approveCheckoutReschedule(changeRequestId: string): Promis
     new_value: { scheduled_start: requestedStart.toISOString(), scheduled_end: requestedEnd.toISOString() },
   })
 
+  if (ownerProfile?.email) {
+    await enqueueCheckoutRescheduleEmails({
+      outcome: 'approved',
+      bookingId: booking.id,
+      customerName: ownerProfile.full_name ?? 'Pilot',
+      customerEmail: ownerProfile.email,
+      originalTime: `${formatSydneyDateTime(booking.scheduled_start)} – ${formatSydneyDateTime(booking.scheduled_end)}`,
+      requestedTime: `${formatSydneyDateTime(requestedStart.toISOString())} – ${formatSydneyDateTime(requestedEnd.toISOString())}`,
+      aircraft: aircraft?.registration ?? 'Unknown aircraft',
+    }).catch((error) => console.error('[approveCheckoutReschedule] email failed:', error))
+  }
+
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/checkout')
   revalidatePath('/dashboard/bookings')
@@ -1447,6 +1481,7 @@ export async function rejectCheckoutReschedule(changeRequestId: string): Promise
     .from('checkout_change_requests')
     .select(`
       id, checkout_request_id, request_type, status,
+      original_scheduled_start, requested_scheduled_start,
       bookings:checkout_request_id (id, status, aircraft_id, scheduled_start, scheduled_end, checkout_lifecycle_status, booking_owner_user_id)
     `)
     .eq('id', changeRequestId)
@@ -1493,6 +1528,22 @@ export async function rejectCheckoutReschedule(changeRequestId: string): Promise
     event_summary: 'Admin rejected checkout reschedule request.',
     new_value: { checkout_lifecycle_status: lifecycle },
   })
+
+  const [{ data: ownerProfile }, { data: aircraft }] = await Promise.all([
+    admin.from('profiles').select('full_name, email').eq('id', booking.booking_owner_user_id).single(),
+    admin.from('aircraft').select('registration').eq('id', booking.aircraft_id).single(),
+  ])
+  if (ownerProfile?.email) {
+    await enqueueCheckoutRescheduleEmails({
+      outcome: 'rejected',
+      bookingId: booking.id,
+      customerName: ownerProfile.full_name ?? 'Pilot',
+      customerEmail: ownerProfile.email,
+      originalTime: `${formatSydneyDateTime(reqRow.original_scheduled_start ?? booking.scheduled_start)} – ${formatSydneyDateTime(booking.scheduled_end)}`,
+      requestedTime: formatSydneyDateTime(reqRow.requested_scheduled_start),
+      aircraft: aircraft?.registration ?? 'Unknown aircraft',
+    }).catch((error) => console.error('[rejectCheckoutReschedule] email failed:', error))
+  }
 
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/checkout')

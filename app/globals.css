@@ -332,6 +332,13 @@ html {
     min-height: 100svh !important;
     height: auto !important;
   }
+
+  .hero-scroll-section .hero-scroll-sticky {
+    position: relative !important;
+    top: auto !important;
+    min-height: 100svh !important;
+    height: 100svh !important;
+  }
 }
 
 /* iOS Safari: prevent elastic overscroll from breaking sticky positioning */

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { AlertTriangle, CheckCircle2, X } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import Spinner from '@/components/ui/Spinner'
@@ -13,6 +13,7 @@ type ConfirmModalProps = {
   cancelLabel?: string
   variant?: 'primary' | 'danger'
   isPending?: boolean
+  children?: ReactNode
   onConfirm: () => void | Promise<void>
   onCancel: () => void
 }
@@ -25,6 +26,7 @@ export default function ConfirmModal({
   cancelLabel = 'Cancel',
   variant = 'primary',
   isPending = false,
+  children,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -33,7 +35,13 @@ export default function ConfirmModal({
   useEffect(() => {
     if (!open) return
 
-    confirmButtonRef.current?.focus()
+    const dialog = confirmButtonRef.current?.closest('[role="dialog"]')
+    const firstField = dialog?.querySelector<HTMLElement>('textarea, input, select')
+    ;(firstField ?? confirmButtonRef.current)?.focus()
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape' && !isPending) onCancel()
@@ -105,6 +113,8 @@ export default function ConfirmModal({
               <X className="h-4 w-4" />
             </button>
           </div>
+
+          {children}
 
           <div className="flex items-center justify-end gap-3 px-6 py-6">
             <button

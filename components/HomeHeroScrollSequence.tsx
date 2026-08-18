@@ -17,6 +17,7 @@ const WORD_WAY_DELAY_MS = 1120
 const UNDERLINE_DELAY_MS = 1500
 const CLOUD_FADE_START_FRAME = 22
 const CLOUD_FADE_END_FRAME = 34
+const VIDEO_INIT_TIMEOUT_MS = 8000
 const VIDEO_DURATION_DESKTOP = 6.625  // 159 frames at 24fps
 const VIDEO_DURATION_MOBILE = 6.666667  // 160 frames at 24fps
 const TOTAL_FRAMES = 160
@@ -33,17 +34,6 @@ const IS_SAFARI =
 const HERO_TEXT = { line1: 'FLY', line2: 'YOUR WAY', showCta: true } as const
 
 type MotionMode = 'full' | 'reduced'
-type ScrollLockSnapshot = {
-  scrollY: number
-  htmlOverflow: string
-  htmlOverscrollBehavior: string
-  bodyOverflow: string
-  bodyPosition: string
-  bodyTop: string
-  bodyLeft: string
-  bodyRight: string
-  bodyWidth: string
-}
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
@@ -54,6 +44,7 @@ export default function HomeHeroScrollSequence() {
   const videoDesktopRef = useRef<HTMLVideoElement | null>(null)
   const videoMobileRef = useRef<HTMLVideoElement | null>(null)
   const videoReadyRef = useRef(false)
+  const videoFallbackRef = useRef(false)
   const lastAppliedTimeRef = useRef(0)
   const safariSeekTickRef = useRef(0)
   const isMobileViewportRef = useRef(false)
@@ -62,13 +53,22 @@ export default function HomeHeroScrollSequence() {
   const sceneHeadingRef = useRef<HTMLDivElement | null>(null)
 
   const rafRef = useRef<number | null>(null)
-  const scrollTickRef = useRef<number | null>(null)
   const introTimerRef = useRef<number | null>(null)
+  const videoInitTimeoutRef = useRef<number | null>(null)
+  const videoRequestStartRef = useRef<number | null>(null)
+  const heroDiagnosticsRef = useRef({
+    selectedSource: '',
+    videoRequestStartTime: null as number | null,
+    loadedDataTime: null as number | null,
+    readyState: 0,
+    fallbackTriggered: false,
+    desktopVideoRequestedOnMobile: false,
+  })
 
   const [introDone, setIntroDone] = useState(false)
   const [sceneIndex, setSceneIndex] = useState(0)
   const [videoReady, setVideoReady] = useState(false)
-  const [videoError, setVideoError] = useState(false)
+  const [videoFallback, setVideoFallback] = useState(false)
   
   // Always start as false on SSR — useEffect immediately corrects on client
   // before any video/canvas mounts, avoiding hydration mismatch
@@ -112,7 +112,6 @@ export default function HomeHeroScrollSequence() {
   const viewportRef = useRef({ width: 0, height: 0 })
   const scrollProgressRawRef = useRef(0)
   const scrollProgressClampedRef = useRef(0)
-  const scrollLockSnapshotRef = useRef<ScrollLockSnapshot | null>(null)
   const sceneHeadings = useMemo(
     () =>
       SCENE_BOUNDARIES.map((scene, idx) => ({
@@ -205,8 +204,34 @@ export default function HomeHeroScrollSequence() {
     if (frame <= SCENE_BOUNDARIES[1].end) return 1
     return 2
   }
+
+  function logHeroDiagnostics(event: string, video?: HTMLVideoElement | null) {
+    if (process.env.NODE_ENV === 'production') return
+
+    const diagnostics = heroDiagnosticsRef.current
+    const resourceEntries = typeof performance !== 'undefined'
+      ? performance.getEntriesByType('resource')
+      : []
+    const desktopWasRequested = resourceEntries.some((entry) =>
+      entry.name.includes('/hero-desktop.webm') || entry.name.includes('/hero-desktop.mp4'),
+    )
+    diagnostics.desktopVideoRequestedOnMobile = isMobileViewportRef.current && desktopWasRequested
+    if (video) diagnostics.readyState = video.readyState
+
+    console.info('[hero diagnostics]', {
+      event,
+      selectedHeroSource: diagnostics.selectedSource,
+      videoRequestStartTime: diagnostics.videoRequestStartTime,
+      loadedDataTime: diagnostics.loadedDataTime,
+      readyState: diagnostics.readyState,
+      fallbackTriggered: diagnostics.fallbackTriggered,
+      desktopVideoRequestedOnMobile: diagnostics.desktopVideoRequestedOnMobile,
+      currentSrc: video?.currentSrc || '',
+    })
+  }
+
   function applyBestFrame(playhead: number, _nowTs: number) {
-    if (!videoReadyRef.current) return
+    if (!videoReadyRef.current || videoFallbackRef.current) return
     const vid = isMobileViewportRef.current
       ? videoMobileRef.current
       : videoDesktopRef.current
@@ -244,50 +269,6 @@ export default function HomeHeroScrollSequence() {
     targetFrameRef.current = nextTarget
     if (Math.abs(diff) > 0.001) directionRef.current = diff > 0 ? 1 : -1
     previousTargetFrameRef.current = targetFrameRef.current
-  }
-
-  function lockPageScroll() {
-    if (typeof window === 'undefined') return
-    if (scrollLockSnapshotRef.current) return
-    const html = document.documentElement
-    const body = document.body
-    const scrollY = window.scrollY || window.pageYOffset || 0
-    scrollLockSnapshotRef.current = {
-      scrollY,
-      htmlOverflow: html.style.overflow,
-      htmlOverscrollBehavior: html.style.overscrollBehavior,
-      bodyOverflow: body.style.overflow,
-      bodyPosition: body.style.position,
-      bodyTop: body.style.top,
-      bodyLeft: body.style.left,
-      bodyRight: body.style.right,
-      bodyWidth: body.style.width,
-    }
-    html.style.overflow = 'hidden'
-    html.style.overscrollBehavior = 'none'
-    // Do NOT set body position:fixed — causes Safari iOS scroll position loss
-    // Touch-action is handled via the touchmove preventDefault in the useEffect
-  }
-
-  function unlockPageScroll() {
-    if (typeof window === 'undefined') return
-    const snapshot = scrollLockSnapshotRef.current
-    if (!snapshot) return
-    const html = document.documentElement
-    const body = document.body
-    html.style.overflow = snapshot.htmlOverflow
-    html.style.overscrollBehavior = snapshot.htmlOverscrollBehavior
-    // Restore body styles that may have been set previously
-    // (body.style.position etc are left at their natural values since we
-    // no longer set them in lockPageScroll)
-    body.style.overflow = snapshot.bodyOverflow
-    body.style.position = snapshot.bodyPosition
-    body.style.top = snapshot.bodyTop
-    body.style.left = snapshot.bodyLeft
-    body.style.right = snapshot.bodyRight
-    body.style.width = snapshot.bodyWidth
-    scrollLockSnapshotRef.current = null
-    // No scrollTo needed — body was never moved, so scroll position is preserved
   }
 
   function renderLoop(ts: number) {
@@ -399,57 +380,90 @@ export default function HomeHeroScrollSequence() {
       vm.currentTime = 0
     }
 
-    if (!viewportReady) return
+    if (!viewportReady || motionMode === 'reduced') {
+      videoReadyRef.current = false
+      videoFallbackRef.current = false
+      setVideoReady(false)
+      setVideoFallback(false)
+      return
+    }
 
     const vid = isMobileViewport ? vm : vd
     if (!vid) return
 
     videoReadyRef.current = false
+    videoFallbackRef.current = false
     setVideoReady(false)
-    setVideoError(false)
+    setVideoFallback(false)
 
-    const mountTime = Date.now()
+    const sourceFamily = isMobileViewport ? 'mobile' : 'desktop'
+    const sourceCandidates = isMobileViewport
+      ? ['/hero-mobile.webm', '/hero-mobile.mp4']
+      : ['/hero-desktop.webm', '/hero-desktop.mp4']
+    videoRequestStartRef.current = performance.now()
+    heroDiagnosticsRef.current = {
+      selectedSource: `${sourceFamily}: ${sourceCandidates.join(' / ')}`,
+      videoRequestStartTime: videoRequestStartRef.current,
+      loadedDataTime: null,
+      readyState: vid.readyState,
+      fallbackTriggered: false,
+      desktopVideoRequestedOnMobile: false,
+    }
+    logHeroDiagnostics('video request started', vid)
+
     const activate = () => {
-      // Ensure overlay shows for minimum 1 second
-      const elapsed = Date.now() - mountTime
-      const remaining = Math.max(0, 1000 - elapsed)
-      window.setTimeout(() => {
-        vid.pause()
-        vid.currentTime = 0
-        videoReadyRef.current = true
-        setVideoReady(true)
-        if (rafRef.current === null) {
-          rafRef.current = window.requestAnimationFrame(renderLoop)
-        }
-      }, remaining)
+      if (videoReadyRef.current || videoFallbackRef.current) return
+      if (videoInitTimeoutRef.current !== null) {
+        window.clearTimeout(videoInitTimeoutRef.current)
+        videoInitTimeoutRef.current = null
+      }
+      vid.pause()
+      vid.currentTime = 0
+      videoReadyRef.current = true
+      heroDiagnosticsRef.current.loadedDataTime = performance.now()
+      heroDiagnosticsRef.current.readyState = vid.readyState
+      setVideoReady(true)
+      logHeroDiagnostics('loadeddata', vid)
+      if (rafRef.current === null) {
+        rafRef.current = window.requestAnimationFrame(renderLoop)
+      }
     }
 
     const onError = () => {
-      setVideoError(true)
-      videoReadyRef.current = true
-      setVideoReady(true)
+      if (videoReadyRef.current || videoFallbackRef.current) return
+      videoFallbackRef.current = true
+      heroDiagnosticsRef.current.fallbackTriggered = true
+      heroDiagnosticsRef.current.readyState = vid.readyState
+      setVideoFallback(true)
+      logHeroDiagnostics('video error fallback', vid)
     }
     const onLoadedData = () => {
-      if (!videoReadyRef.current) activate()
+      activate()
     }
 
     if (vid.readyState >= 3) {
       activate()
     } else {
-      vid.addEventListener('canplaythrough', activate, { once: true })
       vid.addEventListener('loadeddata', onLoadedData, { once: true })
       vid.addEventListener('error', onError, { once: true })
-      const fallback = window.setTimeout(() => {
-        if (!videoReadyRef.current) activate()
-      }, 8000)
+      videoInitTimeoutRef.current = window.setTimeout(() => {
+        if (videoReadyRef.current || videoFallbackRef.current) return
+        videoFallbackRef.current = true
+        heroDiagnosticsRef.current.fallbackTriggered = true
+        heroDiagnosticsRef.current.readyState = vid.readyState
+        setVideoFallback(true)
+        logHeroDiagnostics('video timeout fallback', vid)
+      }, VIDEO_INIT_TIMEOUT_MS)
       return () => {
-        vid.removeEventListener('canplaythrough', activate)
         vid.removeEventListener('loadeddata', onLoadedData)
         vid.removeEventListener('error', onError)
-        window.clearTimeout(fallback)
+        if (videoInitTimeoutRef.current !== null) {
+          window.clearTimeout(videoInitTimeoutRef.current)
+          videoInitTimeoutRef.current = null
+        }
       }
     }
-  }, [isMobileViewport, viewportReady])
+  }, [isMobileViewport, motionMode, viewportReady])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -567,57 +581,29 @@ export default function HomeHeroScrollSequence() {
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('touchmove', onScroll)
       if (rafRef.current !== null) window.cancelAnimationFrame(rafRef.current)
-      if (scrollTickRef.current !== null) window.cancelAnimationFrame(scrollTickRef.current)
     }
   }, [isMobileViewport, motionMode])
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    const shouldLock = motionMode !== 'reduced' && (!introDone || !videoReadyRef.current)
-    if (!shouldLock) {
-      unlockPageScroll()
-      return
-    }
-
-    lockPageScroll()
-    const blockedKeys = new Set([
-      ' ',
-      'PageUp',
-      'PageDown',
-      'End',
-      'Home',
-      'ArrowUp',
-      'ArrowDown',
-      'ArrowLeft',
-      'ArrowRight',
-    ])
-
-    const preventScrollInput = (e: Event) => e.preventDefault()
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (blockedKeys.has(e.key)) e.preventDefault()
-    }
-
-    window.addEventListener('wheel', preventScrollInput, { passive: false })
-    window.addEventListener('touchmove', preventScrollInput, { passive: false })
-    window.addEventListener('keydown', onKeyDown, { passive: false })
-
-    return () => {
-      window.removeEventListener('wheel', preventScrollInput)
-      window.removeEventListener('touchmove', preventScrollInput)
-      window.removeEventListener('keydown', onKeyDown)
-      unlockPageScroll()
-    }
-  }, [introDone, motionMode, videoReady])
-
   return (
-    <section ref={sectionRef} className="relative bg-deep-ink" style={{ height: `${SCROLL_HEIGHT_VH}dvh` }} data-motion-mode={motionMode}>
-      <div className="sticky top-0 overflow-hidden min-h-[100svh] min-h-[100dvh] bg-deep-ink">
-        {!isMobileViewport && (
+    <section ref={sectionRef} className="hero-scroll-section relative bg-deep-ink" style={{ height: `${SCROLL_HEIGHT_VH}dvh` }} data-motion-mode={motionMode}>
+      <div className="hero-scroll-sticky sticky top-0 overflow-hidden min-h-[100svh] min-h-[100dvh] bg-deep-ink">
+        <picture className="absolute inset-0 z-0 block">
+          <source media="(max-width: 767px)" srcSet="/Mobile-home-hero/MS1_000001.webp" />
+          <img
+            src="/WebHomeHeroScroll/S1_000001.webp"
+            alt=""
+            className={`absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-500 ${videoReady ? 'opacity-0' : 'opacity-100'}`}
+            fetchPriority="high"
+            decoding="async"
+            aria-hidden="true"
+          />
+        </picture>
+
+        {viewportReady && motionMode !== 'reduced' && !isMobileViewport && (
           <video
             ref={videoDesktopRef}
-            className="absolute inset-0 h-full w-full object-cover object-center"
-            style={{ willChange: 'transform' }}
+            className={`absolute inset-0 z-[1] h-full w-full object-cover object-center transition-opacity duration-500 ${videoReady ? 'opacity-100' : 'opacity-0'}`}
+            style={{ willChange: videoReady ? 'transform' : 'auto' }}
             muted
             playsInline
             preload="auto"
@@ -628,11 +614,11 @@ export default function HomeHeroScrollSequence() {
             <source src="/hero-desktop.mp4" type="video/mp4" />
           </video>
         )}
-        {isMobileViewport && (
+        {viewportReady && motionMode !== 'reduced' && isMobileViewport && (
           <video
             ref={videoMobileRef}
-            className="absolute inset-0 h-full w-full object-cover object-[50%_38%]"
-            style={{ willChange: 'transform' }}
+            className={`absolute inset-0 z-[1] h-full w-full object-cover object-[50%_38%] transition-opacity duration-500 ${videoReady ? 'opacity-100' : 'opacity-0'}`}
+            style={{ willChange: videoReady ? 'transform' : 'auto' }}
             muted
             playsInline
             preload="auto"
@@ -765,6 +751,8 @@ export default function HomeHeroScrollSequence() {
             <div>CTA Fade: {ctaFadeEnabled ? 'On' : 'Off'}</div>
             <div>Text Wave: {decorativeTextWaveEnabled ? 'On' : 'Off'}</div>
             <div>Cloud Drift: {cloudDriftEnabled ? 'On' : 'Off'}</div>
+            <div>Video fallback: {videoFallback ? 'Yes' : 'No'}</div>
+            <div>Source: {heroDiagnosticsRef.current.selectedSource || 'Not mounted'}</div>
             <div>FPS: {avgFpsRef.current.toFixed(0)}</div>
             <div>Scene: {sceneIndex + 1}</div>
             <div>Device: {browserLabel}</div>
@@ -772,56 +760,6 @@ export default function HomeHeroScrollSequence() {
             <div className="hidden">{debugTick}</div>
           </div>
         )}
-
-        <div
-          className="absolute inset-0 z-40 flex flex-col items-center justify-center"
-          style={{
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            backgroundColor: 'rgba(10, 20, 50, 0.85)',
-            opacity: videoReady ? 0 : 1,
-            pointerEvents: videoReady ? 'none' : 'auto',
-            transition: 'opacity 800ms ease-out',
-          }}
-          aria-hidden="true"
-        >
-          <img
-            src="/Logo/ozrentaplane-transparent-bg.png"
-            alt=""
-            style={{ height: '140px', width: 'auto', marginBottom: '48px' }}
-          />
-          <div
-            style={{
-              width: '200px',
-              height: '2px',
-              backgroundColor: 'rgba(255,255,255,0.12)',
-              borderRadius: '999px',
-              overflow: 'hidden',
-              marginBottom: '20px',
-            }}
-          >
-            <div
-              style={{
-                height: '100%',
-                width: videoReady ? '100%' : '0%',
-                backgroundColor: '#f59e0b',
-                borderRadius: '999px',
-                transition: 'width 300ms ease-out',
-              }}
-            />
-          </div>
-          <span
-            style={{
-              color: 'rgba(255,255,255,0.4)',
-              fontSize: '11px',
-              letterSpacing: '0.2em',
-              textTransform: 'uppercase',
-              fontFamily: 'var(--font-manrope, sans-serif)',
-            }}
-          >
-            {videoError ? 'READY' : 'LOADING'}
-          </span>
-        </div>
 
         <style jsx>{`
           @keyframes hero-word-reveal {
@@ -906,6 +844,20 @@ export default function HomeHeroScrollSequence() {
           }
           section[data-motion-mode='reduced'] .hero-scene-heading-enter {
             filter: none !important;
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .hero-wind-fly,
+            .hero-wind-your,
+            .hero-wind-way,
+            .hero-your-way-group,
+            .hero-underline-drift,
+            .hero-scene-underline-drift,
+            .hero-scene-heading-enter {
+              animation: none !important;
+              opacity: 1 !important;
+              transform: none !important;
+              filter: none !important;
+            }
           }
         `}</style>
       </div>

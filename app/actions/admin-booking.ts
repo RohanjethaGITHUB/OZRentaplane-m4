@@ -16,7 +16,7 @@ import {
   notifyBookingCancelled,
   notifyPostFlightClarificationRequested,
 } from '@/lib/booking/notifications'
-import { enqueueCheckoutConfirmedEmail } from '@/lib/email/outbox'
+import { enqueueCheckoutConfirmedEmail, enqueueCheckoutRejectedEmails } from '@/lib/email/outbox'
 import { sendEmail } from '@/lib/email/send-email'
 import { checkoutOutcomeEmail } from '@/lib/email/templates/checkout'
 import { landingFeeInvoiceReadyEmail, paymentConfirmedEmail } from '@/lib/email/templates/payment'
@@ -53,6 +53,7 @@ import { createFlightRecordForBooking } from '@/lib/booking/flight-record-submis
 import { sydneyInputToUTC, todaySydneyDateKey } from '@/lib/utils/sydney-time'
 import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
 import { createPerfLogger } from '@/lib/perf/timing'
+import { CHECKOUT_BLOCKING_DOCUMENT_TYPES } from '@/lib/checkout-document-gate'
 import {
   emitBookingChanged,
   emitOpsChanged,
@@ -947,40 +948,25 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
   if (booking.booking_type !== 'checkout') {
     throw new Error('VALIDATION: This booking is not a checkout booking.')
   }
-  if (booking.status !== 'checkout_requested') {
+  // Older document-triggered holds may still contain checkout requests. Treat
+  // those as reviewable checkout requests so the stale hold cannot block admin.
+  if (!['checkout_requested', 'on_hold_pending_documents'].includes(booking.status)) {
     throw new Error(`VALIDATION: Cannot confirm checkout booking with status '${booking.status}'.`)
   }
 
-  const [{ data: profile }, { data: docs }] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select('has_night_vfr_rating')
-      .eq('id', booking.booking_owner_user_id)
-      .maybeSingle(),
-    supabase
-      .from('user_documents')
-      .select('document_type, status, expiry_date')
-      .eq('user_id', booking.booking_owner_user_id)
-      .in('document_type', ['pilot_licence', 'medical_certificate', 'photo_id', 'night_vfr_evidence']),
-  ])
+  const { data: docs } = await supabase
+    .from('user_documents')
+    .select('document_type, status, expiry_date')
+    .eq('user_id', booking.booking_owner_user_id)
+    .in('document_type', [...CHECKOUT_BLOCKING_DOCUMENT_TYPES, 'night_vfr_evidence'])
 
   const todayIso = new Date().toISOString().slice(0, 10)
-  const nightVfrDocs = (docs ?? []).filter((d) => d.document_type === 'night_vfr_evidence')
-  const nightVfrPendingOrApproved = nightVfrDocs.some((d) => d.status !== 'rejected')
-  // Require Night VFR when the profile claims it, or when evidence was uploaded
-  // and has not been rejected (blocks Confirm while status is still "Claimed").
-  const requiredTypes: string[] = ['pilot_licence', 'medical_certificate', 'photo_id']
-  if (profile?.has_night_vfr_rating === true || nightVfrPendingOrApproved) {
-    requiredTypes.push('night_vfr_evidence')
-  }
+  const requiredTypes = [...CHECKOUT_BLOCKING_DOCUMENT_TYPES]
 
   for (const type of requiredTypes) {
     const candidates = (docs ?? []).filter((d) => d.document_type === type)
     const approved = candidates.find((d) => d.status === 'approved')
     if (!approved) {
-      if (type === 'night_vfr_evidence') {
-        throw new Error('VALIDATION: Night VFR evidence must be approved before confirming checkout.')
-      }
       throw new Error('VALIDATION: All required documents must be approved before confirming checkout.')
     }
     if (
@@ -1005,7 +991,7 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
     const [historyInsert, auditInsert, profileUpdate] = await Promise.all([
       supabase.from('booking_status_history').insert({
         booking_id:         bookingId,
-        old_status:         'checkout_requested',
+        old_status:         booking.status,
         new_status:         'checkout_confirmed',
         changed_by_user_id: adminId,
         note:               'Approved instructor confirmed checkout booking.',
@@ -1056,7 +1042,7 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
   const [customerProfileRes, aircraftRes] = await Promise.all([
     supabase
       .from('profiles')
-      .select('email')
+      .select('email, full_name')
       .eq('id', booking.booking_owner_user_id)
       .single(),
     supabase
@@ -1069,6 +1055,7 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
   const aircraft = aircraftRes.data
   if (customerProfile?.email) {
     await perf.time('checkout_approval', 'checkout_approval_email_enqueue', () => enqueueCheckoutConfirmedEmail({
+      customerName: customerProfile.full_name ?? 'Pilot',
       customerEmail: customerProfile.email,
       bookingId,
       time: fmtStart,
@@ -1543,6 +1530,24 @@ export async function markCheckoutOutcome(input: {
     }
   }
 
+  if (input.outcome === 'checkout_reschedule_required' && process.env.ADMIN_EMAIL) {
+    const adminTemplate = checkoutOutcomeEmail(
+      'Checkout reschedule required',
+      'Checkout reschedule required',
+      `The checkout outcome for booking ${input.bookingId} requires the customer to choose a new time.`,
+      'Review Checkout',
+    )
+    void sendEmail({
+      to: process.env.ADMIN_EMAIL,
+      subject: adminTemplate.subject,
+      html: adminTemplate.html,
+      eventType: 'checkout_reschedule_required_admin',
+      entityType: 'checkout',
+      entityId: input.bookingId,
+      metadata: { outcome: input.outcome },
+    }).catch((error) => console.error('[markCheckoutOutcome] admin reschedule email failed:', error))
+  }
+
   // ── Mark-paid settlement — same action, so a failure here is always visible ──
   // Skipped when account credit already settled the invoice (booking is
   // already 'completed'; there is nothing left to pay).
@@ -1642,6 +1647,33 @@ export async function cancelCheckoutBooking(bookingId: string, reason: string): 
     event_summary: `Checkout booking cancelled. Reason: ${reason}`,
     new_value:     { status: 'cancelled', checkout_lifecycle_status: 'cancelled_by_admin', reason, pilot_clearance_status: 'checkout_required' },
   })
+
+  const [{ data: customerProfile }, { data: aircraft }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('email, full_name')
+      .eq('id', booking.booking_owner_user_id)
+      .single(),
+    supabase
+      .from('aircraft')
+      .select('registration')
+      .eq('id', booking.aircraft_id)
+      .single(),
+  ])
+
+  if (customerProfile?.email) {
+    try {
+      await enqueueCheckoutRejectedEmails({
+        customerName: customerProfile.full_name ?? 'Pilot',
+        customerEmail: customerProfile.email,
+        bookingId,
+        reason: reason.trim(),
+        aircraft: aircraft?.registration ?? 'Assigned aircraft',
+      })
+    } catch (emailError) {
+      console.error('[cancelCheckoutBooking] rejection email enqueue failed:', emailError)
+    }
+  }
 
 
 

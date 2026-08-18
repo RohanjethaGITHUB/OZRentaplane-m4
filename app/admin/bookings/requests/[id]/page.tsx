@@ -376,7 +376,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   ] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, email, phone_country_code, phone_number, verification_status, pilot_clearance_status, pilot_arn, created_at, account_status, account_lock_reason, has_night_vfr_rating')
+      .select('id, full_name, email, phone_country_code, phone_number, verification_status, pilot_clearance_status, pilot_arn, last_flight_date, created_at, account_status, account_lock_reason, has_night_vfr_rating')
       .eq('id', booking.booking_owner_user_id)
       .single(),
     supabase
@@ -400,7 +400,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     // Customer documents — used in checkout review + on-hold reject docs panel
     supabase
       .from('user_documents')
-      .select('id, document_type, status, expiry_date, issue_date, file_name, licence_type, licence_number, medical_class, id_type, document_number, uploaded_at, review_notes, reviewed_at, created_at, user_document_files(id, file_name, storage_path)')
+      .select('id, document_type, status, expiry_date, issue_date, file_name, licence_type, licence_number, medical_class, id_type, document_number, red_card_expiry_month, red_card_expiry_year, uploaded_at, review_notes, reviewed_at, created_at, user_document_files(id, file_name, storage_path)')
       .eq('user_id', booking.booking_owner_user_id)
       .order('created_at', { ascending: false }),
     // Customer messages (verification_events) — used in checkout review panel
@@ -501,6 +501,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     medical_class?: string | null
     id_type?: string | null
     document_number?: string | null
+    red_card_expiry_month?: number | null
+    red_card_expiry_year?: number | null
     uploaded_at?: string | null
     review_notes?: string | null
     reviewed_at?: string | null
@@ -688,10 +690,14 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const ledgerPaymentMethodLabel = paymentMethodToLabel(settlementLedger?.payment_method)
   const rawPhoneCountry = (customer as { phone_country_code?: string | null } | null)?.phone_country_code ?? null
   const rawPhoneNumber  = (customer as { phone_number?: string | null } | null)?.phone_number ?? null
-  const customerPhone   = rawPhoneNumber
-    ? rawPhoneCountry
-      ? `+${rawPhoneCountry} ${rawPhoneNumber}`
-      : rawPhoneNumber
+  const normalizedPhoneCountry = rawPhoneCountry?.replace(/^\++/, '') ?? null
+  const normalizedPhoneNumber = rawPhoneNumber?.replace(/^\++/, '') ?? null
+  const customerPhone = normalizedPhoneNumber
+    ? normalizedPhoneCountry
+      ? `+${normalizedPhoneCountry} ${normalizedPhoneNumber}`
+      : rawPhoneNumber?.trim().startsWith('+')
+        ? `+${normalizedPhoneNumber}`
+        : normalizedPhoneNumber
     : null
 
   // ── Bank transfer submissions (checkout) ─────────────────────────────────
@@ -1155,10 +1161,12 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
 
   // ── Checkout-specific state flags ────────────────────────────────────────────
   const isCheckout              = bookingType === 'checkout'
-  const isCheckoutRequestedStatus = isCheckout && status === 'checkout_requested'
+  // A legacy document trigger may have left a checkout request on hold. It is
+  // still an active checkout review and must render the checkout actions.
+  const isCheckoutRequestedStatus = isCheckout && ['checkout_requested', 'on_hold_pending_documents'].includes(status)
   const isCheckoutConfirmed     = isCheckout && status === 'checkout_confirmed'
   const isCheckoutOutcomePending = isCheckout && status === 'checkout_completed_under_review'
-  const isOnHold                = status === 'on_hold_pending_documents'
+  const isOnHold                = status === 'on_hold_pending_documents' && !isCheckout
   // When a reschedule is pending, show the reschedule review card instead of Confirm Checkout
   const needsCheckoutActions    =
     (isCheckoutRequestedStatus || isCheckoutConfirmed || isCheckoutOutcomePending) &&
@@ -1193,7 +1201,9 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     ? 'Reschedule Requested'
     : isCancellationRequested
       ? 'Cancellation Requested'
-      : isAwaitingManualPayment
+        : isCheckoutRequestedStatus
+          ? 'Checkout Requested'
+        : isAwaitingManualPayment
         ? 'Payment Verification Pending'
         : lifecycleStage.label
   const displayLifecycleSublabel = hasPendingReschedule
@@ -1284,19 +1294,19 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-4">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
             <div className="flex items-start gap-3">
-              <span className="material-symbols-outlined text-amber-300 text-[22px] mt-0.5">warning</span>
+                <span className="material-symbols-outlined text-amber-700 text-[22px] mt-0.5">warning</span>
               <div>
-                <h2 className="text-sm font-semibold text-amber-200">
+                <h2 className="text-sm font-semibold text-amber-950">
                   This booking is on hold pending document approval.
                 </h2>
-                <p className="mt-1 text-sm text-amber-100/80">
+                <p className="mt-1 text-sm text-amber-900">
                   It will automatically restore once all required documents are approved.
                 </p>
-                <p className="mt-3 text-xs text-amber-100/70">
+                <p className="mt-3 text-xs text-amber-900">
                   Customer:{' '}
                   <Link
                     href={`/admin/users/${customer?.id}`}
-                    className="font-semibold text-amber-100 underline decoration-amber-100/30 underline-offset-2 hover:text-white"
+                    className="font-semibold text-amber-950 underline decoration-amber-950/30 underline-offset-2 hover:text-black"
                   >
                     {customer?.full_name ?? 'Unknown Customer'}
                   </Link>
@@ -1572,7 +1582,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               scheduledStart={booking.scheduled_start}
               scheduledEnd={booking.scheduled_end}
               customerNotes={(booking as { customer_notes?: string | null }).customer_notes ?? null}
-              lastFlightDate={(booking as { last_flight_date?: string | null }).last_flight_date ?? null}
+              lastFlightDate={(customer as { last_flight_date?: string | null } | null)?.last_flight_date
+                ?? (booking as { last_flight_date?: string | null }).last_flight_date
+                ?? null}
+              redCardExpiryMonth={documents.find((doc) => doc.document_type === 'pilot_licence')?.red_card_expiry_month ?? null}
+              redCardExpiryYear={documents.find((doc) => doc.document_type === 'pilot_licence')?.red_card_expiry_year ?? null}
               customerId={booking.booking_owner_user_id}
               customerName={(customer as { full_name?: string | null } | null)?.full_name ?? null}
               customerEmail={(customer as { email?: string | null } | null)?.email ?? null}

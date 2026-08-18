@@ -438,7 +438,6 @@ type DocumentCardStatus = 'pending' | 'approved' | 'rejected'
 type DocumentCardType = UserDocument['document_type']
 
 const REQUIRED_DOC_TYPES: DocumentCardType[] = ['pilot_licence', 'medical_certificate', 'photo_id']
-const OPTIONAL_DOC_TYPE: DocumentCardType = 'night_vfr_evidence'
 
 const DOCUMENT_CARD_CONFIG: Record<DocumentCardType, { label: string; optionalReason: string }> = {
   pilot_licence: {
@@ -455,7 +454,7 @@ const DOCUMENT_CARD_CONFIG: Record<DocumentCardType, { label: string; optionalRe
   },
   night_vfr_evidence: {
     label: 'Night VFR Evidence',
-    optionalReason: 'Only required for customers who have opted into Night VFR flying.',
+    optionalReason: 'View-only evidence shown in checkout review.',
   },
 }
 
@@ -556,16 +555,14 @@ export function DocumentReviewCards({
     requiredCount: number
   } | null>(null)
   const [bulkError, setBulkError] = useState('')
+  const [rejectionDoc, setRejectionDoc] = useState<UserDocument | null>(null)
+  const [rejectionMessage, setRejectionMessage] = useState('')
+  const [rejectionMessageError, setRejectionMessageError] = useState('')
+  const [bulkRejectionMessage, setBulkRejectionMessage] = useState('')
 
   const resolvedNightVfrRating = customerProfile?.has_night_vfr_rating ?? hasNightVfrRating ?? false
   const displayNightVfrRating = customerProfile?.has_night_vfr_rating ?? hasNightVfrRating ?? null
-  const requiredDocTypes = resolvedNightVfrRating ? [...REQUIRED_DOC_TYPES, OPTIONAL_DOC_TYPE] : REQUIRED_DOC_TYPES
-  const optionalDocTypes = resolvedNightVfrRating ? [] : [OPTIONAL_DOC_TYPE]
-  const latestDocuments = requiredDocTypes.map((documentType) => ({
-    documentType,
-    doc: getLatestDocument(documents, documentType),
-  }))
-  const optionalDocuments = optionalDocTypes.map((documentType) => ({
+  const latestDocuments = REQUIRED_DOC_TYPES.map((documentType) => ({
     documentType,
     doc: getLatestDocument(documents, documentType),
   }))
@@ -591,7 +588,7 @@ export function DocumentReviewCards({
 
   const allRequiredApproved = docCounts.approved === totalRequired && totalRequired > 0 && docCounts.pending === 0 && docCounts.rejected === 0
 
-  async function updateStatus(doc: UserDocument | null, status: 'approved' | 'rejected' | 'uploaded') {
+  async function updateStatus(doc: UserDocument | null, status: 'approved' | 'rejected' | 'uploaded', reviewNotes?: string) {
     if (!doc) return
     const optimisticStatus: DocumentCardStatus = status === 'uploaded' ? 'pending' : status
     setLoadingDocId(doc.id)
@@ -603,6 +600,7 @@ export function DocumentReviewCards({
         documentId: doc.id,
         userId: customerId,
         status,
+        reviewNotes,
       })
       if (!result.success) {
         setStatusByDocId((prev) => {
@@ -634,17 +632,23 @@ export function DocumentReviewCards({
     if (status === 'approved' && allRequiredApproved) return
     setBulkError('')
     setBulkMessage(null)
+    setBulkRejectionMessage('')
     setBulkAction(status)
   }
 
   async function handleBulkUpdate() {
     if (!bulkAction) return
+    if (bulkAction === 'rejected' && !bulkRejectionMessage.trim()) {
+      setBulkError('A rejection message is required.')
+      return
+    }
     setBulkLoading(true)
     setBulkError('')
     try {
       const result = await bulkUpdateDocumentStatus({
         userId: customerId,
         status: bulkAction,
+        reviewNotes: bulkAction === 'rejected' ? bulkRejectionMessage.trim() : undefined,
       })
 
       if (!result.success) {
@@ -774,6 +778,12 @@ export function DocumentReviewCards({
                   <p className="mt-2 text-base leading-relaxed text-[var(--admin-text-muted)]">
                     {getDocumentDetails(doc, documentType)}
                   </p>
+                  {status === 'rejected' && doc?.review_notes?.trim() ? (
+                    <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-red-600">Rejection message</p>
+                      <p className="mt-1 text-sm leading-relaxed text-red-800">{doc.review_notes}</p>
+                    </div>
+                  ) : null}
                   {documentType === 'pilot_licence' ? (
                     <p className="mt-2 text-sm font-medium">
                       Night VFR:{' '}
@@ -834,7 +844,7 @@ export function DocumentReviewCards({
                         </button>
                         <button
                           type="button"
-                          onClick={() => updateStatus(doc, 'rejected')}
+                          onClick={() => { setRejectionDoc(doc); setRejectionMessage(''); setRejectionMessageError('') }}
                           disabled={isLoading}
                           className="inline-flex items-center rounded-full border border-red-200 bg-white px-4 py-2 text-[12px] font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -874,29 +884,6 @@ export function DocumentReviewCards({
         })}
       </div>
 
-      {optionalDocuments.length > 0 ? (
-        <div className="space-y-4 pt-2">
-          <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-[var(--admin-divider)]" />
-            <span className="text-[11px] text-[var(--admin-text-muted)]">Not required</span>
-            <div className="h-px flex-1 bg-[var(--admin-divider)]" />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4">
-            {optionalDocuments.map(({ documentType }) => (
-              <div
-                key={documentType}
-                className="rounded bg-slate-50 border-l-4 border-slate-300 p-3 text-slate-500 shadow-[var(--admin-shadow-panel)]"
-              >
-                <p className="text-base font-semibold">
-                  Night VFR Evidence — Not required (customer indicated no night VFR endorsement)
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
       <ConfirmModal
         open={bulkAction !== null}
         title={bulkAction === 'approved' ? 'Approve all required documents?' : 'Reject all required documents?'}
@@ -911,9 +898,70 @@ export function DocumentReviewCards({
         onCancel={() => {
           if (bulkLoading) return
           setBulkAction(null)
+          setBulkRejectionMessage('')
         }}
         onConfirm={handleBulkUpdate}
-      />
+      >
+        {bulkAction === 'rejected' && (
+          <div className="px-6 pt-4">
+            <label htmlFor="customer-doc-bulk-rejection-message" className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              Rejection message <span className="text-rose-600">*</span>
+            </label>
+            <textarea
+              id="customer-doc-bulk-rejection-message"
+              value={bulkRejectionMessage}
+              onChange={(event) => { setBulkRejectionMessage(event.target.value); setBulkError('') }}
+              rows={4}
+              maxLength={1000}
+              placeholder="Tell the customer what needs to be corrected…"
+              className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+              disabled={bulkLoading}
+            />
+            {bulkError && <p className="mt-2 text-xs font-medium text-rose-600">{bulkError}</p>}
+          </div>
+        )}
+      </ConfirmModal>
+
+      <ConfirmModal
+        open={rejectionDoc !== null}
+        title={`Reject ${rejectionDoc ? DOCUMENT_CARD_CONFIG[rejectionDoc.document_type].label : 'document'}?`}
+        description="The customer will see this message on their document and use it to correct the upload."
+        confirmLabel={loadingAction === 'rejected' ? 'Rejecting…' : 'Reject document'}
+        variant="danger"
+        isPending={loadingAction === 'rejected'}
+        onCancel={() => { if (!loadingDocId) setRejectionDoc(null) }}
+        onConfirm={() => {
+          const message = rejectionMessage.trim()
+          if (!message) {
+            setRejectionMessageError('A rejection message is required.')
+            return
+          }
+          if (!rejectionDoc) return
+          void updateStatus(rejectionDoc, 'rejected', message).then(() => {
+            setRejectionDoc(null)
+            setRejectionMessage('')
+            setRejectionMessageError('')
+          })
+        }}
+      >
+        <div className="px-6 pt-4">
+          <label htmlFor="customer-doc-rejection-message" className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+            Rejection message <span className="text-rose-600">*</span>
+          </label>
+          <textarea
+            id="customer-doc-rejection-message"
+            value={rejectionMessage}
+            onChange={(event) => { setRejectionMessage(event.target.value); setRejectionMessageError('') }}
+            rows={4}
+            maxLength={1000}
+            placeholder="Tell the customer what needs to be corrected…"
+            className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+            disabled={loadingAction === 'rejected'}
+          />
+          <p className="mt-1 text-[11px] text-slate-500">This message is customer-visible.</p>
+          {rejectionMessageError && <p className="mt-2 text-xs font-medium text-rose-600">{rejectionMessageError}</p>}
+        </div>
+      </ConfirmModal>
     </section>
   )
 }
