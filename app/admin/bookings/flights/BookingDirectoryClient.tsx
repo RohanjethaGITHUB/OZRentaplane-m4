@@ -757,7 +757,7 @@ export default function BookingDirectoryClient({
                           </div>
 
                           <div className="pointer-events-none relative z-0 min-w-0 py-5 text-center">
-                            <span className="text-[13px] font-medium text-[var(--admin-text)]">
+                            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11.5px] font-bold ${isCheckout ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
                               {status.label}
                             </span>
                           </div>
@@ -814,7 +814,7 @@ export default function BookingDirectoryClient({
 
                           <div className="flex items-center gap-3">
                             <div className="min-w-0 flex-1">
-                              <span className="text-[13px] font-medium text-[var(--admin-text)]">
+                              <span className={`inline-flex items-center rounded-full border px-3 py-1.5 text-[12.5px] font-bold leading-none ${isCheckout ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
                                 {status.label}
                               </span>
                             </div>
