@@ -63,7 +63,7 @@ type SchedulePresentation = {
 }
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const DESKTOP_ROW_GRID = 'grid grid-cols-[minmax(0,1.55fr)_minmax(0,0.95fr)_minmax(0,1fr)_minmax(0,1.35fr)] items-center gap-x-4'
+const DESKTOP_ROW_GRID = 'grid grid-cols-[minmax(0,1fr)_minmax(0,1.55fr)_minmax(0,0.95fr)_minmax(0,1.35fr)] items-center gap-x-4'
 const DESKTOP_ROW_PADDING = 'pl-6 pr-5'
 
 const SUMMARY_CARDS: SummaryConfig[] = [
@@ -314,7 +314,7 @@ function formatStatusIconLabel(status: BookingStatusPresentation) {
   )
 }
 
-function getStatusPresentation(row: BookingDirectoryRow): BookingStatusPresentation {
+function getStatusPresentationBase(row: BookingDirectoryRow): BookingStatusPresentation {
   const isCheckout = isCheckoutBooking(row)
 
   if (row.displayStatus === 'awaiting_flight_record') {
@@ -419,6 +419,16 @@ function getStatusPresentation(row: BookingDirectoryRow): BookingStatusPresentat
   }
 }
 
+function getStatusPresentation(row: BookingDirectoryRow): BookingStatusPresentation {
+  const status = getStatusPresentationBase(row)
+  return {
+    ...status,
+    badgeClassName: 'border-[rgba(12,35,64,0.12)] bg-white text-[var(--admin-text)]',
+    iconWrapClass: 'bg-[var(--admin-muted-surface)] border-[rgba(12,35,64,0.10)]',
+    iconClass: 'text-[var(--admin-text-muted)]',
+  }
+}
+
 function BookingTypePresentation({ row }: { row: BookingDirectoryRow }) {
   const isCheckout = isCheckoutBooking(row)
   const detailLabel = isCheckout
@@ -431,7 +441,7 @@ function BookingTypePresentation({ row }: { row: BookingDirectoryRow }) {
         className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.08em] ${
           isCheckout
             ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-            : 'border-slate-200 bg-slate-50 text-slate-600'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
         }`}
       >
         <span className="material-symbols-outlined text-[14px]" aria-hidden="true">
@@ -679,6 +689,10 @@ export default function BookingDirectoryClient({
           </div>
 
           <div className={`hidden lg:grid ${DESKTOP_ROW_GRID} ${DESKTOP_ROW_PADDING} bg-[rgba(255,255,255,0.06)] py-3 text-[11px] font-bold uppercase tracking-[0.1em] text-white/74`}>
+            <Link href={getSortHref(basePath, activeFilter, sort, dir, 'aircraft')} className="inline-flex transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--booking-directory-navy)]">
+              Booking Type
+              <span className="material-symbols-outlined ml-1 align-[-2px] text-[13px]">{getSortIcon(sort, dir, 'aircraft')}</span>
+            </Link>
             <Link href={getSortHref(basePath, activeFilter, sort, dir, 'customer')} className="inline-flex transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--booking-directory-navy)]">
               Customer
               <span className="material-symbols-outlined ml-1 align-[-2px] text-[13px]">{getSortIcon(sort, dir, 'customer')}</span>
@@ -686,10 +700,6 @@ export default function BookingDirectoryClient({
             <Link href={getSortHref(basePath, activeFilter, sort, dir, 'status')} className="inline-flex w-full justify-center text-center transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--booking-directory-navy)]">
               Status
               <span className="material-symbols-outlined ml-1 align-[-2px] text-[13px]">{getSortIcon(sort, dir, 'status')}</span>
-            </Link>
-            <Link href={getSortHref(basePath, activeFilter, sort, dir, 'aircraft')} className="inline-flex transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--booking-directory-navy)]">
-              Booking Type
-              <span className="material-symbols-outlined ml-1 align-[-2px] text-[13px]">{getSortIcon(sort, dir, 'aircraft')}</span>
             </Link>
             <Link href={getSortHref(basePath, activeFilter, sort, dir, 'scheduled')} className="inline-flex transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--booking-directory-navy)]">
               Schedule
@@ -735,12 +745,13 @@ export default function BookingDirectoryClient({
                         </Link>
 
                         <div className={`relative z-0 ${DESKTOP_ROW_GRID} bg-white ${DESKTOP_ROW_PADDING} py-0 transition-colors group-hover:bg-[var(--booking-directory-row-hover)]`}>
-                          {isCheckout ? (
-                            <span
-                              aria-hidden="true"
-                              className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-indigo-500"
-                            />
-                          ) : null}
+                          <span
+                            aria-hidden="true"
+                            className={`pointer-events-none absolute inset-y-0 left-0 w-[3px] ${isCheckout ? 'bg-indigo-500' : 'bg-emerald-500'}`}
+                          />
+                          <div className="pointer-events-none relative z-0 py-5">
+                            <BookingTypePresentation row={row} />
+                          </div>
                           <div className="relative z-0 min-w-0 py-5">
                             <Link
                               href={`/admin/users/${row.bookingOwnerUserId}`}
@@ -760,10 +771,6 @@ export default function BookingDirectoryClient({
                             <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11.5px] font-semibold ${status.badgeClassName}`}>
                               {status.label}
                             </span>
-                          </div>
-
-                          <div className="pointer-events-none relative z-0 py-5">
-                            <BookingTypePresentation row={row} />
                           </div>
 
                           <div className="pointer-events-none relative z-0 py-5">
@@ -787,12 +794,10 @@ export default function BookingDirectoryClient({
 
                     return (
                       <article key={row.id} className="group relative cursor-pointer overflow-hidden rounded-[12px] border border-[rgba(12,35,64,0.10)] bg-white">
-                        {isCheckout ? (
-                          <span
-                            aria-hidden="true"
-                            className="pointer-events-none absolute inset-y-0 left-0 z-20 w-[3px] bg-indigo-500"
-                          />
-                        ) : null}
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none absolute inset-y-0 left-0 z-20 w-[3px] ${isCheckout ? 'bg-indigo-500' : 'bg-emerald-500'}`}
+                        />
                         <Link
                           href={`/admin/bookings/requests/${row.bookingId}`}
                           aria-label={`Open booking ${row.bookingReference} for ${row.customerName}`}
