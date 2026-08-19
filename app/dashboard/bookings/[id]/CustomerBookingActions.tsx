@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useTransition, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { cancelBookingNow, requestLateCancellation, markFlightReturned } from '@/app/actions/booking'
 import ModalPortal from '@/components/ModalPortal'
 import { LoadingButtonContent } from '@/components/ui/Spinner'
@@ -32,11 +32,18 @@ export default function CustomerBookingActions({
   variant = 'default',
 }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const isListCard = variant === 'listCard'
   const [isPending, startTransition] = useTransition()
   const [activeModal, setActiveModal] = useState<ActiveModal>(null)
   const [reason, setReason]           = useState('')
   const [error, setError]             = useState<string | null>(null)
+
+  useEffect(() => {
+    if (searchParams?.get('action') === 'flight_record' && showFlightRecordButton) {
+      setActiveModal('flight_record')
+    }
+  }, [searchParams, showFlightRecordButton])
 
   if (!showCancelButton && !showFlightRecordButton) return null
 
@@ -135,7 +142,7 @@ export default function CustomerBookingActions({
             className={cancelButtonClass}
           >
             {!isListCard && <span className="material-symbols-outlined text-sm">cancel</span>}
-            {isListCard ? 'Cancel Request' : 'Cancel Booking'}
+            Cancel Flight
           </button>
         )}
       </div>
@@ -157,11 +164,11 @@ export default function CustomerBookingActions({
               <div className="flex items-center gap-3 mb-4">
                 <span className="material-symbols-outlined text-red-400 text-xl">cancel</span>
                 <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-red-700">
-                  Cancel booking?
+                  Cancel flight?
                 </h2>
               </div>
               <p className="text-sm text-[#4b6390] leading-relaxed mb-6">
-                Your booking will be cancelled and you will not be charged because it is more than 24 hours before your scheduled departure time.
+                Your flight booking will be cancelled and you will not be charged because it is more than 24 hours before your scheduled departure time.
               </p>
               {error && <ErrorLine message={error} />}
               <div className="flex gap-3">
@@ -170,7 +177,7 @@ export default function CustomerBookingActions({
                   disabled={isPending}
                   className="flex-1 py-2.5 border border-[#dbe7f4] hover:border-[#bfd5ee] text-[#4b6390] hover:text-[#152d5a] rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors disabled:opacity-50 bg-white"
                 >
-                  Keep booking
+                  Keep flight
                 </button>
                 <button
                   onClick={handleConfirmImmediateCancel}
@@ -179,7 +186,7 @@ export default function CustomerBookingActions({
                   className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors flex items-center justify-center gap-2"
                 >
                   <LoadingButtonContent loading={isPending} loadingLabel="Cancelling…">
-                    Cancel booking
+                    Cancel flight
                   </LoadingButtonContent>
                 </button>
               </div>
@@ -192,11 +199,11 @@ export default function CustomerBookingActions({
               <div className="flex items-center gap-3 mb-4">
                 <span className="material-symbols-outlined text-amber-400 text-xl">warning</span>
                 <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-amber-700">
-                  Request cancellation?
+                  Request flight cancellation?
                 </h2>
               </div>
               <p className="text-sm text-[#4b6390] leading-relaxed mb-5">
-                This booking starts at{' '}
+                This flight starts at{' '}
                 <span className="text-[#152d5a] font-medium">{departureSydney}</span>, which is less than 24 hours away. As per the cancellation terms, you may still be charged for the booked time. If you would like the operations team to consider waiving the cancellation charge, please provide a reason below.
               </p>
               <div className="mb-5">
@@ -219,7 +226,7 @@ export default function CustomerBookingActions({
                   disabled={isPending}
                   className="flex-1 py-2.5 border border-[#dbe7f4] hover:border-[#bfd5ee] text-[#4b6390] hover:text-[#152d5a] rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors disabled:opacity-50 bg-white"
                 >
-                  Keep booking
+                  Keep flight
                 </button>
                 <button
                   onClick={handleConfirmLateCancel}

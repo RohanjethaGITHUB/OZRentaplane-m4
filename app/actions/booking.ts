@@ -27,6 +27,8 @@ import {
 } from '@/lib/booking/notifications'
 import { enqueueBookingConfirmedEmails } from '@/lib/email/outbox'
 import { createPerfLogger } from '@/lib/perf/timing'
+import { checkAircraftAvailability } from '@/lib/booking/availability'
+import { sydneyInputToUTC } from '@/lib/utils/sydney-time'
 import {
   emitBookingChanged,
   emitOpsChanged,
@@ -1053,3 +1055,189 @@ export async function requestLateCancellation(
   void emitBookingChanged({ bookingId, userId })
   void emitOpsChanged()
 }
+
+/**
+ * Reschedule a standard flight booking.
+ * If departure is >= 12 hours away, customer can self-reschedule without admin confirmation.
+ * If departure is < 12 hours away, manual admin approval is required.
+ */
+export async function rescheduleFlightBooking(
+  bookingId: string,
+  newDate: string,
+  newStartTime: string,
+  newEndTime?: string,
+): Promise<{ ok: boolean; message?: string }> {
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) throw new Error('Unauthorized')
+
+  const requestedStartUtc = sydneyInputToUTC(`${newDate}T${newStartTime}`)
+  if (!requestedStartUtc) throw new Error('VALIDATION: Invalid requested flight date/time.')
+  const requestedStart = new Date(requestedStartUtc)
+  if (requestedStart <= new Date()) throw new Error('VALIDATION: Flight time must be in the future.')
+
+  const { data: booking, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('id, status, booking_type, scheduled_start, scheduled_end, aircraft_id')
+    .eq('id', bookingId)
+    .eq('booking_owner_user_id', user.id)
+    .single()
+
+  if (fetchErr || !booking) throw new Error('Flight booking not found.')
+  if (booking.booking_type !== 'standard') throw new Error('VALIDATION: Only standard bookings can be rescheduled here.')
+
+  const origDurationMs = booking.scheduled_end && booking.scheduled_start
+    ? Math.max(30 * 60 * 1000, new Date(booking.scheduled_end).getTime() - new Date(booking.scheduled_start).getTime())
+    : 2 * 60 * 60 * 1000
+
+  let requestedEndUtc: string
+  if (newEndTime) {
+    const endUtc = sydneyInputToUTC(`${newDate}T${newEndTime}`)
+    if (!endUtc || new Date(endUtc) <= requestedStart) {
+      requestedEndUtc = new Date(requestedStart.getTime() + origDurationMs).toISOString()
+    } else {
+      requestedEndUtc = endUtc
+    }
+  } else {
+    requestedEndUtc = new Date(requestedStart.getTime() + origDurationMs).toISOString()
+  }
+  const requestedEnd = new Date(requestedEndUtc)
+
+  // 12-hour rule check
+  const now = new Date()
+  const msUntilCurrent = new Date(booking.scheduled_start).getTime() - now.getTime()
+  if (msUntilCurrent < 12 * 60 * 60 * 1000) {
+    throw new Error('VALIDATION: Rescheduling within 12 hours of departure requires admin approval. Please contact OZ Rent A Plane.')
+  }
+
+  // Check aircraft availability
+  const { data: aircraft } = await supabase
+    .from('aircraft')
+    .select('default_preflight_buffer_minutes, default_postflight_buffer_minutes')
+    .eq('id', booking.aircraft_id)
+    .single()
+
+  const preBufMs = (aircraft?.default_preflight_buffer_minutes ?? 0) * 60_000
+  const postBufMs = (aircraft?.default_postflight_buffer_minutes ?? 0) * 60_000
+  const expandedStart = new Date(requestedStart.getTime() - preBufMs)
+  const expandedEnd = new Date(requestedEnd.getTime() + postBufMs)
+
+  const availability = await checkAircraftAvailability(
+    supabase,
+    booking.aircraft_id,
+    expandedStart,
+    expandedEnd,
+    { excludeBookingId: bookingId },
+  )
+  if (!availability.available) {
+    throw new Error('AVAILABILITY: The requested flight slot is no longer available.')
+  }
+
+  const admin = createAdminClient()
+
+  // Cancel old schedule blocks for this booking
+  await admin
+    .from('schedule_blocks')
+    .update({ status: 'cancelled' })
+    .eq('related_booking_id', bookingId)
+    .eq('status', 'active')
+
+  // Insert new schedule blocks
+  const newBlocks: any[] = [
+    {
+      aircraft_id: booking.aircraft_id,
+      related_booking_id: booking.id,
+      block_type: 'customer_booking',
+      start_time: requestedStart.toISOString(),
+      end_time: requestedEnd.toISOString(),
+      public_label: 'Flight Booking',
+      internal_reason: null,
+      created_by_user_id: user.id,
+      created_by_role: 'customer',
+      is_public_visible: true,
+      status: 'active',
+    },
+  ]
+  if (preBufMs > 0) {
+    newBlocks.push({
+      aircraft_id: booking.aircraft_id,
+      related_booking_id: booking.id,
+      block_type: 'buffer',
+      start_time: expandedStart.toISOString(),
+      end_time: requestedStart.toISOString(),
+      public_label: null,
+      internal_reason: 'Pre-flight buffer (reschedule)',
+      created_by_user_id: user.id,
+      created_by_role: 'customer',
+      is_public_visible: false,
+      status: 'active',
+    })
+  }
+  if (postBufMs > 0) {
+    newBlocks.push({
+      aircraft_id: booking.aircraft_id,
+      related_booking_id: booking.id,
+      block_type: 'buffer',
+      start_time: requestedEnd.toISOString(),
+      end_time: expandedEnd.toISOString(),
+      public_label: null,
+      internal_reason: 'Post-flight buffer (reschedule)',
+      created_by_user_id: user.id,
+      created_by_role: 'customer',
+      is_public_visible: false,
+      status: 'active',
+    })
+  }
+
+  const { error: insertBlockErr } = await admin.from('schedule_blocks').insert(newBlocks)
+  if (insertBlockErr) {
+    throw new Error(`Failed to reserve the new schedule block: ${insertBlockErr.message}`)
+  }
+
+  // Update booking
+  const { error: updateBookingErr } = await admin
+    .from('bookings')
+    .update({
+      scheduled_start: requestedStart.toISOString(),
+      scheduled_end: requestedEnd.toISOString(),
+      updated_at: now.toISOString(),
+    })
+    .eq('id', bookingId)
+
+  if (updateBookingErr) {
+    throw new Error(`Failed to update flight booking schedule: ${updateBookingErr.message}`)
+  }
+
+  await supabase.from('booking_status_history').insert({
+    booking_id: bookingId,
+    old_status: booking.status,
+    new_status: booking.status,
+    changed_by_user_id: user.id,
+    note: `Customer rescheduled flight to ${newDate} ${newStartTime} (Australia/Sydney).`,
+  })
+
+  await supabase.from('booking_audit_events').insert({
+    booking_id: bookingId,
+    aircraft_id: booking.aircraft_id,
+    actor_user_id: user.id,
+    actor_role: 'customer',
+    event_type: 'booking_rescheduled',
+    event_summary: 'Customer rescheduled flight booking.',
+    new_value: {
+      scheduled_start: requestedStart.toISOString(),
+      scheduled_end: requestedEnd.toISOString(),
+    },
+  })
+
+  revalidatePath(`/dashboard/bookings/${bookingId}`)
+  revalidatePath('/dashboard/bookings')
+  revalidatePath('/dashboard')
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings/flights')
+
+  void emitBookingChanged({ bookingId, userId: user.id })
+  void emitOpsChanged()
+
+  return { ok: true }
+}
+

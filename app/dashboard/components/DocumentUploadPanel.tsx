@@ -152,8 +152,8 @@ function TermsContent() {
 
 // ─── Section wrapper ──────────────────────────────────────────────────────────
 
-function Section({ num, title, desc, status, error, children }: {
-  num: number; title: string; desc: string; status: SectionStatus; error?: string; children: React.ReactNode
+function Section({ num, title, desc, status, error, badge, children }: {
+  num: number; title: string; desc: string; status: SectionStatus; error?: string; badge?: React.ReactNode; children: React.ReactNode
 }) {
   const [open, setOpen] = useState(true)
   useEffect(() => { if (error) setOpen(true) }, [error])
@@ -170,7 +170,10 @@ function Section({ num, title, desc, status, error, children }: {
             <SectionBadge status={status} />
             <span className={`material-symbols-outlined text-[#4b6390] text-[20px] transition-transform duration-200 ${open ? 'rotate-0' : '-rotate-90'}`}>expand_less</span>
           </div>
-          <p className="text-[16px] font-semibold text-[#152d5a] leading-snug">{title}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[16px] font-semibold text-[#152d5a] leading-snug">{title}</p>
+            {badge}
+          </div>
           <p className="text-[13px] text-[#4b6390] mt-1 leading-relaxed">{desc}</p>
         </div>
       </button>
@@ -918,9 +921,18 @@ export default function DocumentUploadPanel({
         </div>
 
         <div ref={section3Ref} className="scroll-mt-4">
-          <Section num={3} title="Declare Night VFR Endorsement"
+          <Section
+            num={3}
+            title="Declare Night VFR Endorsement"
             desc="Let us know if you hold a current Night VFR endorsement."
-            status={s3} error={validationErrors.s3}>
+            status={s3}
+            error={validationErrors.s3}
+            badge={
+              nightVfr === true && docMap['night_vfr_evidence'] ? (
+                <DocChip state={getDocUiState(docMap['night_vfr_evidence'])} />
+              ) : null
+            }
+          >
             <div className="mt-3 space-y-3">
               <p className="text-[13px] text-[#4b6390]">Do you hold a Night VFR endorsement?</p>
               <div className="grid grid-cols-2 gap-3">
@@ -959,11 +971,34 @@ export default function DocumentUploadPanel({
                     <div className="w-8 h-8 rounded-xl bg-[#f0f6ff] border border-[#152d5a]/10 flex items-center justify-center flex-shrink-0">
                       <span className="material-symbols-outlined text-[#1a4fd6] text-[15px]" style={{ fontVariationSettings: "'wght' 300" }}>nightlight</span>
                     </div>
-                    <div>
-                      <p className="text-[14px] font-semibold text-[#152d5a]">Night VFR Evidence</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-[14px] font-semibold text-[#152d5a]">Night VFR Evidence</p>
+                        {docMap['night_vfr_evidence'] && (
+                          <DocChip state={getDocUiState(docMap['night_vfr_evidence'])} />
+                        )}
+                      </div>
                       <p className="text-[13px] text-[#4b6390] mt-0.5">Upload supporting evidence for your endorsement.</p>
                     </div>
                   </div>
+                  {docMap['night_vfr_evidence'] && getDocUiState(docMap['night_vfr_evidence']) === 'under_review' && (
+                    <div className="mb-3 text-[11px] text-amber-700 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[14px] text-amber-600 flex-shrink-0">hourglass_top</span>
+                      <span className="leading-snug">Awaiting admin review — we&apos;ll notify you once approved</span>
+                    </div>
+                  )}
+                  {docMap['night_vfr_evidence'] && getDocUiState(docMap['night_vfr_evidence']) === 'approved' && (
+                    <div className="mb-3 text-[11px] text-green-700 bg-green-500/10 border border-green-500/20 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[14px] text-green-600 flex-shrink-0">check_circle</span>
+                      <span className="leading-snug">Night VFR endorsement approved</span>
+                    </div>
+                  )}
+                  {docMap['night_vfr_evidence'] && getDocUiState(docMap['night_vfr_evidence']) === 'rejected' && docMap['night_vfr_evidence']?.review_notes && (
+                    <div className="mb-3 text-[12px] text-red-700 bg-red-500/5 border border-red-500/15 rounded-lg px-2.5 py-2 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[16px] text-red-500 flex-shrink-0">warning</span>
+                      <span className="leading-snug break-words flex-1">{docMap['night_vfr_evidence'].review_notes}</span>
+                    </div>
+                  )}
                   {(docMap['night_vfr_evidence']?.user_document_files ?? []).length > 0 && (
                     <div className="mb-3 flex flex-col gap-1">
                       {(docMap['night_vfr_evidence']?.user_document_files ?? []).map((file) => (

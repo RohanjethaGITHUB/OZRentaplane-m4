@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import CheckoutChangeActions from '@/app/dashboard/checkout/CheckoutChangeActions'
+import FlightChangeActions from './FlightChangeActions'
 import CustomerBookingActions from './[id]/CustomerBookingActions'
 
 const CANCELLABLE_STATUSES = ['confirmed', 'pending_confirmation', 'ready_for_dispatch', 'dispatched']
@@ -71,13 +72,25 @@ export default function UpcomingBookingActions({
           pendingRescheduleRequest={pendingRescheduleRequest}
           latestRescheduleRequest={latestRescheduleRequest}
         />
+      ) : booking.aircraft_id ? (
+        <FlightChangeActions
+          variant="listCard"
+          booking={{
+            id: booking.id,
+            booking_type: booking.booking_type,
+            status: booking.status,
+            scheduled_start: booking.scheduled_start,
+            scheduled_end: booking.scheduled_end ?? null,
+          }}
+          aircraftId={booking.aircraft_id}
+        />
       ) : (
         <>
           <Link
             href={`/dashboard/bookings/${booking.id}`}
             className="flex items-center justify-center whitespace-nowrap border border-[#152d5a]/20 text-[#152d5a] hover:bg-[#f0f6ff] text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors"
           >
-            Modify Booking
+            Reschedule flight
           </Link>
           {showCancelButton && (
             <CustomerBookingActions

@@ -182,7 +182,6 @@ export default async function DashboardPage({
       .eq('booking_owner_user_id', user.id)
       .eq('booking_type', 'standard')
       .in('status', ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record', 'flight_record_overdue'])
-      .lte('scheduled_end', nowIso)
       .order('scheduled_end', { ascending: false })
       .limit(10),
     supabase

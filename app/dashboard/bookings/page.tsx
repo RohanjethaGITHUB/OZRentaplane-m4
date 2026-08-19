@@ -89,9 +89,9 @@ function StatusBadge({ status, bookingType, checkoutOutcome, isAwaitingManualPay
   } else if (bookingType === 'checkout' && status === 'completed' && checkoutOutcome) {
     cfg = CHECKOUT_OUTCOME_BADGE[checkoutOutcome] ?? { label: 'Checkout Complete', color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' }
   } else if (status === 'checkout_payment_required' && isAwaitingManualPayment) {
-    cfg = { label: 'Awaiting Payment Confirmation', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', icon: 'account_balance' }
+    cfg = { label: 'Payment Verification Pending', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', icon: 'hourglass_empty' }
   } else if (status === 'payment_pending' && isAwaitingManualPayment) {
-    cfg = { label: 'Awaiting Payment Confirmation', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', icon: 'account_balance' }
+    cfg = { label: 'Payment Verification Pending', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', icon: 'hourglass_empty' }
   } else if (status === 'payment_pending' && blockTimePayInvoiceKind === 'landing_fee') {
     cfg = { label: 'Landing Fee Pending', color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200', icon: 'payments' }
   } else if (hasBlockTimePayInvoice && (status === 'completed' || status === 'post_flight_approved')) {
@@ -577,27 +577,44 @@ export default async function CustomerBookingsPage() {
     hasPendingReschedule = latestRescheduleStatus === 'pending'
   }
 
-  let isAwaitingManualPayment = false
-  if (clearanceStatus === 'checkout_payment_required' && checkoutBooking) {
-    const { data: inv } = await supabase
+  const allCheckoutBookingIds = checkoutRequests.map(b => b.id)
+  const pendingCheckoutManualPaymentBookingIds = new Set<string>()
+  if (allCheckoutBookingIds.length > 0) {
+    const { data: checkoutInvoices } = await supabase
       .from('checkout_invoices')
-      .select('id, status')
-      .eq('booking_id', checkoutBooking.id)
-      .maybeSingle()
-    if (inv) {
-      const { data: sub } = await supabase
+      .select('id, booking_id, status')
+      .in('booking_id', allCheckoutBookingIds)
+    if (checkoutInvoices && checkoutInvoices.length > 0) {
+      const invIds = checkoutInvoices.map((i: { id: string }) => i.id)
+      const { data: submissions } = await supabase
         .from('checkout_bank_transfer_submissions')
-        .select('id, status')
-        .eq('invoice_id', (inv as { id: string; status: string }).id)
+        .select('id, invoice_id, status')
+        .in('invoice_id', invIds)
         .order('submitted_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      const displayState = getCheckoutPaymentDisplayState(
-        { status: (inv as { id: string; status: string }).status ?? 'payment_required' },
-        sub ?? null,
-      )
-      isAwaitingManualPayment = displayState === 'awaiting_manual_payment_confirmation'
+
+      const subMap = new Map<string, { id: string; status: string }>()
+      for (const sub of (submissions ?? []) as { id: string; invoice_id: string; status: string }[]) {
+        if (!subMap.has(sub.invoice_id)) {
+          subMap.set(sub.invoice_id, sub)
+        }
+      }
+
+      for (const inv of checkoutInvoices as { id: string; booking_id: string; status: string }[]) {
+        const sub = subMap.get(inv.id) ?? null
+        const displayState = getCheckoutPaymentDisplayState(
+          { status: inv.status ?? 'payment_required' },
+          sub,
+        )
+        if (displayState === 'awaiting_manual_payment_confirmation') {
+          pendingCheckoutManualPaymentBookingIds.add(inv.booking_id)
+        }
+      }
     }
+  }
+
+  let isAwaitingManualPayment = false
+  if (checkoutBooking && pendingCheckoutManualPaymentBookingIds.has(checkoutBooking.id)) {
+    isAwaitingManualPayment = true
   }
   const paymentSubmittedAwaitingConfirmation = isAwaitingManualPayment
   const checkoutPaymentHref = checkoutBooking?.id
@@ -1062,7 +1079,11 @@ export default async function CustomerBookingsPage() {
                               status={booking.status}
                               bookingType={booking.booking_type}
                               checkoutOutcome={checkoutOutcome}
-                              isAwaitingManualPayment={bookingInvoice?.status === 'bank_transfer_pending_review' || blockTimePayInvoice?.status === 'bank_transfer_pending_review'}
+                              isAwaitingManualPayment={
+                                booking.booking_type === 'checkout'
+                                  ? pendingCheckoutManualPaymentBookingIds.has(booking.id)
+                                  : (bookingInvoice?.status === 'bank_transfer_pending_review' || blockTimePayInvoice?.status === 'bank_transfer_pending_review')
+                              }
                               hasBlockTimePayInvoice={Boolean(blockTimePayInvoice)}
                               blockTimePayInvoiceKind={blockTimePayInvoice?.kind ?? null}
                             />

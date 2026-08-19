@@ -304,7 +304,12 @@ export default function CustomerProfileTabs({
       : 'overview'
 
   const initials = customerProfile.full_name?.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() ?? '??'
-  const uploadedRequired = REQUIRED_DOC_TYPES.filter((t) => documents.some((d) => d.document_type === t && (d.status === 'uploaded' || d.status === 'approved'))).length
+  const hasNightVfrEvidence = documents.some((d) => d.document_type === 'night_vfr_evidence')
+  const activeDocTypes: UserDocument['document_type'][] = [
+    ...REQUIRED_DOC_TYPES,
+    ...(customerProfile.has_night_vfr_rating === true || hasNightVfrEvidence ? ['night_vfr_evidence' as const] : []),
+  ]
+  const uploadedRequired = activeDocTypes.filter((t) => documents.some((d) => d.document_type === t && (d.status === 'uploaded' || d.status === 'approved'))).length
   const latestDocumentsByType = new Map<UserDocument['document_type'], UserDocument>()
   for (const doc of documents) {
     if (!latestDocumentsByType.has(doc.document_type)) {
@@ -317,7 +322,7 @@ export default function CustomerProfileTabs({
     approved: latestDocuments.filter((doc) => doc.status === 'approved').length,
     rejected: latestDocuments.filter((doc) => doc.status === 'rejected').length,
   }
-  const approvedRequiredCount = REQUIRED_DOC_TYPES.filter((type) => latestDocumentsByType.get(type)?.status === 'approved').length
+  const approvedRequiredCount = activeDocTypes.filter((type) => latestDocumentsByType.get(type)?.status === 'approved').length
   const totalDocumentCount =
     documentStatusCounts.uploaded + documentStatusCounts.approved + documentStatusCounts.rejected
   const documentStatTone: QuickStatTone =
@@ -328,7 +333,7 @@ export default function CustomerProfileTabs({
         : documentStatusCounts.uploaded > 0
           ? 'amber'
           : 'slate'
-  const requiredHeroDocuments = REQUIRED_DOC_TYPES
+  const requiredHeroDocuments = activeDocTypes
     .map((type) => latestDocumentsByType.get(type))
     .filter((doc): doc is UserDocument => Boolean(doc))
   const heroDocumentsLabel =
@@ -338,7 +343,7 @@ export default function CustomerProfileTabs({
         ? 'Review required'
         : requiredHeroDocuments.some((doc) => doc.status === 'uploaded')
           ? 'Review required'
-          : REQUIRED_DOC_TYPES.every((type) => latestDocumentsByType.get(type)?.status === 'approved')
+          : activeDocTypes.every((type) => latestDocumentsByType.get(type)?.status === 'approved')
             ? 'All approved'
             : 'Docs required'
   const heroDocumentsValueClass =
@@ -348,7 +353,7 @@ export default function CustomerProfileTabs({
         ? 'text-red-400'
         : requiredHeroDocuments.some((doc) => doc.status === 'uploaded')
           ? 'text-amber-400'
-          : REQUIRED_DOC_TYPES.every((type) => latestDocumentsByType.get(type)?.status === 'approved')
+          : activeDocTypes.every((type) => latestDocumentsByType.get(type)?.status === 'approved')
             ? 'text-green-400'
             : 'text-red-400'
   const clearance = clearanceBadge(clearanceStatus)
@@ -913,7 +918,7 @@ export default function CustomerProfileTabs({
           <AdminActionsPanel
             customerId={customerId}
             currentStatus={clearanceStatus}
-            documentSummary={`Documents: ${approvedRequiredCount}/${REQUIRED_DOC_TYPES.length} approved · ${uploadedRequired}/${REQUIRED_DOC_TYPES.length} required uploaded`}
+            documentSummary={`Documents: ${approvedRequiredCount}/${activeDocTypes.length} approved · ${uploadedRequired}/${activeDocTypes.length} required uploaded`}
             activeBookingsSummary={activeBookingsSummary}
             selectedStatus={selectedCheckoutResult}
             onSelectedStatusChange={setSelectedCheckoutResult}

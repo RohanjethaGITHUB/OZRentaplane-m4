@@ -560,6 +560,14 @@ export default function DashboardContent({
                 </span>
                 {heroAction.label}
               </button>
+              {actionState.secondaryAction && actionState.primaryAction && actionState.secondaryAction.label !== heroAction.label && (
+                <button
+                  onClick={() => router.push(actionState.secondaryAction!.href)}
+                  className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-6 py-3 font-semibold text-white transition-colors hover:bg-white/20 sm:w-auto"
+                >
+                  {actionState.secondaryAction.label}
+                </button>
+              )}
             </div>
           ) : null}
         </div>

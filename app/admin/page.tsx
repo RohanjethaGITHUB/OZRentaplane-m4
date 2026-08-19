@@ -1,13 +1,15 @@
 import { redirect } from 'next/navigation'
 import { unstable_noStore as noStore } from 'next/cache'
 import { createClient, getCachedProfile, getCachedUser } from '@/lib/supabase/server'
-import { countAwaitingFlightRecords } from '@/lib/booking/flight-record-status'
+import { countAwaitingFlightRecords, isAwaitingFlightRecordDue, type AwaitingFlightRecordBooking } from '@/lib/booking/flight-record-status'
 import {
   getCachedAdminDocumentReviewRows,
   getCachedAdminShellBadges,
 } from '@/lib/admin/operational-counts'
 import { ActionQueueSection } from './ActionQueueSection'
 import { createPerfLogger } from '@/lib/perf/timing'
+import { formatDateFromISO } from '@/lib/formatDateTime'
+import { formatSydTime } from '@/lib/utils/sydney-time'
 
 export const metadata = { title: 'Command Board | OZRentAPlane' }
 export const dynamic = 'force-dynamic'
@@ -80,8 +82,18 @@ type CancelRequestRow = {
   booking_id?: string | null
   status?: string | null
   created_at: string
-  customer_message: string | null
+  customer_message?: string | null
+  customer_note?: string | null
   bookings: BookingRow | BookingRow[] | null
+}
+
+function formatScheduleRange(start: string | null | undefined, end: string | null | undefined): string | null {
+  if (!start) return null
+  const startDate = formatDateFromISO(start)
+  const startTime = formatSydTime(start)
+  if (!end) return `${startDate} · ${startTime}`
+  const endTime = formatSydTime(end)
+  return `${startDate} · ${startTime} – ${endTime}`
 }
 
 export type ActionItem = {
@@ -92,13 +104,16 @@ export type ActionItem = {
   title: string
   description: string
   customerLabel: string
+  customerEmail?: string | null
   customerHref: string | null
   referenceLabel: string
   referenceHref: string | null
   aircraftLabel: string | null
   aircraftHref: string | null
+  scheduleLabel?: string | null
   receivedAt: string | null
   nextStep: string
+  actionTone?: 'default' | 'amber' | 'primary' | 'success' | 'indigo'
   href: string
   aggregateOnly?: boolean
   issueLabel?: string | null
@@ -202,18 +217,18 @@ function joinDocumentLabels(labels: string[]) {
 
 type CheckoutBankTransferSubmissionRow = {
   id: string
-  booking_id: string
+  invoice_id?: string | null
+  booking_id?: string | null
   reference: string | null
   receipt_storage_path: string | null
   status: string
   submitted_at: string
-  created_at: string
 }
 
 function getCheckoutPaymentActionState(
   booking: BookingRow,
   submissions: CheckoutBankTransferSubmissionRow[],
-): Pick<ActionItem, 'title' | 'description' | 'nextStep' | 'href' | 'receivedAt'> {
+): Pick<ActionItem, 'title' | 'description' | 'nextStep' | 'actionTone' | 'href' | 'receivedAt'> {
   const latestSubmission = submissions[0] ?? null
 
   if (latestSubmission?.status === 'pending_review') {
@@ -221,18 +236,20 @@ function getCheckoutPaymentActionState(
     return {
       title: 'Payment verification pending',
       description: hasReceipt
-        ? 'The customer submitted bank transfer proof. Verify the receipt and confirm payment.'
-        : 'The customer reported the bank transfer as completed. Verify and approve or reject the payment.',
-      nextStep: 'Open payment review',
+        ? 'Customer submitted bank transfer proof. Review receipt and verify payment.'
+        : 'Customer reported bank transfer as completed. Review and verify payment.',
+      nextStep: 'Verify payment proof',
+      actionTone: 'indigo',
       href: `/admin/bookings/requests/${booking.id}`,
-      receivedAt: latestSubmission.submitted_at ?? latestSubmission.created_at,
+      receivedAt: latestSubmission.submitted_at ?? booking.updated_at,
     }
   }
 
   return {
-    title: 'Checkout payment required',
-    description: 'Follow up with the customer regarding payment.',
-    nextStep: 'Review payment',
+    title: 'Checkout payment due',
+    description: 'Invoice sent to customer. Awaiting payment.',
+    nextStep: 'View invoice',
+    actionTone: 'default',
     href: `/admin/bookings/requests/${booking.id}`,
     receivedAt: booking.updated_at,
   }
@@ -242,14 +259,15 @@ function getRentalPaymentActionState(
   booking: BookingRow,
   invoice: BookingInvoiceRow | null,
   submissions: BookingBankTransferSubmissionRow[],
-): Pick<ActionItem, 'title' | 'description' | 'nextStep' | 'href' | 'receivedAt'> | null {
+): Pick<ActionItem, 'title' | 'description' | 'nextStep' | 'actionTone' | 'href' | 'receivedAt'> | null {
   const latestSubmission = submissions[0] ?? null
 
   if (!invoice) {
     return {
-      title: 'Rental payment required',
-      description: 'Payment is still pending for this rental.',
-      nextStep: 'Review payment',
+      title: 'Rental payment due',
+      description: 'Invoice is pending creation or settlement for this rental.',
+      nextStep: 'Manage booking',
+      actionTone: 'default',
       href: `/admin/bookings/requests/${booking.id}`,
       receivedAt: booking.updated_at,
     }
@@ -261,11 +279,12 @@ function getRentalPaymentActionState(
     const hasReceipt = Boolean(latestSubmission.receipt_storage_path)
     const receivedAt = latestSubmission.submitted_at ?? latestSubmission.created_at
     return {
-      title: 'Bank transfer review required',
+      title: 'Payment verification pending',
       description: hasReceipt
         ? 'The customer submitted bank transfer proof. Approve or reject the payment.'
         : 'The customer reported the bank transfer as completed. Verify and approve or reject the payment.',
-      nextStep: 'Open payment review',
+      nextStep: 'Verify payment',
+      actionTone: 'indigo',
       href: `/admin/bookings/requests/${booking.id}#standard-bank-transfer-review`,
       receivedAt,
     }
@@ -280,6 +299,7 @@ function getRentalPaymentActionState(
       title: 'Online payment failed',
       description: 'An online payment attempt did not complete successfully for this rental.',
       nextStep: 'Review payment',
+      actionTone: 'amber',
       href: `/admin/bookings/requests/${booking.id}`,
       receivedAt: invoice.updated_at,
     }
@@ -288,17 +308,19 @@ function getRentalPaymentActionState(
   if (invoice.payment_method === 'bank_transfer') {
     return {
       title: 'Bank transfer pending',
-      description: 'The customer has selected bank transfer but has not submitted payment proof.',
-      nextStep: 'Review payment',
+      description: 'The customer has selected bank transfer but has not submitted payment proof yet.',
+      nextStep: 'Check booking',
+      actionTone: 'default',
       href: `/admin/bookings/requests/${booking.id}`,
       receivedAt: invoice.updated_at,
     }
   }
 
   return {
-    title: 'Rental payment required',
-    description: 'Payment is still pending for this rental.',
-    nextStep: 'Review payment',
+    title: 'Rental payment due',
+    description: 'Invoice sent to customer. Awaiting payment.',
+    nextStep: 'View invoice',
+    actionTone: 'default',
     href: `/admin/bookings/requests/${booking.id}`,
     receivedAt: invoice.updated_at,
   }
@@ -336,10 +358,12 @@ export default async function AdminActionsPage({
     { count: manualCheckoutPaymentsReview },
     { count: checkoutIssues },
     { data: checkoutRequestedRows },
+    { data: checkoutConfirmedRows },
     { data: checkoutPaymentRows },
     { data: checkoutReviewRows },
     { data: checkoutRescheduleRows },
     { data: checkoutCancelRows },
+    { data: standardUpcomingRows },
     { data: standardAwaitingFlightRows },
     { data: standardPostFlightRows },
     { data: standardPaymentRows },
@@ -357,6 +381,12 @@ export default async function AdminActionsPage({
       .eq('booking_type', 'checkout')
       .eq('status', 'checkout_requested')
       .order('created_at', { ascending: true })),
+    safeQuery('checkout confirmed rows', supabase
+      .from('bookings')
+      .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
+      .eq('booking_type', 'checkout')
+      .eq('status', 'checkout_confirmed')
+      .order('scheduled_start', { ascending: true })),
     safeQuery('checkout payment rows', supabase
       .from('bookings')
       .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
@@ -371,21 +401,27 @@ export default async function AdminActionsPage({
       .order('updated_at', { ascending: true })),
     safeQuery('checkout reschedule rows', supabase
       .from('checkout_change_requests')
-      .select('id, checkout_request_id, status, created_at, customer_message, bookings ( id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration ) )')
+      .select('id, checkout_request_id, status, created_at, customer_note, bookings ( id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration ) )')
       .eq('request_type', 'reschedule')
       .eq('status', 'pending')
       .order('created_at', { ascending: true })),
     safeQuery('checkout cancel rows', supabase
       .from('checkout_change_requests')
-      .select('id, checkout_request_id, status, created_at, customer_message, bookings ( id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration ) )')
+      .select('id, checkout_request_id, status, created_at, customer_note, bookings ( id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration ) )')
       .eq('request_type', 'cancel')
       .order('created_at', { ascending: true })),
+    safeQuery('standard upcoming rows', supabase
+      .from('bookings')
+      .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
+      .eq('booking_type', 'standard')
+      .in('status', ['confirmed', 'ready_for_dispatch'])
+      .gt('scheduled_end', nowIso)
+      .order('scheduled_start', { ascending: true })),
     safeQuery('awaiting flight record rows', supabase
       .from('bookings')
       .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration ), flight_records ( status, submitted_at )')
       .eq('booking_type', 'standard')
       .in('status', ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record', 'flight_record_overdue'])
-      .lte('scheduled_end', nowIso)
       .order('scheduled_end', { ascending: true })),
     safeQuery('post-flight review rows', supabase
       .from('bookings')
@@ -409,7 +445,7 @@ export default async function AdminActionsPage({
   // bookings.booking_owner_user_id references auth.users, so profiles cannot be
   // embedded in the queries above — resolve customer names with one batched lookup.
   const ownerUserIds = new Set<string>()
-  for (const rows of [checkoutRequestedRows, checkoutPaymentRows, checkoutReviewRows, standardAwaitingFlightRows, standardPostFlightRows, standardPaymentRows]) {
+  for (const rows of [checkoutRequestedRows, checkoutConfirmedRows, checkoutPaymentRows, checkoutReviewRows, standardUpcomingRows, standardAwaitingFlightRows, standardPostFlightRows, standardPaymentRows]) {
     for (const row of rows ?? []) {
       const ownerId = (row as { booking_owner_user_id?: string | null }).booking_owner_user_id
       if (ownerId) ownerUserIds.add(ownerId)
@@ -453,6 +489,7 @@ export default async function AdminActionsPage({
     { data: documentReviewBookingRows },
     { data: bookingInvoiceRows },
     { data: bookingBankTransferSubmissionRows },
+    { data: checkoutInvoiceRows },
     { data: checkoutBankTransferSubmissionRows },
   ] = await perf.time(
     'admin_home',
@@ -507,11 +544,20 @@ export default async function AdminActionsPage({
         : Promise.resolve({ data: [] as BookingBankTransferSubmissionRow[] }),
       checkoutPaymentBookingIds.length
         ? safeQuery(
+            'checkout invoice rows',
+            supabase
+              .from('checkout_invoices')
+              .select('id, booking_id, status')
+              .in('booking_id', checkoutPaymentBookingIds),
+          )
+        : Promise.resolve({ data: [] as Array<{ id: string; booking_id: string; status: string }> }),
+      checkoutPaymentBookingIds.length
+        ? safeQuery(
             'checkout bank transfer submission rows',
             supabase
               .from('checkout_bank_transfer_submissions')
-              .select('id, booking_id, reference, receipt_storage_path, status, submitted_at, created_at')
-              .in('booking_id', checkoutPaymentBookingIds)
+              .select('id, invoice_id, booking_id, reference, receipt_storage_path, status, submitted_at')
+              .eq('status', 'pending_review')
               .order('submitted_at', { ascending: false }),
           )
         : Promise.resolve({ data: [] as CheckoutBankTransferSubmissionRow[] }),
@@ -520,6 +566,7 @@ export default async function AdminActionsPage({
       rowCount: result.reduce((sum, source) => sum + (source.data?.length ?? 0), 0),
     }),
   )
+
   const profilesById = new Map((ownerProfiles ?? []).map((p: any) => [p.id as string, p as ProfileRow]))
   const profileFor = (userId: string | null | undefined): ProfileRow | null =>
     userId ? profilesById.get(userId) ?? null : null
@@ -553,12 +600,19 @@ export default async function AdminActionsPage({
     bookingBankTransferSubmissionsByBookingId.set(submission.booking_id, list)
   }
 
+  const checkoutInvoiceMap = new Map<string, string>()
+  for (const inv of (checkoutInvoiceRows ?? []) as Array<{ id: string; booking_id: string; status: string }>) {
+    checkoutInvoiceMap.set(inv.id, inv.booking_id)
+  }
+
   const checkoutBankTransferSubmissionsByBookingId = new Map<string, CheckoutBankTransferSubmissionRow[]>()
   for (const row of checkoutBankTransferSubmissionRows ?? []) {
     const submission = row as CheckoutBankTransferSubmissionRow
-    const list = checkoutBankTransferSubmissionsByBookingId.get(submission.booking_id) ?? []
+    const bookingId = submission.booking_id || (submission.invoice_id ? checkoutInvoiceMap.get(submission.invoice_id) : null)
+    if (!bookingId) continue
+    const list = checkoutBankTransferSubmissionsByBookingId.get(bookingId) ?? []
     list.push(submission)
-    checkoutBankTransferSubmissionsByBookingId.set(submission.booking_id, list)
+    checkoutBankTransferSubmissionsByBookingId.set(bookingId, list)
   }
 
   const awaitingFlightRecords = perf.timeSync(
@@ -568,26 +622,29 @@ export default async function AdminActionsPage({
   )
 
   const checkoutCancelPendingRows = (checkoutCancelRows ?? [])
-    .map((row) => {
-      const booking = firstItem((row as CancelRequestRow).bookings)
+    .map((rawRow) => {
+      const row = rawRow as CancelRequestRow
+      const booking = firstItem(row.bookings)
       if (!booking) return null
       const aircraft = firstItem(booking.aircraft)
       const profile = profileFor(booking.booking_owner_user_id)
       const customerLabel = fullCustomerName(profile, booking.pic_name)
 
       return {
-        key: `checkout-cancel-${row.checkout_request_id}`,
+        key: `checkout-cancel-${row.checkout_request_id ?? row.id}`,
         groups: ['checkout'] as WorkflowFilter[],
         badge: 'Checkout' as const,
         badgeTone: 'primary' as const,
         title: 'Checkout cancellation requested',
-        description: row.customer_message ? 'Customer submitted a cancellation request.' : 'Pending cancellation request awaiting review.',
+        description: (row.customer_note || row.customer_message) ? 'Customer submitted a cancellation request.' : 'Pending cancellation request awaiting review.',
         customerLabel,
+        customerEmail: profile?.email ?? null,
         customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
         referenceLabel: bookingReference(booking),
         referenceHref: `/admin/bookings/requests/${booking.id}`,
         aircraftLabel: aircraft?.registration ?? null,
         aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
+        scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
         receivedAt: row.created_at,
         nextStep: 'Review cancellation',
         href: `/admin/bookings/requests/${booking.id}`,
@@ -602,28 +659,31 @@ export default async function AdminActionsPage({
   )
 
   const checkoutRescheduleItems = (checkoutRescheduleRows ?? [])
-    .map((row) => {
-      const booking = firstItem((row as CancelRequestRow).bookings)
+    .map((rawRow) => {
+      const row = rawRow as CancelRequestRow
+      const booking = firstItem(row.bookings)
       if (!booking) return null
       const aircraft = firstItem(booking.aircraft)
       const profile = profileFor(booking.booking_owner_user_id)
       const customerLabel = fullCustomerName(profile, booking.pic_name)
 
       return {
-        key: `checkout-reschedule-${row.checkout_request_id}`,
+        key: `checkout-reschedule-${row.checkout_request_id ?? row.id}`,
         groups: ['checkout'] as WorkflowFilter[],
         badge: 'Checkout' as const,
         badgeTone: 'warning' as const,
         title: 'Reschedule requested',
-        description: row.customer_message
+        description: (row.customer_note || row.customer_message)
           ? 'Customer proposed a new checkout time — review and approve or reject.'
           : 'Pending reschedule request awaiting your approval.',
         customerLabel,
+        customerEmail: profile?.email ?? null,
         customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
         referenceLabel: bookingReference(booking),
         referenceHref: `/admin/bookings/requests/${booking.id}`,
         aircraftLabel: aircraft?.registration ?? null,
         aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
+        scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
         receivedAt: row.created_at,
         nextStep: 'Approve or reject',
         href: `/admin/bookings/requests/${booking.id}`,
@@ -646,16 +706,46 @@ export default async function AdminActionsPage({
       title: 'New checkout request',
       description: 'Review documents and confirm the new checkout request.',
       customerLabel,
+      customerEmail: profile?.email ?? null,
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: bookingReference(booking),
       referenceHref: `/admin/bookings/requests/${booking.id}`,
       aircraftLabel: aircraft?.registration ?? null,
       aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
+      scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
       receivedAt: booking.created_at,
       nextStep: 'Review and confirm',
       href: `/admin/bookings/requests/${booking.id}`,
     } satisfies ActionItem
   })
+
+  const checkoutConfirmedItems = (checkoutConfirmedRows ?? [])
+    .filter((row) => !pendingRescheduleBookingIds.has((row as BookingRow).id))
+    .map((row) => {
+      const booking = row as BookingRow
+      const aircraft = firstItem(booking.aircraft)
+      const profile = profileFor(booking.booking_owner_user_id)
+      const customerLabel = fullCustomerName(profile, booking.pic_name)
+      return {
+        key: `checkout-confirmed-${booking.id}`,
+        groups: ['checkout'] as WorkflowFilter[],
+        badge: 'Checkout' as const,
+        badgeTone: 'primary' as const,
+        title: 'Upcoming checkout flight',
+        description: 'Checkout is confirmed and scheduled. Manage booking or mark complete after flight.',
+        customerLabel,
+        customerEmail: profile?.email ?? null,
+        customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
+        referenceLabel: bookingReference(booking),
+        referenceHref: `/admin/bookings/requests/${booking.id}`,
+        aircraftLabel: aircraft?.registration ?? null,
+        aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
+        scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
+        receivedAt: booking.updated_at || booking.created_at,
+        nextStep: 'Manage checkout',
+        href: `/admin/bookings/requests/${booking.id}`,
+      } satisfies ActionItem
+    })
 
   const checkoutOutcomeItems = (checkoutReviewRows ?? []).map((row) => {
     const booking = row as BookingRow
@@ -670,11 +760,13 @@ export default async function AdminActionsPage({
       title: 'Checkout completed — record outcome',
       description: 'Flight is done. Record the checkout outcome and move the booking forward.',
       customerLabel,
+      customerEmail: profile?.email ?? null,
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: bookingReference(booking),
       referenceHref: `/admin/bookings/requests/${booking.id}`,
       aircraftLabel: aircraft?.registration ?? null,
       aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
+      scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
       receivedAt: booking.updated_at,
       nextStep: 'Record outcome',
       href: `/admin/bookings/requests/${booking.id}`,
@@ -691,21 +783,25 @@ export default async function AdminActionsPage({
       booking,
       checkoutBankTransferSubmissionsByBookingId.get(booking.id) ?? [],
     )
+    const isVerificationPending = paymentState.title === 'Payment verification pending'
     return {
       key: `checkout-payment-${booking.id}`,
       groups: [workflow] as WorkflowFilter[],
       badge: badgeFromWorkflow(workflow),
-      badgeTone: 'warning' as const,
+      badgeTone: isVerificationPending ? ('primary' as const) : ('warning' as const),
       title: paymentState.title,
       description: paymentState.description,
       customerLabel,
+      customerEmail: profile?.email ?? null,
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: bookingReference(booking),
       referenceHref: `/admin/bookings/requests/${booking.id}`,
       aircraftLabel: aircraft?.registration ?? null,
       aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
+      scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
       receivedAt: paymentState.receivedAt,
       nextStep: paymentState.nextStep,
+      actionTone: paymentState.actionTone,
       href: paymentState.href,
     } satisfies ActionItem
   })
@@ -724,8 +820,6 @@ export default async function AdminActionsPage({
       if (booking.status === 'on_hold_pending_documents') return true
       return Boolean(booking.scheduled_start && new Date(booking.scheduled_start).getTime() >= Date.now())
     })
-    const pendingAgeHours =
-      receivedAt ? (Date.now() - new Date(receivedAt).getTime()) / (1000 * 60 * 60) : 0
     const description =
       pendingLabels.length <= 3
         ? `${joinDocumentLabels(pendingLabels)} ${pendingLabels.length === 1 ? 'is' : 'are'} awaiting approval.`
@@ -739,6 +833,7 @@ export default async function AdminActionsPage({
       title: 'Review customer documents',
       description,
       customerLabel,
+      customerEmail: profile?.email ?? null,
       customerHref: `/admin/users/${userId}?tab=documents`,
       referenceLabel: 'Documents',
       referenceHref: `/admin/users/${userId}?tab=documents`,
@@ -764,6 +859,7 @@ export default async function AdminActionsPage({
       title: 'Unpaid block time overage',
       description: 'Customer flew over their purchased block time and is gated until paid.',
       customerLabel,
+      customerEmail: profile?.email ?? null,
       customerHref: row.user_id ? `/admin/users/${row.user_id}` : null,
       referenceLabel: `Invoice ${row.invoice_number}`,
       referenceHref: row.user_id ? `/admin/users/${row.user_id}?tab=blockTime` : `/admin/users`,
@@ -775,7 +871,35 @@ export default async function AdminActionsPage({
     } satisfies ActionItem
   })
 
-  const bookingFlightItems = (standardAwaitingFlightRows ?? []).map((row) => {
+  const standardUpcomingItems = (standardUpcomingRows ?? []).map((row) => {
+    const booking = row as BookingRow
+    const aircraft = firstItem(booking.aircraft)
+    const profile = profileFor(booking.booking_owner_user_id)
+    const customerLabel = fullCustomerName(profile, booking.pic_name)
+    return {
+      key: `standard-upcoming-${booking.id}`,
+      groups: ['rental'] as WorkflowFilter[],
+      badge: 'Rental' as const,
+      badgeTone: 'info' as const,
+      title: 'Upcoming rental flight',
+      description: 'Flight booking is confirmed and scheduled. Manage booking or submit readings after flight.',
+      customerLabel,
+      customerEmail: profile?.email ?? null,
+      customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
+      referenceLabel: booking.booking_reference ?? booking.id.slice(0, 8).toUpperCase(),
+      referenceHref: `/admin/bookings/requests/${booking.id}`,
+      aircraftLabel: aircraft?.registration ?? null,
+      aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
+      scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
+      receivedAt: booking.updated_at || booking.created_at,
+      nextStep: 'Manage booking',
+      href: `/admin/bookings/requests/${booking.id}`,
+    } satisfies ActionItem
+  })
+
+  const bookingFlightItems = (standardAwaitingFlightRows ?? [])
+    .filter((row) => isAwaitingFlightRecordDue(row as AwaitingFlightRecordBooking))
+    .map((row) => {
     const booking = row as BookingRow
     const aircraft = firstItem(booking.aircraft)
     const profile = profileFor(booking.booking_owner_user_id)
@@ -788,13 +912,16 @@ export default async function AdminActionsPage({
       title: 'Awaiting flight record',
       description: 'Customer flight record submission is still outstanding.',
       customerLabel,
+      customerEmail: profile?.email ?? null,
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: booking.booking_reference ?? booking.id.slice(0, 8).toUpperCase(),
       referenceHref: `/admin/bookings/requests/${booking.id}`,
       aircraftLabel: aircraft?.registration ?? null,
       aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
+      scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
       receivedAt: booking.updated_at,
-      nextStep: 'Check records',
+      nextStep: 'Submit flight record',
+      actionTone: 'amber' as const,
       href: `/admin/bookings/requests/${booking.id}`,
     } satisfies ActionItem
   })
@@ -812,11 +939,13 @@ export default async function AdminActionsPage({
       title: 'Post-flight review required',
       description: 'Admin review is pending for the submitted flight record.',
       customerLabel,
+      customerEmail: profile?.email ?? null,
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: booking.booking_reference ?? booking.id.slice(0, 8).toUpperCase(),
       referenceHref: `/admin/bookings/requests/${booking.id}`,
       aircraftLabel: aircraft?.registration ?? null,
       aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
+      scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
       receivedAt: booking.updated_at,
       nextStep: 'Review and complete',
       href: `/admin/bookings/requests/${booking.id}`,
@@ -843,13 +972,16 @@ export default async function AdminActionsPage({
       title: paymentState.title,
       description: paymentState.description,
       customerLabel,
+      customerEmail: profile?.email ?? null,
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: booking.booking_reference ?? booking.id.slice(0, 8).toUpperCase(),
       referenceHref: `/admin/bookings/requests/${booking.id}`,
       aircraftLabel: aircraft?.registration ?? null,
       aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
+      scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
       receivedAt: paymentState.receivedAt,
       nextStep: paymentState.nextStep,
+      actionTone: paymentState.actionTone,
       href: paymentState.href,
     } satisfies ActionItem
   }).filter(Boolean) as ActionItem[]
@@ -868,38 +1000,18 @@ export default async function AdminActionsPage({
       title: 'Rental cancellation requested',
       description: (row as CancelRequestRow).customer_message ? 'Customer submitted a cancellation request.' : 'Pending cancellation request awaiting review.',
       customerLabel,
+      customerEmail: profile?.email ?? null,
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: booking.booking_reference ?? booking.id.slice(0, 8).toUpperCase(),
       referenceHref: `/admin/bookings/requests/${booking.id}`,
       aircraftLabel: aircraft?.registration ?? null,
       aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
+      scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
       receivedAt: row.created_at,
       nextStep: 'Review cancellation',
       href: `/admin/bookings/requests/${booking.id}`,
     } satisfies ActionItem
   }) as Array<ActionItem | null>).filter(Boolean) as ActionItem[]
-
-  const manualCheckoutReviewItem: ActionItem | null = manualCheckoutPaymentsReview
-    ? {
-        key: 'checkout-manual-review',
-        groups: ['checkout'] as WorkflowFilter[],
-        badge: 'Checkout',
-        badgeTone: 'primary',
-        title: 'Checkout bank transfers under manual review',
-        description: 'Submitted checkout payments are waiting on admin review.',
-        customerLabel: 'Checkout queue',
-        customerHref: null,
-        referenceLabel: 'Manual review',
-        referenceHref: '/admin/checkouts/payments?tab=manual_review',
-        aircraftLabel: null,
-        aircraftHref: null,
-        receivedAt: null,
-        nextStep: 'Open payment review',
-        href: '/admin/checkouts/payments?tab=manual_review',
-        aggregateOnly: true,
-        issueLabel: `${manualCheckoutPaymentsReview} submission${manualCheckoutPaymentsReview === 1 ? '' : 's'}`,
-      }
-    : null
 
   const checkoutIssueItem: ActionItem | null = checkoutIssues
     ? {
@@ -916,7 +1028,7 @@ export default async function AdminActionsPage({
         aircraftLabel: null,
         aircraftHref: null,
         receivedAt: null,
-        nextStep: 'Review customers',
+        nextStep: 'Open customers',
         href: '/admin/customers/all',
         aggregateOnly: true,
         issueLabel: `${checkoutIssues} customer${checkoutIssues === 1 ? '' : 's'}`,
@@ -925,6 +1037,7 @@ export default async function AdminActionsPage({
 
   const checkoutSummaryRows = [
     ...checkoutRequestItems,
+    ...checkoutConfirmedItems,
     ...checkoutPaymentItems,
     ...checkoutOutcomeItems,
     ...checkoutRescheduleItems,
@@ -932,6 +1045,7 @@ export default async function AdminActionsPage({
   ]
 
   const bookingSummaryRows = [
+    ...standardUpcomingItems,
     ...bookingFlightItems,
     ...bookingPostFlightItems,
     ...bookingPaymentItems,
@@ -943,7 +1057,6 @@ export default async function AdminActionsPage({
     ...checkoutSummaryRows,
     ...bookingSummaryRows,
     ...overageInvoiceItems,
-    ...(manualCheckoutReviewItem ? [manualCheckoutReviewItem] : []),
     ...(checkoutIssueItem ? [checkoutIssueItem] : []),
   ].filter((item): item is ActionItem => Boolean(item)))
 

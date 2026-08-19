@@ -13,6 +13,7 @@ const DOC_META: Record<string, { label: string; icon: string }> = {
   pilot_licence:       { label: 'Commercial Pilot Licence',    icon: 'badge' },
   medical_certificate: { label: 'Class 1 Medical Certificate', icon: 'health_and_safety' },
   photo_id:            { label: 'National Identity Card',      icon: 'id_card' },
+  night_vfr_evidence:  { label: 'Night VFR Endorsement',       icon: 'nightlight' },
 }
 
 const EVENT_STYLE: Record<string, { icon: string; color: string; bg: string }> = {

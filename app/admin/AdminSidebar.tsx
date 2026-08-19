@@ -202,6 +202,26 @@ export default function AdminSidebar({
   }, [actionCounts, unreadMessageCount])
 
   const counts = rawCounts
+  const [hasUnseenBookings, setHasUnseenBookings] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const isBookingsPage = (pathname?.startsWith('/admin/bookings') ?? false) || (pathname?.startsWith('/admin/checkouts') ?? false)
+    const currentCount = counts.bookings ?? 0
+
+    if (isBookingsPage) {
+      localStorage.setItem('admin_seen_bookings_count', String(currentCount))
+      setHasUnseenBookings(false)
+    } else {
+      const seenCountStr = localStorage.getItem('admin_seen_bookings_count')
+      if (seenCountStr === null) {
+        setHasUnseenBookings(currentCount > 0)
+      } else {
+        const seenCount = parseInt(seenCountStr, 10)
+        setHasUnseenBookings(currentCount > seenCount)
+      }
+    }
+  }, [pathname, counts.bookings])
 
   useEffect(() => {
     setMobileMenuOpen(false)
@@ -356,7 +376,15 @@ export default function AdminSidebar({
                             >
                               {group.icon}
                             </span>
-                            <span className="flex-1 whitespace-nowrap font-medium">{group.title}</span>
+                            <div className="flex flex-1 items-center gap-1.5 min-w-0">
+                              <span className="whitespace-nowrap font-medium">{group.title}</span>
+                              {group.title === 'Bookings' && hasUnseenBookings && showBadge && !groupActive ? (
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.9)]" />
+                                </span>
+                              ) : null}
+                            </div>
                             {showBadge ? (
                               <span
                                 className={`inline-flex min-w-[2.05rem] items-center justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums ${

@@ -453,8 +453,8 @@ const DOCUMENT_CARD_CONFIG: Record<DocumentCardType, { label: string; optionalRe
     optionalReason: '',
   },
   night_vfr_evidence: {
-    label: 'Night VFR Evidence',
-    optionalReason: 'View-only evidence shown in checkout review.',
+    label: 'Night VFR Endorsement',
+    optionalReason: '',
   },
 }
 
@@ -562,7 +562,12 @@ export function DocumentReviewCards({
 
   const resolvedNightVfrRating = customerProfile?.has_night_vfr_rating ?? hasNightVfrRating ?? false
   const displayNightVfrRating = customerProfile?.has_night_vfr_rating ?? hasNightVfrRating ?? null
-  const latestDocuments = REQUIRED_DOC_TYPES.map((documentType) => ({
+  const hasNightVfrEvidence = documents.some((d) => d.document_type === 'night_vfr_evidence')
+  const reviewDocTypes: DocumentCardType[] = [
+    ...REQUIRED_DOC_TYPES,
+    ...(resolvedNightVfrRating || hasNightVfrEvidence ? ['night_vfr_evidence' as const] : []),
+  ]
+  const latestDocuments = reviewDocTypes.map((documentType) => ({
     documentType,
     doc: getLatestDocument(documents, documentType),
   }))

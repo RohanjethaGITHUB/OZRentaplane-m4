@@ -38,12 +38,11 @@ export function isAwaitingFlightRecordDue(
   booking: AwaitingFlightRecordBooking,
   now: Date = new Date(),
 ): boolean {
-  // Canonical rule: no submitted customer flight record AND the full scheduled
-  // end timestamp has passed. Never use scheduled_start or date-only checks here.
+  if (hasSubmittedFlightRecord(booking.flight_records)) return false
+  if (booking.status === 'awaiting_flight_record' || booking.status === 'flight_record_overdue') return true
   return (
     AWAITING_FLIGHT_RECORD_CANDIDATE_STATUSES.has(booking.status ?? '') &&
-    isScheduledEndPassed(booking.scheduled_end, now) &&
-    !hasSubmittedFlightRecord(booking.flight_records)
+    isScheduledEndPassed(booking.scheduled_end, now)
   )
 }
 

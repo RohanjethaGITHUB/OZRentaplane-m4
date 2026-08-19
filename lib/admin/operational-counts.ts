@@ -103,8 +103,7 @@ export async function fetchAdminShellBadges(
       .from('bookings')
       .select('id, status, scheduled_end, flight_records(status, submitted_at)')
       .eq('booking_type', 'standard')
-      .in('status', ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record', 'flight_record_overdue'])
-      .lte('scheduled_end', new Date().toISOString()),
+      .in('status', ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record', 'flight_record_overdue']),
     supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('booking_type', 'standard').eq('status', 'pending_post_flight_review'),
     supabase.from('bookings').select('id').eq('booking_type', 'standard').eq('status', 'payment_pending'),
     supabase.from('checkout_bank_transfer_submissions').select('id', { count: 'exact', head: true }).eq('status', 'pending_review'),
