@@ -427,13 +427,6 @@ export default function DashboardContent({
   useEffect(() => {
     if (!toastNotice) return
     setSuccessModalOpen(true)
-
-    const url = new URL(window.location.href)
-    if (url.searchParams.has('block_time_purchase')) {
-      url.searchParams.delete('block_time_purchase')
-      const nextUrl = `${url.pathname}${url.search}${url.hash}`
-      window.history.replaceState({}, '', nextUrl === '/dashboard' ? '/dashboard' : nextUrl)
-    }
   }, [toastNotice])
 
   // Automatically open the invoice PDF in a new tab upon successful purchase
@@ -1092,6 +1085,23 @@ export default function DashboardContent({
           })}
         </div>
       </div>
+
+      {toastNotice && (
+        <SuccessModal
+          open={successModalOpen}
+          eyebrow={toastEyebrow}
+          title={toastNotice.title}
+          message={toastNotice.message}
+          actionLabel={toastNotice.actionLabel}
+          actionUrl={toastNotice.actionUrl}
+          onClose={() => {
+            setSuccessModalOpen(false)
+            if (typeof window !== 'undefined' && window.location.search.includes('block_time_purchase')) {
+              router.replace('/dashboard', { scroll: false })
+            }
+          }}
+        />
+      )}
     </div>
   )
 }
