@@ -380,66 +380,66 @@ export default async function AdminActionsPage({
       .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
       .eq('booking_type', 'checkout')
       .eq('status', 'checkout_requested')
-      .order('created_at', { ascending: true })),
+      .order('created_at', { ascending: false })),
     safeQuery('checkout confirmed rows', supabase
       .from('bookings')
       .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
       .eq('booking_type', 'checkout')
       .eq('status', 'checkout_confirmed')
-      .order('scheduled_start', { ascending: true })),
+      .order('scheduled_start', { ascending: false })),
     safeQuery('checkout payment rows', supabase
       .from('bookings')
       .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
       .eq('booking_type', 'checkout')
       .eq('status', 'checkout_payment_required')
-      .order('created_at', { ascending: true })),
+      .order('created_at', { ascending: false })),
     safeQuery('checkout review rows', supabase
       .from('bookings')
       .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
       .eq('booking_type', 'checkout')
       .eq('status', 'checkout_completed_under_review')
-      .order('updated_at', { ascending: true })),
+      .order('updated_at', { ascending: false })),
     safeQuery('checkout reschedule rows', supabase
       .from('checkout_change_requests')
       .select('id, checkout_request_id, status, created_at, customer_note, bookings ( id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration ) )')
       .eq('request_type', 'reschedule')
       .eq('status', 'pending')
-      .order('created_at', { ascending: true })),
+      .order('created_at', { ascending: false })),
     safeQuery('checkout cancel rows', supabase
       .from('checkout_change_requests')
       .select('id, checkout_request_id, status, created_at, customer_note, bookings ( id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration ) )')
       .eq('request_type', 'cancel')
-      .order('created_at', { ascending: true })),
+      .order('created_at', { ascending: false })),
     safeQuery('standard upcoming rows', supabase
       .from('bookings')
       .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
       .eq('booking_type', 'standard')
       .in('status', ['confirmed', 'ready_for_dispatch'])
       .gt('scheduled_end', nowIso)
-      .order('scheduled_start', { ascending: true })),
+      .order('created_at', { ascending: false })),
     safeQuery('awaiting flight record rows', supabase
       .from('bookings')
       .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration ), flight_records ( status, submitted_at )')
       .eq('booking_type', 'standard')
       .in('status', ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record', 'flight_record_overdue'])
-      .order('scheduled_end', { ascending: true })),
+      .order('created_at', { ascending: false })),
     safeQuery('post-flight review rows', supabase
       .from('bookings')
       .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
       .eq('booking_type', 'standard')
       .eq('status', 'pending_post_flight_review')
-      .order('updated_at', { ascending: true })),
+      .order('updated_at', { ascending: false })),
     safeQuery('booking payment rows', supabase
       .from('bookings')
       .select('id, booking_reference, booking_type, status, payment_status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
       .eq('booking_type', 'standard')
       .eq('status', 'payment_pending')
-      .order('created_at', { ascending: true })),
+      .order('created_at', { ascending: false })),
     safeQuery('booking cancellation rows', supabase
       .from('booking_cancellation_requests')
       .select('id, booking_id, customer_message, created_at, bookings ( id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration ) )')
       .eq('status', 'pending')
-      .order('created_at', { ascending: true })),
+      .order('created_at', { ascending: false })),
   ]))
 
   // bookings.booking_owner_user_id references auth.users, so profiles cannot be
@@ -767,7 +767,7 @@ export default async function AdminActionsPage({
       aircraftLabel: aircraft?.registration ?? null,
       aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
       scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
-      receivedAt: booking.updated_at,
+      receivedAt: booking.updated_at || booking.created_at,
       nextStep: 'Record outcome',
       href: `/admin/bookings/requests/${booking.id}`,
     } satisfies ActionItem
@@ -919,7 +919,7 @@ export default async function AdminActionsPage({
       aircraftLabel: aircraft?.registration ?? null,
       aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
       scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
-      receivedAt: booking.updated_at,
+      receivedAt: booking.updated_at || booking.created_at,
       nextStep: 'Submit flight record',
       actionTone: 'amber' as const,
       href: `/admin/bookings/requests/${booking.id}`,
@@ -946,7 +946,7 @@ export default async function AdminActionsPage({
       aircraftLabel: aircraft?.registration ?? null,
       aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
       scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
-      receivedAt: booking.updated_at,
+      receivedAt: booking.updated_at || booking.created_at,
       nextStep: 'Review and complete',
       href: `/admin/bookings/requests/${booking.id}`,
     } satisfies ActionItem
@@ -1061,20 +1061,13 @@ export default async function AdminActionsPage({
   ].filter((item): item is ActionItem => Boolean(item)))
 
   const sortedActionRows = [...actionRows].sort((a, b) => {
-    const aIsDocumentReview = a.groups.includes('document_review')
-    const bIsDocumentReview = b.groups.includes('document_review')
-    if (aIsDocumentReview && bIsDocumentReview) {
-      const aReceived = a.receivedAt ? new Date(a.receivedAt).getTime() : Number.NEGATIVE_INFINITY
-      const bReceived = b.receivedAt ? new Date(b.receivedAt).getTime() : Number.NEGATIVE_INFINITY
-      if (aReceived !== bReceived) return bReceived - aReceived
-      return a.key.localeCompare(b.key)
+    const aReceived = a.receivedAt ? new Date(a.receivedAt).getTime() : 0
+    const bReceived = b.receivedAt ? new Date(b.receivedAt).getTime() : 0
+    if (aReceived !== bReceived) {
+      return bReceived - aReceived
     }
-
-    const aReceived = a.receivedAt ? new Date(a.receivedAt).getTime() : Number.NEGATIVE_INFINITY
-    const bReceived = b.receivedAt ? new Date(b.receivedAt).getTime() : Number.NEGATIVE_INFINITY
-    if (aReceived !== bReceived) return bReceived - aReceived
-    const aHint = a.sortHint ?? Number.POSITIVE_INFINITY
-    const bHint = b.sortHint ?? Number.POSITIVE_INFINITY
+    const aHint = a.sortHint ?? 999
+    const bHint = b.sortHint ?? 999
     if (aHint !== bHint) return aHint - bHint
     return a.key.localeCompare(b.key)
   })
