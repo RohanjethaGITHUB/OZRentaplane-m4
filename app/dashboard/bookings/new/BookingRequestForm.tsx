@@ -1150,7 +1150,9 @@ export default function BookingRequestForm({
                   className={`mb-5 rounded-2xl border px-6 py-5 shadow-sm ${
                     documentGate.bannerState === 'unlocked'
                       ? 'border-green-500/20 bg-green-500/5'
-                      : 'border-[#f2d28a] bg-[#fff6df]'
+                      : documentGate.bannerState === 'rejected'
+                        ? 'border-rose-300 bg-rose-50/90'
+                        : 'border-[#f2d28a] bg-[#fff6df]'
                   }`}
                 >
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -1158,15 +1160,25 @@ export default function BookingRequestForm({
                       <DocumentProgressCard
                         variant="wizard"
                         statuses={documentGate.statuses}
-                        heading="Complete all 4 steps to submit your documents"
-                        subheading="Our team will review and confirm your checkout request."
+                        heading={
+                          documentGate.bannerState === 'rejected'
+                            ? 'One or more documents need your attention'
+                            : 'Complete all 4 steps to submit your documents'
+                        }
+                        subheading={
+                          documentGate.bannerState === 'rejected'
+                            ? 'Please re-upload rejected documents to complete your submission.'
+                            : 'Our team will review and confirm your checkout request.'
+                        }
                         className="shadow-sm"
                       />
                       <p
                         className={`mt-4 text-lg md:text-xl font-bold mb-1.5 ${
                           documentGate.bannerState === 'unlocked'
                             ? 'text-green-700'
-                            : 'text-[#7c2d12]'
+                            : documentGate.bannerState === 'rejected'
+                              ? 'text-rose-900'
+                              : 'text-[#7c2d12]'
                         }`}
                       >
                         {documentGate.bannerHeading}
@@ -1175,7 +1187,9 @@ export default function BookingRequestForm({
                         className={`text-sm md:text-base leading-relaxed max-w-2xl ${
                           documentGate.bannerState === 'unlocked'
                             ? 'text-green-700/80'
-                            : 'text-[#8b5e34]'
+                            : documentGate.bannerState === 'rejected'
+                              ? 'text-rose-800 font-medium'
+                              : 'text-[#8b5e34]'
                         }`}
                       >
                         {documentGate.bannerBody}
@@ -1185,7 +1199,9 @@ export default function BookingRequestForm({
                         className={`mt-4 inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-white transition-colors shadow-sm ${
                           documentGate.bannerState === 'unlocked'
                             ? 'bg-green-600 hover:bg-green-700'
-                            : 'bg-[#1a4fd6] hover:bg-[#1540a8]'
+                            : documentGate.bannerState === 'rejected'
+                              ? 'bg-rose-600 hover:bg-rose-700'
+                              : 'bg-[#1a4fd6] hover:bg-[#1540a8]'
                         }`}
                       >
                         {documentGate.ctaLabel}
@@ -1195,17 +1211,41 @@ export default function BookingRequestForm({
                       </Link>
                     </div>
 
-                    <div className={`lg:border-l lg:pl-6 ${documentGate.bannerState === 'unlocked' ? 'lg:border-green-500/20' : 'lg:border-[#e9c87b]'}`}>
-                      <div className={`flex items-start gap-2 ${documentGate.bannerState === 'unlocked' ? 'text-green-700' : 'text-[#b45309]'}`}>
+                    <div className={`lg:border-l lg:pl-6 ${
+                      documentGate.bannerState === 'unlocked'
+                        ? 'lg:border-green-500/20'
+                        : documentGate.bannerState === 'rejected'
+                          ? 'lg:border-rose-200'
+                          : 'lg:border-[#e9c87b]'
+                    }`}>
+                      <div className={`flex items-start gap-2 ${
+                        documentGate.bannerState === 'unlocked'
+                          ? 'text-green-700'
+                          : documentGate.bannerState === 'rejected'
+                            ? 'text-rose-700'
+                            : 'text-[#b45309]'
+                      }`}>
                         <span className="material-symbols-outlined text-[18px] mt-0.5">
-                          schedule
+                          {documentGate.bannerState === 'rejected' ? 'error' : 'schedule'}
                         </span>
                         <div>
-                          <p className={`text-xs font-semibold uppercase tracking-wide ${documentGate.bannerState === 'unlocked' ? 'text-green-700/80' : 'text-[#a16207]'}`}>
-                            Typical review time
+                          <p className={`text-xs font-semibold uppercase tracking-wide ${
+                            documentGate.bannerState === 'unlocked'
+                              ? 'text-green-700/80'
+                              : documentGate.bannerState === 'rejected'
+                                ? 'text-rose-600'
+                                : 'text-[#a16207]'
+                          }`}>
+                            {documentGate.bannerState === 'rejected' ? 'Action required' : 'Typical review time'}
                           </p>
-                          <p className={`text-sm md:text-base font-semibold ${documentGate.bannerState === 'unlocked' ? 'text-green-700' : 'text-[#7c2d12]'}`}>
-                            {reviewTimeValue}
+                          <p className={`text-sm md:text-base font-semibold ${
+                            documentGate.bannerState === 'unlocked'
+                              ? 'text-green-700'
+                              : documentGate.bannerState === 'rejected'
+                                ? 'text-rose-900'
+                                : 'text-[#7c2d12]'
+                          }`}>
+                            {documentGate.bannerState === 'rejected' ? 'Re-upload needed' : reviewTimeValue}
                           </p>
                         </div>
                       </div>

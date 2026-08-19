@@ -949,28 +949,33 @@ export default function DashboardContent({
 
           <div className="space-y-3 mb-5">
             {documentReadinessItems.map((item) => {
-              const tone = readinessTone(item.state)
+              const isRejected = item.state === 'needs_review' && item.detail.toLowerCase().startsWith('rejected')
+              const tone = isRejected
+                ? { icon: 'error', iconClassName: 'text-rose-600', labelClassName: 'text-rose-600 font-bold', label: 'REJECTED' }
+                : readinessTone(item.state)
               const isExpired = item.state === 'expired'
               return (
                 <div
                   key={item.key}
                   className={`flex items-start gap-3 rounded-xl border px-3 py-3 ${
-                    isExpired
-                      ? 'border-red-200 bg-red-50'
-                      : 'border-[#152d5a]/8 bg-[#f8fbff]'
+                    isRejected
+                      ? 'border-rose-200 bg-rose-50'
+                      : isExpired
+                        ? 'border-red-200 bg-red-50'
+                        : 'border-[#152d5a]/8 bg-[#f8fbff]'
                   }`}
                 >
                   <span className={`material-symbols-outlined text-[18px] ${tone.iconClassName}`}>{tone.icon}</span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-3">
-                      <span className={`text-[12px] font-semibold ${isExpired ? 'text-red-800' : 'text-[#152d5a]'}`}>
+                      <span className={`text-[12px] font-semibold ${isRejected ? 'text-rose-800' : isExpired ? 'text-red-800' : 'text-[#152d5a]'}`}>
                         {item.label}
                       </span>
                       <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${tone.labelClassName}`}>
                         {tone.label}
                       </span>
                     </div>
-                    <p className={`mt-1 text-[11px] leading-relaxed ${isExpired ? 'font-medium text-red-700' : 'text-[#4b6390]'}`}>
+                    <p className={`mt-1 text-[11px] leading-relaxed ${isRejected ? 'font-medium text-rose-700' : isExpired ? 'font-medium text-red-700' : 'text-[#4b6390]'}`}>
                       {item.detail}
                     </p>
                   </div>

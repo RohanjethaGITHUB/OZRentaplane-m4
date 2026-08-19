@@ -430,20 +430,28 @@ export async function bulkUpdateDocumentStatus(
 
     const { supabase, adminId } = await requireAdmin()
 
-    // Night VFR evidence is optional for checkout review and must not be
-    // changed by the bulk required-document actions.
-    const requiredTypes = [...REQUIRED_DOCUMENT_TYPES]
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('has_night_vfr_rating')
+      .eq('id', input.userId)
+      .single()
 
     const { data: documents, error: docsError } = await supabase
       .from('user_documents')
       .select('id, document_type, created_at')
       .eq('user_id', input.userId)
-      .in('document_type', requiredTypes)
+      .in('document_type', ['pilot_licence', 'medical_certificate', 'photo_id', 'night_vfr_evidence'])
       .order('created_at', { ascending: false })
 
     if (docsError) {
       return { success: false, error: docsError.message || 'Failed to load documents.' }
     }
+
+    const hasNightVfrEvidence = (documents ?? []).some((d) => d.document_type === 'night_vfr_evidence')
+    const requiredTypes = [
+      ...REQUIRED_DOCUMENT_TYPES,
+      ...(profile?.has_night_vfr_rating || hasNightVfrEvidence ? ['night_vfr_evidence' as const] : []),
+    ]
 
     const latestByType = new Map<string, UserDocumentRow>()
     for (const doc of documents ?? []) {

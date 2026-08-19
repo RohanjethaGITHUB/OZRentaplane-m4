@@ -929,7 +929,10 @@ export async function requestPostFlightClarification(input: {
   void emitOpsChanged()
 }
 
-export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
+export async function confirmCheckoutBooking(
+  bookingId: string,
+  options?: { overrideUnapprovedDocs?: boolean },
+): Promise<void> {
   const perf = createPerfLogger({ route: 'server_action:confirmCheckoutBooking', role: 'admin' })
   const markTotal = perf.start('checkout_approval', 'checkout_approval_total')
   const { supabase, adminId } = await perf.time('checkout_approval', 'checkout_approval_auth', () => requireAdmin())
@@ -954,29 +957,45 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
     throw new Error(`VALIDATION: Cannot confirm checkout booking with status '${booking.status}'.`)
   }
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('has_night_vfr_rating')
+    .eq('id', booking.booking_owner_user_id)
+    .single()
+
   const { data: docs } = await supabase
     .from('user_documents')
     .select('document_type, status, expiry_date')
     .eq('user_id', booking.booking_owner_user_id)
-    .in('document_type', [...CHECKOUT_BLOCKING_DOCUMENT_TYPES, 'night_vfr_evidence'])
+    .in('document_type', ['pilot_licence', 'medical_certificate', 'photo_id', 'night_vfr_evidence'])
 
   const todayIso = new Date().toISOString().slice(0, 10)
-  const requiredTypes = [...CHECKOUT_BLOCKING_DOCUMENT_TYPES]
+  const hasNightVfrEvidence = (docs ?? []).some((d) => d.document_type === 'night_vfr_evidence')
+  const requiredTypes = [
+    ...CHECKOUT_BLOCKING_DOCUMENT_TYPES,
+    ...(profile?.has_night_vfr_rating || hasNightVfrEvidence ? ['night_vfr_evidence' as const] : []),
+  ]
 
-  for (const type of requiredTypes) {
-    const candidates = (docs ?? []).filter((d) => d.document_type === type)
-    const approved = candidates.find((d) => d.status === 'approved')
-    if (!approved) {
-      throw new Error('VALIDATION: All required documents must be approved before confirming checkout.')
-    }
-    if (
-      type !== 'pilot_licence' &&
-      approved.expiry_date &&
-      approved.expiry_date < todayIso
-    ) {
-      throw new Error(`VALIDATION: A required document (${type.replace(/_/g, ' ')}) has expired. Ask the customer to upload a replacement before confirming.`)
+  if (!options?.overrideUnapprovedDocs) {
+    for (const type of requiredTypes) {
+      const candidates = (docs ?? []).filter((d) => d.document_type === type)
+      const approved = candidates.find((d) => d.status === 'approved')
+      if (!approved) {
+        throw new Error('VALIDATION: All required documents must be approved before confirming checkout.')
+      }
+      if (
+        type !== 'pilot_licence' &&
+        approved.expiry_date &&
+        approved.expiry_date < todayIso
+      ) {
+        throw new Error(`VALIDATION: A required document (${type.replace(/_/g, ' ')}) has expired. Ask the customer to upload a replacement before confirming.`)
+      }
     }
   }
+
+  const actionNote = options?.overrideUnapprovedDocs
+    ? 'Approved instructor confirmed checkout booking (with pending/rejected documents acknowledged by admin).'
+    : 'Approved instructor confirmed checkout booking.'
 
   const { bookingUpdate, historyInsert, auditInsert, profileUpdate } = await perf.time('checkout_approval', 'checkout_approval_primary_write', async () => {
     const bookingUpdate = await supabase
@@ -994,7 +1013,7 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
         old_status:         booking.status,
         new_status:         'checkout_confirmed',
         changed_by_user_id: adminId,
-        note:               'Approved instructor confirmed checkout booking.',
+        note:               actionNote,
       }),
       supabase.from('booking_audit_events').insert({
         booking_id:    bookingId,
@@ -1002,8 +1021,8 @@ export async function confirmCheckoutBooking(bookingId: string): Promise<void> {
         actor_user_id: adminId,
         actor_role:    'admin',
         event_type:    'checkout_confirmed',
-        event_summary: 'Approved instructor confirmed checkout booking.',
-        new_value:     { status: 'checkout_confirmed' },
+        event_summary: actionNote,
+        new_value:     { status: 'checkout_confirmed', override_unapproved_docs: !!options?.overrideUnapprovedDocs },
       }),
       supabase
         .from('profiles')

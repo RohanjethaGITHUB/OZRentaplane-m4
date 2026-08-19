@@ -144,16 +144,12 @@ function DocRow({
   doc,
   docType,
   customerId,
-  statusOverride,
-  isOptional = false,
   onOpenDocumentViewer,
 }: {
   label:      string
   doc:        DocSummary | undefined
   docType:    string
   customerId: string
-  statusOverride?: string
-  isOptional?: boolean
   onOpenDocumentViewer: (files: NonNullable<DocSummary['files']>, index: number, title: string) => void
 }) {
   const router = useRouter()
@@ -196,39 +192,35 @@ function DocRow({
     }
   }
 
-  const resolvedStatus = statusOverride ?? currentStatus
+  const resolvedStatus = currentStatus
   // Expiry wins over "approved" for medical/photo/night VFR (pilot licence expiry is not a blocker).
   const treatExpiryAsBlocker = docType !== 'pilot_licence'
   const showExpired = Boolean(expired && treatExpiryAsBlocker && resolvedStatus !== 'rejected')
   const decisionRecorded = currentStatus === 'approved' || currentStatus === 'rejected'
 
-  const statusLabel = statusOverride ?? (
-    showExpired
-      ? 'Expired'
-      : resolvedStatus === 'approved'
-        ? 'Approved'
-        : resolvedStatus === 'rejected'
-          ? 'Rejected'
-          : !doc
-            ? 'Not uploaded'
-            : doc.status === 'rejected'
-              ? 'Rejected'
-              : 'Uploaded'
-  )
+  const statusLabel = showExpired
+    ? 'Expired'
+    : resolvedStatus === 'approved'
+      ? 'Approved'
+      : resolvedStatus === 'rejected'
+        ? 'Rejected'
+        : !doc
+          ? 'Not uploaded'
+          : doc.status === 'rejected'
+            ? 'Rejected'
+            : 'Uploaded'
 
-  const statusClass = statusOverride
-    ? 'bg-amber-50 text-amber-700 border border-amber-200'
-    : showExpired
-      ? 'bg-red-50 text-red-700 border border-red-200'
-      : resolvedStatus === 'approved'
-        ? 'bg-green-50 text-green-700 border border-green-200'
-        : resolvedStatus === 'rejected'
-          ? 'bg-red-50 text-red-700 border border-red-200'
-          : !doc
-            ? 'bg-gray-50 text-gray-500 border border-gray-200'
-            : doc.status === 'rejected'
-              ? 'bg-red-50 text-red-700 border border-red-200'
-              : 'bg-green-50 text-green-700 border border-green-200'
+  const statusClass = showExpired
+    ? 'bg-red-50 text-red-700 border border-red-200'
+    : resolvedStatus === 'approved'
+      ? 'bg-green-50 text-green-700 border border-green-200'
+      : resolvedStatus === 'rejected'
+        ? 'bg-red-50 text-red-700 border border-red-200'
+        : !doc
+          ? 'bg-gray-50 text-gray-500 border border-gray-200'
+          : doc.status === 'rejected'
+            ? 'bg-red-50 text-red-700 border border-red-200'
+            : 'bg-green-50 text-green-700 border border-green-200'
 
   return (
     <>
@@ -243,11 +235,6 @@ function DocRow({
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusClass}`}>
               {statusLabel}
             </span>
-            {isOptional && (
-              <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold text-slate-600 bg-slate-100 border border-slate-200">
-                Optional · non-blocking
-              </span>
-            )}
             {doc?.licence_type   && <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs px-2 py-0.5 rounded-full font-medium">{doc.licence_type}</span>}
             {doc?.medical_class  && <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs px-2 py-0.5 rounded-full font-medium">{doc.medical_class}</span>}
             {doc?.id_type        && <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs px-2 py-0.5 rounded-full font-medium">{doc.id_type}</span>}
@@ -298,11 +285,7 @@ function DocRow({
             </div>
 
             <div className="flex items-center gap-1.5 min-w-[180px] justify-end">
-              {isOptional ? (
-                <span className="text-xs font-medium text-slate-500 whitespace-nowrap">
-                  No approval needed
-                </span>
-              ) : showExpired ? (
+              {showExpired ? (
                 <span className="inline-flex items-center gap-1 text-xs text-red-600 font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
                   <XCircle className="w-3 h-3" /> Expired
                 </span>
@@ -494,9 +477,9 @@ export default function AdminCheckoutReviewPanel({
   const [timeUpdateStatus, setTimeUpdateStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [timeError, setTimeError]               = useState<string | null>(null)
 
-  // ── Confirm/cancel state ─────────────────────────────────────────────────────
   const [confirmPending, startConfirmTransition] = useTransition()
   const [confirmCheckoutOpen, setConfirmCheckoutOpen] = useState(false)
+  const [overrideUnapprovedDocs, setOverrideUnapprovedDocs] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [cancelPending, startCancelTransition] = useTransition()
@@ -567,7 +550,7 @@ export default function AdminCheckoutReviewPanel({
 
   function handleConfirm() {
     if (!canConfirmCheckout) {
-      setActionError('All required documents must be approved (and not expired) before confirming checkout.')
+      setActionError('All required documents must be approved (and not expired) before confirming checkout, or acknowledge document status to proceed.')
       return
     }
     setActionError(null)
@@ -579,7 +562,7 @@ export default function AdminCheckoutReviewPanel({
     setActionError(null)
     startConfirmTransition(async () => {
       try {
-        await confirmCheckoutBooking(bookingId)
+        await confirmCheckoutBooking(bookingId, { overrideUnapprovedDocs })
         router.refresh()
       } catch (e) {
         setActionError(e instanceof Error ? e.message.replace(/^VALIDATION: /, '') : 'Failed to confirm.')
@@ -709,13 +692,23 @@ export default function AdminCheckoutReviewPanel({
   const medicalDoc        = documents.find(d => d.document_type === 'medical_certificate')
   const photoIdDoc        = documents.find(d => d.document_type === 'photo_id')
   const nightVfrEvidenceDoc = documents.find(d => d.document_type === 'night_vfr_evidence')
-  // Night VFR remains visible and reviewable, but never blocks checkout confirmation.
-  const requiredDocEntries = CHECKOUT_BLOCKING_DOCUMENT_TYPES.map((type) => ({
+
+  const hasNightVfr = Boolean(hasNightVfrRating || nightVfrEvidenceDoc)
+  const activeDocumentTypes = [
+    'pilot_licence',
+    'medical_certificate',
+    'photo_id',
+    ...(hasNightVfr ? ['night_vfr_evidence'] : []),
+  ]
+
+  const requiredDocEntries = activeDocumentTypes.map((type) => ({
     type,
     doc: type === 'pilot_licence' ? licenceDoc
       : type === 'medical_certificate' ? medicalDoc
-        : photoIdDoc,
+      : type === 'photo_id' ? photoIdDoc
+      : nightVfrEvidenceDoc,
   }))
+
   const todayIso = new Date().toISOString().split('T')[0]!
   function isCheckoutDocReady(type: string, doc: DocSummary | undefined): boolean {
     if (!doc || doc.status !== 'approved') return false
@@ -731,19 +724,16 @@ export default function AdminCheckoutReviewPanel({
     if (!doc) return true
     return !isCheckoutDocReady(type, { ...doc, status: effectiveDocStatus(type, doc) })
   })
-  const canConfirmCheckout = incompleteRequiredDocs.length === 0
+  const hasRejectedDocs = requiredDocEntries.some(({ doc }) => doc?.status === 'rejected')
+  const allDocsOk = incompleteRequiredDocs.length === 0
+  const canConfirmCheckout = allDocsOk || overrideUnapprovedDocs
   const confirmBlockedByReschedule = pendingRescheduleReview
   const confirmCheckoutDisabledReason = confirmBlockedByReschedule
     ? 'Confirm Checkout is disabled until you approve or reject the requested new time.'
     : canConfirmCheckout
       ? null
-      : 'Confirm Checkout is disabled until all required documents are approved and none are expired.'
-  const allRequiredApproved = canConfirmCheckout
-  const allDocsOk = canConfirmCheckout
-  const nightVfrStatusOverride =
-    nightVfrEvidenceDoc && nightVfrEvidenceDoc.status !== 'approved' && nightVfrEvidenceDoc.status !== 'rejected'
-      ? 'Claimed'
-      : undefined
+      : 'Confirm Checkout is disabled until all required documents are approved, or acknowledge document status below to proceed.'
+  const allRequiredApproved = allDocsOk
 
   const endTimeLabel = ALL_TIME_OPTIONS.find(o => o.value === newEndTime)?.label ?? newEndTime
   const requestedTimeLabel = formatRequestedTimeLabel(scheduledStart)
@@ -823,23 +813,20 @@ export default function AdminCheckoutReviewPanel({
           )}
           {allDocsOk ? 'All required documents approved' : 'Required documents awaiting approval'}
         </div>
-        <p className="mb-4 text-xs text-slate-500">
-          Night VFR evidence is optional. Its status does not prevent checkout confirmation.
-        </p>
 
         <div className="space-y-0">
           <DocRow label="Pilot Licence" doc={licenceDoc} docType="pilot_licence" customerId={customerId} onOpenDocumentViewer={openDocumentViewer} />
           <DocRow label="Medical Certificate" doc={medicalDoc} docType="medical_certificate" customerId={customerId} onOpenDocumentViewer={openDocumentViewer} />
           <DocRow label="Photo ID" doc={photoIdDoc} docType="photo_id" customerId={customerId} onOpenDocumentViewer={openDocumentViewer} />
-          <DocRow
-            label="Night VFR"
-            doc={nightVfrEvidenceDoc}
-            docType="night_vfr_evidence"
-            customerId={customerId}
-            isOptional
-            statusOverride={nightVfrStatusOverride}
-            onOpenDocumentViewer={openDocumentViewer}
-          />
+          {hasNightVfr && (
+            <DocRow
+              label="Night VFR"
+              doc={nightVfrEvidenceDoc}
+              docType="night_vfr_evidence"
+              customerId={customerId}
+              onOpenDocumentViewer={openDocumentViewer}
+            />
+          )}
         </div>
 
         {bulkMessage && (
@@ -1102,15 +1089,38 @@ export default function AdminCheckoutReviewPanel({
       </section>
 
       <div className="@container fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] md:px-6 md:py-4 lg:left-72">
-        <div className="mx-auto flex max-w-7xl flex-col gap-2">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2.5">
           {confirmBlockedByReschedule ? (
             <RescheduleReviewFooterWarning />
-          ) : !canConfirmCheckout ? (
-            <div className="flex items-start gap-2.5 rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" aria-hidden="true" />
-              <span>
-                One or more required documents are not yet approved or have expired. Review document status before confirming checkout.
-              </span>
+          ) : !allDocsOk ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/95 p-3 sm:p-3.5 text-amber-900 shadow-sm transition-all">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" aria-hidden="true" />
+                <div className="flex-1 space-y-1.5 min-w-0">
+                  <p className="text-xs font-semibold text-amber-950">
+                    {hasRejectedDocs
+                      ? 'One or more documents have been rejected.'
+                      : 'One or more required documents are awaiting approval or have expired.'}
+                  </p>
+                  <p className="text-[11.5px] leading-relaxed text-amber-800">
+                    You can still confirm this checkout if needed. The customer will need to re-upload any rejected documents and have them approved before flight dispatch.
+                  </p>
+                  <label className="mt-1 flex items-center gap-2 pt-0.5 text-xs font-medium text-amber-950 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={overrideUnapprovedDocs}
+                      onChange={(e) => {
+                        setOverrideUnapprovedDocs(e.target.checked)
+                        setActionError(null)
+                      }}
+                      className="h-4 w-4 rounded border-amber-300 text-[#1a4fd6] focus:ring-[#1a4fd6] accent-[#1a4fd6] cursor-pointer"
+                    />
+                    <span className="font-semibold text-amber-900">
+                      Acknowledge document status and proceed with checkout confirmation
+                    </span>
+                  </label>
+                </div>
+              </div>
             </div>
           ) : null}
           {actionError && <p className="text-xs text-rose-500 text-center">{actionError}</p>}
@@ -1174,7 +1184,23 @@ export default function AdminCheckoutReviewPanel({
       <ConfirmModal
         open={confirmCheckoutOpen}
         title="Confirm checkout request?"
-        description={`Confirm checkout request for ${formatDateFromISO(newStartUTC ?? scheduledStart)} at ${ALL_TIME_OPTIONS.find((o) => o.value === newStartTime)?.label ?? newStartTime} (Sydney time).`}
+        description={
+          overrideUnapprovedDocs && !allDocsOk ? (
+            <div className="space-y-2.5 text-left">
+              <p className="text-sm text-slate-600">
+                Confirm checkout request for {formatDateFromISO(newStartUTC ?? scheduledStart)} at {ALL_TIME_OPTIONS.find((o) => o.value === newStartTime)?.label ?? newStartTime} (Sydney time).
+              </p>
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs leading-relaxed text-red-800">
+                <span className="font-bold text-red-700 uppercase tracking-wider block mb-0.5">Note</span>
+                <span className="text-red-900 font-medium">
+                  Document exceptions are acknowledged; customer must have valid approved documents prior to flight dispatch.
+                </span>
+              </div>
+            </div>
+          ) : (
+            `Confirm checkout request for ${formatDateFromISO(newStartUTC ?? scheduledStart)} at ${ALL_TIME_OPTIONS.find((o) => o.value === newStartTime)?.label ?? newStartTime} (Sydney time).`
+          )
+        }
         confirmLabel={confirmPending ? 'Confirming…' : 'Confirm Checkout'}
         variant="primary"
         isPending={confirmPending}

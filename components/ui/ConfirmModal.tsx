@@ -8,7 +8,7 @@ import Spinner from '@/components/ui/Spinner'
 type ConfirmModalProps = {
   open: boolean
   title: string
-  description?: string
+  description?: ReactNode
   confirmLabel?: string
   cancelLabel?: string
   variant?: 'primary' | 'danger'
@@ -98,9 +98,9 @@ export default function ConfirmModal({
                 {title}
               </h3>
               {description && (
-                <p className="mt-1 text-sm leading-6 text-slate-600">
+                <div className="mt-1 text-sm leading-6 text-slate-600">
                   {description}
-                </p>
+                </div>
               )}
             </div>
             <button
