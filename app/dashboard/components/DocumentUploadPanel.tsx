@@ -450,17 +450,23 @@ function MiniDocCard({ def, doc, docState, onOpen, replacing, onViewDocument }: 
         </div>
       )}
       {docState === 'under_review' && (
-        <p className="text-[11px] text-amber-600 flex items-center gap-1">
-          <span className="material-symbols-outlined text-[12px]">hourglass_top</span>
-          Awaiting admin review — we&apos;ll notify you once approved
-        </p>
+        <div className="text-[11px] text-amber-600 flex items-center gap-1.5">
+          <span className="material-symbols-outlined text-[14px] flex-shrink-0">hourglass_top</span>
+          <span className="leading-snug">Awaiting admin review — we&apos;ll notify you once approved</span>
+        </div>
       )}
       {docState === 'rejected' && doc?.review_notes && (
-        <p className="text-[11px] text-red-600 bg-red-500/5 border border-red-500/10 rounded-lg px-2.5 py-1.5 flex items-start gap-1">
-          <span className="material-symbols-outlined text-[12px] flex-shrink-0 mt-0.5">warning</span>{doc.review_notes}
-        </p>
+        <div className="text-[12px] text-red-700 bg-red-500/5 border border-red-500/15 rounded-lg px-2.5 py-2 flex items-center gap-2">
+          <span className="material-symbols-outlined text-[16px] text-red-500 flex-shrink-0" style={{ fontVariationSettings: "'FILL' 0, 'wght' 400" }}>warning</span>
+          <span className="leading-snug break-words flex-1">{doc.review_notes}</span>
+        </div>
       )}
-      {viewError && <p className="text-[11px] text-red-500 flex items-center gap-1"><span className="material-symbols-outlined text-[12px]">error</span>{viewError}</p>}
+      {viewError && (
+        <div className="text-[11px] text-red-500 flex items-center gap-1.5">
+          <span className="material-symbols-outlined text-[14px] flex-shrink-0">error</span>
+          <span>{viewError}</span>
+        </div>
+      )}
       <div className="flex items-center gap-2 mt-auto flex-wrap">
         {(() => {
           const files = doc?.user_document_files ?? []

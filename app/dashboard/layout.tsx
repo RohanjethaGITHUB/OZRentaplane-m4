@@ -21,9 +21,9 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
   )
   if (!user) redirect('/login')
 
-  // Profile + lightweight unread head-count only.
+  // Profile + lightweight unread head-count + document issue check.
   // Do NOT load full verification_events history here — that blocked every /dashboard/* nav.
-  const [{ data: profile }, { count: unreadMessageCount }] = await perf.time(
+  const [{ data: profile }, { count: unreadMessageCount }, { data: userDocs }] = await perf.time(
     'customer_dashboard_layout',
     'profile_unread_badge_group',
     () => Promise.all([
@@ -36,15 +36,39 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
         .in('event_type', ['message', 'on_hold'])
         .eq('is_read', false)
         .not('body', 'is', null),
+      supabase
+        .from('user_documents')
+        .select('id, document_type, status, expiry_date, red_card_expiry_month, red_card_expiry_year')
+        .eq('user_id', user.id),
     ]),
     (result) => ({
-      rowCount: (result[0].data ? 1 : 0) + (result[1].count ?? 0),
+      rowCount: (result[0].data ? 1 : 0) + (result[1].count ?? 0) + (result[2].data?.length ?? 0),
     }),
   )
 
   if (profile?.role === 'admin') redirect('/admin')
   const firstName = (profile as any)?.first_name ?? user.email?.split('@')[0] ?? 'Pilot'
   const email = user.email ?? ''
+  
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth() + 1
+
+  const hasDocumentIssue = (userDocs ?? []).some((doc) => {
+    if (doc.status === 'rejected') return true
+    if (doc.expiry_date && doc.expiry_date < todayStr) return true
+    if (doc.document_type === 'pilot_licence' && doc.red_card_expiry_month && doc.red_card_expiry_year) {
+      if (
+        doc.red_card_expiry_year < currentYear ||
+        (doc.red_card_expiry_year === currentYear && doc.red_card_expiry_month < currentMonth)
+      ) {
+        return true
+      }
+    }
+    return false
+  })
+
   markTotal()
 
   return (
@@ -55,6 +79,7 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
         email={email}
         hideCheckout={true}
         unreadMessageCount={unreadMessageCount ?? 0}
+        hasDocumentIssue={hasDocumentIssue}
       />
       <div
         className="relative min-h-screen pt-[64px] text-deep-ink dashboard-theme overflow-x-hidden"

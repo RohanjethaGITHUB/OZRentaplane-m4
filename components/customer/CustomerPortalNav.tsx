@@ -20,12 +20,14 @@ type CustomerPortalNavProps = {
   email: string
   hideCheckout?: boolean
   unreadMessageCount?: number
+  hasDocumentIssue?: boolean
 }
 
 const BASE_PORTAL_LINKS: PortalLink[] = [
   { label: 'Dashboard', href: '/dashboard', icon: 'dashboard', exact: true },
   { label: 'Documents', href: '/dashboard/documents', icon: 'description' },
   { label: 'Bookings', href: '/dashboard/bookings', icon: 'event' },
+  { label: 'Resources', href: '/dashboard/resources', icon: 'menu_book' },
   { label: 'Pricing', href: '/dashboard/pricing', icon: 'sell' },
 ]
 
@@ -33,9 +35,10 @@ const CHECKOUT_LINK: PortalLink = { label: 'Checkout', href: '/dashboard/checkou
 
 const BOTTOM_NAV_LINKS: PortalLink[] = [
   { label: 'Home', href: '/dashboard', icon: 'dashboard', exact: true },
-  { label: 'Bookings', href: '/dashboard/bookings', icon: 'event' },
-  { label: 'Messages', href: '/dashboard/messages', icon: 'chat' },
   { label: 'Documents', href: '/dashboard/documents', icon: 'description' },
+  { label: 'Bookings', href: '/dashboard/bookings', icon: 'event' },
+  { label: 'Resources', href: '/dashboard/resources', icon: 'menu_book' },
+  { label: 'Pricing', href: '/dashboard/pricing', icon: 'sell' },
 ]
 
 function isActive(pathname: string | null, href: string, exact?: boolean): boolean {
@@ -58,6 +61,7 @@ export default function CustomerPortalNav({
   email,
   hideCheckout = false,
   unreadMessageCount = 0,
+  hasDocumentIssue = false,
 }: CustomerPortalNavProps) {
   const pathname = usePathname()
   const router = useRouter()
@@ -201,6 +205,7 @@ export default function CustomerPortalNav({
           <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-6">
             {portalLinks.map((link) => {
               const active = isActive(pathname, link.href, link.exact)
+              const isDocuments = link.href === '/dashboard/documents'
               return (
                 <Link
                   key={link.href}
@@ -211,8 +216,16 @@ export default function CustomerPortalNav({
                       : 'text-white/70 hover:text-white'
                   }`}
                 >
-                  <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
-                    {link.icon}
+                  <span className="relative inline-flex items-center">
+                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+                      {link.icon}
+                    </span>
+                    {isDocuments && hasDocumentIssue && (
+                      <span
+                        className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[#16305c] animate-pulse"
+                        aria-hidden="true"
+                      />
+                    )}
                   </span>
                   <span>{link.label}</span>
                 </Link>
@@ -307,38 +320,34 @@ export default function CustomerPortalNav({
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
       >
-        <div className="flex items-center justify-around px-1 pt-2 pb-2">
+        <div className="flex items-center justify-around px-2 pt-2 pb-1.5">
           {BOTTOM_NAV_LINKS.map((link) => {
             const active = isActive(pathname, link.href, link.exact)
-            const isMessages = link.href === '/dashboard/messages'
+            const isDocuments = link.href === '/dashboard/documents'
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className="relative flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors min-w-[64px]"
-                aria-label={
-                  isMessages && unreadCount > 0
-                    ? `Messages, ${unreadCount} unread`
-                    : link.label
-                }
+                className="relative flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg transition-colors flex-1 min-w-0"
+                aria-label={link.label}
               >
                 <span className="relative inline-flex">
                   <span
-                    className={`material-symbols-outlined text-[22px] ${
+                    className={`material-symbols-outlined text-[21px] ${
                       active ? 'text-[#f59e0b]' : 'text-white/50 hover:text-white/80'
                     }`}
                     aria-hidden="true"
                   >
                     {link.icon}
                   </span>
-                  {isMessages && unreadCount > 0 && (
+                  {isDocuments && hasDocumentIssue && (
                     <span
-                      className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[#16305c]"
+                      className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[#16305c] animate-pulse"
                       aria-hidden="true"
                     />
                   )}
                 </span>
-                <span className={`text-[10px] font-medium font-sans tracking-wide ${active ? 'text-[#f59e0b]' : 'text-white/50'}`}>
+                <span className={`text-[10px] font-medium font-sans tracking-tight truncate max-w-full ${active ? 'text-[#f59e0b]' : 'text-white/50'}`}>
                   {link.label}
                 </span>
               </Link>

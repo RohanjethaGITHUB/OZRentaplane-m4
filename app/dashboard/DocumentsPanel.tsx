@@ -775,25 +775,25 @@ function DocumentCard({
 
             {/* Rejection reason */}
             {docState === 'rejected' && doc?.review_notes && (
-              <p className="text-xs text-red-400/80 mt-3 bg-red-500/8 border border-red-500/15 px-3 py-2 rounded-lg inline-flex items-start gap-1.5 max-w-sm">
-                <span className="material-symbols-outlined text-sm flex-shrink-0 mt-0.5">warning</span>
-                {doc.review_notes}
-              </p>
+              <div className="text-xs text-red-400/90 mt-3 bg-red-500/8 border border-red-500/15 px-3 py-2 rounded-lg inline-flex items-center gap-2 max-w-sm">
+                <span className="material-symbols-outlined text-[16px] text-red-400 flex-shrink-0">warning</span>
+                <span className="leading-snug break-words flex-1">{doc.review_notes}</span>
+              </div>
             )}
 
             {docState === 'under_review' && (
-              <p className="text-xs text-amber-300/90 mt-3 bg-amber-500/8 border border-amber-500/15 px-3 py-2 rounded-lg inline-flex items-start gap-1.5 max-w-sm">
-                <span className="material-symbols-outlined text-sm flex-shrink-0 mt-0.5">hourglass_top</span>
-                Awaiting admin review.
-              </p>
+              <div className="text-xs text-amber-300/90 mt-3 bg-amber-500/8 border border-amber-500/15 px-3 py-2 rounded-lg inline-flex items-center gap-2 max-w-sm">
+                <span className="material-symbols-outlined text-[16px] text-amber-300 flex-shrink-0">hourglass_top</span>
+                <span className="leading-snug flex-1">Awaiting admin review.</span>
+              </div>
             )}
 
             {/* Expired notice */}
             {docState === 'expired' && (
-              <p className="text-xs text-red-400/80 mt-3 bg-red-500/8 border border-red-500/15 px-3 py-2 rounded-lg inline-flex items-start gap-1.5 max-w-sm">
-                <span className="material-symbols-outlined text-sm flex-shrink-0 mt-0.5">warning</span>
-                Expired {doc?.expiry_date ? fmtDate(doc.expiry_date) : ''}. Please upload an updated document.
-              </p>
+              <div className="text-xs text-red-400/90 mt-3 bg-red-500/8 border border-red-500/15 px-3 py-2 rounded-lg inline-flex items-center gap-2 max-w-sm">
+                <span className="material-symbols-outlined text-[16px] text-red-400 flex-shrink-0">warning</span>
+                <span className="leading-snug flex-1">Expired {doc?.expiry_date ? fmtDate(doc.expiry_date) : ''}. Please upload an updated document.</span>
+              </div>
             )}
 
             {/* View error */}
