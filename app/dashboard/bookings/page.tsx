@@ -6,7 +6,7 @@ import BookingsViewedTracker from './BookingsViewedTracker'
 import UpcomingBookingActions from './UpcomingBookingActions'
 import AdminCancelNote from './AdminCancelNote'
 import type { Profile, PilotClearanceStatus } from '@/lib/supabase/types'
-import { formatDateFromISO } from '@/lib/formatDateTime'
+import { formatDateFromISO, formatTime12hFromISO } from '@/lib/formatDateTime'
 import { formatSydTime } from '@/lib/utils/sydney-time'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
@@ -202,7 +202,7 @@ function ClearanceGateBanner({
                   <div className="bg-white border border-[#152d5a]/10 rounded-lg px-4 py-3 text-[11px] text-[#4b6390]">
                     <p className="text-[9px] uppercase tracking-widest text-[#4b6390] mb-1">Current time</p>
                     <p className="font-semibold text-[#152d5a]">{formatDateFromISO(checkoutBooking.scheduled_start)}</p>
-                    <p className="tabular-nums">{formatSydTime(checkoutBooking.scheduled_start)} – {formatSydTime(checkoutBooking.scheduled_end)}</p>
+                    <p className="tabular-nums">{formatTime12hFromISO(checkoutBooking.scheduled_start)} – {formatTime12hFromISO(checkoutBooking.scheduled_end)}</p>
                   </div>
                 </div>
               )}
@@ -234,7 +234,7 @@ function ClearanceGateBanner({
               <div className="mt-4 bg-[#f0f6ff] border border-[#152d5a]/10 rounded-lg px-4 py-3 inline-flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#4b6390]">
                 <span className="font-mono font-medium text-[#152d5a]">{checkoutBooking.booking_reference}</span>
                 <span>{formatDateFromISO(checkoutBooking.scheduled_start)}</span>
-                <span className="tabular-nums">{formatSydTime(checkoutBooking.scheduled_start)} – {formatSydTime(checkoutBooking.scheduled_end)}</span>
+                <span className="tabular-nums">{formatTime12hFromISO(checkoutBooking.scheduled_start)} – {formatTime12hFromISO(checkoutBooking.scheduled_end)}</span>
               </div>
             )}
           </div>
@@ -256,7 +256,7 @@ function ClearanceGateBanner({
               <div className="mt-4 bg-[#f0f6ff] border border-[#152d5a]/10 rounded-lg px-4 py-3 inline-flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#4b6390]">
                 <span className="font-mono font-medium text-[#152d5a]">{checkoutBooking.booking_reference}</span>
                 <span>{formatDateFromISO(checkoutBooking.scheduled_start)}</span>
-                <span className="tabular-nums">{formatSydTime(checkoutBooking.scheduled_start)} – {formatSydTime(checkoutBooking.scheduled_end)}</span>
+                <span className="tabular-nums">{formatTime12hFromISO(checkoutBooking.scheduled_start)} – {formatTime12hFromISO(checkoutBooking.scheduled_end)}</span>
               </div>
             )}
           </div>
@@ -976,7 +976,7 @@ export default async function CustomerBookingsPage() {
                                   <span className="inline-flex items-center gap-1.5">
                                     <span className="material-symbols-outlined text-[14px] leading-none">schedule</span>
                                     <span className="leading-none tabular-nums">
-                                      {formatSydTime(booking.scheduled_start)} – {formatSydTime(booking.scheduled_end)}
+                                      {formatTime12hFromISO(booking.scheduled_start)} – {formatTime12hFromISO(booking.scheduled_end)}
                                     </span>
                                   </span>
                                 </>
@@ -1004,8 +1004,8 @@ export default async function CustomerBookingsPage() {
                                   <span className="font-semibold">
                                     {formatDateFromISO(requestedStart)}
                                     {requestedEnd
-                                      ? ` · ${formatSydTime(requestedStart)} – ${formatSydTime(requestedEnd)}`
-                                      : ` · ${formatSydTime(requestedStart)}`}
+                                      ? ` · ${formatTime12hFromISO(requestedStart)} – ${formatTime12hFromISO(requestedEnd)}`
+                                      : ` · ${formatTime12hFromISO(requestedStart)}`}
                                   </span>
                                 </span>
                               </div>
@@ -1057,7 +1057,7 @@ export default async function CustomerBookingsPage() {
                               ? `Checkout cancelled by admin — ${booking.admin_notes}`
                               : 'Checkout cancelled by admin')
                           : booking.checkout_lifecycle_status === 'cancelled_by_customer'
-                            ? 'Checkout cancelled by customer'
+                            ? 'Checkout cancelled by you'
                             : 'Checkout cancelled'
                         : null
                     return (
@@ -1146,7 +1146,7 @@ export default async function CustomerBookingsPage() {
                                 <span className="inline-flex items-center gap-1.5">
                                   <span className="material-symbols-outlined text-[14px] leading-none">schedule</span>
                                   <span className="leading-none tabular-nums">
-                                    {formatSydTime(booking.scheduled_start)} – {formatSydTime(booking.scheduled_end)}
+                                    {formatTime12hFromISO(booking.scheduled_start)} – {formatTime12hFromISO(booking.scheduled_end)}
                                   </span>
                                 </span>
                               </>
@@ -1365,7 +1365,7 @@ export default async function CustomerBookingsPage() {
                   </p>
                   {row.created_at && (
                     <p className="text-[11px] text-[#4b6390]">
-                      {formatDateFromISO(row.created_at)} · {formatSydTime(row.created_at)}
+                      {formatDateFromISO(row.created_at)} · {formatTime12hFromISO(row.created_at)}
                     </p>
                   )}
                   {(row.status === 'checkout_payment_required' || row.status === 'payment_pending') && (

@@ -88,7 +88,7 @@ export async function fetchAdminShellBadges(
     { data: bookingPaymentRows },
     { count: checkoutManualReview },
     { count: checkoutReschedulePending },
-    { data: checkoutCancelRequestRows },
+    { count: checkoutCancelPending },
     { data: checkoutLifecycleCancelledRows },
     { count: cancellationPending },
     { count: checkoutIssues },
@@ -108,7 +108,7 @@ export async function fetchAdminShellBadges(
     supabase.from('bookings').select('id').eq('booking_type', 'standard').eq('status', 'payment_pending'),
     supabase.from('checkout_bank_transfer_submissions').select('id', { count: 'exact', head: true }).eq('status', 'pending_review'),
     supabase.from('checkout_change_requests').select('id', { count: 'exact', head: true }).eq('request_type', 'reschedule').eq('status', 'pending'),
-    supabase.from('checkout_change_requests').select('checkout_request_id').eq('request_type', 'cancel'),
+    supabase.from('checkout_change_requests').select('id', { count: 'exact', head: true }).eq('request_type', 'cancel').eq('status', 'pending'),
     supabase.from('bookings').select('id').eq('booking_type', 'checkout').in('checkout_lifecycle_status', ['cancelled_by_customer', 'cancelled_by_admin']),
     supabase.from('booking_cancellation_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'customer').in('pilot_clearance_status', ['additional_checkout_required', 'checkout_reschedule_required', 'not_currently_eligible']),
@@ -119,9 +119,9 @@ export async function fetchAdminShellBadges(
   const checkoutAwaitingOutcomeQueue = checkoutAwaitingOutcome ?? 0
   const checkoutPaymentsQueue = (checkoutPaymentRequired ?? 0) + (checkoutManualReview ?? 0)
   const checkoutRescheduleQueue = checkoutReschedulePending ?? 0
+  const checkoutCancelPendingQueue = checkoutCancelPending ?? 0
   const checkoutIssuesQueue = (checkoutIssues ?? 0) > 0 ? 1 : 0
   const cancelledCheckoutIds = new Set<string>([
-    ...(checkoutCancelRequestRows ?? []).map((r) => r.checkout_request_id),
     ...(checkoutLifecycleCancelledRows ?? []).map((r) => r.id),
   ])
   const checkoutCancelledQueue = cancelledCheckoutIds.size
@@ -130,7 +130,7 @@ export async function fetchAdminShellBadges(
     checkoutAwaitingOutcomeQueue +
     checkoutPaymentsQueue +
     checkoutRescheduleQueue +
-    checkoutCancelledQueue +
+    checkoutCancelPendingQueue +
     checkoutIssuesQueue
 
   const bookingAwaitingFlightQueue = countAwaitingFlightRecords(awaitingFlightRecordRows)

@@ -130,6 +130,9 @@ function getSnapshotStatusDisplay(
   if (actionState.statusKey === 'checkout_payment_proof_under_review') {
     return { label: 'Payment Proof Under Review', textColor: 'text-blue-300', dotColor: '#60a5fa' }
   }
+  if (actionState.statusKey === 'checkout_reschedule_requested') {
+    return { label: 'Reschedule Under Review', textColor: 'text-amber-300', dotColor: '#fbbf24' }
+  }
   if (actionState.statusKey === 'upcoming_booking_confirmed') {
     return { label: 'Confirmed', textColor: 'text-emerald-300', dotColor: '#34d399' }
   }

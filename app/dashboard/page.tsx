@@ -221,6 +221,15 @@ export default async function DashboardPage({
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from('checkout_change_requests')
+      .select('id, status, requested_scheduled_start, requested_scheduled_end, created_at')
+      .eq('customer_id', user.id)
+      .eq('request_type', 'reschedule')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]))
 
   const manualClearancePromise = perf.time(
@@ -324,6 +333,7 @@ export default async function DashboardPage({
       upcomingConfirmedBookingResult,
       checkoutSnapshotBookingResult,
       postFlightPaymentRequiredBookingResult,
+      pendingCheckoutRescheduleResult,
     ],
     [{ data: historicalClearance }, termsPrimary, { data: latestTermsAcceptance }, { data: paidCheckoutInvoice }],
   ] = await Promise.all([primaryQueryPromise, readinessPrimaryPromise])
@@ -653,6 +663,7 @@ export default async function DashboardPage({
     canCreateStandardBooking,
     hasManualCheckoutClearance: hasManualClearance,
     checkoutBookingId,
+    hasPendingCheckoutReschedule: Boolean(pendingCheckoutRescheduleResult?.data?.id),
     checkoutPayment: checkoutBookingId
       ? {
           bookingId: checkoutBookingId,

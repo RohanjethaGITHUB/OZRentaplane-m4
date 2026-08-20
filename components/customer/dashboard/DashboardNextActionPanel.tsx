@@ -1,8 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { formatDashboardDate } from '@/lib/formatDateTime'
-import { formatSydTime } from '@/lib/utils/sydney-time'
+import { formatDashboardDate, formatTime12hFromISO } from '@/lib/formatDateTime'
 import type { DashboardActionState, DashboardFlightSnapshot } from '@/lib/dashboard/dashboard-action-state'
 
 type Props = {
@@ -114,14 +113,14 @@ function renderBookingSummary(flightSnapshotBooking: DashboardFlightSnapshot) {
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">Starts</p>
           <p className="mt-1 text-sm font-semibold text-[#152d5a]">
-            {formatDashboardDate(flightSnapshotBooking.scheduledStart) || '—'} · {formatSydTime(flightSnapshotBooking.scheduledStart)}
+            {formatDashboardDate(flightSnapshotBooking.scheduledStart) || '—'} · {formatTime12hFromISO(flightSnapshotBooking.scheduledStart)}
           </p>
         </div>
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">Ends</p>
           <p className="mt-1 text-sm font-semibold text-[#152d5a]">
             {flightSnapshotBooking.scheduledEnd
-              ? `${formatDashboardDate(flightSnapshotBooking.scheduledEnd)} · ${formatSydTime(flightSnapshotBooking.scheduledEnd)}`
+              ? `${formatDashboardDate(flightSnapshotBooking.scheduledEnd)} · ${formatTime12hFromISO(flightSnapshotBooking.scheduledEnd)}`
               : '—'}
           </p>
         </div>
@@ -147,7 +146,7 @@ export default function DashboardNextActionPanel({ state, flightSnapshotBooking 
   const styles = toneStyles(state.tone)
   const showFlightSummary =
     Boolean(flightSnapshotBooking) &&
-    ['upcoming_booking_confirmed', 'checkout_confirmed', 'checkout_requested'].includes(state.statusKey)
+    ['upcoming_booking_confirmed', 'checkout_confirmed', 'checkout_requested', 'checkout_reschedule_requested'].includes(state.statusKey)
 
   return (
     <section

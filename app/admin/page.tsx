@@ -408,6 +408,7 @@ export default async function AdminActionsPage({
       .from('checkout_change_requests')
       .select('id, checkout_request_id, status, created_at, customer_note, bookings ( id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration ) )')
       .eq('request_type', 'cancel')
+      .eq('status', 'pending')
       .order('created_at', { ascending: false })),
     safeQuery('standard upcoming rows', supabase
       .from('bookings')
@@ -623,8 +624,9 @@ export default async function AdminActionsPage({
   const checkoutCancelPendingRows = (checkoutCancelRows ?? [])
     .map((rawRow) => {
       const row = rawRow as CancelRequestRow
+      if (row.status !== 'pending') return null
       const booking = firstItem(row.bookings)
-      if (!booking) return null
+      if (!booking || booking.status === 'cancelled') return null
       const aircraft = firstItem(booking.aircraft)
       const profile = profileFor(booking.booking_owner_user_id)
       const customerLabel = fullCustomerName(profile, booking.pic_name)

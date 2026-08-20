@@ -90,6 +90,7 @@ export type DashboardActionStateInput = {
   canCreateStandardBooking: boolean
   hasManualCheckoutClearance: boolean
   checkoutBookingId: string | null
+  hasPendingCheckoutReschedule?: boolean
   checkoutPayment: DashboardPaymentSnapshot | null
   bookingFocusState: DashboardBookingFocusState | null
   flightSnapshotBooking: DashboardFlightSnapshot | null
@@ -680,6 +681,25 @@ export function resolveDashboardActionState(input: DashboardActionStateInput): D
       nextMilestone: 'After payment is confirmed, your checkout result can move to the next approval stage.',
       journeyStep: 'approved',
       severityReason: 'checkout_payment_required',
+    })
+  }
+
+  if (input.hasPendingCheckoutReschedule) {
+    return buildState({
+      phase: 'checkout',
+      statusKey: 'checkout_reschedule_requested',
+      tone: 'info',
+      responsibleActor: 'admin',
+      customerActionRequired: false,
+      heroLabel: 'Reschedule Requested',
+      heroMessage: 'Your reschedule request has been submitted and is waiting for team review. Your current slot stays active until a decision is made.',
+      actionHeading: 'Your reschedule request is waiting for review',
+      actionDescription: 'Our team is reviewing your proposed new checkout time. Your current slot remains reserved until a decision is made.',
+      secondaryAction: { label: 'View Checkout', href: input.checkoutBookingId ? `/dashboard/bookings/${input.checkoutBookingId}` : '/dashboard/bookings' },
+      waitingMessage: 'No action is required from you right now.',
+      nextMilestone: 'After review, your checkout booking time will be updated.',
+      journeyStep: 'checkout',
+      severityReason: 'checkout_reschedule_requested',
     })
   }
 
