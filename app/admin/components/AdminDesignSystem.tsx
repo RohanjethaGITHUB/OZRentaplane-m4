@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import AdminPortalHero from '@/components/AdminPortalHero'
 import { TIME_RANGE_OPTIONS, type TimeRangeValue } from './time-range'
 
-type LegacyBadgeTone = 'blue' | 'green' | 'amber' | 'orange' | 'emerald' | 'red' | 'rose' | 'slate'
+type LegacyBadgeTone = 'blue' | 'green' | 'amber' | 'orange' | 'emerald' | 'red' | 'rose' | 'slate' | 'indigo'
 type AdminBadgeTone =
   | LegacyBadgeTone
   | 'primary'
@@ -23,6 +23,10 @@ const BADGE_CLASSES: Record<AdminBadgeTone, BadgeToneClass> = {
   primary: {
     label: 'Primary',
     classes: 'border-[rgba(96,165,250,0.26)] bg-[rgba(59,130,246,0.10)] text-[var(--admin-accent-blue)]',
+  },
+  indigo: {
+    label: 'Indigo',
+    classes: 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800/60 dark:bg-indigo-950/40 dark:text-indigo-300',
   },
   info: {
     label: 'Info',

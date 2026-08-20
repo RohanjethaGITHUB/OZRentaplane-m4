@@ -139,3 +139,27 @@ test('zero amount due is not treated as a fake paid customer invoice', () => {
     'payment_required',
   )
 })
+
+test('confirmed booking with passed flight time transitions to awaiting flight record', () => {
+  const stage = deriveBookingLifecycleStage({
+    bookingStatus: 'confirmed',
+    scheduledStart: '2026-08-20T00:30:00.000Z',
+    scheduledEnd: '2026-08-20T02:30:00.000Z',
+    flightRecordStatus: null,
+  })
+  assert.equal(stage.key, 'awaiting_flight_readings')
+  assert.equal(stage.label, 'Awaiting Flight Record')
+  assert.equal(stage.tone, 'amber')
+})
+
+test('confirmed booking in future stays upcoming', () => {
+  const stage = deriveBookingLifecycleStage({
+    bookingStatus: 'confirmed',
+    scheduledStart: '2099-08-20T00:30:00.000Z',
+    scheduledEnd: '2099-08-20T02:30:00.000Z',
+    flightRecordStatus: null,
+  })
+  assert.equal(stage.key, 'upcoming')
+  assert.equal(stage.label, 'Upcoming')
+  assert.equal(stage.tone, 'blue')
+})

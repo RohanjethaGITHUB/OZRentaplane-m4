@@ -114,6 +114,24 @@ export function formatDateFromISO(iso: string | null | undefined): string {
 }
 
 /**
+ * Format a UTC ISO timestamp as a 12-hour Sydney time: "10:30 AM".
+ *
+ * @param iso - UTC ISO 8601 string, null, or undefined
+ */
+export function formatTime12hFromISO(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const date = new Date(iso)
+  if (isNaN(date.getTime())) return '—'
+  const offsetMs = sydneyOffsetMs(date)
+  const syd = new Date(date.getTime() + offsetMs)
+  const h24 = syd.getUTCHours()
+  const min = String(syd.getUTCMinutes()).padStart(2, '0')
+  const h12 = h24 % 12 || 12
+  const period = h24 >= 12 ? 'PM' : 'AM'
+  return `${h12}:${min} ${period}`
+}
+
+/**
  * Format a UTC ISO timestamp as a Sydney calendar date with the full month name:
  * "22 April".
  *

@@ -8,8 +8,7 @@ import {
 } from '@/lib/admin/operational-counts'
 import { ActionQueueSection } from './ActionQueueSection'
 import { createPerfLogger } from '@/lib/perf/timing'
-import { formatDateFromISO } from '@/lib/formatDateTime'
-import { formatSydTime } from '@/lib/utils/sydney-time'
+import { formatDateFromISO, formatTime12hFromISO } from '@/lib/formatDateTime'
 
 export const metadata = { title: 'Command Board | OZRentAPlane' }
 export const dynamic = 'force-dynamic'
@@ -90,9 +89,9 @@ type CancelRequestRow = {
 function formatScheduleRange(start: string | null | undefined, end: string | null | undefined): string | null {
   if (!start) return null
   const startDate = formatDateFromISO(start)
-  const startTime = formatSydTime(start)
+  const startTime = formatTime12hFromISO(start)
   if (!end) return `${startDate} · ${startTime}`
-  const endTime = formatSydTime(end)
+  const endTime = formatTime12hFromISO(end)
   return `${startDate} · ${startTime} – ${endTime}`
 }
 
@@ -100,7 +99,7 @@ export type ActionItem = {
   key: string
   groups: WorkflowFilter[]
   badge: 'Checkout' | 'Rental' | 'Document Review'
-  badgeTone: 'primary' | 'info' | 'warning' | 'success' | 'danger'
+  badgeTone: 'primary' | 'info' | 'warning' | 'success' | 'danger' | 'indigo' | 'emerald'
   title: string
   description: string
   customerLabel: string
@@ -281,9 +280,9 @@ function getRentalPaymentActionState(
     return {
       title: 'Payment verification pending',
       description: hasReceipt
-        ? 'The customer submitted bank transfer proof. Approve or reject the payment.'
-        : 'The customer reported the bank transfer as completed. Verify and approve or reject the payment.',
-      nextStep: 'Verify payment',
+        ? 'Customer submitted bank transfer proof. Review receipt and verify payment.'
+        : 'Customer reported bank transfer as completed. Review and verify payment.',
+      nextStep: 'Verify payment proof',
       actionTone: 'indigo',
       href: `/admin/bookings/requests/${booking.id}#standard-bank-transfer-review`,
       receivedAt,

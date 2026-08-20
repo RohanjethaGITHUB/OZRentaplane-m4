@@ -1,4 +1,5 @@
 import { getStandardBookingPaymentDisplayState } from './standard-booking-payment-state'
+import { isAwaitingFlightRecordDue, type FlightRecordStatusRow } from './flight-record-status'
 
 export type BookingLifecycleTone = 'slate' | 'gray' | 'blue' | 'amber' | 'purple' | 'green' | 'rose' | 'orange'
 
@@ -35,7 +36,10 @@ export type BookingLifecycleStage = {
 
 export type BookingLifecycleInput = {
   bookingStatus?: string | null
+  scheduledStart?: string | null
+  scheduledEnd?: string | null
   flightRecordStatus?: string | null
+  flightRecords?: FlightRecordStatusRow[] | null
   bookingInvoiceStatus?: string | null
   bookingInvoicePaidAt?: string | null
   bookingInvoiceAmountDueCents?: number | null
@@ -107,6 +111,22 @@ function settleLabel(input: BookingLifecycleInput): BookingLifecycleStage {
     }
   }
 
+  const isAwaitingRecord = isAwaitingFlightRecordDue({
+    status: bookingStatus,
+    scheduled_start: input.scheduledStart,
+    scheduled_end: input.scheduledEnd,
+    flight_records: input.flightRecords ?? (input.flightRecordStatus ? [{ status: input.flightRecordStatus }] : null),
+  })
+
+  if (isAwaitingRecord || STANDARD_AWAITING_READINGS.has(bookingStatus)) {
+    return {
+      key: 'awaiting_flight_readings',
+      label: 'Awaiting Flight Record',
+      tone: 'amber',
+      sublabel: 'Flight completed · Awaiting flight record submission',
+    }
+  }
+
   if (STANDARD_UPCOMING.has(bookingStatus)) {
     return {
       key: 'upcoming',
@@ -122,15 +142,6 @@ function settleLabel(input: BookingLifecycleInput): BookingLifecycleStage {
       label: 'In Progress',
       tone: 'amber',
       sublabel: 'Flight underway',
-    }
-  }
-
-  if (STANDARD_AWAITING_READINGS.has(bookingStatus)) {
-    return {
-      key: 'awaiting_flight_readings',
-      label: 'Awaiting Flight Readings',
-      tone: 'amber',
-      sublabel: 'Flight complete, readings needed',
     }
   }
 

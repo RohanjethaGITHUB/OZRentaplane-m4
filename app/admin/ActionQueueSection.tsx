@@ -21,18 +21,47 @@ function formatRelativeAge(timestamp: string | null) {
   const hour = 60 * minute
   const day = 24 * hour
 
+  if (diff < minute) {
+    return 'Just now'
+  }
+
   if (diff < hour) {
     const mins = Math.max(1, Math.floor(diff / minute))
-    return `${mins} minute${mins === 1 ? '' : 's'}`
+    return `${mins} minute${mins === 1 ? '' : 's'} ago`
   }
 
   if (diff < day) {
     const hours = Math.floor(diff / hour)
-    return `${hours} hour${hours === 1 ? '' : 's'}`
+    return `${hours} hour${hours === 1 ? '' : 's'} ago`
   }
 
   const days = Math.floor(diff / day)
-  return `${days} day${days === 1 ? '' : 's'}`
+  return `${days} day${days === 1 ? '' : 's'} ago`
+}
+
+function ActionBadge({ badge }: { badge: ActionItem['badge'] }) {
+  if (badge === 'Checkout') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-[12px] font-semibold text-indigo-700 dark:border-indigo-800/60 dark:bg-indigo-950/40 dark:text-indigo-300">
+        <span className="material-symbols-outlined text-[13px]">flight_takeoff</span>
+        Checkout
+      </span>
+    )
+  }
+  if (badge === 'Rental') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[12px] font-semibold text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+        <span className="material-symbols-outlined text-[13px]">flight</span>
+        Rental
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[12px] font-semibold text-amber-700 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-300">
+      <span className="material-symbols-outlined text-[13px]">description</span>
+      Document Review
+    </span>
+  )
 }
 
 function workflowLabel(workflow: Exclude<WorkflowFilter, 'all'>) {
@@ -133,7 +162,7 @@ function QueueActionRow({ item }: { item: ActionItem }) {
         {/* Top metadata strip */}
         <div className="flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex flex-wrap items-center gap-2">
-            <AdminStatusBadge label={item.badge} tone={item.badgeTone} />
+            <ActionBadge badge={item.badge} />
             {item.aircraftLabel && (
               <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/20 bg-sky-500/10 px-2.5 py-0.5 text-[12px] font-semibold text-sky-700 dark:text-sky-300">
                 <span className="material-symbols-outlined text-[13px]">flight</span>

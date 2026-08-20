@@ -2,7 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { CalendarDays, Clock, Tag, User } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { formatDateTime } from '@/lib/formatDateTime'
+import { formatDateTime, formatTime12hFromISO } from '@/lib/formatDateTime'
 import { BookingRealtimeListener } from '@/components/realtime/BookingRealtimeListener'
 import AdminBookingActions from './AdminBookingActions'
 import AdminCheckoutActions from './AdminCheckoutActions'
@@ -30,7 +30,7 @@ import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 import { getAircraftFlightLogStartSuggestions } from '@/lib/aircraft-flight-log'
 import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
 import { PAYF_RATE_PER_HOUR, CHECKOUT_RATE_PER_HOUR } from '@/lib/pricing-constants'
-import { isSameSydneyCalendarDay, formatSydTime } from '@/lib/utils/sydney-time'
+import { isSameSydneyCalendarDay } from '@/lib/utils/sydney-time'
 
 export const metadata = { title: 'Booking Details | Admin' }
 
@@ -816,8 +816,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   )
   const bookingSchedule = formatBookingSchedule(booking.scheduled_start, booking.scheduled_end)
   const lifecycleStage = deriveBookingLifecycleStage({
-    bookingStatus: booking.status,
+    bookingStatus: status,
+    scheduledStart: booking.scheduled_start,
+    scheduledEnd: booking.scheduled_end,
     flightRecordStatus: booking.flight_records?.[0]?.status ?? null,
+    flightRecords: booking.flight_records ?? [],
     bookingInvoiceStatus,
     bookingInvoicePaidAt: standardInvoice?.paid_at ?? null,
     bookingInvoiceAmountDueCents: standardInvoice?.stripe_amount_due_cents ?? null,
@@ -1074,7 +1077,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       : startParts.year === endParts.year
         ? `${startParts.day} ${startParts.month} – ${endParts.day} ${endParts.month} ${endParts.year}`
         : `${startParts.day} ${startParts.month} ${startParts.year} – ${endParts.day} ${endParts.month} ${endParts.year}`
-    const timeRange = `${formatSydTime(startIso)} – ${formatSydTime(endIso)}`
+    const timeRange = `${formatTime12hFromISO(startIso)} – ${formatTime12hFromISO(endIso)}`
     const duration = formatBookingDuration((new Date(endIso).getTime() - new Date(startIso).getTime()) / (1000 * 60 * 60))
     const timezone = `Sydney time (${getSydneyTimezoneAbbr(startIso)})`
     return { dateRange, timeRange, duration, timezone }
@@ -1262,7 +1265,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 {displayLifecycleLabel}
               </span>
               <span className="text-xs text-gray-400">
-                Submitted {formatDateTime(booking.created_at)}
+                Booking requested: {formatDateTime(booking.created_at)}
               </span>
             </div>
           </div>
