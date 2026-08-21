@@ -1027,7 +1027,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
       .maybeSingle(),
     supabase
       .from('checkout_change_requests')
-      .select('id, status, requested_scheduled_start, requested_scheduled_end, created_at')
+      .select('id, status, requested_scheduled_start, requested_scheduled_end, admin_note, customer_note, created_at')
       .eq('checkout_request_id', booking.id)
       .eq('request_type', 'reschedule')
       .order('created_at', { ascending: false })
@@ -1938,37 +1938,37 @@ export default async function BookingDetailPage({ params }: PageProps) {
                 </div>
               )}
             </div>
-            {pendingRescheduleRequest?.requested_scheduled_start && (
+            {pendingRescheduleRequest?.requested_scheduled_start && pendingRescheduleRequest.admin_note !== 'admin_proposed' && (
               <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/90 p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="material-symbols-outlined text-amber-600 text-[16px]">event_repeat</span>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Requested New Time</p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div className="rounded-lg border border-[#152d5a]/10 bg-white px-3 py-2.5">
-                    <p className="text-[9px] uppercase tracking-widest text-[#4b6390] mb-1">Current (still held)</p>
-                    <p className="text-[13px] font-semibold text-[#152d5a]">{formatDateFromISO(booking.scheduled_start)}</p>
-                    <p className="text-[12px] tabular-nums text-[#4b6390]">
-                      {new Date(booking.scheduled_start).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}
-                      {' – '}
-                      {new Date(booking.scheduled_end).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}
-                    </p>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="material-symbols-outlined text-amber-600 text-[16px]">event_repeat</span>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Requested New Time</p>
                   </div>
-                  <div className="rounded-lg border border-amber-300 bg-amber-100/50 px-3 py-2.5">
-                    <p className="text-[9px] uppercase tracking-widest text-amber-700/80 mb-1">You requested</p>
-                    <p className="text-[13px] font-semibold text-amber-950">{formatDateFromISO(pendingRescheduleRequest.requested_scheduled_start)}</p>
-                    <p className="text-[12px] tabular-nums text-amber-900/80">
-                      {new Date(pendingRescheduleRequest.requested_scheduled_start).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}
-                      {pendingRescheduleRequest.requested_scheduled_end
-                        ? ` – ${new Date(pendingRescheduleRequest.requested_scheduled_end).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}`
-                        : ''}
-                    </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div className="rounded-lg border border-[#152d5a]/10 bg-white px-3 py-2.5">
+                      <p className="text-[9px] uppercase tracking-widest text-[#4b6390] mb-1">Current (still held)</p>
+                      <p className="text-[13px] font-semibold text-[#152d5a]">{formatDateFromISO(booking.scheduled_start)}</p>
+                      <p className="text-[12px] tabular-nums text-[#4b6390]">
+                        {new Date(booking.scheduled_start).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}
+                        {' – '}
+                        {new Date(booking.scheduled_end).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-amber-300 bg-amber-100/50 px-3 py-2.5">
+                      <p className="text-[9px] uppercase tracking-widest text-amber-700/80 mb-1">You requested</p>
+                      <p className="text-[13px] font-semibold text-amber-950">{formatDateFromISO(pendingRescheduleRequest.requested_scheduled_start)}</p>
+                      <p className="text-[12px] tabular-nums text-amber-900/80">
+                        {new Date(pendingRescheduleRequest.requested_scheduled_start).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}
+                        {pendingRescheduleRequest.requested_scheduled_end
+                          ? ` – ${new Date(pendingRescheduleRequest.requested_scheduled_end).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', minute: '2-digit' })}`
+                          : ''}
+                      </p>
+                    </div>
                   </div>
+                  <p className="mt-3 text-[12px] text-amber-950 leading-relaxed">
+                    Review is pending with operations. Your current checkout time remains active until they approve or reject this change.
+                  </p>
                 </div>
-                <p className="mt-3 text-[12px] text-amber-950 leading-relaxed">
-                  Review is pending with operations. Your current checkout time remains active until they approve or reject this change.
-                </p>
-              </div>
             )}
             {!isCancelled && !pendingRescheduleRequest && latestRescheduleRequest?.status === 'approved' && (
               <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4">
@@ -1981,7 +1981,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
                 </p>
               </div>
             )}
-            {!isCancelled && !pendingRescheduleRequest && latestRescheduleRequest?.status === 'rejected' && latestRescheduleRequest.requested_scheduled_start && (
+            {!isCancelled && !pendingRescheduleRequest && latestRescheduleRequest?.status === 'rejected' && latestRescheduleRequest.admin_note !== 'admin_proposed' && latestRescheduleRequest.requested_scheduled_start && (
               <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/90 p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="material-symbols-outlined text-amber-600 text-[16px]">event_busy</span>

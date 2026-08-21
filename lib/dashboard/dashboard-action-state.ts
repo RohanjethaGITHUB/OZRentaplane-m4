@@ -91,6 +91,7 @@ export type DashboardActionStateInput = {
   hasManualCheckoutClearance: boolean
   checkoutBookingId: string | null
   hasPendingCheckoutReschedule?: boolean
+  hasPendingAdminProposal?: boolean
   checkoutPayment: DashboardPaymentSnapshot | null
   bookingFocusState: DashboardBookingFocusState | null
   flightSnapshotBooking: DashboardFlightSnapshot | null
@@ -681,6 +682,30 @@ export function resolveDashboardActionState(input: DashboardActionStateInput): D
       nextMilestone: 'After payment is confirmed, your checkout result can move to the next approval stage.',
       journeyStep: 'approved',
       severityReason: 'checkout_payment_required',
+    })
+  }
+
+  if (input.hasPendingAdminProposal) {
+    return buildState({
+      phase: 'checkout',
+      statusKey: 'checkout_time_proposed',
+      tone: 'warning',
+      responsibleActor: 'customer',
+      customerActionRequired: true,
+      heroLabel: 'Action Required',
+      heroMessage: 'The operations team proposed a new time for your checkout flight. Please review and respond.',
+      actionHeading: 'Action Required: Review Proposed Checkout Time',
+      actionDescription: 'OZRentAPlane proposed a new time for your checkout flight. Review the time in your bookings or messages to accept or decline.',
+      primaryAction: {
+        label: 'Review new proposed time',
+        href: input.checkoutBookingId
+          ? `/dashboard/bookings/${input.checkoutBookingId}?reviewProposal=1`
+          : '/dashboard/bookings?reviewProposal=1',
+      },
+      secondaryAction: { label: 'Open Chat', href: '/dashboard/messages' },
+      nextMilestone: 'Accept the proposed time or decline to keep your requested slot.',
+      journeyStep: 'checkout',
+      severityReason: 'checkout_time_proposed',
     })
   }
 

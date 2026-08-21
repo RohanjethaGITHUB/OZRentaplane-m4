@@ -73,8 +73,19 @@ function fullCustomerName(profile: { first_name: string | null; last_name: strin
 function getStatusBadge(
   displayStatus: string,
   appearance: 'default' | 'light-operational',
-  options?: { pendingReschedule?: boolean },
+  options?: { pendingReschedule?: boolean; pendingAdminProposal?: boolean },
 ) {
+  if (options?.pendingAdminProposal) {
+    return appearance === 'light-operational'
+      ? {
+          label: 'Time Proposed (Awaiting Customer)',
+          className: 'bg-amber-500/10 text-amber-800 border-amber-500/30',
+        }
+      : {
+          label: 'Time Proposed (Awaiting Customer)',
+          className: 'bg-amber-500/10 text-amber-300 border-amber-500/20',
+        }
+  }
   if (options?.pendingReschedule) {
     return appearance === 'light-operational'
       ? {
@@ -164,7 +175,6 @@ export default async function AdminBookingList({
 
   const customerIds = Array.from(new Set(bookings.map((b) => b.booking_owner_user_id).filter(Boolean)))
   const profileMap = new Map<string, { first_name: string | null; last_name: string | null; full_name: string | null; email: string | null }>()
-  const pendingRescheduleIds = new Set<string>()
 
   if (customerIds.length > 0) {
     const { data: customerProfiles } = await supabase
@@ -182,16 +192,25 @@ export default async function AdminBookingList({
     }
   }
 
+  const pendingRescheduleIds = new Set<string>()
+  const pendingAdminProposalIds = new Set<string>()
+
   if (bookingTypeFilter === 'checkout' && bookings.length > 0) {
     const { data: pendingRescheduleRows } = await supabase
       .from('checkout_change_requests')
-      .select('checkout_request_id')
+      .select('checkout_request_id, admin_note')
       .eq('request_type', 'reschedule')
       .eq('status', 'pending')
       .in('checkout_request_id', bookings.map((b) => b.id))
 
     for (const row of pendingRescheduleRows ?? []) {
-      if (row.checkout_request_id) pendingRescheduleIds.add(row.checkout_request_id as string)
+      if (row.checkout_request_id) {
+        if (row.admin_note === 'admin_proposed') {
+          pendingAdminProposalIds.add(row.checkout_request_id as string)
+        } else {
+          pendingRescheduleIds.add(row.checkout_request_id as string)
+        }
+      }
     }
   }
 
@@ -345,16 +364,21 @@ export default async function AdminBookingList({
                     const customerName = fullCustomerName(prof, booking.pic_name)
                     const email = prof?.email ?? '—'
                     const displayStatus = deriveBookingStatusForFlightRecord(booking)
+                    const isProposalPending = pendingAdminProposalIds.has(booking.id)
+                    const isReschedulePending = pendingRescheduleIds.has(booking.id)
                     const badge = getStatusBadge(displayStatus, appearance, {
-                      pendingReschedule: pendingRescheduleIds.has(booking.id),
+                      pendingReschedule: isReschedulePending,
+                      pendingAdminProposal: isProposalPending,
                     })
-                    const actionLabel = pendingRescheduleIds.has(booking.id)
-                      ? 'Review Reschedule'
-                      : basePath.includes('/awaiting-outcome')
-                        ? 'Record Outcome'
-                        : basePath.includes('/new-requests')
-                          ? 'Review'
-                          : 'View'
+                    const actionLabel = isProposalPending
+                      ? 'View Proposal'
+                      : isReschedulePending
+                        ? 'Review Reschedule'
+                        : basePath.includes('/awaiting-outcome')
+                          ? 'Record Outcome'
+                          : basePath.includes('/new-requests')
+                            ? 'Review'
+                            : 'View'
                     return (
                       <tr key={booking.id} className={rowClassName}>
                         <td className={customerCellClassName}>
@@ -386,9 +410,17 @@ export default async function AdminBookingList({
                 const customerName = fullCustomerName(prof, booking.pic_name)
                 const email = prof?.email ?? '—'
                 const displayStatus = deriveBookingStatusForFlightRecord(booking)
+                const isProposalPending = pendingAdminProposalIds.has(booking.id)
+                const isReschedulePending = pendingRescheduleIds.has(booking.id)
                 const badge = getStatusBadge(displayStatus, appearance, {
-                  pendingReschedule: pendingRescheduleIds.has(booking.id),
+                  pendingReschedule: isReschedulePending,
+                  pendingAdminProposal: isProposalPending,
                 })
+                const actionLabel = isProposalPending
+                  ? 'View Proposal'
+                  : isReschedulePending
+                    ? 'Review Reschedule'
+                    : 'View'
                 return (
                   <div key={booking.id} className={mobileCardClassName}>
                     <div className="flex items-start justify-between gap-3">
@@ -407,7 +439,7 @@ export default async function AdminBookingList({
                         {booking.booking_reference || booking.id.slice(0, 8).toUpperCase()}
                       </Link>
                       <Link href={`/admin/bookings/requests/${booking.id}`} className={actionButtonClassName}>
-                        {pendingRescheduleIds.has(booking.id) ? 'Review Reschedule' : 'View'}
+                        {actionLabel}
                       </Link>
                     </div>
                   </div>

@@ -12,6 +12,7 @@ type RescheduleRequestLite = {
   status: string
   requested_scheduled_start: string | null
   requested_scheduled_end: string | null
+  admin_note?: string | null
 }
 
 type Props = {

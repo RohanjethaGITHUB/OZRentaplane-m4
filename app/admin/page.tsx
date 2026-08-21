@@ -400,7 +400,7 @@ export default async function AdminActionsPage({
       .order('updated_at', { ascending: false })),
     safeQuery('checkout reschedule rows', supabase
       .from('checkout_change_requests')
-      .select('id, checkout_request_id, status, created_at, customer_note, bookings ( id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration ) )')
+      .select('id, checkout_request_id, status, created_at, customer_note, admin_note, bookings ( id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration ) )')
       .eq('request_type', 'reschedule')
       .eq('status', 'pending')
       .order('created_at', { ascending: false })),
@@ -668,15 +668,19 @@ export default async function AdminActionsPage({
       const profile = profileFor(booking.booking_owner_user_id)
       const customerLabel = fullCustomerName(profile, booking.pic_name)
 
+      const isAdminProposed = (row as { admin_note?: string | null }).admin_note === 'admin_proposed'
+
       return {
         key: `checkout-reschedule-${row.checkout_request_id ?? row.id}`,
         groups: ['checkout'] as WorkflowFilter[],
         badge: 'Checkout' as const,
         badgeTone: 'warning' as const,
-        title: 'Reschedule requested',
-        description: (row.customer_note || row.customer_message)
-          ? 'Customer proposed a new checkout time — review and approve or reject.'
-          : 'Pending reschedule request awaiting your approval.',
+        title: isAdminProposed ? 'Time proposal pending' : 'Reschedule requested',
+        description: isAdminProposed
+          ? 'Proposed new checkout time awaiting customer confirmation.'
+          : (row.customer_note || row.customer_message)
+            ? 'Customer proposed a new checkout time — review and approve or reject.'
+            : 'Pending reschedule request awaiting your approval.',
         customerLabel,
         customerEmail: profile?.email ?? null,
         customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
@@ -686,7 +690,7 @@ export default async function AdminActionsPage({
         aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
         scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
         receivedAt: row.created_at,
-        nextStep: 'Approve or reject',
+        nextStep: isAdminProposed ? 'View checkout' : 'Approve or reject',
         href: `/admin/bookings/requests/${booking.id}`,
       } satisfies ActionItem
     })

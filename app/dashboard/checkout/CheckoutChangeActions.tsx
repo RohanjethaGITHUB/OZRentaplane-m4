@@ -6,6 +6,7 @@ import { cancelCheckoutRequest, requestCheckoutReschedule, requestLateCheckoutCa
 import { checkCustomerAvailability, getDayAvailability, type SafeConflict } from '@/app/actions/customer-availability'
 import CalendarDateField from '@/components/CalendarDateField'
 import ModalPortal from '@/components/ModalPortal'
+import CheckoutTimeProposalModal from '@/components/customer/CheckoutTimeProposalModal'
 import { sydneyInputToUTC } from '@/lib/utils/sydney-time'
 import { getDayVfrWindow, isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
 import { isCheckoutSelfServiceAllowed } from '@/lib/checkout-policy'
@@ -26,6 +27,7 @@ type RescheduleRequestLite = {
   status: string
   requested_scheduled_start: string | null
   requested_scheduled_end: string | null
+  admin_note?: string | null
 }
 
 type Props = {
@@ -553,6 +555,7 @@ export default function CheckoutChangeActions({
   const [lateCancelReason, setLateCancelReason] = useState('')
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false)
   const [rescheduleBlockedModalOpen, setRescheduleBlockedModalOpen] = useState(false)
+  const [proposalModalOpen, setProposalModalOpen] = useState(false)
   const [isCancelling, startCancelTransition] = useTransition()
   const [isRescheduling, startRescheduleTransition] = useTransition()
   const [pendingState, setPendingState] = useState<RescheduleRequestLite | null>(pendingRescheduleRequest)
@@ -560,6 +563,17 @@ export default function CheckoutChangeActions({
   useEffect(() => {
     setPendingState(pendingRescheduleRequest)
   }, [pendingRescheduleRequest])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('reviewProposal') === '1' || params.get('reviewProposal') === 'true') {
+        if (pendingState?.status === 'pending' && pendingState.admin_note === 'admin_proposed') {
+          setProposalModalOpen(true)
+        }
+      }
+    }
+  }, [pendingState])
 
   const canModify = canModifyCheckoutUi(checkout)
   const selfServiceBlockedByCutoff =
@@ -579,7 +593,11 @@ export default function CheckoutChangeActions({
   }, [pendingState])
 
   const rejectedRescheduleLabel = useMemo(() => {
-    if (latestRescheduleRequest?.status !== 'rejected' || !latestRescheduleRequest.requested_scheduled_start) {
+    if (
+      latestRescheduleRequest?.status !== 'rejected' ||
+      latestRescheduleRequest.admin_note === 'admin_proposed' ||
+      !latestRescheduleRequest.requested_scheduled_start
+    ) {
       return null
     }
     const start = new Date(latestRescheduleRequest.requested_scheduled_start).toLocaleString('en-AU', {
@@ -597,7 +615,7 @@ export default function CheckoutChangeActions({
   }, [latestRescheduleRequest])
 
   const latestApproved = latestRescheduleRequest?.status === 'approved'
-  const latestRejected = latestRescheduleRequest?.status === 'rejected'
+  const latestRejected = latestRescheduleRequest?.status === 'rejected' && latestRescheduleRequest.admin_note !== 'admin_proposed'
 
   const handleCancel = () => {
     setActionError(null)
@@ -844,6 +862,18 @@ export default function CheckoutChangeActions({
         />
       )}
 
+      {proposalModalOpen && pendingState?.requested_scheduled_start && (
+        <CheckoutTimeProposalModal
+          open={proposalModalOpen}
+          onClose={() => setProposalModalOpen(false)}
+          bookingId={checkout.id}
+          requestedStart={pendingState.requested_scheduled_start}
+          requestedEnd={pendingState.requested_scheduled_end}
+          originalStart={checkout.scheduled_start}
+          originalEnd={checkout.scheduled_end}
+        />
+      )}
+
       <div className={isListCard ? 'space-y-2' : 'mt-4 space-y-3'}>
         {!isListCard && checkout.checkout_lifecycle_status === 'cancelled_by_customer' && (
           <p className="text-sm text-emerald-600">Your checkout flight has been cancelled.</p>
@@ -854,18 +884,43 @@ export default function CheckoutChangeActions({
           </p>
         )}
         {!isListCard && hasPendingReschedule && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Reschedule Under Review</p>
-            <p className="text-sm text-amber-900/90 leading-relaxed">
-              Your reschedule request is waiting for admin review. Your current checkout time remains active.
-              {requestedRescheduleLabel ? (
-                <>
-                  {' '}
-                  <span className="font-semibold">Requested time: {requestedRescheduleLabel}.</span>
-                </>
-              ) : null}
-            </p>
-          </div>
+          pendingState?.admin_note === 'admin_proposed' ? (
+            <div className="rounded-xl border-2 border-amber-300 bg-amber-50/90 p-4 space-y-2.5 shadow-sm">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-800 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[15px] text-amber-600">schedule_send</span>
+                  Time Proposed by Operations
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-amber-200 text-amber-900 border border-amber-300">
+                  Action Required
+                </span>
+              </div>
+              <p className="text-sm text-amber-950 font-medium">
+                The operations team proposed a new time for your checkout flight: <strong className="font-bold">{requestedRescheduleLabel}</strong>.
+              </p>
+              <button
+                type="button"
+                onClick={() => setProposalModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors shadow-sm"
+              >
+                Review proposed time
+                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Reschedule Under Review</p>
+              <p className="text-sm text-amber-900/90 leading-relaxed">
+                Your reschedule request is waiting for admin review. Your current checkout time remains active.
+                {requestedRescheduleLabel ? (
+                  <>
+                    {' '}
+                    <span className="font-semibold">Requested time: {requestedRescheduleLabel}.</span>
+                  </>
+                ) : null}
+              </p>
+            </div>
+          )
         )}
         {!isListCard && !hasPendingReschedule && latestApproved && (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 space-y-1">
@@ -898,10 +953,31 @@ export default function CheckoutChangeActions({
         )}
         {!isListCard && !hasPendingReschedule && actionSuccess && <p className="text-sm text-emerald-600">{actionSuccess}</p>}
         {isListCard && hasPendingReschedule && (
-          <p className="text-[11px] text-amber-700 leading-snug font-medium">
-            Reschedule pending review
-            {requestedRescheduleLabel ? ` · ${requestedRescheduleLabel}` : ''}
-          </p>
+          pendingState?.admin_note === 'admin_proposed' ? (
+            <button
+              type="button"
+              onClick={() => setProposalModalOpen(true)}
+              className="flex items-center justify-between gap-1.5 w-full rounded-xl bg-amber-50 hover:bg-amber-100/90 border border-amber-300 px-3 py-2 text-left transition-all shadow-sm group"
+            >
+              <div className="flex flex-col min-w-0">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[13px] text-amber-600">schedule_send</span>
+                  New Time Proposed
+                </span>
+                <span className="text-[11px] font-bold text-[#152d5a] truncate">
+                  Review proposed time
+                </span>
+              </div>
+              <span className="material-symbols-outlined text-base text-amber-700 group-hover:translate-x-0.5 transition-transform flex-shrink-0">
+                arrow_forward
+              </span>
+            </button>
+          ) : (
+            <p className="text-[11px] text-amber-700 leading-snug font-medium">
+              Reschedule pending review
+              {requestedRescheduleLabel ? ` · ${requestedRescheduleLabel}` : ''}
+            </p>
+          )
         )}
         {isListCard && isLateCancelPending && (
           <p className="text-[11px] text-amber-700 leading-snug font-medium">Cancellation pending review</p>

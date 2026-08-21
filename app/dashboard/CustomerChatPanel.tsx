@@ -8,14 +8,23 @@ import { formatDateTime } from '@/lib/formatDateTime'
 import { ThreadRealtimeListener } from '@/components/realtime/ThreadRealtimeListener'
 import { useRealtimeEvent } from '@/hooks/useRealtimeEvent'
 import { isCustomerChatEvent } from '@/lib/chat/unread'
+import CheckoutTimeProposalBanner from '@/components/customer/CheckoutTimeProposalBanner'
 
 interface Props {
   events: VerificationEvent[]
   displayName: string
   threadUserId: string
+  pendingProposal?: {
+    id: string
+    checkout_request_id: string
+    requested_scheduled_start: string
+    requested_scheduled_end: string
+    admin_note: string | null
+    status: string
+  } | null
 }
 
-export default function CustomerChatPanel({ events, displayName, threadUserId }: Props) {
+export default function CustomerChatPanel({ events, displayName, threadUserId, pendingProposal }: Props) {
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -95,7 +104,7 @@ export default function CustomerChatPanel({ events, displayName, threadUserId }:
       <ThreadRealtimeListener threadUserId={threadUserId} />
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-5 space-y-4 min-h-0">
+      <div className="flex-1 overflow-y-auto px-2.5 sm:px-5 py-3 sm:py-5 space-y-4 min-h-0">
         {chatEvents.length === 0 ? (
           <div className="h-full min-h-[200px] flex flex-col items-center justify-center text-center gap-3 px-4">
             <div className="w-12 h-12 rounded-2xl bg-[#f0f4ff] flex items-center justify-center">
@@ -115,15 +124,19 @@ export default function CustomerChatPanel({ events, displayName, threadUserId }:
             const isAdmin = ev.actor_role === 'admin'
             const isUnread = !ev.is_read && isAdmin
 
+            const hasProposalBanner = isAdmin && pendingProposal && pendingProposal.admin_note === 'admin_proposed' && Boolean(
+              ev.title?.toLowerCase().includes('proposed') || ev.body?.toLowerCase().includes('proposed')
+            )
+
             return (
               <div
                 key={ev.id}
-                className={`flex gap-3 ${isAdmin ? 'justify-start' : 'justify-end'}`}
+                className={`flex gap-1.5 sm:gap-3 ${isAdmin ? 'justify-start' : 'justify-end'}`}
               >
                 {isAdmin && (
-                  <div className="w-8 h-8 rounded-full bg-[#f0f4ff] border border-[#1a4fd6]/15 flex items-center justify-center flex-shrink-0 mt-1">
+                  <div className="w-7 sm:w-8 h-7 sm:h-8 rounded-full bg-[#f0f4ff] border border-[#1a4fd6]/15 flex items-center justify-center flex-shrink-0 mt-1">
                     <span
-                      className="material-symbols-outlined text-sm text-[#1a4fd6]/60"
+                      className="material-symbols-outlined text-xs sm:text-sm text-[#1a4fd6]/60"
                       style={{ fontVariationSettings: "'wght' 300" }}
                     >
                       admin_panel_settings
@@ -131,7 +144,7 @@ export default function CustomerChatPanel({ events, displayName, threadUserId }:
                   </div>
                 )}
 
-                <div className={`max-w-[78%] sm:max-w-[72%] space-y-1 flex flex-col ${isAdmin ? 'items-start' : 'items-end'}`}>
+                <div className={`space-y-1 flex flex-col ${hasProposalBanner ? 'w-full max-w-full sm:max-w-md' : 'max-w-[85%] sm:max-w-[72%]'} ${isAdmin ? 'items-start' : 'items-end'}`}>
                   <div className={`flex items-center gap-2 ${isAdmin ? '' : 'flex-row-reverse'}`}>
                     <span className="text-[11px] font-semibold text-[#6b7ea8]">
                       {isAdmin ? 'OZRentAPlane Team' : displayName}
@@ -146,12 +159,21 @@ export default function CustomerChatPanel({ events, displayName, threadUserId }:
                     )}
                   </div>
 
-                  <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                  <div className={`rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${hasProposalBanner ? 'p-2.5 sm:p-3.5 w-full' : 'px-4 py-3'} ${
                     isAdmin
                       ? 'bg-[#f0f4ff] border border-[#1a4fd6]/10 text-[#152d5a] rounded-tl-sm'
                       : 'bg-[#1a4fd6] text-white rounded-tr-sm'
                   }`}>
-                    {ev.body}
+                    {ev.body ? ev.body.replace(/\.\s*(Please accept or decline.*)/i, '.\n$1') : ''}
+                    {hasProposalBanner && (
+                      <CheckoutTimeProposalBanner
+                        bookingId={pendingProposal.checkout_request_id}
+                        requestedStart={pendingProposal.requested_scheduled_start}
+                        requestedEnd={pendingProposal.requested_scheduled_end}
+                        adminNote={pendingProposal.admin_note}
+                        variant="chat"
+                      />
+                    )}
                   </div>
 
                   <span className="text-[11px] text-[#94a3b8]">

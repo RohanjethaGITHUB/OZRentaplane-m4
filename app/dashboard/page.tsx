@@ -223,7 +223,7 @@ export default async function DashboardPage({
       .maybeSingle(),
     supabase
       .from('checkout_change_requests')
-      .select('id, status, requested_scheduled_start, requested_scheduled_end, created_at')
+      .select('id, status, requested_scheduled_start, requested_scheduled_end, admin_note, customer_note, created_at')
       .eq('customer_id', user.id)
       .eq('request_type', 'reschedule')
       .eq('status', 'pending')
@@ -663,7 +663,14 @@ export default async function DashboardPage({
     canCreateStandardBooking,
     hasManualCheckoutClearance: hasManualClearance,
     checkoutBookingId,
-    hasPendingCheckoutReschedule: Boolean(pendingCheckoutRescheduleResult?.data?.id),
+    hasPendingCheckoutReschedule: Boolean(
+      pendingCheckoutRescheduleResult?.data?.id &&
+      (pendingCheckoutRescheduleResult?.data as any).admin_note !== 'admin_proposed'
+    ),
+    hasPendingAdminProposal: Boolean(
+      pendingCheckoutRescheduleResult?.data?.id &&
+      (pendingCheckoutRescheduleResult?.data as any).admin_note === 'admin_proposed'
+    ),
     checkoutPayment: checkoutBookingId
       ? {
           bookingId: checkoutBookingId,

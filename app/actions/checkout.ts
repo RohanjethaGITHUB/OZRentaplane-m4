@@ -24,6 +24,7 @@ import {
   emitBookingChanged,
   emitClearanceUpdated,
   emitOpsChanged,
+  emitChatMessage,
 } from '@/lib/realtime/emit'
 import type {
   CreateCheckoutBookingInput,
@@ -1555,5 +1556,299 @@ export async function rejectCheckoutReschedule(changeRequestId: string): Promise
   revalidatePath('/admin/checkouts/cancelled')
 
   void emitBookingChanged({ bookingId: booking.id, userId: booking.booking_owner_user_id })
+  void emitOpsChanged()
+}
+
+export async function customerAcceptProposedCheckoutTime(bookingId: string): Promise<void> {
+  const { userId } = await requireCustomer()
+  const admin = createAdminClient()
+  const now = new Date().toISOString()
+
+  // Fetch pending admin proposal
+  const { data: proposal, error: propErr } = await admin
+    .from('checkout_change_requests')
+    .select(`
+      id, checkout_request_id, customer_id, request_type, status, admin_note,
+      original_scheduled_start, original_scheduled_end,
+      requested_scheduled_start, requested_scheduled_end,
+      bookings:checkout_request_id (
+        id, status, booking_type, aircraft_id, scheduled_start, scheduled_end, booking_owner_user_id, checkout_lifecycle_status
+      )
+    `)
+    .eq('checkout_request_id', bookingId)
+    .eq('request_type', 'reschedule')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (propErr || !proposal) throw new Error('No pending proposed time found for this checkout.')
+  if (proposal.customer_id !== userId) throw new Error('Unauthorized for this booking.')
+
+  const booking = Array.isArray(proposal.bookings) ? proposal.bookings[0] : proposal.bookings
+  if (!booking) throw new Error('Checkout booking not found.')
+  if (booking.booking_owner_user_id !== userId) throw new Error('Unauthorized.')
+  if (!['checkout_requested', 'checkout_confirmed'].includes(booking.status)) {
+    throw new Error(`VALIDATION: Checkout cannot be modified from status '${booking.status}'.`)
+  }
+
+  const requestedStartISO = proposal.requested_scheduled_start
+  const requestedEndISO = proposal.requested_scheduled_end
+  if (!requestedStartISO || !requestedEndISO) throw new Error('VALIDATION: Proposed schedule time is missing.')
+
+  const requestedStart = new Date(requestedStartISO)
+  const requestedEnd = new Date(requestedEndISO)
+  if (requestedStart.getTime() <= Date.now()) {
+    throw new Error('VALIDATION: The proposed time has already passed. Please contact the team.')
+  }
+
+  const { data: aircraft } = await admin
+    .from('aircraft')
+    .select('registration, default_preflight_buffer_minutes, default_postflight_buffer_minutes')
+    .eq('id', booking.aircraft_id)
+    .single()
+
+  const preBufMs = (aircraft?.default_preflight_buffer_minutes ?? 0) * 60_000
+  const postBufMs = (aircraft?.default_postflight_buffer_minutes ?? 0) * 60_000
+  const expandedStart = new Date(requestedStart.getTime() - preBufMs)
+  const expandedEnd = new Date(requestedEnd.getTime() + postBufMs)
+
+  const availability = await checkAircraftAvailability(
+    admin,
+    booking.aircraft_id,
+    expandedStart,
+    expandedEnd,
+    { excludeBookingId: booking.id, includeInternalReasons: true },
+  )
+  if (!availability.available) {
+    throw new Error('This proposed slot is no longer available. Please contact our team.')
+  }
+
+  // Cancel old active blocks
+  const { data: releasedBlocks } = await admin
+    .from('schedule_blocks')
+    .update({ status: 'cancelled' })
+    .eq('related_booking_id', booking.id)
+    .eq('status', 'active')
+    .select('id')
+
+  const releasedBlockIds = (releasedBlocks ?? []).map((b) => b.id)
+
+  const newBlocks: Array<Record<string, unknown>> = [
+    {
+      aircraft_id: booking.aircraft_id,
+      related_booking_id: booking.id,
+      block_type: 'customer_booking',
+      start_time: requestedStart.toISOString(),
+      end_time: requestedEnd.toISOString(),
+      public_label: 'Checkout Flight',
+      internal_reason: null,
+      created_by_user_id: userId,
+      created_by_role: 'customer',
+      is_public_visible: true,
+      status: 'active',
+    },
+  ]
+  if (preBufMs > 0) {
+    newBlocks.push({
+      aircraft_id: booking.aircraft_id,
+      related_booking_id: booking.id,
+      block_type: 'buffer',
+      start_time: expandedStart.toISOString(),
+      end_time: requestedStart.toISOString(),
+      public_label: null,
+      internal_reason: 'Pre-flight buffer (checkout proposed time accepted)',
+      created_by_user_id: userId,
+      created_by_role: 'customer',
+      is_public_visible: false,
+      status: 'active',
+    })
+  }
+  if (postBufMs > 0) {
+    newBlocks.push({
+      aircraft_id: booking.aircraft_id,
+      related_booking_id: booking.id,
+      block_type: 'buffer',
+      start_time: requestedEnd.toISOString(),
+      end_time: expandedEnd.toISOString(),
+      public_label: null,
+      internal_reason: 'Post-flight buffer (checkout proposed time accepted)',
+      created_by_user_id: userId,
+      created_by_role: 'customer',
+      is_public_visible: false,
+      status: 'active',
+    })
+  }
+
+  const { error: blockInsertErr } = await admin.from('schedule_blocks').insert(newBlocks)
+  if (blockInsertErr) {
+    if (releasedBlockIds.length > 0) {
+      await admin.from('schedule_blocks').update({ status: 'active' }).in('id', releasedBlockIds)
+    }
+    console.error('[customerAcceptProposedCheckoutTime] schedule_blocks insert failed:', blockInsertErr)
+    throw new Error('Failed to reserve the accepted checkout slot.')
+  }
+
+  const { error: bookingErr } = await admin
+    .from('bookings')
+    .update({
+      scheduled_start: requestedStart.toISOString(),
+      scheduled_end: requestedEnd.toISOString(),
+      updated_at: now,
+    })
+    .eq('id', booking.id)
+
+  if (bookingErr) {
+    throw new Error('Failed to update checkout schedule.')
+  }
+
+  await admin
+    .from('checkout_change_requests')
+    .update({
+      status: 'approved',
+      updated_at: now,
+    })
+    .eq('id', proposal.id)
+
+  const fmtNew = requestedStart.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'short' })
+  const fmtEnd = requestedEnd.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', timeStyle: 'short' })
+
+  await admin.from('booking_status_history').insert({
+    booking_id: booking.id,
+    old_status: booking.status,
+    new_status: booking.status,
+    changed_by_user_id: userId,
+    note: `Customer accepted the proposed checkout flight time: ${fmtNew} – ${fmtEnd} (Sydney time).`,
+  })
+
+  await admin.from('booking_audit_events').insert({
+    booking_id: booking.id,
+    aircraft_id: booking.aircraft_id,
+    actor_user_id: userId,
+    actor_role: 'customer',
+    event_type: 'checkout_time_proposal_accepted',
+    event_summary: `Customer accepted proposed checkout time: ${fmtNew} – ${fmtEnd}.`,
+    old_value: { scheduled_start: booking.scheduled_start, scheduled_end: booking.scheduled_end },
+    new_value: { scheduled_start: requestedStart.toISOString(), scheduled_end: requestedEnd.toISOString() },
+  })
+
+  await admin.from('verification_events').insert({
+    user_id: userId,
+    actor_user_id: userId,
+    actor_role: 'customer',
+    event_type: 'message',
+    request_kind: 'general_update',
+    title: 'Proposed checkout time accepted',
+    body: `I have accepted the proposed checkout flight time: ${fmtNew} – ${fmtEnd} (Sydney time).`,
+    is_read: false,
+    email_status: 'skipped',
+  })
+
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard/checkout')
+  revalidatePath('/dashboard/bookings')
+  revalidatePath(`/dashboard/bookings/${booking.id}`)
+  revalidatePath('/dashboard/messages')
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings/checkout')
+  revalidatePath(`/admin/bookings/requests/${booking.id}`)
+  revalidatePath('/admin/checkouts/cancel-reschedule')
+  revalidatePath('/admin/checkouts/reschedule')
+  revalidatePath('/admin/checkouts/cancelled')
+
+  void emitBookingChanged({ bookingId: booking.id, userId })
+  void emitChatMessage(userId)
+  void emitOpsChanged()
+}
+
+export async function customerRejectProposedCheckoutTime(
+  bookingId: string,
+  reason?: string,
+): Promise<void> {
+  const { userId } = await requireCustomer()
+  const admin = createAdminClient()
+  const now = new Date().toISOString()
+
+  const { data: proposal, error: propErr } = await admin
+    .from('checkout_change_requests')
+    .select(`
+      id, checkout_request_id, customer_id, request_type, status,
+      requested_scheduled_start, requested_scheduled_end,
+      bookings:checkout_request_id (id, status, scheduled_start, scheduled_end, aircraft_id, booking_owner_user_id)
+    `)
+    .eq('checkout_request_id', bookingId)
+    .eq('request_type', 'reschedule')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (propErr || !proposal) throw new Error('No pending proposed time found for this checkout.')
+  if (proposal.customer_id !== userId) throw new Error('Unauthorized.')
+
+  const booking = Array.isArray(proposal.bookings) ? proposal.bookings[0] : proposal.bookings
+  if (!booking || booking.booking_owner_user_id !== userId) throw new Error('Unauthorized.')
+
+  await admin
+    .from('checkout_change_requests')
+    .update({
+      status: 'rejected',
+      customer_note: reason?.trim() || null,
+      updated_at: now,
+    })
+    .eq('id', proposal.id)
+
+  const propStart = proposal.requested_scheduled_start
+    ? new Date(proposal.requested_scheduled_start).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'short' })
+    : 'proposed time'
+
+  await admin.from('booking_status_history').insert({
+    booking_id: booking.id,
+    old_status: booking.status,
+    new_status: booking.status,
+    changed_by_user_id: userId,
+    note: `Customer declined the proposed checkout flight time (${propStart}). Original schedule remains active.`,
+  })
+
+  await admin.from('booking_audit_events').insert({
+    booking_id: booking.id,
+    aircraft_id: booking.aircraft_id,
+    actor_user_id: userId,
+    actor_role: 'customer',
+    event_type: 'checkout_time_proposal_declined',
+    event_summary: `Customer declined proposed checkout time: ${propStart}.`,
+    new_value: { customer_reason: reason?.trim() || null },
+  })
+
+  const declineMessage = reason?.trim()
+    ? `I am unable to make the proposed checkout flight time (${propStart}). Note: "${reason.trim()}". Please keep my original requested time or suggest another slot.`
+    : `I am unable to make the proposed checkout flight time (${propStart}). Please keep my original requested time or suggest another slot.`
+
+  await admin.from('verification_events').insert({
+    user_id: userId,
+    actor_user_id: userId,
+    actor_role: 'customer',
+    event_type: 'message',
+    request_kind: 'general_update',
+    title: 'Proposed checkout time declined',
+    body: declineMessage,
+    is_read: false,
+    email_status: 'skipped',
+  })
+
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard/checkout')
+  revalidatePath('/dashboard/bookings')
+  revalidatePath(`/dashboard/bookings/${booking.id}`)
+  revalidatePath('/dashboard/messages')
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings/checkout')
+  revalidatePath(`/admin/bookings/requests/${booking.id}`)
+  revalidatePath('/admin/checkouts/cancel-reschedule')
+  revalidatePath('/admin/checkouts/reschedule')
+  revalidatePath('/admin/checkouts/cancelled')
+
+  void emitBookingChanged({ bookingId: booking.id, userId })
+  void emitChatMessage(userId)
   void emitOpsChanged()
 }

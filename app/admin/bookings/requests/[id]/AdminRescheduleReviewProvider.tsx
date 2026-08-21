@@ -131,6 +131,32 @@ export function RescheduleReviewButton({
   )
 }
 
+export function ProposalReviewButton({
+  className,
+  label = 'View proposed time',
+}: {
+  className?: string
+  label?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('open-admin-proposal-modal'))
+        }
+      }}
+      className={
+        className ??
+        'inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-800 shadow-sm transition-colors hover:bg-amber-50 cursor-pointer'
+      }
+    >
+      {label}
+      <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+    </button>
+  )
+}
+
 export function RescheduleReviewFooterWarning() {
   const { openReview } = useRescheduleReview()
   return (

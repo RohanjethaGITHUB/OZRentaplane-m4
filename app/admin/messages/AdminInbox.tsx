@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
@@ -746,6 +746,15 @@ export default function AdminInbox({
                   threadEvents.map(ev => {
                     const isAdmin = ev.actor_role === 'admin'
                     const isUnread = !isAdmin && ev.admin_read_at === null
+                    const isDecline = !isAdmin && (
+                      ev.body?.toLowerCase().includes('unable to make the proposed') ||
+                      ev.title?.toLowerCase().includes('declined') ||
+                      ev.event_type === 'rejected'
+                    )
+                    const isAccept = !isAdmin && (
+                      ev.body?.toLowerCase().includes('accepted the proposed') ||
+                      ev.title?.toLowerCase().includes('accepted')
+                    )
 
                     return (
                       <div
@@ -753,23 +762,45 @@ export default function AdminInbox({
                         className={`flex gap-3 ${isAdmin ? 'justify-end' : 'justify-start'}`}
                       >
                         {!isAdmin && (
-                          <div className="w-7 h-7 rounded-full bg-[#dbe8f5] border border-[rgba(12,35,64,0.12)] flex items-center justify-center flex-shrink-0 mt-1">
-                            <span className="text-[10px] font-bold text-[#0C2340]">
+                          <div className={`w-7 h-7 rounded-full border flex items-center justify-center flex-shrink-0 mt-1 ${
+                            isDecline
+                              ? 'bg-rose-100 border-rose-300 text-rose-800'
+                              : isAccept
+                                ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                                : 'bg-[#dbe8f5] border-[rgba(12,35,64,0.12)] text-[#0C2340]'
+                          }`}>
+                            <span className="text-[10px] font-bold">
                               {getInitials(selectedThread.customerName)}
                             </span>
                           </div>
                         )}
 
-                        <div className={`max-w-[85%] sm:max-w-[68%] space-y-1 flex flex-col ${isAdmin ? 'items-end' : 'items-start'}`}>
-                          <div className={`flex items-center gap-2 ${isAdmin ? 'flex-row-reverse' : ''}`}>
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-[#3d5a80]">
+                        <div className={`max-w-[90%] sm:max-w-[68%] space-y-1 flex flex-col ${isAdmin ? 'items-end' : 'items-start'}`}>
+                          <div className={`flex items-center gap-1.5 sm:gap-2 flex-wrap ${isAdmin ? 'flex-row-reverse' : ''}`}>
+                            <span className={`text-[10px] font-bold uppercase tracking-widest truncate max-w-[140px] sm:max-w-none ${
+                              isDecline
+                                ? 'text-rose-700'
+                                : isAccept
+                                  ? 'text-emerald-700 font-bold'
+                                  : 'text-[#3d5a80]'
+                            }`}>
                               {isAdmin ? 'You (Admin)' : (selectedThread.customerName ?? 'Customer')}
                             </span>
+                            {isDecline && (
+                              <span className="text-[9px] font-bold uppercase tracking-widest text-rose-800 bg-rose-100 border border-rose-300 px-1.5 py-0.5 rounded whitespace-nowrap flex-shrink-0">
+                                declined time
+                              </span>
+                            )}
+                            {isAccept && (
+                              <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded whitespace-nowrap flex-shrink-0">
+                                accepted time
+                              </span>
+                            )}
                             {isUnread && (
                               <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
                             )}
                             {ev.event_type === 'on_hold' && (
-                              <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400/60 border border-amber-400/20 px-1.5 py-0.5 rounded">
+                              <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400/60 border border-amber-400/20 px-1.5 py-0.5 rounded whitespace-nowrap flex-shrink-0">
                                 on hold
                               </span>
                             )}
@@ -778,9 +809,37 @@ export default function AdminInbox({
                           <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                             isAdmin
                               ? 'bg-blue-600/15 border border-blue-400/15 text-slate-900 rounded-tr-sm'
-                              : 'bg-[#f8f9fb] border border-[rgba(12,35,64,0.08)] text-[#0C2340] rounded-tl-sm'
+                              : isDecline
+                                ? 'bg-rose-50/90 border border-rose-200 text-rose-950 rounded-tl-sm'
+                                : isAccept
+                                  ? 'bg-emerald-50/90 border border-emerald-200 text-emerald-950 rounded-tl-sm'
+                                  : 'bg-[#f8f9fb] border border-[rgba(12,35,64,0.08)] text-[#0C2340] rounded-tl-sm'
                           } ${ev.id.startsWith('temp-') ? 'opacity-60' : ''}`}>
-                            {ev.body}
+                            {ev.body ? (
+                              isDecline && ev.body.includes('Note:') ? (
+                                <div>
+                                  <p>{ev.body.split(/\.\s*Note:/i)[0]}.</p>
+                                  {(() => {
+                                    const match = ev.body.match(/Note:\s*("?[^"]*"?)\.\s*(.*)/i) || ev.body.match(/Note:\s*(.*)/i)
+                                    const noteContent = match ? match[1] : ''
+                                    const followUp = match && match[2] ? match[2] : ''
+                                    return (
+                                      <>
+                                        {noteContent && (
+                                          <div className="my-2 p-2 rounded-lg bg-rose-100 border border-rose-300 text-rose-900 font-bold text-xs flex items-center gap-1.5 shadow-2xs">
+                                            <span className="material-symbols-outlined text-sm text-rose-600 flex-shrink-0">comment</span>
+                                            <span>Customer Note: {noteContent}</span>
+                                          </div>
+                                        )}
+                                        {followUp && <p className="text-xs text-rose-800 mt-1">{followUp}</p>}
+                                      </>
+                                    )
+                                  })()}
+                                </div>
+                              ) : (
+                                ev.body.replace(/\.\s*(Please accept or decline.*)/i, '.\n$1')
+                              )
+                            ) : ''}
                           </div>
 
                           <span className="text-[10px] text-[#3d5a80] font-mono">

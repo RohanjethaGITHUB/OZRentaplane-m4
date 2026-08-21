@@ -1828,12 +1828,12 @@ export async function unlockCheckoutNoShowLock(customerId: string): Promise<void
 // Safe ordering: availability is checked BEFORE old blocks are cancelled so
 // the slot cannot be stolen between the check and the swap.
 
-export async function adminUpdateCheckoutTime(
+export async function adminProposeCheckoutTime(
   bookingId:         string,
   newScheduledStart: string,   // ISO 8601 UTC
   selectedDate?:     string,   // YYYY-MM-DD in Sydney
   selectedTime?:     string,   // HH:MM in Sydney
-): Promise<{ newStart: string; newEnd: string }> {
+): Promise<{ proposedStart: string; proposedEnd: string }> {
   const { supabase, adminId } = await requireAdmin()
   const nowIso = new Date().toISOString()
   const CHECKOUT_DURATION_MINUTES = 120
@@ -1846,8 +1846,8 @@ export async function adminUpdateCheckoutTime(
 
   if (fetchErr || !booking) throw new Error('Booking not found.')
   if (booking.booking_type !== 'checkout') throw new Error('VALIDATION: This booking is not a checkout booking.')
-  if (booking.status !== 'checkout_requested') {
-    throw new Error(`VALIDATION: Checkout time can only be edited while status is 'checkout_requested'. Current: '${booking.status}'.`)
+  if (!['checkout_requested', 'checkout_confirmed'].includes(booking.status)) {
+    throw new Error(`VALIDATION: Time proposals can only be made while status is requested or confirmed. Current: '${booking.status}'.`)
   }
 
   const normalizedTime = selectedTime?.trim()
@@ -1909,194 +1909,287 @@ export async function adminUpdateCheckoutTime(
   })
 
   if (conflicts.length > 0) {
-    throw new Error(`AVAILABILITY: The new time overlaps with ${conflicts.length} existing block(s). Please choose a different time.`)
+    throw new Error(`AVAILABILITY: The proposed time overlaps with ${conflicts.length} existing block(s). Please choose a different time.`)
   }
 
-  // Snapshot existing blocks. We replace only after new blocks are validated and inserted.
-  const { data: existingActiveBlocks, error: fetchBlocksErr } = await supabase
-    .from('schedule_blocks')
-    .select('id, start_time, end_time, block_type')
-    .eq('related_booking_id', bookingId)
-    .eq('status', 'active')
+  // Cancel any existing pending reschedule requests for this checkout
+  await supabase
+    .from('checkout_change_requests')
+    .update({ status: 'cancelled', updated_at: nowIso })
+    .eq('checkout_request_id', bookingId)
+    .eq('status', 'pending')
 
-  if (fetchBlocksErr) {
-    throw new Error('Cannot update checkout time: failed to check existing schedule blocks. Please retry.')
-  }
-
-  const newBlocks: Array<Record<string, unknown>> = []
-  const pushBlock = (params: {
-    blockType: 'customer_booking' | 'buffer'
-    startISO: string
-    endISO: string
-    publicLabel: string | null
-    internalReason: string | null
-    visible: boolean
-  }) => {
-    const blockStart = new Date(params.startISO)
-    const blockEnd = new Date(params.endISO)
-    if (
-      Number.isNaN(blockStart.getTime()) ||
-      Number.isNaN(blockEnd.getTime()) ||
-      blockEnd.getTime() <= blockStart.getTime()
-    ) {
-      console.error('[adminUpdateCheckoutTime] Invalid schedule block generated', {
-        checkoutId: bookingId,
-        bookingId,
-        aircraftId: booking.aircraft_id,
-        selectedDate: selectedDate ?? selectedSydDate,
-        selectedDepartureTime: selectedTime ?? selectedSydTime,
-        blockStart: params.startISO,
-        blockEnd: params.endISO,
-        durationMinutes: CHECKOUT_DURATION_MINUTES,
-        timezoneAssumptions: {
-          inputTimezone: 'Australia/Sydney',
-          storageTimezone: 'UTC (timestamptz)',
-          runtimeTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        },
-      })
-      throw new Error('INVALID_SCHEDULE_BLOCK_TIME_ORDER')
-    }
-
-    newBlocks.push({
-      aircraft_id: booking.aircraft_id,
-      related_booking_id: bookingId,
-      block_type: params.blockType,
-      start_time: params.startISO,
-      end_time: params.endISO,
-      public_label: params.publicLabel,
-      internal_reason: params.internalReason,
-      created_by_user_id: adminId,
-      created_by_role: 'admin',
-      is_public_visible: params.visible,
-      status: 'active',
+  // Insert proposal in checkout_change_requests as admin_proposed
+  const { error: proposalErr } = await supabase
+    .from('checkout_change_requests')
+    .insert({
+      checkout_request_id:       bookingId,
+      customer_id:               booking.booking_owner_user_id,
+      request_type:              'reschedule',
+      status:                    'pending',
+      original_scheduled_start:  booking.scheduled_start,
+      original_scheduled_end:    booking.scheduled_end,
+      requested_scheduled_start: newStartISO,
+      requested_scheduled_end:   newEndISO,
+      admin_note:                'admin_proposed',
+      reviewed_by:               adminId,
+      created_at:                nowIso,
+      updated_at:                nowIso,
     })
+
+  if (proposalErr) {
+    console.error('[adminProposeCheckoutTime] Failed to record change request:', proposalErr)
+    throw new Error('Failed to record proposed checkout time.')
   }
 
-  pushBlock({
-    blockType: 'customer_booking',
-    startISO: newStartISO,
-    endISO: newEndISO,
-    publicLabel: 'Checkout Flight',
-    internalReason: null,
-    visible: true,
-  })
-  if (preBufMs > 0) {
-    pushBlock({
-      blockType: 'buffer',
-      startISO: expandedStart,
-      endISO: newStartISO,
-      publicLabel: null,
-      internalReason: 'Pre-flight buffer (checkout — admin updated)',
-      visible: false,
-    })
-  }
-  if (postBufMs > 0) {
-    pushBlock({
-      blockType: 'buffer',
-      startISO: newEndISO,
-      endISO: expandedEnd,
-      publicLabel: null,
-      internalReason: 'Post-flight buffer (checkout — admin updated)',
-      visible: false,
-    })
-  }
-
-  if (process.env.NODE_ENV !== 'production') {
-    console.info('[adminUpdateCheckoutTime] Generated schedule block payload', {
-      checkout_request_id: bookingId,
-      booking_id: bookingId,
-      aircraft_id: booking.aircraft_id,
-      raw_selected_date: selectedDate ?? selectedSydDate,
-      raw_selected_departure_time: selectedTime ?? selectedSydTime,
-      computed_return_time: fmtHm(newEnd),
-      duration_minutes: CHECKOUT_DURATION_MINUTES,
-      timezone_assumptions: {
-        input_timezone: 'Australia/Sydney',
-        storage_timezone: 'UTC (timestamptz)',
-        runtime_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      },
-      blocks: newBlocks.map((b) => ({
-        block_type: b.block_type,
-        block_start_timestamp: b.start_time,
-        block_end_timestamp: b.end_time,
-      })),
-      existing_active_blocks: (existingActiveBlocks ?? []).map((b) => ({
-        id: b.id,
-        block_type: b.block_type,
-        start_time: b.start_time,
-        end_time: b.end_time,
-      })),
-    })
-  }
-
-  const { error: insertErr } = await supabase
-    .from('schedule_blocks')
-    .insert(newBlocks)
-
-  if (insertErr) {
-    console.error('[adminUpdateCheckoutTime] Failed to insert schedule blocks:', insertErr)
-    throw new Error('INVALID_SCHEDULE_BLOCK_TIME_ORDER')
-  }
-
-  const hasActiveBlocks = (existingActiveBlocks?.length ?? 0) > 0
-  if (hasActiveBlocks) {
-    const activeIds = existingActiveBlocks!.map((b) => b.id)
-    const { error: cancelBlocksErr } = await supabase
-      .from('schedule_blocks')
-      .update({ status: 'cancelled' })
-      .in('id', activeIds)
-      .eq('status', 'active')
-
-    if (cancelBlocksErr) {
-      console.error('[adminUpdateCheckoutTime] Failed to cancel old schedule blocks after insert:', cancelBlocksErr)
-      throw new Error(
-        'Could not finalize checkout time update because old schedule blocks could not be replaced safely. Please retry or contact support.',
-      )
-    }
-  }
-
-  const { error: bookingErr } = await supabase
-    .from('bookings')
-    .update({ scheduled_start: newStartISO, scheduled_end: newEndISO, updated_at: nowIso })
-    .eq('id', bookingId)
-
-  if (bookingErr) throw new Error('Failed to update booking times.')
-
-  const fmtOld = new Date(booking.scheduled_start).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'short' })
-  const fmtNew = newStart.toLocaleString('en-AU',                          { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'short' })
-
-  await supabase.from('booking_status_history').insert({
-    booking_id:         bookingId,
-    old_status:         'checkout_requested',
-    new_status:         'checkout_requested',
-    changed_by_user_id: adminId,
-    note:               `Checkout time updated by admin from ${fmtOld} to ${fmtNew} (Sydney time).`,
-  })
+  const fmtNew = newStart.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'short' })
+  const fmtEnd = newEnd.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', timeStyle: 'short' })
 
   await supabase.from('booking_audit_events').insert({
     booking_id:    bookingId,
     aircraft_id:   booking.aircraft_id,
     actor_user_id: adminId,
     actor_role:    'admin',
-    event_type:    'checkout_time_updated',
-    event_summary: `Admin updated checkout time: ${fmtOld} → ${fmtNew}.`,
+    event_type:    'checkout_time_proposed',
+    event_summary: `Admin proposed a new checkout flight time: ${fmtNew} – ${fmtEnd} (Sydney time). Awaiting customer response.`,
     old_value:     { scheduled_start: booking.scheduled_start, scheduled_end: booking.scheduled_end },
-    new_value:     { scheduled_start: newStartISO,              scheduled_end: newEndISO },
+    new_value:     { requested_scheduled_start: newStartISO, requested_scheduled_end: newEndISO },
   })
 
-  // Notify customer of time change — non-fatal
-  const { error: notifErr2 } = await supabase.from('verification_events').insert({
+  // Post proposal message in verification_events (customer & admin chat)
+  const { error: notifErr } = await supabase.from('verification_events').insert({
+    user_id:       booking.booking_owner_user_id,
+    actor_user_id: adminId,
+    actor_role:    'admin',
+    event_type:    'message',
+    request_kind:  'general_update',
+    title:         'Checkout flight time proposed',
+    body:          `OZRentAPlane has proposed a new checkout flight time: ${fmtNew} – ${fmtEnd} (Sydney time).\nPlease accept or decline this new time.`,
+    is_read:       false,
+    email_status:  'skipped',
+  })
+  if (notifErr) console.error('[adminProposeCheckoutTime] notification failed:', notifErr.message)
+
+  revalidatePath('/admin')
+  revalidatePath(`/admin/bookings/checkout/${bookingId}`)
+  revalidatePath(`/admin/bookings/requests/${bookingId}`)
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard/bookings')
+  revalidatePath(`/dashboard/bookings/${bookingId}`)
+  revalidatePath('/dashboard/messages')
+
+  await Promise.all([
+    emitBookingChanged({ bookingId, userId: booking.booking_owner_user_id }),
+    emitChatMessage(booking.booking_owner_user_id),
+    emitOpsChanged(),
+  ])
+
+  return { proposedStart: newStartISO, proposedEnd: newEndISO }
+}
+
+export async function adminWithdrawProposedCheckoutTime(
+  bookingId: string,
+): Promise<{ success: boolean }> {
+  const { supabase, adminId } = await requireAdmin()
+  const nowIso = new Date().toISOString()
+
+  const { data: booking, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('status, booking_type, aircraft_id, scheduled_start, scheduled_end, booking_owner_user_id')
+    .eq('id', bookingId)
+    .single()
+
+  if (fetchErr || !booking) throw new Error('Booking not found.')
+
+  const { error: cancelErr } = await supabase
+    .from('checkout_change_requests')
+    .update({ status: 'cancelled', updated_at: nowIso })
+    .eq('checkout_request_id', bookingId)
+    .eq('status', 'pending')
+    .eq('admin_note', 'admin_proposed')
+
+  if (cancelErr) throw new Error('Failed to withdraw time proposal.')
+
+  await supabase.from('booking_audit_events').insert({
+    booking_id:    bookingId,
+    aircraft_id:   booking.aircraft_id,
+    actor_user_id: adminId,
+    actor_role:    'admin',
+    event_type:    'checkout_time_proposal_withdrawn',
+    event_summary: 'Admin withdrew the pending checkout time proposal.',
+  })
+
+  await supabase.from('verification_events').insert({
+    user_id:       booking.booking_owner_user_id,
+    actor_user_id: adminId,
+    actor_role:    'admin',
+    event_type:    'message',
+    request_kind:  'general_update',
+    title:         'Time proposal withdrawn',
+    body:          'OZRentAPlane has withdrawn the proposed checkout flight time. Your original flight time remains active.',
+    is_read:       false,
+    email_status:  'skipped',
+  })
+
+  revalidatePath('/admin')
+  revalidatePath(`/admin/bookings/checkout/${bookingId}`)
+  revalidatePath(`/admin/bookings/requests/${bookingId}`)
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard/bookings')
+  revalidatePath(`/dashboard/bookings/${bookingId}`)
+  revalidatePath('/dashboard/messages')
+
+  await Promise.all([
+    emitBookingChanged({ bookingId, userId: booking.booking_owner_user_id }),
+    emitChatMessage(booking.booking_owner_user_id),
+    emitOpsChanged(),
+  ])
+
+  return { success: true }
+}
+
+export async function adminDirectlyUpdateCheckoutTime(
+  bookingId:         string,
+  newScheduledStart: string,   // ISO 8601 UTC
+  selectedDate?:     string,   // YYYY-MM-DD in Sydney
+  selectedTime?:     string,   // HH:MM in Sydney
+): Promise<{ newStart: string; newEnd: string }> {
+  const { supabase, adminId } = await requireAdmin()
+  const nowIso = new Date().toISOString()
+
+  // 1. Fetch booking
+  const { data: booking, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('id, status, booking_type, aircraft_id, scheduled_start, scheduled_end, booking_owner_user_id')
+    .eq('id', bookingId)
+    .single()
+
+  if (fetchErr || !booking) throw new Error('Booking not found.')
+  if (booking.booking_type !== 'checkout') throw new Error('Only checkout bookings can be rescheduled here.')
+  if (['completed', 'cancelled'].includes(booking.status)) {
+    throw new Error('Cannot change time for a completed or cancelled checkout.')
+  }
+
+  // 2. Validate start and 2-hour checkout end
+  const newStart = new Date(newScheduledStart)
+  if (isNaN(newStart.getTime())) throw new Error('Invalid scheduled start time.')
+  const newEnd = new Date(newStart.getTime() + 2 * 60 * 60 * 1000)
+  const newStartISO = newStart.toISOString()
+  const newEndISO = newEnd.toISOString()
+  // 3. Availability check
+  const { data: aircraft } = await supabase
+    .from('aircraft')
+    .select('default_preflight_buffer_minutes, default_postflight_buffer_minutes')
+    .eq('id', booking.aircraft_id)
+    .single()
+
+  const preBufMs  = (aircraft?.default_preflight_buffer_minutes  ?? 0) * 60_000
+  const postBufMs = (aircraft?.default_postflight_buffer_minutes ?? 0) * 60_000
+  const expandedStart = new Date(newStart.getTime() - preBufMs).toISOString()
+  const expandedEnd   = new Date(newEnd.getTime()   + postBufMs).toISOString()
+
+  const { data: overlapping } = await supabase
+    .from('schedule_blocks')
+    .select('id, block_type, expires_at, related_booking_id')
+    .eq('aircraft_id', booking.aircraft_id)
+    .eq('status', 'active')
+    .lt('start_time', expandedEnd)
+    .gt('end_time', expandedStart)
+
+  const checkTime = new Date()
+  const conflicts = (overlapping ?? []).filter(b => {
+    if (b.related_booking_id === bookingId) return false
+    if (b.block_type === 'temporary_hold' && b.expires_at != null && new Date(b.expires_at) <= checkTime) return false
+    return true
+  })
+
+  if (conflicts.length > 0) {
+    throw new Error(`AVAILABILITY: The selected time overlaps with ${conflicts.length} existing schedule block(s). Please choose a different time.`)
+  }
+
+  // 4. Update bookings row directly
+  const { error: updateErr } = await supabase
+    .from('bookings')
+    .update({
+      scheduled_start: newStartISO,
+      scheduled_end:   newEndISO,
+      updated_at:      nowIso,
+    })
+    .eq('id', bookingId)
+
+  if (updateErr) {
+    console.error('[adminDirectlyUpdateCheckoutTime] bookings update failed:', updateErr)
+    throw new Error('Failed to update checkout time.')
+  }
+
+  // 5. Replace schedule block
+  const { error: blockDelErr } = await supabase
+    .from('schedule_blocks')
+    .delete()
+    .eq('booking_id', bookingId)
+    .eq('block_type', 'booking')
+
+  if (blockDelErr) {
+    console.error('[adminDirectlyUpdateCheckoutTime] block delete failed:', blockDelErr)
+  }
+
+  const { error: blockInsErr } = await supabase
+    .from('schedule_blocks')
+    .insert({
+      aircraft_id:   booking.aircraft_id,
+      booking_id:    bookingId,
+      user_id:       booking.booking_owner_user_id,
+      block_type:    'booking',
+      start_time:    newStartISO,
+      end_time:      newEndISO,
+      activity_type: 'checkout',
+      label:         'Checkout Booking',
+      status:        'active',
+    })
+
+  if (blockInsErr) {
+    console.error('[adminDirectlyUpdateCheckoutTime] block insert failed:', blockInsErr)
+  }
+
+  // 6. If there was a pending proposal or reschedule request, mark it approved
+  await supabase
+    .from('checkout_change_requests')
+    .update({
+      status: 'approved',
+      admin_note: 'direct_admin_update',
+      reviewed_by: adminId,
+      updated_at: nowIso,
+    })
+    .eq('checkout_request_id', bookingId)
+    .eq('status', 'pending')
+
+  const fmtNew = newStart.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'short' })
+  const fmtEnd = newEnd.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', timeStyle: 'short' })
+
+  // 7. Audit log
+  await supabase.from('booking_audit_events').insert({
+    booking_id:    bookingId,
+    aircraft_id:   booking.aircraft_id,
+    actor_user_id: adminId,
+    actor_role:    'admin',
+    event_type:    'checkout_time_updated_directly_by_admin',
+    event_summary: `Admin directly updated checkout flight time to ${fmtNew} – ${fmtEnd} (Sydney time) after agreeing with customer.`,
+    old_value:     { scheduled_start: booking.scheduled_start, scheduled_end: booking.scheduled_end },
+    new_value:     { scheduled_start: newStartISO, scheduled_end: newEndISO },
+  })
+
+  // 8. Notification message in chat
+  await supabase.from('verification_events').insert({
     user_id:       booking.booking_owner_user_id,
     actor_user_id: adminId,
     actor_role:    'admin',
     event_type:    'message',
     request_kind:  'general_update',
     title:         'Checkout flight time updated',
-    body:          `Your checkout flight time has been updated to ${fmtNew} (Sydney time).`,
+    body:          `Your checkout flight time has been updated to: ${fmtNew} – ${fmtEnd} (Sydney time).`,
     is_read:       false,
     email_status:  'skipped',
   })
-  if (notifErr2) console.error('[adminUpdateCheckoutTime] notification failed:', notifErr2.message)
 
   revalidatePath('/admin')
   revalidatePath(`/admin/bookings/checkout/${bookingId}`)
@@ -2113,6 +2206,17 @@ export async function adminUpdateCheckoutTime(
   ])
 
   return { newStart: newStartISO, newEnd: newEndISO }
+}
+
+export async function adminUpdateCheckoutTime(
+  bookingId:         string,
+  newScheduledStart: string,   // ISO 8601 UTC
+  selectedDate?:     string,   // YYYY-MM-DD in Sydney
+  selectedTime?:     string,   // HH:MM in Sydney
+): Promise<{ newStart: string; newEnd: string }> {
+  // Alias to adminProposeCheckoutTime
+  const res = await adminProposeCheckoutTime(bookingId, newScheduledStart, selectedDate, selectedTime)
+  return { newStart: res.proposedStart, newEnd: res.proposedEnd }
 }
 
 type ManualCheckoutLogMode = 'skip' | 'existing' | 'create_new'

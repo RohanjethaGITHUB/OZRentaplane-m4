@@ -43,8 +43,8 @@ const STATUS_CFG: Record<string, {
   cancellation_requested:     { label: 'Cancel Under Review',                   sublabel: 'Awaiting ops decision',     color: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-200',  icon: 'pending_actions'    },
   checkout_requested:         { label: 'Awaiting Review',                       sublabel: 'Awaiting team review',      color: 'text-blue-700',   bg: 'bg-blue-50',   border: 'border-blue-200',   icon: 'pending_actions'    },
   checkout_confirmed:         { label: 'Checkout Confirmed',                    sublabel: 'Confirmed by our team',     color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200',  icon: 'event_available'    },
-  checkout_completed_under_review: { label: 'Checkout completed, under review', sublabel: 'Awaiting team review',      color: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-200',  icon: 'rate_review'        },
-  checkout_payment_required:       { label: 'Payment Required',                 sublabel: 'Pay to unlock bookings',    color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200', icon: 'payments'           },
+  checkout_completed_under_review: { label: 'Checkout Under Review',            sublabel: 'Result pending',            color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200', icon: 'rate_review'        },
+  checkout_payment_required:  { label: 'Payment Required',                      sublabel: 'Complete checkout invoice', color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200', icon: 'payment'            },
   payment_pending:                 { label: 'Payment Required',                 sublabel: 'Pay to close booking',      color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200', icon: 'payments'           },
 }
 
@@ -143,6 +143,8 @@ type RescheduleRequestLite = {
   checkout_request_id: string
   requested_scheduled_start: string | null
   requested_scheduled_end: string | null
+  admin_note?: string | null
+  customer_note?: string | null
 }
 
 function isMultiDayBooking(startISO: string | null | undefined, endISO: string | null | undefined): boolean {
@@ -557,7 +559,7 @@ export default async function CustomerBookingsPage() {
   if (activeCheckoutIds.length > 0) {
     const { data: rescheduleRows } = await supabase
       .from('checkout_change_requests')
-      .select('id, status, checkout_request_id, requested_scheduled_start, requested_scheduled_end, created_at')
+      .select('id, status, checkout_request_id, requested_scheduled_start, requested_scheduled_end, admin_note, customer_note, created_at')
       .in('checkout_request_id', activeCheckoutIds)
       .eq('request_type', 'reschedule')
       .order('created_at', { ascending: false })
@@ -997,18 +999,33 @@ export default async function CustomerBookingsPage() {
                               )}
                             </div>
                             {pendingReschedule && requestedStart && (
-                              <div className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800 w-fit max-w-full">
-                                <span className="material-symbols-outlined text-[14px] flex-shrink-0">event_repeat</span>
-                                <span className="min-w-0 break-words">
-                                  Requested:{' '}
-                                  <span className="font-semibold">
-                                    {formatDateFromISO(requestedStart)}
-                                    {requestedEnd
-                                      ? ` · ${formatTime12hFromISO(requestedStart)} – ${formatTime12hFromISO(requestedEnd)}`
-                                      : ` · ${formatTime12hFromISO(requestedStart)}`}
+                              pendingReschedule.admin_note === 'admin_proposed' ? (
+                                <div className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-900 w-fit max-w-full">
+                                  <span className="material-symbols-outlined text-[15px] text-amber-600 flex-shrink-0">schedule_send</span>
+                                  <span className="min-w-0 break-words font-medium">
+                                    Proposed by admin:{' '}
+                                    <span className="font-bold text-[#152d5a]">
+                                      {formatDateFromISO(requestedStart)}
+                                      {requestedEnd
+                                        ? ` · ${formatTime12hFromISO(requestedStart)} – ${formatTime12hFromISO(requestedEnd)}`
+                                        : ` · ${formatTime12hFromISO(requestedStart)}`}
+                                    </span>
                                   </span>
-                                </span>
-                              </div>
+                                </div>
+                              ) : (
+                                <div className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800 w-fit max-w-full">
+                                  <span className="material-symbols-outlined text-[14px] flex-shrink-0">event_repeat</span>
+                                  <span className="min-w-0 break-words">
+                                    Requested:{' '}
+                                    <span className="font-semibold">
+                                      {formatDateFromISO(requestedStart)}
+                                      {requestedEnd
+                                        ? ` · ${formatTime12hFromISO(requestedStart)} – ${formatTime12hFromISO(requestedEnd)}`
+                                        : ` · ${formatTime12hFromISO(requestedStart)}`}
+                                    </span>
+                                  </span>
+                                </div>
+                              )
                             )}
                           </div>
                           <UpcomingBookingActions

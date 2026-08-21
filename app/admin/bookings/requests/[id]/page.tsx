@@ -22,6 +22,7 @@ import AdminCancellationReviewCard from './AdminCancellationReviewCard'
 import AdminRescheduleReviewProvider, {
   AdminRescheduleStickyBar,
   RescheduleReviewButton,
+  ProposalReviewButton,
 } from './AdminRescheduleReviewProvider'
 import AdminRejectDocsPanel from './AdminRejectDocsPanel'
 import { deriveBookingLifecycleStage } from '@/lib/booking/booking-lifecycle-stage'
@@ -1135,10 +1136,18 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     customer_note: string | null
   }
   let pendingRescheduleAdmin: PendingRescheduleAdmin | null = null
+  let pendingProposalAdmin: {
+    id: string
+    requested_scheduled_start: string
+    requested_scheduled_end: string
+    admin_note: string | null
+    created_at?: string
+  } | null = null
+
   if (bookingType === 'checkout' && ['checkout_requested', 'checkout_confirmed'].includes(status)) {
     const { data: rescheduleData } = await supabase
       .from('checkout_change_requests')
-      .select('id, requested_scheduled_start, requested_scheduled_end, customer_note, status')
+      .select('id, requested_scheduled_start, requested_scheduled_end, customer_note, admin_note, status, created_at')
       .eq('checkout_request_id', booking.id)
       .eq('request_type', 'reschedule')
       .eq('status', 'pending')
@@ -1149,11 +1158,21 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       rescheduleData?.requested_scheduled_start &&
       rescheduleData?.requested_scheduled_end
     ) {
-      pendingRescheduleAdmin = {
-        id: rescheduleData.id,
-        requested_scheduled_start: rescheduleData.requested_scheduled_start,
-        requested_scheduled_end: rescheduleData.requested_scheduled_end,
-        customer_note: (rescheduleData as { customer_note?: string | null }).customer_note ?? null,
+      if (rescheduleData.admin_note === 'admin_proposed') {
+        pendingProposalAdmin = {
+          id: rescheduleData.id,
+          requested_scheduled_start: rescheduleData.requested_scheduled_start,
+          requested_scheduled_end: rescheduleData.requested_scheduled_end,
+          admin_note: rescheduleData.admin_note,
+          created_at: rescheduleData.created_at,
+        }
+      } else {
+        pendingRescheduleAdmin = {
+          id: rescheduleData.id,
+          requested_scheduled_start: rescheduleData.requested_scheduled_start,
+          requested_scheduled_end: rescheduleData.requested_scheduled_end,
+          customer_note: (rescheduleData as { customer_note?: string | null }).customer_note ?? null,
+        }
       }
     }
   }
@@ -1195,6 +1214,13 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         pendingRescheduleAdmin.requested_scheduled_end,
       )
     : null
+  const hasPendingAdminProposal = Boolean(pendingProposalAdmin)
+  const proposedSchedule = pendingProposalAdmin
+    ? formatBookingSchedule(
+        pendingProposalAdmin.requested_scheduled_start,
+        pendingProposalAdmin.requested_scheduled_end,
+      )
+    : null
   const displayPageTitle = hasPendingReschedule
     ? 'Review Reschedule Request'
     : isCancellationRequested
@@ -1202,8 +1228,10 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       : pageTitle
   const displayLifecycleLabel = hasPendingReschedule
     ? 'Reschedule Requested'
-    : isCancellationRequested
-      ? 'Cancellation Requested'
+    : hasPendingAdminProposal
+      ? 'Time Proposed'
+      : isCancellationRequested
+        ? 'Cancellation Requested'
         : isCheckoutRequestedStatus
           ? 'Checkout Requested'
         : isAwaitingManualPayment
@@ -1211,7 +1239,9 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
         : lifecycleStage.label
   const displayLifecycleSublabel = hasPendingReschedule
     ? 'Awaiting approval of the requested new time'
-    : isCancellationRequested
+    : hasPendingAdminProposal
+      ? 'Awaiting customer response on proposed time'
+      : isCancellationRequested
       ? 'Awaiting admin decision on cancellation'
       : isAwaitingManualPayment
         ? 'Bank transfer proof submitted — verify receipt and confirm payment'
@@ -1221,7 +1251,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       ? (ledgerPaymentMethodLabel ?? paymentMethodToLabel(standardInvoice?.payment_method ?? null))
       : null
   const displayLifecycleTone =
-    hasPendingReschedule || isCancellationRequested
+    hasPendingReschedule || isCancellationRequested || hasPendingAdminProposal
       ? lifecycleToneCfg.amber
       : isAwaitingManualPayment
         ? lifecycleToneCfg.blue
@@ -1379,7 +1409,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           </div>
 
           <div className={`h-full rounded-[20px] border p-4 shadow-[0_8px_20px_rgba(15,30,52,0.04)] ${
-            hasPendingReschedule
+            hasPendingReschedule || hasPendingAdminProposal
               ? 'border-amber-200 bg-amber-50/70'
               : 'border-[rgba(12,35,64,0.10)] bg-white'
           }`}>
@@ -1388,7 +1418,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 <CalendarDays className="w-4 h-4 text-[var(--admin-text-muted)]" />
               </div>
               <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
-                {hasPendingReschedule ? 'Schedule Change' : 'Schedule'}
+                {hasPendingReschedule ? 'Schedule Change' : hasPendingAdminProposal ? 'Proposed Time' : 'Schedule'}
               </span>
             </div>
             <div className="mt-3 space-y-1.5">
@@ -1406,6 +1436,23 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                     <RescheduleReviewButton className="inline-flex flex-shrink-0 items-center gap-1 rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-800 shadow-sm transition-colors hover:bg-amber-50" />
                   </div>
                 </>
+              ) : hasPendingAdminProposal && proposedSchedule ? (
+                <>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b6390]">Current (held)</p>
+                  <p className="text-[14px] font-semibold text-[var(--admin-text)]">{bookingSchedule.dateRange}</p>
+                  <p className="text-[12px] text-[var(--admin-text-muted)]">{bookingSchedule.timeRange}</p>
+                  <div className="pt-2 mt-2 border-t border-amber-200/80 space-y-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-700">Proposed to customer</p>
+                    <p className="text-[14px] font-semibold text-amber-900 mt-0.5">{proposedSchedule.dateRange}</p>
+                    <p className="text-[12px] text-amber-800/80">{proposedSchedule.timeRange}</p>
+                  </div>
+                  <p className="text-[12px] text-[var(--admin-text-muted)] pt-0.5">
+                    {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/^Cessna 172$/, 'Cessna 172N') ?? 'Cessna 172N'} · {(aircraft as { registration?: string } | null)?.registration ?? 'VH-KZG'}
+                  </p>
+                  <div className="pt-2.5 flex justify-center">
+                    <ProposalReviewButton className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800 shadow-xs transition-colors hover:bg-amber-50 cursor-pointer" />
+                  </div>
+                </>
               ) : (
                 <>
                   <p className="text-[15px] font-semibold text-[var(--admin-text)]">{bookingSchedule.dateRange}</p>
@@ -1413,11 +1460,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                   <p className="text-[12px] text-[var(--admin-text-muted)]">
                     {bookingSchedule.duration ? `${bookingSchedule.duration} · ${bookingSchedule.timezone}` : bookingSchedule.timezone}
                   </p>
+                  <p className="text-[12px] text-[var(--admin-text-muted)]">
+                    {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/^Cessna 172$/, 'Cessna 172N') ?? 'Cessna 172N'} · {(aircraft as { registration?: string } | null)?.registration ?? 'VH-KZG'}
+                  </p>
                 </>
               )}
-              <p className="text-[12px] text-[var(--admin-text-muted)]">
-                {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/^Cessna 172$/, 'Cessna 172N') ?? 'Cessna 172N'} · {(aircraft as { registration?: string } | null)?.registration ?? 'VH-KZG'}
-              </p>
             </div>
           </div>
 
@@ -1603,6 +1650,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               documents={documents as import('@/app/admin/bookings/requests/[id]/AdminCheckoutReviewPanel').DocSummary[]}
               messages={messages as import('@/lib/supabase/types').VerificationEvent[]}
               pendingRescheduleReview={hasPendingReschedule}
+              pendingProposal={pendingProposalAdmin}
             />
           )}
 

@@ -29,6 +29,8 @@ export type BookingDirectoryRow = {
   bookingTypeSecondaryLabel: string
   paymentProofPendingReview?: boolean
   isLandingFeePending?: boolean
+  hasPendingAdminProposal?: boolean
+  hasPendingReschedule?: boolean
 }
 
 type SortKey = 'created' | 'customer' | 'phone' | 'aircraft' | 'scheduled' | 'status' | 'ref'
@@ -307,6 +309,24 @@ function formatSchedulePresentation(startIso: string | null | undefined, endIso:
 function getStatusPresentationBase(row: BookingDirectoryRow): BookingStatusPresentation {
   const isCheckout = isCheckoutBooking(row)
 
+  if (row.hasPendingAdminProposal) {
+    return {
+      label: 'Time Proposed',
+      badgeClassName: 'border-amber-200 bg-amber-50 text-amber-800',
+      icon: 'schedule_send',
+      iconWrapClass: 'bg-amber-50 border-amber-100',
+      iconClass: 'text-amber-600',
+    }
+  }
+  if (row.hasPendingReschedule) {
+    return {
+      label: 'Reschedule Requested',
+      badgeClassName: 'border-amber-200 bg-amber-50 text-amber-800',
+      icon: 'event_repeat',
+      iconWrapClass: 'bg-amber-50 border-amber-100',
+      iconClass: 'text-amber-600',
+    }
+  }
   if (row.displayStatus === 'awaiting_flight_record') {
     return {
       label: 'Awaiting Flight Record',
@@ -410,13 +430,7 @@ function getStatusPresentationBase(row: BookingDirectoryRow): BookingStatusPrese
 }
 
 function getStatusPresentation(row: BookingDirectoryRow): BookingStatusPresentation {
-  const status = getStatusPresentationBase(row)
-  return {
-    ...status,
-    badgeClassName: 'border-[rgba(12,35,64,0.12)] bg-white text-[var(--admin-text)]',
-    iconWrapClass: 'bg-[var(--admin-muted-surface)] border-[rgba(12,35,64,0.10)]',
-    iconClass: 'text-[var(--admin-text-muted)]',
-  }
+  return getStatusPresentationBase(row)
 }
 
 function BookingTypePresentation({ row }: { row: BookingDirectoryRow }) {
@@ -757,7 +771,7 @@ export default function BookingDirectoryClient({
                           </div>
 
                           <div className="pointer-events-none relative z-0 min-w-0 py-5 text-center">
-                            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11.5px] font-bold ${isCheckout ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11.5px] font-bold ${status.badgeClassName}`}>
                               {status.label}
                             </span>
                           </div>
@@ -814,7 +828,7 @@ export default function BookingDirectoryClient({
 
                           <div className="flex items-center gap-3">
                             <div className="min-w-0 flex-1">
-                              <span className={`inline-flex items-center rounded-full border px-3 py-1.5 text-[12.5px] font-bold leading-none ${isCheckout ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                              <span className={`inline-flex items-center rounded-full border px-3 py-1.5 text-[12.5px] font-bold leading-none ${status.badgeClassName}`}>
                                 {status.label}
                               </span>
                             </div>

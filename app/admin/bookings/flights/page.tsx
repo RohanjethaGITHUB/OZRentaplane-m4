@@ -289,6 +289,7 @@ export default async function FlightBookingsPage({
     checkoutBankTransferResult,
     bookingBankTransferResult,
     blockTimeInvoicesResult,
+    checkoutChangeRequestsResult,
   ] = await Promise.all([
     customerIds.length > 0
       ? supabase
@@ -355,7 +356,26 @@ export default async function FlightBookingsPage({
           .eq('type', 'flight')
           .in('status', ['awaiting', 'bank_transfer_pending_review'])
       : Promise.resolve({ data: [], error: null }),
+    bookingIds.length > 0
+      ? supabase
+          .from('checkout_change_requests')
+          .select('checkout_request_id, request_type, status, admin_note')
+          .in('checkout_request_id', bookingIds)
+          .eq('status', 'pending')
+      : Promise.resolve({ data: [], error: null }),
   ])
+
+  const pendingAdminProposalByBookingId = new Set<string>()
+  const pendingRescheduleByBookingId = new Set<string>()
+  for (const row of checkoutChangeRequestsResult.data ?? []) {
+    if (row.checkout_request_id) {
+      if (row.admin_note === 'admin_proposed') {
+        pendingAdminProposalByBookingId.add(row.checkout_request_id)
+      } else if (row.request_type === 'reschedule') {
+        pendingRescheduleByBookingId.add(row.checkout_request_id)
+      }
+    }
+  }
 
   for (const customerProfile of customerProfilesResult.data ?? []) {
     profileMap.set(customerProfile.id, {
@@ -411,6 +431,8 @@ export default async function FlightBookingsPage({
     })
     const isLandingFeePending = landingFeePendingByBookingId.has(booking.id)
     const paymentProofPendingReview = paymentProofPendingByBookingId.has(booking.id)
+    const hasPendingAdminProposal = pendingAdminProposalByBookingId.has(booking.id)
+    const hasPendingReschedule = pendingRescheduleByBookingId.has(booking.id)
 
     return {
       id: booking.id,
@@ -427,15 +449,19 @@ export default async function FlightBookingsPage({
       scheduledLabel: formatDateTime(booking.scheduled_start),
       rawStatus: booking.status,
       displayStatus,
-      statusLabel: paymentProofPendingReview
-        ? (booking.booking_type === 'checkout'
-            ? 'Payment Verification Pending'
-            : isLandingFeePending
-              ? 'Landing Fee Review Pending'
-              : 'Payment Review Pending')
-        : (displayStatus === 'payment_pending' && isLandingFeePending)
-          ? 'Landing Fee Pending'
-          : getStatusLabel(displayStatus),
+      statusLabel: hasPendingAdminProposal
+        ? 'Time Proposed'
+        : hasPendingReschedule
+          ? 'Reschedule Requested'
+          : paymentProofPendingReview
+            ? (booking.booking_type === 'checkout'
+                ? 'Payment Verification Pending'
+                : isLandingFeePending
+                  ? 'Landing Fee Review Pending'
+                  : 'Payment Review Pending')
+            : (displayStatus === 'payment_pending' && isLandingFeePending)
+              ? 'Landing Fee Pending'
+              : getStatusLabel(displayStatus),
       bookingType: bookingTypePresentation.bookingType,
       billingMode: bookingTypePresentation.billingMode,
       billingRateCentsPerHour: bookingTypePresentation.billingRateCentsPerHour,
@@ -445,6 +471,8 @@ export default async function FlightBookingsPage({
       bookingTypeSecondaryLabel: bookingTypePresentation.bookingTypeSecondaryLabel,
       paymentProofPendingReview,
       isLandingFeePending,
+      hasPendingAdminProposal,
+      hasPendingReschedule,
     } satisfies BookingDirectoryRow
   })
 

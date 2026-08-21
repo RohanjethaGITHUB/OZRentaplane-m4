@@ -27,6 +27,16 @@ export default async function CustomerMessagesPage() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
 
+  const { data: pendingProposal } = await supabase
+    .from('checkout_change_requests')
+    .select('id, checkout_request_id, requested_scheduled_start, requested_scheduled_end, admin_note, status, created_at')
+    .eq('customer_id', user.id)
+    .eq('request_type', 'reschedule')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
   const displayName = profile?.full_name ?? user.email?.split('@')[0] ?? 'Pilot'
   const chatEvents = (events as VerificationEvent[]) || []
   const unreadCount = countCustomerUnreadMessages(chatEvents)
@@ -49,6 +59,7 @@ export default async function CustomerMessagesPage() {
           events={chatEvents}
           displayName={displayName}
           threadUserId={user.id}
+          pendingProposal={pendingProposal as any}
         />
       </div>
     </>

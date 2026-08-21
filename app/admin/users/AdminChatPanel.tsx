@@ -111,37 +111,94 @@ export default function AdminChatPanel({ customerId, events, customerName }: Pro
                   </div>
                 )}
 
-                {/* Bubble */}
-                <div className={`max-w-[72%] space-y-1 ${isAdmin ? 'items-end' : 'items-start'} flex flex-col`}>
-                  {/* Label row */}
-                  <div className={`flex items-center gap-2 ${isAdmin ? 'flex-row-reverse' : ''}`}>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#3d5a80]">
-                      {isAdmin ? 'You (Admin)' : customerName}
-                    </span>
-                    {isUnread && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
-                    )}
-                    {ev.event_type === 'on_hold' && (
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400/60 border border-amber-400/20 px-1.5 py-0.5 rounded">
-                        on hold
+                {(() => {
+                  const isDecline = !isAdmin && (
+                    ev.body?.toLowerCase().includes('unable to make the proposed') ||
+                    ev.title?.toLowerCase().includes('declined') ||
+                    ev.event_type === 'rejected'
+                  )
+                  const isAccept = !isAdmin && (
+                    ev.body?.toLowerCase().includes('accepted the proposed') ||
+                    ev.title?.toLowerCase().includes('accepted')
+                  )
+
+                  return (
+                    <div className={`max-w-[72%] space-y-1 ${isAdmin ? 'items-end' : 'items-start'} flex flex-col`}>
+                      {/* Label row */}
+                      <div className={`flex items-center gap-2 ${isAdmin ? 'flex-row-reverse' : ''}`}>
+                        <span className={`text-[10px] font-bold uppercase tracking-widest ${
+                          isDecline
+                            ? 'text-rose-700'
+                            : isAccept
+                              ? 'text-emerald-700 font-bold'
+                              : 'text-[#3d5a80]'
+                        }`}>
+                          {isAdmin ? 'You (Admin)' : customerName}
+                        </span>
+                        {isDecline && (
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-rose-800 bg-rose-100 border border-rose-300 px-1.5 py-0.5 rounded">
+                            declined time
+                          </span>
+                        )}
+                        {isAccept && (
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded">
+                            accepted time
+                          </span>
+                        )}
+                        {isUnread && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
+                        )}
+                        {ev.event_type === 'on_hold' && (
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400/60 border border-amber-400/20 px-1.5 py-0.5 rounded">
+                            on hold
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Message body */}
+                      <div className={`px-4 py-3 rounded-2xl text-[14px] leading-relaxed whitespace-pre-wrap ${
+                        isAdmin
+                          ? 'bg-blue-600/15 border border-blue-400/15 text-slate-900 rounded-tr-sm'
+                          : isDecline
+                            ? 'bg-rose-50/90 border border-rose-200 text-rose-950 rounded-tl-sm'
+                            : isAccept
+                              ? 'bg-emerald-50/90 border border-emerald-200 text-emerald-950 rounded-tl-sm'
+                              : 'bg-[#f8f9fb] border border-[rgba(12,35,64,0.08)] text-[#0C2340] rounded-tl-sm'
+                      }`}>
+                        {ev.body ? (
+                          isDecline && ev.body.includes('Note:') ? (
+                            <div>
+                              <p>{ev.body.split(/\.\s*Note:/i)[0]}.</p>
+                              {(() => {
+                                const match = ev.body.match(/Note:\s*("?[^"]*"?)\.\s*(.*)/i) || ev.body.match(/Note:\s*(.*)/i)
+                                const noteContent = match ? match[1] : ''
+                                const followUp = match && match[2] ? match[2] : ''
+                                return (
+                                  <>
+                                    {noteContent && (
+                                      <div className="my-2 p-2 rounded-lg bg-rose-100 border border-rose-300 text-rose-900 font-bold text-xs flex items-center gap-1.5 shadow-2xs">
+                                        <span className="material-symbols-outlined text-sm text-rose-600 flex-shrink-0">comment</span>
+                                        <span>Customer Note: {noteContent}</span>
+                                      </div>
+                                    )}
+                                    {followUp && <p className="text-xs text-rose-800 mt-1">{followUp}</p>}
+                                  </>
+                                )
+                              })()}
+                            </div>
+                          ) : (
+                            ev.body.replace(/\.\s*(Please accept or decline.*)/i, '.\n$1')
+                          )
+                        ) : ''}
+                      </div>
+
+                      {/* Timestamp */}
+                      <span className="text-[10px] text-[#3d5a80] font-mono">
+                        {fmtTime(ev.created_at)}
                       </span>
-                    )}
-                  </div>
-
-                  {/* Message body */}
-                  <div className={`px-4 py-3 rounded-2xl text-[14px] leading-relaxed whitespace-pre-wrap ${
-                    isAdmin
-                      ? 'bg-blue-600/15 border border-blue-400/15 text-slate-900 rounded-tr-sm'
-                      : 'bg-[#f8f9fb] border border-[rgba(12,35,64,0.08)] text-[#0C2340] rounded-tl-sm'
-                  }`}>
-                    {ev.body}
-                  </div>
-
-                  {/* Timestamp */}
-                  <span className="text-[10px] text-[#3d5a80] font-mono">
-                    {fmtTime(ev.created_at)}
-                  </span>
-                </div>
+                    </div>
+                  )
+                })()}
 
                 {/* Admin avatar (right side) */}
                 {isAdmin && (

@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation'
 import {
   confirmCheckoutBooking,
   cancelCheckoutBooking,
+  adminProposeCheckoutTime,
+  adminDirectlyUpdateCheckoutTime,
+  adminWithdrawProposedCheckoutTime,
   adminUpdateCheckoutTime,
 } from '@/app/actions/admin-booking'
 import { sendAdminChatMessage, markAdminChatRead, getSignedDocumentUrl } from '@/app/actions/admin'
@@ -16,6 +19,7 @@ import CalendarDateField from '@/components/CalendarDateField'
 import DocumentViewerModal from '@/components/ui/DocumentViewerModal'
 import type { DocumentFile } from '@/components/ui/DocumentViewerModal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import ModalPortal from '@/components/ModalPortal'
 import type { VerificationEvent } from '@/lib/supabase/types'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import { CHECKOUT_RATE_PER_HOUR } from '@/lib/pricing-constants'
@@ -78,6 +82,13 @@ type Props = {
   messages:           VerificationEvent[]
   /** When true, keep the action footer but block Confirm Checkout until the new time is reviewed */
   pendingRescheduleReview?: boolean
+  pendingProposal?: {
+    id: string
+    requested_scheduled_start: string
+    requested_scheduled_end: string
+    admin_note: string | null
+    created_at?: string
+  } | null
 }
 
 // ── Time option helpers ────────────────────────────────────────────────────────
@@ -461,11 +472,14 @@ export default function AdminCheckoutReviewPanel({
   clearanceLabel, clearanceColor, clearanceBg, clearanceBorder,
   documents, messages,
   pendingRescheduleReview = false,
+  pendingProposal = null,
 }: Props) {
   const router = useRouter()
 
   // ── Time edit state ──────────────────────────────────────────────────────────
-  const [editingTime, setEditingTime] = useState(false)
+  const [proposeModalOpen, setProposeModalOpen] = useState(false)
+  const [viewProposalModalOpen, setViewProposalModalOpen] = useState(false)
+  const [alreadyAgreedWithCustomer, setAlreadyAgreedWithCustomer] = useState(false)
   const [newDate, setNewDate]         = useState(toSydDate(scheduledStart))
   const [newStartTime, setNewStartTime] = useState(toSydTime(scheduledStart))
   const newEndTime  = addCheckoutDuration(newStartTime)
@@ -476,6 +490,7 @@ export default function AdminCheckoutReviewPanel({
 
   const [timeUpdateStatus, setTimeUpdateStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [timeError, setTimeError]               = useState<string | null>(null)
+  const [withdrawing, setWithdrawing]           = useState(false)
 
   const [confirmPending, startConfirmTransition] = useTransition()
   const [confirmCheckoutOpen, setConfirmCheckoutOpen] = useState(false)
@@ -521,7 +536,22 @@ export default function AdminCheckoutReviewPanel({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatEvents.length])
 
+  useEffect(() => {
+    const handleOpenProposal = () => setViewProposalModalOpen(true)
+    window.addEventListener('open-admin-proposal-modal', handleOpenProposal)
+    return () => window.removeEventListener('open-admin-proposal-modal', handleOpenProposal)
+  }, [])
+
   // ── Handlers ─────────────────────────────────────────────────────────────────
+
+  function handleProposeDifferentTime() {
+    setTimeError(null)
+    setTimeUpdateStatus('idle')
+    setAlreadyAgreedWithCustomer(false)
+    setNewDate(toSydDate(scheduledStart))
+    setNewStartTime(toSydTime(scheduledStart))
+    setProposeModalOpen(true)
+  }
 
   async function handleSaveTime() {
     if (!newStartUTC) { setTimeError('Invalid date or time selection.'); return }
@@ -533,18 +563,37 @@ export default function AdminCheckoutReviewPanel({
     setTimeUpdateStatus('saving')
     setTimeError(null)
     try {
-      await adminUpdateCheckoutTime(bookingId, newStartUTC, newDate, newStartTime)
+      if (alreadyAgreedWithCustomer) {
+        await adminDirectlyUpdateCheckoutTime(bookingId, newStartUTC, newDate, newStartTime)
+      } else {
+        await adminProposeCheckoutTime(bookingId, newStartUTC, newDate, newStartTime)
+      }
       setTimeUpdateStatus('saved')
-      setEditingTime(false)
+      setAlreadyAgreedWithCustomer(false)
+      setProposeModalOpen(false)
       router.refresh()
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to update time.'
       if (msg.includes('INVALID_SCHEDULE_BLOCK_TIME_ORDER')) {
-        setTimeError('Could not update checkout time because the generated schedule block was invalid. Please try another time or contact support.')
+        setTimeError('Could not set checkout time because the schedule block was invalid. Please try another time.')
       } else {
         setTimeError(msg.replace(/^VALIDATION: |^AVAILABILITY: /, ''))
       }
       setTimeUpdateStatus('error')
+    }
+  }
+
+  async function handleWithdrawProposal() {
+    setWithdrawing(true)
+    setTimeError(null)
+    try {
+      await adminWithdrawProposedCheckoutTime(bookingId)
+      setViewProposalModalOpen(false)
+      router.refresh()
+    } catch (e) {
+      setTimeError(e instanceof Error ? e.message : 'Failed to withdraw proposal.')
+    } finally {
+      setWithdrawing(false)
     }
   }
 
@@ -591,15 +640,6 @@ export default function AdminCheckoutReviewPanel({
   function handleRequestDocuments() {
     messageTextareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     messageTextareaRef.current?.focus()
-  }
-
-  function handleProposeDifferentTime() {
-    setEditingTime(true)
-    setTimeUpdateStatus('idle')
-    setTimeError(null)
-    window.requestAnimationFrame(() => {
-      timeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    })
   }
 
   async function handleSendMessage() {
@@ -727,12 +767,15 @@ export default function AdminCheckoutReviewPanel({
   const hasRejectedDocs = requiredDocEntries.some(({ doc }) => doc?.status === 'rejected')
   const allDocsOk = incompleteRequiredDocs.length === 0
   const canConfirmCheckout = allDocsOk || overrideUnapprovedDocs
-  const confirmBlockedByReschedule = pendingRescheduleReview
-  const confirmCheckoutDisabledReason = confirmBlockedByReschedule
-    ? 'Confirm Checkout is disabled until you approve or reject the requested new time.'
-    : canConfirmCheckout
-      ? null
-      : 'Confirm Checkout is disabled until all required documents are approved, or acknowledge document status below to proceed.'
+  const hasPendingAdminProposal = Boolean(pendingProposal && pendingProposal.admin_note === 'admin_proposed')
+  const confirmBlockedByReschedule = pendingRescheduleReview || hasPendingAdminProposal
+  const confirmCheckoutDisabledReason = hasPendingAdminProposal
+    ? 'Confirm Checkout is disabled while a time proposal is awaiting customer response. Wait for customer or withdraw proposal.'
+    : pendingRescheduleReview
+      ? 'Confirm Checkout is disabled until you approve or reject the requested new time.'
+      : canConfirmCheckout
+        ? null
+        : 'Confirm Checkout is disabled until all required documents are approved, or acknowledge document status below to proceed.'
   const allRequiredApproved = allDocsOk
 
   const endTimeLabel = ALL_TIME_OPTIONS.find(o => o.value === newEndTime)?.label ?? newEndTime
@@ -916,71 +959,58 @@ export default function AdminCheckoutReviewPanel({
           </div>
         </div>
 
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={handleProposeDifferentTime}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#152d5a] text-[#152d5a] text-sm font-medium hover:bg-[#152d5a] hover:text-white transition-colors"
-          >
-            <CalendarDays className="w-4 h-4" />
-            Propose Different Time
-          </button>
-        </div>
-
-        <div className={`mt-5 border-t border-gray-100 pt-5 ${editingTime ? '' : 'hidden'}`}>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-500">
-              Duration is fixed at 2 hours. Select the departure date and time.
+        {pendingProposal && pendingProposal.admin_note === 'admin_proposed' && (
+          <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+            <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-amber-600 text-base">schedule_send</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-800">
+                  New Time Proposed to Customer
+                </span>
+              </div>
+              <span className="text-[11px] px-2.5 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+                Awaiting Customer Response
+              </span>
+            </div>
+            <p className="text-sm font-semibold text-[#152d5a]">
+              {formatRequestedTimeLabel(pendingProposal.requested_scheduled_start)}
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold uppercase tracking-widest text-slate-600 block">Date</label>
-                <CalendarDateField
-                  value={newDate}
-                  onChange={(next) => { setNewDate(next); setTimeError(null) }}
-                  minYear={new Date().getFullYear() - 20}
-                  maxYear={new Date().getFullYear() + 20}
-                  minDate={sydToday}
-                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs text-[#152d5a] focus:outline-none focus:border-[#1a4fd6] text-left flex items-center justify-between"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold uppercase tracking-widest text-slate-600 block">Departure</label>
-                <TimeDropdown
-                  value={newStartTime}
-                  options={timeOptions}
-                  onChange={(next) => { setNewStartTime(next); setTimeError(null) }}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
-              <span className="text-[10px] text-gray-500">Return (auto)</span>
-              <span className="text-[10px] text-[#152d5a]">{endTimeLabel} <span className="text-gray-400">(fixed 2 hours)</span></span>
-            </div>
-
-            {timeError && <p className="text-xs text-red-500 leading-relaxed">{timeError}</p>}
-
-            <div className="flex gap-2">
+            <p className="text-xs text-amber-700 mt-1">
+              The checkout time will update once the customer accepts. If declined, the original requested time remains active.
+            </p>
+            <div className="flex flex-wrap items-center gap-2.5 mt-3 pt-3 border-t border-amber-200/60">
               <button
                 type="button"
-                onClick={() => { setEditingTime(false); setTimeError(null) }}
-                disabled={timeUpdateStatus === 'saving'}
-                className="flex-1 px-3 py-2 rounded-lg text-xs font-medium border border-gray-200 bg-white text-[#152d5a] hover:bg-gray-50 transition-colors"
+                onClick={handleProposeDifferentTime}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#1a4fd6]/30 bg-white text-xs font-semibold text-[#1a4fd6] hover:bg-blue-50 transition-colors shadow-2xs cursor-pointer"
               >
-                Cancel
+                <CalendarDays className="w-3.5 h-3.5" />
+                Propose Different Time
               </button>
               <button
                 type="button"
-                onClick={handleSaveTime}
-                disabled={timeUpdateStatus === 'saving' || !newStartUTC}
-                className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-[#152d5a] hover:bg-[#1a4fd6] text-white transition-colors disabled:opacity-50"
-                >
-                  {timeUpdateStatus === 'saving' ? 'Checking…' : 'Save New Time'}
-                </button>
+                onClick={handleWithdrawProposal}
+                disabled={withdrawing}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-300 bg-white text-xs font-semibold text-rose-700 hover:bg-rose-50 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+              >
+                {withdrawing ? 'Withdrawing…' : 'Withdraw Proposal'}
+              </button>
             </div>
           </div>
-        </div>
+        )}
+
+        {!hasPendingAdminProposal && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleProposeDifferentTime}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#152d5a] text-[#152d5a] text-sm font-medium hover:bg-[#152d5a] hover:text-white transition-colors"
+            >
+              <CalendarDays className="w-4 h-4" />
+              Propose New Time
+            </button>
+          </div>
+        )}
 
         {isCancelling ? (
           <div className="mt-5 border-t border-gray-100 pt-5 space-y-3">
@@ -1017,7 +1047,7 @@ export default function AdminCheckoutReviewPanel({
         ) : null}
       </section>
 
-      <section className="bg-white border-t border-r border-b border-gray-100 border-l-4 border-l-[#8b5cf6] rounded-xl p-6 mb-4 shadow-sm">
+      <section className="bg-white border-t border-r border-b border-gray-100 border-l-4 border-l-[#8b5cf6] rounded-xl p-4 sm:p-6 mb-4 shadow-sm">
         <div className="flex items-center gap-3 mb-5">
           <div className="w-8 h-8 rounded-full bg-[#152d5a] text-white text-sm font-semibold flex items-center justify-center flex-shrink-0">
             4
@@ -1046,15 +1076,88 @@ export default function AdminCheckoutReviewPanel({
               <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
                 {chatEvents.map((ev) => {
                   const isAdmin = ev.actor_role === 'admin'
+                  const isDecline = !isAdmin && (
+                    ev.body?.toLowerCase().includes('unable to make the proposed') ||
+                    ev.title?.toLowerCase().includes('declined') ||
+                    ev.event_type === 'rejected'
+                  )
+                  const isAccept = !isAdmin && (
+                    ev.body?.toLowerCase().includes('accepted the proposed') ||
+                    ev.title?.toLowerCase().includes('accepted')
+                  )
+
                   return (
-                    <div key={ev.id} className="bg-gray-50 rounded-lg p-3 border border-gray-100 mb-2 text-sm text-[#152d5a]">
-                      <div className="flex items-center justify-between gap-3 mb-1">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-[#1a4fd6]">
-                          {isAdmin ? 'Admin' : (customerName || 'Customer')}
+                    <div
+                      key={ev.id}
+                      className={`rounded-lg p-3 border mb-2 text-sm ${
+                        isDecline
+                          ? 'bg-rose-50/90 border-rose-200 text-rose-950'
+                          : isAccept
+                            ? 'bg-emerald-50/90 border-emerald-200 text-emerald-950'
+                            : 'bg-gray-50 border-gray-100 text-[#152d5a]'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 mb-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-w-0">
+                          <span className={`text-xs font-semibold uppercase tracking-wide truncate max-w-[160px] sm:max-w-none ${
+                            isDecline
+                              ? 'text-rose-700 font-bold'
+                              : isAccept
+                                ? 'text-emerald-700 font-bold'
+                                : 'text-[#1a4fd6]'
+                          }`}>
+                            {isAdmin ? 'Admin' : (customerName || 'Customer')}
+                          </span>
+                          {isDecline && (
+                            <span className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded font-bold uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-300 whitespace-nowrap flex-shrink-0">
+                              <span className="material-symbols-outlined text-[13px]">event_busy</span>
+                              Declined Proposed Time
+                            </span>
+                          )}
+                          {isAccept && (
+                            <span className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 whitespace-nowrap flex-shrink-0">
+                              <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                              Accepted Proposed Time
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-gray-400 font-mono whitespace-nowrap flex-shrink-0 self-start sm:self-auto sm:ml-auto">
+                          {formatDateTime(ev.created_at)}
                         </span>
-                        <span className="text-[11px] text-gray-400">{formatDateTime(ev.created_at)}</span>
                       </div>
-                      <p className="text-sm text-[#152d5a] whitespace-pre-wrap">{ev.body}</p>
+                      <div className={`text-sm whitespace-pre-wrap ${
+                        isDecline
+                          ? 'text-rose-900 font-medium'
+                          : isAccept
+                            ? 'text-emerald-900 font-medium'
+                            : 'text-[#152d5a]'
+                      }`}>
+                        {ev.body ? (
+                          isDecline && ev.body.includes('Note:') ? (
+                            <div>
+                              <p>{ev.body.split(/\.\s*Note:/i)[0]}.</p>
+                              {(() => {
+                                const match = ev.body.match(/Note:\s*("?[^"]*"?)\.\s*(.*)/i) || ev.body.match(/Note:\s*(.*)/i)
+                                const noteContent = match ? match[1] : ''
+                                const followUp = match && match[2] ? match[2] : ''
+                                return (
+                                  <>
+                                    {noteContent && (
+                                      <div className="my-2 p-2.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-900 font-bold text-xs flex items-center gap-2 shadow-2xs">
+                                        <span className="material-symbols-outlined text-base text-rose-600 flex-shrink-0">comment</span>
+                                        <span>Customer Note: {noteContent}</span>
+                                      </div>
+                                    )}
+                                    {followUp && <p className="text-xs text-rose-800 mt-1">{followUp}</p>}
+                                  </>
+                                )
+                              })()}
+                            </div>
+                          ) : (
+                            ev.body.replace(/\.\s*(Please accept or decline.*)/i, '.\n$1')
+                          )
+                        ) : ''}
+                      </div>
                     </div>
                   )
                 })}
@@ -1090,7 +1193,26 @@ export default function AdminCheckoutReviewPanel({
 
       <div className="@container fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] md:px-6 md:py-4 lg:left-72">
         <div className="mx-auto flex max-w-7xl flex-col gap-2.5">
-          {confirmBlockedByReschedule ? (
+          {hasPendingAdminProposal && pendingProposal ? (
+            <div className="flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between shadow-sm">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="material-symbols-outlined flex-shrink-0 text-amber-600 text-[18px] leading-none">
+                  schedule_send
+                </span>
+                <span className="text-xs sm:text-sm leading-snug">
+                  Proposed new time (<strong className="font-semibold text-amber-950">{formatRequestedTimeLabel(pendingProposal.requested_scheduled_start)}</strong>) is awaiting customer response. Confirm Checkout is disabled until customer accepts or proposal is withdrawn.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewProposalModalOpen(true)}
+                className="inline-flex flex-shrink-0 items-center justify-center gap-1.5 self-center rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100 sm:self-auto"
+              >
+                View proposed time
+                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+              </button>
+            </div>
+          ) : pendingRescheduleReview ? (
             <RescheduleReviewFooterWarning />
           ) : !allDocsOk ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50/95 p-3 sm:p-3.5 text-amber-900 shadow-sm transition-all">
@@ -1150,11 +1272,11 @@ export default function AdminCheckoutReviewPanel({
             <button
               type="button"
               onClick={handleProposeDifferentTime}
-              disabled={timeUpdateStatus === 'saving' || confirmBlockedByReschedule}
+              disabled={timeUpdateStatus === 'saving' || pendingRescheduleReview}
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-[11px] font-medium text-[#152d5a] shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50 sm:w-auto sm:gap-2 sm:px-4 sm:py-2.5 sm:text-xs sm:justify-start"
             >
               <CalendarDays className="h-4 w-4 flex-shrink-0" />
-              Propose New Time
+              {hasPendingAdminProposal ? 'Propose Different Time' : 'Propose New Time'}
             </button>
             <div className="relative group w-full sm:w-auto">
               <button
@@ -1266,6 +1388,232 @@ export default function AdminCheckoutReviewPanel({
         initialIndex={viewerInitialIndex}
         title={viewerTitle}
       />
+
+      {/* Propose / Direct Update Time Modal */}
+      {proposeModalOpen && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-4 sm:p-6 shadow-2xl border border-gray-100 space-y-4 my-auto animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3 sm:pb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#1a4fd6]">
+                    <CalendarDays className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-bold text-[#152d5a]">
+                      {hasPendingAdminProposal ? 'Propose Different Checkout Time' : 'Propose or Update Checkout Time'}
+                    </h3>
+                    <p className="text-[11px] sm:text-xs text-gray-500">
+                      Duration is fixed at 2 hours (Sydney local time).
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setProposeModalOpen(false); setTimeError(null) }}
+                  className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+
+              <div className="space-y-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-600 block">Date</label>
+                    <CalendarDateField
+                      value={newDate}
+                      onChange={(next) => { setNewDate(next); setTimeError(null) }}
+                      minYear={new Date().getFullYear() - 20}
+                      maxYear={new Date().getFullYear() + 20}
+                      minDate={sydToday}
+                      className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-xs text-[#152d5a] focus:outline-none focus:border-[#1a4fd6] text-left flex items-center justify-between"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-600 block">Departure Time</label>
+                    <TimeDropdown
+                      value={newStartTime}
+                      options={timeOptions}
+                      onChange={(next) => { setNewStartTime(next); setTimeError(null) }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-3.5 py-2.5">
+                  <span className="text-xs text-gray-500 font-medium">Return Time (auto)</span>
+                  <span className="text-xs font-semibold text-[#152d5a]">
+                    {endTimeLabel} <span className="text-gray-400 font-normal">(fixed 2 hrs)</span>
+                  </span>
+                </div>
+
+                {/* Agreement Checkbox */}
+                <div className="rounded-xl border border-blue-200 bg-blue-50/80 p-3 sm:p-3.5 space-y-1">
+                  <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={alreadyAgreedWithCustomer}
+                      onChange={(e) => {
+                        setAlreadyAgreedWithCustomer(e.target.checked)
+                        setTimeError(null)
+                      }}
+                      className="mt-0.5 h-4 w-4 rounded border-blue-300 text-[#1a4fd6] focus:ring-[#1a4fd6] accent-[#1a4fd6] cursor-pointer flex-shrink-0"
+                    />
+                    <div className="text-xs text-[#152d5a]">
+                      <span className="font-bold block text-blue-950">
+                        I have already spoken with the customer and agreed on this time
+                      </span>
+                      <span className="text-blue-800 text-[11px] leading-relaxed block mt-0.5">
+                        {alreadyAgreedWithCustomer
+                          ? 'Checking this will immediately update the flight time in both customer and admin systems without requiring customer approval.'
+                          : 'Check this if you directly confirmed the new time with the pilot. Otherwise, leave unchecked to send a formal proposal for their approval.'}
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                {timeError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-600 font-medium">
+                    {timeError}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => { setProposeModalOpen(false); setAlreadyAgreedWithCustomer(false); setTimeError(null) }}
+                  className="inline-flex items-center justify-center px-4 py-2.5 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-xl shadow-xs transition-colors w-full sm:w-auto text-center"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveTime}
+                  disabled={timeUpdateStatus === 'saving'}
+                  className={`inline-flex items-center justify-center gap-1.5 px-5 py-2.5 text-xs font-semibold text-white rounded-xl shadow-sm transition-colors disabled:opacity-50 w-full sm:w-auto text-center ${
+                    alreadyAgreedWithCustomer
+                      ? 'bg-[#152d5a] hover:bg-[#1a4fd6]'
+                      : 'bg-amber-600 hover:bg-amber-700'
+                  }`}
+                >
+                  {timeUpdateStatus === 'saving' ? (
+                    <>
+                      <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                      {alreadyAgreedWithCustomer ? 'Updating…' : 'Sending…'}
+                    </>
+                  ) : alreadyAgreedWithCustomer ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      Update Flight Time Directly
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-sm">schedule_send</span>
+                      Send Proposal to Customer
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
+      {/* View Proposed Time Modal */}
+      {viewProposalModalOpen && pendingProposal && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-4 sm:p-6 shadow-2xl border border-gray-100 space-y-4 my-auto animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3 sm:pb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
+                    <span className="material-symbols-outlined text-xl">schedule_send</span>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-[#152d5a]">
+                      Proposed Checkout Flight Time
+                    </h3>
+                    <p className="text-xs text-amber-800">
+                      Awaiting Customer Response
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewProposalModalOpen(false)}
+                  className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-3.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">
+                    Current Scheduled Time (Held)
+                  </p>
+                  <p className="text-sm font-semibold text-[#152d5a]">
+                    {requestedTimeLabel}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-amber-300 bg-amber-50/80 p-3.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800 mb-1">
+                    Proposed Alternative Time
+                  </p>
+                  <p className="text-sm font-bold text-amber-950">
+                    {formatRequestedTimeLabel(pendingProposal.requested_scheduled_start)}
+                  </p>
+                  <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                    The checkout time will update once the customer accepts. If declined, the original time remains active.
+                  </p>
+                </div>
+
+                {timeError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-600 font-medium">
+                    {timeError}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={handleWithdrawProposal}
+                  disabled={withdrawing}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded-xl shadow-xs transition-colors disabled:opacity-50 w-full sm:w-auto text-center"
+                >
+                  {withdrawing ? 'Withdrawing…' : 'Withdraw Proposal'}
+                </button>
+
+                <div className="flex flex-col-reverse sm:flex-row items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setViewProposalModalOpen(false)}
+                    className="inline-flex items-center justify-center px-4 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-xl shadow-xs transition-colors w-full sm:w-auto text-center"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewProposalModalOpen(false)
+                      setAlreadyAgreedWithCustomer(false)
+                      setTimeError(null)
+                      setProposeModalOpen(true)
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-[#1a4fd6] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl shadow-xs transition-colors w-full sm:w-auto text-center"
+                  >
+                    <CalendarDays className="w-3.5 h-3.5" />
+                    Propose Different Time
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
     </div>
   )
 }
