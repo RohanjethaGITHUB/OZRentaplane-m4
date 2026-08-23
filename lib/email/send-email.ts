@@ -20,9 +20,21 @@ export type SendEmailInput = {
   metadata?: Record<string, unknown>
 }
 
+function cleanEmailString(value?: string | null): string | undefined {
+  if (!value) return undefined
+  let clean = value.trim()
+  if (
+    (clean.startsWith('"') && clean.endsWith('"')) ||
+    (clean.startsWith("'") && clean.endsWith("'"))
+  ) {
+    clean = clean.slice(1, -1).trim()
+  }
+  return clean || undefined
+}
+
 export async function sendEmail(input: SendEmailInput): Promise<{ status: 'sent' | 'failed' | 'skipped'; resendEmailId?: string | null }> {
-  const from = process.env.EMAIL_FROM
-  const replyTo = process.env.EMAIL_REPLY_TO
+  const from = cleanEmailString(process.env.EMAIL_FROM)
+  const replyTo = cleanEmailString(process.env.EMAIL_REPLY_TO)
   const resend = getResendClient()
   const dedupeKey = getEntityIdText(input)
 
@@ -53,9 +65,10 @@ export async function sendEmail(input: SendEmailInput): Promise<{ status: 'sent'
   }
 
   try {
+    const to = cleanEmailString(input.to) || input.to.trim()
     const { data, error } = await resend.emails.send({
       from,
-      to: input.to,
+      to,
       subject: input.subject,
       html: input.html,
       text: input.text,
