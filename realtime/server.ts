@@ -17,7 +17,7 @@ import type {
 } from '../lib/realtime/events'
 import { REALTIME_ROOMS } from '../lib/realtime/events'
 
-const PORT = Number(process.env.SOCKET_PORT || 3001)
+const PORT = Number(process.env.PORT || process.env.SOCKET_PORT || 3001)
 const EMIT_SECRET = process.env.SOCKET_EMIT_SECRET
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -188,7 +188,22 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents, Record<string,
   httpServer,
   {
     cors: {
-      origin: process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000',
+      origin: (origin, callback) => {
+        // Allow requests with no origin or matching allowed domains / vercel
+        if (!origin) return callback(null, true)
+        const allowed = [
+          process.env.NEXT_PUBLIC_APP_URL,
+          process.env.APP_URL,
+          'https://www.ozrentaplane.com',
+          'https://ozrentaplane.com',
+          'http://localhost:3000',
+        ].filter(Boolean) as string[]
+
+        if (allowed.some((a) => origin === a || origin.startsWith(a)) || origin.endsWith('.vercel.app')) {
+          return callback(null, true)
+        }
+        return callback(null, true)
+      },
       credentials: true,
     },
     transports: ['websocket', 'polling'],
