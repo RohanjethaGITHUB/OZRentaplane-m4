@@ -3,7 +3,9 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyBookingCancelled } from '@/lib/booking/notifications'
+import { emitBookingChanged, emitChatMessage, emitOpsChanged } from '@/lib/realtime/emit'
 
 async function requireAdmin() {
   const supabase = await createClient()
@@ -18,6 +20,132 @@ async function requireAdmin() {
 
   if (!profile || profile.role !== 'admin') throw new Error('Forbidden')
   return { supabase, adminId: user.id }
+}
+
+export async function cancelBookingByAdmin(bookingId: string, reason: string): Promise<void> {
+  const { supabase, adminId } = await requireAdmin()
+  const now = new Date().toISOString()
+  const trimmedReason = reason.trim()
+
+  if (!trimmedReason) {
+    throw new Error('VALIDATION: A cancellation reason is required.')
+  }
+
+  const { data: booking, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('id, status, booking_type, scheduled_start, scheduled_end, aircraft_id, booking_owner_user_id, booking_reference')
+    .eq('id', bookingId)
+    .single()
+
+  if (fetchErr || !booking) throw new Error('Booking not found.')
+  if (['cancelled', 'completed'].includes(booking.status)) {
+    throw new Error(`VALIDATION: Cannot cancel a booking that is already ${booking.status}.`)
+  }
+
+  const oldStatus = booking.status
+  const admin = createAdminClient()
+
+  // 1. Update booking
+  const { error: updateErr } = await admin
+    .from('bookings')
+    .update({
+      status: 'cancelled',
+      admin_notes: trimmedReason,
+      cancellation_category: 'admin',
+      updated_at: now,
+    })
+    .eq('id', bookingId)
+
+  if (updateErr) throw new Error('Failed to cancel booking.')
+
+  // 2. Release linked schedule blocks
+  const { error: blockErr } = await admin
+    .from('schedule_blocks')
+    .update({ status: 'cancelled' })
+    .eq('related_booking_id', bookingId)
+
+  if (blockErr) console.error('[cancelBookingByAdmin] block cancel error:', blockErr)
+
+  // 3. Insert status history
+  await admin.from('booking_status_history').insert({
+    booking_id: bookingId,
+    old_status: oldStatus,
+    new_status: 'cancelled',
+    changed_by_user_id: adminId,
+    note: `Flight cancelled by admin. Reason: ${trimmedReason}`,
+  })
+
+  // 4. Audit event
+  await admin.from('booking_audit_events').insert({
+    booking_id: bookingId,
+    aircraft_id: booking.aircraft_id,
+    actor_user_id: adminId,
+    actor_role: 'admin',
+    event_type: 'booking_cancelled',
+    event_summary: `Admin cancelled booking: ${trimmedReason}`,
+    new_value: { status: 'cancelled', category: 'admin', reason: trimmedReason, old_status: oldStatus },
+  })
+
+  // 5. Post message to customer & admin chat (verification_events)
+  const chatMessageBody = `Your flight booking (${booking.booking_reference ?? bookingId.slice(0, 8).toUpperCase()}) has been cancelled by operations. Reason: ${trimmedReason}`
+
+  const { error: chatErr } = await admin.from('verification_events').insert({
+    user_id:       booking.booking_owner_user_id,
+    actor_user_id: adminId,
+    actor_role:    'admin',
+    event_type:    'message',
+    from_status:   null,
+    to_status:     null,
+    title:         'Flight Booking Cancelled',
+    body:          chatMessageBody,
+    email_status:  'sent',
+    admin_read_at: now,
+  })
+
+  if (chatErr) {
+    console.error('[cancelBookingByAdmin] chat insert error:', chatErr)
+  }
+
+  // 6. Notify customer by email
+  const { data: notifyData } = await admin
+    .from('bookings')
+    .select('booking_reference, profiles:booking_owner_user_id ( full_name, email )')
+    .eq('id', bookingId)
+    .single()
+
+  if (notifyData) {
+    const prof = Array.isArray(notifyData.profiles) ? notifyData.profiles[0] : notifyData.profiles
+    const email = (prof as { email?: string | null } | null)?.email
+    if (email) {
+      void notifyBookingCancelled({
+        customerEmail: email,
+        customerName: (prof as { full_name?: string | null } | null)?.full_name ?? 'Pilot',
+        ref: notifyData.booking_reference ?? bookingId.slice(0, 8).toUpperCase(),
+        reason: trimmedReason,
+        bookingId,
+      }).catch((error) => console.error('[cancelBookingByAdmin] notification error:', error))
+    }
+  }
+
+  // 7. Revalidate paths
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings')
+  revalidatePath('/admin/bookings/flights')
+  revalidatePath('/admin/bookings/requests')
+  revalidatePath(`/admin/bookings/requests/${bookingId}`)
+  revalidatePath('/admin/bookings/cancellations')
+  revalidatePath('/admin/calendar')
+  revalidatePath('/admin/messages')
+  revalidatePath(`/admin/users/${booking.booking_owner_user_id}`)
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard/bookings')
+  revalidatePath(`/dashboard/bookings/${bookingId}`)
+  revalidatePath('/dashboard/messages')
+
+  // 8. Realtime emissions
+  void emitBookingChanged({ bookingId, userId: booking.booking_owner_user_id })
+  void emitChatMessage(booking.booking_owner_user_id)
+  void emitOpsChanged()
 }
 
 async function cancelOnHoldBookingCore(bookingId: string, reason: string): Promise<void> {

@@ -25,6 +25,7 @@ import AdminRescheduleReviewProvider, {
   ProposalReviewButton,
 } from './AdminRescheduleReviewProvider'
 import AdminRejectDocsPanel from './AdminRejectDocsPanel'
+import AdminCancelBookingButton from './AdminCancelBookingButton'
 import { deriveBookingLifecycleStage } from '@/lib/booking/booking-lifecycle-stage'
 import { isStandardBookingInvoicePaid } from '@/lib/booking/standard-booking-payment-state'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
@@ -1408,6 +1409,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 <p className="truncate text-[15px] font-semibold text-[var(--admin-text)]">{customer?.full_name ?? '—'}</p>
               )}
               <p className="mt-1 truncate text-[12.5px] text-[var(--admin-text-muted)]">{customer?.email ?? '—'}</p>
+              {customer?.phone_number ? (
+                <p className="mt-0.5 truncate text-[12px] text-[var(--admin-text-muted)]">
+                  {customer.phone_country_code ? `${customer.phone_country_code} ` : ''}{customer.phone_number}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -1581,7 +1587,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 </p>
               </div>
 
-              <div className="flex flex-col items-start gap-2 md:ml-4 md:flex-shrink-0">
+              <div className="flex flex-wrap items-center gap-2.5 md:ml-4 md:flex-shrink-0">
                 {flightReadingsBanner.buttonLabel && !flightRecordRow && !(['paid_closed', 'waived_closed', 'payment_review_pending', 'payment_required', 'payment_still_due', 'payment_void', 'payment_failed', 'cancelled', 'no_show'] as string[]).includes(lifecycleStage.key) && (
                   <AdminFlightReadingsDisclosureTrigger
                     label={flightReadingsBanner.buttonLabel}
@@ -1596,6 +1602,18 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                     className="w-full sm:w-auto"
                   />
                 ) : null}
+                {!['completed', 'cancelled', 'no_show'].includes(booking.status) && (
+                  <AdminCancelBookingButton
+                    bookingId={booking.id}
+                    customerName={(customer as { full_name?: string | null } | null)?.full_name ?? 'Customer'}
+                    customerEmail={(customer as { email?: string | null } | null)?.email ?? null}
+                    aircraftLabel={`${(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/^Cessna 172$/, 'Cessna 172N') ?? 'Cessna 172N'} (${(aircraft as { registration?: string } | null)?.registration ?? 'VH-KZG'})`}
+                    scheduleRangeLabel={bookingSchedule.dateRange}
+                    timeRangeLabel={bookingSchedule.timeRange}
+                    durationLabel={bookingSchedule.duration}
+                    isMultiDay={isMultiDay}
+                  />
+                )}
               </div>
             </div>
           </div>

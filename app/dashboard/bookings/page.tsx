@@ -379,7 +379,7 @@ export default async function CustomerBookingsPage() {
       .from('bookings')
       .select(`
         id, booking_reference, status, booking_type, aircraft_id,
-        checkout_lifecycle_status, admin_notes,
+        checkout_lifecycle_status, admin_notes, cancellation_category, cancellation_reason,
         scheduled_start, scheduled_end,
         estimated_hours, estimated_amount, pic_name, created_at,
         aircraft ( registration ),
