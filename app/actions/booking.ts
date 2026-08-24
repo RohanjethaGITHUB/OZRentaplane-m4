@@ -42,9 +42,29 @@ import type {
 } from '@/lib/supabase/booking-types'
 import type { UserDocument } from '@/lib/supabase/types'
 
-// ─── Auth guard ───────────────────────────────────────────────────────────────
+// ─── Auth guards ──────────────────────────────────────────────────────────────
 // Customers must be cleared for solo hire before creating standard bookings.
 // Returns supabase client and the authenticated user id.
+
+async function requireCustomer() {
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) throw new Error('Unauthorized')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, account_status, account_lock_reason, full_name, email')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile) throw new Error('Profile not found')
+  if (profile.role !== 'customer') throw new Error('Not a customer account')
+  if (profile.account_status === 'blocked') {
+    throw new Error('ACCOUNT_BLOCKED: Your account has been blocked. Please contact support.')
+  }
+
+  return { supabase, userId: user.id, userEmail: profile.email, userFullName: profile.full_name }
+}
 
 async function requireClearedCustomer(perf?: ReturnType<typeof createPerfLogger>) {
   const authCtx = await (perf
@@ -347,7 +367,7 @@ export async function createBooking(
 // Standard bookings only; checkout bookings use a separate flow.
 
 export async function markFlightReturned(bookingId: string): Promise<void> {
-  const { supabase, userId } = await requireClearedCustomer()
+  const { supabase, userId } = await requireCustomer()
 
   const { data: booking } = await supabase
     .from('bookings')
@@ -369,10 +389,15 @@ export async function markFlightReturned(bookingId: string): Promise<void> {
   }
   const now = new Date().toISOString()
 
-  await supabase
+  const { error: updateError } = await supabase
     .from('bookings')
     .update({ status: 'awaiting_flight_record', updated_at: now })
     .eq('id', bookingId)
+
+  if (updateError) {
+    console.error('[markFlightReturned] update failed:', updateError)
+    throw new Error('Failed to update booking status.')
+  }
 
   await supabase.from('booking_status_history').insert({
     booking_id:         bookingId,
@@ -411,7 +436,7 @@ export async function markFlightReturned(bookingId: string): Promise<void> {
 export async function submitFlightRecord(
   input: SubmitFlightRecordInput,
 ): Promise<{ flightRecordId: string }> {
-  const { supabase, userId } = await requireClearedCustomer()
+  const { supabase, userId } = await requireCustomer()
 
   // Verify booking ownership and status
   const { data: booking, error: bookingError } = await supabase
@@ -448,7 +473,7 @@ export async function submitClarificationResponse(
   bookingId: string,
   response:  string,
 ): Promise<void> {
-  const { supabase, userId } = await requireClearedCustomer()
+  const { supabase, userId } = await requireCustomer()
 
   if (!response.trim()) throw new Error('VALIDATION: A response is required.')
 
@@ -528,7 +553,7 @@ export async function submitClarificationResponse(
 export async function resubmitFlightRecord(
   input: ResubmitFlightRecordInput,
 ): Promise<void> {
-  const { supabase, userId } = await requireClearedCustomer()
+  const { supabase, userId } = await requireCustomer()
 
   // Ownership + status gate
   const { data: booking, error: bookingErr } = await supabase
@@ -721,7 +746,7 @@ export async function resubmitFlightRecord(
 export async function uploadFlightRecordEvidence(
   formData: FormData,
 ): Promise<{ storagePath: string; attachmentId: string }> {
-  const { supabase, userId } = await requireClearedCustomer()
+  const { supabase, userId } = await requireCustomer()
 
   const file           = formData.get('file')           as File   | null
   const flightRecordId = formData.get('flightRecordId') as string | null

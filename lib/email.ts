@@ -19,10 +19,20 @@ export type EmailSendStatus = 'sent' | 'failed' | 'skipped'
 
 type SendResult = { status: EmailSendStatus }
 
-// ─── Private helpers ──────────────────────────────────────────────────────────
+function cleanEmailString(value?: string | null): string | undefined {
+  if (!value) return undefined
+  let clean = value.trim()
+  if (
+    (clean.startsWith('"') && clean.endsWith('"')) ||
+    (clean.startsWith("'") && clean.endsWith("'"))
+  ) {
+    clean = clean.slice(1, -1).trim()
+  }
+  return clean || undefined
+}
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://ozrentaplane.com'
-const FROM    = process.env.EMAIL_FROM ?? 'OZ Rent A Plane <noreply@ozrentaplane.com>'
+const FROM    = cleanEmailString(process.env.EMAIL_FROM) ?? 'OZ Rent A Plane <noreply@ozrentaplane.com>'
 
 function layout(bodyHtml: string): string {
   return `<!DOCTYPE html>
