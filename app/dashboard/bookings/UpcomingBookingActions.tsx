@@ -24,15 +24,20 @@ type Props = {
     scheduled_end?: string | null
     checkout_lifecycle_status?: string | null
     aircraft_id?: string | null
+    aircraft_name?: string | null
+    aircraft_registration?: string | null
+    estimated_hours?: number | null
   }
   pendingRescheduleRequest: RescheduleRequestLite | null
   latestRescheduleRequest: RescheduleRequestLite | null
+  hasNightVfrRating?: boolean | null
 }
 
 export default function UpcomingBookingActions({
   booking,
   pendingRescheduleRequest,
   latestRescheduleRequest,
+  hasNightVfrRating,
 }: Props) {
   const isCheckout = booking.booking_type === 'checkout'
   const msUntilDeparture = new Date(booking.scheduled_start).getTime() - Date.now()
@@ -82,8 +87,12 @@ export default function UpcomingBookingActions({
             status: booking.status,
             scheduled_start: booking.scheduled_start,
             scheduled_end: booking.scheduled_end ?? null,
+            aircraft_name: booking.aircraft_name ?? null,
+            aircraft_registration: booking.aircraft_registration ?? null,
+            estimated_hours: booking.estimated_hours ?? null,
           }}
           aircraftId={booking.aircraft_id}
+          hasNightVfrRating={hasNightVfrRating}
         />
       ) : (
         <>

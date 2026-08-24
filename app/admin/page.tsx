@@ -110,6 +110,7 @@ export type ActionItem = {
   aircraftLabel: string | null
   aircraftHref: string | null
   scheduleLabel?: string | null
+  rescheduleNote?: string | null
   receivedAt: string | null
   nextStep: string
   actionTone?: 'default' | 'amber' | 'primary' | 'success' | 'indigo'
@@ -491,6 +492,7 @@ export default async function AdminActionsPage({
     { data: bookingBankTransferSubmissionRows },
     { data: checkoutInvoiceRows },
     { data: checkoutBankTransferSubmissionRows },
+    { data: rescheduleAuditRows },
   ] = await perf.time(
     'admin_home',
     'followup_parallel_group',
@@ -561,6 +563,14 @@ export default async function AdminActionsPage({
               .order('submitted_at', { ascending: false }),
           )
         : Promise.resolve({ data: [] as CheckoutBankTransferSubmissionRow[] }),
+      safeQuery(
+        'booking reschedule events',
+        supabase
+          .from('booking_audit_events')
+          .select('booking_id, actor_role, old_value, new_value, created_at')
+          .eq('event_type', 'booking_rescheduled')
+          .order('created_at', { ascending: false }),
+      ),
     ]),
     (result) => ({
       rowCount: result.reduce((sum, source) => sum + (source.data?.length ?? 0), 0),
@@ -613,6 +623,13 @@ export default async function AdminActionsPage({
     const list = checkoutBankTransferSubmissionsByBookingId.get(bookingId) ?? []
     list.push(submission)
     checkoutBankTransferSubmissionsByBookingId.set(bookingId, list)
+  }
+
+  const rescheduleEventsByBookingId = new Map<string, { actor_role: string; old_value: any; new_value: any; created_at: string }>()
+  for (const ev of (rescheduleAuditRows ?? []) as Array<{ booking_id: string; actor_role: string; old_value: any; new_value: any; created_at: string }>) {
+    if (ev.booking_id && !rescheduleEventsByBookingId.has(ev.booking_id)) {
+      rescheduleEventsByBookingId.set(ev.booking_id, ev)
+    }
   }
 
   const awaitingFlightRecords = perf.timeSync(
@@ -881,6 +898,8 @@ export default async function AdminActionsPage({
     const aircraft = firstItem(booking.aircraft)
     const profile = profileFor(booking.booking_owner_user_id)
     const customerLabel = fullCustomerName(profile, booking.pic_name)
+    const rescheduleEv = rescheduleEventsByBookingId.get(booking.id)
+    const isCustomerRescheduled = rescheduleEv?.actor_role === 'customer'
     return {
       key: `standard-upcoming-${booking.id}`,
       groups: ['rental'] as WorkflowFilter[],
@@ -896,6 +915,7 @@ export default async function AdminActionsPage({
       aircraftLabel: aircraft?.registration ?? null,
       aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
       scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
+      rescheduleNote: rescheduleEv ? (isCustomerRescheduled ? 'Time rescheduled by customer' : 'Time rescheduled') : null,
       receivedAt: booking.updated_at || booking.created_at,
       nextStep: 'Manage booking',
       href: `/admin/bookings/requests/${booking.id}`,

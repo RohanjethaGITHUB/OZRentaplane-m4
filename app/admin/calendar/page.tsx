@@ -145,6 +145,8 @@ export default async function AdminCalendarPage({ searchParams }: { searchParams
     if (!aircraft) return []
 
     const booking = block.related_booking_id ? bookingsById.get(block.related_booking_id) ?? null : null
+    if (booking && booking.status === 'cancelled') return []
+
     const profile = booking ? profilesById.get(booking.booking_owner_user_id) ?? null : null
 
     return [

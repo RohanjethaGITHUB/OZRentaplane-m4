@@ -84,6 +84,7 @@ export async function checkCustomerAvailability(
   scheduledStart: string,   // ISO 8601 UTC
   scheduledEnd:   string,   // ISO 8601 UTC
   mode: AvailabilityMode = 'default',
+  excludeBookingId?: string,
 ): Promise<AvailabilityCheckResult> {
   const supabase = await createClient()
 
@@ -128,7 +129,21 @@ export async function checkCustomerAvailability(
     }
   }
 
-  const blocks = (data as CustomerCalendarBlock[]) || []
+  const excludedBlockIds = new Set<string>()
+  if (excludeBookingId) {
+    const { data: ownBlocks } = await supabase
+      .from('schedule_blocks')
+      .select('id')
+      .eq('related_booking_id', excludeBookingId)
+    if (ownBlocks) {
+      for (const ob of ownBlocks) excludedBlockIds.add(ob.id)
+    }
+  }
+
+  const blocks = ((data as CustomerCalendarBlock[]) || []).filter(
+    (b) => !excludedBlockIds.has(b.block_id)
+  )
+
   const { data: blockingBookings } = await supabase
     .from('bookings')
     .select('id, status, booking_type, scheduled_start, scheduled_end, booking_owner_user_id')
@@ -138,17 +153,22 @@ export async function checkCustomerAvailability(
     .gt('scheduled_end', queryStart.toISOString())
     .order('scheduled_start', { ascending: true })
 
+  const activeBookings = (blockingBookings ?? []).filter(
+    (b) => !excludeBookingId || b.id !== excludeBookingId
+  )
+
   const blockConflicts: SafeConflict[] = blocks.map(b => ({
     start_time: b.start_time,
     end_time:   b.end_time,
     label:      b.label,
   }))
-  const conflicts = mergeConflicts(blockConflicts, blockingBookings ?? [])
+  const conflicts = mergeConflicts(blockConflicts, activeBookings)
   const available = conflicts.length === 0
 
   console.info('CHECKOUT_AVAILABILITY_STEP1', {
     mode,
     aircraft_id: aircraftId,
+    exclude_booking_id: excludeBookingId,
     requested_start_utc: start.toISOString(),
     requested_end_utc: end.toISOString(),
     requested_start_sydney: requestedStartSydney,
@@ -159,10 +179,10 @@ export async function checkCustomerAvailability(
     query_end_sydney: queryEndSydney,
     preflight_buffer_minutes: 0,
     postflight_buffer_minutes: 0,
-    blocking_bookings_found: blockingBookings?.length ?? 0,
+    blocking_bookings_found: activeBookings.length,
     blocking_schedule_blocks_found: blocks.length,
     merged_conflicts_found: conflicts.length,
-    blocking_bookings: (blockingBookings ?? []).map((b) => ({
+    blocking_bookings: activeBookings.map((b) => ({
       id: b.id,
       status: b.status,
       booking_type: b.booking_type,
@@ -205,12 +225,14 @@ export async function checkCustomerAvailability(
  * Also merges overlapping active bookings so orphan bookings (missing active
  * schedule_blocks) still appear on the daily timeline.
  *
- * @param aircraftId      UUID of the aircraft
- * @param selectedDateSyd "YYYY-MM-DD" in Sydney local time
+ * @param aircraftId       UUID of the aircraft
+ * @param selectedDateSyd  "YYYY-MM-DD" in Sydney local time
+ * @param excludeBookingId Optional UUID of booking to exclude (reschedule flow)
  */
 export async function getDayAvailability(
-  aircraftId:      string,
-  selectedDateSyd: string
+  aircraftId:       string,
+  selectedDateSyd:  string,
+  excludeBookingId?: string,
 ): Promise<SafeConflict[]> {
   const supabase = await createClient()
 
@@ -247,7 +269,21 @@ export async function getDayAvailability(
     throw new Error(`Unable to load day availability: ${error.message}`)
   }
 
-  const blocks = (data as CustomerCalendarBlock[]) || []
+  const excludedBlockIds = new Set<string>()
+  if (excludeBookingId) {
+    const { data: ownBlocks } = await supabase
+      .from('schedule_blocks')
+      .select('id')
+      .eq('related_booking_id', excludeBookingId)
+    if (ownBlocks) {
+      for (const ob of ownBlocks) excludedBlockIds.add(ob.id)
+    }
+  }
+
+  const blocks = ((data as CustomerCalendarBlock[]) || []).filter(
+    (b) => !excludedBlockIds.has(b.block_id)
+  )
+
   const blockConflicts: SafeConflict[] = blocks.map(b => ({
     start_time: b.start_time,
     end_time:   b.end_time,
@@ -256,12 +292,16 @@ export async function getDayAvailability(
 
   const { data: dayBookings } = await supabase
     .from('bookings')
-    .select('status, booking_type, scheduled_start, scheduled_end')
+    .select('id, status, booking_type, scheduled_start, scheduled_end')
     .eq('aircraft_id', aircraftId)
     .in('status', [...CALENDAR_BLOCKING_BOOKING_STATUSES])
     .lt('scheduled_start', endUTC.toISOString())
     .gt('scheduled_end', startUTC.toISOString())
     .order('scheduled_start', { ascending: true })
 
-  return mergeConflicts(blockConflicts, dayBookings ?? [])
+  const activeDayBookings = (dayBookings ?? []).filter(
+    (b) => !excludeBookingId || b.id !== excludeBookingId
+  )
+
+  return mergeConflicts(blockConflicts, activeDayBookings)
 }

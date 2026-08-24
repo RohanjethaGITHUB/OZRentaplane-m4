@@ -66,7 +66,9 @@ export async function sendEmail(input: SendEmailInput): Promise<{ status: 'sent'
 
   try {
     const to = cleanEmailString(input.to) || input.to.trim()
-    const { data, error } = await resend.emails.send({
+    
+    // Guard with a 5s timeout so network drops / ECONNRESET do not hang Next.js actions
+    const sendPromise = resend.emails.send({
       from,
       to,
       subject: input.subject,
@@ -75,6 +77,12 @@ export async function sendEmail(input: SendEmailInput): Promise<{ status: 'sent'
       replyTo: replyTo || undefined,
       attachments: input.attachments,
     })
+
+    const timeoutPromise = new Promise<{ data: null; error: { message: string; name: string } }>((resolve) =>
+      setTimeout(() => resolve({ data: null, error: { message: 'Email send timed out after 5s', name: 'TimeoutError' } }), 5000)
+    )
+
+    const { data, error } = await Promise.race([sendPromise, timeoutPromise])
     const resendEmailId = (data as { id?: string } | null)?.id ?? null
 
     if (error) {

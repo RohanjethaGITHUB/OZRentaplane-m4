@@ -105,16 +105,16 @@ type FlightReadingsBanner =
       tone: 'slate'
       title: string
       body: string
-      buttonLabel: string
-      buttonTone: 'primary' | 'secondary'
+      buttonLabel: string | null
+      buttonTone?: 'primary' | 'secondary'
     }
   | {
       kind: 'callout'
       tone: 'amber'
       title: string
       body: string
-      buttonLabel: string
-      buttonTone: 'primary' | 'secondary'
+      buttonLabel: string | null
+      buttonTone?: 'primary' | 'secondary'
     }
   | {
       kind: 'confirmed'
@@ -122,16 +122,16 @@ type FlightReadingsBanner =
       title: string
       body: string
       linkLabel: string
-      buttonLabel: string
-      buttonTone: 'primary' | 'secondary'
+      buttonLabel: string | null
+      buttonTone?: 'primary' | 'secondary'
     }
   | {
       kind: 'exception'
       tone: 'amber' | 'rose' | 'slate'
       title: string
       body: string
-      buttonLabel: string
-      buttonTone: 'primary' | 'secondary'
+      buttonLabel: string | null
+      buttonTone?: 'primary' | 'secondary'
     }
 
 function getFlightReadingsBanner(input: {
@@ -230,7 +230,7 @@ function getFlightReadingsBanner(input: {
         tone: 'rose',
         title: 'Booking cancelled',
         body: 'This booking was cancelled, so there is no post-flight action to take.',
-        buttonLabel: 'Submit Flight Readings',
+        buttonLabel: null,
         buttonTone: 'secondary',
       }
     case 'no_show':
@@ -239,7 +239,7 @@ function getFlightReadingsBanner(input: {
         tone: 'rose',
         title: 'No-show recorded',
         body: 'This booking was marked no show, so post-flight readings are not expected.',
-        buttonLabel: 'Submit Flight Readings',
+        buttonLabel: null,
         buttonTone: 'secondary',
       }
     case 'admin_hold':
@@ -352,7 +352,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const isStandardBillingPending = bookingType === 'standard' && booking.status === 'pending_post_flight_review'
   // Standard booking payment pending — show bank transfer panel if applicable
   const isStandardPaymentPending = bookingType === 'standard' && booking.status === 'payment_pending'
-  const isStandardFlightRecordOpen = bookingType === 'standard' && booking.status !== 'completed'
+  const isStandardFlightRecordOpen = bookingType === 'standard' && !['completed', 'cancelled', 'no_show'].includes(booking.status)
   // Fetch airports and credit for checkout outcome form, standard billing panel,
   // and the admin post-flight submission panel
   const needsAirportsAndCredit = isOutcomePending || isStandardBillingPending || isStandardFlightRecordOpen
@@ -809,6 +809,26 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     if (b.block_type === 'temporary_hold' && b.expires_at != null && new Date(b.expires_at) <= nowDate) return false
     return true
   })
+
+  const { data: rescheduleAuditRows } = await supabase
+    .from('booking_audit_events')
+    .select('id, actor_role, old_value, new_value, created_at')
+    .eq('booking_id', booking.id)
+    .eq('event_type', 'booking_rescheduled')
+    .order('created_at', { ascending: false })
+
+  const isMultiDay = !isSameSydneyCalendarDay(booking.scheduled_start, booking.scheduled_end)
+  const latestRescheduleAudit = rescheduleAuditRows?.[0]
+  const cancelledCustomerBlock = ((ownBlocks ?? []) as ScheduleBlockRow[])
+    .filter(b => b.block_type === 'customer_booking' && b.status === 'cancelled' && (b.start_time !== booking.scheduled_start || b.end_time !== booking.scheduled_end))
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0]
+
+  const previousStart = (latestRescheduleAudit?.old_value as any)?.scheduled_start || cancelledCustomerBlock?.start_time
+  const previousEnd = (latestRescheduleAudit?.old_value as any)?.scheduled_end || cancelledCustomerBlock?.end_time
+  const previousSchedule = previousStart && previousEnd && (previousStart !== booking.scheduled_start || previousEnd !== booking.scheduled_end)
+    ? formatBookingSchedule(previousStart, previousEnd)
+    : null
+  const isCustomerRescheduled = latestRescheduleAudit ? latestRescheduleAudit.actor_role === 'customer' : true
 
   const status = deriveBookingStatusForFlightRecord(booking)
   const bookingSlotHours = Math.max(
@@ -1392,11 +1412,16 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           </div>
 
           <div className="h-full rounded-[20px] border border-[rgba(12,35,64,0.10)] bg-white p-4 shadow-[0_8px_20px_rgba(15,30,52,0.04)]">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.9)]">
-                <Tag className="w-4 h-4 text-[var(--admin-text-muted)]" />
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.9)]">
+                  <Tag className="w-4 h-4 text-[var(--admin-text-muted)]" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">Booking Type</span>
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">Booking Type</span>
+              <span className="inline-flex items-center rounded-md bg-blue-50 text-[#1a4fd6] border border-blue-200/80 px-2 py-0.5 text-[10px] font-semibold tracking-wide whitespace-nowrap">
+                {isMultiDay ? 'Multi-Day Booking' : 'Single Day Booking'}
+              </span>
             </div>
             <div className="mt-3">
               <p className="truncate text-[15px] font-semibold text-[var(--admin-text)]">
@@ -1411,6 +1436,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           <div className={`h-full rounded-[20px] border p-4 shadow-[0_8px_20px_rgba(15,30,52,0.04)] ${
             hasPendingReschedule || hasPendingAdminProposal
               ? 'border-amber-200 bg-amber-50/70'
+              : previousSchedule
+              ? 'border-blue-200/80 bg-blue-50/20'
               : 'border-[rgba(12,35,64,0.10)] bg-white'
           }`}>
             <div className="flex items-center gap-2">
@@ -1452,6 +1479,32 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                   <div className="pt-2.5 flex justify-center">
                     <ProposalReviewButton className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800 shadow-xs transition-colors hover:bg-amber-50 cursor-pointer" />
                   </div>
+                </>
+              ) : previousSchedule ? (
+                <>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 text-[#1a4fd6] border border-blue-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
+                      <span className="material-symbols-outlined text-[12px]">event_repeat</span>
+                      {isCustomerRescheduled ? 'Rescheduled by customer' : 'Rescheduled'}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-[#1a4fd6]">Updated Time</p>
+                    <p className="text-[14px] font-bold text-[var(--admin-text)] mt-0.5">{bookingSchedule.dateRange}</p>
+                    <p className="text-[12.5px] font-semibold text-[#1a4fd6]">{bookingSchedule.timeRange}</p>
+                  </div>
+                  <div className="pt-2 border-t border-[var(--admin-divider)]">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-[#64748b]">Previous Time</p>
+                    <p className="text-[12px] text-[#64748b] line-through decoration-slate-400 mt-0.5">
+                      {previousSchedule.dateRange} · {previousSchedule.timeRange}
+                    </p>
+                  </div>
+                  <p className="text-[11.5px] text-[var(--admin-text-muted)] pt-0.5">
+                    {bookingSchedule.duration ? `${bookingSchedule.duration} · ${bookingSchedule.timezone}` : bookingSchedule.timezone}
+                  </p>
+                  <p className="text-[11.5px] text-[var(--admin-text-muted)]">
+                    {(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/^Cessna 172$/, 'Cessna 172N') ?? 'Cessna 172N'} · {(aircraft as { registration?: string } | null)?.registration ?? 'VH-KZG'}
+                  </p>
                 </>
               ) : (
                 <>
@@ -1529,7 +1582,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               </div>
 
               <div className="flex flex-col items-start gap-2 md:ml-4 md:flex-shrink-0">
-                {!flightRecordRow && !(['paid_closed', 'waived_closed', 'payment_review_pending', 'payment_required', 'payment_still_due', 'payment_void', 'payment_failed'] as string[]).includes(lifecycleStage.key) && (
+                {flightReadingsBanner.buttonLabel && !flightRecordRow && !(['paid_closed', 'waived_closed', 'payment_review_pending', 'payment_required', 'payment_still_due', 'payment_void', 'payment_failed', 'cancelled', 'no_show'] as string[]).includes(lifecycleStage.key) && (
                   <AdminFlightReadingsDisclosureTrigger
                     label={flightReadingsBanner.buttonLabel}
                     variant={flightReadingsBanner.buttonTone}

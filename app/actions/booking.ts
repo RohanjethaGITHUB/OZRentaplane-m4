@@ -892,9 +892,10 @@ export async function cancelBookingNow(bookingId: string): Promise<void> {
   }
 
   const oldStatus = booking.status
+  const admin = createAdminClient()
 
   // Cancel the booking
-  const { error: updateErr } = await supabase
+  const { error: updateErr } = await admin
     .from('bookings')
     .update({
       status:                  'cancelled',
@@ -906,7 +907,7 @@ export async function cancelBookingNow(bookingId: string): Promise<void> {
   if (updateErr) throw new Error('Failed to cancel booking.')
 
   // Release all linked schedule blocks
-  await supabase
+  await admin
     .from('schedule_blocks')
     .update({ status: 'cancelled' })
     .eq('related_booking_id', bookingId)
@@ -965,7 +966,9 @@ export async function cancelBookingNow(bookingId: string): Promise<void> {
   revalidatePath('/dashboard/bookings')
   revalidatePath('/dashboard')
   revalidatePath('/admin')
+  revalidatePath('/admin/bookings/flights')
   revalidatePath('/admin/bookings/cancellations')
+  revalidatePath('/admin/calendar')
 
   void emitBookingChanged({ bookingId, userId })
   void emitOpsChanged()
@@ -1081,6 +1084,15 @@ export async function requestLateCancellation(
   void emitOpsChanged()
 }
 
+export type RescheduleFlightInput = {
+  startDate: string
+  startTime: string
+  returnDate?: string
+  endDate?: string
+  returnTime?: string
+  endTime?: string
+}
+
 /**
  * Reschedule a standard flight booking.
  * If departure is >= 12 hours away, customer can self-reschedule without admin confirmation.
@@ -1088,15 +1100,33 @@ export async function requestLateCancellation(
  */
 export async function rescheduleFlightBooking(
   bookingId: string,
-  newDate: string,
-  newStartTime: string,
-  newEndTime?: string,
+  param1: string | RescheduleFlightInput,
+  param2?: string,
+  param3?: string,
+  param4?: string,
 ): Promise<{ ok: boolean; message?: string }> {
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) throw new Error('Unauthorized')
 
-  const requestedStartUtc = sydneyInputToUTC(`${newDate}T${newStartTime}`)
+  let startDate: string
+  let startTime: string
+  let endDate: string
+  let endTime: string
+
+  if (typeof param1 === 'object' && param1 !== null) {
+    startDate = param1.startDate
+    startTime = param1.startTime
+    endDate = param1.returnDate ?? param1.endDate ?? param1.startDate
+    endTime = param1.returnTime ?? param1.endTime ?? ''
+  } else {
+    startDate = param1
+    startTime = param2 ?? ''
+    endDate = param4 ? (param3 ?? param1) : param1
+    endTime = param4 ?? param3 ?? ''
+  }
+
+  const requestedStartUtc = sydneyInputToUTC(`${startDate}T${startTime}`)
   if (!requestedStartUtc) throw new Error('VALIDATION: Invalid requested flight date/time.')
   const requestedStart = new Date(requestedStartUtc)
   if (requestedStart <= new Date()) throw new Error('VALIDATION: Flight time must be in the future.')
@@ -1116,8 +1146,8 @@ export async function rescheduleFlightBooking(
     : 2 * 60 * 60 * 1000
 
   let requestedEndUtc: string
-  if (newEndTime) {
-    const endUtc = sydneyInputToUTC(`${newDate}T${newEndTime}`)
+  if (endTime) {
+    const endUtc = sydneyInputToUTC(`${endDate}T${endTime}`)
     if (!endUtc || new Date(endUtc) <= requestedStart) {
       requestedEndUtc = new Date(requestedStart.getTime() + origDurationMs).toISOString()
     } else {
@@ -1127,6 +1157,10 @@ export async function rescheduleFlightBooking(
     requestedEndUtc = new Date(requestedStart.getTime() + origDurationMs).toISOString()
   }
   const requestedEnd = new Date(requestedEndUtc)
+
+  if (requestedEnd <= requestedStart) {
+    throw new Error('VALIDATION: Return time must be after departure time.')
+  }
 
   // 12-hour rule check
   const now = new Date()
@@ -1167,6 +1201,8 @@ export async function rescheduleFlightBooking(
     .eq('related_booking_id', bookingId)
     .eq('status', 'active')
 
+  const isMultiDay = startDate !== endDate
+
   // Insert new schedule blocks
   const newBlocks: any[] = [
     {
@@ -1175,7 +1211,7 @@ export async function rescheduleFlightBooking(
       block_type: 'customer_booking',
       start_time: requestedStart.toISOString(),
       end_time: requestedEnd.toISOString(),
-      public_label: 'Flight Booking',
+      public_label: isMultiDay ? 'Multi-day Flight Booking' : 'Flight Booking',
       internal_reason: null,
       created_by_user_id: user.id,
       created_by_role: 'customer',
@@ -1233,12 +1269,16 @@ export async function rescheduleFlightBooking(
     throw new Error(`Failed to update flight booking schedule: ${updateBookingErr.message}`)
   }
 
+  const displaySummary = isMultiDay
+    ? `${startDate} ${startTime} to ${endDate} ${endTime}`
+    : `${startDate} ${startTime} - ${endTime}`
+
   await supabase.from('booking_status_history').insert({
     booking_id: bookingId,
     old_status: booking.status,
     new_status: booking.status,
     changed_by_user_id: user.id,
-    note: `Customer rescheduled flight to ${newDate} ${newStartTime} (Australia/Sydney).`,
+    note: `Customer rescheduled flight to ${displaySummary} (Australia/Sydney).`,
   })
 
   await supabase.from('booking_audit_events').insert({
@@ -1259,6 +1299,7 @@ export async function rescheduleFlightBooking(
   revalidatePath('/dashboard')
   revalidatePath('/admin')
   revalidatePath('/admin/bookings/flights')
+  revalidatePath('/admin/calendar')
 
   void emitBookingChanged({ bookingId, userId: user.id })
   void emitOpsChanged()

@@ -188,10 +188,20 @@ function QueueActionRow({ item }: { item: ActionItem }) {
             <p className="mt-1 text-[13px] sm:text-[13.5px] font-normal leading-[1.4] text-[var(--admin-text-secondary)]">
               {item.description}
             </p>
-            {item.scheduleLabel && (
-              <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 px-2.5 py-1 text-[12px] font-medium text-[var(--admin-text)]">
-                <span className="material-symbols-outlined text-[14px] text-sky-600 dark:text-sky-400">calendar_month</span>
-                <span>{item.scheduleLabel}</span>
+            {(item.scheduleLabel || item.rescheduleNote) && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {item.scheduleLabel && (
+                  <div className="inline-flex items-center gap-1.5 rounded-md bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 px-2.5 py-1 text-[12px] font-medium text-[var(--admin-text)]">
+                    <span className="material-symbols-outlined text-[14px] text-sky-600 dark:text-sky-400">calendar_month</span>
+                    <span>{item.scheduleLabel}</span>
+                  </div>
+                )}
+                {item.rescheduleNote && (
+                  <div className="inline-flex items-center gap-1 rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                    <span className="material-symbols-outlined text-[13px]">event_repeat</span>
+                    <span>{item.rescheduleNote}</span>
+                  </div>
+                )}
               </div>
             )}
             {item.issueLabel && (

@@ -160,12 +160,21 @@ export default function CustomerBookingActions({
 
           {/* ── Case A: Immediate cancel (>24 h) ──────────────────────── */}
           {activeModal === 'cancel_immediate' && (
-            <div className="relative z-10 w-full max-w-md bg-white border border-[#dbe7f4] rounded-2xl p-7 shadow-[0_8px_24px_rgba(21,45,90,0.08)]">
+            <div className="relative z-10 w-full max-w-md bg-white border border-[#dbe7f4] rounded-2xl p-5 sm:p-7 shadow-[0_8px_24px_rgba(21,45,90,0.08)]">
               <div className="flex items-center gap-3 mb-4">
                 <span className="material-symbols-outlined text-red-400 text-xl">cancel</span>
                 <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-red-700">
                   Cancel flight?
                 </h2>
+              </div>
+              <div className="bg-[#f8fbff] border border-[#dbe7f4] rounded-xl p-3.5 mb-4 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-[#152d5a] text-white flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[16px]">schedule</span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-[#152d5a]">Scheduled Flight</p>
+                  <p className="text-xs text-[#4b6390] truncate">{departureSydney}</p>
+                </div>
               </div>
               <p className="text-sm text-[#4b6390] leading-relaxed mb-6">
                 Your flight booking will be cancelled and you will not be charged because it is more than 24 hours before your scheduled departure time.
@@ -195,16 +204,24 @@ export default function CustomerBookingActions({
 
           {/* ── Case B: Late cancel request (≤24 h) ───────────────────── */}
           {activeModal === 'cancel_late' && (
-            <div className="relative z-10 w-full max-w-md bg-white border border-[#dbe7f4] rounded-2xl p-7 shadow-[0_8px_24px_rgba(21,45,90,0.08)]">
+            <div className="relative z-10 w-full max-w-md bg-white border border-[#dbe7f4] rounded-2xl p-5 sm:p-7 shadow-[0_8px_24px_rgba(21,45,90,0.08)]">
               <div className="flex items-center gap-3 mb-4">
                 <span className="material-symbols-outlined text-amber-400 text-xl">warning</span>
                 <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-amber-700">
                   Request flight cancellation?
                 </h2>
               </div>
+              <div className="bg-[#fffbeb] border border-amber-200 rounded-xl p-3.5 mb-4 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[16px]">schedule</span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-[#152d5a]">Scheduled Flight</p>
+                  <p className="text-xs text-[#4b6390] truncate">{departureSydney}</p>
+                </div>
+              </div>
               <p className="text-sm text-[#4b6390] leading-relaxed mb-5">
-                This flight starts at{' '}
-                <span className="text-[#152d5a] font-medium">{departureSydney}</span>, which is less than 24 hours away. As per the cancellation terms, you may still be charged for the booked time. If you would like the operations team to consider waiving the cancellation charge, please provide a reason below.
+                This flight starts in less than 24 hours. As per the cancellation terms, you may still be charged for the booked time. If you would like the operations team to consider waiving the cancellation charge, please provide a reason below.
               </p>
               <div className="mb-5">
                 <label className="block text-[9px] font-semibold uppercase tracking-[0.16em] text-[#4b6390] mb-2">

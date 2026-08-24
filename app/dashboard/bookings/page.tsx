@@ -1037,9 +1037,13 @@ export default async function CustomerBookingsPage() {
                               scheduled_end: booking.scheduled_end,
                               checkout_lifecycle_status: booking.checkout_lifecycle_status ?? null,
                               aircraft_id: booking.aircraft_id ?? null,
+                              aircraft_name: (booking.aircraft_name ?? 'Cessna 172N').replace(/Cessna 172(?!N)/g, 'Cessna 172N'),
+                              aircraft_registration: booking.aircraft_registration ?? aircraft?.registration ?? 'VH-KZG',
+                              estimated_hours: booking.estimated_hours ?? null,
                             }}
                             pendingRescheduleRequest={pendingReschedule}
                             latestRescheduleRequest={latestReschedule}
+                            hasNightVfrRating={profile?.has_night_vfr_rating ?? null}
                           />
                         </div>
                       )
@@ -1067,16 +1071,19 @@ export default async function CustomerBookingsPage() {
                     // TODO: restore when Download Invoice is re-enabled
                     // const bookingInvoiceHref = bookingInvoice?.pdf_url ?? `/dashboard/bookings/${booking.id}/invoice`
                     // const bookingInvoiceLabel = bookingInvoice?.status === 'paid' ? 'DOWNLOAD RECEIPT' : 'DOWNLOAD INVOICE'
-                    const checkoutCancelMessage =
-                      booking.booking_type === 'checkout' && booking.status === 'cancelled'
-                        ? booking.checkout_lifecycle_status === 'cancelled_by_admin'
-                          ? (booking.admin_notes
-                              ? `Checkout cancelled by admin — ${booking.admin_notes}`
-                              : 'Checkout cancelled by admin')
-                          : booking.checkout_lifecycle_status === 'cancelled_by_customer'
-                            ? 'Checkout cancelled by you'
-                            : 'Checkout cancelled'
-                        : null
+                    const bookingAny = booking as any
+                    const isCancelled = booking.status === 'cancelled'
+                    const isCheckout = booking.booking_type === 'checkout'
+                    const isCancelledByAdmin = isCheckout
+                      ? booking.checkout_lifecycle_status === 'cancelled_by_admin'
+                      : (bookingAny.cancellation_category === 'admin' || bookingAny.cancellation_category === 'weather' || bookingAny.cancellation_category === 'maintenance')
+                    const adminCancelNoteText = (isCheckout ? booking.admin_notes : (bookingAny.cancellation_reason || booking.admin_notes))?.trim() || null
+                    const cancelMessageLabel = isCancelled
+                      ? (isCancelledByAdmin
+                          ? (isCheckout ? 'Checkout cancelled by admin' : 'Flight cancelled by admin')
+                          : (isCheckout ? 'Checkout cancelled by you' : 'Cancelled by you'))
+                      : null
+
                     return (
                       <div key={booking.id} className="bg-white border border-[#152d5a]/10 rounded-2xl overflow-visible flex flex-col sm:flex-row relative">
                         <div
@@ -1098,7 +1105,7 @@ export default async function CustomerBookingsPage() {
                               checkoutOutcome={checkoutOutcome}
                               isAwaitingManualPayment={
                                 booking.booking_type === 'checkout'
-                                  ? pendingCheckoutManualPaymentBookingIds.has(booking.id)
+                                   ? pendingCheckoutManualPaymentBookingIds.has(booking.id)
                                   : (bookingInvoice?.status === 'bank_transfer_pending_review' || blockTimePayInvoice?.status === 'bank_transfer_pending_review')
                               }
                               hasBlockTimePayInvoice={Boolean(blockTimePayInvoice)}
@@ -1110,10 +1117,14 @@ export default async function CustomerBookingsPage() {
                               {(booking.aircraft_name ?? 'Cessna 172N').replace(/Cessna 172(?!N)/g, 'Cessna 172N')}
                             </p>
                             <p className="text-[12px] text-[#4b6390] mt-0.5">{booking.aircraft_registration ?? aircraft?.registration ?? 'VH-KZG'}</p>
-                            {checkoutCancelMessage && (
-                              booking.checkout_lifecycle_status === 'cancelled_by_admin' && booking.admin_notes?.trim() ? (
+                            {isCancelled && cancelMessageLabel && (
+                              isCancelledByAdmin && adminCancelNoteText ? (
                                 <div className="mt-1.5 min-w-0 max-w-full">
-                                  <AdminCancelNote note={booking.admin_notes.trim()} />
+                                  <AdminCancelNote
+                                    note={adminCancelNoteText}
+                                    label={`${cancelMessageLabel} —`}
+                                    tooltipTitle="Cancelled by admin"
+                                  />
                                 </div>
                               ) : (
                                 <div className="mt-1.5 flex min-w-0 max-w-full items-center gap-1.5 text-red-500">
@@ -1125,7 +1136,7 @@ export default async function CustomerBookingsPage() {
                                     cancel
                                   </span>
                                   <span className="min-w-0 truncate text-[12px] font-medium leading-none">
-                                    {checkoutCancelMessage}
+                                    {cancelMessageLabel}
                                   </span>
                                 </div>
                               )

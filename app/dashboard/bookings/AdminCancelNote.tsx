@@ -5,12 +5,18 @@ import { createPortal } from 'react-dom'
 
 type Props = {
   note: string
+  label?: string
+  tooltipTitle?: string
 }
 
 const EDGE_PAD = 16
 const MAX_TOOLTIP_W = 352 // 22rem
 
-export default function AdminCancelNote({ note }: Props) {
+export default function AdminCancelNote({
+  note,
+  label = 'Checkout cancelled by admin — ',
+  tooltipTitle = 'Cancelled by admin',
+}: Props) {
   const triggerRef = useRef<HTMLSpanElement>(null)
   const tooltipId = useId()
   const [open, setOpen] = useState(false)
@@ -86,7 +92,7 @@ export default function AdminCancelNote({ note }: Props) {
           cancel
         </span>
         <span className="shrink-0 text-[12px] font-medium leading-none text-red-500">
-          Checkout cancelled by admin —&nbsp;
+          {label}&nbsp;
         </span>
         <span
           ref={triggerRef}
@@ -121,7 +127,7 @@ export default function AdminCancelNote({ note }: Props) {
             >
               <div className="rounded-xl bg-[#152d5a] px-3.5 py-3 text-[12px] font-medium leading-relaxed text-white shadow-[0_12px_28px_rgba(15,30,52,0.28)]">
                 <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-white/60">
-                  Cancelled by admin
+                  {tooltipTitle}
                 </p>
                 <p className="whitespace-normal break-words text-white/95">{note}</p>
               </div>
