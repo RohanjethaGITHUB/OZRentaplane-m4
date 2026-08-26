@@ -450,11 +450,31 @@ export async function submitFlightRecord(
     throw new Error('Booking not found or access denied.')
   }
 
-  const allowedStatuses = ['dispatched', 'awaiting_flight_record', 'flight_record_overdue']
+  const allowedStatuses = [
+    'confirmed',
+    'ready_for_dispatch',
+    'dispatched',
+    'awaiting_flight_record',
+    'flight_record_overdue',
+  ]
   if (!allowedStatuses.includes(booking.status)) {
     throw new Error(
       `VALIDATION: Cannot submit flight record for a booking with status "${booking.status}".`
     )
+  }
+
+  // Refuse when an active flight record has already been submitted
+  const { data: existingRecords } = await supabase
+    .from('flight_records')
+    .select('status, submitted_at')
+    .eq('booking_id', input.booking_id)
+  const hasSubmittedRecord = (existingRecords ?? []).some((record) => {
+    const status = (record as { status?: string | null }).status ?? null
+    if (!status) return Boolean((record as { submitted_at?: string | null }).submitted_at)
+    return !['draft', 'rejected'].includes(status)
+  })
+  if (hasSubmittedRecord) {
+    throw new Error('VALIDATION: A flight record has already been submitted for this booking.')
   }
 
   return createFlightRecordForBooking(
