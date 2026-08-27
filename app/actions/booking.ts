@@ -25,7 +25,12 @@ import {
   notifyClarificationResponseReceived,
   notifyFlightRecordResubmitted,
 } from '@/lib/booking/notifications'
-import { enqueueBookingConfirmedEmails } from '@/lib/email/outbox'
+import {
+  enqueueBookingConfirmedEmails,
+  enqueueRentalBookingConfirmedEmails,
+  enqueueRentalBookingRescheduledEmails,
+  enqueueRentalBookingCancelledEmails,
+} from '@/lib/email/outbox'
 import { createPerfLogger } from '@/lib/perf/timing'
 import { checkAircraftAvailability } from '@/lib/booking/availability'
 import { sydneyInputToUTC } from '@/lib/utils/sydney-time'
@@ -84,7 +89,7 @@ async function requireClearedCustomer(perf?: ReturnType<typeof createPerfLogger>
   const authorize = async () => {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, account_status, pilot_clearance_status, account_lock_reason, has_night_vfr_rating, full_name, email')
+      .select('role, account_status, pilot_clearance_status, account_lock_reason, has_night_vfr_rating, full_name, email, phone_number, phone_country_code, pilot_arn')
       .eq('id', user.id)
       .single()
 
@@ -225,7 +230,7 @@ async function requireClearedCustomer(perf?: ReturnType<typeof createPerfLogger>
     ? perf.time('create_booking', 'create_booking_authorization', authorize)
     : authorize())
 
-  return { supabase, userId: user.id, userEmail: profile.email, userFullName: profile.full_name }
+  return { supabase, userId: user.id, userEmail: profile.email, userFullName: profile.full_name, profile }
 }
 
 
@@ -242,7 +247,7 @@ export async function createBooking(
 ): Promise<{ bookingId: string; bookingReference: string; bookingStatus: string }> {
   const perf = createPerfLogger({ route: 'server_action:createBooking', role: 'customer' })
   const markTotal = perf.start('create_booking', 'create_booking_total')
-  const { supabase, userId, userEmail, userFullName } = await requireClearedCustomer(perf)
+  const { supabase, userId, userEmail, userFullName, profile } = await requireClearedCustomer(perf)
 
   // Overage gate — an unpaid block time overage invoice blocks new bookings.
   const outstandingOverage = await perf.time(
@@ -330,20 +335,70 @@ export async function createBooking(
   perf.timeSync('create_booking', 'create_booking_notification_write', () => null, { rowCount: 0 })
 
   if (userEmail) {
-      const emailPayload = perf.timeSync('create_booking', 'create_booking_email_preparation', () => ({
-        customerEmail: userEmail,
-        customerName:  userFullName ?? 'Pilot',
-        ref:           result.booking_reference ?? result.booking_id.slice(0, 8).toUpperCase(),
-        aircraft:      input.aircraft_id,
-        start:         new Date(input.scheduled_start).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }),
-        end:           new Date(input.scheduled_end).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }),
-        bookingId:     result.booking_id,
-      }))
-      await perf.time(
-        'create_booking',
-        'create_booking_email_enqueue',
-        () => enqueueBookingConfirmedEmails(emailPayload),
-      )
+    const { data: aircraftRow } = await supabase
+      .from('aircraft')
+      .select('registration, model')
+      .eq('id', input.aircraft_id)
+      .single()
+
+    const aircraftLabel = aircraftRow ? `${aircraftRow.registration} (${aircraftRow.model || 'Aircraft'})` : 'OZRentAPlane Aircraft'
+
+    const startObj = new Date(input.scheduled_start)
+    const endObj = new Date(input.scheduled_end)
+
+    const startDateStr = startObj.toLocaleDateString('en-AU', {
+      timeZone: 'Australia/Sydney',
+      dateStyle: 'medium',
+    })
+    const endDateStr = endObj.toLocaleDateString('en-AU', {
+      timeZone: 'Australia/Sydney',
+      dateStyle: 'medium',
+    })
+
+    const startTimeStr = startObj.toLocaleTimeString('en-AU', {
+      timeZone: 'Australia/Sydney',
+      timeStyle: 'short',
+    })
+    const endTimeStr = endObj.toLocaleTimeString('en-AU', {
+      timeZone: 'Australia/Sydney',
+      timeStyle: 'short',
+    })
+
+    const isMultiDay = startDateStr !== endDateStr
+    const daysCount = isMultiDay
+      ? Math.max(2, Math.round((endObj.getTime() - startObj.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+      : 1
+
+    const dateStr = isMultiDay ? `${startDateStr} – ${endDateStr}` : startDateStr
+    const timeStr = isMultiDay ? `${startDateStr}, ${startTimeStr} – ${endDateStr}, ${endTimeStr}` : `${startTimeStr} – ${endTimeStr}`
+
+    const customerPhone = profile?.phone_number
+      ? `${profile.phone_country_code || ''} ${profile.phone_number}`.trim()
+      : null
+
+    await perf.time(
+      'create_booking',
+      'create_booking_email_enqueue',
+      () =>
+        enqueueRentalBookingConfirmedEmails({
+          bookingId: result.booking_id,
+          customerId: userId,
+          customerName: userFullName ?? 'Pilot',
+          customerEmail: userEmail,
+          customerPhone,
+          pilotArn: profile?.pilot_arn ?? input.pic_arn ?? null,
+          bookingReference: result.booking_reference,
+          aircraft: aircraftLabel,
+          date: dateStr,
+          time: timeStr,
+          isMultiDay,
+          startDate: startDateStr,
+          endDate: endDateStr,
+          startTime: startTimeStr,
+          endTime: endTimeStr,
+          daysCount,
+        }),
+    )
   }
 
   perf.timeSync('create_booking', 'create_booking_revalidation', () => {
@@ -441,7 +496,7 @@ export async function submitFlightRecord(
   // Verify booking ownership and status
   const { data: booking, error: bookingError } = await supabase
     .from('bookings')
-    .select('id, aircraft_id, booking_owner_user_id, scheduled_start, scheduled_end, status, pic_name, pic_arn')
+    .select('id, booking_reference, aircraft_id, booking_owner_user_id, scheduled_start, scheduled_end, status, pic_name, pic_arn')
     .eq('id', input.booking_id)
     .eq('booking_owner_user_id', userId)
     .single()
@@ -961,24 +1016,46 @@ export async function cancelBookingNow(bookingId: string): Promise<void> {
     status:             'cancelled_without_charge',
   })
 
-  // Notify customer (fire-and-forget)
-  const { data: notifyData } = await supabase
-    .from('bookings')
-    .select('booking_reference, profiles:booking_owner_user_id ( full_name, email )')
-    .eq('id', bookingId)
-    .single()
+  // Notify customer and admin (fire-and-forget)
+  const [{ data: notifyData }, { data: aircraft }] = await Promise.all([
+    supabase
+      .from('bookings')
+      .select('booking_reference, profiles:booking_owner_user_id ( full_name, email, phone_number, phone_country_code )')
+      .eq('id', bookingId)
+      .single(),
+    supabase
+      .from('aircraft')
+      .select('registration')
+      .eq('id', booking.aircraft_id)
+      .single(),
+  ])
 
   if (notifyData) {
     const prof  = Array.isArray(notifyData.profiles) ? notifyData.profiles[0] : notifyData.profiles
     const email = (prof as { email?: string | null } | null)?.email
     if (email) {
+      const scheduledTimeStr = booking.scheduled_start
+        ? new Date(booking.scheduled_start).toLocaleString('en-AU', {
+            timeZone: 'Australia/Sydney',
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          })
+        : null
+      const customerPhone = (prof as { phone_number?: string | null; phone_country_code?: string | null } | null)?.phone_number
+        ? `${(prof as { phone_country_code?: string | null }).phone_country_code || ''} ${(prof as { phone_number?: string | null }).phone_number}`.trim()
+        : null
+
       notifyBookingCancelled({
         customerEmail: email,
         customerName:  (prof as { full_name?: string | null } | null)?.full_name ?? 'Pilot',
+        customerPhone,
         ref:           notifyData.booking_reference ?? bookingId.slice(0, 8).toUpperCase(),
-        reason:        'You cancelled this booking.',
+        aircraft:      aircraft?.registration ?? 'Aircraft',
+        scheduledTime: scheduledTimeStr,
+        cancelledBy:   'Customer',
+        reason:        'You cancelled this booking (>24 hours before departure).',
         bookingId,
-      }).catch(e => console.error('[cancelBookingNow] notification error:', e))
+      }).catch((e: unknown) => console.error('[cancelBookingNow] notification error:', e))
     }
   }
 
@@ -1153,7 +1230,7 @@ export async function rescheduleFlightBooking(
 
   const { data: booking, error: fetchErr } = await supabase
     .from('bookings')
-    .select('id, status, booking_type, scheduled_start, scheduled_end, aircraft_id')
+    .select('id, status, booking_type, scheduled_start, scheduled_end, aircraft_id, booking_reference')
     .eq('id', bookingId)
     .eq('booking_owner_user_id', user.id)
     .single()
@@ -1192,7 +1269,7 @@ export async function rescheduleFlightBooking(
   // Check aircraft availability
   const { data: aircraft } = await supabase
     .from('aircraft')
-    .select('default_preflight_buffer_minutes, default_postflight_buffer_minutes')
+    .select('registration, default_preflight_buffer_minutes, default_postflight_buffer_minutes')
     .eq('id', booking.aircraft_id)
     .single()
 
@@ -1313,6 +1390,34 @@ export async function rescheduleFlightBooking(
       scheduled_end: requestedEnd.toISOString(),
     },
   })
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name, email')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.email) {
+    const origTimeStr = booking.scheduled_start
+      ? new Date(booking.scheduled_start).toLocaleString('en-AU', {
+          timeZone: 'Australia/Sydney',
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        })
+      : 'Previous schedule'
+
+    void enqueueRentalBookingRescheduledEmails({
+      bookingId,
+      customerId: user.id,
+      customerName: profile.full_name?.trim() || 'Pilot',
+      customerEmail: profile.email,
+      bookingReference: booking.booking_reference ?? bookingId.slice(0, 8).toUpperCase(),
+      aircraft: aircraft?.registration ?? 'Aircraft',
+      originalTime: origTimeStr,
+      newTime: `${displaySummary} (Sydney time)`,
+      rescheduledBy: 'Customer',
+    }).catch((err: unknown) => console.error('[rescheduleFlightBooking] email failed:', err))
+  }
 
   revalidatePath(`/dashboard/bookings/${bookingId}`)
   revalidatePath('/dashboard/bookings')

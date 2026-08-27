@@ -9,6 +9,8 @@ import {
   enqueueCheckoutRequestSubmittedAdminEmail,
   enqueueCheckoutRequestSubmittedCustomerEmail,
   enqueueCheckoutRescheduleEmails,
+  enqueueCheckoutCancelledByCustomerEmails,
+  enqueueAdminCheckoutProposalDecisionEmail,
 } from '@/lib/email/outbox'
 import {
   notifyCancellationRequested,
@@ -51,7 +53,7 @@ async function requireCustomer() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('email, full_name, role, pilot_clearance_status, has_night_vfr_rating, has_instrument_rating, account_status, account_lock_reason, terms_accepted_at, terms_version')
+    .select('email, full_name, first_name, last_name, phone_number, phone_country_code, pilot_arn, role, pilot_clearance_status, has_night_vfr_rating, has_instrument_rating, account_status, account_lock_reason, terms_accepted_at, terms_version')
     .eq('id', user.id)
     .single()
 
@@ -796,26 +798,46 @@ export async function submitCheckoutRequest(
   if (notifErr) console.error('[submitCheckoutRequest] notification failed:', notifErr.message)
 
   if (safeEmail) {
-    const emailPayload = perf.timeSync('checkout_submit', 'checkout_submit_customer_email_enqueue', () => ({
-      customerEmail: safeEmail,
-      customerName: profile.full_name ?? 'Pilot',
-      bookingId,
-      requestedTime: new Date(result.scheduled_start).toLocaleString('en-AU', {
-        timeZone: 'Australia/Sydney',
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      }),
-    }))
+    const formattedRequestedTime = new Date(result.scheduled_start).toLocaleString('en-AU', {
+      timeZone: 'Australia/Sydney',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    })
+    const customerName =
+      profile.full_name?.trim() ||
+      `${profile.first_name || ''} ${profile.last_name || ''}`.trim() ||
+      'Pilot'
+    const customerPhone = profile.phone_number
+      ? `${profile.phone_country_code || ''} ${profile.phone_number}`.trim()
+      : null
+
     await Promise.all([
       perf.time(
         'checkout_submit',
         'checkout_submit_customer_email_enqueue',
-        () => enqueueCheckoutRequestSubmittedCustomerEmail(emailPayload),
+        () =>
+          enqueueCheckoutRequestSubmittedCustomerEmail({
+            customerEmail: safeEmail,
+            customerName,
+            bookingId,
+            bookingReference: result.booking_reference,
+            requestedTime: formattedRequestedTime,
+          }),
       ),
       perf.time(
         'checkout_submit',
         'checkout_submit_admin_email_enqueue',
-        () => enqueueCheckoutRequestSubmittedAdminEmail(emailPayload),
+        () =>
+          enqueueCheckoutRequestSubmittedAdminEmail({
+            bookingId,
+            customerId: userId,
+            customerName,
+            customerEmail: safeEmail,
+            customerPhone,
+            pilotArn: profile.pilot_arn ?? null,
+            requestedTime: formattedRequestedTime,
+            bookingReference: result.booking_reference,
+          }),
       ),
     ])
   }
@@ -886,13 +908,13 @@ export async function getMyCheckoutBooking() {
 }
 
 export async function cancelCheckoutRequest(checkoutId: string): Promise<void> {
-  const { supabase, userId } = await requireCustomer()
+  const { supabase, userId, profile } = await requireCustomer()
   const admin = createAdminClient()
   const now = new Date().toISOString()
 
   const { data: booking, error: fetchErr } = await supabase
     .from('bookings')
-    .select('id, status, booking_type, scheduled_start, scheduled_end, aircraft_id, checkout_lifecycle_status')
+    .select('id, status, booking_type, scheduled_start, scheduled_end, aircraft_id, checkout_lifecycle_status, booking_reference')
     .eq('id', checkoutId)
     .eq('booking_owner_user_id', userId)
     .single()
@@ -966,6 +988,30 @@ export async function cancelCheckoutRequest(checkoutId: string): Promise<void> {
     event_summary: 'Customer cancelled checkout before start time.',
     new_value: { status: 'cancelled', checkout_lifecycle_status: 'cancelled_by_customer' },
   })
+
+  if (profile?.email) {
+    const customerName =
+      profile.full_name?.trim() ||
+      `${profile.first_name || ''} ${profile.last_name || ''}`.trim() ||
+      'Pilot'
+    const scheduledTime = booking.scheduled_start
+      ? new Date(booking.scheduled_start).toLocaleString('en-AU', {
+          timeZone: 'Australia/Sydney',
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        })
+      : null
+
+    void enqueueCheckoutCancelledByCustomerEmails({
+      bookingId: checkoutId,
+      customerId: userId,
+      customerName,
+      customerEmail: profile.email,
+      bookingReference: booking.booking_reference,
+      scheduledTime,
+      reason: 'Cancelled by customer before checkout start time.',
+    }).catch((err) => console.error('[cancelCheckoutRequest] email failed:', err))
+  }
 
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/checkout')
@@ -1572,7 +1618,7 @@ export async function customerAcceptProposedCheckoutTime(bookingId: string): Pro
       original_scheduled_start, original_scheduled_end,
       requested_scheduled_start, requested_scheduled_end,
       bookings:checkout_request_id (
-        id, status, booking_type, aircraft_id, scheduled_start, scheduled_end, booking_owner_user_id, checkout_lifecycle_status
+        id, status, booking_type, aircraft_id, scheduled_start, scheduled_end, booking_owner_user_id, checkout_lifecycle_status, booking_reference
       )
     `)
     .eq('checkout_request_id', bookingId)
@@ -1744,6 +1790,29 @@ export async function customerAcceptProposedCheckoutTime(bookingId: string): Pro
     email_status: 'skipped',
   })
 
+  const { data: userProfile } = await admin
+    .from('profiles')
+    .select('full_name, first_name, last_name, email')
+    .eq('id', userId)
+    .single()
+
+  if (userProfile?.email) {
+    const custName =
+      userProfile.full_name?.trim() ||
+      `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() ||
+      'Pilot'
+
+    void enqueueAdminCheckoutProposalDecisionEmail({
+      bookingId: booking.id,
+      customerId: userId,
+      customerName: custName,
+      customerEmail: userProfile.email,
+      decision: 'accepted',
+      bookingReference: booking.booking_reference,
+      proposedTime: `${fmtNew} – ${fmtEnd}`,
+    }).catch((err) => console.error('[customerAcceptProposedCheckoutTime] admin email failed:', err))
+  }
+
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/checkout')
   revalidatePath('/dashboard/bookings')
@@ -1774,7 +1843,7 @@ export async function customerRejectProposedCheckoutTime(
     .select(`
       id, checkout_request_id, customer_id, request_type, status,
       requested_scheduled_start, requested_scheduled_end,
-      bookings:checkout_request_id (id, status, scheduled_start, scheduled_end, aircraft_id, booking_owner_user_id)
+      bookings:checkout_request_id (id, status, scheduled_start, scheduled_end, aircraft_id, booking_owner_user_id, booking_reference)
     `)
     .eq('checkout_request_id', bookingId)
     .eq('request_type', 'reschedule')
@@ -1835,6 +1904,30 @@ export async function customerRejectProposedCheckoutTime(
     is_read: false,
     email_status: 'skipped',
   })
+
+  const { data: userProfile } = await admin
+    .from('profiles')
+    .select('full_name, first_name, last_name, email')
+    .eq('id', userId)
+    .single()
+
+  if (userProfile?.email) {
+    const custName =
+      userProfile.full_name?.trim() ||
+      `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() ||
+      'Pilot'
+
+    void enqueueAdminCheckoutProposalDecisionEmail({
+      bookingId: booking.id,
+      customerId: userId,
+      customerName: custName,
+      customerEmail: userProfile.email,
+      decision: 'declined',
+      bookingReference: booking.booking_reference,
+      proposedTime: propStart,
+      declineReason: reason?.trim() || null,
+    }).catch((err) => console.error('[customerRejectProposedCheckoutTime] email failed:', err))
+  }
 
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/checkout')

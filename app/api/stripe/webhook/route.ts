@@ -3,9 +3,17 @@ import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email/send-email";
 import { paymentConfirmedEmail } from "@/lib/email/templates/payment";
+import {
+  blockTimePurchaseConfirmedEmail,
+  adminBlockTimePurchaseConfirmedEmail,
+  blockTimeTopupConfirmedEmail,
+  adminBlockTimeTopupConfirmedEmail,
+} from "@/lib/email/templates/block-time";
 import { generateInvoicePdf } from "@/lib/invoices/pdf";
 import { storeInvoicePdf } from "@/lib/invoices/pdf-storage";
 import { generateStandardBookingInvoicePdf } from "@/lib/invoices/standard-booking-pdf";
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'devjamaviation@gmail.com';
 import {
   emitBlockTimeUpdated,
   emitBookingChanged,
@@ -492,7 +500,7 @@ export async function POST(req: Request) {
         try {
           const { data: profile } = await supabase
             .from("profiles")
-            .select("full_name, first_name, last_name, phone_country_code, phone_number, email")
+            .select("full_name, first_name, last_name, phone_country_code, phone_number, email, pilot_arn")
             .eq("id", topup.out_user_id)
             .single();
 
@@ -523,11 +531,29 @@ export async function POST(req: Request) {
             });
           }
 
+          const formattedExpiry = new Date(topup.out_new_expires_at).toLocaleDateString("en-AU", {
+            timeZone: "Australia/Sydney",
+            dateStyle: "medium",
+          });
+
           if (profile?.email) {
-            const template = paymentConfirmedEmail(
-              `Your ${topup.out_package_name} Block Time top-up is confirmed. ${Number(topup.out_hours_added).toFixed(1)} hours have been added at your locked-in rate of $${Number(topup.out_rate_per_hour).toFixed(0)}/hr — your balance is now ${Number(topup.out_new_hours_remaining).toFixed(1)} hours, valid until ${new Date(topup.out_new_expires_at).toLocaleDateString("en-AU")}.`,
-              pdfResult?.pdfUrl
-            );
+            const pilotFirstName =
+              profile.first_name?.trim() ||
+              profile.full_name?.split(" ")[0]?.trim() ||
+              "Pilot";
+
+            const template = blockTimeTopupConfirmedEmail({
+              pilotFirstName,
+              packageName: topup.out_package_name,
+              hoursAdded: Number(topup.out_hours_added),
+              newBalance: Number(topup.out_new_hours_remaining),
+              ratePerHour: Number(topup.out_rate_per_hour),
+              newExpiresAt: formattedExpiry,
+              extensionDays: Number(topup.out_validity_extension_days),
+              amountPaid,
+              invoiceNumber: invoiceRecord.invoice_number,
+              pdfUrl: pdfResult?.pdfUrl ?? null,
+            });
 
             await sendEmail({
               to: profile.email,
@@ -543,10 +569,58 @@ export async function POST(req: Request) {
                 packageName: topup.out_package_name,
                 hoursAdded: Number(topup.out_hours_added),
                 ratePerHour: Number(topup.out_rate_per_hour),
+                amountPaid,
                 pdfUrl: pdfResult?.pdfUrl ?? null,
               },
               attachments: pdfResult ? [pdfResult.attachment] : undefined,
             });
+          }
+
+          if (ADMIN_EMAIL) {
+            const customerFullName =
+              profile?.full_name?.trim() ||
+              `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() ||
+              "Customer";
+            const customerPhone = profile?.phone_number
+              ? `${profile?.phone_country_code || ""} ${profile.phone_number}`.trim()
+              : null;
+
+            const adminTemplate = adminBlockTimeTopupConfirmedEmail({
+              customerName: customerFullName,
+              customerEmail: profile?.email || "customer@ozrentaplane.com",
+              customerPhone,
+              pilotArn: profile?.pilot_arn || null,
+              packageName: topup.out_package_name,
+              hoursAdded: Number(topup.out_hours_added),
+              newBalance: Number(topup.out_new_hours_remaining),
+              ratePerHour: Number(topup.out_rate_per_hour),
+              newExpiresAt: formattedExpiry,
+              extensionDays: Number(topup.out_validity_extension_days),
+              amountPaid,
+              invoiceNumber: invoiceRecord.invoice_number,
+              pdfUrl: pdfResult?.pdfUrl ?? null,
+              userId: topup.out_user_id,
+            });
+
+            await sendEmail({
+              to: ADMIN_EMAIL,
+              subject: adminTemplate.subject,
+              html: adminTemplate.html,
+              eventType: "admin_block_time_topup_confirmed",
+              entityType: "block_time_purchase",
+              entityId: purchaseId,
+              metadata: {
+                userId: topup.out_user_id,
+                customerEmail: profile?.email,
+                invoiceId: invoiceRecord.id,
+                invoiceNumber: invoiceRecord.invoice_number,
+                topupId: topup.out_topup_id,
+                packageName: topup.out_package_name,
+                hoursAdded: Number(topup.out_hours_added),
+                amountPaid,
+              },
+              attachments: pdfResult ? [pdfResult.attachment] : undefined,
+            }).catch((err) => console.error("[webhook] admin block time topup email failed:", err));
           }
 
           const { error: notifErr } = await supabase
@@ -1043,7 +1117,7 @@ export async function POST(req: Request) {
       try {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("full_name, first_name, last_name, phone_country_code, phone_number, email")
+          .select("full_name, first_name, last_name, phone_country_code, phone_number, email, pilot_arn")
           .eq("id", purchase.user_id)
           .single();
 
@@ -1075,10 +1149,26 @@ export async function POST(req: Request) {
         }
 
         if (profile?.email) {
-          const template = paymentConfirmedEmail(
-            `${packageName} Block Time has been activated. Your ${packageHours} hour balance is now available and remains valid until ${new Date(activationExpiry).toLocaleDateString("en-AU")}.`,
-            pdfResult?.pdfUrl
-          );
+          const pilotFirstName =
+            profile.first_name?.trim() ||
+            profile.full_name?.split(" ")[0]?.trim() ||
+            "Pilot";
+
+          const template = blockTimePurchaseConfirmedEmail({
+            pilotFirstName,
+            packageName,
+            packageHours,
+            currentBalance: packageHours,
+            ratePerHour,
+            expiryDate: new Date(activationExpiry).toLocaleDateString("en-AU", {
+              timeZone: "Australia/Sydney",
+              dateStyle: "medium",
+            }),
+            validityDays,
+            amountPaid,
+            invoiceNumber: invoice.invoice_number,
+            pdfUrl: pdfResult?.pdfUrl ?? null,
+          });
 
           await sendEmail({
             to: profile.email,
@@ -1099,6 +1189,54 @@ export async function POST(req: Request) {
               ? [pdfResult.attachment]
               : undefined,
           });
+        }
+
+        if (ADMIN_EMAIL) {
+          const customerFullName =
+            profile?.full_name?.trim() ||
+            `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() ||
+            "Customer";
+          const customerPhone = profile?.phone_number
+            ? `${profile?.phone_country_code || ""} ${profile.phone_number}`.trim()
+            : null;
+
+          const adminTemplate = adminBlockTimePurchaseConfirmedEmail({
+            customerName: customerFullName,
+            customerEmail: profile?.email || "customer@ozrentaplane.com",
+            customerPhone,
+            pilotArn: profile?.pilot_arn || null,
+            packageName,
+            packageHours,
+            ratePerHour,
+            expiryDate: new Date(activationExpiry).toLocaleDateString("en-AU", {
+              timeZone: "Australia/Sydney",
+              dateStyle: "medium",
+            }),
+            validityDays,
+            amountPaid,
+            invoiceNumber: invoice.invoice_number,
+            pdfUrl: pdfResult?.pdfUrl ?? null,
+            userId: purchase.user_id,
+          });
+
+          await sendEmail({
+            to: ADMIN_EMAIL,
+            subject: adminTemplate.subject,
+            html: adminTemplate.html,
+            eventType: "admin_block_time_purchase_confirmed",
+            entityType: "block_time_purchase",
+            entityId: purchase.id,
+            metadata: {
+              userId: purchase.user_id,
+              customerEmail: profile?.email,
+              invoiceId: invoice.id,
+              invoiceNumber: invoice.invoice_number,
+              packageName,
+              hoursPurchased: packageHours,
+              amountPaid,
+            },
+            attachments: pdfResult ? [pdfResult.attachment] : undefined,
+          }).catch((err) => console.error("[webhook] admin block time email failed:", err));
         }
 
         const { error: notifErr } = await supabase

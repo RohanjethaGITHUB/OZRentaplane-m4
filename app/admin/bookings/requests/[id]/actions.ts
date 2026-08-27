@@ -106,21 +106,43 @@ export async function cancelBookingByAdmin(bookingId: string, reason: string): P
     console.error('[cancelBookingByAdmin] chat insert error:', chatErr)
   }
 
-  // 6. Notify customer by email
-  const { data: notifyData } = await admin
-    .from('bookings')
-    .select('booking_reference, profiles:booking_owner_user_id ( full_name, email )')
-    .eq('id', bookingId)
-    .single()
+  // 6. Notify customer and admin by email
+  const [{ data: notifyData }, { data: aircraft }] = await Promise.all([
+    admin
+      .from('bookings')
+      .select('booking_reference, profiles:booking_owner_user_id ( full_name, email, phone_number, phone_country_code )')
+      .eq('id', bookingId)
+      .single(),
+    admin
+      .from('aircraft')
+      .select('registration')
+      .eq('id', booking.aircraft_id)
+      .single(),
+  ])
 
   if (notifyData) {
     const prof = Array.isArray(notifyData.profiles) ? notifyData.profiles[0] : notifyData.profiles
     const email = (prof as { email?: string | null } | null)?.email
     if (email) {
+      const scheduledTimeStr = booking.scheduled_start
+        ? new Date(booking.scheduled_start).toLocaleString('en-AU', {
+            timeZone: 'Australia/Sydney',
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          })
+        : null
+      const customerPhone = (prof as { phone_number?: string | null; phone_country_code?: string | null } | null)?.phone_number
+        ? `${(prof as { phone_country_code?: string | null }).phone_country_code || ''} ${(prof as { phone_number?: string | null }).phone_number}`.trim()
+        : null
+
       void notifyBookingCancelled({
         customerEmail: email,
         customerName: (prof as { full_name?: string | null } | null)?.full_name ?? 'Pilot',
+        customerPhone,
         ref: notifyData.booking_reference ?? bookingId.slice(0, 8).toUpperCase(),
+        aircraft: aircraft?.registration ?? 'Aircraft',
+        scheduledTime: scheduledTimeStr,
+        cancelledBy: 'Admin',
         reason: trimmedReason,
         bookingId,
       }).catch((error) => console.error('[cancelBookingByAdmin] notification error:', error))

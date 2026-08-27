@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { sendEmail } from '@/lib/email/send-email'
-import { welcomeCheckoutRequiredEmail } from '@/lib/email/templates/account'
+import { enqueueCustomerWelcomeEmails } from '@/lib/email/outbox'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
@@ -15,19 +14,21 @@ export async function GET(request: NextRequest) {
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('full_name, email, pilot_clearance_status')
+          .select('full_name, first_name, email, phone_number, phone_country_code, pilot_clearance_status')
           .eq('id', user.id)
           .single()
         if (profile?.email && profile.pilot_clearance_status === 'checkout_required') {
-          const template = welcomeCheckoutRequiredEmail(profile.full_name)
-          await sendEmail({
-            to: profile.email,
-            subject: template.subject,
-            html: template.html,
-            eventType: 'welcome_checkout_required',
-            entityType: 'profile',
-            entityId: user.id,
-          })
+          const customerPhone = profile.phone_number
+            ? `${profile.phone_country_code || ''} ${profile.phone_number}`.trim()
+            : null
+
+          void enqueueCustomerWelcomeEmails({
+            customerId: user.id,
+            customerName: profile.full_name || 'Pilot',
+            customerEmail: profile.email,
+            customerPhone,
+            firstName: profile.first_name || undefined,
+          }).catch((err) => console.error('[auth/callback] welcome email failed:', err))
         }
       }
       return NextResponse.redirect(`${origin}/dashboard`)

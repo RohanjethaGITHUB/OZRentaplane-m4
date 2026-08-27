@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { LoadingButtonContent } from '@/components/ui/Spinner'
+import { notifyNewRegistration } from '@/app/actions/auth'
 
 type AuthMode = 'signin' | 'signup'
 
@@ -188,12 +189,24 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
     if (error) {
       setLoading(false)
       setSuError(error.message)
-    } else if (data.session) {
-      // keep loading=true until navigation completes to prevent double-submit
-      router.push(nextPath)
     } else {
-      setLoading(false)
-      setSuSuccess(true)
+      if (data.user) {
+        void notifyNewRegistration({
+          userId: data.user.id,
+          email: suEmail,
+          fullName: `${firstName} ${lastName}`.trim(),
+          firstName,
+          phone: `${phoneCountryCode} ${phoneNumber}`.trim(),
+        }).catch((err) => console.error('[signup] notifyNewRegistration failed:', err))
+      }
+
+      if (data.session) {
+        // keep loading=true until navigation completes to prevent double-submit
+        router.push(nextPath)
+      } else {
+        setLoading(false)
+        setSuSuccess(true)
+      }
     }
   }
 
@@ -206,7 +219,7 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
       <main className={`${isModal
         ? 'w-full max-w-[1100px] h-[min(calc(100dvh-24px),820px)] min-h-0 rounded-[1.5rem]'
         : 'w-full max-w-[1100px] min-h-[600px] rounded-[1.5rem]'
-      } overflow-hidden flex flex-col md:flex-row relative shadow-2xl`}>
+        } overflow-hidden flex flex-col md:flex-row relative shadow-2xl`}>
 
         {/* ── Close button ── */}
         {isModal && (
@@ -268,9 +281,9 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
             {/* Feature list */}
             <div className="space-y-5 my-10">
               {[
-                { icon: 'verified_user',  title: 'Verified & Trusted',    desc: 'Verified pilots. Trusted aircraft. Total peace of mind.' },
-                { icon: 'flight_takeoff', title: 'Premium Fleet Access',   desc: 'Fly a curated range of aircraft across Australia.' },
-                { icon: 'headset_mic',    title: 'Dedicated Support',      desc: 'Real people. Real support. When you need it.' },
+                { icon: 'verified_user', title: 'Verified & Trusted', desc: 'Verified pilots. Trusted aircraft. Total peace of mind.' },
+                { icon: 'flight_takeoff', title: 'Premium Fleet Access', desc: 'Fly a curated range of aircraft across Australia.' },
+                { icon: 'headset_mic', title: 'Dedicated Support', desc: 'Real people. Real support. When you need it.' },
               ].map(f => (
                 <div key={f.title} className="flex items-start gap-3.5">
                   <div className="w-9 h-9 rounded-full border border-white/20 bg-white/10 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -320,22 +333,20 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
               <button
                 type="button"
                 onClick={() => setModeWithReset('signin')}
-                className={`pb-3 px-1 mr-6 text-[14px] font-medium border-b-2 transition-colors ${
-                  mode === 'signin'
+                className={`pb-3 px-1 mr-6 text-[14px] font-medium border-b-2 transition-colors ${mode === 'signin'
                     ? 'border-[#1a4fd6] text-[#1a4fd6]'
                     : 'border-transparent text-[#6b7ea8] hover:text-[#152d5a]'
-                }`}
+                  }`}
               >
                 Sign in
               </button>
               <button
                 type="button"
                 onClick={() => setModeWithReset('signup')}
-                className={`pb-3 px-1 text-[14px] font-medium border-b-2 transition-colors ${
-                  mode === 'signup'
+                className={`pb-3 px-1 text-[14px] font-medium border-b-2 transition-colors ${mode === 'signup'
                     ? 'border-[#1a4fd6] text-[#1a4fd6]'
                     : 'border-transparent text-[#6b7ea8] hover:text-[#152d5a]'
-                }`}
+                  }`}
               >
                 Create account
               </button>

@@ -65,7 +65,11 @@ export async function sendEmail(input: SendEmailInput): Promise<{ status: 'sent'
   }
 
   try {
-    const to = cleanEmailString(input.to) || input.to.trim()
+    let to = cleanEmailString(input.to) || input.to.trim()
+    const configuredAdmin = cleanEmailString(process.env.ADMIN_EMAIL) || 'devjamaviation@gmail.com'
+    if (to.toLowerCase() === 'info@ozrentaplane.com' || to.toLowerCase() === 'ozrentaplane@gmail.com') {
+      to = configuredAdmin
+    }
     
     // Guard with a 5s timeout so network drops / ECONNRESET do not hang Next.js actions
     const sendPromise = resend.emails.send({
@@ -110,6 +114,11 @@ function createAdminClientSafe() {
   }
 }
 
+function isValidUuid(val?: string | null): boolean {
+  if (!val) return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val)
+}
+
 async function insertEmailEvent(
   admin: ReturnType<typeof createAdminClient> | null,
   input: SendEmailInput,
@@ -124,7 +133,7 @@ async function insertEmailEvent(
     recipient_email: input.to,
     event_type: input.eventType,
     entity_type: input.entityType,
-    entity_id: input.entityId ?? null,
+    entity_id: isValidUuid(input.entityId) ? input.entityId : null,
     entity_id_text: entityIdText,
     resend_email_id: resendEmailId,
     status,

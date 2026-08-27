@@ -1,10 +1,7 @@
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
+import { renderBaseTemplate, escapeHtml } from '@/lib/email/templates/base-template'
+import { getAppUrl } from '@/lib/email/app-url'
+
+const appUrl = getAppUrl()
 
 function buildShell(params: {
   headline: string
@@ -50,6 +47,330 @@ function buildShell(params: {
 
 function formatMoney(amount: number): string {
   return `$${amount.toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+}
+
+export function blockTimePurchaseConfirmedEmail(params: {
+  pilotFirstName: string
+  packageName: string
+  packageHours: number
+  currentBalance: number
+  ratePerHour: number
+  expiryDate: string
+  validityDays: number
+  amountPaid: number
+  invoiceNumber?: string | null
+  pdfUrl?: string | null
+}) {
+  const {
+    pilotFirstName,
+    packageName,
+    packageHours,
+    currentBalance,
+    ratePerHour,
+    expiryDate,
+    validityDays,
+    amountPaid,
+    invoiceNumber,
+    pdfUrl,
+  } = params
+
+  const subject = `Block Time Purchase Confirmed — ${packageName} (${packageHours}h) — OZ Rent A Plane`
+  const details = [
+    { label: 'Package', value: packageName },
+    { label: 'Hours Credited', value: `${packageHours} hours` },
+    { label: 'Current Balance', value: `${currentBalance} hours` },
+    { label: 'Locked Rate', value: `$${ratePerHour}/hr` },
+    { label: 'Valid Until', value: `${expiryDate} (${validityDays} days)` },
+    { label: 'Amount Paid', value: `$${amountPaid.toFixed(2)} AUD` },
+  ]
+  if (invoiceNumber) {
+    details.push({ label: 'Invoice Number', value: invoiceNumber })
+  }
+
+  let extraHtml = `
+    <div style="margin: 20px 0; padding: 16px; background: #f0f7ff; border-left: 4px solid #0284c7; border-radius: 4px;">
+      <h4 style="margin: 0 0 8px 0; color: #0f172a; font-size: 14px; font-weight: 600;">How to use your hours</h4>
+      <p style="margin: 0; color: #475569; font-size: 13px; line-height: 1.6;">
+        Your block-time hours are ready to use immediately for any standard hire booking on our fleet. Flight hours will automatically be deducted from your package balance upon flight completion.
+      </p>
+    </div>
+  `
+
+  if (pdfUrl) {
+    extraHtml += `
+      <div style="margin-bottom: 20px;">
+        <a href="${pdfUrl}" target="_blank" style="color: #0284c7; font-size: 14px; text-decoration: underline; font-weight: 600;">
+          Download Tax Invoice (PDF)
+        </a>
+      </div>
+    `
+  }
+
+  return {
+    subject,
+    html: renderBaseTemplate({
+      headline: 'Block Time Purchase Confirmed',
+      message: `Hi ${pilotFirstName}, thank you for your purchase! Your ${packageName} package has been successfully activated and credited to your account.`,
+      details,
+      extraHtml,
+      ctaLabel: 'Book a Flight',
+      ctaUrl: `${appUrl}/dashboard/bookings/new`,
+    }),
+  }
+}
+
+export function adminBlockTimePurchaseConfirmedEmail(params: {
+  customerName: string
+  customerEmail: string
+  customerPhone?: string | null
+  pilotArn?: string | null
+  packageName: string
+  packageHours: number
+  ratePerHour: number
+  expiryDate: string
+  validityDays: number
+  amountPaid: number
+  invoiceNumber?: string | null
+  pdfUrl?: string | null
+  userId: string
+}) {
+  const {
+    customerName,
+    customerEmail,
+    customerPhone,
+    pilotArn,
+    packageName,
+    packageHours,
+    ratePerHour,
+    expiryDate,
+    validityDays,
+    amountPaid,
+    invoiceNumber,
+    pdfUrl,
+    userId,
+  } = params
+
+  const subject = `New Block Time Purchase: ${customerName} — ${packageName} (${packageHours}h) — $${amountPaid.toFixed(2)} AUD`
+  const details = [
+    { label: 'Customer', value: customerName },
+    { label: 'Email', value: customerEmail },
+    ...(customerPhone ? [{ label: 'Phone', value: customerPhone }] : []),
+    ...(pilotArn ? [{ label: 'Pilot ARN', value: pilotArn }] : []),
+    { label: 'Package Purchased', value: packageName },
+    { label: 'Hours Credited', value: `${packageHours} hours` },
+    { label: 'Locked Rate', value: `$${ratePerHour}/hr` },
+    { label: 'Amount Paid', value: `$${amountPaid.toFixed(2)} AUD` },
+    { label: 'Valid Until', value: `${expiryDate} (${validityDays} days)` },
+    ...(invoiceNumber ? [{ label: 'Invoice Number', value: invoiceNumber }] : []),
+    { label: 'Status', value: 'Active & Paid' },
+  ]
+
+  let extraHtml = ''
+  if (pdfUrl) {
+    extraHtml += `
+      <div style="margin: 20px 0;">
+        <a href="${pdfUrl}" target="_blank" style="color: #0284c7; font-size: 14px; text-decoration: underline; font-weight: 600;">
+          Download Tax Invoice (PDF)
+        </a>
+      </div>
+    `
+  }
+
+  return {
+    subject,
+    html: renderBaseTemplate({
+      headline: 'New Block Time Package Purchased',
+      message: `${customerName} has purchased a ${packageName} (${packageHours} hours) package for $${amountPaid.toFixed(2)} AUD. Hours have been credited to their account.`,
+      details,
+      extraHtml: extraHtml || undefined,
+      ctaLabel: 'View User in Admin',
+      ctaUrl: `${appUrl}/admin/users/${userId}`,
+    }),
+  }
+}
+
+export function blockTimeTopupConfirmedEmail(params: {
+  pilotFirstName: string
+  packageName: string
+  hoursAdded: number
+  newBalance: number
+  ratePerHour: number
+  newExpiresAt: string
+  extensionDays?: number
+  amountPaid: number
+  invoiceNumber?: string | null
+  pdfUrl?: string | null
+}) {
+  const {
+    pilotFirstName,
+    packageName,
+    hoursAdded,
+    newBalance,
+    ratePerHour,
+    newExpiresAt,
+    extensionDays,
+    amountPaid,
+    invoiceNumber,
+    pdfUrl,
+  } = params
+
+  const subject = `Block Time Top-up Confirmed — +${hoursAdded}h (${packageName}) — OZ Rent A Plane`
+  const details = [
+    { label: 'Package', value: `${packageName} (Top-up)` },
+    { label: 'Hours Added', value: `+${hoursAdded} hours` },
+    { label: 'New Total Balance', value: `${newBalance} hours` },
+    { label: 'Locked Rate', value: `$${ratePerHour}/hr` },
+    {
+      label: 'New Expiry Date',
+      value: extensionDays ? `${newExpiresAt} (+${extensionDays} days extended)` : newExpiresAt,
+    },
+    { label: 'Amount Paid', value: `$${amountPaid.toFixed(2)} AUD` },
+  ]
+  if (invoiceNumber) {
+    details.push({ label: 'Invoice Number', value: invoiceNumber })
+  }
+
+  let extraHtml = `
+    <div style="margin: 20px 0; padding: 16px; background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 4px;">
+      <h4 style="margin: 0 0 8px 0; color: #14532d; font-size: 14px; font-weight: 600;">Top-up Applied</h4>
+      <p style="margin: 0; color: #166534; font-size: 13px; line-height: 1.6;">
+        Your additional ${hoursAdded} hours are now active and ready to use. Your package expiry date has been automatically extended.
+      </p>
+    </div>
+  `
+
+  if (pdfUrl) {
+    extraHtml += `
+      <div style="margin-bottom: 20px;">
+        <a href="${pdfUrl}" target="_blank" style="color: #0284c7; font-size: 14px; text-decoration: underline; font-weight: 600;">
+          Download Tax Invoice (PDF)
+        </a>
+      </div>
+    `
+  }
+
+  return {
+    subject,
+    html: renderBaseTemplate({
+      headline: 'Block Time Top-up Confirmed',
+      message: `Hi ${pilotFirstName}, your top-up of ${hoursAdded} hours on your ${packageName} package has been successfully processed and credited to your balance.`,
+      details,
+      extraHtml,
+      ctaLabel: 'View Block Time Balance',
+      ctaUrl: `${appUrl}/dashboard/purchases`,
+    }),
+  }
+}
+
+export function adminBlockTimeTopupConfirmedEmail(params: {
+  customerName: string
+  customerEmail: string
+  customerPhone?: string | null
+  pilotArn?: string | null
+  packageName: string
+  hoursAdded: number
+  newBalance: number
+  ratePerHour: number
+  newExpiresAt: string
+  extensionDays?: number
+  amountPaid: number
+  invoiceNumber?: string | null
+  pdfUrl?: string | null
+  userId: string
+}) {
+  const {
+    customerName,
+    customerEmail,
+    customerPhone,
+    pilotArn,
+    packageName,
+    hoursAdded,
+    newBalance,
+    ratePerHour,
+    newExpiresAt,
+    extensionDays,
+    amountPaid,
+    invoiceNumber,
+    pdfUrl,
+    userId,
+  } = params
+
+  const subject = `Block Time Top-up: ${customerName} — +${hoursAdded}h (${packageName}) — $${amountPaid.toFixed(2)} AUD`
+  const details = [
+    { label: 'Customer', value: customerName },
+    { label: 'Email', value: customerEmail },
+    ...(customerPhone ? [{ label: 'Phone', value: customerPhone }] : []),
+    ...(pilotArn ? [{ label: 'Pilot ARN', value: pilotArn }] : []),
+    { label: 'Package', value: `${packageName} (Top-up)` },
+    { label: 'Hours Added', value: `+${hoursAdded} hours` },
+    { label: 'New Total Balance', value: `${newBalance} hours` },
+    { label: 'Locked Rate', value: `$${ratePerHour}/hr` },
+    { label: 'Amount Paid', value: `$${amountPaid.toFixed(2)} AUD` },
+    {
+      label: 'New Expiry Date',
+      value: extensionDays ? `${newExpiresAt} (+${extensionDays} days)` : newExpiresAt,
+    },
+    ...(invoiceNumber ? [{ label: 'Invoice Number', value: invoiceNumber }] : []),
+    { label: 'Status', value: 'Active & Paid' },
+  ]
+
+  let extraHtml = ''
+  if (pdfUrl) {
+    extraHtml += `
+      <div style="margin: 20px 0;">
+        <a href="${pdfUrl}" target="_blank" style="color: #0284c7; font-size: 14px; text-decoration: underline; font-weight: 600;">
+          Download Tax Invoice (PDF)
+        </a>
+      </div>
+    `
+  }
+
+  return {
+    subject,
+    html: renderBaseTemplate({
+      headline: 'Block Time Top-up Purchased',
+      message: `${customerName} has topped up ${hoursAdded} hours on their ${packageName} package for $${amountPaid.toFixed(2)} AUD.`,
+      details,
+      extraHtml: extraHtml || undefined,
+      ctaLabel: 'View User in Admin',
+      ctaUrl: `${appUrl}/admin/users/${userId}`,
+    }),
+  }
+}
+
+export function blockTimeLowBalanceEmail(params: {
+  pilotFirstName: string
+  packageName: string
+  hoursRemaining: number
+  ratePerHour: number
+  expiryDate: string
+}) {
+  const { pilotFirstName, packageName, hoursRemaining, ratePerHour, expiryDate } = params
+  const subject = `Low Block Time Balance: ${hoursRemaining}h remaining — OZ Rent A Plane`
+
+  return {
+    subject,
+    html: renderBaseTemplate({
+      headline: 'Block Time Balance Running Low',
+      message: `Hi ${pilotFirstName}, your block-time balance is running low. You currently have ${hoursRemaining} hours remaining on your ${packageName} package.`,
+      details: [
+        { label: 'Package', value: packageName },
+        { label: 'Remaining Balance', value: `${hoursRemaining} hours` },
+        { label: 'Locked Rate', value: `$${ratePerHour}/hr` },
+        { label: 'Expires On', value: expiryDate },
+      ],
+      extraHtml: `
+        <div style="margin: 20px 0; padding: 16px; background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 4px;">
+          <h4 style="margin: 0 0 8px 0; color: #92400e; font-size: 14px; font-weight: 600;">Keep Your Locked Rate</h4>
+          <p style="margin: 0; color: #78350f; font-size: 13px; line-height: 1.6;">
+            Top up your hours before your next flight to keep flying at your discounted locked rate of $${ratePerHour}/hr without switching to the standard Pay As You Fly rate ($330/hr).
+          </p>
+        </div>
+      `,
+      ctaLabel: 'Top Up Block Time',
+      ctaUrl: `${appUrl}/dashboard?block_time_package=active`,
+    }),
+  }
 }
 
 export function blockTimeExpiryReminderEmail(
