@@ -12,6 +12,8 @@ import { useRouter } from "next/navigation";
 import { createBooking } from "@/app/actions/booking";
 import {
   checkCustomerAvailability,
+  getDayAvailability,
+  getDateRangeAvailability,
   type SafeConflict,
   type AvailabilityCheckResult,
 } from "@/app/actions/customer-availability";
@@ -140,6 +142,35 @@ function parseTimeToMinutes(time: string): number {
 
 function sydIsoToMinutes(isoUTC: string): number {
   return parseTimeToMinutes(formatSydTime(isoUTC));
+}
+
+function getDaySlotSpan(
+  slot: SafeConflict,
+  dateStr: string,
+): { startMins: number; endMins: number } | null {
+  const opStartUTC = sydneyInputToUTC(`${dateStr}T00:00`);
+  const nextDate = shiftDateByDays(dateStr, 1);
+  const opEndUTC = sydneyInputToUTC(`${nextDate}T00:00`);
+  if (!opStartUTC || !opEndUTC) return null;
+
+  const opStartMs = new Date(opStartUTC).getTime();
+  const opEndMs = new Date(opEndUTC).getTime();
+  const slotStartMs = new Date(slot.start_time).getTime();
+  const slotEndMs = new Date(slot.end_time).getTime();
+
+  if (slotEndMs <= opStartMs || slotStartMs >= opEndMs) return null;
+
+  const clampedStartMs = Math.max(opStartMs, slotStartMs);
+  const clampedEndMs = Math.min(opEndMs, slotEndMs);
+
+  const startMins = Math.round(
+    ((clampedStartMs - opStartMs) / (opEndMs - opStartMs)) * 1440,
+  );
+  const endMins = Math.round(
+    ((clampedEndMs - opStartMs) / (opEndMs - opStartMs)) * 1440,
+  );
+
+  return { startMins, endMins };
 }
 
 function formatTimeLabel(time: string): string {
@@ -613,6 +644,16 @@ export default function BookingRequestForm({
   const [availability, setAvailability] = useState<AvailabilityState>({
     status: "idle",
   });
+  const [daySlots, setDaySlots] = useState<SafeConflict[]>([]);
+  const [loadingDaySlots, setLoadingDaySlots] = useState<boolean>(false);
+  const [multiDaySlots, setMultiDaySlots] = useState<SafeConflict[]>([]);
+  const [loadingMultiDaySlots, setLoadingMultiDaySlots] = useState<boolean>(false);
+  const [hoveredConflict, setHoveredConflict] = useState<{
+    midPct: number;
+    start12: string;
+    end12: string;
+    label: string;
+  } | null>(null);
 
   // ── Min date/time (1 hour from now in Sydney) ─────────────────────────────
   const { minDate, minTimeToday } = useMemo(() => {
@@ -770,6 +811,82 @@ export default function BookingRequestForm({
     const timer = setTimeout(() => runAvailabilityCheck(startDT, endDT), 600);
     return () => clearTimeout(timer);
   }, [startDT, endDT, runAvailabilityCheck]);
+
+  // ── Fetch full day bookings when date is selected ─────────────────────────
+  useEffect(() => {
+    if (!startDate) {
+      setDaySlots([]);
+      return;
+    }
+    let active = true;
+    setLoadingDaySlots(true);
+    getDayAvailability(aircraftId, startDate)
+      .then((slots) => {
+        if (active) {
+          setDaySlots(slots ?? []);
+        }
+      })
+      .catch((err) => {
+        console.error("[BookingRequestForm] Failed to load day availability:", err);
+        if (active) {
+          setDaySlots([]);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoadingDaySlots(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [aircraftId, startDate]);
+
+  // ── Fetch multi-day full month availability when in multi-day mode ────────
+  useEffect(() => {
+    if (!startDate || bookingMode !== "multi") {
+      setMultiDaySlots([]);
+      return;
+    }
+    const [y, m, d] = startDate.split("-").map(Number);
+    const lastDayOfMonth = new Date(y!, m!, 0).getDate();
+    const daysLeftInMonth = lastDayOfMonth - d!;
+    let targetYear = y!;
+    let targetMonth = m!;
+    let targetDay = lastDayOfMonth;
+    if (daysLeftInMonth < 10) {
+      const nextMonthEnd = new Date(y!, m! + 1, 0);
+      targetYear = nextMonthEnd.getFullYear();
+      targetMonth = nextMonthEnd.getMonth() + 1;
+      targetDay = nextMonthEnd.getDate();
+    }
+    const monthEndDate = `${targetYear}-${String(targetMonth).padStart(2, "0")}-${String(targetDay).padStart(2, "0")}`;
+
+    let active = true;
+    setLoadingMultiDaySlots(true);
+    getDateRangeAvailability(aircraftId, startDate, monthEndDate)
+      .then((slots) => {
+        if (active) {
+          setMultiDaySlots(slots ?? []);
+        }
+      })
+      .catch((err) => {
+        console.error("[BookingRequestForm] Failed to load multi-day range availability:", err);
+        if (active) {
+          setMultiDaySlots([]);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoadingMultiDaySlots(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [aircraftId, startDate, bookingMode]);
 
   // ── Estimated duration ────────────────────────────────────────────────────
   const estimatedHours = useMemo(() => {
@@ -1509,7 +1626,7 @@ export default function BookingRequestForm({
 
               {activeBookingDate && (
                 <div className="bg-[#f8faff] border border-[#e2e8f0] rounded-2xl p-5 mb-4">
-                  <div className="flex items-center justify-between mb-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
                     <div>
                       <p className="text-[11px] font-semibold text-[#94a3b8] uppercase tracking-wider mb-0.5">
                         Same-day booking
@@ -1524,6 +1641,21 @@ export default function BookingRequestForm({
                           year: "numeric",
                         })}
                       </p>
+                    </div>
+                    <div className="flex items-center gap-3 self-start sm:self-auto">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded bg-[#22c55e] border border-green-600/40" />
+                        <span className="text-[#64748b] text-xs font-medium">Available</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded bg-red-500 border border-red-600/40" />
+                        <span className="text-[#64748b] text-xs font-medium">Booked / Blocked</span>
+                      </div>
+                      {loadingDaySlots && (
+                        <span className="material-symbols-outlined text-[#1a4fd6] text-sm animate-spin">
+                          progress_activity
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -1541,185 +1673,321 @@ export default function BookingRequestForm({
                     const startPct = timeToPct(startTime || "00:00");
                     const endPct = timeToPct(endTime || "00:00");
                     const tooClose = Math.abs(endPct - startPct) < 10;
-                    const conflictSegments =
-                      availability.status === "unavailable"
-                        ? availability.conflicts
-                        : [];
+                    const conflictSegments: SafeConflict[] = [...daySlots];
+                    if (
+                      availability.status === "unavailable" &&
+                      availability.conflicts &&
+                      availability.conflicts.length > 0
+                    ) {
+                      for (const c of availability.conflicts) {
+                        if (
+                          !conflictSegments.some(
+                            (s) =>
+                              s.start_time === c.start_time &&
+                              s.end_time === c.end_time,
+                          )
+                        ) {
+                          conflictSegments.push(c);
+                        }
+                      }
+                    }
 
                     return (
-                      <div
-                        ref={trackRef}
-                        className="relative h-14 sm:h-10 rounded-lg overflow-hidden border bg-[#f0fdf4] border-green-200 select-none mb-5"
-                        style={{
-                          cursor: dragging ? "grabbing" : "default",
-                          touchAction: "none",
-                        }}
-                        onPointerMove={(e) => {
-                          if (!dragging) return;
-                          const pct = getPctFromPointer(e, trackRef);
-                          const newTime = pctToTime(pct);
-                          if (dragging === "start") {
-                            if (pct < timeToPct(endTime || "17:00") - 2) {
-                              setStartTime(newTime);
-                            }
-                          } else if (
-                            pct >
-                            timeToPct(startTime || "09:00") + 2
-                          ) {
-                            setEndTime(newTime);
-                          }
-                        }}
-                        onPointerUp={() => {
-                          if (trackRef.current) {
-                            try {
-                              trackRef.current.releasePointerCapture(
-                                (window as any).__timelineCapturedPointerId,
-                              );
-                            } catch {}
-                          }
-                          setDragging(null);
-                        }}
-                      >
-                        {conflictSegments.map((segment, i) => {
-                          const startMins = sydIsoToMinutes(segment.start_time);
-                          const endMins = sydIsoToMinutes(segment.end_time);
-                          return (
-                            <div
-                              key={`${segment.start_time}-${segment.end_time}-${i}`}
-                              className="absolute inset-y-0 bg-red-500/60"
-                              style={{
-                                left: `${(startMins / 1440) * 100}%`,
-                                width: `${Math.max(0, ((endMins - startMins) / 1440) * 100)}%`,
-                              }}
-                              title={segment.label}
-                            />
-                          );
-                        })}
-                        {startTime && endTime && (
-                          <>
-                            <div
-                              className="absolute inset-y-0 bg-[#1a4fd6]/20 border-2 border-[#1a4fd6] rounded-lg"
-                              style={{
-                                left: `${startPct}%`,
-                                width: `${Math.max(0, endPct - startPct)}%`,
-                              }}
-                            />
-
-                            <div
-                              className="absolute flex flex-col items-center"
-                              style={{
-                                left: `${startPct}%`,
-                                top: "50%",
-                                transform: "translate(-50%, -50%)",
-                              }}
-                            >
-                              <div
-                                className="bg-[#1a4fd6] text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg whitespace-nowrap shadow-sm mb-1 pointer-events-none"
-                                style={{ marginLeft: tooClose ? -32 : 0 }}
-                              >
-                                {fmtTime(startTime)}
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-t-[4px] border-transparent border-t-[#1a4fd6]" />
-                              </div>
-                              <div
-                                className={`w-4 h-4 rounded-full bg-[#1a4fd6] border-2 border-white shadow-md transition-transform ${
-                                  dragging === "start"
-                                    ? "scale-125"
-                                    : "hover:scale-110"
-                                }`}
-                                style={{ cursor: "grab", marginTop: 2 }}
-                                onPointerDown={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (trackRef.current) {
-                                    trackRef.current.setPointerCapture(
-                                      e.pointerId,
-                                    );
-                                    (window as any).__timelineCapturedPointerId =
-                                      e.pointerId;
-                                  }
-                                  setDragging("start");
-                                }}
-                              />
+                      <div className="relative mb-2">
+                        {/* Sleek Floating Custom Tooltip on Hover */}
+                        {hoveredConflict && (
+                          <div
+                            className="absolute -top-10 -translate-x-1/2 z-30 pointer-events-none transition-all duration-150"
+                            style={{ left: `${hoveredConflict.midPct}%` }}
+                          >
+                            <div className="bg-[#0f172a] text-white text-xs font-medium px-3 py-1.5 rounded-lg shadow-xl border border-slate-700 flex items-center gap-1.5 whitespace-nowrap">
+                              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                              <span className="font-bold text-red-300">
+                                {hoveredConflict.start12} – {hoveredConflict.end12}
+                              </span>
+                              <span className="text-slate-300 text-[11px]">
+                                ({hoveredConflict.label || "Booked"})
+                              </span>
                             </div>
-
-                            <div
-                              className="absolute flex flex-col items-center"
-                              style={{
-                                left: `${endPct}%`,
-                                top: "50%",
-                                transform: "translate(-50%, -50%)",
-                              }}
-                            >
-                              <div
-                                className="bg-[#1a4fd6] text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg whitespace-nowrap shadow-sm mb-1 pointer-events-none"
-                                style={{ marginLeft: tooClose ? 32 : 0 }}
-                              >
-                                {fmtTime(endTime)}
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-t-[4px] border-transparent border-t-[#1a4fd6]" />
-                              </div>
-                              <div
-                                className={`w-4 h-4 rounded-full bg-[#1a4fd6] border-2 border-white shadow-md transition-transform ${
-                                  dragging === "end"
-                                    ? "scale-125"
-                                    : "hover:scale-110"
-                                }`}
-                                style={{ cursor: "grab", marginTop: 2 }}
-                                onPointerDown={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (trackRef.current) {
-                                    trackRef.current.setPointerCapture(
-                                      e.pointerId,
-                                    );
-                                    (window as any).__timelineCapturedPointerId =
-                                      e.pointerId;
-                                  }
-                                  setDragging("end");
-                                }}
-                              />
-                            </div>
-                          </>
+                            <div className="w-0 h-0 border-l-[5px] border-r-[5px] border-t-[5px] border-transparent border-t-[#0f172a] mx-auto" />
+                          </div>
                         )}
 
-                        {(!startTime || !endTime) && (
-                          <div
-                            className="absolute inset-0 flex items-center justify-center"
-                            style={{ top: 0 }}
-                          >
-                            <p className="text-xs text-[#9ca3af]">
-                              Select start and end time above to see your slot
-                              on the timeline
-                            </p>
+                        <div
+                          ref={trackRef}
+                          className="relative h-14 sm:h-10 rounded-lg overflow-hidden border bg-[#f0fdf4] border-green-200 select-none"
+                          style={{
+                            cursor: dragging ? "grabbing" : "default",
+                            touchAction: "none",
+                          }}
+                          onPointerMove={(e) => {
+                            if (!dragging) return;
+                            const pct = getPctFromPointer(e, trackRef);
+                            const newTime = pctToTime(pct);
+                            if (dragging === "start") {
+                              if (pct < timeToPct(endTime || "17:00") - 2) {
+                                setStartTime(newTime);
+                              }
+                            } else if (
+                              pct >
+                              timeToPct(startTime || "09:00") + 2
+                            ) {
+                              setEndTime(newTime);
+                            }
+                          }}
+                          onPointerUp={() => {
+                            if (trackRef.current) {
+                              try {
+                                trackRef.current.releasePointerCapture(
+                                  (window as any).__timelineCapturedPointerId,
+                                );
+                              } catch {}
+                            }
+                            setDragging(null);
+                          }}
+                        >
+                          {conflictSegments.map((segment, i) => {
+                            const span = getDaySlotSpan(segment, activeBookingDate);
+                            if (!span || span.endMins <= span.startMins) return null;
+                            const leftPct = (span.startMins / 1440) * 100;
+                            const widthPct = ((span.endMins - span.startMins) / 1440) * 100;
+                            const start12 = fmtTime(formatSydTime(segment.start_time));
+                            const end12 = fmtTime(formatSydTime(segment.end_time));
+                            const midPct = Math.max(12, Math.min(88, leftPct + widthPct / 2));
+
+                            return (
+                              <div
+                                key={`${segment.start_time}-${segment.end_time}-${i}`}
+                                onMouseEnter={() =>
+                                  setHoveredConflict({
+                                    midPct,
+                                    start12,
+                                    end12,
+                                    label: segment.label || "Unavailable",
+                                  })
+                                }
+                                onMouseLeave={() => setHoveredConflict(null)}
+                                className="absolute inset-y-0 bg-red-500/85 hover:bg-red-600 transition-colors z-0 flex items-center justify-center overflow-hidden border-x border-red-600/40 cursor-pointer"
+                                style={{
+                                  left: `${leftPct}%`,
+                                  width: `${Math.max(0.5, widthPct)}%`,
+                                }}
+                              >
+                                {widthPct >= 16 && (
+                                  <span className="text-[10px] font-bold text-white truncate px-1 select-none pointer-events-none drop-shadow-xs">
+                                    {start12}–{end12}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {startTime && endTime && (
+                            <>
+                              <div
+                                className="absolute inset-y-0 bg-[#1a4fd6]/20 border-2 border-[#1a4fd6] rounded-lg"
+                                style={{
+                                  left: `${startPct}%`,
+                                  width: `${Math.max(0, endPct - startPct)}%`,
+                                }}
+                              />
+
+                              <div
+                                className="absolute flex flex-col items-center"
+                                style={{
+                                  left: `${startPct}%`,
+                                  top: "50%",
+                                  transform: "translate(-50%, -50%)",
+                                }}
+                              >
+                                <div
+                                  className="bg-[#1a4fd6] text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg whitespace-nowrap shadow-sm mb-1 pointer-events-none"
+                                  style={{ marginLeft: tooClose ? -32 : 0 }}
+                                >
+                                  {fmtTime(startTime)}
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-t-[4px] border-transparent border-t-[#1a4fd6]" />
+                                </div>
+                                <div
+                                  className={`w-4 h-4 rounded-full bg-[#1a4fd6] border-2 border-white shadow-md transition-transform ${
+                                    dragging === "start"
+                                      ? "scale-125"
+                                      : "hover:scale-110"
+                                  }`}
+                                  style={{ cursor: "grab", marginTop: 2 }}
+                                  onPointerDown={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (trackRef.current) {
+                                      trackRef.current.setPointerCapture(
+                                        e.pointerId,
+                                      );
+                                      (window as any).__timelineCapturedPointerId =
+                                        e.pointerId;
+                                    }
+                                    setDragging("start");
+                                  }}
+                                />
+                              </div>
+
+                              <div
+                                className="absolute flex flex-col items-center"
+                                style={{
+                                  left: `${endPct}%`,
+                                  top: "50%",
+                                  transform: "translate(-50%, -50%)",
+                                }}
+                              >
+                                <div
+                                  className="bg-[#1a4fd6] text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg whitespace-nowrap shadow-sm mb-1 pointer-events-none"
+                                  style={{ marginLeft: tooClose ? 32 : 0 }}
+                                >
+                                  {fmtTime(endTime)}
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-t-[4px] border-transparent border-t-[#1a4fd6]" />
+                                </div>
+                                <div
+                                  className={`w-4 h-4 rounded-full bg-[#1a4fd6] border-2 border-white shadow-md transition-transform ${
+                                    dragging === "end"
+                                      ? "scale-125"
+                                      : "hover:scale-110"
+                                  }`}
+                                  style={{ cursor: "grab", marginTop: 2 }}
+                                  onPointerDown={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (trackRef.current) {
+                                      trackRef.current.setPointerCapture(
+                                        e.pointerId,
+                                      );
+                                      (window as any).__timelineCapturedPointerId =
+                                        e.pointerId;
+                                    }
+                                    setDragging("end");
+                                  }}
+                                />
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        {/* ── Time markers directly below the red strips ── */}
+                        {conflictSegments.length > 0 && (
+                          <div className="relative h-6 w-full mt-1.5 select-none">
+                            {conflictSegments.map((segment, i) => {
+                              const span = getDaySlotSpan(segment, activeBookingDate);
+                              if (!span || span.endMins <= span.startMins) return null;
+                              const leftPct = (span.startMins / 1440) * 100;
+                              const widthPct = ((span.endMins - span.startMins) / 1440) * 100;
+                              const midPct = Math.max(12, Math.min(88, leftPct + widthPct / 2));
+                              const start12 = fmtTime(formatSydTime(segment.start_time));
+                              const end12 = fmtTime(formatSydTime(segment.end_time));
+
+                              return (
+                                <div
+                                  key={`strip-time-${segment.start_time}-${segment.end_time}-${i}`}
+                                  className="absolute top-0 -translate-x-1/2 flex flex-col items-center"
+                                  style={{ left: `${midPct}%` }}
+                                >
+                                  <div className="w-px h-1 bg-red-400 mb-0.5" />
+                                  <div className="inline-flex items-center gap-1 bg-[#fff1f2] border border-[#fecdd3] text-[#991b1b] text-[10px] font-bold px-2 py-0.5 rounded shadow-2xs whitespace-nowrap">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                                    <span>{start12} – {end12}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
                     );
                   })()}
 
-                  <div className="flex items-start gap-3 bg-[#f0f6ff] border border-[#dde8f5] rounded-xl px-4 py-3">
-                    <svg
-                      className="w-4 h-4 text-[#1a4fd6] flex-shrink-0 mt-0.5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={1.5}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
-                    <p className="text-sm text-[#1a4fd6]">
-                      Aircraft reserved{" "}
-                      <strong>{fmtTime(startTime || "09:00")}</strong> to{" "}
-                      <strong>{fmtTime(endTime || "17:00")}</strong>
-                      {startDate
-                        ? ` on ${formatDateDisplay(startDate)}.`
-                        : "."}{" "}
-                      Drag the handles to adjust.
-                    </p>
-                  </div>
+                  {/* ── Booked Windows Summary on this Date ── */}
+                  {loadingDaySlots ? (
+                    <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 mb-3.5 flex items-center gap-2.5 text-xs text-[#64748b] shadow-xs">
+                      <div className="w-3.5 h-3.5 border-2 border-[#1a4fd6] border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                      <span>Checking aircraft availability &amp; schedule for {new Date(`${startDate}T12:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}…</span>
+                    </div>
+                  ) : daySlots.length > 0 ? (
+                    <div className="bg-white border border-[#fed7aa] rounded-xl p-3.5 mb-3.5 shadow-xs">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-2 w-2 relative">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                          </span>
+                          <p className="text-xs font-bold text-[#152d5a] uppercase tracking-wider">
+                            Already Booked Windows on this Date
+                          </p>
+                        </div>
+                        <span className="text-[11px] font-medium text-[#64748b]">
+                          {daySlots.length} {daySlots.length === 1 ? "booking" : "bookings"}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {daySlots.map((slot, i) => {
+                          const start12 = fmtTime(formatSydTime(slot.start_time));
+                          const end12 = fmtTime(formatSydTime(slot.end_time));
+                          return (
+                            <div
+                              key={`${slot.start_time}-${slot.end_time}-${i}`}
+                              className="inline-flex items-center gap-2 bg-[#fff1f2] border border-[#fecdd3] rounded-lg px-3 py-1.5 text-xs text-[#991b1b]"
+                            >
+                              <span className="material-symbols-outlined text-[14px] text-red-500">
+                                schedule
+                              </span>
+                              <span className="font-bold tabular-nums">
+                                {start12} – {end12}
+                              </span>
+                              <span className="text-[10px] font-semibold text-[#be123c] bg-white px-1.5 py-0.5 rounded border border-red-200">
+                                {slot.label || "Booked"}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white border border-emerald-200/80 rounded-xl p-3 mb-3.5 flex items-center gap-2.5 text-xs text-emerald-800 shadow-xs">
+                      <span className="material-symbols-outlined text-base text-emerald-600 flex-shrink-0">
+                        check_circle
+                      </span>
+                      <span>
+                        No bookings on this date — the aircraft is completely free all day!
+                      </span>
+                    </div>
+                  )}
+
+                  {/* ── Selection info banner ── */}
+                  {startTime && endTime ? (
+                    <div className="flex items-start gap-3 bg-[#f0f6ff] border border-[#dde8f5] rounded-xl px-4 py-3">
+                      <svg
+                        className="w-4 h-4 text-[#1a4fd6] flex-shrink-0 mt-0.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={1.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                      </svg>
+                      <p className="text-sm text-[#1a4fd6]">
+                        Selected slot: <strong>{fmtTime(startTime)}</strong> to{" "}
+                        <strong>{fmtTime(endTime)}</strong> on{" "}
+                        <strong>{formatDateDisplay(startDate)}</strong>. Drag the handles to adjust.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-3 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-4 py-3">
+                      <span className="material-symbols-outlined text-[#64748b] text-lg flex-shrink-0">
+                        touch_app
+                      </span>
+                      <p className="text-sm text-[#64748b]">
+                        Select your <strong>Start time</strong> and <strong>End time</strong> above, or click and drag on the timeline to pick an available slot.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2010,6 +2278,257 @@ export default function BookingRequestForm({
                     />
                   </div>
                 </div>
+
+                {/* ── Multi-Day Month & Days Availability Browser ── */}
+                {startDate && (
+                  <div className="mt-5 pt-4 border-t border-[#f1f5f9]">
+                    {(() => {
+                      const [y, m, d] = startDate.split("-").map(Number);
+                      const lastDayOfMonth = new Date(y!, m!, 0).getDate();
+                      const daysLeftInMonth = lastDayOfMonth - d!;
+                      let targetYear = y!;
+                      let targetMonth = m!;
+                      let targetDay = lastDayOfMonth;
+                      if (daysLeftInMonth < 10) {
+                        const nextMonthEnd = new Date(y!, m! + 1, 0);
+                        targetYear = nextMonthEnd.getFullYear();
+                        targetMonth = nextMonthEnd.getMonth() + 1;
+                        targetDay = nextMonthEnd.getDate();
+                      }
+                      const monthEndDate = `${targetYear}-${String(targetMonth).padStart(2, "0")}-${String(targetDay).padStart(2, "0")}`;
+
+                      // Generate list of dates from startDate to monthEndDate
+                      const dateList: string[] = [];
+                      let cur = startDate;
+                      while (cur <= monthEndDate && dateList.length < 35) {
+                        dateList.push(cur);
+                        cur = shiftDateByDays(cur, 1);
+                      }
+
+                      // Conflicts helper for a specific day
+                      function getDayConflicts(dateStr: string): SafeConflict[] {
+                        const dayStartUTC = sydneyInputToUTC(`${dateStr}T00:00`);
+                        const dayEndUTC = sydneyInputToUTC(`${shiftDateByDays(dateStr, 1)}T00:00`);
+                        if (!dayStartUTC || !dayEndUTC) return [];
+                        const sMs = new Date(dayStartUTC).getTime();
+                        const eMs = new Date(dayEndUTC).getTime();
+                        return multiDaySlots.filter((c) => {
+                          const csMs = new Date(c.start_time).getTime();
+                          const ceMs = new Date(c.end_time).getTime();
+                          return ceMs > sMs && csMs < eMs;
+                        });
+                      }
+
+                      const totalMonthConflicts = multiDaySlots.length;
+                      const monthName = new Date(`${startDate}T12:00:00`).toLocaleDateString("en-AU", {
+                        month: "long",
+                        year: "numeric",
+                        timeZone: "Australia/Sydney",
+                      });
+
+                      return (
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="flex h-2 w-2 relative">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#1a4fd6]"></span>
+                              </span>
+                              <div>
+                                <h3 className="text-xs font-bold text-[#152d5a] uppercase tracking-wider">
+                                  {monthName} Availability &amp; Day-by-Day Overview
+                                </h3>
+                                <p className="text-[11px] text-[#64748b]">
+                                  Click any day below to quickly select your return date.
+                                </p>
+                              </div>
+                            </div>
+                            {loadingMultiDaySlots ? (
+                              <span className="text-[11px] font-semibold text-[#1a4fd6] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 animate-pulse">
+                                Loading month availability…
+                              </span>
+                            ) : totalMonthConflicts > 0 ? (
+                              <span className="text-[11px] font-semibold text-[#991b1b] bg-red-50 px-2.5 py-0.5 rounded-full border border-red-200">
+                                {totalMonthConflicts} {totalMonthConflicts === 1 ? "booking" : "bookings"} in this period
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                100% Free All Month
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Day Cards Horizontal Strip / Grid */}
+                          <div className="overflow-x-auto pb-2 -mx-1 px-1">
+                            <div className="flex items-stretch gap-2.5 min-w-max">
+                              {dateList.map((dStr) => {
+                                const dObj = new Date(`${dStr}T12:00:00`);
+                                const dayShort = dObj
+                                  .toLocaleDateString("en-AU", { weekday: "short" })
+                                  .toUpperCase();
+                                const dayNum = dObj.toLocaleDateString("en-AU", {
+                                  day: "numeric",
+                                  month: "short",
+                                });
+                                const isStart = dStr === startDate;
+                                const isReturn = dStr === returnDate;
+                                const inSpan =
+                                  startDate &&
+                                  returnDate &&
+                                  dStr > startDate &&
+                                  dStr < returnDate;
+                                const dayConfs = getDayConflicts(dStr);
+                                const isBusy = dayConfs.length > 0;
+                                const isSelectable = dStr >= startDate;
+
+                                return (
+                                  <button
+                                    key={dStr}
+                                    type="button"
+                                    onClick={() => {
+                                      if (dStr === startDate) {
+                                        // clicked start date
+                                        return;
+                                      }
+                                      handleReturnDateChange(dStr);
+                                    }}
+                                    title={
+                                      dStr === startDate
+                                        ? "Trip start date"
+                                        : `Click to set as Return Date (${dayNum})`
+                                    }
+                                    className={`relative flex flex-col justify-between p-3 rounded-xl border text-left transition-all w-[124px] sm:w-[136px] flex-shrink-0 cursor-pointer ${
+                                      isStart || isReturn
+                                        ? "border-[#1a4fd6] bg-[#eff6ff] ring-2 ring-[#1a4fd6]/20 shadow-sm"
+                                        : inSpan
+                                          ? "border-blue-200 bg-[#f0f7ff]"
+                                          : isBusy
+                                            ? "border-red-200 bg-[#fff5f5] hover:border-red-400"
+                                            : "border-slate-200 bg-white hover:border-blue-400 hover:bg-[#f8faff]"
+                                    }`}
+                                  >
+                                    <div>
+                                      <div className="flex items-center justify-between gap-1 mb-1">
+                                        <span className="text-[10px] font-bold text-[#64748b] tracking-wider uppercase">
+                                          {dayShort}
+                                        </span>
+                                        {isStart ? (
+                                          <span className="text-[9px] font-extrabold bg-[#1a4fd6] text-white px-1.5 py-0.5 rounded">
+                                            START
+                                          </span>
+                                        ) : isReturn ? (
+                                          <span className="text-[9px] font-extrabold bg-[#1a4fd6] text-white px-1.5 py-0.5 rounded">
+                                            RETURN
+                                          </span>
+                                        ) : inSpan ? (
+                                          <span className="text-[9px] font-bold text-[#1a4fd6] bg-blue-100/70 px-1 rounded">
+                                            IN TRIP
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                      <div className="text-xs font-bold text-[#152d5a]">
+                                        {dayNum}
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-2.5 pt-2 border-t border-slate-100/80">
+                                      {isBusy ? (
+                                        <div className="space-y-1">
+                                          {dayConfs.slice(0, 2).map((c, ci) => {
+                                            const s12 = fmtTime(formatSydTime(c.start_time));
+                                            const e12 = fmtTime(formatSydTime(c.end_time));
+                                            return (
+                                              <div
+                                                key={ci}
+                                                className="text-[9px] font-bold text-[#991b1b] bg-red-100/80 rounded px-1.5 py-0.5 truncate"
+                                                title={`${c.label || "Booked"}: ${s12} – ${e12}`}
+                                              >
+                                                {s12}–{e12}
+                                              </div>
+                                            );
+                                          })}
+                                          {dayConfs.length > 2 && (
+                                            <span className="text-[9px] text-red-600 font-semibold">
+                                              +{dayConfs.length - 2} more
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <div className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                          <span>Free All Day</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* ── Booked Windows in this Month summary card ── */}
+                          {multiDaySlots.length > 0 ? (
+                            <div className="bg-[#fff1f2] border border-[#fecdd3] rounded-xl p-3.5 shadow-xs">
+                              <div className="flex items-center justify-between gap-2 mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="flex h-2 w-2 relative">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                  </span>
+                                  <p className="text-xs font-bold text-[#991b1b] uppercase tracking-wider">
+                                    Booked Windows in {monthName}
+                                  </p>
+                                </div>
+                                <span className="text-[11px] font-semibold text-[#991b1b]">
+                                  {multiDaySlots.length} {multiDaySlots.length === 1 ? "reserved slot" : "reserved slots"}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {multiDaySlots.map((slot, i) => {
+                                  const start12 = fmtTime(formatSydTime(slot.start_time));
+                                  const end12 = fmtTime(formatSydTime(slot.end_time));
+                                  const dateLabel = new Date(slot.start_time).toLocaleDateString("en-AU", {
+                                    weekday: "short",
+                                    day: "numeric",
+                                    month: "short",
+                                    timeZone: "Australia/Sydney",
+                                  });
+                                  return (
+                                    <div
+                                      key={`${slot.start_time}-${slot.end_time}-${i}`}
+                                      className="inline-flex items-center gap-1.5 bg-white border border-[#fecdd3] rounded-lg px-3 py-1.5 text-xs text-[#991b1b] shadow-2xs"
+                                    >
+                                      <span className="material-symbols-outlined text-[13px] text-red-500">
+                                        schedule
+                                      </span>
+                                      <span className="font-bold">{dateLabel}:</span>
+                                      <span className="font-semibold tabular-nums">
+                                        {start12} – {end12}
+                                      </span>
+                                      <span className="text-[10px] font-semibold text-[#be123c] bg-red-50 px-1.5 py-0.5 rounded border border-red-200">
+                                        {slot.label || "Booked"}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3 flex items-center gap-2.5 text-xs text-emerald-800 shadow-xs">
+                              <span className="material-symbols-outlined text-base text-emerald-600 flex-shrink-0">
+                                check_circle
+                              </span>
+                              <span>
+                                The aircraft has no bookings or blocks across this entire month. All days are completely free!
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </section>
 
               {startDate && returnDate && bookingDayCount >= 2 && (

@@ -202,6 +202,14 @@ function timeStrToMin(t: string): number {
   return (h ?? 0) * 60 + (m ?? 0)
 }
 
+function fmtTime(t: string): string {
+  if (!t) return ''
+  const [h, m] = t.split(':').map(Number)
+  const ampm = (h ?? 0) >= 12 ? 'PM' : 'AM'
+  const hr = (h ?? 0) === 0 ? 12 : (h ?? 0) > 12 ? (h ?? 0) - 12 : h
+  return `${hr}:${String(m ?? 0).padStart(2, '0')} ${ampm}`
+}
+
 // ── Step indicator ─────────────────────────────────────────────────────────────
 
 // Replaced with shared reusable component in components/customer/RunwayJourney.tsx
@@ -211,6 +219,7 @@ function timeStrToMin(t: string): number {
 function AvailabilityTimeline({
   selectedDate,
   daySlots,
+  loadingDaySlots,
   startDT,
   endDT,
   onTimeChange,
@@ -218,12 +227,20 @@ function AvailabilityTimeline({
 }: {
   selectedDate:   string
   daySlots:       SafeConflict[]
+  loadingDaySlots?: boolean
   startDT:        string
   endDT:          string
   onTimeChange?:  (newTime: string) => void
   dayVfrWindow?:  { start: string; end: string } | null
 }) {
   if (!selectedDate) return null
+
+  const [hoveredConflict, setHoveredConflict] = useState<{
+    midPct: number
+    start12: string
+    end12: string
+    label: string
+  } | null>(null)
 
   const opStartUTC = sydneyInputToUTC(`${selectedDate}T00:00`)
   const opEndUTC   = sydneyInputToUTC(`${addOneDay(selectedDate)}T00:00`)
@@ -256,10 +273,6 @@ function AvailabilityTimeline({
   const selLeft  = hasSelection ? toPercent(selStartUTC!) : 0
   const selRight = hasSelection ? 100 - toPercent(selEndUTC!) : 0
 
-  // ── Drag (Pointer Events — works on mouse + touch + stylus) ─────────────────
-  // touch-action:none on the draggable element tells the browser to hand
-  // pointer control to JS, preventing accidental page scroll during drag.
-  // pointerId filtering handles multi-touch correctly.
   const barContainerRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
 
@@ -269,7 +282,6 @@ function AvailabilityTimeline({
     const rect = barContainerRef.current?.getBoundingClientRect()
     if (!rect) return
 
-    // Capture in a local const so nested closures can call it without undefined checks
     const notifyTimeChange = onTimeChange
     const capturedId = e.pointerId
 
@@ -287,7 +299,6 @@ function AvailabilityTimeline({
       const deltaPixels = ev.clientX - dragStartX
       const deltaMins   = (deltaPixels / containerWidth) * 24 * 60
       const rawMinutes  = startMinutes + deltaMins
-      // Snap to 15-minute increments, clamp so 2-hr block stays within the day
       const snappedMinutes = Math.round(rawMinutes / 15) * 15
       const minClamp = dayVfrWindow ? timeStrToMin(dayVfrWindow.start) : 0
       const maxClamp = dayVfrWindow ? timeStrToMin(dayVfrWindow.end) - 120 : 22 * 60
@@ -316,6 +327,19 @@ function AvailabilityTimeline({
 
   return (
     <div className="space-y-3">
+      {/* Time indicator line above */}
+      <div className="relative h-4">
+        {majorTicks.map(h => (
+          <span
+            key={h}
+            className="absolute text-[9px] font-medium text-slate-600 -translate-x-1/2 select-none leading-none uppercase"
+            style={{ left: `${(h / 24) * 100}%` }}
+          >
+            {hourLabel(h)}
+          </span>
+        ))}
+      </div>
+
       <div
         className="relative"
         ref={barContainerRef}
@@ -328,6 +352,25 @@ function AvailabilityTimeline({
           document.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, clientX: 0 }))
         }}
       >
+        {/* Sleek Floating Custom Tooltip on Hover */}
+        {hoveredConflict && (
+          <div
+            className="absolute -top-10 -translate-x-1/2 z-30 pointer-events-none transition-all duration-150"
+            style={{ left: `${hoveredConflict.midPct}%` }}
+          >
+            <div className="bg-[#0f172a] text-white text-xs font-medium px-3 py-1.5 rounded-lg shadow-xl border border-slate-700 flex items-center gap-1.5 whitespace-nowrap">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <span className="font-bold text-red-300">
+                {hoveredConflict.start12} – {hoveredConflict.end12}
+              </span>
+              <span className="text-slate-300 text-[11px]">
+                ({hoveredConflict.label || 'Booked'})
+              </span>
+            </div>
+            <div className="w-0 h-0 border-l-[5px] border-r-[5px] border-t-[5px] border-transparent border-t-[#0f172a] mx-auto" />
+          </div>
+        )}
+
         <div className={`relative h-14 sm:h-10 rounded-lg overflow-hidden border ${dayVfrWindow ? 'bg-[#f0fdf4] border-green-200' : 'bg-green-50 border-green-200'}`}>
           {/* Day VFR window zones — only rendered when Night VFR = No */}
           {dayVfrWindow && (
@@ -356,16 +399,41 @@ function AvailabilityTimeline({
               </div>
             </>
           )}
+
           {/* Booked conflict overlays */}
-          {visibleSlots.map((slot, i) => (
-            <div
-              key={i}
-              className="absolute top-0 bottom-0 bg-red-500/60"
-              style={{ left: `${toPercent(slot.start_time)}%`, right: `${100 - toPercent(slot.end_time)}%` }}
-              title={slot.label}
-            />
-          ))}
+          {visibleSlots.map((slot, i) => {
+            const startPct = toPercent(slot.start_time)
+            const endPct   = toPercent(slot.end_time)
+            const widthPct = Math.max(0.5, endPct - startPct)
+            const start12  = fmtTime(formatSydTime(slot.start_time))
+            const end12    = fmtTime(formatSydTime(slot.end_time))
+            const midPct   = Math.max(12, Math.min(88, startPct + widthPct / 2))
+
+            return (
+              <div
+                key={i}
+                onMouseEnter={() =>
+                  setHoveredConflict({
+                    midPct,
+                    start12,
+                    end12,
+                    label: slot.label || 'Unavailable',
+                  })
+                }
+                onMouseLeave={() => setHoveredConflict(null)}
+                className="absolute top-0 bottom-0 bg-red-500/85 hover:bg-red-600 transition-colors z-0 flex items-center justify-center overflow-hidden border-x border-red-600/40 cursor-pointer"
+                style={{ left: `${startPct}%`, width: `${widthPct}%` }}
+              >
+                {widthPct >= 16 && (
+                  <span className="text-[10px] font-bold text-white truncate px-1 select-none pointer-events-none drop-shadow-xs">
+                    {start12}–{end12}
+                  </span>
+                )}
+              </div>
+            )
+          })}
         </div>
+
         {hasSelection && (
           <div
             onPointerDown={handlePointerDown}
@@ -384,9 +452,8 @@ function AvailabilityTimeline({
             style={{
               left:        `${selLeft}%`,
               right:       `${selRight}%`,
-              touchAction: onTimeChange ? 'none' : undefined, // prevents scroll hijack while dragging
+              touchAction: onTimeChange ? 'none' : undefined,
             }}
-            title={onTimeChange ? 'Drag to move selected time' : undefined}
           >
             {onTimeChange && (
               <div className="flex flex-col items-center justify-center gap-[3px] pointer-events-none">
@@ -398,17 +465,92 @@ function AvailabilityTimeline({
           </div>
         )}
       </div>
-      <div className="relative h-4">
-        {majorTicks.map(h => (
-          <span
-            key={h}
-            className="absolute text-[9px] font-medium text-slate-600 -translate-x-1/2 select-none leading-none uppercase"
-            style={{ left: `${(h / 24) * 100}%` }}
-          >
-            {hourLabel(h)}
+
+      {/* Time markers directly below the red strips */}
+      {visibleSlots.length > 0 && (
+        <div className="relative h-6 w-full select-none">
+          {visibleSlots.map((slot, i) => {
+            const startPct = toPercent(slot.start_time)
+            const endPct   = toPercent(slot.end_time)
+            const widthPct = Math.max(0.5, endPct - startPct)
+            const midPct   = Math.max(12, Math.min(88, startPct + widthPct / 2))
+            const start12  = fmtTime(formatSydTime(slot.start_time))
+            const end12    = fmtTime(formatSydTime(slot.end_time))
+
+            return (
+              <div
+                key={`strip-time-${slot.start_time}-${slot.end_time}-${i}`}
+                className="absolute top-0 -translate-x-1/2 flex flex-col items-center"
+                style={{ left: `${midPct}%` }}
+              >
+                <div className="w-px h-1 bg-red-400 mb-0.5" />
+                <div className="inline-flex items-center gap-1 bg-[#fff1f2] border border-[#fecdd3] text-[#991b1b] text-[10px] font-bold px-2 py-0.5 rounded shadow-2xs whitespace-nowrap">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                  <span>{start12} – {end12}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Booked Windows Card on this Date */}
+      {loadingDaySlots ? (
+        <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex items-center gap-2.5 text-xs text-[#64748b] shadow-xs">
+          <div className="w-3.5 h-3.5 border-2 border-[#1a4fd6] border-t-transparent rounded-full animate-spin flex-shrink-0" />
+          <span>Checking aircraft availability &amp; schedule for {new Date(`${selectedDate}T12:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}…</span>
+        </div>
+      ) : visibleSlots.length > 0 ? (
+        <div className="bg-white border border-[#fed7aa] rounded-xl p-3.5 shadow-xs">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              </span>
+              <p className="text-xs font-bold text-[#152d5a] uppercase tracking-wider">
+                Already Booked Windows on this Date
+              </p>
+            </div>
+            <span className="text-[11px] font-medium text-[#64748b]">
+              {visibleSlots.length} {visibleSlots.length === 1 ? 'booking' : 'bookings'}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {visibleSlots.map((slot, i) => {
+              const start12 = fmtTime(formatSydTime(slot.start_time))
+              const end12   = fmtTime(formatSydTime(slot.end_time))
+              return (
+                <div
+                  key={`${slot.start_time}-${slot.end_time}-${i}`}
+                  className="inline-flex items-center gap-2 bg-[#fff1f2] border border-[#fecdd3] rounded-lg px-3 py-1.5 text-xs text-[#991b1b]"
+                >
+                  <span className="material-symbols-outlined text-[14px] text-red-500">
+                    schedule
+                  </span>
+                  <span className="font-bold tabular-nums">
+                    {start12} – {end12}
+                  </span>
+                  <span className="text-[10px] font-semibold text-[#be123c] bg-white px-1.5 py-0.5 rounded border border-red-200">
+                    {slot.label || 'Booked'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white border border-emerald-200/80 rounded-xl p-3 flex items-center gap-2.5 text-xs text-emerald-800 shadow-xs">
+          <span className="material-symbols-outlined text-base text-emerald-600 flex-shrink-0">
+            check_circle
           </span>
-        ))}
-      </div>
+          <span>
+            No bookings on this date — the aircraft is completely free all day!
+          </span>
+        </div>
+      )}
+
+      {/* Timeline Legend */}
       <div className="flex flex-wrap gap-5 pt-1">
         <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600">
           <span className="w-2.5 h-2.5 rounded-sm bg-green-400/50 inline-block" />{dayVfrWindow ? `Day VFR (${dayVfrWindow.start}–${dayVfrWindow.end})` : 'Available'}
@@ -419,7 +561,7 @@ function AvailabilityTimeline({
           </span>
         )}
         <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600">
-          <span className="w-2.5 h-2.5 rounded-sm bg-red-500/60 inline-block" />Booked
+          <span className="w-2.5 h-2.5 rounded-sm bg-red-500/85 inline-block" />Booked
         </span>
         {hasSelection && (
           <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-slate-600">
@@ -537,6 +679,7 @@ function CheckoutRescheduleModal({
   const [date, setDate] = useState('')
   const [startTime, setStartTime] = useState('')
   const [daySlots, setDaySlots] = useState<SafeConflict[]>([])
+  const [loadingDaySlots, setLoadingDaySlots] = useState<boolean>(false)
   const [avail, setAvail] = useState<AvailabilityState>({ status: 'idle' })
   const [error, setError] = useState<string | null>(null)
   const [nightVfrRating, setNightVfrRating] = useState<boolean | null>(null)
@@ -556,10 +699,14 @@ function CheckoutRescheduleModal({
       : null
 
   useEffect(() => {
-    if (!date) { setDaySlots([]); return }
+    if (!date) { setDaySlots([]); setLoadingDaySlots(false); return }
+    let active = true
+    setLoadingDaySlots(true)
     getDayAvailability(aircraftId, date)
-      .then(r => setDaySlots(r ?? []))
-      .catch(() => setDaySlots([]))
+      .then(r => { if (active) setDaySlots(r ?? []) })
+      .catch(() => { if (active) setDaySlots([]) })
+      .finally(() => { if (active) setLoadingDaySlots(false) })
+    return () => { active = false }
   }, [date, aircraftId])
 
   useEffect(() => {
@@ -652,6 +799,7 @@ function CheckoutRescheduleModal({
               <AvailabilityTimeline
                 selectedDate={date}
                 daySlots={daySlots}
+                loadingDaySlots={loadingDaySlots}
                 startDT={startDT}
                 endDT={endDT}
                 onTimeChange={(v) => setStartTime(v)}
@@ -711,6 +859,7 @@ export default function CheckoutFlow({
   const [date, setDate]           = useState('')
   const [startTime, setStartTime] = useState('')
   const [daySlots, setDaySlots]   = useState<SafeConflict[]>([])
+  const [loadingDaySlots, setLoadingDaySlots] = useState<boolean>(false)
   const [avail, setAvail]         = useState<AvailabilityState>({ status: 'idle' })
 
   // Night VFR status for this booking — always starts null (unanswered).
@@ -850,10 +999,14 @@ export default function CheckoutFlow({
   // ── Load day availability ──────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!date) { setDaySlots([]); return }
+    if (!date) { setDaySlots([]); setLoadingDaySlots(false); return }
+    let active = true
+    setLoadingDaySlots(true)
     getDayAvailability(aircraftId, date)
-      .then(r => setDaySlots(r ?? []))
-      .catch(() => setDaySlots([]))
+      .then(r => { if (active) setDaySlots(r ?? []) })
+      .catch(() => { if (active) setDaySlots([]) })
+      .finally(() => { if (active) setLoadingDaySlots(false) })
+    return () => { active = false }
   }, [date, aircraftId])
 
   // ── Unified availability + future-time check ──────────────────────────────
@@ -1341,6 +1494,7 @@ export default function CheckoutFlow({
                               <AvailabilityTimeline
                                 selectedDate={date}
                                 daySlots={daySlots}
+                                loadingDaySlots={loadingDaySlots}
                                 startDT={startDT}
                                 endDT={endDT}
                                 onTimeChange={v => { setStartTime(v); setAvail({ status: 'idle' }); setStepError(null); setSubmitError(null) }}

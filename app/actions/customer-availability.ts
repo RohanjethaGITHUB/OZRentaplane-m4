@@ -305,3 +305,86 @@ export async function getDayAvailability(
 
   return mergeConflicts(blockConflicts, activeDayBookings)
 }
+
+/**
+ * Returns all active bookings and schedule blocks for an aircraft across a date range
+ * (inclusive) in Sydney local time.
+ *
+ * @param aircraftId       UUID of the aircraft
+ * @param fromDateSyd      "YYYY-MM-DD" start date in Sydney local time
+ * @param toDateSyd        "YYYY-MM-DD" end date in Sydney local time
+ * @param excludeBookingId Optional UUID of booking to exclude (reschedule flow)
+ */
+export async function getDateRangeAvailability(
+  aircraftId:       string,
+  fromDateSyd:      string,
+  toDateSyd:        string,
+  excludeBookingId?: string,
+): Promise<SafeConflict[]> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const naiveStart = new Date(`${fromDateSyd}T00:00:00`)
+  const naiveEnd   = new Date(`${toDateSyd}T23:59:59`)
+
+  const startSyd     = new Date(naiveStart.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }))
+  const startOffsetMs = naiveStart.getTime() - startSyd.getTime()
+  const startUTC     = new Date(naiveStart.getTime() + startOffsetMs)
+
+  const endSyd       = new Date(naiveEnd.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }))
+  const endOffsetMs   = naiveEnd.getTime() - endSyd.getTime()
+  const endUTC       = new Date(naiveEnd.getTime() + endOffsetMs)
+
+  const { data, error } = await supabase.rpc(
+    'get_customer_aircraft_calendar_blocks',
+    {
+      p_aircraft_id: aircraftId,
+      p_from:        startUTC.toISOString(),
+      p_to:          endUTC.toISOString(),
+    }
+  )
+
+  if (error) {
+    console.error('[getDateRangeAvailability] RPC error:', error.message, error.code)
+    throw new Error(`Unable to load range availability: ${error.message}`)
+  }
+
+  const excludedBlockIds = new Set<string>()
+  if (excludeBookingId) {
+    const { data: ownBlocks } = await supabase
+      .from('schedule_blocks')
+      .select('id')
+      .eq('related_booking_id', excludeBookingId)
+    if (ownBlocks) {
+      for (const ob of ownBlocks) excludedBlockIds.add(ob.id)
+    }
+  }
+
+  const blocks = ((data as CustomerCalendarBlock[]) || []).filter(
+    (b) => !excludedBlockIds.has(b.block_id)
+  )
+
+  const blockConflicts: SafeConflict[] = blocks.map(b => ({
+    start_time: b.start_time,
+    end_time:   b.end_time,
+    label:      b.label,
+  }))
+
+  const { data: rangeBookings } = await supabase
+    .from('bookings')
+    .select('id, status, booking_type, scheduled_start, scheduled_end')
+    .eq('aircraft_id', aircraftId)
+    .in('status', [...CALENDAR_BLOCKING_BOOKING_STATUSES])
+    .lt('scheduled_start', endUTC.toISOString())
+    .gt('scheduled_end', startUTC.toISOString())
+    .order('scheduled_start', { ascending: true })
+
+  const activeRangeBookings = (rangeBookings ?? []).filter(
+    (b) => !excludeBookingId || b.id !== excludeBookingId
+  )
+
+  return mergeConflicts(blockConflicts, activeRangeBookings)
+}
+

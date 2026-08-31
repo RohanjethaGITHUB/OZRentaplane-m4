@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { cancelBookingNow, requestLateCancellation, rescheduleFlightBooking } from '@/app/actions/booking'
-import { checkCustomerAvailability, getDayAvailability, type SafeConflict } from '@/app/actions/customer-availability'
+import { checkCustomerAvailability, getDayAvailability, getDateRangeAvailability, type SafeConflict } from '@/app/actions/customer-availability'
 import CalendarDateField from '@/components/CalendarDateField'
 import ModalPortal from '@/components/ModalPortal'
 import { sydneyInputToUTC, formatSydTime, isSameSydneyCalendarDay } from '@/lib/utils/sydney-time'
@@ -70,10 +70,22 @@ function addMinutesToTime(timeStr: string, minutes: number): string {
   return minToTimeStr(totalMin)
 }
 
-function addOneDay(dateStr: string): string {
+function shiftDateByDays(dateStr: string, days: number): string {
   const [y, m, d] = dateStr.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, m - 1, d + 1))
+  const dt = new Date(Date.UTC(y!, m! - 1, d! + days))
   return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
+}
+
+function addOneDay(dateStr: string): string {
+  return shiftDateByDays(dateStr, 1)
+}
+
+function fmtTime(t: string): string {
+  if (!t) return ''
+  const [h, m] = t.split(':').map(Number)
+  const ampm = (h ?? 0) >= 12 ? 'PM' : 'AM'
+  const hr = (h ?? 0) === 0 ? 12 : (h ?? 0) > 12 ? (h ?? 0) - 12 : h
+  return `${hr}:${String(m ?? 0).padStart(2, '0')} ${ampm}`
 }
 
 function formatDurationLabel(minutes: number): string {
@@ -184,9 +196,11 @@ function TimeDropdown({
 }
 
 // ── Availability Timeline ───────────────────────────────────────────────────
+
 function AvailabilityTimeline({
   selectedDate,
   daySlots,
+  loadingDaySlots,
   startDT,
   endDT,
   onTimeChange,
@@ -194,12 +208,20 @@ function AvailabilityTimeline({
 }: {
   selectedDate: string
   daySlots: SafeConflict[]
+  loadingDaySlots?: boolean
   startDT: string
   endDT: string
   onTimeChange?: (newStartTime: string) => void
   dayVfrWindow?: { start: string; end: string } | null
 }) {
   if (!selectedDate) return null
+
+  const [hoveredConflict, setHoveredConflict] = useState<{
+    midPct: number
+    start12: string
+    end12: string
+    label: string
+  } | null>(null)
 
   const opStartUTC = sydneyInputToUTC(`${selectedDate}T00:00`)
   const opEndUTC = sydneyInputToUTC(`${addOneDay(selectedDate)}T00:00`)
@@ -297,8 +319,40 @@ function AvailabilityTimeline({
   }
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3">
+      {/* Time indicator line above */}
+      <div className="relative h-4">
+        {majorTicks.map(h => (
+          <span
+            key={h}
+            className="absolute text-[9px] font-medium text-[#64748b] -translate-x-1/2 select-none leading-none uppercase"
+            style={{ left: `${(h / 24) * 100}%` }}
+          >
+            {hourLabel(h)}
+          </span>
+        ))}
+      </div>
+
       <div className="relative" ref={barContainerRef}>
+        {/* Sleek Floating Custom Tooltip on Hover */}
+        {hoveredConflict && (
+          <div
+            className="absolute -top-10 -translate-x-1/2 z-30 pointer-events-none transition-all duration-150"
+            style={{ left: `${hoveredConflict.midPct}%` }}
+          >
+            <div className="bg-[#0f172a] text-white text-xs font-medium px-3 py-1.5 rounded-lg shadow-xl border border-slate-700 flex items-center gap-1.5 whitespace-nowrap">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <span className="font-bold text-red-300">
+                {hoveredConflict.start12} – {hoveredConflict.end12}
+              </span>
+              <span className="text-slate-300 text-[11px]">
+                ({hoveredConflict.label || 'Booked'})
+              </span>
+            </div>
+            <div className="w-0 h-0 border-l-[5px] border-r-[5px] border-t-[5px] border-transparent border-t-[#0f172a] mx-auto" />
+          </div>
+        )}
+
         <div
           onClick={handleTimelineClick}
           className={`relative h-10 rounded-xl overflow-hidden border ${
@@ -311,7 +365,6 @@ function AvailabilityTimeline({
               <div
                 className="absolute top-0 bottom-0 bg-[#152d5a]/90 flex items-center justify-center overflow-hidden"
                 style={{ left: '0%', right: `${100 - (timeStrToMin(dayVfrWindow.start) / (24 * 60)) * 100}%` }}
-                title={`Night restricted (before ${dayVfrWindow.start})`}
               >
                 <span className="text-[10px] text-amber-200 select-none">🌙</span>
               </div>
@@ -321,12 +374,10 @@ function AvailabilityTimeline({
                   left: `${(timeStrToMin(dayVfrWindow.start) / (24 * 60)) * 100}%`,
                   right: `${100 - (timeStrToMin(dayVfrWindow.end) / (24 * 60)) * 100}%`,
                 }}
-                title={`Day VFR window (${dayVfrWindow.start} – ${dayVfrWindow.end})`}
               />
               <div
                 className="absolute top-0 bottom-0 bg-[#152d5a]/90 flex items-center justify-center overflow-hidden"
                 style={{ left: `${(timeStrToMin(dayVfrWindow.end) / (24 * 60)) * 100}%`, right: '0%' }}
-                title={`Night restricted (after ${dayVfrWindow.end})`}
               >
                 <span className="text-[10px] text-amber-200 select-none">🌙</span>
               </div>
@@ -336,15 +387,32 @@ function AvailabilityTimeline({
           {/* Booked / Conflict blocks */}
           {visibleSlots.map((s, idx) => {
             const startPct = toPercent(s.start_time)
-            const endPct = toPercent(s.end_time)
+            const endPct   = toPercent(s.end_time)
+            const widthPct = Math.max(0.5, endPct - startPct)
+            const start12  = fmtTime(formatSydTime(s.start_time))
+            const end12    = fmtTime(formatSydTime(s.end_time))
+            const midPct   = Math.max(12, Math.min(88, startPct + widthPct / 2))
+
             return (
               <div
                 key={idx}
-                className="absolute top-0 bottom-0 bg-red-500/80 border-r border-l border-red-700/40 z-10 flex items-center justify-center overflow-hidden"
-                style={{ left: `${startPct}%`, width: `${Math.max(1, endPct - startPct)}%` }}
-                title={`Booked slot (${formatSydTime(s.start_time)} – ${formatSydTime(s.end_time)})`}
+                onMouseEnter={() =>
+                  setHoveredConflict({
+                    midPct,
+                    start12,
+                    end12,
+                    label: s.label || 'Unavailable',
+                  })
+                }
+                onMouseLeave={() => setHoveredConflict(null)}
+                className="absolute top-0 bottom-0 bg-red-500/85 hover:bg-red-600 transition-colors z-10 flex items-center justify-center overflow-hidden border-x border-red-600/40 cursor-pointer"
+                style={{ left: `${startPct}%`, width: `${widthPct}%` }}
               >
-                <div className="w-full h-full bg-[repeating-linear-gradient(45deg,transparent,transparent_3px,rgba(255,255,255,0.25)_3px,rgba(255,255,255,0.25)_6px)]" />
+                {widthPct >= 16 && (
+                  <span className="text-[10px] font-bold text-white truncate px-1 select-none pointer-events-none drop-shadow-xs">
+                    {start12}–{end12}
+                  </span>
+                )}
               </div>
             )
           })}
@@ -365,7 +433,6 @@ function AvailabilityTimeline({
                 right: `${selRight}%`,
                 touchAction: onTimeChange ? 'none' : undefined,
               }}
-              title={onTimeChange ? 'Drag to adjust flight time' : undefined}
             >
               <div className="flex items-center gap-[3px] pointer-events-none select-none opacity-80">
                 <div className="w-0.5 h-4 bg-white rounded-full shadow-sm" />
@@ -376,18 +443,89 @@ function AvailabilityTimeline({
         </div>
       </div>
 
-      {/* Hour ticks */}
-      <div className="relative h-3.5">
-        {majorTicks.map(h => (
-          <span
-            key={h}
-            className="absolute text-[9px] font-medium text-[#64748b] -translate-x-1/2 select-none leading-none tabular-nums"
-            style={{ left: `${(h / 24) * 100}%` }}
-          >
-            {hourLabel(h)}
+      {/* Time markers directly below the red strips */}
+      {visibleSlots.length > 0 && (
+        <div className="relative h-6 w-full select-none">
+          {visibleSlots.map((slot, i) => {
+            const startPct = toPercent(slot.start_time)
+            const endPct   = toPercent(slot.end_time)
+            const widthPct = Math.max(0.5, endPct - startPct)
+            const midPct   = Math.max(12, Math.min(88, startPct + widthPct / 2))
+            const start12  = fmtTime(formatSydTime(slot.start_time))
+            const end12    = fmtTime(formatSydTime(slot.end_time))
+
+            return (
+              <div
+                key={`strip-time-${slot.start_time}-${slot.end_time}-${i}`}
+                className="absolute top-0 -translate-x-1/2 flex flex-col items-center"
+                style={{ left: `${midPct}%` }}
+              >
+                <div className="w-px h-1 bg-red-400 mb-0.5" />
+                <div className="inline-flex items-center gap-1 bg-[#fff1f2] border border-[#fecdd3] text-[#991b1b] text-[10px] font-bold px-2 py-0.5 rounded shadow-2xs whitespace-nowrap">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                  <span>{start12} – {end12}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Booked Windows Card on this Date */}
+      {loadingDaySlots ? (
+        <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex items-center gap-2.5 text-xs text-[#64748b] shadow-xs">
+          <div className="w-3.5 h-3.5 border-2 border-[#1a4fd6] border-t-transparent rounded-full animate-spin flex-shrink-0" />
+          <span>Checking aircraft availability &amp; schedule for {new Date(`${selectedDate}T12:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}…</span>
+        </div>
+      ) : visibleSlots.length > 0 ? (
+        <div className="bg-white border border-[#fed7aa] rounded-xl p-3.5 shadow-xs">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              </span>
+              <p className="text-xs font-bold text-[#152d5a] uppercase tracking-wider">
+                Already Booked Windows on this Date
+              </p>
+            </div>
+            <span className="text-[11px] font-medium text-[#64748b]">
+              {visibleSlots.length} {visibleSlots.length === 1 ? 'booking' : 'bookings'}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {visibleSlots.map((slot, i) => {
+              const start12 = fmtTime(formatSydTime(slot.start_time))
+              const end12   = fmtTime(formatSydTime(slot.end_time))
+              return (
+                <div
+                  key={`${slot.start_time}-${slot.end_time}-${i}`}
+                  className="inline-flex items-center gap-2 bg-[#fff1f2] border border-[#fecdd3] rounded-lg px-3 py-1.5 text-xs text-[#991b1b]"
+                >
+                  <span className="material-symbols-outlined text-[14px] text-red-500">
+                    schedule
+                  </span>
+                  <span className="font-bold tabular-nums">
+                    {start12} – {end12}
+                  </span>
+                  <span className="text-[10px] font-semibold text-[#be123c] bg-white px-1.5 py-0.5 rounded border border-red-200">
+                    {slot.label || 'Booked'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white border border-emerald-200/80 rounded-xl p-3 flex items-center gap-2.5 text-xs text-emerald-800 shadow-xs">
+          <span className="material-symbols-outlined text-base text-emerald-600 flex-shrink-0">
+            check_circle
           </span>
-        ))}
-      </div>
+          <span>
+            No bookings on this date — the aircraft is completely free all day!
+          </span>
+        </div>
+      )}
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-0.5">
@@ -465,6 +603,9 @@ function FlightRescheduleModal({
   const [selectedEndTime, setSelectedEndTime] = useState('')
   const [nightVfrRating, setNightVfrRating] = useState<boolean | null>(initialNightVfrRating ?? false)
   const [daySlots, setDaySlots] = useState<SafeConflict[]>([])
+  const [loadingDaySlots, setLoadingDaySlots] = useState<boolean>(false)
+  const [multiDaySlots, setMultiDaySlots] = useState<SafeConflict[]>([])
+  const [loadingMultiDaySlots, setLoadingMultiDaySlots] = useState<boolean>(false)
   const [availability, setAvailability] = useState<AvailabilityState>({ status: 'idle' })
   const [dayVfrError, setDayVfrError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
@@ -501,9 +642,11 @@ function FlightRescheduleModal({
   useEffect(() => {
     if (!selectedDate || !aircraftId || isMultiDay) {
       setDaySlots([])
+      setLoadingDaySlots(false)
       return
     }
     let active = true
+    setLoadingDaySlots(true)
     getDayAvailability(aircraftId, selectedDate, booking.id)
       .then(res => {
         if (active) setDaySlots(res ?? [])
@@ -511,6 +654,48 @@ function FlightRescheduleModal({
       .catch(() => {
         if (active) setDaySlots([])
       })
+      .finally(() => {
+        if (active) setLoadingDaySlots(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [selectedDate, aircraftId, isMultiDay, booking.id])
+
+  // Load multi-day range & month availability slots
+  useEffect(() => {
+    if (!selectedDate || !aircraftId || !isMultiDay) {
+      setMultiDaySlots([])
+      return
+    }
+    const [y, m, d] = selectedDate.split('-').map(Number)
+    const lastDayOfMonth = new Date(y!, m!, 0).getDate()
+    const daysLeftInMonth = lastDayOfMonth - d!
+    let targetYear = y!
+    let targetMonth = m!
+    let targetDay = lastDayOfMonth
+    if (daysLeftInMonth < 10) {
+      const nextMonthEnd = new Date(y!, m! + 1, 0)
+      targetYear = nextMonthEnd.getFullYear()
+      targetMonth = nextMonthEnd.getMonth() + 1
+      targetDay = nextMonthEnd.getDate()
+    }
+    const monthEndDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`
+
+    let active = true
+    setLoadingMultiDaySlots(true)
+    getDateRangeAvailability(aircraftId, selectedDate, monthEndDate, booking.id)
+      .then(slots => {
+        if (active) setMultiDaySlots(slots ?? [])
+      })
+      .catch(err => {
+        console.error('[FlightChangeActions] Failed to load multi-day range availability:', err)
+        if (active) setMultiDaySlots([])
+      })
+      .finally(() => {
+        if (active) setLoadingMultiDaySlots(false)
+      })
+
     return () => {
       active = false
     }
@@ -684,6 +869,252 @@ function FlightRescheduleModal({
                     </p>
                   </div>
                 </div>
+
+                {/* ── Multi-Day Month & Days Availability Browser ── */}
+                {selectedDate && (
+                  <div className="mt-2 pt-3 border-t border-[#152d5a]/10">
+                    {(() => {
+                      const [y, m, d] = selectedDate.split('-').map(Number)
+                      const lastDayOfMonth = new Date(y!, m!, 0).getDate()
+                      const daysLeftInMonth = lastDayOfMonth - d!
+                      let targetYear = y!
+                      let targetMonth = m!
+                      let targetDay = lastDayOfMonth
+                      if (daysLeftInMonth < 10) {
+                        const nextMonthEnd = new Date(y!, m! + 1, 0)
+                        targetYear = nextMonthEnd.getFullYear()
+                        targetMonth = nextMonthEnd.getMonth() + 1
+                        targetDay = nextMonthEnd.getDate()
+                      }
+                      const monthEndDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`
+
+                      const dateList: string[] = []
+                      let cur = selectedDate
+                      while (cur <= monthEndDate && dateList.length < 35) {
+                        dateList.push(cur)
+                        cur = shiftDateByDays(cur, 1)
+                      }
+
+                      function getDayConflicts(dateStr: string): SafeConflict[] {
+                        const dayStartUTC = sydneyInputToUTC(`${dateStr}T00:00`)
+                        const dayEndUTC = sydneyInputToUTC(`${shiftDateByDays(dateStr, 1)}T00:00`)
+                        if (!dayStartUTC || !dayEndUTC) return []
+                        const sMs = new Date(dayStartUTC).getTime()
+                        const eMs = new Date(dayEndUTC).getTime()
+                        return multiDaySlots.filter((c) => {
+                          const csMs = new Date(c.start_time).getTime()
+                          const ceMs = new Date(c.end_time).getTime()
+                          return ceMs > sMs && csMs < eMs
+                        })
+                      }
+
+                      const totalMonthConflicts = multiDaySlots.length
+                      const monthName = new Date(`${selectedDate}T12:00:00`).toLocaleDateString('en-AU', {
+                        month: 'long',
+                        year: 'numeric',
+                        timeZone: 'Australia/Sydney',
+                      })
+
+                      return (
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="flex h-2 w-2 relative">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#1a4fd6]"></span>
+                              </span>
+                              <div>
+                                <h4 className="text-xs font-bold text-[#152d5a] uppercase tracking-wider">
+                                  {monthName} Availability &amp; Day-by-Day Overview
+                                </h4>
+                                <p className="text-[11px] text-[#64748b]">
+                                  Click any day below to quickly select your return date.
+                                </p>
+                              </div>
+                            </div>
+                            {loadingMultiDaySlots ? (
+                              <span className="text-[11px] font-semibold text-[#1a4fd6] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 animate-pulse">
+                                Loading month availability…
+                              </span>
+                            ) : totalMonthConflicts > 0 ? (
+                              <span className="text-[11px] font-semibold text-[#991b1b] bg-red-50 px-2.5 py-0.5 rounded-full border border-red-200">
+                                {totalMonthConflicts} {totalMonthConflicts === 1 ? 'booking' : 'bookings'} in this period
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                100% Free All Month
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Day Cards Horizontal Strip */}
+                          <div className="overflow-x-auto pb-2 -mx-1 px-1">
+                            <div className="flex items-stretch gap-2.5 min-w-max">
+                              {dateList.map((dStr) => {
+                                const dObj = new Date(`${dStr}T12:00:00`)
+                                const dayShort = dObj
+                                  .toLocaleDateString('en-AU', { weekday: 'short' })
+                                  .toUpperCase()
+                                const dayNum = dObj.toLocaleDateString('en-AU', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                })
+                                const isStart = dStr === selectedDate
+                                const isReturn = dStr === selectedEndDate
+                                const inSpan =
+                                  selectedDate &&
+                                  selectedEndDate &&
+                                  dStr > selectedDate &&
+                                  dStr < selectedEndDate
+                                const dayConfs = getDayConflicts(dStr)
+                                const isBusy = dayConfs.length > 0
+
+                                return (
+                                  <button
+                                    key={dStr}
+                                    type="button"
+                                    onClick={() => {
+                                      if (dStr === selectedDate) return
+                                      setSelectedEndDate(dStr)
+                                      setFormError(null)
+                                    }}
+                                    title={
+                                      dStr === selectedDate
+                                        ? 'Reschedule start date'
+                                        : `Click to set as Return Date (${dayNum})`
+                                    }
+                                    className={`relative flex flex-col justify-between p-3 rounded-xl border text-left transition-all w-[124px] sm:w-[136px] flex-shrink-0 cursor-pointer ${
+                                      isStart || isReturn
+                                        ? 'border-[#1a4fd6] bg-[#eff6ff] ring-2 ring-[#1a4fd6]/20 shadow-sm'
+                                        : inSpan
+                                          ? 'border-blue-200 bg-[#f0f7ff]'
+                                          : isBusy
+                                            ? 'border-red-200 bg-[#fff5f5] hover:border-red-400'
+                                            : 'border-slate-200 bg-white hover:border-blue-400 hover:bg-[#f8faff]'
+                                    }`}
+                                  >
+                                    <div>
+                                      <div className="flex items-center justify-between gap-1 mb-1">
+                                        <span className="text-[10px] font-bold text-[#64748b] tracking-wider uppercase">
+                                          {dayShort}
+                                        </span>
+                                        {isStart ? (
+                                          <span className="text-[9px] font-extrabold bg-[#1a4fd6] text-white px-1.5 py-0.5 rounded">
+                                            START
+                                          </span>
+                                        ) : isReturn ? (
+                                          <span className="text-[9px] font-extrabold bg-[#1a4fd6] text-white px-1.5 py-0.5 rounded">
+                                            RETURN
+                                          </span>
+                                        ) : inSpan ? (
+                                          <span className="text-[9px] font-bold text-[#1a4fd6] bg-blue-100/70 px-1 rounded">
+                                            IN TRIP
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                      <div className="text-xs font-bold text-[#152d5a]">
+                                        {dayNum}
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-2.5 pt-2 border-t border-slate-100/80">
+                                      {isBusy ? (
+                                        <div className="space-y-1">
+                                          {dayConfs.slice(0, 2).map((c, ci) => {
+                                            const s12 = fmtTime(formatSydTime(c.start_time))
+                                            const e12 = fmtTime(formatSydTime(c.end_time))
+                                            return (
+                                              <div
+                                                key={ci}
+                                                className="text-[9px] font-bold text-[#991b1b] bg-red-100/80 rounded px-1.5 py-0.5 truncate"
+                                                title={`${c.label || 'Booked'}: ${s12} – ${e12}`}
+                                              >
+                                                {s12}–{e12}
+                                              </div>
+                                            )
+                                          })}
+                                          {dayConfs.length > 2 && (
+                                            <span className="text-[9px] text-red-600 font-semibold">
+                                              +{dayConfs.length - 2} more
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <div className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                          <span>Free All Day</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Booked Windows Summary Card */}
+                          {multiDaySlots.length > 0 ? (
+                            <div className="bg-[#fff1f2] border border-[#fecdd3] rounded-xl p-3.5 shadow-xs">
+                              <div className="flex items-center justify-between gap-2 mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="flex h-2 w-2 relative">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                  </span>
+                                  <p className="text-xs font-bold text-[#991b1b] uppercase tracking-wider">
+                                    Booked Windows in {monthName}
+                                  </p>
+                                </div>
+                                <span className="text-[11px] font-semibold text-[#991b1b]">
+                                  {multiDaySlots.length} {multiDaySlots.length === 1 ? 'reserved slot' : 'reserved slots'}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {multiDaySlots.map((slot, i) => {
+                                  const start12 = fmtTime(formatSydTime(slot.start_time))
+                                  const end12 = fmtTime(formatSydTime(slot.end_time))
+                                  const dateLabel = new Date(slot.start_time).toLocaleDateString('en-AU', {
+                                    weekday: 'short',
+                                    day: 'numeric',
+                                    month: 'short',
+                                    timeZone: 'Australia/Sydney',
+                                  })
+                                  return (
+                                    <div
+                                      key={`${slot.start_time}-${slot.end_time}-${i}`}
+                                      className="inline-flex items-center gap-1.5 bg-white border border-[#fecdd3] rounded-lg px-3 py-1.5 text-xs text-[#991b1b] shadow-2xs"
+                                    >
+                                      <span className="material-symbols-outlined text-[13px] text-red-500">
+                                        schedule
+                                      </span>
+                                      <span className="font-bold">{dateLabel}:</span>
+                                      <span className="font-semibold tabular-nums">
+                                        {start12} – {end12}
+                                      </span>
+                                      <span className="text-[10px] font-semibold text-[#be123c] bg-red-50 px-1.5 py-0.5 rounded border border-red-200">
+                                        {slot.label || 'Booked'}
+                                      </span>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3 flex items-center gap-2.5 text-xs text-emerald-800 shadow-xs">
+                              <span className="material-symbols-outlined text-base text-emerald-600 flex-shrink-0">
+                                check_circle
+                              </span>
+                              <span>
+                                The aircraft has no conflicting bookings across this entire month. All days are completely free!
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="bg-[#f8fbff] border border-[#152d5a]/15 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -906,6 +1337,7 @@ function FlightRescheduleModal({
                     <AvailabilityTimeline
                       selectedDate={selectedDate}
                       daySlots={daySlots}
+                      loadingDaySlots={loadingDaySlots}
                       startDT={startDT}
                       endDT={endDT}
                       onTimeChange={handleStartTimeChange}
