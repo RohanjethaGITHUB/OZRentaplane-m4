@@ -97,12 +97,11 @@ export default function Navbar({
         <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-16 h-[88px] flex items-center justify-between gap-8">
           {/* Logo */}
           <a href="/" className="shrink-0 flex items-center gap-2.5 select-none">
-            <div className="w-8 h-8 rounded-full border-2 border-blue-600 flex items-center justify-center text-blue-600">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <circle cx="12" cy="12" r="10" strokeDasharray="4 2" />
-                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-              </svg>
-            </div>
+            <img
+              src="/Logo/ozrentaplane-transparent-bg.png"
+              alt="OZRentAPlane logo"
+              className="h-10 sm:h-12 w-auto object-contain"
+            />
             <span className="font-sans font-black text-[22px] tracking-tight text-[#0c2340]">
               <span className="text-blue-600">OZ</span>Rentaplane
             </span>

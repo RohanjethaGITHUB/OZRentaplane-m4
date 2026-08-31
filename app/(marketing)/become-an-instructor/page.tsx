@@ -4,6 +4,20 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import AuthModal from '@/components/AuthModal'
+import InstructorFooter from '@/components/InstructorFooter'
+import { 
+  Users, 
+  CalendarDays, 
+  FolderClosed, 
+  Plane, 
+  Check, 
+  Info, 
+  ArrowRight,
+  FileText,
+  Clock,
+  ShieldCheck,
+  Star
+} from 'lucide-react'
 
 export default function BecomeAnInstructorPage() {
   const [authModalOpen, setAuthModalOpen] = useState(false)
@@ -317,9 +331,7 @@ export default function BecomeAnInstructorPage() {
               {/* Item 1 */}
               <div className="flex items-start gap-3.5">
                 <div className="w-5 h-5 rounded-full bg-[#155dfc] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-                  <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
-                  </svg>
+                  <Check className="w-3.5 h-3.5" strokeWidth={3} />
                 </div>
                 <p className="text-[14px] sm:text-[14.5px] font-semibold text-[#0c2340] leading-snug">
                   Instructors must pass an instructor checkout with an OZ-authorized check pilot.
@@ -329,9 +341,7 @@ export default function BecomeAnInstructorPage() {
               {/* Item 2 */}
               <div className="flex items-start gap-3.5">
                 <div className="w-5 h-5 rounded-full bg-[#155dfc] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
-                  </svg>
+                  <Check className="w-3.5 h-3.5" strokeWidth={3} />
                 </div>
                 <p className="text-[14px] sm:text-[14.5px] font-semibold text-[#0c2340] leading-snug">
                   Approval is per aircraft make and model.
@@ -341,9 +351,7 @@ export default function BecomeAnInstructorPage() {
               {/* Item 3 */}
               <div className="flex items-start gap-3.5">
                 <div className="w-5 h-5 rounded-full bg-[#155dfc] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
-                  </svg>
+                  <Check className="w-3.5 h-3.5" strokeWidth={3} />
                 </div>
                 <p className="text-[14px] sm:text-[14.5px] font-semibold text-[#0c2340] leading-snug">
                   You may request additional aircraft approvals as your teaching grows.
@@ -353,9 +361,7 @@ export default function BecomeAnInstructorPage() {
               {/* Item 4 */}
               <div className="flex items-start gap-3.5">
                 <div className="w-5 h-5 rounded-full bg-[#155dfc] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
-                  </svg>
+                  <Check className="w-3.5 h-3.5" strokeWidth={3} />
                 </div>
                 <p className="text-[14px] sm:text-[14.5px] font-semibold text-[#0c2340] leading-snug">
                   We're here to support your success at every step.
@@ -365,14 +371,10 @@ export default function BecomeAnInstructorPage() {
           </div>
         </div>
 
-        {/* Responsive Code-Based Callout Card */}
-        <div className="hidden sm:flex absolute bottom-4 right-6 lg:bottom-5 lg:right-10 xl:right-14 z-20 max-w-[280px] sm:max-w-[290px] bg-white/95 backdrop-blur-md rounded-2xl p-3.5 sm:p-4 border border-white/80 shadow-[0_8px_25px_rgba(15,23,42,0.1)] items-start gap-3">
+        {/* Floating Callout Card - Elevated position with ample bottom clearance */}
+        <div className="hidden sm:flex absolute bottom-10 sm:bottom-12 lg:bottom-14 xl:bottom-16 right-6 lg:right-10 xl:right-14 z-20 max-w-[280px] sm:max-w-[290px] bg-white/95 backdrop-blur-md rounded-2xl p-3.5 sm:p-4 border border-white/80 shadow-[0_8px_25px_rgba(15,23,42,0.1)] items-start gap-3">
           <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-0.5">
-            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="16" x2="12" y2="12" />
-              <line x1="12" y1="8" x2="12.01" y2="8" />
-            </svg>
+            <Info className="w-3.5 h-3.5 text-blue-700" strokeWidth={2.5} />
           </div>
           <div>
             <div className="text-[13px] sm:text-[13.5px] font-extrabold text-[#0c2340] mb-0.5 leading-tight">
@@ -386,266 +388,244 @@ export default function BecomeAnInstructorPage() {
       </section>
 
       {/* ─── 4. WHAT YOU CAN DO ("Teach. Manage. Grow.") ──────────── */}
-      <section className="py-16 lg:py-24 bg-[#f8fbff]">
-        <div className="max-w-[1360px] mx-auto px-6 sm:px-8 lg:px-12">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-stretch">
-            {/* Left Column: 2x2 Feature Cards */}
-            <div className="lg:col-span-7 flex flex-col justify-center">
-              <span className="text-xs font-bold tracking-[0.14em] text-blue-600 uppercase mb-2 block">
-                WHAT YOU CAN DO
-              </span>
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0c2340] tracking-tight mb-8">
-                Teach. Manage. Grow.
-              </h2>
+      <section className="bg-[#f8fafc] relative overflow-hidden border-t border-slate-200/60 flex flex-col lg:flex-row items-stretch">
+        {/* Left Column: Headings & 4 Horizontal Items */}
+        <div className="flex-1 py-14 lg:py-20 px-6 sm:px-10 lg:pl-16 lg:pr-10 flex flex-col justify-center">
+          <span className="text-xs sm:text-[13px] font-extrabold tracking-[0.14em] text-blue-600 uppercase mb-2 block">
+            WHAT YOU CAN DO
+          </span>
+          <h2 className="text-3xl sm:text-4xl lg:text-[42px] font-black text-[#06152b] tracking-tight leading-[1.1] mb-12">
+            Teach. Manage. Grow.
+          </h2>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                {/* Feature 1 */}
-                <div className="bg-white rounded-2xl p-6 border border-blue-100/90 shadow-[0_4px_18px_rgba(15,23,42,0.03)] hover:shadow-md transition-all flex flex-col justify-center">
-                  <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 mb-4">
-                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                      <circle cx="9" cy="7" r="4" />
-                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                    </svg>
-                  </div>
-                  <h3 className="text-base font-bold text-[#0c2340] mb-2 leading-tight">
-                    Teach Students with OZ Aircraft
-                  </h3>
-                  <p className="text-[13px] text-[#475569] leading-relaxed">
-                    Conduct training in a professional and trusted environment using OZ aircraft.
-                  </p>
-                </div>
-
-                {/* Feature 2 */}
-                <div className="bg-white rounded-2xl p-6 border border-blue-100/90 shadow-[0_4px_18px_rgba(15,23,42,0.03)] hover:shadow-md transition-all flex flex-col justify-center">
-                  <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 mb-4">
-                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                      <line x1="16" y1="2" x2="16" y2="6" />
-                      <line x1="8" y1="2" x2="8" y2="6" />
-                      <line x1="3" y1="10" x2="21" y2="10" />
-                    </svg>
-                  </div>
-                  <h3 className="text-base font-bold text-[#0c2340] mb-2 leading-tight">
-                    Create Instructional Bookings
-                  </h3>
-                  <p className="text-[13px] text-[#475569] leading-relaxed">
-                    Easily create dual or solo instructional bookings that fit your schedule.
-                  </p>
-                </div>
-
-                {/* Feature 3 */}
-                <div className="bg-white rounded-2xl p-6 border border-blue-100/90 shadow-[0_4px_18px_rgba(15,23,42,0.03)] hover:shadow-md transition-all flex flex-col justify-center">
-                  <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 mb-4">
-                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-base font-bold text-[#0c2340] mb-2 leading-tight">
-                    Manage Student Documents
-                  </h3>
-                  <p className="text-[13px] text-[#475569] leading-relaxed">
-                    Upload, track, and manage student documents securely in one place.
-                  </p>
-                </div>
-
-                {/* Feature 4 */}
-                <div className="bg-white rounded-2xl p-6 border border-blue-100/90 shadow-[0_4px_18px_rgba(15,23,42,0.03)] hover:shadow-md transition-all flex flex-col justify-center">
-                  <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 mb-4">
-                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-base font-bold text-[#0c2340] mb-2 leading-tight">
-                    Expand Your Clearances
-                  </h3>
-                  <p className="text-[13px] text-[#475569] leading-relaxed">
-                    Request approval on more aircraft and expand your teaching opportunities.
-                  </p>
-                </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#dce7f5] gap-8 sm:gap-0">
+            {/* Feature 1: Teach Students with OZ Aircraft */}
+            <div className="sm:px-4 lg:px-6 text-center flex flex-col items-center">
+              <div className="w-16 h-16 sm:w-[70px] sm:h-[70px] rounded-full bg-[#ebf3ff] text-[#155dfc] flex items-center justify-center mb-5 shadow-[0_2px_12px_rgba(21,93,252,0.08)]">
+                <Users className="w-8 h-8 text-[#155dfc]" strokeWidth={2.2} />
               </div>
+              <h3 className="text-[17px] sm:text-[17.5px] font-black text-[#06152b] mb-2.5 leading-snug tracking-tight">
+                Teach Students<br className="hidden sm:inline" /> with OZ Aircraft
+              </h3>
+              <p className="text-[13px] text-[#475569] font-medium leading-relaxed max-w-[205px]">
+                Conduct training in a professional and trusted environment using OZ aircraft.
+              </p>
             </div>
 
-            {/* Right Column: Full sunset tarmac instructor walking image */}
-            <div className="lg:col-span-5 flex justify-center">
-              <div className="relative rounded-2xl overflow-hidden shadow-lg border border-slate-100 w-full h-[380px] sm:h-[450px] lg:h-full min-h-[360px]">
-                <img
-                  src="/instructor/instructor-walking.png"
-                  alt="Flight instructor and student walking towards aircraft on runway at sunset"
-                  className="w-full h-full object-cover object-[62%_center] block"
-                />
+            {/* Feature 2: Create Instructional Bookings */}
+            <div className="pt-6 sm:pt-0 sm:px-4 lg:px-6 text-center flex flex-col items-center">
+              <div className="w-16 h-16 sm:w-[70px] sm:h-[70px] rounded-full bg-[#ebf3ff] text-[#155dfc] flex items-center justify-center mb-5 shadow-[0_2px_12px_rgba(21,93,252,0.08)]">
+                <CalendarDays className="w-8 h-8 text-[#155dfc]" strokeWidth={2.2} />
               </div>
+              <h3 className="text-[17px] sm:text-[17.5px] font-black text-[#06152b] mb-2.5 leading-snug tracking-tight">
+                Create Instructional<br className="hidden sm:inline" /> Bookings
+              </h3>
+              <p className="text-[13px] text-[#475569] font-medium leading-relaxed max-w-[205px]">
+                Easily create dual or solo instructional bookings that fit your schedule.
+              </p>
+            </div>
+
+            {/* Feature 3: Manage Student Documents */}
+            <div className="pt-6 sm:pt-0 sm:px-4 lg:px-6 text-center flex flex-col items-center">
+              <div className="w-16 h-16 sm:w-[70px] sm:h-[70px] rounded-full bg-[#ebf3ff] text-[#155dfc] flex items-center justify-center mb-5 shadow-[0_2px_12px_rgba(21,93,252,0.08)]">
+                <FolderClosed className="w-8 h-8 text-[#155dfc]" strokeWidth={2.2} />
+              </div>
+              <h3 className="text-[17px] sm:text-[17.5px] font-black text-[#06152b] mb-2.5 leading-snug tracking-tight">
+                Manage Student<br className="hidden sm:inline" /> Documents
+              </h3>
+              <p className="text-[13px] text-[#475569] font-medium leading-relaxed max-w-[205px]">
+                Upload, track, and manage student documents securely in one place.
+              </p>
+            </div>
+
+            {/* Feature 4: Expand Your Clearances */}
+            <div className="pt-6 sm:pt-0 sm:px-4 lg:px-6 text-center flex flex-col items-center">
+              <div className="w-16 h-16 sm:w-[70px] sm:h-[70px] rounded-full bg-[#ebf3ff] text-[#155dfc] flex items-center justify-center mb-5 shadow-[0_2px_12px_rgba(21,93,252,0.08)]">
+                <Plane className="w-8 h-8 text-[#155dfc]" strokeWidth={2.2} />
+              </div>
+              <h3 className="text-[17px] sm:text-[17.5px] font-black text-[#06152b] mb-2.5 leading-snug tracking-tight">
+                Expand Your<br className="hidden sm:inline" /> Clearances
+              </h3>
+              <p className="text-[13px] text-[#475569] font-medium leading-relaxed max-w-[205px]">
+                Request approval on more aircraft and expand your teaching opportunities.
+              </p>
             </div>
           </div>
+        </div>
+
+        {/* Right Column: Full-Height Image Touching Top & Bottom Edges */}
+        <div className="w-full lg:w-[25%] xl:w-[23%] shrink-0 self-stretch relative min-h-[320px] lg:min-h-full">
+          <img
+            src="/instructor/instructor-walking.png"
+            alt="Flight instructor and student walking on tarmac at sunset"
+            className="w-full h-full object-cover object-[62%_center] block select-none"
+          />
         </div>
       </section>
 
       {/* ─── 5. TESTIMONIALS & ORGANISATIONS ──────────────────────── */}
-      <section className="py-20 lg:py-24 bg-white relative overflow-hidden">
-        {/* Soft atmospheric cloud overlay in background */}
-        <div className="absolute inset-0 pointer-events-none opacity-40">
+      <section className="pt-12 sm:pt-14 lg:pt-16 pb-14 sm:pb-16 lg:pb-20 relative overflow-hidden">
+        {/* Panoramic Clouds Background */}
+        <div className="absolute inset-0 z-0 select-none pointer-events-none">
           <img
-            src="/CloudLayerA.webp"
-            alt=""
-            aria-hidden="true"
+            src="/instructor/testimonials-clouds-bg.png"
+            alt="Cloudscape background"
             className="w-full h-full object-cover object-center"
           />
+          {/* Seamless bottom fade blending into Section 6 */}
+          <div className="absolute bottom-0 inset-x-0 h-28 bg-gradient-to-b from-transparent via-sky-100/30 to-sky-200/50 pointer-events-none" />
         </div>
 
         <div className="max-w-[1360px] mx-auto px-6 sm:px-8 lg:px-12 relative z-10">
-          {/* Section Title */}
-          <div className="mb-14 text-center lg:text-left">
-            <span className="text-xs font-bold tracking-[0.14em] text-blue-600 uppercase mb-2 block">
-              TRUSTED BY INSTRUCTORS. CHOSEN BY SCHOOLS.
-            </span>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0c2340] tracking-tight">
-              Built for instructors. Backed by the community.
-            </h2>
-          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 xl:gap-20 items-start">
+            {/* Left Column (9 cols on lg): Centered Headings over 3 Testimonial Cards */}
+            <div className="lg:col-span-9 flex flex-col justify-between">
+              {/* Left Section Heading - Centered over the 3 boxes */}
+              <div className="mb-7 text-center">
+                <span className="text-xs sm:text-[12px] font-extrabold tracking-[0.14em] text-blue-600 uppercase mb-2 block text-center">
+                  TRUSTED BY INSTRUCTORS. CHOSEN BY SCHOOLS.
+                </span>
+                <h2 className="text-xl sm:text-2xl lg:text-[27px] font-black text-[#06152b] tracking-tight leading-snug text-center">
+                  Built for instructors. Backed by the community.
+                </h2>
+              </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* Left 3 Testimonial Cards (9 cols on lg) */}
-            <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Card 1: James R. */}
-              <div className="bg-white/95 backdrop-blur-md rounded-2xl p-6 sm:p-7 border border-blue-100/90 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
-                <div>
-                  <div className="text-blue-600 text-3xl font-serif font-black mb-2 leading-none">“</div>
-                  <p className="text-[13.5px] text-[#334155] leading-relaxed mb-5 italic">
-                    The checkout process was professional and thorough. Now I can focus on what I love—teaching and inspiring pilots.
-                  </p>
-                </div>
-                <div>
-                  {/* 5 Stars */}
-                  <div className="flex items-center gap-1 text-amber-400 mb-4">
-                    {'★★★★★'.split('').map((star, idx) => (
-                      <span key={idx} className="text-sm">{star}</span>
-                    ))}
+              {/* Left 3 Testimonial Cards in 1 row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                {/* Card 1: James R. */}
+                <div className="bg-white rounded-2xl p-6 border border-blue-100/90 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-md transition-all flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-start gap-2.5 mb-4">
+                      <span className="text-[#155dfc] text-3xl font-serif font-black leading-none shrink-0 select-none mt-0.5">“</span>
+                      <p className="text-[13.5px] text-[#334155] leading-relaxed font-normal">
+                        The checkout process was professional and thorough. Now I can focus on what I love—teaching and inspiring pilots.
+                      </p>
+                    </div>
                   </div>
-                  {/* Author */}
-                  <div className="flex items-center gap-3 pt-2 border-t border-blue-100/60">
-                    <img
-                      src="/instructor/avatar-james.jpg"
-                      alt="James R."
-                      className="w-10 h-10 rounded-full object-cover border border-white shadow-sm"
-                    />
-                    <div>
-                      <div className="text-[13.5px] font-bold text-[#0c2340]">James R.</div>
-                      <div className="text-[11.5px] text-[#64748b]">CFI, Melbourne</div>
+                  <div>
+                    {/* 5 Stars */}
+                    <div className="flex items-center gap-1 mb-4">
+                      {[...Array(5)].map((_, idx) => (
+                        <Star key={idx} className="w-5 h-5 fill-[#f59e0b] text-[#f59e0b]" />
+                      ))}
+                    </div>
+                    {/* Author */}
+                    <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
+                      <img
+                        src="/instructor/avatar-james.jpg"
+                        alt="James R."
+                        className="w-11 h-11 rounded-full object-cover border border-slate-100 shadow-sm shrink-0"
+                      />
+                      <div>
+                        <div className="text-[14px] font-black text-[#06152b] leading-tight">James R.</div>
+                        <div className="text-[12px] text-[#64748b] font-medium">CFI, Melbourne</div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Card 2: Sarah L. */}
-              <div className="bg-white/95 backdrop-blur-md rounded-2xl p-6 sm:p-7 border border-blue-100/90 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
-                <div>
-                  <div className="text-blue-600 text-3xl font-serif font-black mb-2 leading-none">“</div>
-                  <p className="text-[13.5px] text-[#334155] leading-relaxed mb-5 italic">
-                    OZRentaplane makes it easy to manage my students and bookings. The platform is a game changer.
-                  </p>
-                </div>
-                <div>
-                  {/* 5 Stars */}
-                  <div className="flex items-center gap-1 text-amber-400 mb-4">
-                    {'★★★★★'.split('').map((star, idx) => (
-                      <span key={idx} className="text-sm">{star}</span>
-                    ))}
+                {/* Card 2: Sarah L. */}
+                <div className="bg-white rounded-2xl p-6 border border-blue-100/90 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-md transition-all flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-start gap-2.5 mb-4">
+                      <span className="text-[#155dfc] text-3xl font-serif font-black leading-none shrink-0 select-none mt-0.5">“</span>
+                      <p className="text-[13.5px] text-[#334155] leading-relaxed font-normal">
+                        OZRentaplane makes it easy to manage my students and bookings. The platform is a game changer.
+                      </p>
+                    </div>
                   </div>
-                  {/* Author */}
-                  <div className="flex items-center gap-3 pt-2 border-t border-blue-100/60">
-                    <img
-                      src="/instructor/avatar-sarah.jpg"
-                      alt="Sarah L."
-                      className="w-10 h-10 rounded-full object-cover border border-white shadow-sm"
-                    />
-                    <div>
-                      <div className="text-[13.5px] font-bold text-[#0c2340]">Sarah L.</div>
-                      <div className="text-[11.5px] text-[#64748b]">CFI, Sydney</div>
+                  <div>
+                    {/* 5 Stars */}
+                    <div className="flex items-center gap-1 mb-4">
+                      {[...Array(5)].map((_, idx) => (
+                        <Star key={idx} className="w-5 h-5 fill-[#f59e0b] text-[#f59e0b]" />
+                      ))}
+                    </div>
+                    {/* Author */}
+                    <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
+                      <img
+                        src="/instructor/avatar-sarah.jpg"
+                        alt="Sarah L."
+                        className="w-11 h-11 rounded-full object-cover border border-slate-100 shadow-sm shrink-0"
+                      />
+                      <div>
+                        <div className="text-[14px] font-black text-[#06152b] leading-tight">Sarah L.</div>
+                        <div className="text-[12px] text-[#64748b] font-medium">CFI, Sydney</div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Card 3: Daniel K. */}
-              <div className="bg-white/95 backdrop-blur-md rounded-2xl p-6 sm:p-7 border border-blue-100/90 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
-                <div>
-                  <div className="text-blue-600 text-3xl font-serif font-black mb-2 leading-none">“</div>
-                  <p className="text-[13.5px] text-[#334155] leading-relaxed mb-5 italic">
-                    Per-aircraft approval gives me confidence that I'm teaching to the highest standard in every aircraft.
-                  </p>
-                </div>
-                <div>
-                  {/* 5 Stars */}
-                  <div className="flex items-center gap-1 text-amber-400 mb-4">
-                    {'★★★★★'.split('').map((star, idx) => (
-                      <span key={idx} className="text-sm">{star}</span>
-                    ))}
+                {/* Card 3: Daniel K. */}
+                <div className="bg-white rounded-2xl p-6 border border-blue-100/90 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-md transition-all flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-start gap-2.5 mb-4">
+                      <span className="text-[#155dfc] text-3xl font-serif font-black leading-none shrink-0 select-none mt-0.5">“</span>
+                      <p className="text-[13.5px] text-[#334155] leading-relaxed font-normal">
+                        Per-aircraft approval gives me confidence that I'm teaching to the highest standard in every aircraft.
+                      </p>
+                    </div>
                   </div>
-                  {/* Author */}
-                  <div className="flex items-center gap-3 pt-2 border-t border-blue-100/60">
-                    <img
-                      src="/instructor/avatar-daniel.jpg"
-                      alt="Daniel K."
-                      className="w-10 h-10 rounded-full object-cover border border-white shadow-sm"
-                    />
-                    <div>
-                      <div className="text-[13.5px] font-bold text-[#0c2340]">Daniel K.</div>
-                      <div className="text-[11.5px] text-[#64748b]">Senior CFI, Brisbane</div>
+                  <div>
+                    {/* 5 Stars */}
+                    <div className="flex items-center gap-1 mb-4">
+                      {[...Array(5)].map((_, idx) => (
+                        <Star key={idx} className="w-5 h-5 fill-[#f59e0b] text-[#f59e0b]" />
+                      ))}
+                    </div>
+                    {/* Author */}
+                    <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
+                      <img
+                        src="/instructor/avatar-daniel.jpg"
+                        alt="Daniel K."
+                        className="w-11 h-11 rounded-full object-cover border border-slate-100 shadow-sm shrink-0"
+                      />
+                      <div>
+                        <div className="text-[14px] font-black text-[#06152b] leading-tight">Daniel K.</div>
+                        <div className="text-[12px] text-[#64748b] font-medium">Senior CFI, Brisbane</div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Right Column: Aviation Partner Badges (3 cols on lg) */}
-            <div className="lg:col-span-3 bg-white/95 backdrop-blur-md rounded-2xl p-6 border border-blue-100/90 shadow-sm flex flex-col items-center justify-center text-center">
-              <span className="text-[11px] font-bold tracking-[0.14em] text-blue-900 uppercase mb-6 leading-tight">
-                TRUSTED BY LEADING<br />AVIATION ORGANISATIONS
-              </span>
+            {/* Right Column (3 cols on lg): Thicker Header & Larger Centered Partner Logos */}
+            <div className="lg:col-span-3 flex flex-col items-center justify-start text-center pt-0.5">
+              {/* Right Heading - Thicker, placed directly above the first image */}
+              <div className="mb-4 sm:mb-5 text-center w-full">
+                <span className="text-xs sm:text-[12px] font-black tracking-[0.15em] text-blue-600 uppercase leading-snug block">
+                  TRUSTED BY LEADING<br />AVIATION ORGANISATIONS
+                </span>
+              </div>
 
-              <div className="space-y-6 w-full flex flex-col items-center">
+              {/* User-Uploaded Partner Logo Images - Larger & Centered on same axis */}
+              <div className="space-y-4 sm:space-y-5 w-full flex flex-col items-center justify-center">
                 {/* AOPA Australia */}
-                <div className="flex flex-col items-center justify-center py-2 px-4 w-full">
-                  <div className="flex items-center gap-2 text-[#0c2a55]">
-                    <svg className="w-8 h-8" viewBox="0 0 40 40" fill="none">
-                      <circle cx="20" cy="20" r="18" stroke="#0c2a55" strokeWidth="2" fill="#eff6ff" />
-                      <path d="M12 24l8-14 8 14h-4l-4-7-4 7h-4z" fill="#0c2a55" />
-                      <path d="M15 20h10" stroke="#0c2a55" strokeWidth="2" />
-                    </svg>
-                    <div className="text-left leading-none">
-                      <div className="font-extrabold text-[15px] tracking-wider text-[#0c2a55]">AOPA</div>
-                      <div className="text-[9px] font-semibold text-[#475569] tracking-widest uppercase">Australia</div>
-                    </div>
-                  </div>
+                <div className="w-full flex items-center justify-center">
+                  <img
+                    src="/instructor/aopa-logo.png"
+                    alt="AOPA Australia"
+                    className="h-20 sm:h-24 w-auto max-w-[260px] object-contain select-none mix-blend-multiply"
+                  />
                 </div>
-
-                <div className="w-24 h-px bg-blue-100/80" />
 
                 {/* RAAus */}
-                <div className="flex flex-col items-center justify-center py-2 px-4 w-full">
-                  <div className="flex items-center gap-2 text-[#0c2a55]">
-                    <div className="font-black text-lg tracking-tight text-[#0c2a55] flex items-center">
-                      <span className="text-blue-600">RA</span>Aus
-                    </div>
-                    <span className="text-[8.5px] font-bold text-[#64748b] leading-tight text-left">
-                      Recreational Aviation<br />Australia
-                    </span>
-                  </div>
+                <div className="w-full flex items-center justify-center">
+                  <img
+                    src="/instructor/raaus-logo.png"
+                    alt="RAAus Recreational Aviation Australia"
+                    className="h-12 sm:h-15 w-auto max-w-[260px] object-contain select-none mix-blend-multiply"
+                  />
                 </div>
 
-                <div className="w-24 h-px bg-blue-100/80" />
-
                 {/* ATC */}
-                <div className="flex flex-col items-center justify-center py-2 px-4 w-full">
-                  <div className="flex items-center text-[#0c2a55]">
-                    <div className="font-black text-xl tracking-widest text-[#0c2a55] border-b-2 border-blue-600 pb-0.5 px-3">
-                      ATC
-                    </div>
-                    <span className="text-[8.5px] font-bold text-[#64748b] tracking-wider uppercase mt-1">
-                      Aviation Training Council
-                    </span>
-                  </div>
+                <div className="w-full flex items-center justify-center">
+                  <img
+                    src="/instructor/atc-logo.png"
+                    alt="ATC Aviation Training Council"
+                    className="h-16 sm:h-20 w-auto max-w-[260px] object-contain select-none mix-blend-multiply"
+                  />
                 </div>
               </div>
             </div>
@@ -653,27 +633,29 @@ export default function BecomeAnInstructorPage() {
         </div>
       </section>
 
-      {/* ─── 6. PRE-FOOTER CTA BANNER ──────────────────────────────── */}
-      <section className="relative overflow-hidden py-16 sm:py-20 bg-[#07162c]">
-        {/* Real Aerial Background Photo from Public Assets */}
-        <div className="absolute inset-0 pointer-events-none">
+      {/* ─── 6. BOTTOM CTA BANNER ─────────────────────────────────── */}
+      <section className="relative py-14 sm:py-16 lg:py-20 overflow-hidden">
+        {/* Background Image - Seamlessly blended with top cloudscape */}
+        <div className="absolute inset-0 z-0">
           <img
-            src="/StunningCoastalView.webp"
-            alt=""
-            aria-hidden="true"
-            className="w-full h-full object-cover object-center"
+            src="/instructor/coastal-aerial-bg.png"
+            alt="Aerial view of coastal bay and ocean"
+            className="w-full h-full object-cover object-center select-none"
           />
-          <div className="absolute inset-0 bg-[#07162c]/85" />
+          {/* Soft top gradient to smoothly connect with Section 5 */}
+          <div className="absolute top-0 inset-x-0 h-24 bg-gradient-to-b from-sky-200/50 via-sky-100/20 to-transparent pointer-events-none" />
+          {/* Subtle soft gradient on left to ensure white text readability while keeping full brightness */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#07162c]/40 via-[#07162c]/20 to-transparent" />
         </div>
 
         <div className="max-w-[1360px] mx-auto px-6 sm:px-8 lg:px-12 relative z-10">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-8 text-center lg:text-left">
             {/* Left CTA text */}
             <div className="max-w-2xl">
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight mb-2">
+              <h2 className="text-2xl sm:text-3xl lg:text-[34px] font-black text-white tracking-tight leading-tight mb-2 drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
                 Ready to take the next step?
               </h2>
-              <p className="text-sm sm:text-base text-blue-100/80 font-normal">
+              <p className="text-sm sm:text-[15px] text-white/95 font-medium drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]">
                 Start your instructor journey today and help shape the future of aviation.
               </p>
             </div>
@@ -683,28 +665,21 @@ export default function BecomeAnInstructorPage() {
               <button
                 type="button"
                 onClick={handleCTAClick}
-                className="inline-flex items-center justify-center gap-3 bg-white hover:bg-blue-50 text-[#0c2340] font-bold text-sm sm:text-[15px] px-8 py-3.5 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 group"
+                className="inline-flex items-center justify-center gap-2.5 bg-white hover:bg-slate-50 text-[#0c2340] font-bold text-sm sm:text-[14.5px] px-7 py-3.5 rounded-xl shadow-xl hover:shadow-2xl transition-all duration-200 group"
               >
                 <span>Book Instructor Checkout</span>
-                <svg
-                  className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M3 8h10M9 4l4 4-4 4" />
-                </svg>
+                <ArrowRight className="w-4 h-4 text-[#0c2340] transition-transform duration-200 group-hover:translate-x-1" strokeWidth={2.5} />
               </button>
-              <span className="text-[12px] text-blue-200/70 mt-2 font-medium">
+              <span className="text-[12px] text-white/90 mt-2 font-medium drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]">
                 Takes just a few minutes to get started.
               </span>
             </div>
           </div>
         </div>
       </section>
+
+      {/* ─── 7. INSTRUCTOR FOOTER ──────────────────────────────────── */}
+      <InstructorFooter />
 
       {/* Auth Modal for unauthenticated clicks */}
       <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
