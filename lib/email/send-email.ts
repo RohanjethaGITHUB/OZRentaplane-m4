@@ -65,16 +65,29 @@ export async function sendEmail(input: SendEmailInput): Promise<{ status: 'sent'
   }
 
   try {
-    let to = cleanEmailString(input.to) || input.to.trim()
-    const configuredAdmin = cleanEmailString(process.env.ADMIN_EMAIL) || 'devjamaviation@gmail.com'
-    if (to.toLowerCase() === 'info@ozrentaplane.com' || to.toLowerCase() === 'ozrentaplane@gmail.com') {
-      to = configuredAdmin
+    const rawTo = cleanEmailString(input.to) || input.to.trim()
+    const configuredAdmin = cleanEmailString(process.env.ADMIN_EMAIL) || 'info@ozrentaplane.com'
+    const devAdminEmail = 'devjamaviation@gmail.com'
+
+    let recipients: string[] = [rawTo]
+    const isAdminEmail =
+      input.eventType.startsWith('admin_') ||
+      rawTo.toLowerCase() === 'info@ozrentaplane.com' ||
+      rawTo.toLowerCase() === 'ozrentaplane@gmail.com' ||
+      rawTo.toLowerCase() === configuredAdmin.toLowerCase() ||
+      rawTo.toLowerCase() === devAdminEmail.toLowerCase()
+
+    if (isAdminEmail) {
+      const recipientSet = new Set<string>()
+      recipientSet.add(configuredAdmin)
+      recipientSet.add(devAdminEmail)
+      recipients = Array.from(recipientSet)
     }
     
     // Guard with a 5s timeout so network drops / ECONNRESET do not hang Next.js actions
     const sendPromise = resend.emails.send({
       from,
-      to,
+      to: recipients.length === 1 ? recipients[0] : recipients,
       subject: input.subject,
       html: input.html,
       text: input.text,
@@ -96,7 +109,7 @@ export async function sendEmail(input: SendEmailInput): Promise<{ status: 'sent'
     }
 
     await insertEmailEvent(admin, input, dedupeKey, 'sent', resendEmailId, null)
-    console.info('[email] sent', { resendEmailId, eventType: input.eventType, to: input.to })
+    console.info('[email] sent', { resendEmailId, eventType: input.eventType, to: recipients })
     return { status: 'sent', resendEmailId }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown email send error'

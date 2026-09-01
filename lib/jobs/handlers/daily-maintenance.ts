@@ -497,7 +497,7 @@ async function runAdminCheckoutUrgentReviewSweep(admin: JobContext['admin'], now
     .from('bookings')
     .select('id, booking_reference, scheduled_start, booking_owner_user_id')
     .eq('booking_type', 'checkout')
-    .eq('status', 'pending')
+    .in('status', ['pending', 'checkout_requested'])
     .gte('scheduled_start', nowIso)
     .lte('scheduled_start', in24hIso)
 

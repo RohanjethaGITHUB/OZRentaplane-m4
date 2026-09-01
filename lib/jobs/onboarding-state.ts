@@ -119,7 +119,9 @@ export function evaluateCustomerOnboardingState(
     }
   }
 
-  const pendingBooking = activeCheckoutBookings.find((b) => b.status === 'pending')
+  const pendingBooking = activeCheckoutBookings.find(
+    (b) => b.status === 'pending' || b.status === 'checkout_requested',
+  )
   if (pendingBooking) {
     if (pendingBooking.checkout_lifecycle_status === 'reschedule_requested') {
       return {

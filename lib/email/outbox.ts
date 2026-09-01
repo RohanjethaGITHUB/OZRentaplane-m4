@@ -1935,20 +1935,6 @@ export async function enqueueEmailJobs(jobs: EnqueueEmailJobInput[]) {
     })
     throw new Error('EMAIL_ENQUEUE_FAILED')
   }
-
-  // In local development or when AUTO_DRAIN_OUTBOX is set, immediately drain the outbox
-  // so emails are sent during local testing without requiring an external cron trigger.
-  if (process.env.NODE_ENV !== 'production' || process.env.AUTO_DRAIN_OUTBOX === 'true') {
-    import('@/lib/jobs/run-job')
-      .then(({ runJob }) => {
-        runJob('email-outbox').catch((err) => {
-          console.error('[email-outbox-local-drain] Error during local drain:', err)
-        })
-      })
-      .catch((err) => {
-        console.error('[email-outbox-local-drain] Failed to import runJob:', err)
-      })
-  }
 }
 
 export function renderOutboxEmail(job: EmailOutboxJob): SendEmailInput {

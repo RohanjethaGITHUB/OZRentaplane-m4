@@ -5,13 +5,20 @@ import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
+import { sendEmail } from '@/lib/email/send-email'
 import {
-  enqueueCheckoutRequestSubmittedAdminEmail,
-  enqueueCheckoutRequestSubmittedCustomerEmail,
-  enqueueCheckoutRescheduleEmails,
-  enqueueCheckoutCancelledByCustomerEmails,
-  enqueueAdminCheckoutProposalDecisionEmail,
-} from '@/lib/email/outbox'
+  checkoutRequestReceivedEmail,
+  adminNewCheckoutRequestEmail,
+  customerCheckoutCancelledEmail,
+  adminCheckoutCancelledEmail,
+  checkoutRescheduleRequestedEmail,
+  adminCheckoutRescheduleRequestedEmail,
+  checkoutRescheduleApprovedEmail,
+  adminCheckoutRescheduleApprovedEmail,
+  checkoutRescheduleRejectedEmail,
+  adminCheckoutRescheduleRejectedEmail,
+  adminCheckoutProposalDecisionEmail,
+} from '@/lib/email/templates/checkout'
 import {
   notifyCancellationRequested,
   notifyAdminCancellationReviewRequired,
@@ -22,6 +29,8 @@ import { isWithinDayVfrWindow } from '@/lib/utils/day-vfr'
 import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 import { sydneyInputToUTC } from '@/lib/utils/sydney-time'
 import { createPerfLogger } from '@/lib/perf/timing'
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'info@ozrentaplane.com'
 import {
   emitBookingChanged,
   emitClearanceUpdated,
@@ -811,35 +820,41 @@ export async function submitCheckoutRequest(
       ? `${profile.phone_country_code || ''} ${profile.phone_number}`.trim()
       : null
 
-    await Promise.all([
-      perf.time(
-        'checkout_submit',
-        'checkout_submit_customer_email_enqueue',
-        () =>
-          enqueueCheckoutRequestSubmittedCustomerEmail({
-            customerEmail: safeEmail,
-            customerName,
-            bookingId,
-            bookingReference: result.booking_reference,
-            requestedTime: formattedRequestedTime,
-          }),
-      ),
-      perf.time(
-        'checkout_submit',
-        'checkout_submit_admin_email_enqueue',
-        () =>
-          enqueueCheckoutRequestSubmittedAdminEmail({
-            bookingId,
-            customerId: userId,
-            customerName,
-            customerEmail: safeEmail,
-            customerPhone,
-            pilotArn: profile.pilot_arn ?? null,
-            requestedTime: formattedRequestedTime,
-            bookingReference: result.booking_reference,
-          }),
-      ),
-    ])
+    const custTpl = checkoutRequestReceivedEmail({
+      customerName,
+      bookingReference: result.booking_reference,
+      requestedTime: formattedRequestedTime,
+      bookingId,
+    })
+    void sendEmail({
+      to: safeEmail,
+      subject: custTpl.subject,
+      html: custTpl.html,
+      eventType: 'checkout_request_submitted',
+      entityType: 'booking',
+      entityId: bookingId,
+      metadata: { ref: result.booking_reference },
+    }).catch((err) => console.error('[submitCheckoutRequest] customer email failed:', err))
+
+    const adminTpl = adminNewCheckoutRequestEmail({
+      customerName,
+      customerEmail: safeEmail,
+      customerPhone,
+      pilotArn: profile.pilot_arn ?? null,
+      requestedTime: formattedRequestedTime,
+      bookingReference: result.booking_reference,
+      bookingId,
+      customerId: userId,
+    })
+    void sendEmail({
+      to: ADMIN_EMAIL,
+      subject: adminTpl.subject,
+      html: adminTpl.html,
+      eventType: 'admin_new_checkout_request',
+      entityType: 'booking',
+      entityId: bookingId,
+      metadata: { customerEmail: safeEmail, customerName, ref: result.booking_reference },
+    }).catch((err) => console.error('[submitCheckoutRequest] admin email failed:', err))
   }
 
   perf.timeSync('checkout_submit', 'checkout_submit_revalidation', () => {
@@ -1002,15 +1017,40 @@ export async function cancelCheckoutRequest(checkoutId: string): Promise<void> {
         })
       : null
 
-    void enqueueCheckoutCancelledByCustomerEmails({
-      bookingId: checkoutId,
-      customerId: userId,
+    const custTpl = customerCheckoutCancelledEmail({
+      customerName,
+      bookingReference: booking.booking_reference,
+      scheduledTime,
+      reason: 'Cancelled by customer before checkout start time.',
+      cancelledBy: 'customer',
+    })
+    void sendEmail({
+      to: profile.email,
+      subject: custTpl.subject,
+      html: custTpl.html,
+      eventType: 'checkout_cancelled_by_customer',
+      entityType: 'booking',
+      entityId: checkoutId,
+      metadata: { ref: booking.booking_reference },
+    }).catch((err) => console.error('[cancelCheckoutRequest] customer email failed:', err))
+
+    const adminTpl = adminCheckoutCancelledEmail({
       customerName,
       customerEmail: profile.email,
       bookingReference: booking.booking_reference,
       scheduledTime,
+      bookingId: checkoutId,
       reason: 'Cancelled by customer before checkout start time.',
-    }).catch((err) => console.error('[cancelCheckoutRequest] email failed:', err))
+    })
+    void sendEmail({
+      to: ADMIN_EMAIL,
+      subject: adminTpl.subject,
+      html: adminTpl.html,
+      eventType: 'admin_checkout_cancelled_by_customer',
+      entityType: 'booking',
+      entityId: checkoutId,
+      metadata: { ref: booking.booking_reference, customerEmail: profile.email },
+    }).catch((err) => console.error('[cancelCheckoutRequest] admin email failed:', err))
   }
 
   revalidatePath('/dashboard')
@@ -1171,7 +1211,7 @@ export async function requestCheckoutReschedule(
   const requestedEndUtc = new Date(requestedStart.getTime() + 2 * 60 * 60 * 1000).toISOString()
   const { data: profile } = await supabase
     .from('profiles')
-    .select('has_night_vfr_rating, full_name, email')
+    .select('has_night_vfr_rating, full_name, email, phone_number')
     .eq('id', userId)
     .single()
   if (profile?.has_night_vfr_rating !== true) {
@@ -1183,7 +1223,7 @@ export async function requestCheckoutReschedule(
 
   const { data: booking, error: fetchErr } = await supabase
     .from('bookings')
-    .select('id, status, booking_type, scheduled_start, scheduled_end, aircraft_id, checkout_lifecycle_status')
+    .select('id, status, booking_type, scheduled_start, scheduled_end, aircraft_id, checkout_lifecycle_status, booking_reference')
     .eq('id', checkoutId)
     .eq('booking_owner_user_id', userId)
     .single()
@@ -1264,15 +1304,43 @@ export async function requestCheckoutReschedule(
   })
 
   if (profile?.email) {
-    await enqueueCheckoutRescheduleEmails({
-      outcome: 'requested',
-      bookingId: checkoutId,
+    const custTpl = checkoutRescheduleRequestedEmail({
       customerName: profile.full_name ?? 'Pilot',
-      customerEmail: profile.email,
+      bookingReference: booking.booking_reference,
       originalTime: `${formatSydneyDateTime(booking.scheduled_start)} – ${formatSydneyDateTime(booking.scheduled_end)}`,
       requestedTime: `${formatSydneyDateTime(requestedStartUtc)} – ${formatSydneyDateTime(requestedEndUtc)}`,
       aircraft: aircraft?.registration ?? 'Unknown aircraft',
-    }).catch((error) => console.error('[requestCheckoutReschedule] email failed:', error))
+      bookingId: checkoutId,
+    })
+    void sendEmail({
+      to: profile.email,
+      subject: custTpl.subject,
+      html: custTpl.html,
+      eventType: 'checkout_reschedule_requested',
+      entityType: 'booking',
+      entityId: checkoutId,
+      metadata: { ref: booking.booking_reference },
+    }).catch((error) => console.error('[requestCheckoutReschedule] customer email failed:', error))
+
+    const adminTpl = adminCheckoutRescheduleRequestedEmail({
+      customerName: profile.full_name ?? 'Pilot',
+      customerEmail: profile.email,
+      customerPhone: profile.phone_number,
+      bookingReference: booking.booking_reference,
+      originalTime: `${formatSydneyDateTime(booking.scheduled_start)} – ${formatSydneyDateTime(booking.scheduled_end)}`,
+      requestedTime: `${formatSydneyDateTime(requestedStartUtc)} – ${formatSydneyDateTime(requestedEndUtc)}`,
+      aircraft: aircraft?.registration ?? 'Unknown aircraft',
+      bookingId: checkoutId,
+    })
+    void sendEmail({
+      to: ADMIN_EMAIL,
+      subject: adminTpl.subject,
+      html: adminTpl.html,
+      eventType: 'admin_checkout_reschedule_requested',
+      entityType: 'booking',
+      entityId: checkoutId,
+      metadata: { ref: booking.booking_reference, customerEmail: profile.email },
+    }).catch((error) => console.error('[requestCheckoutReschedule] admin email failed:', error))
   }
 
   revalidatePath('/dashboard')
@@ -1300,7 +1368,7 @@ export async function approveCheckoutReschedule(changeRequestId: string): Promis
       original_scheduled_start, original_scheduled_end,
       requested_scheduled_start, requested_scheduled_end,
       bookings:checkout_request_id (
-        id, status, booking_type, aircraft_id, scheduled_start, scheduled_end, booking_owner_user_id, checkout_lifecycle_status
+        id, status, booking_type, aircraft_id, scheduled_start, scheduled_end, booking_owner_user_id, checkout_lifecycle_status, booking_reference
       )
     `)
     .eq('id', changeRequestId)
@@ -1495,15 +1563,38 @@ export async function approveCheckoutReschedule(changeRequestId: string): Promis
   })
 
   if (ownerProfile?.email) {
-    await enqueueCheckoutRescheduleEmails({
-      outcome: 'approved',
+    const custTpl = checkoutRescheduleApprovedEmail({
+      customerName: ownerProfile.full_name ?? 'Pilot',
+      bookingReference: booking.booking_reference,
+      newTime: `${formatSydneyDateTime(requestedStart.toISOString())} – ${formatSydneyDateTime(requestedEnd.toISOString())}`,
+      aircraft: aircraft?.registration ?? 'Unknown aircraft',
       bookingId: booking.id,
+    })
+    void sendEmail({
+      to: ownerProfile.email,
+      subject: custTpl.subject,
+      html: custTpl.html,
+      eventType: 'checkout_reschedule_approved',
+      entityType: 'booking',
+      entityId: booking.id,
+    }).catch((error) => console.error('[approveCheckoutReschedule] customer email failed:', error))
+
+    const adminTpl = adminCheckoutRescheduleApprovedEmail({
       customerName: ownerProfile.full_name ?? 'Pilot',
       customerEmail: ownerProfile.email,
-      originalTime: `${formatSydneyDateTime(booking.scheduled_start)} – ${formatSydneyDateTime(booking.scheduled_end)}`,
-      requestedTime: `${formatSydneyDateTime(requestedStart.toISOString())} – ${formatSydneyDateTime(requestedEnd.toISOString())}`,
+      bookingReference: booking.booking_reference,
+      newTime: `${formatSydneyDateTime(requestedStart.toISOString())} – ${formatSydneyDateTime(requestedEnd.toISOString())}`,
       aircraft: aircraft?.registration ?? 'Unknown aircraft',
-    }).catch((error) => console.error('[approveCheckoutReschedule] email failed:', error))
+      bookingId: booking.id,
+    })
+    void sendEmail({
+      to: ADMIN_EMAIL,
+      subject: adminTpl.subject,
+      html: adminTpl.html,
+      eventType: 'admin_checkout_reschedule_approved',
+      entityType: 'booking',
+      entityId: booking.id,
+    }).catch((error) => console.error('[approveCheckoutReschedule] admin email failed:', error))
   }
 
   revalidatePath('/dashboard')
@@ -1529,7 +1620,7 @@ export async function rejectCheckoutReschedule(changeRequestId: string): Promise
     .select(`
       id, checkout_request_id, request_type, status,
       original_scheduled_start, requested_scheduled_start,
-      bookings:checkout_request_id (id, status, aircraft_id, scheduled_start, scheduled_end, checkout_lifecycle_status, booking_owner_user_id)
+      bookings:checkout_request_id (id, status, aircraft_id, scheduled_start, scheduled_end, checkout_lifecycle_status, booking_owner_user_id, booking_reference)
     `)
     .eq('id', changeRequestId)
     .single()
@@ -1581,15 +1672,40 @@ export async function rejectCheckoutReschedule(changeRequestId: string): Promise
     admin.from('aircraft').select('registration').eq('id', booking.aircraft_id).single(),
   ])
   if (ownerProfile?.email) {
-    await enqueueCheckoutRescheduleEmails({
-      outcome: 'rejected',
-      bookingId: booking.id,
+    const custTpl = checkoutRescheduleRejectedEmail({
       customerName: ownerProfile.full_name ?? 'Pilot',
-      customerEmail: ownerProfile.email,
+      bookingReference: booking.booking_reference,
       originalTime: `${formatSydneyDateTime(reqRow.original_scheduled_start ?? booking.scheduled_start)} – ${formatSydneyDateTime(booking.scheduled_end)}`,
       requestedTime: formatSydneyDateTime(reqRow.requested_scheduled_start),
       aircraft: aircraft?.registration ?? 'Unknown aircraft',
-    }).catch((error) => console.error('[rejectCheckoutReschedule] email failed:', error))
+      bookingId: booking.id,
+    })
+    void sendEmail({
+      to: ownerProfile.email,
+      subject: custTpl.subject,
+      html: custTpl.html,
+      eventType: 'checkout_reschedule_rejected',
+      entityType: 'booking',
+      entityId: booking.id,
+    }).catch((error) => console.error('[rejectCheckoutReschedule] customer email failed:', error))
+
+    const adminTpl = adminCheckoutRescheduleRejectedEmail({
+      customerName: ownerProfile.full_name ?? 'Pilot',
+      customerEmail: ownerProfile.email,
+      bookingReference: booking.booking_reference,
+      originalTime: `${formatSydneyDateTime(reqRow.original_scheduled_start ?? booking.scheduled_start)} – ${formatSydneyDateTime(booking.scheduled_end)}`,
+      requestedTime: formatSydneyDateTime(reqRow.requested_scheduled_start),
+      aircraft: aircraft?.registration ?? 'Unknown aircraft',
+      bookingId: booking.id,
+    })
+    void sendEmail({
+      to: ADMIN_EMAIL,
+      subject: adminTpl.subject,
+      html: adminTpl.html,
+      eventType: 'admin_checkout_reschedule_rejected',
+      entityType: 'booking',
+      entityId: booking.id,
+    }).catch((error) => console.error('[rejectCheckoutReschedule] admin email failed:', error))
   }
 
   revalidatePath('/dashboard')
@@ -1802,14 +1918,21 @@ export async function customerAcceptProposedCheckoutTime(bookingId: string): Pro
       `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() ||
       'Pilot'
 
-    void enqueueAdminCheckoutProposalDecisionEmail({
-      bookingId: booking.id,
-      customerId: userId,
+    const adminTpl = adminCheckoutProposalDecisionEmail({
       customerName: custName,
       customerEmail: userProfile.email,
       decision: 'accepted',
       bookingReference: booking.booking_reference,
       proposedTime: `${fmtNew} – ${fmtEnd}`,
+      bookingId: booking.id,
+    })
+    void sendEmail({
+      to: ADMIN_EMAIL,
+      subject: adminTpl.subject,
+      html: adminTpl.html,
+      eventType: 'admin_checkout_proposal_accepted',
+      entityType: 'booking',
+      entityId: booking.id,
     }).catch((err) => console.error('[customerAcceptProposedCheckoutTime] admin email failed:', err))
   }
 
@@ -1917,15 +2040,22 @@ export async function customerRejectProposedCheckoutTime(
       `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() ||
       'Pilot'
 
-    void enqueueAdminCheckoutProposalDecisionEmail({
-      bookingId: booking.id,
-      customerId: userId,
+    const adminTpl = adminCheckoutProposalDecisionEmail({
       customerName: custName,
       customerEmail: userProfile.email,
       decision: 'declined',
       bookingReference: booking.booking_reference,
       proposedTime: propStart,
       declineReason: reason?.trim() || null,
+      bookingId: booking.id,
+    })
+    void sendEmail({
+      to: ADMIN_EMAIL,
+      subject: adminTpl.subject,
+      html: adminTpl.html,
+      eventType: 'admin_checkout_proposal_declined',
+      entityType: 'booking',
+      entityId: booking.id,
     }).catch((err) => console.error('[customerRejectProposedCheckoutTime] email failed:', err))
   }
 
