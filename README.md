@@ -1,139 +1,161 @@
-# Scheduled Cron & Socket.io Setup Guide — OZ Rent A Plane
+# ✈️ OZ Rent A Plane
 
-This document explains how to test and deploy the **Scheduled Cron Framework** and the **Socket.io Real-time Service** for OZ Rent A Plane.
+> **Full-stack aircraft rental, pilot checkout onboarding, and fleet management platform for Cessna 172 operations at Bankstown Airport (YSBK), Sydney, Australia.**
 
----
-
-## PART 1: Scheduled Cron System (Vercel Cron + Next.js)
-
-All scheduled jobs run on Next.js API routes and compute windows deterministically in the **Sydney timezone (`Australia/Sydney` — AEST / AEDT)**.
-
-### 1. Active Cron Jobs
-
-| Endpoint | Schedule (UTC) | Schedule (Sydney Time) | What It Does |
-|----------|----------------|------------------------|--------------|
-| `/api/cron/email-outbox` | `*/5 * * * *` (every 5 min) | Every 5 minutes | Drains queued emails from postgres `email_outbox` and sends via Resend with exponential retry backoff. |
-| `/api/cron/day-before-flights` | `0 21 * * *` (daily) | ~07:00 / 08:00 AM | Scans bookings scheduled for tomorrow in Sydney and queues flight reminder emails with pre-flight checklist. |
-| `/api/cron/daily-maintenance` | `0 22 * * *` (daily) | ~08:00 / 09:00 AM | Runs 6 automated maintenance tasks (see below). |
-
-### 2. The 6 Automated Daily Maintenance Sweeps
-
-1. **Overdue Flight Records**: Finds flights past `scheduled_end` with missing VDO readings and sets status to `flight_record_overdue`.
-2. **Stale Temporary Holds**: Expires `temporary_hold` schedule blocks past `expires_at`.
-3. **Document Expiry Alerts**:
-   - Customer reminders at 30, 14, 7, and 1 days before expiry.
-   - **Alert to Admin** at 1 day before expiry (and on expiry) with pilot contact details.
-4. **New User Inactivity Alert**: Alerts Admin after 24 hours if a newly registered pilot has not requested a checkout flight.
-5. **Unpaid Invoice Chase**: Sends payment reminder to customer and alert to Admin for any invoices in `payment_required` for > 24 hours.
-6. **Block-Time Maintenance**: Calls `expire_block_time_packages` RPC and queues 7-day expiry reminders.
+[![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat-square&logo=next.js)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ecf8e?style=flat-square&logo=supabase)](https://supabase.com/)
+[![Stripe](https://img.shields.io/badge/Stripe-Payments-635bff?style=flat-square&logo=stripe)](https://stripe.com/)
 
 ---
 
-### 3. How to Test Cron Locally
+## 📖 Overview
 
-Make sure your local server is running (`npm run dev`).
+**OZ Rent A Plane** is a purpose-built web application designed for aircraft hire and flight operations. It automates the entire pilot journey — from first-time student pilot checkout flights, document verification, and flight clearance, to recurring licensed pilot aircraft bookings, post-flight VDO logging, billing, and automated notifications.
 
-#### Test with PowerShell:
-```powershell
-# 1. Email Outbox Drain
-Invoke-RestMethod -Uri "http://localhost:3000/api/cron/email-outbox" -Method GET
+---
 
-# 2. Day-Before Flight Reminders
-Invoke-RestMethod -Uri "http://localhost:3000/api/cron/day-before-flights" -Method GET
+## ✨ Key Features
 
-# 3. Daily Maintenance
-Invoke-RestMethod -Uri "http://localhost:3000/api/cron/daily-maintenance" -Method GET
-```
+### 1. 🌐 Public Marketing & Fleet Showcase
+- **Cinematic Experience**: 430dvh scroll-scrubbed interactive video hero ([`components/HomeHeroScrollSequence.tsx`](components/HomeHeroScrollSequence.tsx)).
+- **Aircraft Specifications**: Detailed avionics, weight & balance, performance charts, and hourly wet hire rates for the Cessna 172 fleet.
+- **Transparent Pricing**: Breakdown of dry/wet rates, block-time discounts, and checkout packages.
 
-#### Test with curl (Terminal / Git Bash):
+### 2. 👨‍✈️ Pilot Portal & Onboarding (`app/dashboard/`)
+- **Checkout Flight Onboarding**: 5-stage verification pathway (`not_started` → `pending_review` → `documents_verified` → `cleared_to_fly`).
+- **Document Management**: Pilot Licence, Medical Certificate, ARN (Aviation Reference Number), Photo ID, and Flight Review tracking with expiry monitoring.
+- **Flight Booking System**: Interactive booking calendar with Sydney timezone (`Australia/Sydney`) daylight VFR validation.
+- **Prepaid Block-Time Packages**: Purchase discounted flight hour blocks with automatic balance tracking and usage deductions.
+- **Payment & Invoicing**: Integrated Stripe checkout, invoice downloads, and credit ledger.
+
+### 3. 🛡️ Admin & Fleet Operations Dashboard (`app/admin/`)
+- **Bookings & Dispatch Queue**: Complete booking lifecycle management (`draft` → `confirmed` → `dispatched` → `post_flight_review` → `paid` → `completed`).
+- **Post-Flight Review System**: Flight scoring rubric for student checkouts (takeoff, landing, trim, fuel management, airmanship) prior to granting clearance.
+- **Document Verification Queue**: Fast-track admin verification of uploaded pilot credentials.
+- **Fleet Maintenance Logs**: Track aircraft total time in service (TTIS), 100-hourly inspections, maintenance holds, and component life limits.
+- **Financial Ledger**: Account balances, prepaid credit adjustments, invoice management, and Stripe sync.
+
+### 4. ⚡ Real-Time Updates & Automated Crons
+- **Live Notifications**: Real-time dispatch, chat messages, and booking state synchronization via WebSockets.
+- **Automated Cron Framework**:
+  - **Email Outbox Drain**: Transactional emails sent via Resend with exponential retry backoff.
+  - **Day-Before Flight Reminders**: Pre-flight checklist emails dispatched at 07:00 AM Sydney time.
+  - **Daily Maintenance**: Automatic scans for overdue flight records, stale hold expirations, document expiry notices (30/14/7/1 days), new user onboarding inactivity alerts, and unpaid invoice chases.
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Framework** | Next.js 14 (App Router), React 18, TypeScript 5 |
+| **Styling & Animation** | Tailwind CSS, Framer Motion, GSAP, Lucide Icons |
+| **Database & Auth** | Supabase (PostgreSQL, Row Level Security, Auth SSR) |
+| **Payments** | Stripe Checkout & Webhooks |
+| **Email Service** | Resend (Transactional Outbox Queue) |
+| **Charts & Metrics** | Recharts |
+| **Realtime Service** | Socket.io / Supabase Realtime |
+| **Task Scheduling** | Vercel Cron (`vercel.json`) |
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- **Node.js**: `v18.17+` or `v20+`
+- **npm** or **pnpm**
+- Active **Supabase** project and **Stripe** account
+
+### 1. Clone & Install Dependencies
 ```bash
-curl http://localhost:3000/api/cron/email-outbox
-curl http://localhost:3000/api/cron/day-before-flights
-curl http://localhost:3000/api/cron/daily-maintenance
+git clone https://github.com/RohanjethaGITHUB/OZRentaplane-m4.git
+cd OZRentaplane-m4
+npm install
 ```
 
-#### Test in Web Browser:
-Navigate to:
-- `http://localhost:3000/api/cron/day-before-flights`
-- `http://localhost:3000/api/cron/daily-maintenance`
-- `http://localhost:3000/api/cron/email-outbox`
+### 2. Configure Environment Variables
+Copy `.env.example` to `.env.local` and populate the required keys:
+```bash
+cp .env.example .env.local
+```
 
----
-
-### 4. How to Setup Cron in Vercel (Production)
-
-1. **Set `CRON_SECRET` in Vercel**:
-   - Go to your [Vercel Dashboard](https://vercel.com) > Select project **`oz-rentaplane-m4`**.
-   - Go to **Settings > Environment Variables**.
-   - Add new variable:
-     - **Key**: `CRON_SECRET`
-     - **Value**: Generate a random string (e.g. `openssl rand -hex 32` or any long random string).
-     - **Environments**: Check **Production**, **Preview**, **Development**.
-   - Click **Save**.
-2. **Deploy**:
-   - Push your code to GitHub `main` branch.
-   - Vercel automatically detects `vercel.json` and registers the schedules.
-3. **Verify**:
-   - Go to **Settings > Cron Jobs** in Vercel to see all active cron schedules.
-
-> [!TIP]
-> **Vercel Hobby Plan (Free) Note:**
-> - Vercel Hobby allows 1 execution per day for `/api/cron/day-before-flights` and `/api/cron/daily-maintenance`.
-> - To drain `/api/cron/email-outbox` every 5 minutes on the Hobby plan for free:
->   1. Go to [cron-job.org](https://cron-job.org) (free).
->   2. Create a cron job pointing to `https://www.ozrentaplane.com/api/cron/email-outbox`.
->   3. Schedule: **Every 5 minutes**.
->   4. Add HTTP Header: `Authorization: Bearer <YOUR_CRON_SECRET>`.
-
----
-
-## PART 2: Socket.io Real-time Service Setup
-
-### 1. Architecture
-
-- **Next.js (on Vercel)** is serverless (functions terminate after responding to requests). Serverless functions cannot maintain persistent WebSocket connections.
-- **`realtime/server.ts`** is a standalone Socket.io Node.js server that maintains live WebSocket connections with users' browsers.
-- Next.js emits live events to the socket server via `POST /internal/emit` secured with `SOCKET_EMIT_SECRET`.
-- Browser clients connect directly to `NEXT_PUBLIC_SOCKET_URL`.
-
----
-
-### 2. How to Deploy Socket.io on Render.com (or Railway)
-
-#### Step 1: Create a Web Service on Render
-1. Go to [render.com](https://render.com) and click **New > Web Service**.
-2. Connect your GitHub repository `OZRentaplane-m4`.
-3. Configure settings:
-   - **Name**: `ozrentaplane-realtime`
-   - **Environment**: Node
-   - **Build Command**: `npm install`
-   - **Start Command**: `npm run realtime`
-
-#### Step 2: Add Environment Variables in Render
-Under the **Environment** tab in Render, add:
+Key variables:
 ```env
+# Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-SOCKET_EMIT_SECRET=your-secret-string-123
-APP_URL=https://www.ozrentaplane.com
-NEXT_PUBLIC_APP_URL=https://www.ozrentaplane.com
+
+# Stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+
+# Resend
+RESEND_API_KEY=re_...
+EMAIL_FROM=bookings@ozrentaplane.com
+ADMIN_EMAIL=admin@ozrentaplane.com
+
+# Cron & Realtime
+CRON_SECRET=your-secure-cron-secret
+SOCKET_EMIT_SECRET=your-socket-secret
 ```
 
-Click **Deploy**. Render will provide a public URL:
-`https://ozrentaplane-realtime.onrender.com`
+### 3. Run Development Server
+```bash
+# Runs Next.js dev server and the local Socket.io realtime server
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) to view the application.
 
 ---
 
-### 3. Connect Vercel to Your Socket.io Service
+## 📁 Repository Structure
 
-In your **Vercel Project (Settings > Environment Variables)**, add:
-
-```env
-NEXT_PUBLIC_SOCKET_URL=https://ozrentaplane-realtime.onrender.com
-SOCKET_URL=https://ozrentaplane-realtime.onrender.com
-SOCKET_EMIT_SECRET=your-secret-string-123
 ```
-*(Make sure `SOCKET_EMIT_SECRET` is identical on both Vercel and Render)*
+OZRentaplane-m4/
+├── app/
+│   ├── (marketing)/         # Public marketing pages & fleet showcase
+│   ├── dashboard/           # Customer / Pilot authenticated portal
+│   ├── admin/               # Admin operations dashboard (70+ pages)
+│   ├── actions/             # Next.js Server Actions (all backend mutation logic)
+│   ├── api/
+│   │   ├── cron/            # Scheduled cron job endpoints (/email-outbox, /daily-maintenance, etc.)
+│   │   └── stripe/webhook/  # Stripe payment webhook handler
+│   └── auth/                # Supabase auth callbacks & flows
+├── components/              # UI components & design system building blocks
+├── lib/
+│   ├── booking/             # State machines, daylight VFR logic, flight record review
+│   ├── email/               # Email outbox queue, Resend integration, and HTML templates
+│   ├── jobs/                # Cron handlers, registry, and Sydney time helpers
+│   ├── payments/            # Stripe session creation and invoice settlement
+│   └── supabase/            # Supabase server/client/admin instances and TypeScript schemas
+├── realtime/                # Standalone Socket.io server
+├── supabase/migrations/     # Database schema and SQL migration files
+├── docs/                    # Architecture, design specs, and integration guides
+├── SETUP_GUIDE.md           # Deployment & Cron/Socket setup instructions
+└── vercel.json              # Vercel Cron schedule configuration
+```
 
-Redeploy your Vercel project. Real-time updates for notifications, badges, chat, and booking changes will now stream live in production.
+---
+
+## 📚 Documentation & Guides
+
+Detailed operational guides and technical specifications are located in [`docs/`](docs/) and [`SETUP_GUIDE.md`](SETUP_GUIDE.md):
+
+- 🚀 [**Deployment & Setup Guide**](SETUP_GUIDE.md) — Step-by-step setup for Vercel Cron and Socket.io / Supabase Realtime
+- ⏰ [**Cron Framework Guide**](docs/cron-framework-guide.md) — Architecture and schedule specifications for automated background jobs
+- ☁️ [**Vercel Cron Setup Guide**](docs/vercel-cron-setup-guide.md) — Configuring Vercel Hobby / Pro cron triggers
+- ✉️ [**Email Triggers & Outbox Guide**](docs/email-triggers.md) — Event-driven transactional email workflows
+- 🎨 [**Design System Specification**](docs/DESIGN.md) — Design tokens, typography (Newsreader & Manrope), and component guidelines
+- 💼 [**Product & Brand Strategy**](docs/PRODUCT.md) — Brand voice, user personas, and booking lifecycle rules
+- 🏗️ [**Architecture Audit Report**](docs/ARCHITECTURE_REPORT.txt) — Comprehensive codebase and schema overview
+
+---
+
+## 📄 License & Contact
+
+Private repository — **OZ Rent A Plane**, Bankstown Airport (YSBK), Sydney, NSW, Australia.
