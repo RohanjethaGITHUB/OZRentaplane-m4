@@ -227,20 +227,32 @@ export async function createFlightRecordForBooking(
   void emitBookingChanged({ bookingId: input.booking_id, userId: booking.booking_owner_user_id })
   void emitOpsChanged()
 
-  // Confirmation email always goes to the booking owner (the customer),
-  // regardless of who submitted the record.
-  const [{ data: ownerProfile }, { data: aircraft }] = await Promise.all([
-    supabase.from('profiles').select('full_name, email').eq('id', booking.booking_owner_user_id).single(),
-    supabase.from('aircraft').select('registration').eq('id', booking.aircraft_id).single(),
-  ])
-  if (ownerProfile?.email) {
-    await notifyFlightRecordSubmitted({
-      bookingId: input.booking_id,
-      customerEmail: ownerProfile.email,
-      customerName: ownerProfile.full_name ?? 'Pilot',
-      aircraft: (aircraft as { registration?: string } | null)?.registration ?? 'Aircraft',
-      bookingDate: new Date(booking.scheduled_start).toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }),
-    }).catch((error) => console.error('[createFlightRecordForBooking] email failed:', error))
+  // Confirmation email is sent when the customer submits their record self-serve.
+  // When an admin submits on the customer's behalf, billing finalisation immediately
+  // follows and sends the appropriate invoice/settlement email.
+  if (actor.role !== 'admin') {
+    const [{ data: ownerProfile }, { data: aircraft }] = await Promise.all([
+      supabase.from('profiles').select('full_name, email').eq('id', booking.booking_owner_user_id).single(),
+      supabase.from('aircraft').select('registration, model').eq('id', booking.aircraft_id).single(),
+    ])
+
+    if (ownerProfile?.email) {
+      const aircraftData = aircraft as { registration?: string; model?: string } | null
+      const aircraftLabel = aircraftData?.registration
+        ? `${aircraftData.registration}${aircraftData.model ? ` (${aircraftData.model})` : ''}`
+        : 'Aircraft'
+
+      const bookingRecordWithRef = booking as { booking_reference?: string | null; scheduled_start: string }
+
+      await notifyFlightRecordSubmitted({
+        bookingId: input.booking_id,
+        bookingReference: bookingRecordWithRef.booking_reference ?? input.booking_id.slice(0, 8).toUpperCase(),
+        customerEmail: ownerProfile.email,
+        customerName: ownerProfile.full_name ?? 'Pilot',
+        aircraft: aircraftLabel,
+        bookingDate: new Date(booking.scheduled_start).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'full' }),
+      }).catch((error) => console.error('[createFlightRecordForBooking] email failed:', error))
+    }
   }
 
   return { flightRecordId: flightRecord.id }

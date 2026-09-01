@@ -65,12 +65,29 @@ export async function sendEmail(input: SendEmailInput): Promise<{ status: 'sent'
   }
 
   try {
-    const to = cleanEmailString(input.to) || input.to.trim()
+    const rawTo = cleanEmailString(input.to) || input.to.trim()
+    const configuredAdmin = cleanEmailString(process.env.ADMIN_EMAIL) || 'info@ozrentaplane.com'
+    const devAdminEmail = 'devjamaviation@gmail.com'
+
+    let recipients: string[] = [rawTo]
+    const isAdminEmail =
+      input.eventType.startsWith('admin_') ||
+      rawTo.toLowerCase() === 'info@ozrentaplane.com' ||
+      rawTo.toLowerCase() === 'ozrentaplane@gmail.com' ||
+      rawTo.toLowerCase() === configuredAdmin.toLowerCase() ||
+      rawTo.toLowerCase() === devAdminEmail.toLowerCase()
+
+    if (isAdminEmail) {
+      const recipientSet = new Set<string>()
+      recipientSet.add(configuredAdmin)
+      recipientSet.add(devAdminEmail)
+      recipients = Array.from(recipientSet)
+    }
     
     // Guard with a 5s timeout so network drops / ECONNRESET do not hang Next.js actions
     const sendPromise = resend.emails.send({
       from,
-      to,
+      to: recipients.length === 1 ? recipients[0] : recipients,
       subject: input.subject,
       html: input.html,
       text: input.text,
@@ -92,7 +109,7 @@ export async function sendEmail(input: SendEmailInput): Promise<{ status: 'sent'
     }
 
     await insertEmailEvent(admin, input, dedupeKey, 'sent', resendEmailId, null)
-    console.info('[email] sent', { resendEmailId, eventType: input.eventType, to: input.to })
+    console.info('[email] sent', { resendEmailId, eventType: input.eventType, to: recipients })
     return { status: 'sent', resendEmailId }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown email send error'
@@ -110,6 +127,11 @@ function createAdminClientSafe() {
   }
 }
 
+function isValidUuid(val?: string | null): boolean {
+  if (!val) return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val)
+}
+
 async function insertEmailEvent(
   admin: ReturnType<typeof createAdminClient> | null,
   input: SendEmailInput,
@@ -124,7 +146,7 @@ async function insertEmailEvent(
     recipient_email: input.to,
     event_type: input.eventType,
     entity_type: input.entityType,
-    entity_id: input.entityId ?? null,
+    entity_id: isValidUuid(input.entityId) ? input.entityId : null,
     entity_id_text: entityIdText,
     resend_email_id: resendEmailId,
     status,

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email/send-email";
-import { paymentConfirmedEmail } from "@/lib/email/templates/payment";
+import { flightPaymentSettledEmail } from "@/lib/email/templates/payment";
 
 export type ManualCheckoutPaymentMethod = "cash" | "card_in_person" | "bank_transfer";
 
@@ -111,13 +111,46 @@ export async function settleCheckoutInvoiceManually(
     email_status: "skipped",
   });
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("email")
-    .eq("id", input.customerId)
-    .single();
+  const [{ data: profile }, { data: bookingRecord }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("email, full_name")
+      .eq("id", input.customerId)
+      .single(),
+    supabase
+      .from("bookings")
+      .select("booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, model)")
+      .eq("id", input.bookingId)
+      .maybeSingle(),
+  ]);
+
   if (profile?.email) {
-    const template = paymentConfirmedEmail(notifBody);
+    const aircraftData = Array.isArray(bookingRecord?.aircraft)
+      ? bookingRecord.aircraft[0]
+      : bookingRecord?.aircraft;
+    const aircraftLabel = aircraftData?.registration
+      ? `${aircraftData.registration}${aircraftData.model ? ` (${aircraftData.model})` : ""}`
+      : "Assigned aircraft";
+
+    const flightDateFormatted = bookingRecord?.scheduled_start
+      ? new Date(bookingRecord.scheduled_start).toLocaleDateString("en-AU", {
+          timeZone: "Australia/Sydney",
+          dateStyle: "full",
+        })
+      : null;
+
+    const amountFormatted = `$${(input.amountCents / 100).toFixed(2)} AUD`;
+
+    const template = flightPaymentSettledEmail({
+      bookingId: input.bookingId,
+      bookingReference: bookingRecord?.booking_reference ?? null,
+      flightDate: flightDateFormatted,
+      aircraft: aircraftLabel,
+      amountPaid: amountFormatted,
+      paymentMethod: input.paymentMethod,
+      message: notifBody,
+    });
+
     await sendEmail({
       to: profile.email,
       subject: template.subject,

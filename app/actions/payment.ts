@@ -13,7 +13,7 @@ import {
   notifyBankTransferProofReceived,
 } from "@/lib/booking/notifications";
 import { sendEmail } from "@/lib/email/send-email";
-import { paymentConfirmedEmail } from "@/lib/email/templates/payment";
+import { paymentConfirmedEmail, flightPaymentSettledEmail } from "@/lib/email/templates/payment";
 import { settleCheckoutInvoiceManually } from "@/lib/payments/settle-checkout-invoice";
 import { generateStandardBookingInvoicePdf } from "@/lib/invoices/standard-booking-pdf";
 import {
@@ -31,6 +31,7 @@ type RecordManualPaymentInput = {
   paymentMethod?: ManualPaymentMethod | null;
   amountCents: number;
   note?: string;
+  suppressEmail?: boolean;
 };
 
 export async function createCheckoutPaymentSession(bookingId: string) {
@@ -771,21 +772,65 @@ export async function submitBankTransferProof(
     .update({ payment_method: "bank_transfer" })
     .eq("id", invoiceId);
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, email")
-    .eq("id", user.id)
-    .single();
+  const [{ data: profile }, { data: bookingRecord }, { data: checkoutInvoice }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", user.id)
+      .single(),
+    supabase
+      .from("bookings")
+      .select("booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, model)")
+      .eq("id", bookingId)
+      .maybeSingle(),
+    supabase
+      .from("checkout_invoices")
+      .select("invoice_number, amount_cents")
+      .eq("id", invoiceId)
+      .maybeSingle(),
+  ]);
+
   if (profile?.email) {
-    await notifyBankTransferProofReceived({ customerEmail: profile.email, bookingId }).catch((error) =>
-      console.error("[submitBankTransferProof] customer email failed:", error),
-    );
+    const aircraftData = Array.isArray(bookingRecord?.aircraft)
+      ? bookingRecord.aircraft[0]
+      : bookingRecord?.aircraft;
+    const aircraftLabel = aircraftData?.registration
+      ? `${aircraftData.registration}${aircraftData.model ? ` (${aircraftData.model})` : ""}`
+      : "OZRentAPlane Aircraft";
+
+    const flightDateFormatted = bookingRecord?.scheduled_start
+      ? new Date(bookingRecord.scheduled_start).toLocaleDateString("en-AU", {
+          timeZone: "Australia/Sydney",
+          dateStyle: "full",
+        })
+      : null;
+
+    const amountFormatted = checkoutInvoice?.amount_cents
+      ? `$${(checkoutInvoice.amount_cents / 100).toFixed(2)} AUD`
+      : "$290.00 AUD";
+
+    await notifyBankTransferProofReceived({
+      customerEmail: profile.email,
+      bookingId,
+      bookingReference: bookingRecord?.booking_reference ?? null,
+      aircraft: aircraftLabel,
+      flightDate: flightDateFormatted,
+      invoiceNumber: checkoutInvoice?.invoice_number ?? null,
+      amount: amountFormatted,
+      transferReference: reference?.trim() || null,
+    }).catch((error) => console.error("[submitBankTransferProof] customer email failed:", error));
+
     await notifyAdminBankTransferProofUploaded({
       bookingId,
       customerName: profile.full_name ?? "Pilot",
       customerEmail: profile.email,
-      amount: "Pending review",
+      bookingReference: bookingRecord?.booking_reference ?? null,
+      aircraft: aircraftLabel,
+      flightDate: flightDateFormatted,
+      invoiceNumber: checkoutInvoice?.invoice_number ?? null,
+      amount: amountFormatted,
       invoiceType: "checkout",
+      transferReference: reference?.trim() || null,
     }).catch((error) => console.error("[submitBankTransferProof] admin email failed:", error));
   }
 
@@ -854,13 +899,50 @@ export async function adminApproveBankTransfer(submissionId: string, bookingId: 
         email_status: "pending",
       });
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("email")
-        .eq("id", sub.customer_id)
-        .single();
+      const [{ data: profile }, { data: bookingRecord }, { data: invRecord }] = await Promise.all([
+        supabase.from("profiles").select("email, full_name").eq("id", sub.customer_id).single(),
+        supabase
+          .from("bookings")
+          .select("booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, model)")
+          .eq("id", bookingId)
+          .maybeSingle(),
+        supabase
+          .from("checkout_invoices")
+          .select("amount_cents, invoice_number")
+          .eq("id", sub.invoice_id)
+          .maybeSingle(),
+      ]);
+
       if (profile?.email) {
-        const template = paymentConfirmedEmail(notifBody);
+        const aircraftData = Array.isArray(bookingRecord?.aircraft)
+          ? bookingRecord.aircraft[0]
+          : bookingRecord?.aircraft;
+        const aircraftLabel = aircraftData?.registration
+          ? `${aircraftData.registration}${aircraftData.model ? ` (${aircraftData.model})` : ""}`
+          : "Assigned Aircraft";
+
+        const flightDateFormatted = bookingRecord?.scheduled_start
+          ? new Date(bookingRecord.scheduled_start).toLocaleDateString("en-AU", {
+              timeZone: "Australia/Sydney",
+              dateStyle: "full",
+            })
+          : null;
+
+        const amountFormatted = invRecord?.amount_cents
+          ? `$${(invRecord.amount_cents / 100).toFixed(2)} AUD`
+          : "$290.00 AUD";
+
+        const template = flightPaymentSettledEmail({
+          bookingId,
+          bookingReference: bookingRecord?.booking_reference ?? null,
+          flightDate: flightDateFormatted,
+          aircraft: aircraftLabel,
+          amountPaid: amountFormatted,
+          paymentMethod: "bank_transfer",
+          invoiceNumber: invRecord?.invoice_number ?? null,
+          message: notifBody,
+        });
+
         await sendEmail({
           to: profile.email,
           subject: template.subject,
@@ -1207,21 +1289,67 @@ export async function submitStandardBankTransferProof(
     }
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, email")
-    .eq("id", user.id)
-    .single();
+  const [{ data: profile }, { data: bookingRecord }, { data: invoiceRecord }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", user.id)
+      .single(),
+    supabase
+      .from("bookings")
+      .select("booking_reference, scheduled_start, scheduled_end, aircraft_id, aircraft:aircraft_id(registration, model)")
+      .eq("id", bookingId)
+      .maybeSingle(),
+    supabase
+      .from("invoices")
+      .select("invoice_number, total")
+      .eq("id", invoiceId)
+      .maybeSingle(),
+  ]);
+
   if (profile?.email) {
-    await notifyBankTransferProofReceived({ customerEmail: profile.email, bookingId }).catch((error) =>
+    const aircraftData = Array.isArray(bookingRecord?.aircraft)
+      ? bookingRecord.aircraft[0]
+      : bookingRecord?.aircraft;
+    const aircraftLabel = aircraftData?.registration
+      ? `${aircraftData.registration}${aircraftData.model ? ` (${aircraftData.model})` : ""}`
+      : "OZRentAPlane Aircraft";
+
+    const flightDateFormatted = bookingRecord?.scheduled_start
+      ? new Date(bookingRecord.scheduled_start).toLocaleDateString("en-AU", {
+          timeZone: "Australia/Sydney",
+          dateStyle: "full",
+        })
+      : null;
+
+    const amountFormatted = invoiceRecord?.total
+      ? `$${Number(invoiceRecord.total).toFixed(2)} AUD`
+      : "Pending verification";
+
+    await notifyBankTransferProofReceived({
+      customerEmail: profile.email,
+      bookingId,
+      bookingReference: bookingRecord?.booking_reference ?? null,
+      aircraft: aircraftLabel,
+      flightDate: flightDateFormatted,
+      invoiceNumber: invoiceRecord?.invoice_number ?? null,
+      amount: amountFormatted,
+      transferReference: reference?.trim() || null,
+    }).catch((error) =>
       console.error("[submitStandardBankTransferProof] customer email failed:", error),
     );
+
     await notifyAdminBankTransferProofUploaded({
       bookingId,
       customerName: profile.full_name ?? "Pilot",
       customerEmail: profile.email,
-      amount: "Pending review",
+      bookingReference: bookingRecord?.booking_reference ?? null,
+      aircraft: aircraftLabel,
+      flightDate: flightDateFormatted,
+      invoiceNumber: invoiceRecord?.invoice_number ?? null,
+      amount: amountFormatted,
       invoiceType: "standard",
+      transferReference: reference?.trim() || null,
     }).catch((error) => console.error("[submitStandardBankTransferProof] admin email failed:", error));
   }
 
@@ -1332,7 +1460,7 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
 
   const { data: booking } = await supabase
     .from("bookings")
-    .select("id, booking_type, booking_owner_user_id")
+    .select("id, booking_type, booking_owner_user_id, booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, model)")
     .eq("id", input.bookingId)
     .single();
 
@@ -1366,7 +1494,9 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
       .from("booking_invoices")
       .select("id")
       .eq("booking_id", input.bookingId)
-      .single();
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (!invoice) throw new Error("Booking invoice not found.");
 
@@ -1419,13 +1549,46 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
       email_status: "skipped",
     });
 
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("email")
-      .eq("id", booking.booking_owner_user_id)
-      .single();
-    if (profile?.email) {
-      const template = paymentConfirmedEmail("Payment has been received and recorded for your flight.");
+    const [{ data: profile }, { data: invoiceRecord }] = await Promise.all([
+      admin.from("profiles").select("email").eq("id", booking.booking_owner_user_id).single(),
+      admin
+        .from("invoices")
+        .select("invoice_number, total, pdf_url")
+        .eq("booking_id", input.bookingId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    if (!input.suppressEmail && profile?.email) {
+      const aircraftData = Array.isArray(booking?.aircraft) ? booking.aircraft[0] : booking?.aircraft;
+      const aircraftLabel = aircraftData?.registration
+        ? `${aircraftData.registration}${aircraftData.model ? ` (${aircraftData.model})` : ""}`
+        : "OZRentAPlane Aircraft";
+
+      const flightDateFormatted = booking?.scheduled_start
+        ? new Date(booking.scheduled_start).toLocaleDateString("en-AU", {
+            timeZone: "Australia/Sydney",
+            dateStyle: "full",
+          })
+        : null;
+
+      const amountFormatted = invoiceRecord?.total
+        ? `$${Number(invoiceRecord.total).toFixed(2)} AUD`
+        : `$${(input.amountCents / 100).toFixed(2)} AUD`;
+
+      const template = flightPaymentSettledEmail({
+        bookingId: input.bookingId,
+        bookingReference: booking?.booking_reference ?? null,
+        flightDate: flightDateFormatted,
+        aircraft: aircraftLabel,
+        amountPaid: amountFormatted,
+        paymentMethod: methodLabel,
+        invoiceNumber: invoiceRecord?.invoice_number ?? null,
+        pdfUrl: invoiceRecord?.pdf_url ?? null,
+        message: "Payment has been received and recorded for your flight. Your booking is now complete.",
+      });
+
       // Manual settlement is complete at this point; the confirmation email
       // can be queued in the background so admin callers do not wait on the
       // external mail API before they see success.

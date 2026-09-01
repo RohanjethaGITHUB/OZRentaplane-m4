@@ -16,10 +16,21 @@ import {
   notifyBookingCancelled,
   notifyPostFlightClarificationRequested,
 } from '@/lib/booking/notifications'
-import { enqueueCheckoutConfirmedEmail, enqueueCheckoutRejectedEmails } from '@/lib/email/outbox'
+import {
+  enqueueCheckoutConfirmedEmail,
+  enqueueCheckoutRejectedEmails,
+  enqueueCustomerCheckoutTimeProposedEmail,
+  enqueueCheckoutCancelledByAdminEmail,
+} from '@/lib/email/outbox'
 import { sendEmail } from '@/lib/email/send-email'
-import { checkoutOutcomeEmail } from '@/lib/email/templates/checkout'
-import { landingFeeInvoiceReadyEmail, paymentConfirmedEmail } from '@/lib/email/templates/payment'
+import { checkoutOutcomeEmail, checkoutPaymentRequiredEmail } from '@/lib/email/templates/checkout'
+import {
+  landingFeeInvoiceReadyEmail,
+  paymentConfirmedEmail,
+  standardBookingInvoicePaymentRequiredEmail,
+  flightPaymentSettledEmail,
+  flightPaymentWaivedEmail,
+} from '@/lib/email/templates/payment'
 import { generateInvoicePdf } from '@/lib/invoices/pdf'
 import { storeInvoicePdf } from '@/lib/invoices/pdf-storage'
 import { generateStandardBookingInvoicePdf } from '@/lib/invoices/standard-booking-pdf'
@@ -627,24 +638,46 @@ export async function cancelBookingRequest(bookingId: string, reason: string) {
     new_value:     { status: 'cancelled', reason },
   })
 
-  // Notify customer
-  const { data: cancelNotifyData } = await supabase
-    .from('bookings')
-    .select('booking_reference, booking_owner_user_id, profiles:booking_owner_user_id ( full_name, email )')
-    .eq('id', bookingId)
-    .single()
+  // Notify customer and admin
+  const [{ data: cancelNotifyData }, { data: aircraft }] = await Promise.all([
+    supabase
+      .from('bookings')
+      .select('scheduled_start, scheduled_end, booking_reference, booking_owner_user_id, profiles:booking_owner_user_id ( full_name, email, phone_number, phone_country_code )')
+      .eq('id', bookingId)
+      .single(),
+    supabase
+      .from('aircraft')
+      .select('registration')
+      .eq('id', booking.aircraft_id)
+      .single(),
+  ])
 
   if (cancelNotifyData) {
     const prof  = Array.isArray(cancelNotifyData.profiles) ? cancelNotifyData.profiles[0] : cancelNotifyData.profiles
     const email = (prof as { email?: string | null } | null)?.email
     if (email) {
+      const scheduledTimeStr = cancelNotifyData.scheduled_start
+        ? new Date(cancelNotifyData.scheduled_start).toLocaleString('en-AU', {
+            timeZone: 'Australia/Sydney',
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          })
+        : null
+      const customerPhone = (prof as { phone_number?: string | null; phone_country_code?: string | null } | null)?.phone_number
+        ? `${(prof as { phone_country_code?: string | null }).phone_country_code || ''} ${(prof as { phone_number?: string | null }).phone_number}`.trim()
+        : null
+
       await notifyBookingCancelled({
         customerEmail: email,
         customerName:  (prof as { full_name?: string | null } | null)?.full_name ?? 'Pilot',
+        customerPhone,
         ref:           cancelNotifyData.booking_reference ?? bookingId.slice(0, 8).toUpperCase(),
+        aircraft:      aircraft?.registration ?? 'Aircraft',
+        scheduledTime: scheduledTimeStr,
+        cancelledBy:   'Admin',
         reason,
         bookingId,
-      }).catch(e => console.error('[cancelBookingRequest] notification error:', e))
+      }).catch((e: unknown) => console.error('[cancelBookingRequest] notification error:', e))
     }
   }
 
@@ -1491,12 +1524,35 @@ export async function markCheckoutOutcome(input: {
 
   if (profileForEmail?.email) {
     let emailEventType = 'checkout_payment_required'
-    let template = checkoutOutcomeEmail(
-      'Payment required for your checkout flight',
-      'Payment required for your checkout flight',
-      'Payment is required before the checkout process can be completed.',
-      'Pay Now',
-    )
+
+    const [{ data: aircraftRecord }, { data: invoiceRecord }] = await Promise.all([
+      booking.aircraft_id
+        ? supabase.from('aircraft').select('registration, model').eq('id', booking.aircraft_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      rpcRows?.[0]?.out_invoice_id
+        ? supabase.from('invoices').select('invoice_number, total').eq('id', rpcRows[0].out_invoice_id).maybeSingle()
+        : supabase.from('invoices').select('invoice_number, total').eq('booking_id', input.bookingId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    ])
+
+    const aircraftLabel = aircraftRecord?.registration
+      ? `${aircraftRecord.registration}${aircraftRecord.model ? ` (${aircraftRecord.model})` : ''}`
+      : 'OZRentAPlane Aircraft'
+
+    const amountDueCents = rpcRows?.[0]?.out_amount_due_now_cents ?? (invoiceRecord?.total ? Math.round(invoiceRecord.total * 100) : 0)
+    const amountFormatted = `$${(amountDueCents / 100).toFixed(2)} AUD`
+    const flightDateFormatted = booking.scheduled_start
+      ? new Date(booking.scheduled_start).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'full' })
+      : null
+
+    let template = checkoutPaymentRequiredEmail({
+      bookingId: input.bookingId,
+      bookingReference: booking.booking_reference,
+      customerName: customerProfile?.full_name || 'Pilot',
+      flightDate: flightDateFormatted,
+      aircraft: aircraftLabel,
+      amountDue: amountFormatted,
+      invoiceNumber: invoiceRecord?.invoice_number || null,
+    })
 
     if (input.outcome === 'cleared_to_fly' && finalBookingStatus === 'completed') {
       emailEventType = 'cleared_to_fly'
@@ -1682,15 +1738,16 @@ export async function cancelCheckoutBooking(bookingId: string, reason: string): 
 
   if (customerProfile?.email) {
     try {
-      await enqueueCheckoutRejectedEmails({
+      await enqueueCheckoutCancelledByAdminEmail({
+        bookingId,
+        customerId: booking.booking_owner_user_id,
         customerName: customerProfile.full_name ?? 'Pilot',
         customerEmail: customerProfile.email,
-        bookingId,
+        bookingReference: booking.booking_reference,
         reason: reason.trim(),
-        aircraft: aircraft?.registration ?? 'Assigned aircraft',
       })
     } catch (emailError) {
-      console.error('[cancelCheckoutBooking] rejection email enqueue failed:', emailError)
+      console.error('[cancelCheckoutBooking] cancellation email enqueue failed:', emailError)
     }
   }
 
@@ -1840,7 +1897,7 @@ export async function adminProposeCheckoutTime(
 
   const { data: booking, error: fetchErr } = await supabase
     .from('bookings')
-    .select('status, booking_type, aircraft_id, scheduled_start, scheduled_end, booking_owner_user_id')
+    .select('status, booking_type, aircraft_id, scheduled_start, scheduled_end, booking_owner_user_id, booking_reference')
     .eq('id', bookingId)
     .single()
 
@@ -1884,7 +1941,7 @@ export async function adminProposeCheckoutTime(
 
   const { data: aircraft } = await supabase
     .from('aircraft')
-    .select('default_preflight_buffer_minutes, default_postflight_buffer_minutes')
+    .select('registration, default_preflight_buffer_minutes, default_postflight_buffer_minutes')
     .eq('id', booking.aircraft_id)
     .single()
 
@@ -1969,6 +2026,32 @@ export async function adminProposeCheckoutTime(
     email_status:  'skipped',
   })
   if (notifErr) console.error('[adminProposeCheckoutTime] notification failed:', notifErr.message)
+
+  const { data: customerProfile } = await supabase
+    .from('profiles')
+    .select('email, full_name, first_name, last_name')
+    .eq('id', booking.booking_owner_user_id)
+    .single()
+
+  if (customerProfile?.email) {
+    const custName =
+      customerProfile.full_name?.trim() ||
+      `${customerProfile.first_name || ''} ${customerProfile.last_name || ''}`.trim() ||
+      'Pilot'
+
+    void enqueueCustomerCheckoutTimeProposedEmail({
+      bookingId,
+      customerId: booking.booking_owner_user_id,
+      customerName: custName,
+      customerEmail: customerProfile.email,
+      bookingReference: booking.booking_reference,
+      originalTime: booking.scheduled_start
+        ? new Date(booking.scheduled_start).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'short' })
+        : null,
+      proposedTime: `${fmtNew} – ${fmtEnd} (Sydney time)`,
+      aircraft: aircraft?.registration ?? null,
+    }).catch((err) => console.error('[adminProposeCheckoutTime] email failed:', err))
+  }
 
   revalidatePath('/admin')
   revalidatePath(`/admin/bookings/checkout/${bookingId}`)
@@ -2834,13 +2917,57 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
       email_status: 'pending',
     })
 
-    const { data: profileForPaymentEmail } = await supabase
-      .from('profiles')
-      .select('email')
-      .eq('id', sub.customer_id)
-      .single()
+    const [{ data: profileForPaymentEmail }, { data: bookingRecord }, { data: invoiceRecord }] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('email, full_name')
+        .eq('id', sub.customer_id)
+        .single(),
+      supabase
+        .from('bookings')
+        .select('booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, model)')
+        .eq('id', bookingId)
+        .maybeSingle(),
+      supabase
+        .from('invoices')
+        .select('invoice_number, total, pdf_url')
+        .eq('booking_id', bookingId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ])
+
     if (profileForPaymentEmail?.email) {
-      const template = paymentConfirmedEmail('Payment has been received and recorded for your booking.')
+      const aircraftData = Array.isArray(bookingRecord?.aircraft)
+        ? bookingRecord.aircraft[0]
+        : bookingRecord?.aircraft
+      const aircraftLabel = aircraftData?.registration
+        ? `${aircraftData.registration}${aircraftData.model ? ` (${aircraftData.model})` : ''}`
+        : 'OZRentAPlane Aircraft'
+
+      const flightDateFormatted = bookingRecord?.scheduled_start
+        ? new Date(bookingRecord.scheduled_start).toLocaleDateString('en-AU', {
+            timeZone: 'Australia/Sydney',
+            dateStyle: 'full',
+          })
+        : null
+
+      const amountFormatted = invoiceRecord?.total
+        ? `$${Number(invoiceRecord.total).toFixed(2)} AUD`
+        : 'Confirmed'
+
+      const template = flightPaymentSettledEmail({
+        bookingId,
+        bookingReference: bookingRecord?.booking_reference ?? null,
+        flightDate: flightDateFormatted,
+        aircraft: aircraftLabel,
+        amountPaid: amountFormatted,
+        paymentMethod: 'bank_transfer',
+        invoiceNumber: invoiceRecord?.invoice_number ?? null,
+        pdfUrl: invoiceRecord?.pdf_url ?? null,
+        message: 'Your bank transfer payment has been confirmed by our operations team. Your flight booking is now complete.',
+      })
+
       // The billing write is the source of truth; email delivery can continue
       // in the background so the admin does not sit on the spinner waiting for
       // an external API round-trip.
@@ -3843,6 +3970,7 @@ export async function finaliseStandardBookingInvoice(input: {
       amountCents: amountDueNowCents,
       paymentMethod: input.manualPaymentMethod ?? null,
       note: input.adminNotes?.trim() || undefined,
+      suppressEmail: true,
     })
 
     try {
@@ -3933,21 +4061,85 @@ export async function finaliseStandardBookingInvoice(input: {
 
   const { data: profileForInvoiceEmail } = await supabase
     .from('profiles')
-    .select('email')
+    .select('email, full_name')
     .eq('id', booking.booking_owner_user_id)
     .single()
-  if (profileForInvoiceEmail?.email && !wasManuallySettled) {
+  if (profileForInvoiceEmail?.email) {
     const invoiceEmailPrefix = minimumVdoOutcomeMessage ? `${minimumVdoOutcomeMessage} ` : ''
-    const template = wasWaived
-      ? paymentConfirmedEmail(`${invoiceEmailPrefix}Your flight invoice was waived by the admin team.`)
-      : isSettledByCredit
-        ? paymentConfirmedEmail(`${invoiceEmailPrefix}Payment has been recorded for your flight.`)
-        : checkoutOutcomeEmail(
-            'Payment required for your flight',
-            'Payment required for your flight',
-            `${invoiceEmailPrefix}Your post-flight invoice is ready. Please complete payment from your dashboard.`,
-            'Pay Now',
-          )
+
+    const [{ data: aircraftRecord }, { data: invoiceRecord }] = await Promise.all([
+      booking.aircraft_id
+        ? supabase.from('aircraft').select('registration, model').eq('id', booking.aircraft_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      invoiceId
+        ? supabase.from('invoices').select('invoice_number, total, pdf_url').eq('id', invoiceId).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ])
+
+    const aircraftLabel = aircraftRecord?.registration
+      ? `${aircraftRecord.registration}${aircraftRecord.model ? ` (${aircraftRecord.model})` : ''}`
+      : 'OZRentAPlane Aircraft'
+
+    const amountFormatted = `$${((amountDueNowCents || (invoiceRecord?.total ? Math.round(invoiceRecord.total * 100) : 0)) / 100).toFixed(2)} AUD`
+    const flightDateFormatted = booking.scheduled_start
+      ? new Date(booking.scheduled_start).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'full' })
+      : null
+
+    let template
+    let eventType = 'post_flight_payment_required'
+
+    if (wasWaived) {
+      eventType = 'flight_invoice_waived'
+      template = flightPaymentWaivedEmail({
+        bookingId: input.bookingId,
+        bookingReference: booking.booking_reference,
+        flightDate: flightDateFormatted,
+        aircraft: aircraftLabel,
+        waiverReason: input.adminNotes || null,
+        invoiceNumber: invoiceRecord?.invoice_number || null,
+        message: `${invoiceEmailPrefix}Your flight invoice has been waived by the admin team. Your booking is now complete.`.trim(),
+      })
+    } else if (wasManuallySettled) {
+      eventType = 'flight_payment_settled_manual'
+      template = flightPaymentSettledEmail({
+        bookingId: input.bookingId,
+        bookingReference: booking.booking_reference,
+        flightDate: flightDateFormatted,
+        aircraft: aircraftLabel,
+        amountPaid: amountFormatted,
+        paymentMethod: input.manualPaymentMethod ?? null,
+        invoiceNumber: invoiceRecord?.invoice_number || null,
+        pdfUrl: invoiceRecord?.pdf_url || null,
+        message: `${invoiceEmailPrefix}Payment has been recorded for your flight. Your booking is now complete.`.trim(),
+      })
+    } else if (isSettledByCredit) {
+      eventType = 'post_flight_payment_received'
+      template = flightPaymentSettledEmail({
+        bookingId: input.bookingId,
+        bookingReference: booking.booking_reference,
+        flightDate: flightDateFormatted,
+        aircraft: aircraftLabel,
+        amountPaid: amountFormatted,
+        paymentMethod: 'credit',
+        invoiceNumber: invoiceRecord?.invoice_number || null,
+        pdfUrl: invoiceRecord?.pdf_url || null,
+        message: `${invoiceEmailPrefix}Your flight invoice has been settled using your account credit. Your booking is now complete.`.trim(),
+      })
+    } else {
+      eventType = 'post_flight_payment_required'
+      template = standardBookingInvoicePaymentRequiredEmail({
+        bookingId: input.bookingId,
+        bookingReference: booking.booking_reference,
+        customerName: profileForInvoiceEmail.full_name || 'Pilot',
+        flightDate: flightDateFormatted,
+        aircraft: aircraftLabel,
+        amountDue: amountFormatted,
+        invoiceNumber: invoiceRecord?.invoice_number || null,
+        pdfUrl: invoiceRecord?.pdf_url || null,
+        customMessage: invoiceEmailPrefix ? `${invoiceEmailPrefix}Your post-flight invoice is ready. Please complete payment from your dashboard.` : undefined,
+      })
+    }
+
     // The billing write is the source of truth; email delivery can continue
     // in the background so the admin does not sit on the spinner waiting for
     // an external API round-trip.
@@ -3955,7 +4147,7 @@ export async function finaliseStandardBookingInvoice(input: {
       to: profileForInvoiceEmail.email,
       subject: template.subject,
       html: template.html,
-      eventType: isSettledByCredit ? 'post_flight_payment_received' : 'post_flight_payment_required',
+      eventType,
       entityType: 'booking',
       entityId: input.bookingId,
     }).catch((error) => console.error('[finaliseStandardBookingInvoice] email failed:', error))
@@ -4017,7 +4209,7 @@ export async function adminSubmitFlightRecord(input: {
 
   const { data: booking, error: bookingErr } = await supabase
     .from('bookings')
-    .select('id, booking_type, aircraft_id, booking_owner_user_id, scheduled_start, scheduled_end, status, pic_name, pic_arn')
+    .select('id, booking_type, booking_reference, aircraft_id, booking_owner_user_id, scheduled_start, scheduled_end, status, pic_name, pic_arn')
     .eq('id', input.bookingId)
     .single()
 

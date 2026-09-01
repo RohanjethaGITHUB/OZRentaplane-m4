@@ -1,10 +1,16 @@
 import { sendEmail } from '@/lib/email/send-email'
 import {
-  bookingConfirmedEmail,
-  bookingCancelledEmail,
+  rentalBookingConfirmedCustomerEmail,
+  adminRentalBookingConfirmedEmail,
+  rentalBookingRescheduledCustomerEmail,
+  adminRentalBookingRescheduledEmail,
+  rentalBookingCancelledCustomerEmail,
+  adminRentalBookingCancelledEmail,
   cancellationRequestedEmail,
   proxyBookingConfirmedEmail,
   adminProxyBookingCreatedEmail,
+  customerFlightRecordSubmittedEmail,
+  adminFlightRecordSubmittedReviewEmail,
 } from '@/lib/email/templates/booking'
 import {
   checkoutRequestReceivedEmail,
@@ -14,7 +20,7 @@ import {
   adminBankTransferProofUploadedEmail,
 } from '@/lib/email/templates/checkout'
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'devjamaviation@gmail.com'
 const ADMIN_CC_EMAIL = 'ozrentaplane@gmail.com'
 
 function formatBookingTypeLabel(bookingType: 'standard' | 'checkout'): string {
@@ -42,17 +48,69 @@ function formatSydneyTimeRange(startIso: string, endIso: string): string {
 export async function notifyBookingSubmitted(opts: {
   customerEmail: string
   customerName: string
+  customerPhone?: string | null
+  pilotArn?: string | null
   ref: string
   aircraft: string
   start: string
   end: string
   bookingId?: string
 }) {
-  const template = bookingConfirmedEmail({ aircraft: opts.aircraft, date: opts.start, start: opts.start, end: opts.end })
+  const startObj = new Date(opts.start)
+  const endObj = new Date(opts.end)
+
+  let startDateStr = opts.start
+  let endDateStr = opts.end
+  let startTimeStr = ''
+  let endTimeStr = ''
+  let isMultiDay = false
+  let daysCount = 1
+
+  if (!isNaN(startObj.getTime()) && !isNaN(endObj.getTime())) {
+    startDateStr = startObj.toLocaleDateString('en-AU', {
+      timeZone: 'Australia/Sydney',
+      dateStyle: 'medium',
+    })
+    endDateStr = endObj.toLocaleDateString('en-AU', {
+      timeZone: 'Australia/Sydney',
+      dateStyle: 'medium',
+    })
+    startTimeStr = startObj.toLocaleTimeString('en-AU', {
+      timeZone: 'Australia/Sydney',
+      timeStyle: 'short',
+    })
+    endTimeStr = endObj.toLocaleTimeString('en-AU', {
+      timeZone: 'Australia/Sydney',
+      timeStyle: 'short',
+    })
+    isMultiDay = startDateStr !== endDateStr
+    daysCount = isMultiDay
+      ? Math.max(2, Math.round((endObj.getTime() - startObj.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+      : 1
+  }
+
+  const dateStr = isMultiDay ? `${startDateStr} – ${endDateStr}` : startDateStr
+  const timeStr = isMultiDay ? `${startDateStr}, ${startTimeStr} – ${endDateStr}, ${endTimeStr}` : (startTimeStr ? `${startTimeStr} – ${endTimeStr}` : `${opts.start} – ${opts.end}`)
+
+  const customerTemplate = rentalBookingConfirmedCustomerEmail({
+    customerName: opts.customerName,
+    bookingReference: opts.ref,
+    aircraft: opts.aircraft,
+    date: dateStr,
+    time: timeStr,
+    bookingId: opts.bookingId ?? '',
+    isMultiDay,
+    startDate: startDateStr,
+    endDate: endDateStr,
+    startTime: startTimeStr,
+    endTime: endTimeStr,
+    daysCount,
+  })
+
   await sendEmail({
     to: opts.customerEmail,
-    subject: template.subject,
-    html: template.html,
+    subject: customerTemplate.subject,
+    html: customerTemplate.html,
     eventType: 'booking_confirmed',
     entityType: 'booking',
     entityId: opts.bookingId ?? null,
@@ -60,10 +118,28 @@ export async function notifyBookingSubmitted(opts: {
   })
 
   if (ADMIN_EMAIL) {
+    const adminTemplate = adminRentalBookingConfirmedEmail({
+      customerName: opts.customerName,
+      customerEmail: opts.customerEmail,
+      customerPhone: opts.customerPhone,
+      pilotArn: opts.pilotArn,
+      bookingReference: opts.ref,
+      aircraft: opts.aircraft,
+      date: dateStr,
+      time: timeStr,
+      bookingId: opts.bookingId ?? '',
+      isMultiDay,
+      startDate: startDateStr,
+      endDate: endDateStr,
+      startTime: startTimeStr,
+      endTime: endTimeStr,
+      daysCount,
+    })
+
     await sendEmail({
       to: ADMIN_EMAIL,
-      subject: 'New aircraft booking confirmed',
-      html: bookingConfirmedEmail({ aircraft: opts.aircraft, date: opts.start, start: opts.start, end: opts.end }).html,
+      subject: adminTemplate.subject,
+      html: adminTemplate.html,
       eventType: 'admin_new_booking_confirmed',
       entityType: 'booking',
       entityId: opts.bookingId ?? null,
@@ -75,6 +151,8 @@ export async function notifyBookingSubmitted(opts: {
 export async function notifyBookingConfirmed(opts: {
   customerEmail: string
   customerName: string
+  customerPhone?: string | null
+  pilotArn?: string | null
   ref: string
   aircraft: string
   start: string
@@ -84,23 +162,116 @@ export async function notifyBookingConfirmed(opts: {
   return notifyBookingSubmitted(opts)
 }
 
+export async function notifyBookingRescheduled(opts: {
+  customerEmail: string
+  customerName: string
+  bookingReference: string
+  aircraft: string
+  originalTime: string
+  newTime: string
+  rescheduledBy: 'Customer' | 'Admin'
+  bookingId: string
+}) {
+  const custTemplate = rentalBookingRescheduledCustomerEmail({
+    customerName: opts.customerName,
+    bookingReference: opts.bookingReference,
+    aircraft: opts.aircraft,
+    originalTime: opts.originalTime,
+    newTime: opts.newTime,
+    bookingId: opts.bookingId,
+  })
+
+  await sendEmail({
+    to: opts.customerEmail,
+    subject: custTemplate.subject,
+    html: custTemplate.html,
+    eventType: 'booking_rescheduled',
+    entityType: 'booking',
+    entityId: opts.bookingId,
+    metadata: { ref: opts.bookingReference },
+  })
+
+  if (ADMIN_EMAIL) {
+    const adminTemplate = adminRentalBookingRescheduledEmail({
+      customerName: opts.customerName,
+      customerEmail: opts.customerEmail,
+      bookingReference: opts.bookingReference,
+      aircraft: opts.aircraft,
+      originalTime: opts.originalTime,
+      newTime: opts.newTime,
+      bookingId: opts.bookingId,
+      rescheduledBy: opts.rescheduledBy,
+    })
+
+    await sendEmail({
+      to: ADMIN_EMAIL,
+      subject: adminTemplate.subject,
+      html: adminTemplate.html,
+      eventType: 'admin_booking_rescheduled',
+      entityType: 'booking',
+      entityId: opts.bookingId,
+      metadata: { ref: opts.bookingReference, customerEmail: opts.customerEmail },
+    })
+  }
+}
+
 export async function notifyBookingCancelled(opts: {
   customerEmail: string
   customerName: string
+  customerPhone?: string | null
   ref: string
-  reason: string
+  aircraft?: string
+  scheduledTime?: string | null
+  cancelledBy?: 'Customer' | 'Admin'
+  reason?: string
   bookingId?: string
 }) {
-  const template = bookingCancelledEmail(opts.reason)
+  const cancelledBy = opts.cancelledBy ?? 'Customer'
+  const aircraft = opts.aircraft ?? 'Aircraft'
+
+  const custTemplate = rentalBookingCancelledCustomerEmail({
+    customerName: opts.customerName,
+    bookingReference: opts.ref,
+    aircraft,
+    scheduledTime: opts.scheduledTime,
+    cancelledBy,
+    reason: opts.reason,
+    bookingId: opts.bookingId ?? '',
+  })
+
   await sendEmail({
     to: opts.customerEmail,
-    subject: template.subject,
-    html: template.html,
+    subject: custTemplate.subject,
+    html: custTemplate.html,
     eventType: 'booking_cancelled',
     entityType: 'booking',
     entityId: opts.bookingId ?? null,
     metadata: { reason: opts.reason, ref: opts.ref },
   })
+
+  if (ADMIN_EMAIL) {
+    const adminTemplate = adminRentalBookingCancelledEmail({
+      customerName: opts.customerName,
+      customerEmail: opts.customerEmail,
+      customerPhone: opts.customerPhone,
+      bookingReference: opts.ref,
+      aircraft,
+      scheduledTime: opts.scheduledTime,
+      cancelledBy,
+      reason: opts.reason,
+      bookingId: opts.bookingId ?? '',
+    })
+
+    await sendEmail({
+      to: ADMIN_EMAIL,
+      subject: adminTemplate.subject,
+      html: adminTemplate.html,
+      eventType: 'admin_booking_cancelled',
+      entityType: 'booking',
+      entityId: opts.bookingId ?? null,
+      metadata: { reason: opts.reason, ref: opts.ref, customerEmail: opts.customerEmail },
+    })
+  }
 }
 
 export async function notifyClarificationRequested(opts: {
@@ -210,30 +381,45 @@ export async function notifyAdminCancellationReviewRequired(opts: {
 
 export async function notifyFlightRecordSubmitted(opts: {
   bookingId: string
+  bookingReference?: string | null
   customerEmail: string
   customerName: string
   aircraft: string
   bookingDate: string
 }) {
+  const ref = opts.bookingReference ?? opts.bookingId.slice(0, 8).toUpperCase()
+
+  const customerTemplate = customerFlightRecordSubmittedEmail({
+    customerName: opts.customerName,
+    bookingReference: ref,
+    aircraft: opts.aircraft,
+    bookingDate: opts.bookingDate,
+    bookingId: opts.bookingId,
+  })
+
   await sendEmail({
     to: opts.customerEmail,
-    subject: 'Flight record submitted',
-    html: checkoutRequestReceivedEmail().html,
+    subject: customerTemplate.subject,
+    html: customerTemplate.html,
     eventType: 'flight_record_submitted',
     entityType: 'booking',
     entityId: opts.bookingId,
   })
 
   if (ADMIN_EMAIL) {
+    const adminTemplate = adminFlightRecordSubmittedReviewEmail({
+      customerName: opts.customerName,
+      customerEmail: opts.customerEmail,
+      bookingReference: ref,
+      aircraft: opts.aircraft,
+      bookingDate: opts.bookingDate,
+      bookingId: opts.bookingId,
+    })
+
     await sendEmail({
       to: ADMIN_EMAIL,
-      subject: 'Flight record submitted for review',
-      html: adminNewCheckoutRequestEmail({
-        customerName: opts.customerName,
-        customerEmail: opts.customerEmail,
-        requestedTime: opts.bookingDate,
-        bookingId: opts.bookingId,
-      }).html,
+      subject: adminTemplate.subject,
+      html: adminTemplate.html,
       eventType: 'admin_flight_record_review_required',
       entityType: 'booking',
       entityId: opts.bookingId,
@@ -394,8 +580,17 @@ export async function notifyCheckoutConfirmed(opts: {
   })
 }
 
-export async function notifyBankTransferProofReceived(opts: { customerEmail: string; bookingId: string }) {
-  const customerTemplate = bankTransferProofReceivedEmail()
+export async function notifyBankTransferProofReceived(opts: {
+  customerEmail: string
+  bookingId: string
+  bookingReference?: string | null
+  aircraft?: string | null
+  flightDate?: string | null
+  invoiceNumber?: string | null
+  amount?: string | null
+  transferReference?: string | null
+}) {
+  const customerTemplate = bankTransferProofReceivedEmail(opts)
   await sendEmail({
     to: opts.customerEmail,
     subject: customerTemplate.subject,
@@ -410,8 +605,13 @@ export async function notifyAdminBankTransferProofUploaded(opts: {
   bookingId: string
   customerName: string
   customerEmail: string
+  bookingReference?: string | null
+  aircraft?: string | null
+  flightDate?: string | null
+  invoiceNumber?: string | null
   amount: string
-  invoiceType: string
+  invoiceType?: string | null
+  transferReference?: string | null
 }) {
   if (!ADMIN_EMAIL) return
   const template = adminBankTransferProofUploadedEmail(opts)
@@ -422,5 +622,6 @@ export async function notifyAdminBankTransferProofUploaded(opts: {
     eventType: 'admin_bank_transfer_proof_uploaded',
     entityType: 'payment',
     entityId: opts.bookingId,
+    metadata: { bookingReference: opts.bookingReference, amount: opts.amount },
   })
 }

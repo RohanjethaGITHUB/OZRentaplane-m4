@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/day-before-flights",
+      "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/cron/daily-maintenance",
+      "schedule": "0 22 * * *"
+    }
+  ]
+}
