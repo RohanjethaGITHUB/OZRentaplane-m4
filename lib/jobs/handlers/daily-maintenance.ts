@@ -22,6 +22,8 @@ import {
 import { evaluateCustomerOnboardingState } from '@/lib/jobs/onboarding-state'
 import { runUpcomingFlightRemindersSweep } from '@/lib/jobs/handlers/upcoming-flight-reminders'
 import { runPostFlightActionRemindersSweep } from '@/lib/jobs/handlers/post-flight-reminders'
+import { runAdminWeeklyDigestSweep } from '@/lib/jobs/handlers/admin-weekly-digest'
+import { emailOutboxJob } from '@/lib/jobs/handlers/email-outbox'
 import { emitBookingChanged, emitOpsChanged } from '@/lib/realtime/emit'
 import { getAppUrl } from '@/lib/email/app-url'
 
@@ -49,6 +51,23 @@ export const dailyMaintenanceJob: JobDefinition = {
     const unpaidInvoiceStats = await runUnpaidInvoiceChase(admin, now)
     const blockTimeStats = await runBlockTimeMaintenance(admin, now)
 
+    // Check if today is Friday in Sydney time — if so, run the weekly operations digest
+    const sydneyDayOfWeek = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Australia/Sydney',
+      weekday: 'short',
+    }).format(now)
+
+    let weeklyDigestStats: any = { executed: false, reason: `Not Friday in Sydney (today is ${sydneyDayOfWeek})` }
+    if (sydneyDayOfWeek === 'Fri') {
+      try {
+        const digestResult = await runAdminWeeklyDigestSweep(admin, now)
+        weeklyDigestStats = { executed: true, result: digestResult }
+      } catch (err: any) {
+        console.error('[job:daily-maintenance] Weekly digest execution failed:', err)
+        weeklyDigestStats = { executed: false, error: err?.message || String(err) }
+      }
+    }
+
     const stats = {
       flightRecordsOverdue: overdueStats,
       temporaryHoldsExpired: holdStats,
@@ -63,6 +82,17 @@ export const dailyMaintenanceJob: JobDefinition = {
       newUserInactivityAlerts: newUserStats,
       unpaidInvoiceChase: unpaidInvoiceStats,
       blockTimeMaintenance: blockTimeStats,
+      weeklyOperationsDigest: weeklyDigestStats,
+      emailOutboxDrain: null as any,
+    }
+
+    // Drain all pending emails from the outbox queue
+    try {
+      const outboxDrainResult = await emailOutboxJob.run(ctx)
+      stats.emailOutboxDrain = outboxDrainResult
+    } catch (err: any) {
+      console.error('[job:daily-maintenance] Outbox drain failed:', err)
+      stats.emailOutboxDrain = { ok: false, error: err?.message || String(err) }
     }
 
     console.info('[job:daily-maintenance] Daily maintenance complete:', JSON.stringify(stats))
