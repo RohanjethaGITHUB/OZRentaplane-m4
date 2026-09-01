@@ -1,4 +1,4 @@
-export type Role = 'customer' | 'admin'
+export type Role = 'customer' | 'admin' | 'instructor'
 
 export type AccountStatus = 'active' | 'blocked' | 'archived'
 

@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import AuthModal from '@/components/AuthModal'
-import InstructorFooter from '@/components/InstructorFooter'
 import { 
   Users, 
   CalendarDays, 
@@ -135,7 +134,7 @@ export default function BecomeAnInstructorPage() {
       </section>
 
       {/* ─── 2. STEPS SECTION ("Simple steps. Clear path.") ───────── */}
-      <section className="py-20 lg:py-24 bg-[#f8fbff] relative overflow-hidden">
+      <section className="py-10 sm:py-14 lg:py-20 bg-[#f8fbff] relative overflow-hidden">
         {/* Topography & Flight Trail Background Graphic */}
         <div className="absolute inset-0 pointer-events-none z-0">
           <img
@@ -146,16 +145,16 @@ export default function BecomeAnInstructorPage() {
           />
         </div>
 
-        <div className="max-w-[1360px] mx-auto px-6 sm:px-8 lg:px-12 relative z-10">
+        <div className="max-w-[1360px] mx-auto px-5 sm:px-8 lg:px-12 relative z-10">
           {/* Header */}
-          <div className="text-center max-w-2xl mx-auto mb-16 relative">
-            <div className="inline-flex items-center gap-2 text-[12.5px] font-bold tracking-[0.14em] text-blue-600 uppercase mb-2">
-              <svg className="w-4 h-4 rotate-45" viewBox="0 0 24 24" fill="currentColor">
+          <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-12 lg:mb-14 relative">
+            <div className="inline-flex items-center justify-center gap-2.5 text-[12px] sm:text-[13px] font-extrabold tracking-[0.14em] text-blue-600 uppercase mb-2">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6 rotate-45 text-blue-600 shrink-0" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
               </svg>
               <span>YOUR JOURNEY TO INSTRUCTOR APPROVAL</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl lg:text-[44px] font-black text-[#08182f] tracking-tight">
+            <h2 className="text-2xl sm:text-3xl lg:text-[42px] font-black text-[#08182f] tracking-tight">
               Simple steps. Clear path.
             </h2>
           </div>
@@ -163,12 +162,12 @@ export default function BecomeAnInstructorPage() {
           {/* 4 Steps Row with Connecting Arrows */}
           <div className="flex flex-col lg:flex-row items-center justify-between gap-4 xl:gap-5">
             {/* Step 1: Request */}
-            <div className="relative bg-white rounded-2xl p-6 sm:p-7 border border-blue-100/90 shadow-[0_4px_24px_rgba(0,0,0,0.03)] hover:shadow-md transition-all duration-200 flex flex-col items-center text-center group flex-1 max-w-[270px] w-full min-h-[315px]">
-              <div className="absolute top-4 left-4 w-7 h-7 rounded-full bg-[#0d47a1] text-white text-[12.5px] font-black flex items-center justify-center shadow-sm">
+            <div className="relative bg-white rounded-2xl p-5 sm:p-6 pb-6 border border-blue-100/90 shadow-[0_4px_24px_rgba(0,0,0,0.03)] hover:shadow-md transition-all duration-200 flex flex-col items-center text-center group flex-1 max-w-[320px] lg:max-w-[270px] w-full min-h-0 lg:min-h-[250px]">
+              <div className="absolute top-3.5 left-3.5 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#0d47a1] text-white text-[11.5px] sm:text-[12px] font-black flex items-center justify-center shadow-sm">
                 1
               </div>
-              <div className="w-[92px] h-[92px] rounded-[22px] bg-[#f0f6ff] flex items-center justify-center mb-5 mt-2 group-hover:scale-105 transition-transform">
-                <svg className="w-14 h-14" viewBox="0 0 64 64" fill="none">
+              <div className="w-[76px] h-[76px] sm:w-[82px] sm:h-[82px] rounded-[20px] bg-[#f0f6ff] flex items-center justify-center mb-3.5 mt-1 group-hover:scale-105 transition-transform">
+                <svg className="w-11 h-11 sm:w-12 sm:h-12" viewBox="0 0 64 64" fill="none">
                   <path
                     d="M18 10C15.7909 10 14 11.7909 14 14V50C14 52.2091 15.7909 54 18 54H42C44.2091 54 46 52.2091 46 50V22L34 10H18Z"
                     stroke="#1a66ff"
@@ -190,8 +189,8 @@ export default function BecomeAnInstructorPage() {
                   <path d="M40 44L43 47L48 41" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
-              <h3 className="text-[20px] font-black text-[#08182f] mb-2 tracking-tight">Request</h3>
-              <p className="text-[13.5px] text-[#334155] leading-relaxed font-normal">
+              <h3 className="text-[18px] sm:text-[19px] font-black text-[#08182f] mb-1.5 tracking-tight">Request</h3>
+              <p className="text-[13px] sm:text-[13.5px] text-[#334155] leading-relaxed font-normal">
                 Submit a checkout request for the aircraft you want to teach in.
               </p>
             </div>
@@ -204,12 +203,12 @@ export default function BecomeAnInstructorPage() {
             </div>
 
             {/* Step 2: Review */}
-            <div className="relative bg-white rounded-2xl p-6 sm:p-7 border border-blue-100/90 shadow-[0_4px_24px_rgba(0,0,0,0.03)] hover:shadow-md transition-all duration-200 flex flex-col items-center text-center group flex-1 max-w-[270px] w-full min-h-[315px]">
-              <div className="absolute top-4 left-4 w-7 h-7 rounded-full bg-[#0d47a1] text-white text-[12.5px] font-black flex items-center justify-center shadow-sm">
+            <div className="relative bg-white rounded-2xl p-5 sm:p-6 pb-6 border border-blue-100/90 shadow-[0_4px_24px_rgba(0,0,0,0.03)] hover:shadow-md transition-all duration-200 flex flex-col items-center text-center group flex-1 max-w-[320px] lg:max-w-[270px] w-full min-h-0 lg:min-h-[250px]">
+              <div className="absolute top-3.5 left-3.5 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#0d47a1] text-white text-[11.5px] sm:text-[12px] font-black flex items-center justify-center shadow-sm">
                 2
               </div>
-              <div className="w-[92px] h-[92px] rounded-[22px] bg-[#f0f6ff] flex items-center justify-center mb-5 mt-2 group-hover:scale-105 transition-transform">
-                <svg className="w-14 h-14" viewBox="0 0 64 64" fill="none">
+              <div className="w-[76px] h-[76px] sm:w-[82px] sm:h-[82px] rounded-[20px] bg-[#f0f6ff] flex items-center justify-center mb-3.5 mt-1 group-hover:scale-105 transition-transform">
+                <svg className="w-11 h-11 sm:w-12 sm:h-12" viewBox="0 0 64 64" fill="none">
                   <path
                     d="M18 10C15.7909 10 14 11.7909 14 14V50C14 52.2091 15.7909 54 18 54H42C44.2091 54 46 52.2091 46 50V22L34 10H18Z"
                     stroke="#1a66ff"
@@ -230,8 +229,8 @@ export default function BecomeAnInstructorPage() {
                   <path d="M45 45L52 52" stroke="#1a66ff" strokeWidth="3.5" strokeLinecap="round" />
                 </svg>
               </div>
-              <h3 className="text-[20px] font-black text-[#08182f] mb-2 tracking-tight">Review</h3>
-              <p className="text-[13.5px] text-[#334155] leading-relaxed font-normal">
+              <h3 className="text-[18px] sm:text-[19px] font-black text-[#08182f] mb-1.5 tracking-tight">Review</h3>
+              <p className="text-[13px] sm:text-[13.5px] text-[#334155] leading-relaxed font-normal">
                 We review your qualifications, experience, and documents.
               </p>
             </div>
@@ -244,12 +243,12 @@ export default function BecomeAnInstructorPage() {
             </div>
 
             {/* Step 3: Checkout */}
-            <div className="relative bg-white rounded-2xl p-6 sm:p-7 border border-blue-100/90 shadow-[0_4px_24px_rgba(0,0,0,0.03)] hover:shadow-md transition-all duration-200 flex flex-col items-center text-center group flex-1 max-w-[270px] w-full min-h-[315px]">
-              <div className="absolute top-4 left-4 w-7 h-7 rounded-full bg-[#0d47a1] text-white text-[12.5px] font-black flex items-center justify-center shadow-sm">
+            <div className="relative bg-white rounded-2xl p-5 sm:p-6 pb-6 border border-blue-100/90 shadow-[0_4px_24px_rgba(0,0,0,0.03)] hover:shadow-md transition-all duration-200 flex flex-col items-center text-center group flex-1 max-w-[320px] lg:max-w-[270px] w-full min-h-0 lg:min-h-[250px]">
+              <div className="absolute top-3.5 left-3.5 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#0d47a1] text-white text-[11.5px] sm:text-[12px] font-black flex items-center justify-center shadow-sm">
                 3
               </div>
-              <div className="w-[92px] h-[92px] rounded-[22px] bg-[#f0f6ff] flex items-center justify-center mb-5 mt-2 group-hover:scale-105 transition-transform">
-                <svg className="w-14 h-14" viewBox="0 0 64 64" fill="none">
+              <div className="w-[76px] h-[76px] sm:w-[82px] sm:h-[82px] rounded-[20px] bg-[#f0f6ff] flex items-center justify-center mb-3.5 mt-1 group-hover:scale-105 transition-transform">
+                <svg className="w-11 h-11 sm:w-12 sm:h-12" viewBox="0 0 64 64" fill="none">
                   <rect x="10" y="16" width="44" height="32" rx="6" stroke="#1a66ff" strokeWidth="3.5" fill="none" />
                   <path d="M10 26H54" stroke="#1a66ff" strokeWidth="4" />
                   <rect x="16" y="34" width="8" height="6" rx="1.5" stroke="#1a66ff" strokeWidth="2.5" fill="#f0f6ff" />
@@ -257,8 +256,8 @@ export default function BecomeAnInstructorPage() {
                   <path d="M28 42H38" stroke="#1a66ff" strokeWidth="3" strokeLinecap="round" />
                 </svg>
               </div>
-              <h3 className="text-[20px] font-black text-[#08182f] mb-2 tracking-tight">Checkout</h3>
-              <p className="text-[13.5px] text-[#334155] leading-relaxed font-normal">
+              <h3 className="text-[18px] sm:text-[19px] font-black text-[#08182f] mb-1.5 tracking-tight">Checkout</h3>
+              <p className="text-[13px] sm:text-[13.5px] text-[#334155] leading-relaxed font-normal">
                 Complete your instructor checkout with an OZ standards check flight.
               </p>
             </div>
@@ -271,11 +270,11 @@ export default function BecomeAnInstructorPage() {
             </div>
 
             {/* Step 4: Approval */}
-            <div className="relative bg-white rounded-2xl p-6 sm:p-7 border border-blue-100/90 shadow-[0_4px_24px_rgba(0,0,0,0.03)] hover:shadow-md transition-all duration-200 flex flex-col items-center text-center group flex-1 max-w-[270px] w-full min-h-[315px]">
-              <div className="absolute top-4 left-4 w-7 h-7 rounded-full bg-[#0d47a1] text-white text-[12.5px] font-black flex items-center justify-center shadow-sm">
+            <div className="relative bg-white rounded-2xl p-5 sm:p-6 pb-6 border border-blue-100/90 shadow-[0_4px_24px_rgba(0,0,0,0.03)] hover:shadow-md transition-all duration-200 flex flex-col items-center text-center group flex-1 max-w-[320px] lg:max-w-[270px] w-full min-h-0 lg:min-h-[250px]">
+              <div className="absolute top-3.5 left-3.5 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#0d47a1] text-white text-[11.5px] sm:text-[12px] font-black flex items-center justify-center shadow-sm">
                 4
               </div>
-              <div className="w-[92px] h-[92px] rounded-[22px] bg-[#eefbf3] flex items-center justify-center mb-5 mt-2 group-hover:scale-105 transition-transform">
+              <div className="w-[76px] h-[76px] sm:w-[82px] sm:h-[82px] rounded-[20px] bg-[#eefbf3] flex items-center justify-center mb-3.5 mt-1 group-hover:scale-105 transition-transform">
                 <svg className="w-14 h-14" viewBox="0 0 64 64" fill="none">
                   <path
                     d="M32 10L48 17V30C48 41.5 41 49 32 54C23 49 16 41.5 16 30V17L32 10Z"
@@ -294,8 +293,8 @@ export default function BecomeAnInstructorPage() {
                   />
                 </svg>
               </div>
-              <h3 className="text-[20px] font-black text-[#08182f] mb-2 tracking-tight">Approval</h3>
-              <p className="text-[13.5px] text-[#334155] leading-relaxed font-normal">
+              <h3 className="text-[18px] sm:text-[19px] font-black text-[#08182f] mb-1.5 tracking-tight">Approval</h3>
+              <p className="text-[13px] sm:text-[13.5px] text-[#334155] leading-relaxed font-normal">
                 Once approved, you're authorized to instruct in that specific aircraft.
               </p>
             </div>
@@ -390,71 +389,71 @@ export default function BecomeAnInstructorPage() {
       {/* ─── 4. WHAT YOU CAN DO ("Teach. Manage. Grow.") ──────────── */}
       <section className="bg-[#f8fafc] relative overflow-hidden border-t border-slate-200/60 flex flex-col lg:flex-row items-stretch">
         {/* Left Column: Headings & 4 Horizontal Items */}
-        <div className="flex-1 py-14 lg:py-20 px-6 sm:px-10 lg:pl-16 lg:pr-10 flex flex-col justify-center">
+        <div className="flex-1 py-8 sm:py-12 lg:py-16 px-5 sm:px-10 lg:pl-16 lg:pr-10 flex flex-col justify-center">
           <span className="text-xs sm:text-[13px] font-extrabold tracking-[0.14em] text-blue-600 uppercase mb-2 block">
             WHAT YOU CAN DO
           </span>
-          <h2 className="text-3xl sm:text-4xl lg:text-[42px] font-black text-[#06152b] tracking-tight leading-[1.1] mb-12">
+          <h2 className="text-2xl sm:text-3xl lg:text-[40px] font-black text-[#06152b] tracking-tight leading-[1.1] mb-6 sm:mb-10 lg:mb-12">
             Teach. Manage. Grow.
           </h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#dce7f5] gap-8 sm:gap-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#dce7f5] gap-6 sm:gap-0">
             {/* Feature 1: Teach Students with OZ Aircraft */}
             <div className="sm:px-4 lg:px-6 text-center flex flex-col items-center">
-              <div className="w-16 h-16 sm:w-[70px] sm:h-[70px] rounded-full bg-[#ebf3ff] text-[#155dfc] flex items-center justify-center mb-5 shadow-[0_2px_12px_rgba(21,93,252,0.08)]">
-                <Users className="w-8 h-8 text-[#155dfc]" strokeWidth={2.2} />
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#ebf3ff] text-[#155dfc] flex items-center justify-center mb-3.5 sm:mb-4 shadow-[0_2px_12px_rgba(21,93,252,0.08)]">
+                <Users className="w-7 h-7 sm:w-8 sm:h-8 text-[#155dfc]" strokeWidth={2.2} />
               </div>
-              <h3 className="text-[17px] sm:text-[17.5px] font-black text-[#06152b] mb-2.5 leading-snug tracking-tight">
+              <h3 className="text-[16px] sm:text-[17.5px] font-black text-[#06152b] mb-1.5 sm:mb-2 leading-snug tracking-tight">
                 Teach Students<br className="hidden sm:inline" /> with OZ Aircraft
               </h3>
-              <p className="text-[13px] text-[#475569] font-medium leading-relaxed max-w-[205px]">
+              <p className="text-[12.5px] sm:text-[13px] text-[#475569] font-medium leading-relaxed max-w-[205px]">
                 Conduct training in a professional and trusted environment using OZ aircraft.
               </p>
             </div>
 
             {/* Feature 2: Create Instructional Bookings */}
-            <div className="pt-6 sm:pt-0 sm:px-4 lg:px-6 text-center flex flex-col items-center">
-              <div className="w-16 h-16 sm:w-[70px] sm:h-[70px] rounded-full bg-[#ebf3ff] text-[#155dfc] flex items-center justify-center mb-5 shadow-[0_2px_12px_rgba(21,93,252,0.08)]">
-                <CalendarDays className="w-8 h-8 text-[#155dfc]" strokeWidth={2.2} />
+            <div className="pt-5 sm:pt-0 sm:px-4 lg:px-6 text-center flex flex-col items-center">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#ebf3ff] text-[#155dfc] flex items-center justify-center mb-3.5 sm:mb-4 shadow-[0_2px_12px_rgba(21,93,252,0.08)]">
+                <CalendarDays className="w-7 h-7 sm:w-8 sm:h-8 text-[#155dfc]" strokeWidth={2.2} />
               </div>
-              <h3 className="text-[17px] sm:text-[17.5px] font-black text-[#06152b] mb-2.5 leading-snug tracking-tight">
+              <h3 className="text-[16px] sm:text-[17.5px] font-black text-[#06152b] mb-1.5 sm:mb-2 leading-snug tracking-tight">
                 Create Instructional<br className="hidden sm:inline" /> Bookings
               </h3>
-              <p className="text-[13px] text-[#475569] font-medium leading-relaxed max-w-[205px]">
+              <p className="text-[12.5px] sm:text-[13px] text-[#475569] font-medium leading-relaxed max-w-[205px]">
                 Easily create dual or solo instructional bookings that fit your schedule.
               </p>
             </div>
 
             {/* Feature 3: Manage Student Documents */}
-            <div className="pt-6 sm:pt-0 sm:px-4 lg:px-6 text-center flex flex-col items-center">
-              <div className="w-16 h-16 sm:w-[70px] sm:h-[70px] rounded-full bg-[#ebf3ff] text-[#155dfc] flex items-center justify-center mb-5 shadow-[0_2px_12px_rgba(21,93,252,0.08)]">
-                <FolderClosed className="w-8 h-8 text-[#155dfc]" strokeWidth={2.2} />
+            <div className="pt-5 sm:pt-0 sm:px-4 lg:px-6 text-center flex flex-col items-center">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#ebf3ff] text-[#155dfc] flex items-center justify-center mb-3.5 sm:mb-4 shadow-[0_2px_12px_rgba(21,93,252,0.08)]">
+                <FolderClosed className="w-7 h-7 sm:w-8 sm:h-8 text-[#155dfc]" strokeWidth={2.2} />
               </div>
-              <h3 className="text-[17px] sm:text-[17.5px] font-black text-[#06152b] mb-2.5 leading-snug tracking-tight">
+              <h3 className="text-[16px] sm:text-[17.5px] font-black text-[#06152b] mb-1.5 sm:mb-2 leading-snug tracking-tight">
                 Manage Student<br className="hidden sm:inline" /> Documents
               </h3>
-              <p className="text-[13px] text-[#475569] font-medium leading-relaxed max-w-[205px]">
+              <p className="text-[12.5px] sm:text-[13px] text-[#475569] font-medium leading-relaxed max-w-[205px]">
                 Upload, track, and manage student documents securely in one place.
               </p>
             </div>
 
             {/* Feature 4: Expand Your Clearances */}
-            <div className="pt-6 sm:pt-0 sm:px-4 lg:px-6 text-center flex flex-col items-center">
-              <div className="w-16 h-16 sm:w-[70px] sm:h-[70px] rounded-full bg-[#ebf3ff] text-[#155dfc] flex items-center justify-center mb-5 shadow-[0_2px_12px_rgba(21,93,252,0.08)]">
-                <Plane className="w-8 h-8 text-[#155dfc]" strokeWidth={2.2} />
+            <div className="pt-5 sm:pt-0 sm:px-4 lg:px-6 text-center flex flex-col items-center">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#ebf3ff] text-[#155dfc] flex items-center justify-center mb-3.5 sm:mb-4 shadow-[0_2px_12px_rgba(21,93,252,0.08)]">
+                <Plane className="w-7 h-7 sm:w-8 sm:h-8 text-[#155dfc]" strokeWidth={2.2} />
               </div>
-              <h3 className="text-[17px] sm:text-[17.5px] font-black text-[#06152b] mb-2.5 leading-snug tracking-tight">
+              <h3 className="text-[16px] sm:text-[17.5px] font-black text-[#06152b] mb-1.5 sm:mb-2 leading-snug tracking-tight">
                 Expand Your<br className="hidden sm:inline" /> Clearances
               </h3>
-              <p className="text-[13px] text-[#475569] font-medium leading-relaxed max-w-[205px]">
+              <p className="text-[12.5px] sm:text-[13px] text-[#475569] font-medium leading-relaxed max-w-[205px]">
                 Request approval on more aircraft and expand your teaching opportunities.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Right Column: Full-Height Image Touching Top & Bottom Edges */}
-        <div className="w-full lg:w-[25%] xl:w-[23%] shrink-0 self-stretch relative min-h-[320px] lg:min-h-full">
+        {/* Right Column: Full-Height Image on desktop / natural height on mobile */}
+        <div className="w-full lg:w-[25%] xl:w-[23%] shrink-0 self-stretch relative h-[220px] sm:h-[260px] lg:h-auto overflow-hidden">
           <img
             src="/instructor/instructor-walking.png"
             alt="Flight instructor and student walking on tarmac at sunset"
@@ -464,24 +463,24 @@ export default function BecomeAnInstructorPage() {
       </section>
 
       {/* ─── 5. TESTIMONIALS & ORGANISATIONS ──────────────────────── */}
-      <section className="pt-12 sm:pt-14 lg:pt-16 pb-14 sm:pb-16 lg:pb-20 relative overflow-hidden">
+      <section className="pt-8 sm:pt-12 lg:pt-16 pb-12 sm:pb-16 lg:pb-20 relative overflow-hidden bg-[#eaf3fc]">
         {/* Panoramic Clouds Background */}
         <div className="absolute inset-0 z-0 select-none pointer-events-none">
           <img
             src="/instructor/testimonials-clouds-bg.png"
             alt="Cloudscape background"
-            className="w-full h-full object-cover object-center"
+            className="w-full h-full object-cover object-top"
           />
           {/* Seamless bottom fade blending into Section 6 */}
           <div className="absolute bottom-0 inset-x-0 h-28 bg-gradient-to-b from-transparent via-sky-100/30 to-sky-200/50 pointer-events-none" />
         </div>
 
-        <div className="max-w-[1360px] mx-auto px-6 sm:px-8 lg:px-12 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 xl:gap-20 items-start">
+        <div className="max-w-[1360px] mx-auto px-5 sm:px-8 lg:px-12 relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 xl:gap-20 items-start">
             {/* Left Column (9 cols on lg): Centered Headings over 3 Testimonial Cards */}
             <div className="lg:col-span-9 flex flex-col justify-between">
               {/* Left Section Heading - Centered over the 3 boxes */}
-              <div className="mb-7 text-center">
+              <div className="mb-6 sm:mb-7 text-center">
                 <span className="text-xs sm:text-[12px] font-extrabold tracking-[0.14em] text-blue-600 uppercase mb-2 block text-center">
                   TRUSTED BY INSTRUCTORS. CHOSEN BY SCHOOLS.
                 </span>
@@ -677,9 +676,6 @@ export default function BecomeAnInstructorPage() {
           </div>
         </div>
       </section>
-
-      {/* ─── 7. INSTRUCTOR FOOTER ──────────────────────────────────── */}
-      <InstructorFooter />
 
       {/* Auth Modal for unauthenticated clicks */}
       <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />

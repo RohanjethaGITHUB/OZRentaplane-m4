@@ -530,20 +530,34 @@ export default function DashboardContent({
             Welcome back,<br />
             Captain {firstName}
           </h1>
-          <div className="mb-3">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
             <div
-              className="inline-flex items-center gap-2 mb-4 px-4 py-1.5 rounded-full border text-[13px] font-semibold"
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-[13px] font-semibold"
               style={heroPillStyle(actionState.tone)}
             >
               <span className="material-symbols-outlined text-[14px]">{heroIcon(actionState.tone)}</span>
               {actionState.heroLabel}
             </div>
+
+            {/* Tablet/Medium screen: Beside booking confirmed pill */}
+            <Link
+              href="/dashboard/instructor"
+              className="hidden sm:inline-flex xl:hidden items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12.5px] font-semibold font-sans transition-all duration-200 hover:brightness-110 shadow-xs"
+              style={{
+                backgroundColor: 'rgba(14, 165, 233, 0.15)',
+                color: '#38BDF8',
+                border: '1px solid #0EA5E9',
+              }}
+            >
+              <span className="material-symbols-outlined text-[16px]">school</span>
+              <span>Become an Instructor</span>
+            </Link>
           </div>
           <p className="text-[15px] text-white/80 leading-relaxed mb-6 max-w-xl">
             {actionState.heroMessage}
           </p>
           {heroAction ? (
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <button
                 onClick={() => router.push(heroAction.href)}
                 className={`inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold transition-colors sm:w-auto ${heroButtonStyle(actionState.tone)}`}
@@ -564,8 +578,36 @@ export default function DashboardContent({
                   {actionState.secondaryAction.label}
                 </button>
               )}
+              {/* Mobile screen: Below View Booking button */}
+              <Link
+                href="/dashboard/instructor"
+                className="sm:hidden inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold transition-all duration-200 shadow-sm hover:brightness-110 text-center"
+                style={{
+                  backgroundColor: 'rgba(14, 165, 233, 0.15)',
+                  color: '#38BDF8',
+                  border: '1px solid #0EA5E9',
+                }}
+              >
+                <span className="material-symbols-outlined text-[18px]">school</span>
+                <span>Become an Instructor</span>
+              </Link>
             </div>
-          ) : null}
+          ) : (
+            <div className="sm:hidden">
+              <Link
+                href="/dashboard/instructor"
+                className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold transition-all duration-200 shadow-sm hover:brightness-110 text-center"
+                style={{
+                  backgroundColor: 'rgba(14, 165, 233, 0.15)',
+                  color: '#38BDF8',
+                  border: '1px solid #0EA5E9',
+                }}
+              >
+                <span className="material-symbols-outlined text-[18px]">school</span>
+                <span>Become an Instructor</span>
+              </Link>
+            </div>
+          )}
         </div>
         <div
           className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none"

@@ -105,8 +105,9 @@ export default async function DashboardPage({
     (result) => ({ rowCount: result.data ? 1 : 0 }),
   )
 
-  // Admins belong in /admin
+  // Admins belong in /admin; Instructors belong in /instructor/dashboard
   if (profile?.role === 'admin') redirect('/admin')
+  if (profile?.role === 'instructor') redirect('/instructor/dashboard')
 
   // ── Login tracking ────────────────────────────────────────────────────────
   const authLastSignIn   = user.last_sign_in_at ? new Date(user.last_sign_in_at) : null

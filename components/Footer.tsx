@@ -7,7 +7,8 @@ type FooterProps = { forceShow?: boolean }
 
 export default function Footer({ forceShow = false }: FooterProps) {
   const pathname = usePathname()
-  if (!forceShow && ((pathname?.startsWith('/dashboard') ?? false) || (pathname?.startsWith('/admin') ?? false) || pathname === '/become-an-instructor')) return null
+  const isInstructorRoute = pathname === '/become-an-instructor' || pathname?.startsWith('/instructor') || pathname === '/dashboard/instructor'
+  if (!forceShow && !isInstructorRoute && ((pathname?.startsWith('/dashboard') ?? false) || (pathname?.startsWith('/admin') ?? false))) return null
 
   return (
     <footer className="bg-[#0a1426] pt-24 pb-12 px-6 md:px-12 lg:px-20" style={{ marginTop: '-2px' }}>

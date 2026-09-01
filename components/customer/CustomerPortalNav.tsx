@@ -233,7 +233,28 @@ export default function CustomerPortalNav({
             })}
           </nav>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Become an Instructor CTA Button — Electric Cyan Aviation Theme */}
+            <Link
+              href="/dashboard/instructor"
+              className={`hidden xl:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[12.5px] font-bold font-sans transition-all duration-200 hover:brightness-110 shadow-xs ${
+                pathname === '/dashboard/instructor' || pathname === '/dashboard/become-an-instructor'
+                  ? 'ring-2 ring-[#0EA5E9]'
+                  : ''
+              }`}
+              style={{
+                backgroundColor:
+                  pathname === '/dashboard/instructor' || pathname === '/dashboard/become-an-instructor'
+                    ? 'rgba(14, 165, 233, 0.28)'
+                    : 'rgba(14, 165, 233, 0.15)',
+                color: '#38BDF8',
+                border: '1px solid #0EA5E9',
+              }}
+            >
+              <span className="material-symbols-outlined text-[16px]">school</span>
+              <span>Become an Instructor</span>
+            </Link>
+
             <Link
               href="/dashboard/messages"
               className="relative inline-flex items-center justify-center w-10 h-10 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors"
@@ -268,6 +289,17 @@ export default function CustomerPortalNav({
                     <div className="text-[13px] font-semibold text-white">{displayName}</div>
                     <div className="text-[11px] text-white/50 truncate">{email}</div>
                   </div>
+
+                  <Link
+                    href="/dashboard/instructor"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-sky-400 hover:text-sky-300 hover:bg-white/5 transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+                      school
+                    </span>
+                    <span>Become an Instructor</span>
+                  </Link>
 
                   <Link
                     href="/dashboard/settings"

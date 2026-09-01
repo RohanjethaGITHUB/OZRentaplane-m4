@@ -72,142 +72,12 @@ export default function Navbar({
   const ctaClass =
     'font-sans font-semibold text-[#0c1a2e] bg-[#c8dcff] hover:bg-white rounded-full transition-colors duration-200'
 
-  const isInstructorPage = pathname === '/become-an-instructor'
   const isFleetActive = pathname === '/cessna-172' || pathname === '/fleet'
   const isPortalLinkActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname === href || (pathname?.startsWith(`${href}/`) ?? false)
   const visibleCustomerPortalLinks = CUSTOMER_PORTAL_LINKS.filter(
     (link) => !(hideCustomerCheckoutLink && link.href === '/dashboard/checkout'),
   )
-
-  const INSTRUCTOR_NAV_LINKS = [
-    { label: 'Rent', href: '/fleet' },
-    { label: 'Aircraft', href: '/cessna-172' },
-    { label: 'Instructors', href: '/become-an-instructor', active: true },
-    { label: 'Schools', href: '/checkout-process' },
-    { label: 'Resources', href: '/resources' },
-    { label: 'About', href: '/contact-us', hasDropdown: true },
-  ]
-
-  if (isInstructorPage) {
-    return (
-      <header
-        className="absolute top-0 left-0 right-0 z-50 transition-all duration-300 bg-transparent"
-      >
-        <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-16 h-[88px] flex items-center justify-between gap-8">
-          {/* Logo */}
-          <a href="/" className="shrink-0 flex items-center gap-2.5 select-none">
-            <img
-              src="/Logo/ozrentaplane-transparent-bg.png"
-              alt="OZRentAPlane logo"
-              className="h-10 sm:h-12 w-auto object-contain"
-            />
-            <span className="font-sans font-black text-[22px] tracking-tight text-[#0c2340]">
-              <span className="text-blue-600">OZ</span>Rentaplane
-            </span>
-          </a>
-
-          {/* Desktop links */}
-          <nav className="hidden lg:flex items-center gap-8">
-            {INSTRUCTOR_NAV_LINKS.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className={`whitespace-nowrap font-sans text-[15px] transition-colors duration-150 flex items-center gap-1 ${
-                  link.active
-                    ? 'text-blue-600 font-bold'
-                    : 'text-[#1e293b] font-medium hover:text-[#0c2340]'
-                }`}
-              >
-                {link.label}
-                {link.hasDropdown && (
-                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="text-slate-500">
-                    <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-              </a>
-            ))}
-          </nav>
-
-          {/* Right CTA */}
-          <div className="flex items-center gap-3 shrink-0">
-            {user ? (
-              <a
-                href="/dashboard"
-                className="hidden md:inline-flex items-center text-[14px] px-5 py-2 font-sans font-semibold text-white bg-[#0c2340] hover:bg-[#163864] rounded-lg transition-colors shadow-sm"
-              >
-                Pilot Portal
-              </a>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setAuthModalOpen(true)}
-                  className="hidden md:inline-flex items-center text-[14px] px-5 py-2 font-sans font-semibold text-[#0c2340] bg-white/90 hover:bg-white border border-slate-300 rounded-lg transition-colors shadow-sm"
-                >
-                  Log in
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAuthModalOpen(true)}
-                  className="hidden md:inline-flex items-center text-[14px] px-5 py-2 font-sans font-semibold text-white bg-[#0c2340] hover:bg-[#163864] rounded-lg transition-colors shadow-md"
-                >
-                  Sign up
-                </button>
-              </>
-            )}
-
-            {/* Mobile menu button */}
-            <button
-              className="lg:hidden flex flex-col justify-center gap-[5px] w-8 h-8"
-              onClick={() => setMenuOpen(!menuOpen)}
-              aria-label="Toggle menu"
-            >
-              <span className={`block w-6 h-0.5 bg-[#0c2340] transition-all duration-300 origin-center ${menuOpen ? 'rotate-45 translate-y-[7px]' : ''}`} />
-              <span className={`block w-6 h-0.5 bg-[#0c2340] transition-all duration-300 ${menuOpen ? 'opacity-0' : ''}`} />
-              <span className={`block w-6 h-0.5 bg-[#0c2340] transition-all duration-300 origin-center ${menuOpen ? '-rotate-45 -translate-y-[7px]' : ''}`} />
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile menu dropdown */}
-        {menuOpen && (
-          <div className="lg:hidden bg-white/95 backdrop-blur-xl border-t border-slate-200 px-6 py-5 flex flex-col gap-4 shadow-xl">
-            {INSTRUCTOR_NAV_LINKS.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                onClick={() => setMenuOpen(false)}
-                className={`font-sans text-[15px] font-medium transition-colors ${
-                  link.active ? 'text-blue-600 font-bold' : 'text-[#334155]'
-                }`}
-              >
-                {link.label}
-              </a>
-            ))}
-            <div className="pt-2 flex flex-col gap-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => { setMenuOpen(false); setAuthModalOpen(true) }}
-                className="w-full py-2.5 text-center font-semibold text-[14px] text-[#0c2340] border border-slate-300 rounded-lg"
-              >
-                Log in
-              </button>
-              <button
-                type="button"
-                onClick={() => { setMenuOpen(false); setAuthModalOpen(true) }}
-                className="w-full py-2.5 text-center font-semibold text-[14px] text-white bg-[#0c2340] rounded-lg"
-              >
-                Sign up
-              </button>
-            </div>
-          </div>
-        )}
-
-        <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
-      </header>
-    )
-  }
 
   return (
     <header
@@ -330,7 +200,10 @@ export default function Navbar({
           </div>
 
           {NAV_LINKS.map((link) => {
-            const isActive = pathname === link.href
+            const isActive =
+              pathname === link.href ||
+              (link.href === '/become-an-instructor' &&
+                (pathname?.startsWith('/become-an-instructor') || pathname?.startsWith('/instructor') || pathname === '/dashboard/instructor'))
 
             if (link.disabled) {
               return (
