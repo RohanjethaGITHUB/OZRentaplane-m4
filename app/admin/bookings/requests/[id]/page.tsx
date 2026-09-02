@@ -850,6 +850,15 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     latestBankTransferSubmissionStatus: latestStdBankSub?.status ?? null,
     paymentStatus: (booking as { payment_status?: string | null }).payment_status ?? null,
   })
+
+  const isFlightCancellable =
+    !flightRecordRow &&
+    !isStandardPaymentPending &&
+    !isStandardBillingPending &&
+    !isPaymentRequired &&
+    !['completed', 'cancelled', 'no_show', 'pending_post_flight_review', 'post_flight_approved', 'invoice_generated', 'payment_pending', 'paid', 'awaiting_flight_record', 'flight_record_overdue', 'checkout_completed_under_review', 'checkout_payment_required'].includes(booking.status) &&
+    !['awaiting_flight_readings', 'readings_submitted', 'payment_required', 'payment_still_due', 'payment_review_pending', 'paid_closed', 'waived_closed', 'payment_void', 'payment_failed', 'cancelled', 'no_show', 'checkout_completed_under_review', 'checkout_payment_required'].includes(lifecycleStage.key)
+
   const chargesAndPayment = bookingType === 'standard'
     ? standardInvoice
       ? {
@@ -1602,7 +1611,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                     className="w-full sm:w-auto"
                   />
                 ) : null}
-                {!['completed', 'cancelled', 'no_show'].includes(booking.status) && (
+                {isFlightCancellable && (
                   <AdminCancelBookingButton
                     bookingId={booking.id}
                     customerName={(customer as { full_name?: string | null } | null)?.full_name ?? 'Customer'}

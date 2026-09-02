@@ -119,7 +119,7 @@ export async function settleCheckoutInvoiceManually(
       .single(),
     supabase
       .from("bookings")
-      .select("booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, model)")
+      .select("booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, aircraft_type)")
       .eq("id", input.bookingId)
       .maybeSingle(),
   ]);
@@ -129,7 +129,7 @@ export async function settleCheckoutInvoiceManually(
       ? bookingRecord.aircraft[0]
       : bookingRecord?.aircraft;
     const aircraftLabel = aircraftData?.registration
-      ? `${aircraftData.registration}${aircraftData.model ? ` (${aircraftData.model})` : ""}`
+      ? `${aircraftData.registration}${aircraftData.aircraft_type ? ` (${aircraftData.aircraft_type})` : ""}`
       : "Assigned aircraft";
 
     const flightDateFormatted = bookingRecord?.scheduled_start
