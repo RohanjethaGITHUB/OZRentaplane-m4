@@ -780,7 +780,7 @@ export async function submitBankTransferProof(
       .single(),
     supabase
       .from("bookings")
-      .select("booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, model)")
+      .select("booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, aircraft_type)")
       .eq("id", bookingId)
       .maybeSingle(),
     supabase
@@ -795,7 +795,7 @@ export async function submitBankTransferProof(
       ? bookingRecord.aircraft[0]
       : bookingRecord?.aircraft;
     const aircraftLabel = aircraftData?.registration
-      ? `${aircraftData.registration}${aircraftData.model ? ` (${aircraftData.model})` : ""}`
+      ? `${aircraftData.registration}${aircraftData.aircraft_type ? ` (${aircraftData.aircraft_type})` : ""}`
       : "OZRentAPlane Aircraft";
 
     const flightDateFormatted = bookingRecord?.scheduled_start
@@ -903,7 +903,7 @@ export async function adminApproveBankTransfer(submissionId: string, bookingId: 
         supabase.from("profiles").select("email, full_name").eq("id", sub.customer_id).single(),
         supabase
           .from("bookings")
-          .select("booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, model)")
+          .select("booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, aircraft_type)")
           .eq("id", bookingId)
           .maybeSingle(),
         supabase
@@ -918,7 +918,7 @@ export async function adminApproveBankTransfer(submissionId: string, bookingId: 
           ? bookingRecord.aircraft[0]
           : bookingRecord?.aircraft;
         const aircraftLabel = aircraftData?.registration
-          ? `${aircraftData.registration}${aircraftData.model ? ` (${aircraftData.model})` : ""}`
+          ? `${aircraftData.registration}${aircraftData.aircraft_type ? ` (${aircraftData.aircraft_type})` : ""}`
           : "Assigned Aircraft";
 
         const flightDateFormatted = bookingRecord?.scheduled_start
@@ -1297,7 +1297,7 @@ export async function submitStandardBankTransferProof(
       .single(),
     supabase
       .from("bookings")
-      .select("booking_reference, scheduled_start, scheduled_end, aircraft_id, aircraft:aircraft_id(registration, model)")
+      .select("booking_reference, scheduled_start, scheduled_end, aircraft_id, aircraft:aircraft_id(registration, aircraft_type)")
       .eq("id", bookingId)
       .maybeSingle(),
     supabase
@@ -1312,7 +1312,7 @@ export async function submitStandardBankTransferProof(
       ? bookingRecord.aircraft[0]
       : bookingRecord?.aircraft;
     const aircraftLabel = aircraftData?.registration
-      ? `${aircraftData.registration}${aircraftData.model ? ` (${aircraftData.model})` : ""}`
+      ? `${aircraftData.registration}${aircraftData.aircraft_type ? ` (${aircraftData.aircraft_type})` : ""}`
       : "OZRentAPlane Aircraft";
 
     const flightDateFormatted = bookingRecord?.scheduled_start
@@ -1458,13 +1458,13 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
     throw new Error("Amount must be a positive whole number of cents.");
   }
 
-  const { data: booking } = await supabase
+  const { data: booking, error: fetchErr } = await admin
     .from("bookings")
-    .select("id, booking_type, booking_owner_user_id, booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, model)")
+    .select("id, booking_type, booking_owner_user_id, booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, aircraft_type)")
     .eq("id", input.bookingId)
     .single();
 
-  if (!booking) throw new Error("Booking not found.");
+  if (fetchErr || !booking) throw new Error("Booking not found.");
 
   const paymentMethod = input.paymentMethod ?? null;
   const manualRef = `manual-${paymentMethod ?? "standard"}-${input.bookingId}-${Date.now()}`;
@@ -1563,7 +1563,7 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
     if (!input.suppressEmail && profile?.email) {
       const aircraftData = Array.isArray(booking?.aircraft) ? booking.aircraft[0] : booking?.aircraft;
       const aircraftLabel = aircraftData?.registration
-        ? `${aircraftData.registration}${aircraftData.model ? ` (${aircraftData.model})` : ""}`
+        ? `${aircraftData.registration}${aircraftData.aircraft_type ? ` (${aircraftData.aircraft_type})` : ""}`
         : "OZRentAPlane Aircraft";
 
       const flightDateFormatted = booking?.scheduled_start
@@ -1604,7 +1604,7 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
     }
 
     try {
-      const pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId: invoice.id })
+      const pdfResult = await generateStandardBookingInvoicePdf({ supabase: admin, invoiceId: invoice.id })
       if (pdfResult) {
         console.log('[recordManualPayment] standard booking receipt generated', {
           invoiceId: invoice.id,

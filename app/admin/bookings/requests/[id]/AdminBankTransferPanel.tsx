@@ -60,11 +60,6 @@ export default function AdminBankTransferPanel({
       return
     }
 
-    if (isOverride && note.trim().length === 0) {
-      setError("A note is required when confirming payment without customer-submitted proof (e.g. bank statement reference, date sighted).")
-      return
-    }
-
     const cents = Math.round(parsed * 100)
 
     startTransition(async () => {
@@ -94,8 +89,8 @@ export default function AdminBankTransferPanel({
     : "Confirm Payment Without Portal Submission"
 
   const overrideDescription = invoiceIssued
-    ? "An invoice has been sent and is awaiting customer payment in the portal. Use this only if you have spoken with the customer and payment was settled directly (cash, card in person, or bank transfer sighted). A note is required."
-    : "Use this only when the customer has paid directly (e.g. bank transfer sighted in the account) but has not logged in to submit proof. Adding a note is required."
+    ? "An invoice has been sent and is awaiting customer payment in the portal. Use this only if you have spoken with the customer and payment was settled directly (cash, card in person, or bank transfer sighted)."
+    : "Use this only when the customer has paid directly (e.g. bank transfer sighted in the account) but has not logged in to submit proof."
 
   return (
     <div
@@ -159,7 +154,7 @@ export default function AdminBankTransferPanel({
         </label>
         <label className="block">
           <span className="text-[12px] uppercase tracking-widest font-semibold text-[#4b6390] block mb-2">
-            {isOverride ? "Note (required — payment reference / date sighted)" : "Note (optional)"}
+            Note (optional)
           </span>
           <input
             type="text"

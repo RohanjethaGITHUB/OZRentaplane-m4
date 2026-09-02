@@ -2925,7 +2925,7 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
         .single(),
       supabase
         .from('bookings')
-        .select('booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, model)')
+        .select('booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, aircraft_type)')
         .eq('id', bookingId)
         .maybeSingle(),
       supabase
@@ -2942,7 +2942,7 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
         ? bookingRecord.aircraft[0]
         : bookingRecord?.aircraft
       const aircraftLabel = aircraftData?.registration
-        ? `${aircraftData.registration}${aircraftData.model ? ` (${aircraftData.model})` : ''}`
+        ? `${aircraftData.registration}${aircraftData.aircraft_type ? ` (${aircraftData.aircraft_type})` : ''}`
         : 'OZRentAPlane Aircraft'
 
       const flightDateFormatted = bookingRecord?.scheduled_start

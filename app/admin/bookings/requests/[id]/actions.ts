@@ -38,8 +38,21 @@ export async function cancelBookingByAdmin(bookingId: string, reason: string): P
     .single()
 
   if (fetchErr || !booking) throw new Error('Booking not found.')
-  if (['cancelled', 'completed'].includes(booking.status)) {
-    throw new Error(`VALIDATION: Cannot cancel a booking that is already ${booking.status}.`)
+  const nonCancellableStatuses = [
+    'cancelled',
+    'completed',
+    'pending_post_flight_review',
+    'post_flight_approved',
+    'invoice_generated',
+    'payment_pending',
+    'paid',
+    'awaiting_flight_record',
+    'flight_record_overdue',
+    'checkout_completed_under_review',
+    'checkout_payment_required',
+  ]
+  if (nonCancellableStatuses.includes(booking.status)) {
+    throw new Error(`VALIDATION: Cannot cancel a booking that is already ${booking.status.replace(/_/g, ' ')}.`)
   }
 
   const oldStatus = booking.status
