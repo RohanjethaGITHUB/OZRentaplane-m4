@@ -91,22 +91,22 @@ export default function CalendarMobileMonth({
               onClick={() => onSelectDate(dateKey)}
               aria-pressed={isSelected}
               aria-label={getDateLabel(dateKey, dailyEvents.length, isToday, isSelected)}
-              className={`flex aspect-square min-h-[46px] flex-col items-center justify-between rounded-[14px] px-1 py-1.5 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a4fd6]/35 ${
+              className={`flex aspect-square min-h-[44px] flex-col items-center justify-between rounded-[12px] px-1 py-1 text-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a4fd6]/35 ${
                 isSelected
-                  ? 'bg-[#1a4fd6] text-white shadow-[0_8px_18px_rgba(26,79,214,0.22)]'
+                  ? 'bg-[#1268f3] text-white shadow-md font-bold'
                   : isToday
-                  ? 'bg-[#eaf2ff] text-[#1a4fd6]'
-                  : 'bg-white text-[#152d5a] hover:bg-[#f6faff]'
-              } ${isAdjacentMonth && !isSelected ? 'text-[#94a3b8]' : ''}`}
+                  ? 'bg-[#dbeafe] text-[#1268f3] font-bold'
+                  : 'bg-transparent text-[#152d5a] hover:bg-white/80 active:bg-white'
+              } ${isAdjacentMonth && !isSelected ? 'text-[#94a3b8] opacity-60' : ''}`}
             >
-              <span className="text-[12px] font-semibold leading-none">
+              <span className="text-[12px] font-semibold leading-none pt-0.5">
                 {dateKey.slice(-2).replace(/^0/, '')}
               </span>
-              <span className="flex min-h-[14px] items-center justify-center gap-1.5" aria-hidden="true">
+              <span className="flex min-h-[12px] items-center justify-center gap-1" aria-hidden="true">
                 {compactCount ? (
                   <span
-                    className={`inline-flex h-[14px] min-w-[14px] items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none ${
-                      isSelected ? 'bg-white/16 text-white' : 'bg-[#dbe7ff] text-[#1a4fd6]'
+                    className={`inline-flex h-[13px] min-w-[13px] items-center justify-center rounded-full px-1 text-[8.5px] font-bold leading-none ${
+                      isSelected ? 'bg-white/25 text-white' : 'bg-[#dbe7ff] text-[#1a4fd6]'
                     }`}
                   >
                     {dailyEvents.length}
@@ -115,7 +115,7 @@ export default function CalendarMobileMonth({
                   priorityTypes.slice(0, 2).map((type, index) => (
                     <span
                       key={`${dateKey}-${type}-${index}`}
-                      className={`h-[5px] w-3 rounded-full ${isSelected ? 'bg-white' : getIndicatorTone(type)}`}
+                      className={`h-[4px] w-2.5 rounded-full ${isSelected ? 'bg-white' : getIndicatorTone(type)}`}
                     />
                   ))
                 )}

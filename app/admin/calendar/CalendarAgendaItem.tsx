@@ -123,7 +123,7 @@ export default function CalendarAgendaItem({
       </span>
 
       <span className="min-w-0 flex-1">
-        <span className="flex items-start gap-2">
+        <span className="flex flex-wrap items-center gap-1.5 mb-1.5">
           <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.06em] ${tone.badge}`}>
             {event.eventTypeLabel}
           </span>
@@ -134,7 +134,7 @@ export default function CalendarAgendaItem({
             </span>
           ) : null}
           {secondaryStatus ? (
-            <span className="ml-auto inline-flex shrink-0 rounded-full border border-[rgba(12,35,64,0.10)] bg-[rgba(247,251,255,0.92)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[#4b6390]">
+            <span className="inline-flex rounded-full border border-[rgba(12,35,64,0.10)] bg-[rgba(247,251,255,0.92)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[#4b6390]">
               {secondaryStatus}
             </span>
           ) : null}

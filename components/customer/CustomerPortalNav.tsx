@@ -234,22 +234,14 @@ export default function CustomerPortalNav({
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/* Become an Instructor CTA Button — Electric Cyan Aviation Theme */}
+            {/* Become an Instructor CTA Button — Refined Aviation Theme */}
             <Link
               href="/dashboard/instructor"
-              className={`hidden xl:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[12.5px] font-bold font-sans transition-all duration-200 hover:brightness-110 shadow-xs ${
+              className={`hidden xl:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[13px] font-semibold font-sans transition-all duration-200 shadow-sm ${
                 pathname === '/dashboard/instructor' || pathname === '/dashboard/become-an-instructor'
-                  ? 'ring-2 ring-[#0EA5E9]'
-                  : ''
+                  ? 'bg-sky-500/25 text-sky-200 border border-sky-400/60 shadow-[0_0_12px_rgba(56,189,248,0.20)]'
+                  : 'bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-400/30 hover:border-sky-400/50'
               }`}
-              style={{
-                backgroundColor:
-                  pathname === '/dashboard/instructor' || pathname === '/dashboard/become-an-instructor'
-                    ? 'rgba(14, 165, 233, 0.28)'
-                    : 'rgba(14, 165, 233, 0.15)',
-                color: '#38BDF8',
-                border: '1px solid #0EA5E9',
-              }}
             >
               <span className="material-symbols-outlined text-[16px]">school</span>
               <span>Become an Instructor</span>
