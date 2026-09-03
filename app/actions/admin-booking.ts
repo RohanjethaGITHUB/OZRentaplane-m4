@@ -1243,9 +1243,6 @@ export async function markCheckoutOutcome(input: {
     if (input.outcome === 'cleared_to_fly') {
       throw new Error('VALIDATION: Payment cannot be waived for the cleared_to_fly outcome.')
     }
-    if (!input.waiverReason?.trim()) {
-      throw new Error('VALIDATION: A waiver reason is required when payment is waived.')
-    }
   }
 
   // ── Hourly rate validation — always required (waiver path also stores the rate for audit) ──
@@ -1341,7 +1338,7 @@ export async function markCheckoutOutcome(input: {
     p_landing_charges:              landingChargesJson.length > 0 ? landingChargesJson : null,
     p_admin_notes:                  input.adminNote ?? null,
     p_payment_waived:               input.paymentWaived ?? false,
-    p_waiver_reason:                input.waiverReason ?? null,
+    p_waiver_reason:                input.paymentWaived ? (input.waiverReason?.trim() || 'Payment waived by administrator') : null,
     p_checkout_rate_cents_per_hour: checkoutRateCents,
   }
 
@@ -3152,10 +3149,6 @@ export async function finaliseStandardBookingInvoice(input: {
 
   const submissionMode = input.submissionMode ?? 'send_invoice'
   const billingBranch = resolveStandardBookingBillingBranch({ submissionMode })
-
-  if (billingBranch.kind === 'waived' && !input.waiverReason?.trim()) {
-    throw new Error('VALIDATION: A waiver reason is required when payment is waived.')
-  }
 
   for (const row of input.landingCharges ?? []) {
     const hasAirport = !!row.airportId?.trim()

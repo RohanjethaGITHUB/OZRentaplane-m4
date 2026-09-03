@@ -138,15 +138,19 @@ export default function InstructorDashboardPage() {
                 </StaggerItem>
 
                 <StaggerItem duration={1.15}>
-                  <div>
-                    <button
-                      type="button"
-                      onClick={handleBookingClick}
-                      className="bg-[#1268f3] hover:bg-blue-700 text-white font-bold text-[14px] sm:text-[15px] px-6 sm:px-7 py-3.5 rounded-xl shadow-md hover:shadow-lg transition-all inline-flex items-center gap-2.5 w-full sm:w-fit justify-center group"
-                    >
+                  <div className="relative inline-block w-full sm:w-fit rounded-xl overflow-hidden cursor-not-allowed select-none shadow-md">
+                    {/* Below layer: The blue CTA */}
+                    <div className="bg-[#1268f3] text-white font-bold text-[14px] sm:text-[15px] px-6 sm:px-7 py-3.5 inline-flex items-center gap-2.5 w-full justify-center">
                       <span>Book Instructor Checkout Flight</span>
-                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" strokeWidth={2.5} />
-                    </button>
+                      <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
+                    </div>
+
+                    {/* First layer (layer above): Coming Soon overlay */}
+                    <div className="absolute inset-0 bg-[#0c2340]/40 backdrop-blur-[1.5px] flex items-center justify-center z-10">
+                      <span className="bg-white/95 text-[#0c2340] border border-white/60 font-black text-[11px] sm:text-[11.5px] px-3.5 py-1 rounded-full uppercase tracking-wider shadow-sm">
+                        Coming Soon
+                      </span>
+                    </div>
                   </div>
                 </StaggerItem>
               </StaggerContainer>
@@ -496,14 +500,20 @@ export default function InstructorDashboardPage() {
           </div>
 
           <div className="w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={handleBookingClick}
-              className="w-full sm:w-auto bg-[#1268f3] hover:bg-blue-700 text-white font-bold text-[13.5px] sm:text-[14px] px-5 sm:px-6 py-3 sm:py-3.5 rounded-xl shadow-md hover:shadow-lg transition-all inline-flex items-center justify-center gap-2 shrink-0 group whitespace-nowrap"
-            >
-              <span>Book Instructor Checkout Flight</span>
-              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" strokeWidth={2.5} />
-            </button>
+            <div className="relative inline-block w-full sm:w-auto rounded-xl overflow-hidden cursor-not-allowed select-none shadow-md">
+              {/* Below layer: The blue CTA */}
+              <div className="w-full sm:w-auto bg-[#1268f3] text-white font-bold text-[13.5px] sm:text-[14px] px-5 sm:px-6 py-3 sm:py-3.5 inline-flex items-center justify-center gap-2 shrink-0 whitespace-nowrap">
+                <span>Book Instructor Checkout Flight</span>
+                <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
+              </div>
+
+              {/* First layer (layer above): Coming Soon overlay */}
+              <div className="absolute inset-0 bg-[#0c2340]/40 backdrop-blur-[1.5px] flex items-center justify-center z-10">
+                <span className="bg-white/95 text-[#0c2340] border border-white/60 font-black text-[10.5px] sm:text-[11px] px-3.5 py-1 rounded-full uppercase tracking-wider shadow-sm">
+                  Coming Soon
+                </span>
+              </div>
+            </div>
           </div>
         </section>
       </FadeUp>

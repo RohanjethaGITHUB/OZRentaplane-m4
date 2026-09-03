@@ -91,14 +91,8 @@ export default function AdminSubmitFlightRecordPanel({
   const [adminNotes, setAdminNotes] = useState('')
   const [landings, setLandings] = useState('')
   const [readings, setReadings] = useState<TotalOnlyFormValues>({
-    tacho_total:      '',
     vdo_total:        '',
     air_switch_total: '',
-    mr_total:         '',
-    oil_added:        '',
-    oil_total:        '',
-    fuel_added:       '',
-    fuel_returned:    '',
   })
   const [landingRows, setLandingRows] = useState<LandingChargeRow[]>(() => [
     { id: ++rowIdCounter, airportId: getInitialAirportId(airports), landingCount: '1' },
@@ -122,13 +116,7 @@ export default function AdminSubmitFlightRecordPanel({
 
   const normalisedReadings = {
     vdo_total:        getNum(readings.vdo_total) ?? 0,
-    tacho_total:      getNum(readings.tacho_total) ?? 0,
     air_switch_total: getNum(readings.air_switch_total) ?? 0,
-    mr_total:         getNum(readings.mr_total) ?? 0,
-    oil_added:        getNum(readings.oil_added),
-    oil_total:        getNum(readings.oil_total),
-    fuel_added:       getNum(readings.fuel_added),
-    fuel_returned:    getNum(readings.fuel_returned),
     landings:         landingsNum,
     notes:            adminNotes.trim() || null,
   }
@@ -209,10 +197,6 @@ export default function AdminSubmitFlightRecordPanel({
     }
     if (hasIncompleteLandingRows) {
       setError('Complete or remove incomplete landing rows before submitting.')
-      return
-    }
-    if (billingBranch.kind === 'waived' && !waiverReason.trim()) {
-      setError('A waiver reason is required when payment is waived.')
       return
     }
     if (minimumDecisionRequired) {
@@ -547,7 +531,7 @@ export default function AdminSubmitFlightRecordPanel({
                 value={waiverReason}
                 onChange={(e) => setWaiverReason(e.target.value)}
                 rows={3}
-                placeholder="Reason for waiving payment…"
+                placeholder="Reason for waiving payment (optional)…"
                 disabled={isPending}
                 className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)]"
               />

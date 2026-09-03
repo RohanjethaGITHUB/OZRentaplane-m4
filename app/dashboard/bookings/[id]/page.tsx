@@ -15,7 +15,6 @@ import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/supabase/types'
 import type { BookingStatus, FlightRecord, FlightRecordAttachment, FlightRecordClarification } from '@/lib/supabase/booking-types'
 import { formatDateFromISO, formatDateTime } from '@/lib/formatDateTime'
-import { markFlightReturned } from '@/app/actions/booking'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
 import CustomerBookingActions from './CustomerBookingActions'
 import CheckoutChangeActions from '@/app/dashboard/checkout/CheckoutChangeActions'
@@ -515,12 +514,26 @@ function NextActionCard({
             ? 'This booking was marked as no show by the operations team.'
             : 'This booking has been cancelled and will not proceed.'}
         </p>
-        {adminNotes?.trim() && (
-          <div className="mt-3 pt-3 border-t border-red-200">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-red-700/80 mb-1.5">Reason</p>
-            <p className="text-sm text-[#152d5a] leading-relaxed font-medium">{adminNotes.trim()}</p>
-          </div>
-        )}
+        {(() => {
+          const rawNote = adminNotes?.trim()
+          if (!rawNote) return null
+          const cleanedNote = rawNote
+            .replace(/\s*\((?:flight\s+)?(?:never|did\s+not)\s+took?\s+place\)/gi, '')
+            .trim()
+          if (
+            !cleanedNote ||
+            /^closed\s+(?:permanently\s+)?by\s+admin\.?$/i.test(cleanedNote) ||
+            /^cancelled\s+by\s+admin\.?$/i.test(cleanedNote)
+          ) {
+            return null
+          }
+          return (
+            <div className="mt-3 pt-3 border-t border-red-200">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-red-700/80 mb-1.5">Reason</p>
+              <p className="text-sm text-[#152d5a] leading-relaxed font-medium">{cleanedNote}</p>
+            </div>
+          )
+        })()}
       </div>
     )
   }
@@ -970,11 +983,12 @@ function HistoryEvent({
   )
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+type PageProps = {
+  params: { id: string }
+  searchParams?: { action?: string }
+}
 
-type PageProps = { params: { id: string } }
-
-export default async function BookingDetailPage({ params }: PageProps) {
+export default async function BookingDetailPage({ params, searchParams }: PageProps) {
   const supabase = await createClient()
   const { data: { user } } = await getCachedUser()
   if (!user) redirect('/login')
@@ -1424,6 +1438,12 @@ export default async function BookingDetailPage({ params }: PageProps) {
   const CANCELLABLE_STATUSES = ['confirmed', 'pending_confirmation', 'ready_for_dispatch', 'dispatched']
   const FLIGHT_RECORD_STATUSES = ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record']
 
+  const isPostFlightEntry =
+    status === 'awaiting_flight_record' ||
+    (bookingType === 'standard' &&
+      ['confirmed', 'ready_for_dispatch', 'dispatched'].includes(status) &&
+      searchParams?.action === 'flight_record')
+
   const showCancelButton =
     bookingType === 'standard' &&
     CANCELLABLE_STATUSES.includes(status)
@@ -1431,7 +1451,7 @@ export default async function BookingDetailPage({ params }: PageProps) {
   const showFlightRecordButton =
     bookingType === 'standard' &&
     FLIGHT_RECORD_STATUSES.includes(status) &&
-    status !== 'awaiting_flight_record' // full-width layout handles that case
+    !isPostFlightEntry
 
   // 24h check for late-cancel modal — server-side computation passed to client
   const msUntilDeparture = new Date(booking.scheduled_start).getTime() - Date.now()
@@ -1532,8 +1552,8 @@ export default async function BookingDetailPage({ params }: PageProps) {
     }
   }
 
-  // ── Awaiting flight record — dedicated full-width layout ─────────────────────
-  if (status === 'awaiting_flight_record') {
+  // ── Awaiting / submitting flight record — dedicated full-width layout ────────
+  if (isPostFlightEntry) {
     const flightDate = new Date(booking.scheduled_start).toLocaleDateString('en-CA', {
       timeZone: 'Australia/Sydney',
     })

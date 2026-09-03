@@ -71,13 +71,7 @@ export default function FlightRecordForm({
 
   const [readings, setReadings] = useState<TotalOnlyFormValues>({
     vdo_total:        '',
-    tacho_total:      '',
     air_switch_total: '',
-    mr_total:         '',
-    oil_added:        '',
-    oil_total:        '',
-    fuel_added:       '',
-    fuel_returned:       '',
   })
   const [notes, setNotes] = useState('')
 
@@ -149,7 +143,10 @@ export default function FlightRecordForm({
     setUploadErrors(rejected)
   }
   function removeFile(idx: number) {
-    setFiles(prev => { URL.revokeObjectURL(prev[idx].preview); return prev.filter((_, i) => i !== idx) })
+    setFiles(prev => {
+      URL.revokeObjectURL(prev[idx].preview)
+      return prev.filter((_, i) => i !== idx)
+    })
   }
 
   function getNum(field: keyof TotalOnlyFormValues): number | null {
@@ -168,14 +165,13 @@ export default function FlightRecordForm({
     ? Math.max(0, enteredVdoTotal - activePackage.hours_remaining)
     : null
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitAttempted(true)
     setError(null)
 
-    if (!declaration) { setError('You must accept the declaration before submitting.'); return }
-
-    if (landingRows.length === 0) { setError('At least one landing entry is required.'); return }
+    if (!declaration) { setError('Please check the declaration box before submitting.'); return }
+    if (landingRows.length === 0) { setError('Add at least one landing airport.'); return }
     for (let i = 0; i < landingRows.length; i++) {
       const err = getLandingRowError(landingRows[i])
       if (err) { setError(`Landing row ${i + 1}: ${err}`); return }
@@ -188,13 +184,7 @@ export default function FlightRecordForm({
 
     const totalReadings = {
       vdo_total:        getNum('vdo_total')        ?? 0,
-      tacho_total:      getNum('tacho_total')      ?? 0,
       air_switch_total: getNum('air_switch_total') ?? 0,
-      mr_total:         getNum('mr_total')         ?? 0,
-      oil_added:        getNum('oil_added'),
-      oil_total:        getNum('oil_total'),
-      fuel_added:       getNum('fuel_added'),
-      fuel_returned:       getNum('fuel_returned'),
       landings:         totalLandings,
       notes:            notes.trim() || null,
     }
@@ -214,13 +204,7 @@ export default function FlightRecordForm({
         pic_name:             picName  || null,
         pic_arn:              picArn   || null,
         vdo_total:            totalReadings.vdo_total,
-        tacho_total:          totalReadings.tacho_total,
         air_switch_total:     totalReadings.air_switch_total,
-        mr_total:             totalReadings.mr_total,
-        oil_added:            totalReadings.oil_added,
-        oil_total:            totalReadings.oil_total,
-        fuel_added:           totalReadings.fuel_added,
-        fuel_returned:           totalReadings.fuel_returned,
         landings:             totalLandings,
         landing_rows:         landingRowsParsed,
         customer_notes:       notes || null,

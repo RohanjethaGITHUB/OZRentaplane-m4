@@ -13,14 +13,8 @@ type Props = {
   compact?: boolean
   submitAttempted?: boolean
   showBillingCaption?: boolean
+  beforeNotesSlot?: React.ReactNode
 }
-
-const METER_LABELS: { field: keyof TotalOnlyFormValues; label: string }[] = [
-  { field: 'vdo_total',        label: 'VDO total'      },
-  { field: 'tacho_total',      label: 'Tacho total'    },
-  { field: 'air_switch_total', label: 'Airswitch total' },
-  { field: 'mr_total',         label: 'MR total'       },
-]
 
 function numericString(value: string): number | null {
   if (!value.trim()) return null
@@ -48,8 +42,9 @@ export default function TotalOnlyReadingsForm({
   compact = false,
   submitAttempted = false,
   showBillingCaption = false,
+  beforeNotesSlot,
 }: Props) {
-  const renderField = (field: keyof TotalOnlyFormValues, label: string) => {
+  const renderField = (field: 'vdo_total' | 'air_switch_total', label: string) => {
     const value = values[field] ?? ''
     const parsed = numericString(value)
     const isEmpty = value.trim() === ''
@@ -86,9 +81,7 @@ export default function TotalOnlyReadingsForm({
           <span className="font-semibold uppercase tracking-[0.14em] text-[#4b6390]">Continuity baseline</span>
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono tabular-nums text-[#152d5a]">
             <span>VDO {formatBaselineValue(continuityBaseline.vdo_start)}</span>
-            <span>Tacho {formatBaselineValue(continuityBaseline.tacho_start)}</span>
             <span>Airswitch {formatBaselineValue(continuityBaseline.air_switch_start)}</span>
-            <span>MR {formatBaselineValue(continuityBaseline.mr_start)}</span>
           </div>
           {showContinuityWarnings && (
             <p className="mt-2 text-[11px] text-[#4b6390]">
@@ -120,22 +113,12 @@ export default function TotalOnlyReadingsForm({
           )}
         </div>
         <div className="rounded-xl border border-[#dbe7f4] bg-[#f8fbff] p-3 space-y-2 shadow-[0_1px_0_rgba(255,255,255,0.8)]">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {METER_LABELS.slice(1).map(({ field, label }) => renderField(field, label))}
-          </div>
+          {renderField('air_switch_total', 'Airswitch total')}
         </div>
       </div>
 
-      {/* Consumables */}
-      <div className="space-y-2">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4b6390]">Consumables</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <SimpleField label="Oil added"   field="oil_added"   values={values} onChange={onChange} disabled={disabled} compact={compact} />
-          <SimpleField label="Oil total"   field="oil_total"   values={values} onChange={onChange} disabled={disabled} compact={compact} />
-          <SimpleField label="Fuel added"  field="fuel_added"  values={values} onChange={onChange} disabled={disabled} compact={compact} />
-          <SimpleField label="Fuel returned"  field="fuel_returned"  values={values} onChange={onChange} disabled={disabled} compact={compact} />
-        </div>
-      </div>
+      {/* Before Notes slot (e.g. Flight Evidence photos) */}
+      {beforeNotesSlot}
 
       {/* Notes */}
       {onNotesChange ? (
@@ -156,35 +139,4 @@ export default function TotalOnlyReadingsForm({
 
 function formatBaselineValue(value: number | null) {
   return value == null ? '—' : value.toFixed(1)
-}
-
-function SimpleField({
-  label,
-  field,
-  values,
-  onChange,
-  disabled,
-  compact,
-}: {
-  label: string
-  field: keyof TotalOnlyFormValues
-  values: TotalOnlyFormValues
-  onChange: (field: keyof TotalOnlyFormValues, value: string) => void
-  disabled: boolean
-  compact: boolean
-}) {
-  return (
-    <label className="block">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4b6390] block mb-1">{label}</span>
-      <input
-        type="number"
-        step="0.1"
-        min="0"
-        value={values[field] ?? ''}
-        onChange={(e) => onChange(field, e.target.value)}
-        className={inputClass(compact)}
-        disabled={disabled}
-      />
-    </label>
-  )
 }

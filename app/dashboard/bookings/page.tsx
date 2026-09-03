@@ -1077,7 +1077,20 @@ export default async function CustomerBookingsPage() {
                     const isCancelledByAdmin = isCheckout
                       ? booking.checkout_lifecycle_status === 'cancelled_by_admin'
                       : (bookingAny.cancellation_category === 'admin' || bookingAny.cancellation_category === 'weather' || bookingAny.cancellation_category === 'maintenance')
-                    const adminCancelNoteText = (isCheckout ? booking.admin_notes : (bookingAny.cancellation_reason || booking.admin_notes))?.trim() || null
+                    const rawCancelNote = (isCheckout ? booking.admin_notes : (bookingAny.cancellation_reason || booking.admin_notes))?.trim() || null
+                    let adminCancelNoteText: string | null = rawCancelNote
+                    if (adminCancelNoteText) {
+                      adminCancelNoteText = adminCancelNoteText
+                        .replace(/\s*\((?:flight\s+)?(?:never|did\s+not)\s+took?\s+place\)/gi, '')
+                        .trim()
+                      if (
+                        !adminCancelNoteText ||
+                        /^closed\s+(?:permanently\s+)?by\s+admin\.?$/i.test(adminCancelNoteText) ||
+                        /^cancelled\s+by\s+admin\.?$/i.test(adminCancelNoteText)
+                      ) {
+                        adminCancelNoteText = null
+                      }
+                    }
                     const cancelMessageLabel = isCancelled
                       ? (isCancelledByAdmin
                           ? (isCheckout ? 'Checkout cancelled by admin' : 'Flight cancelled by admin')

@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { cancelBookingNow, requestLateCancellation, markFlightReturned } from '@/app/actions/booking'
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { cancelBookingNow, requestLateCancellation } from '@/app/actions/booking'
 import ModalPortal from '@/components/ModalPortal'
 import { LoadingButtonContent } from '@/components/ui/Spinner'
 
@@ -18,8 +19,8 @@ type Props = {
   variant?:               'default' | 'listCard'
 }
 
-// Three possible modal states — null means no modal is open.
-type ActiveModal = 'cancel_immediate' | 'cancel_late' | 'flight_record' | null
+// Possible cancel modal states — null means no modal is open.
+type ActiveModal = 'cancel_immediate' | 'cancel_late' | null
 
 export default function CustomerBookingActions({
   bookingId,
@@ -32,18 +33,11 @@ export default function CustomerBookingActions({
   variant = 'default',
 }: Props) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const isListCard = variant === 'listCard'
   const [isPending, startTransition] = useTransition()
   const [activeModal, setActiveModal] = useState<ActiveModal>(null)
   const [reason, setReason]           = useState('')
   const [error, setError]             = useState<string | null>(null)
-
-  useEffect(() => {
-    if (searchParams?.get('action') === 'flight_record' && showFlightRecordButton) {
-      setActiveModal('flight_record')
-    }
-  }, [searchParams, showFlightRecordButton])
 
   if (!showCancelButton && !showFlightRecordButton) return null
 
@@ -86,19 +80,6 @@ export default function CustomerBookingActions({
     })
   }
 
-  // ── Submit flight record ──────────────────────────────────────────────────
-  function handleConfirmFlightRecord() {
-    startTransition(async () => {
-      try {
-        await markFlightReturned(bookingId)
-        setActiveModal(null)
-        router.refresh()
-      } catch (err) {
-        setError(err instanceof Error ? err.message.replace('VALIDATION: ', '') : 'Failed to advance booking.')
-      }
-    })
-  }
-
   const cancelButtonClass = isListCard
     ? 'flex items-center justify-center whitespace-nowrap border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors w-full'
     : heroLayout
@@ -117,21 +98,19 @@ export default function CustomerBookingActions({
       }>
 
         {showFlightRecordButton && (
-          <button
-            type="button"
-            onClick={() => openModal('flight_record')}
-            disabled={isPending}
+          <Link
+            href={`/dashboard/bookings/${bookingId}?action=flight_record`}
             className={heroLayout
               ? (yellowPrimary
-                  ? 'inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-[#f4b928] hover:bg-[#f9cb50] disabled:opacity-50 disabled:cursor-not-allowed text-[#0a1628] rounded-lg text-[11px] font-bold uppercase tracking-[0.14em] transition-colors w-full'
-                  : 'inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-[11px] font-bold uppercase tracking-[0.14em] transition-colors w-full')
-              : 'inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-colors'
+                  ? 'inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-[#f4b928] hover:bg-[#f9cb50] text-[#0a1628] rounded-lg text-[11px] font-bold uppercase tracking-[0.14em] transition-colors w-full'
+                  : 'inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[11px] font-bold uppercase tracking-[0.14em] transition-colors w-full')
+              : 'inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-colors'
             }
           >
             <span className="material-symbols-outlined text-sm">assignment</span>
             Submit Post Flight Records
             {heroLayout && <span className="material-symbols-outlined text-sm ml-1">arrow_forward</span>}
-          </button>
+          </Link>
         )}
 
         {showCancelButton && (
@@ -253,41 +232,6 @@ export default function CustomerBookingActions({
                 >
                   <LoadingButtonContent loading={isPending} loadingLabel="Submitting…">
                     Submit cancellation request
-                  </LoadingButtonContent>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ── Submit Post Flight Records confirmation ────────────────── */}
-          {activeModal === 'flight_record' && (
-            <div className="relative z-10 w-full max-w-md bg-white border border-[#dbe7f4] rounded-2xl p-7 shadow-[0_8px_24px_rgba(21,45,90,0.08)]">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="material-symbols-outlined text-blue-400 text-xl">assignment</span>
-                <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">
-                  Submit Post Flight Records?
-                </h2>
-              </div>
-              <p className="text-sm text-[#4b6390] leading-relaxed mb-6">
-                You are about to start the post flight records submission process for this booking. Please continue only if the aircraft has returned and you are ready to enter the required post-flight readings.
-              </p>
-              {error && <ErrorLine message={error} />}
-              <div className="flex gap-3">
-                <button
-                  onClick={closeModal}
-                  disabled={isPending}
-                  className="flex-1 py-2.5 border border-[#dbe7f4] hover:border-[#bfd5ee] text-[#4b6390] hover:text-[#152d5a] rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors disabled:opacity-50 bg-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmFlightRecord}
-                  disabled={isPending}
-                  aria-busy={isPending || undefined}
-                  className="flex-1 py-2.5 bg-[#1a4fd6] hover:bg-[#1540a8] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors flex items-center justify-center gap-2"
-                >
-                  <LoadingButtonContent loading={isPending} loadingLabel="Proceeding…">
-                    Proceed to flight record
                   </LoadingButtonContent>
                 </button>
               </div>

@@ -192,9 +192,7 @@ export default function AdminManualCheckoutCompletion({
       }
       const required: Array<[string, string, string]> = [
         ['VDO', form.vdo_start, form.vdo_stop],
-        ['Tacho', form.tacho_start, form.tacho_stop],
         ['Airswitch', form.air_switch_start, form.air_switch_stop],
-        ['MR', form.mr_start, form.mr_stop],
       ]
       for (const [label, start, stop] of required) {
         const startNum = asNum(start)
@@ -470,26 +468,6 @@ export default function AdminManualCheckoutCompletion({
                       <TotalCell total={vdoTotal} />
                     </div>
 
-                    {/* Tacho */}
-                    <div className="grid grid-cols-[5rem_1fr_1fr_1fr] gap-2 items-center">
-                      <span className="text-sm text-slate-300">Tacho</span>
-                      <input
-                        value={form.tacho_start}
-                        onChange={(e) => setField('tacho_start', e.target.value)}
-                        placeholder="0.0"
-                        inputMode="decimal"
-                        className={INPUT_CLASS}
-                      />
-                      <input
-                        value={form.tacho_stop}
-                        onChange={(e) => setField('tacho_stop', e.target.value)}
-                        placeholder="0.0"
-                        inputMode="decimal"
-                        className={INPUT_CLASS}
-                      />
-                      <TotalCell total={tachoTotal} />
-                    </div>
-
                     {/* Airswitch */}
                     <div className="grid grid-cols-[5rem_1fr_1fr_1fr] gap-2 items-center">
                       <span className="text-sm text-slate-300">Airswitch</span>
@@ -508,73 +486,6 @@ export default function AdminManualCheckoutCompletion({
                         className={INPUT_CLASS}
                       />
                       <TotalCell total={airSwitchTotal} />
-                    </div>
-
-                    {/* MR */}
-                    <div className="grid grid-cols-[5rem_1fr_1fr_1fr] gap-2 items-center">
-                      <span className="text-sm text-slate-300">MR</span>
-                      <input
-                        value={form.mr_start}
-                        onChange={(e) => setField('mr_start', e.target.value)}
-                        placeholder="0.0"
-                        inputMode="decimal"
-                        className={INPUT_CLASS}
-                      />
-                      <input
-                        value={form.mr_stop}
-                        onChange={(e) => setField('mr_stop', e.target.value)}
-                        placeholder="0.0"
-                        inputMode="decimal"
-                        className={INPUT_CLASS}
-                      />
-                      <TotalCell total={mrTotal} />
-                    </div>
-                  </div>
-
-                  {/* Oil and fuel */}
-                  <div className="space-y-3">
-                    <p className="text-[10px] uppercase tracking-widest text-slate-400">Oil &amp; Fuel</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <div>
-                        <label className="text-[9px] uppercase tracking-widest text-slate-500 block mb-1.5">Oil added</label>
-                        <input
-                          value={form.oil_added}
-                          onChange={(e) => setField('oil_added', e.target.value)}
-                          placeholder="0.0"
-                          inputMode="decimal"
-                          className={`w-full ${INPUT_CLASS}`}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] uppercase tracking-widest text-slate-500 block mb-1.5">Oil total</label>
-                        <input
-                          value={form.oil_total}
-                          onChange={(e) => setField('oil_total', e.target.value)}
-                          placeholder="0.0"
-                          inputMode="decimal"
-                          className={`w-full ${INPUT_CLASS}`}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] uppercase tracking-widest text-slate-500 block mb-1.5">Fuel added</label>
-                        <input
-                          value={form.fuel_added}
-                          onChange={(e) => setField('fuel_added', e.target.value)}
-                          placeholder="0.0"
-                          inputMode="decimal"
-                          className={`w-full ${INPUT_CLASS}`}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] uppercase tracking-widest text-slate-500 block mb-1.5">Fuel returned</label>
-                        <input
-                          value={form.fuel_returned}
-                          onChange={(e) => setField('fuel_returned', e.target.value)}
-                          placeholder="0.0"
-                          inputMode="decimal"
-                          className={`w-full ${INPUT_CLASS}`}
-                        />
-                      </div>
                     </div>
                   </div>
 

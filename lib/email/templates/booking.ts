@@ -46,7 +46,8 @@ export function rentalBookingConfirmedCustomerEmail(opts: {
     subject: `Aircraft Booking Confirmed (${opts.bookingReference})${isMulti ? ' [Multi-Day]' : ''} — OZ Rent A Plane`,
     html: renderBaseTemplate({
       headline: isMulti ? 'Multi-Day Aircraft Booking Confirmed' : 'Aircraft Booking Confirmed',
-      message: `${multiDayBadgeHtml}Hi ${opts.customerName}, your aircraft hire booking has been confirmed. Below are your flight reservation details:`,
+      badgeHtml: multiDayBadgeHtml || undefined,
+      message: `Hi ${opts.customerName}, your aircraft hire booking has been confirmed. Below are your flight reservation details:`,
       details: detailsList,
       extraHtml: `
         <div style="margin-top: 24px; padding: 16px; background-color: #f8fafc; border-left: 4px solid #0284c7; border-radius: 4px;">
@@ -118,7 +119,8 @@ export function adminRentalBookingConfirmedEmail(opts: {
     subject: `New ${isMulti ? 'Multi-Day ' : ''}Rental Booking: ${opts.customerName} — ${opts.aircraft} (${opts.bookingReference})`,
     html: renderBaseTemplate({
       headline: isMulti ? 'New Multi-Day Rental Booking Confirmed' : 'New Rental Booking Confirmed',
-      message: `${multiDayBadgeHtml}A new aircraft rental booking has been created and confirmed for ${opts.customerName}.`,
+      badgeHtml: multiDayBadgeHtml || undefined,
+      message: `A new aircraft rental booking has been created and confirmed for ${opts.customerName}.`,
       details,
       ctaLabel: 'View Booking in Admin',
       ctaUrl: `${appUrl}/admin/bookings/requests/${opts.bookingId}`,

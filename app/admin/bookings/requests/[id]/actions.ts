@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyBookingCancelled } from '@/lib/booking/notifications'
-import { emitBookingChanged, emitChatMessage, emitOpsChanged } from '@/lib/realtime/emit'
+import { emitBookingChanged, emitChatMessage, emitOpsChanged, emitClearanceUpdated } from '@/lib/realtime/emit'
 
 async function requireAdmin() {
   const supabase = await createClient()
@@ -56,22 +56,60 @@ export async function cancelBookingByAdmin(bookingId: string, reason: string): P
   }
 
   const oldStatus = booking.status
+  const isCheckout = booking.booking_type === 'checkout'
   const admin = createAdminClient()
 
   // 1. Update booking
+  const updatePayload: Record<string, unknown> = {
+    status: 'cancelled',
+    admin_notes: trimmedReason,
+    cancellation_category: 'admin',
+    updated_at: now,
+  }
+  if (isCheckout) {
+    updatePayload.checkout_lifecycle_status = 'cancelled_by_admin'
+  }
+
   const { error: updateErr } = await admin
     .from('bookings')
-    .update({
-      status: 'cancelled',
-      admin_notes: trimmedReason,
-      cancellation_category: 'admin',
-      updated_at: now,
-    })
+    .update(updatePayload)
     .eq('id', bookingId)
 
   if (updateErr) throw new Error('Failed to cancel booking.')
 
-  // 2. Release linked schedule blocks
+  // 2. If checkout: reset clearance status to checkout_required if needed so customer isn't stuck
+  if (isCheckout && booking.booking_owner_user_id) {
+    const { data: currentProfile } = await admin
+      .from('profiles')
+      .select('pilot_clearance_status')
+      .eq('id', booking.booking_owner_user_id)
+      .single()
+
+    if (currentProfile && currentProfile.pilot_clearance_status !== 'cleared_to_fly') {
+      const { data: otherCheckouts } = await admin
+        .from('bookings')
+        .select('id')
+        .eq('booking_owner_user_id', booking.booking_owner_user_id)
+        .eq('booking_type', 'checkout')
+        .in('status', [
+          'checkout_requested',
+          'checkout_confirmed',
+          'checkout_completed_under_review',
+          'checkout_payment_required',
+          'on_hold_pending_documents',
+        ])
+        .neq('id', bookingId)
+
+      if (!otherCheckouts || otherCheckouts.length === 0) {
+        await admin
+          .from('profiles')
+          .update({ pilot_clearance_status: 'checkout_required', updated_at: now })
+          .eq('id', booking.booking_owner_user_id)
+      }
+    }
+  }
+
+  // 3. Release linked schedule blocks
   const { error: blockErr } = await admin
     .from('schedule_blocks')
     .update({ status: 'cancelled' })
@@ -181,6 +219,9 @@ export async function cancelBookingByAdmin(bookingId: string, reason: string): P
   void emitBookingChanged({ bookingId, userId: booking.booking_owner_user_id })
   void emitChatMessage(booking.booking_owner_user_id)
   void emitOpsChanged()
+  if (isCheckout && booking.booking_owner_user_id) {
+    void emitClearanceUpdated(booking.booking_owner_user_id)
+  }
 }
 
 async function cancelOnHoldBookingCore(bookingId: string, reason: string): Promise<void> {
@@ -278,4 +319,171 @@ export async function cancelOnHoldBooking(bookingId: string, formData: FormData)
 /** Client-callable cancel that does not force a server redirect. */
 export async function cancelOnHoldBookingAction(bookingId: string, reason: string): Promise<void> {
   await cancelOnHoldBookingCore(bookingId, reason)
+}
+
+/**
+ * Permanently closes an open flight or checkout booking (e.g. test booking,
+ * flight that never took place, abandoned booking, or no-show).
+ * Transitions status to 'cancelled', releases held schedule blocks,
+ * cancels any draft/pending flight records, and removes from active action feeds.
+ */
+export async function permanentlyCloseBookingByAdmin(input: {
+  bookingId: string
+  reason?: string
+}): Promise<void> {
+  const { supabase, adminId } = await requireAdmin()
+  const now = new Date().toISOString()
+  const bookingId = input.bookingId
+  const customReason = input.reason?.trim() || null
+  const reasonText = customReason || 'Closed permanently by admin'
+
+  const { data: booking, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('id, status, booking_type, scheduled_start, scheduled_end, aircraft_id, booking_owner_user_id, booking_reference')
+    .eq('id', bookingId)
+    .single()
+
+  if (fetchErr || !booking) throw new Error('Booking not found.')
+
+  if (booking.status === 'cancelled') {
+    throw new Error('VALIDATION: This booking is already cancelled.')
+  }
+
+  const oldStatus = booking.status
+  const isCheckout = booking.booking_type === 'checkout'
+  const admin = createAdminClient()
+
+  // 1. Update booking
+  const updatePayload: Record<string, unknown> = {
+    status: 'cancelled',
+    admin_notes: customReason || 'Closed by admin',
+    cancellation_category: 'admin',
+    updated_at: now,
+  }
+  if (isCheckout) {
+    updatePayload.checkout_lifecycle_status = 'cancelled_by_admin'
+  }
+
+  const { error: updateErr } = await admin
+    .from('bookings')
+    .update(updatePayload)
+    .eq('id', bookingId)
+
+  if (updateErr) {
+    console.error('[permanentlyCloseBookingByAdmin] booking update error:', updateErr)
+    throw new Error('Failed to permanently close booking.')
+  }
+
+  // 2. Release linked schedule blocks
+  const { error: blockErr } = await admin
+    .from('schedule_blocks')
+    .update({ status: 'cancelled' })
+    .eq('related_booking_id', bookingId)
+
+  if (blockErr) {
+    console.error('[permanentlyCloseBookingByAdmin] block cancel error:', blockErr)
+  }
+
+  // 3. Reject/cancel any active or unfinalised flight record so it doesn't hang around
+  const { error: frErr } = await admin
+    .from('flight_records')
+    .update({ status: 'rejected' })
+    .eq('booking_id', bookingId)
+    .in('status', ['draft', 'pending_review', 'resubmitted', 'needs_clarification'])
+
+  if (frErr) {
+    console.error('[permanentlyCloseBookingByAdmin] flight record update error:', frErr)
+  }
+
+  // 3b. Void any draft or unpaid invoices for this booking so they don't linger
+  await admin
+    .from('booking_invoices')
+    .update({ status: 'void', updated_at: now })
+    .eq('booking_id', bookingId)
+    .in('status', ['payment_required', 'bank_transfer_pending_review'])
+
+  await admin
+    .from('checkout_invoices')
+    .update({ status: 'void', updated_at: now })
+    .eq('booking_id', bookingId)
+    .in('status', ['open', 'pending'])
+
+  // 4. If checkout: reset clearance status to checkout_required if needed so customer isn't stuck
+  if (isCheckout && booking.booking_owner_user_id) {
+    const { data: currentProfile } = await admin
+      .from('profiles')
+      .select('pilot_clearance_status')
+      .eq('id', booking.booking_owner_user_id)
+      .single()
+
+    if (currentProfile && currentProfile.pilot_clearance_status !== 'cleared_to_fly') {
+      const { data: otherCheckouts } = await admin
+        .from('bookings')
+        .select('id')
+        .eq('booking_owner_user_id', booking.booking_owner_user_id)
+        .eq('booking_type', 'checkout')
+        .in('status', [
+          'checkout_requested',
+          'checkout_confirmed',
+          'checkout_completed_under_review',
+          'checkout_payment_required',
+          'on_hold_pending_documents',
+        ])
+        .neq('id', bookingId)
+
+      if (!otherCheckouts || otherCheckouts.length === 0) {
+        await admin
+          .from('profiles')
+          .update({ pilot_clearance_status: 'checkout_required', updated_at: now })
+          .eq('id', booking.booking_owner_user_id)
+      }
+    }
+  }
+
+  // 5. Insert status history
+  await admin.from('booking_status_history').insert({
+    booking_id: bookingId,
+    old_status: oldStatus,
+    new_status: 'cancelled',
+    changed_by_user_id: adminId,
+    note: `Permanently closed by admin. Reason: ${reasonText}`,
+  })
+
+  // 6. Audit event
+  await admin.from('booking_audit_events').insert({
+    booking_id: bookingId,
+    aircraft_id: booking.aircraft_id,
+    actor_user_id: adminId,
+    actor_role: 'admin',
+    event_type: 'booking_cancelled',
+    event_summary: `Admin permanently closed ${isCheckout ? 'checkout' : 'flight'}: ${reasonText}`,
+    new_value: {
+      status: 'cancelled',
+      category: 'admin',
+      reason: reasonText,
+      old_status: oldStatus,
+      permanently_closed: true,
+      booking_type: booking.booking_type,
+    },
+  })
+
+  // 7. Revalidate paths
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings')
+  revalidatePath('/admin/bookings/flights')
+  revalidatePath('/admin/bookings/requests')
+  revalidatePath(`/admin/bookings/requests/${bookingId}`)
+  revalidatePath('/admin/bookings/cancellations')
+  revalidatePath('/admin/calendar')
+  revalidatePath(`/admin/users/${booking.booking_owner_user_id}`)
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard/bookings')
+  revalidatePath(`/dashboard/bookings/${bookingId}`)
+
+  // 8. Realtime emissions
+  void emitBookingChanged({ bookingId, userId: booking.booking_owner_user_id })
+  void emitOpsChanged()
+  if (isCheckout && booking.booking_owner_user_id) {
+    void emitClearanceUpdated(booking.booking_owner_user_id)
+  }
 }

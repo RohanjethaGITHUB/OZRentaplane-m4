@@ -94,7 +94,7 @@ export default async function CheckoutPage() {
   const [profileResult, activeCheckoutBookingResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('*, user_document_files(id, file_name, storage_path, uploaded_at)')
+      .select('*')
       .eq('id', user.id)
       .single(),
     supabase

@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { CalendarDays, Clock, Tag, User } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { formatDateTime, formatTime12hFromISO } from '@/lib/formatDateTime'
 import { BookingRealtimeListener } from '@/components/realtime/BookingRealtimeListener'
 import AdminBookingActions from './AdminBookingActions'
@@ -26,6 +27,7 @@ import AdminRescheduleReviewProvider, {
 } from './AdminRescheduleReviewProvider'
 import AdminRejectDocsPanel from './AdminRejectDocsPanel'
 import AdminCancelBookingButton from './AdminCancelBookingButton'
+import AdminCloseBookingButton from './AdminCloseBookingButton'
 import { deriveBookingLifecycleStage } from '@/lib/booking/booking-lifecycle-stage'
 import { isStandardBookingInvoicePaid } from '@/lib/booking/standard-booking-payment-state'
 import { getCheckoutPaymentDisplayState } from '@/lib/checkout-payment-state'
@@ -491,6 +493,44 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       .maybeSingle(),
   ])
 
+  type FlightEvidenceAttachment = {
+    id: string
+    file_name: string
+    signedUrl: string
+    file_size: number | null
+    created_at: string
+  }
+
+  let evidenceAttachments: FlightEvidenceAttachment[] = []
+  if (flightRecordRow?.id) {
+    const admin = createAdminClient()
+    const { data: rawAtts } = await admin
+      .from('flight_record_attachments')
+      .select('id, file_name, storage_path, file_size, created_at')
+      .eq('flight_record_id', flightRecordRow.id)
+      .order('created_at', { ascending: true })
+
+    if (rawAtts && rawAtts.length > 0) {
+      const attsWithUrls = await Promise.all(
+        rawAtts.map(async (att) => {
+          const { data } = await admin.storage
+            .from('flight_record_evidence')
+            .createSignedUrl(att.storage_path, 3600)
+          return data?.signedUrl
+            ? {
+                id: att.id,
+                file_name: att.file_name,
+                signedUrl: data.signedUrl,
+                file_size: att.file_size,
+                created_at: att.created_at,
+              }
+            : null
+        }),
+      )
+      evidenceAttachments = attsWithUrls.filter((a): a is FlightEvidenceAttachment => a != null)
+    }
+  }
+
   type RawCheckoutDocument = {
     id: string
     document_type: string
@@ -856,8 +896,19 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     !isStandardPaymentPending &&
     !isStandardBillingPending &&
     !isPaymentRequired &&
-    !['completed', 'cancelled', 'no_show', 'pending_post_flight_review', 'post_flight_approved', 'invoice_generated', 'payment_pending', 'paid', 'awaiting_flight_record', 'flight_record_overdue', 'checkout_completed_under_review', 'checkout_payment_required'].includes(booking.status) &&
-    !['awaiting_flight_readings', 'readings_submitted', 'payment_required', 'payment_still_due', 'payment_review_pending', 'paid_closed', 'waived_closed', 'payment_void', 'payment_failed', 'cancelled', 'no_show', 'checkout_completed_under_review', 'checkout_payment_required'].includes(lifecycleStage.key)
+    !['completed', 'cancelled', 'no_show', 'cancellation_requested', 'pending_post_flight_review', 'post_flight_approved', 'invoice_generated', 'payment_pending', 'paid', 'awaiting_flight_record', 'flight_record_overdue', 'checkout_completed_under_review', 'checkout_payment_required'].includes(booking.status) &&
+    !['awaiting_flight_readings', 'readings_submitted', 'payment_required', 'payment_still_due', 'payment_review_pending', 'paid_closed', 'waived_closed', 'payment_void', 'payment_failed', 'cancelled', 'no_show', 'cancellation_requested', 'checkout_completed_under_review', 'checkout_payment_required'].includes(lifecycleStage.key)
+
+  const isFinalStatus =
+    ['cancelled', 'completed', 'no_show'].includes(booking.status) ||
+    ['cancelled', 'no_show', 'paid_closed', 'waived_closed'].includes(lifecycleStage.key)
+  // Close Flight is only for bookings where standard cancellation is unavailable
+  // (e.g. flights whose date has passed, flights awaiting readings, overdue records, or checkouts).
+  // If the flight is an upcoming standard flight where regular "Cancel Flight" is already available,
+  // "Close Flight" is omitted to prevent redundant cancellation buttons.
+  const canBeClosedPermanently =
+    !isFinalStatus &&
+    !(bookingType === 'standard' && isFlightCancellable)
 
   const chargesAndPayment = bookingType === 'standard'
     ? standardInvoice
@@ -1320,10 +1371,32 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                     : 'View and manage this booking.'}
               </p>
             </div>
-            <div className="flex flex-col items-end gap-1">
-              <span className={`inline-flex items-center px-3 py-1 rounded-full border text-xs font-semibold uppercase tracking-wide ${displayLifecycleTone.bg} ${displayLifecycleTone.text} ${displayLifecycleTone.border}`}>
-                {displayLifecycleLabel}
-              </span>
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                {canBeClosedPermanently && (
+                  <AdminCloseBookingButton
+                    bookingId={booking.id}
+                    bookingReference={bookingRef}
+                    isCheckout={bookingType === 'checkout'}
+                    currentStatusLabel={displayLifecycleLabel}
+                    customerName={(customer as { full_name?: string | null } | null)?.full_name ?? 'Customer'}
+                    customerEmail={(customer as { email?: string | null } | null)?.email ?? null}
+                    customerPhone={
+                      (customer as { phone_number?: string | null; phone_country_code?: string | null } | null)?.phone_number
+                        ? `${(customer as { phone_country_code?: string | null }).phone_country_code || ''} ${(customer as { phone_number?: string | null }).phone_number}`.trim()
+                        : null
+                    }
+                    aircraftLabel={`${(aircraft as { aircraft_type?: string } | null)?.aircraft_type?.replace(/^Cessna 172$/, 'Cessna 172N') ?? 'Cessna 172N'} (${(aircraft as { registration?: string } | null)?.registration ?? 'VH-KZG'})`}
+                    scheduleRangeLabel={bookingSchedule.dateRange}
+                    timeRangeLabel={bookingSchedule.timeRange}
+                    durationLabel={bookingSchedule.duration}
+                    isMultiDay={isMultiDay}
+                  />
+                )}
+                <span className={`inline-flex items-center px-3 py-1 rounded-full border text-xs font-semibold uppercase tracking-wide ${displayLifecycleTone.bg} ${displayLifecycleTone.text} ${displayLifecycleTone.border}`}>
+                  {displayLifecycleLabel}
+                </span>
+              </div>
               <span className="text-xs text-gray-400">
                 Booking requested: {formatDateTime(booking.created_at)}
               </span>
@@ -2017,6 +2090,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               bookingSlotHours={bookingSlotHours}
               activeBlockTime={activeBlockTime}
               defaultHourlyRate={PAYF_RATE_PER_HOUR}
+              evidenceAttachments={evidenceAttachments}
             />
           </div>
           </AdminFlightReadingsDisclosureSection>

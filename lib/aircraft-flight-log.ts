@@ -211,24 +211,28 @@ export function buildReadingsFromTotals(
   baseline: AircraftContinuityBaseline | null,
 ): AircraftReadings {
   const vdo_start    = baseline?.vdo_start    ?? 0
-  const tacho_start  = baseline?.tacho_start  ?? 0
   const as_start     = baseline?.air_switch_start ?? 0
-  const mr_start     = baseline?.mr_start     ?? 0
+  const tacho_start  = baseline?.tacho_start  ?? null
+  const mr_start     = baseline?.mr_start     ?? null
 
   return {
     vdo_start,
-    vdo_stop:          round1(vdo_start   + totals.vdo_total),
+    vdo_stop:          round1(vdo_start + totals.vdo_total),
     tacho_start,
-    tacho_stop:        round1(tacho_start + totals.tacho_total),
+    tacho_stop:        totals.tacho_total != null && tacho_start != null
+      ? round1(tacho_start + totals.tacho_total)
+      : tacho_start,
     air_switch_start:  as_start,
-    air_switch_stop:   round1(as_start    + totals.air_switch_total),
+    air_switch_stop:   round1(as_start + totals.air_switch_total),
     mr_start,
-    mr_stop:           round1(mr_start    + totals.mr_total),
-    oil_added:         totals.oil_added,
-    oil_total:         totals.oil_total,
-    fuel_added:        totals.fuel_added,
-    fuel_returned:     totals.fuel_returned,
-    landings:          totals.landings,
-    notes:             totals.notes,
+    mr_stop:           totals.mr_total != null && mr_start != null
+      ? round1(mr_start + totals.mr_total)
+      : mr_start,
+    oil_added:         totals.oil_added ?? null,
+    oil_total:         totals.oil_total ?? null,
+    fuel_added:        totals.fuel_added ?? null,
+    fuel_returned:     totals.fuel_returned ?? null,
+    landings:          totals.landings ?? null,
+    notes:             totals.notes ?? null,
   }
 }

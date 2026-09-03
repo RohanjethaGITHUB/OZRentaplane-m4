@@ -2,6 +2,7 @@ import 'server-only'
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getResendClient } from './resend'
+import { isLocalOrDevEnvironment } from './is-local-env'
 
 export type SendEmailInput = {
   to: string
@@ -33,6 +34,15 @@ function cleanEmailString(value?: string | null): string | undefined {
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<{ status: 'sent' | 'failed' | 'skipped'; resendEmailId?: string | null }> {
+  if (isLocalOrDevEnvironment()) {
+    console.info('[email] Suppressed sending email in local development', {
+      eventType: input.eventType,
+      to: input.to,
+      subject: input.subject,
+    })
+    return { status: 'skipped' }
+  }
+
   const from = cleanEmailString(process.env.EMAIL_FROM)
   const replyTo = cleanEmailString(process.env.EMAIL_REPLY_TO)
   const resend = getResendClient()

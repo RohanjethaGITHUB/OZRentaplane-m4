@@ -13,6 +13,7 @@ import {
   type DashboardBookingFocusState,
   type DashboardFlightSnapshot,
 } from '@/lib/dashboard/dashboard-action-state'
+import { emitClearanceUpdated } from '@/lib/realtime/emit'
 import { createPerfLogger } from '@/lib/perf/timing'
 
 type BlockTimePackageRow = {
@@ -354,6 +355,28 @@ export default async function DashboardPage({
   }
 
   const checkoutBookingId = (checkoutBookingResult.data as { id: string } | null)?.id ?? null
+
+  // Self-heal: if profile clearance status is checkout_requested or checkout_confirmed,
+  // but no active checkout booking exists (e.g. after cancellation/closure), reconcile to checkout_required.
+  let effectiveClearanceStatus = clearanceStatus
+  if (
+    (clearanceStatus === 'checkout_requested' || clearanceStatus === 'checkout_confirmed') &&
+    !checkoutBookingId
+  ) {
+    effectiveClearanceStatus = 'checkout_required'
+    const admin = createAdminClient()
+    void (async () => {
+      try {
+        await admin
+          .from('profiles')
+          .update({ pilot_clearance_status: 'checkout_required', updated_at: new Date().toISOString() })
+          .eq('id', user.id)
+        void emitClearanceUpdated(user.id)
+      } catch (err) {
+        console.error('[dashboard] Failed to auto-reconcile orphaned checkout clearance:', err)
+      }
+    })()
+  }
   const activeBooking = (activeBookingResult.data as { id: string; status: string } | null) ?? null
   const postFlightRequiredBooking = ((postFlightRequiredBookingResult.data as BookingSnapshotRow[] | null) ?? [])
     .find((booking) => isAwaitingFlightRecordDue(booking)) ?? null
@@ -637,7 +660,7 @@ export default async function DashboardPage({
   )
 
   bookingReadiness = perf.timeSync('customer_dashboard_page', 'customer_dashboard_summary_preparation', () => evaluateBookingReadinessDecision({
-    clearanceStatus,
+    clearanceStatus: effectiveClearanceStatus,
     hasHistoricalClearance: Boolean(authoritativeHistorical?.id),
     hasPaidCheckoutInvoice: Boolean(authoritativePaidInvoice?.id),
     documents: (documents as UserDocument[]) || [],
@@ -648,14 +671,14 @@ export default async function DashboardPage({
 
   const hasClearancePath = Boolean(authoritativePaidInvoice?.id || authoritativeHistorical?.id)
   const canCreateStandardBooking =
-    clearanceStatus === 'cleared_to_fly' &&
+    effectiveClearanceStatus === 'cleared_to_fly' &&
     (hasManualClearance || (hasClearancePath && bookingReadiness.bookingReady))
 
   const dashboardActionState = resolveDashboardActionState({
     profile: {
       account_status: (profile as Profile | null)?.account_status ?? 'active',
       account_lock_reason: (profile as Profile | null)?.account_lock_reason ?? null,
-      pilot_clearance_status: clearanceStatus,
+      pilot_clearance_status: effectiveClearanceStatus,
       has_night_vfr_rating: (profile as Profile | null)?.has_night_vfr_rating ?? null,
       last_flight_date: (profile as Profile | null)?.last_flight_date ?? null,
     },
@@ -761,7 +784,7 @@ export default async function DashboardPage({
                 </p>
               </div>
 
-              {clearanceStatus === 'cleared_to_fly' ? (
+              {effectiveClearanceStatus === 'cleared_to_fly' ? (
                 <form action={purchaseSelectedBlockTime ?? undefined} className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <button
                      type="submit"
@@ -788,7 +811,7 @@ export default async function DashboardPage({
 
       <DashboardContent
         user={user}
-        profile={profile as Profile | null}
+        profile={profile ? { ...(profile as Profile), pilot_clearance_status: effectiveClearanceStatus } : null}
         documents={(documents as UserDocument[]) || []}
         events={(events as VerificationEvent[]) || []}
         isFirstLogin={isFirstLogin}

@@ -431,9 +431,9 @@ export type SubmitFlightRecordInput = {
   pic_arn?: string | null
   // Customers submit totals only; backend computes start/stop from previous finalized log
   vdo_total: number
-  tacho_total: number
   air_switch_total: number
-  mr_total: number
+  tacho_total?: number | null
+  mr_total?: number | null
   oil_added?: number | null
   oil_total?: number | null
   fuel_added?: number | null
@@ -478,9 +478,9 @@ export type ResubmitFlightRecordInput = {
   booking_id: string
   // Customers resubmit totals only; backend recomputes start/stop from previous finalized log
   vdo_total: number
-  tacho_total: number
   air_switch_total: number
-  mr_total: number
+  tacho_total?: number | null
+  mr_total?: number | null
   oil_added?: number | null
   oil_total?: number | null
   fuel_added?: number | null

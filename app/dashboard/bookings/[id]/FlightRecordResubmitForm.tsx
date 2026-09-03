@@ -42,13 +42,7 @@ export default function FlightRecordResubmitForm({ flightRecord, bookingId, onSu
   // Pre-populate from the stored totals (generated columns from start/stop)
   const [readings, setReadings] = useState<TotalOnlyFormValues>({
     vdo_total:        numberInputValue(flightRecord.vdo_total),
-    tacho_total:      numberInputValue(flightRecord.tacho_total),
     air_switch_total: numberInputValue(flightRecord.air_switch_total),
-    mr_total:         numberInputValue(flightRecord.mr_total),
-    oil_added:        numberInputValue(flightRecord.oil_added),
-    oil_total:        numberInputValue(flightRecord.oil_total),
-    fuel_added:       numberInputValue(flightRecord.fuel_added),
-    fuel_returned:       numberInputValue(flightRecord.fuel_returned),
   })
 
   function addFiles(incoming: File[]) {
@@ -91,13 +85,7 @@ export default function FlightRecordResubmitForm({ flightRecord, bookingId, onSu
 
     const totalReadings = {
       vdo_total:        getNum('vdo_total')        ?? 0,
-      tacho_total:      getNum('tacho_total')      ?? 0,
       air_switch_total: getNum('air_switch_total') ?? 0,
-      mr_total:         getNum('mr_total')         ?? 0,
-      oil_added:        getNum('oil_added'),
-      oil_total:        getNum('oil_total'),
-      fuel_added:       getNum('fuel_added'),
-      fuel_returned:       getNum('fuel_returned'),
       landings:         flightRecord.landings ?? null,
       notes:            notes.trim() || null,
     }
@@ -116,13 +104,7 @@ export default function FlightRecordResubmitForm({ flightRecord, bookingId, onSu
         flight_record_id: flightRecord.id,
         booking_id:       bookingId,
         vdo_total:        totalReadings.vdo_total,
-        tacho_total:      totalReadings.tacho_total,
         air_switch_total: totalReadings.air_switch_total,
-        mr_total:         totalReadings.mr_total,
-        oil_added:        totalReadings.oil_added,
-        oil_total:        totalReadings.oil_total,
-        fuel_added:       totalReadings.fuel_added,
-        fuel_returned:       totalReadings.fuel_returned,
         landings:         flightRecord.landings ?? null,
         customer_notes:   totalReadings.notes,
       })

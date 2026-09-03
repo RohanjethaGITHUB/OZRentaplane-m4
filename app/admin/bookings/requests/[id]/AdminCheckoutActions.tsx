@@ -132,13 +132,7 @@ function getNum(value: string): number | null {
 function createInitialReadings(): TotalOnlyFormValues {
   return {
     vdo_total:        '',
-    tacho_total:      '',
     air_switch_total: '',
-    mr_total:         '',
-    oil_added:        '',
-    oil_total:        '',
-    fuel_added:       '',
-    fuel_returned:       '',
   }
 }
 
@@ -178,21 +172,45 @@ export default function AdminCheckoutActions({
       try {
         await fn()
         router.refresh()
-      } catch (actionError) {
-        const message = actionError instanceof Error ? actionError.message : 'Action failed. Please try again.'
-        setError(message.replace(/^VALIDATION: /, ''))
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message.replace(/^VALIDATION: /, '') : 'Operation failed.')
       }
     })
   }
 
   function addLandingRow() {
-    setLandingRows(current => [...current, { id: ++rowIdCounter, airportId: '', landingCount: '1' }])
+    setLandingRows(prev => [...prev, { id: Date.now() + Math.random(), airportId: defaultAirportId, landingCount: '1' }])
   }
+
   function removeLandingRow(id: number) {
-    setLandingRows(current => current.length > 1 ? current.filter(row => row.id !== id) : current)
+    setLandingRows(prev => prev.filter(row => row.id !== id))
   }
+
   function handleLandingChange(id: number, field: 'airportId' | 'landingCount', value: string) {
-    setLandingRows(current => current.map(row => row.id === id ? { ...row, [field]: value } : row))
+    setLandingRows(prev => prev.map(row => (row.id === id ? { ...row, [field]: value } : row)))
+  }
+
+  const defaultAirportId = (() => {
+    const bankstown = airports.find(
+      a => a.icao_code === 'YSBK' || a.name.toLowerCase().includes('bankstown')
+    )
+    return bankstown?.id || airports[0]?.id || ''
+  })()
+
+  function handleOutcomeSelect(outcome: OutcomeKey) {
+    setConfirmingOutcome(outcome)
+    setPaymentWaived(outcome === 'checkout_reschedule_required')
+    setWaiverReason('')
+    setHourlyRate(String(CHECKOUT_RATE_PER_HOUR))
+    setAdminNote('')
+    setReadings(createInitialReadings())
+    setSubmitAttempted(false)
+    setShowManualPaymentFields(false)
+    setManualPaymentMethod('cash')
+    setManualAmount('')
+    setManualPaymentNote('')
+    setError(null)
+    setLandingRows([{ id: Date.now(), airportId: defaultAirportId, landingCount: '1' }])
   }
 
   function resetOutcomeForm() {
@@ -201,8 +219,8 @@ export default function AdminCheckoutActions({
     setWaiverReason('')
     setHourlyRate(String(CHECKOUT_RATE_PER_HOUR))
     setAdminNote('')
+    setReadings(createInitialReadings())
     setLandingRows([])
-    setReadings(createInitialReadings())
     setShowManualPaymentFields(false)
     setManualPaymentMethod('cash')
     setManualAmount('')
@@ -212,31 +230,14 @@ export default function AdminCheckoutActions({
     setError(null)
   }
 
-  function handleOutcomeSelect(key: OutcomeKey) {
-    setConfirmingOutcome(key)
-    setPaymentWaived(key === 'checkout_reschedule_required')
-    setWaiverReason('')
-    setHourlyRate(String(CHECKOUT_RATE_PER_HOUR))
-    setAdminNote('')
-    setReadings(createInitialReadings())
-    setShowManualPaymentFields(false)
-    setManualPaymentMethod('cash')
-    setManualAmount('')
-    setManualPaymentNote('')
-    setSubmissionConfirmation(null)
-    setLandingRows([{ id: ++rowIdCounter, airportId: '', landingCount: '1' }])
-    setSubmitAttempted(false)
-    setError(null)
-  }
-
-  const hourlyRateNum     = Number(hourlyRate)
-  const validHourlyRate   = Number.isFinite(hourlyRateNum) && hourlyRateNum > 0
+  const hourlyRateNum = Number(hourlyRate)
+  const validHourlyRate = Number.isFinite(hourlyRateNum) && hourlyRateNum > 0
 
   const landingRowErrors = landingRows.map(row => {
-    const count     = Number(row.landingCount)
-    const hasAirport = !!row.airportId
-    const hasCount   = Number.isInteger(count) && count > 0
-    if (!hasAirport && !row.landingCount.trim()) return null
+    const hasAirport = Boolean(row.airportId)
+    const count = Number(row.landingCount)
+    const hasCount = Number.isInteger(count) && count > 0
+    if (!hasAirport && !hasCount) return 'Select an airport and enter a valid landing count (≥ 1).'
     if (!hasAirport) return 'Airport is required.'
     if (!hasCount)   return 'Landing count must be at least 1.'
     return null
@@ -247,32 +248,19 @@ export default function AdminCheckoutActions({
     .map(row => ({ airportId: row.airportId, landingCount: Number(row.landingCount) }))
   const hasValidLandingRow = validLandingCharges.length > 0
 
-  // Compute totals directly from total-only inputs
   const vdoTotal   = getNum(readings.vdo_total)
-  const vdoReading = vdoTotal  // billing uses vdo_total directly
+  const vdoReading = vdoTotal
 
   let readingsError: string | null = null
   try {
     validateTotalOnlyReadings({
       vdo_total:        vdoTotal        ?? 0,
-      tacho_total:      getNum(readings.tacho_total)      ?? 0,
       air_switch_total: getNum(readings.air_switch_total) ?? 0,
-      mr_total:         getNum(readings.mr_total)         ?? 0,
-      oil_added:        getNum(readings.oil_added),
-      oil_total:        getNum(readings.oil_total),
-      fuel_added:       getNum(readings.fuel_added),
-      fuel_returned:       getNum(readings.fuel_returned),
       landings:         null,
       notes:            null,
     })
     if (!paymentWaived && (vdoReading == null || vdoReading <= 0)) {
       readingsError = 'VDO total must be greater than 0.'
-    }
-    if (!paymentWaived && vdoReading != null && vdoReading < 0.1) {
-      readingsError = `VDO total (${vdoReading}h) is below minimum of 0.1h. Check the readings.`
-    }
-    if (!paymentWaived && vdoReading != null && vdoReading > 5.0) {
-      readingsError = `VDO total (${vdoReading}h) exceeds maximum of 5.0h. Check the readings.`
     }
   } catch (validationError) {
     readingsError = validationError instanceof Error ? validationError.message.replace(/^VALIDATION: /, '') : 'Invalid readings.'
@@ -291,7 +279,6 @@ export default function AdminCheckoutActions({
     if (readingsError) { setError(readingsError); return }
     if (!validHourlyRate) { setError('Hourly rate must be a positive number.'); return }
     if (!hasValidLandingRow || hasIncompleteLandingRows) { setError('Add at least one complete landing row before submitting.'); return }
-    if (paymentWaived && !waiverReason.trim()) { setError('A waiver reason is required when payment is waived.'); return }
     if (!paymentWaived && mode === 'mark_paid') {
       const parsed = Number(manualAmount || (estimatedAmountDue / 100).toFixed(2))
       if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -303,20 +290,11 @@ export default function AdminCheckoutActions({
 
     const totalReadings = {
       vdo_total:        getNum(readings.vdo_total)        ?? 0,
-      tacho_total:      getNum(readings.tacho_total)      ?? 0,
       air_switch_total: getNum(readings.air_switch_total) ?? 0,
-      mr_total:         getNum(readings.mr_total)         ?? 0,
-      oil_added:        getNum(readings.oil_added),
-      oil_total:        getNum(readings.oil_total),
-      fuel_added:       getNum(readings.fuel_added),
-      fuel_returned:       getNum(readings.fuel_returned),
       landings:         validLandingCharges.reduce((sum, r) => sum + r.landingCount, 0) || null,
       notes:            adminNote.trim() || null,
     }
 
-    // Single server action: the outcome and the mark-paid settlement happen in
-    // one call, so a settlement failure surfaces here as a visible error
-    // instead of being lost when this panel unmounts after revalidation.
     const parsedAmount = Number(manualAmount || (estimatedAmountDue / 100).toFixed(2))
     run(() => markCheckoutOutcome({
       bookingId,
@@ -542,12 +520,12 @@ export default function AdminCheckoutActions({
               <p className="text-sm text-amber-800 leading-relaxed">Payment will be waived. The checkout outcome will still write the complete aircraft readings into the aircraft ledger.</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-[#152d5a] mb-1.5">Waiver reason <span className="text-rose-400">*</span></label>
+              <label className="block text-sm font-medium text-[#152d5a] mb-1.5">Waiver reason (optional)</label>
               <textarea
                 value={waiverReason}
                 onChange={e => setWaiverReason(e.target.value)}
                 rows={3}
-                placeholder="Required — e.g. weather cancellation, aircraft unavailable, customer did not fly…"
+                placeholder="Optional — e.g. weather cancellation, aircraft unavailable, customer did not fly…"
                 className="w-full bg-white border border-[#152d5a]/15 rounded-lg px-3 py-2.5 text-sm text-[#152d5a] placeholder:text-[#4b6390]/60 focus:outline-none focus:border-[#152d5a]/40 resize-none"
                 disabled={isPending}
               />
@@ -559,12 +537,10 @@ export default function AdminCheckoutActions({
           <div>
             <p className="text-[11px] font-bold uppercase tracking-widest text-[#4b6390] mb-3">Aircraft Readings</p>
             <div className="rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-4 space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
                   { field: 'vdo_total', label: 'VDO total' },
-                  { field: 'tacho_total', label: 'Tacho total' },
                   { field: 'air_switch_total', label: 'Airswitch total' },
-                  { field: 'mr_total', label: 'MR total' },
                 ].map(({ field, label }) => {
                   const value = readings[field as keyof TotalOnlyFormValues] ?? ''
                   const parsed = value.trim() ? Number(value) : null
@@ -586,28 +562,6 @@ export default function AdminCheckoutActions({
                     </label>
                   )
                 })}
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[
-                  { field: 'oil_added', label: 'Oil added' },
-                  { field: 'oil_total', label: 'Oil total' },
-                  { field: 'fuel_added', label: 'Fuel added' },
-                  { field: 'fuel_returned', label: 'Fuel returned' },
-                ].map(({ field, label }) => (
-                  <label key={field} className="block">
-                    <span className="text-[11px] text-[#4b6390] block mb-1">{label}</span>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      value={readings[field as keyof TotalOnlyFormValues] ?? ''}
-                      onChange={(e) => setReadings(prev => ({ ...prev, [field]: e.target.value }))}
-                      className="w-full bg-white border border-[#152d5a]/15 rounded-lg px-3 py-2.5 text-sm text-[#152d5a] placeholder:text-[#4b6390]/60 focus:outline-none focus:border-[#152d5a]/40"
-                      disabled={isPending}
-                    />
-                  </label>
-                ))}
               </div>
 
               <label className="block">

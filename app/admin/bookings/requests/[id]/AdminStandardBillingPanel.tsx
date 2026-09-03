@@ -11,6 +11,7 @@ import {
   validateTotalOnlyReadings,
 } from '@/lib/aircraft-readings'
 import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
+import DocumentViewerModal from '@/components/ui/DocumentViewerModal'
 import {
   resolveStandardBookingBillingBranch,
   resolveMinimumVdoBilling,
@@ -20,6 +21,14 @@ import {
   type StandardBookingSubmissionMode,
 } from '@/lib/booking/standard-booking-billing'
 import type { FlightRecord } from '@/lib/supabase/booking-types'
+
+export type FlightEvidenceAttachment = {
+  id: string
+  file_name: string
+  signedUrl: string
+  file_size: number | null
+  created_at: string
+}
 
 type Airport = {
   id: string
@@ -56,6 +65,7 @@ type Props = {
   activeBlockTime?: BlockTimeSummary | null
   defaultHourlyRate?: number
   redirectAfterSuccess?: string
+  evidenceAttachments?: FlightEvidenceAttachment[]
 }
 
 const LANDING_FEE_CENTS = 2895
@@ -84,12 +94,16 @@ export default function AdminStandardBillingPanel({
   activeBlockTime,
   defaultHourlyRate = PAYF_RATE_PER_HOUR,
   redirectAfterSuccess,
+  evidenceAttachments,
 }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [submitState, setSubmitState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [showStillProcessing, setShowStillProcessing] = useState(false)
+  const [isEvidenceModalOpen, setIsEvidenceModalOpen] = useState(false)
+  const [evidenceInitialIndex, setEvidenceInitialIndex] = useState(0)
+  const hasEvidence = Boolean(evidenceAttachments && evidenceAttachments.length > 0)
   const [submissionMode, setSubmissionMode] = useState<StandardBookingSubmissionMode>('send_invoice')
   const [manualPaymentMethod, setManualPaymentMethod] = useState<ManualSettlementMethod>('cash')
   const [waiverReason, setWaiverReason] = useState('')
@@ -106,14 +120,8 @@ export default function AdminStandardBillingPanel({
     return numberInputValue(initialFlightRecord.landings)
   })
   const [readings, setReadings] = useState<TotalOnlyFormValues>({
-    tacho_total:      numberInputValue(initialFlightRecord.tacho_total),
     vdo_total:        numberInputValue(initialFlightRecord.vdo_total),
     air_switch_total: numberInputValue(initialFlightRecord.air_switch_total),
-    mr_total:         numberInputValue(initialFlightRecord.mr_total),
-    oil_added:        numberInputValue(initialFlightRecord.oil_added),
-    oil_total:        numberInputValue(initialFlightRecord.oil_total),
-    fuel_added:       numberInputValue(initialFlightRecord.fuel_added),
-    fuel_returned:    numberInputValue(initialFlightRecord.fuel_returned),
   })
   const [landingRows, setLandingRows] = useState<LandingChargeRow[]>(() => {
     if (initialLandingCharges.length > 0) {
@@ -124,9 +132,7 @@ export default function AdminStandardBillingPanel({
       }))
     }
     const initialAirportId = getInitialAirportId(airports)
-    // Optional landings: leave a blank row (empty count) so we do not show
-    // "Airport is required" until the admin starts filling a landing charge.
-    return initialFlightRecord.landings != null && initialFlightRecord.landings > 0
+    return initialAirportId
       ? [{ id: ++rowIdCounter, airportId: initialAirportId, landingCount: String(initialFlightRecord.landings) }]
       : [{ id: ++rowIdCounter, airportId: '', landingCount: '' }]
   })
@@ -188,13 +194,7 @@ export default function AdminStandardBillingPanel({
 
   const normalisedReadings = {
     vdo_total:        getNum(readings.vdo_total) ?? 0,
-    tacho_total:      getNum(readings.tacho_total) ?? 0,
     air_switch_total: getNum(readings.air_switch_total) ?? 0,
-    mr_total:         getNum(readings.mr_total) ?? 0,
-    oil_added:        getNum(readings.oil_added),
-    oil_total:        getNum(readings.oil_total),
-    fuel_added:       getNum(readings.fuel_added),
-    fuel_returned:    getNum(readings.fuel_returned),
     landings:         landingsNum,
     notes:            adminNotes.trim() || null,
   }
@@ -281,10 +281,6 @@ export default function AdminStandardBillingPanel({
       setError('Complete or remove incomplete landing rows before submitting.')
       return
     }
-    if (billingBranch.kind === 'waived' && !waiverReason.trim()) {
-      setError('A waiver reason is required when payment is waived.')
-      return
-    }
     if (minimumDecisionRequired) {
       setError('Choose whether to bill the minimum or the actual hours before finalising.')
       return
@@ -314,16 +310,72 @@ export default function AdminStandardBillingPanel({
 
       <section className="space-y-4">
         <SectionHeading>A. Aircraft Readings</SectionHeading>
-        <TotalOnlyReadingsForm
-          values={readings}
-          onChange={(field, value) => setReadings((current) => ({ ...current, [field]: value }))}
-          notes={adminNotes}
-          onNotesChange={setAdminNotes}
-          continuityBaseline={startSuggestions}
-          showContinuityWarnings
-          disabled={submitState !== 'idle'}
-          showBillingCaption={true}
-        />
+        {(() => {
+          const evidenceSlot = (
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4b6390]">
+                  Submitted Evidence
+                </span>
+                {hasEvidence && (
+                  <span className="text-[10px] text-[#64748b]">
+                    {evidenceAttachments!.length} {evidenceAttachments!.length === 1 ? 'file' : 'files'} attached
+                  </span>
+                )}
+              </div>
+              {hasEvidence ? (
+                <div className="rounded-xl border border-[#dbe7f4] bg-[#f8fbff] p-3.5 flex items-center justify-between gap-3 shadow-[0_1px_0_rgba(255,255,255,0.8)]">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-[#1a4fd6] flex-shrink-0">
+                      <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                        photo_library
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-[#152d5a] truncate">
+                        {evidenceAttachments![0].file_name}
+                        {evidenceAttachments!.length > 1 ? ` (+${evidenceAttachments!.length - 1} more)` : ''}
+                      </p>
+                      <p className="text-[11px] text-[#4b6390] mt-0.5">
+                        Click to inspect pilot-uploaded meter &amp; fuel photos
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEvidenceInitialIndex(0)
+                      setIsEvidenceModalOpen(true)
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#1a4fd6]/25 hover:border-[#1a4fd6] hover:bg-[#eff4ff]/60 text-[#1a4fd6] text-xs font-bold transition-all shadow-xs cursor-pointer flex-shrink-0"
+                  >
+                    <span>View Evidence</span>
+                    <span className="material-symbols-outlined text-[15px]">open_in_new</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-[#dbe7f4] bg-[#f8fbff]/60 px-3.5 py-2.5 flex items-center gap-2 text-xs text-[#64748b]">
+                  <span className="material-symbols-outlined text-[18px] text-[#94a3b8]">image_not_supported</span>
+                  <span>No evidence photos uploaded for this flight.</span>
+                </div>
+              )}
+            </div>
+          )
+
+          return (
+            <TotalOnlyReadingsForm
+              values={readings}
+              onChange={(field, value) => setReadings((current) => ({ ...current, [field]: value }))}
+              notes={adminNotes}
+              onNotesChange={setAdminNotes}
+              continuityBaseline={startSuggestions}
+              showContinuityWarnings
+              disabled={submitState !== 'idle'}
+              showBillingCaption={true}
+              beforeNotesSlot={evidenceSlot}
+            />
+          )
+        })()}
         {readingsError && (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {readingsError}
@@ -612,7 +664,7 @@ export default function AdminStandardBillingPanel({
               value={waiverReason}
               onChange={(e) => setWaiverReason(e.target.value)}
               rows={3}
-              placeholder="Reason for waiving payment…"
+              placeholder="Reason for waiving payment (optional)…"
               disabled={submitState !== 'idle'}
               className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)]"
             />
@@ -663,6 +715,19 @@ export default function AdminStandardBillingPanel({
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           This is taking longer than usual, but the save may still be processing. Please keep this tab open for a moment.
         </div>
+      )}
+
+      {hasEvidence && (
+        <DocumentViewerModal
+          isOpen={isEvidenceModalOpen}
+          onClose={() => setIsEvidenceModalOpen(false)}
+          files={evidenceAttachments!.map((att) => ({
+            url: att.signedUrl,
+            name: att.file_name,
+          }))}
+          initialIndex={evidenceInitialIndex}
+          title="Flight Evidence Photos"
+        />
       )}
     </div>
   )

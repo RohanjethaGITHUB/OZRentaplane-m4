@@ -16,6 +16,7 @@
  */
 
 export type EmailSendStatus = 'sent' | 'failed' | 'skipped'
+import { isLocalOrDevEnvironment } from './email/is-local-env'
 
 type SendResult = { status: EmailSendStatus }
 
@@ -171,6 +172,11 @@ export async function sendVerificationEmail(
   subject: string,
   html: string,
 ): Promise<SendResult> {
+  if (isLocalOrDevEnvironment()) {
+    console.info('[email] Suppressed sending verification email in local development to', to)
+    return { status: 'skipped' }
+  }
+
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) {
     console.warn('[email] RESEND_API_KEY not configured — email skipped.')

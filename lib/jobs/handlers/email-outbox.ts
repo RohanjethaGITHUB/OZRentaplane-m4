@@ -6,6 +6,7 @@ import {
   renderOutboxEmail,
   sanitizeErrorMessage,
 } from '@/lib/email/outbox'
+import { isLocalOrDevEnvironment } from '@/lib/email/is-local-env'
 
 const DEFAULT_BATCH_SIZE = 10
 
@@ -13,6 +14,14 @@ export const emailOutboxJob: JobDefinition = {
   id: 'email-outbox',
   description: 'Claims and drains batches of queued emails from postgres email_outbox',
   async run(ctx: JobContext) {
+    if (isLocalOrDevEnvironment()) {
+      console.info('[job:email-outbox] Skipping email outbox worker run in local development')
+      return {
+        ok: true,
+        stats: { claimed: 0, sent: 0, failed: 0 },
+      }
+    }
+
     const { admin, perf, params } = ctx
     const workerId = `email-outbox:${process.pid || 'worker'}:${Date.now()}`
     const limit = getBatchLimit(params.limit)

@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isLocalOrDevEnvironment } from './is-local-env'
 import {
   rentalBookingConfirmedCustomerEmail,
   adminRentalBookingConfirmedEmail,
@@ -1913,6 +1914,14 @@ export async function enqueueAdminCheckoutOutcomePendingAlertEmail(opts: {
 
 export async function enqueueEmailJobs(jobs: EnqueueEmailJobInput[]) {
   if (jobs.length === 0) return
+
+  if (isLocalOrDevEnvironment()) {
+    console.info(
+      `[email-outbox] Skipping email enqueue in local development (${jobs.length} jobs suppressed: ${jobs.map((j) => j.eventType).join(', ')})`,
+    )
+    return
+  }
+
   const admin = createAdminClient()
   const { error } = await admin
     .from('email_outbox')

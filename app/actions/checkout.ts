@@ -254,6 +254,35 @@ export async function submitCheckoutRequest(
   try {
     perf.timeSync('checkout_submit', 'checkout_submit_profile_authorization', () => null)
 
+    // Reconcile orphaned checkout status if no active checkout booking exists
+    if (
+      profile.pilot_clearance_status === 'checkout_requested' ||
+      profile.pilot_clearance_status === 'checkout_confirmed'
+    ) {
+      const { data: activeBooking } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('booking_owner_user_id', userId)
+        .eq('booking_type', 'checkout')
+        .in('status', [
+          'checkout_requested',
+          'checkout_confirmed',
+          'checkout_completed_under_review',
+          'checkout_payment_required',
+          'on_hold_pending_documents',
+        ])
+        .maybeSingle()
+
+      if (!activeBooking) {
+        const adminClient = createAdminClient()
+        await adminClient
+          .from('profiles')
+          .update({ pilot_clearance_status: 'checkout_required', updated_at: new Date().toISOString() })
+          .eq('id', userId)
+        profile.pilot_clearance_status = 'checkout_required'
+      }
+    }
+
   // ── Document gate ──────────────────────────────────────────────────────────
   // Validates all required document fields per document type.
   const [documentsRes, termsPrimary] = await Promise.all([
