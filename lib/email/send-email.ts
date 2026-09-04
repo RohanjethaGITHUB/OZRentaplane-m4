@@ -78,6 +78,7 @@ export async function sendEmail(input: SendEmailInput): Promise<{ status: 'sent'
     const rawTo = cleanEmailString(input.to) || input.to.trim()
     const configuredAdmin = cleanEmailString(process.env.ADMIN_EMAIL) || 'info@ozrentaplane.com'
     const devAdminEmail = 'devjamaviation@gmail.com'
+    const rohanAdminEmail = 'rohanjetha14@gmail.com'
 
     let recipients: string[] = [rawTo]
     const isAdminEmail =
@@ -85,12 +86,14 @@ export async function sendEmail(input: SendEmailInput): Promise<{ status: 'sent'
       rawTo.toLowerCase() === 'info@ozrentaplane.com' ||
       rawTo.toLowerCase() === 'ozrentaplane@gmail.com' ||
       rawTo.toLowerCase() === configuredAdmin.toLowerCase() ||
-      rawTo.toLowerCase() === devAdminEmail.toLowerCase()
+      rawTo.toLowerCase() === devAdminEmail.toLowerCase() ||
+      rawTo.toLowerCase() === rohanAdminEmail.toLowerCase()
 
     if (isAdminEmail) {
       const recipientSet = new Set<string>()
       recipientSet.add(configuredAdmin)
       recipientSet.add(devAdminEmail)
+      recipientSet.add(rohanAdminEmail)
       recipients = Array.from(recipientSet)
     }
     

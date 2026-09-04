@@ -95,12 +95,11 @@ export function adminWeeklyOperationsDigestEmail(params: WeeklyOperationsDigestP
 
         return `
           <tr style="border-bottom:1px solid #e2e8f0;">
-            <td style="padding:10px 8px;font-size:13px;color:#0f172a;">
-              <a href="${bookingLink}" style="font-weight:700;color:#0284c7;text-decoration:none;">${escapeHtml(f.bookingReference)}</a>
-            </td>
             <td style="padding:10px 8px;font-size:13px;">${typeBadge}</td>
             <td style="padding:10px 8px;font-size:13px;color:#334155;">
-              <div style="font-weight:600;">${escapeHtml(f.customerName)}</div>
+              <div>
+                <a href="${bookingLink}" style="font-weight:600;color:#0284c7;text-decoration:none;">${escapeHtml(f.customerName)}</a>
+              </div>
               <div style="font-size:11px;color:#64748b;">${escapeHtml(f.customerEmail)}</div>
             </td>
             <td style="padding:10px 8px;font-size:13px;color:#334155;">${escapeHtml(f.aircraft)}</td>
@@ -123,7 +122,6 @@ export function adminWeeklyOperationsDigestEmail(params: WeeklyOperationsDigestP
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:Arial,sans-serif;margin-bottom:12px;">
           <thead>
             <tr style="background:#f1f5f9;border-bottom:2px solid #cbd5e1;text-align:left;">
-              <th style="padding:8px;font-size:12px;color:#475569;font-weight:700;">Ref</th>
               <th style="padding:8px;font-size:12px;color:#475569;font-weight:700;">Type</th>
               <th style="padding:8px;font-size:12px;color:#475569;font-weight:700;">Customer</th>
               <th style="padding:8px;font-size:12px;color:#475569;font-weight:700;">Aircraft</th>
@@ -227,7 +225,7 @@ export function adminWeeklyOperationsDigestEmail(params: WeeklyOperationsDigestP
                     <td width="25%" style="padding:4px;">
                       <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:12px;text-align:center;">
                         <div style="font-size:24px;font-weight:700;color:#047857;">${totalNewCustomers}</div>
-                        <div style="font-size:11px;font-weight:600;color:#047857;text-transform:uppercase;margin-top:2px;">New Pilots</div>
+                        <div style="font-size:11px;font-weight:600;color:#047857;text-transform:uppercase;margin-top:2px;">${totalNewCustomers === 1 ? 'New Pilot' : 'New Pilots'}</div>
                       </div>
                     </td>
                   </tr>

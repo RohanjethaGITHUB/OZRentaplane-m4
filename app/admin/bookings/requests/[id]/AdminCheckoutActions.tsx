@@ -93,19 +93,6 @@ const OUTCOMES: {
     cardActive: 'active:border-amber-600 active:bg-amber-100',
   },
   {
-    key: 'checkout_reschedule_required',
-    label: 'Checkout Reschedule Required',
-    body: 'Checkout could not be properly assessed and should be rescheduled after payment is settled.',
-    color: 'bg-orange-600 hover:bg-orange-500',
-    border: 'border-orange-500/30',
-    textColor: 'text-orange-400',
-    icon: 'event_repeat',
-    cardTint: 'bg-orange-50',
-    cardBorder: 'border-orange-400',
-    cardHover: 'hover:border-orange-500/60',
-    cardActive: 'active:border-orange-600 active:bg-orange-100',
-  },
-  {
     key: 'not_currently_eligible',
     label: 'Not Currently Eligible',
     body: 'Pilot is not ready to continue with aircraft hire and further training is required.',
@@ -460,7 +447,7 @@ export default function AdminCheckoutActions({
 
   if (!confirmingOutcome) {
     return (
-      <div className="rounded-2xl border border-[#152d5a]/10 bg-open-ceiling p-5">
+      <div className="rounded-2xl border border-[#152d5a]/10 bg-open-ceiling p-3 sm:p-5">
         <div className="space-y-3">
           <div className="mb-2">
             <p className="text-[9px] uppercase tracking-widest font-bold text-[#152d5a]">RECORD CHECKOUT OUTCOME</p>
@@ -471,12 +458,12 @@ export default function AdminCheckoutActions({
               key={outcome.key}
               onClick={() => handleOutcomeSelect(outcome.key)}
               disabled={isPending}
-              className={`w-full rounded-xl border border-[#152d5a]/15 border-l-[3px] ${outcome.cardBorder} ${outcome.cardTint} p-6 text-left transition-all ${outcome.cardHover} ${outcome.cardActive} hover:shadow-sm disabled:opacity-50 flex items-start gap-4`}
+              className={`w-full rounded-xl border border-[#152d5a]/15 border-l-[3px] ${outcome.cardBorder} ${outcome.cardTint} p-4 sm:p-6 text-left transition-all ${outcome.cardHover} ${outcome.cardActive} hover:shadow-sm disabled:opacity-50 flex items-start gap-3 sm:gap-4`}
             >
-              <span className={`material-symbols-outlined text-[26px] flex-shrink-0 mt-0.5 ${outcome.textColor}`} style={{ fontVariationSettings: "'wght' 350" }}>{outcome.icon}</span>
-              <div className="min-w-0">
-                <p className={`text-base font-semibold ${outcome.textColor}`}>{outcome.label}</p>
-                <p className="mt-1 text-sm leading-relaxed text-gray-600">{outcome.body}</p>
+              <span className={`material-symbols-outlined text-[22px] sm:text-[26px] flex-shrink-0 mt-0.5 ${outcome.textColor}`} style={{ fontVariationSettings: "'wght' 350" }}>{outcome.icon}</span>
+              <div className="min-w-0 flex-1">
+                <p className={`text-sm sm:text-base font-semibold ${outcome.textColor}`}>{outcome.label}</p>
+                <p className="mt-1 text-xs sm:text-sm leading-relaxed text-gray-600">{outcome.body}</p>
               </div>
             </button>
           ))}
@@ -489,8 +476,8 @@ export default function AdminCheckoutActions({
   const outcome = OUTCOMES.find(item => item.key === confirmingOutcome)!
 
   return (
-    <div className="space-y-5 rounded-2xl bg-open-ceiling p-1">
-      <div className="rounded-2xl border border-[#152d5a]/10 bg-white p-5">
+    <div className="space-y-5 rounded-2xl bg-open-ceiling p-0.5 sm:p-1">
+      <div className="rounded-2xl border border-[#152d5a]/10 bg-white p-3.5 sm:p-5">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
             <h3 className="text-base font-semibold text-[#152d5a]">Record Checkout Outcome</h3>
@@ -499,15 +486,15 @@ export default function AdminCheckoutActions({
           <button type="button" onClick={resetOutcomeForm} className="text-sm text-[#4b6390] hover:text-[#152d5a]">← Back</button>
         </div>
 
-        <div className="rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-4">
+        <div className="rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-3.5 sm:p-4">
           <p className={`text-sm font-semibold ${outcome.textColor} mb-1`}>{outcome.label}</p>
           <p className="text-sm text-[#4b6390] leading-relaxed">{outcome.body}</p>
         </div>
 
         {outcomeSupportsWaiver && (
-          <div className="mt-4 rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-4">
+          <div className="mt-4 rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-3.5 sm:p-4">
             <p className="text-sm font-medium text-[#152d5a] mb-3">Charge customer for this checkout?</p>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <button type="button" onClick={() => setPaymentWaived(false)} disabled={isPending} className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${!paymentWaived ? 'bg-[#152d5a] border border-[#152d5a] text-white' : 'bg-white border border-[#152d5a]/15 text-[#4b6390] hover:border-[#152d5a]/30'}`}>Yes, create payment request</button>
               <button type="button" onClick={() => setPaymentWaived(true)}  disabled={isPending} className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${paymentWaived  ? 'bg-amber-100 border border-amber-300 text-amber-800' : 'bg-white border border-[#152d5a]/15 text-[#4b6390] hover:border-[#152d5a]/30'}`}>No, waive payment</button>
             </div>
@@ -536,7 +523,7 @@ export default function AdminCheckoutActions({
         <div className="mt-5 space-y-4">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-widest text-[#4b6390] mb-3">Aircraft Readings</p>
-            <div className="rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-4 space-y-4">
+            <div className="rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-3.5 sm:p-4 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
                   { field: 'vdo_total', label: 'VDO total' },
@@ -582,13 +569,13 @@ export default function AdminCheckoutActions({
 
           <div className="mt-2 border-t border-gray-200 pt-4">
             <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
-              <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
+              <div className="border-b border-gray-200 bg-gray-50 px-4 py-3.5 sm:px-5 sm:py-4">
                 <p className="text-sm font-semibold text-gray-900">Finalise charges</p>
                 <p className="mt-0.5 text-xs text-gray-500">Review and confirm billing before finalising the checkout.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2">
-                <div className="px-5 py-5 md:border-r md:border-gray-200">
+                <div className="px-3.5 py-4 sm:px-5 sm:py-5 md:border-r md:border-gray-200">
                   <div>
                     <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-500">Hourly rate</label>
                     <div className="flex items-center rounded-lg border border-gray-200 bg-white px-3 py-2.5">
@@ -621,19 +608,49 @@ export default function AdminCheckoutActions({
                         const count    = Number(row.landingCount)
                         const rowTotal = row.airportId && Number.isInteger(count) && count > 0 ? LANDING_FEE_CENTS * count : 0
                         return (
-                          <div key={row.id} className="mb-2">
-                            <div className="flex items-center gap-2">
-                              <select value={row.airportId} onChange={e => handleLandingChange(row.id, 'airportId', e.target.value)} disabled={isPending} className="min-w-0 flex-1 truncate rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-[#152d5a]/40">
-                                <option value="">Select airport</option>
-                                {airports.map(airport => (<option key={airport.id} value={airport.id}>{airport.icao_code} — {airport.name}</option>))}
-                              </select>
-                              <input type="number" min="1" step="1" value={row.landingCount} onChange={e => handleLandingChange(row.id, 'landingCount', e.target.value)} disabled={isPending} className="w-12 rounded-lg border border-gray-200 bg-white px-2 py-2 text-center text-sm text-gray-900 focus:outline-none focus:border-[#152d5a]/40" />
-                              <div className="w-16 text-right text-sm font-medium text-gray-700">
-                                {rowTotal > 0 ? `$${(rowTotal / 100).toFixed(2)}` : '—'}
+                          <div key={row.id} className="mb-2.5 rounded-lg border border-gray-100 bg-gray-50/70 p-2 sm:border-0 sm:bg-transparent sm:p-0 sm:mb-2">
+                            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                              <div className="min-w-0 flex-1">
+                                <select
+                                  value={row.airportId}
+                                  onChange={e => handleLandingChange(row.id, 'airportId', e.target.value)}
+                                  disabled={isPending}
+                                  className="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#152d5a]/40"
+                                >
+                                  <option value="">Select airport</option>
+                                  {airports.map(airport => (
+                                    <option key={airport.id} value={airport.id}>
+                                      {airport.icao_code} — {airport.name}
+                                    </option>
+                                  ))}
+                                </select>
                               </div>
-                              <button type="button" onClick={() => removeLandingRow(row.id)} disabled={isPending || landingRows.length <= 1} className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:text-rose-600 hover:border-rose-300 disabled:opacity-40">
-                                <span className="material-symbols-outlined text-[12px]">remove</span>
-                              </button>
+                              <div className="flex items-center justify-between gap-1 sm:justify-end sm:gap-2">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[11px] text-gray-500 sm:hidden">Qty:</span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    value={row.landingCount}
+                                    onChange={e => handleLandingChange(row.id, 'landingCount', e.target.value)}
+                                    disabled={isPending}
+                                    className="w-12 rounded-lg border border-gray-200 bg-white px-1.5 py-1.5 text-center text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#152d5a]/40"
+                                  />
+                                </div>
+                                <div className="text-right text-xs sm:text-sm font-medium text-gray-700 tabular-nums min-w-[50px]">
+                                  {rowTotal > 0 ? `$${(rowTotal / 100).toFixed(2)}` : '—'}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeLandingRow(row.id)}
+                                  disabled={isPending || landingRows.length <= 1}
+                                  className="flex h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:text-rose-600 hover:border-rose-300 disabled:opacity-40"
+                                  title="Remove airport"
+                                >
+                                  <span className="material-symbols-outlined text-[13px] sm:text-[14px]">remove</span>
+                                </button>
+                              </div>
                             </div>
                             {rowError && <p className="mt-1 text-xs text-rose-700">{rowError}</p>}
                           </div>
@@ -643,30 +660,30 @@ export default function AdminCheckoutActions({
                   </div>
                 </div>
 
-                <div className="bg-white px-5 py-5 md:sticky md:top-4">
+                <div className="bg-white px-3.5 py-4 sm:px-5 sm:py-5 md:sticky md:top-4">
                   <p className="mb-3 border-b border-gray-200 pb-2.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Billing estimate</p>
-                  <div className="flex items-baseline justify-between py-1.5">
-                    <span className="text-sm text-gray-500">VDO total</span>
-                    <span className="text-sm font-medium text-gray-900 tabular-nums">{vdoReading != null ? `${vdoReading.toFixed(1)} h` : '—'}</span>
+                  <div className="flex items-baseline justify-between gap-2 py-1.5">
+                    <span className="text-xs sm:text-sm text-gray-500">VDO total</span>
+                    <span className="text-xs sm:text-sm font-medium text-gray-900 tabular-nums flex-shrink-0">{vdoReading != null ? `${vdoReading.toFixed(1)} h` : '—'}</span>
                   </div>
-                  <div className="flex items-baseline justify-between py-1.5">
-                    <span className="text-sm text-gray-500">Aircraft hire</span>
-                    <span className="text-sm font-medium text-gray-900 tabular-nums">{validHourlyRate && vdoReading != null ? `$${(vdoBaseCents / 100).toFixed(2)}` : '—'}</span>
+                  <div className="flex items-baseline justify-between gap-2 py-1.5">
+                    <span className="text-xs sm:text-sm text-gray-500">Aircraft hire</span>
+                    <span className="text-xs sm:text-sm font-medium text-gray-900 tabular-nums flex-shrink-0">{validHourlyRate && vdoReading != null ? `$${(vdoBaseCents / 100).toFixed(2)}` : '—'}</span>
                   </div>
-                  <div className="flex items-baseline justify-between py-1.5">
-                    <span className="text-sm text-gray-500">Landing charges</span>
-                    <span className="text-sm font-medium text-gray-900 tabular-nums">${(landingSubtotalCents / 100).toFixed(2)}</span>
+                  <div className="flex items-baseline justify-between gap-2 py-1.5">
+                    <span className="text-xs sm:text-sm text-gray-500">Landing charges</span>
+                    <span className="text-xs sm:text-sm font-medium text-gray-900 tabular-nums flex-shrink-0">${(landingSubtotalCents / 100).toFixed(2)}</span>
                   </div>
                   {customerCreditCents > 0 && (
-                    <div className="flex items-baseline justify-between py-1.5">
-                      <span className="text-sm text-gray-500">Customer credit applied</span>
-                      <span className="text-sm font-medium text-emerald-700 tabular-nums">${(creditApplicable / 100).toFixed(2)}</span>
+                    <div className="flex items-baseline justify-between gap-2 py-1.5">
+                      <span className="text-xs sm:text-sm text-gray-500">Customer credit applied</span>
+                      <span className="text-xs sm:text-sm font-medium text-emerald-700 tabular-nums flex-shrink-0">${(creditApplicable / 100).toFixed(2)}</span>
                     </div>
                   )}
                   <div className="my-2 border-t border-gray-200" />
-                  <div className="mt-1.5 flex items-center justify-between rounded-lg bg-blue-50 px-3 py-2.5">
-                    <span className="text-sm font-semibold text-blue-800">Estimated amount due</span>
-                    <span className="text-base font-semibold text-blue-800 tabular-nums">{!paymentWaived && validHourlyRate && vdoReading != null ? `$${(estimatedAmountDue / 100).toFixed(2)}` : '—'}</span>
+                  <div className="mt-1.5 flex items-center justify-between gap-2 rounded-lg bg-blue-50 px-3 py-2.5">
+                    <span className="text-xs sm:text-sm font-semibold text-blue-800">Estimated amount due</span>
+                    <span className="text-sm sm:text-base font-semibold text-blue-800 tabular-nums flex-shrink-0">{!paymentWaived && validHourlyRate && vdoReading != null ? `$${(estimatedAmountDue / 100).toFixed(2)}` : '—'}</span>
                   </div>
                   <p className="mt-2 text-right text-[11px] text-gray-400">Final amount may vary based on airport selection.</p>
                 </div>
@@ -716,23 +733,23 @@ export default function AdminCheckoutActions({
                 <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>
               )}
 
-              <div className="border-t border-gray-200 bg-white px-5 py-4">
+              <div className="border-t border-gray-200 bg-white px-3.5 py-3 sm:px-5 sm:py-4">
                 {submissionConfirmation ? (
-                  <div className="rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-4">
+                  <div className="rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-3.5 sm:p-4">
                     <p className="text-sm font-semibold text-[#152d5a]">
                       {submissionConfirmation === 'send_invoice' ? 'Send invoice to customer?' : 'Mark payment as already received?'}
                     </p>
-                    <p className="mt-1 text-sm text-[#4b6390]">
+                    <p className="mt-1 text-xs sm:text-sm text-[#4b6390] leading-relaxed">
                       {submissionConfirmation === 'send_invoice'
                         ? 'This will finalise the checkout outcome and send a payment request to the customer. The booking will move to awaiting payment. Customer will need to log in and pay before their booking is confirmed.'
                         : 'This will finalise the checkout outcome and mark the booking as fully paid. No invoice will be sent to the customer. Use this only if payment was already received (cash, bank transfer, or in person).'}
                     </p>
-                    <div className="mt-4 flex items-center gap-3">
+                    <div className="mt-4 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3">
                       <button
                         type="button"
                         onClick={() => { setSubmissionConfirmation(null); setShowManualPaymentFields(false) }}
                         disabled={isPending}
-                        className="text-sm text-[#4b6390] hover:text-[#152d5a] disabled:opacity-50"
+                        className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-[#4b6390] hover:bg-gray-50 hover:text-[#152d5a] disabled:opacity-50 text-center"
                       >
                         Cancel
                       </button>
@@ -740,7 +757,7 @@ export default function AdminCheckoutActions({
                         type="button"
                         onClick={submissionConfirmation === 'send_invoice' ? executeSaveAndSendInvoice : executeMarkPaidAction}
                         disabled={isPending}
-                        className={`rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors disabled:opacity-50 ${
+                        className={`rounded-xl px-4 py-2.5 sm:py-3 text-sm font-medium text-white transition-colors disabled:opacity-50 text-center ${
                           submissionConfirmation === 'send_invoice'
                             ? 'bg-blue-600 hover:bg-blue-700'
                             : 'bg-green-600 hover:bg-green-700'
@@ -748,8 +765,8 @@ export default function AdminCheckoutActions({
                       >
                         <LoadingButtonContent loading={isPending} loadingLabel="Saving…">
                           {submissionConfirmation === 'send_invoice'
-                            ? 'Yes, send invoice — customer will be asked to pay'
-                            : 'Yes, mark as paid — no invoice will be sent'}
+                            ? 'Yes, send invoice — customer will pay'
+                            : 'Yes, mark as paid — no invoice'}
                         </LoadingButtonContent>
                       </button>
                     </div>

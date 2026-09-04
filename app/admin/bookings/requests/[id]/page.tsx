@@ -902,12 +902,15 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const isFinalStatus =
     ['cancelled', 'completed', 'no_show'].includes(booking.status) ||
     ['cancelled', 'no_show', 'paid_closed', 'waived_closed'].includes(lifecycleStage.key)
-  // Close Flight is only for bookings where standard cancellation is unavailable
-  // (e.g. flights whose date has passed, flights awaiting readings, overdue records, or checkouts).
-  // If the flight is an upcoming standard flight where regular "Cancel Flight" is already available,
-  // "Close Flight" is omitted to prevent redundant cancellation buttons.
+  // Close Flight / Close Checkout is available for bookings that are not in a final state.
+  // - For standard bookings: omitted if regular "Cancel Flight" is already available.
+  // - For checkout bookings: omitted during "checkout_confirmed" since "Cancel Checkout" is
+  //   prominently available in the action panel below. Once the checkout flight has occurred
+  //   (e.g. checkout_completed_under_review or checkout_payment_required), admin can permanently
+  //   close the checkout from the top button.
   const canBeClosedPermanently =
     !isFinalStatus &&
+    !(bookingType === 'checkout' && status === 'checkout_confirmed') &&
     !(bookingType === 'standard' && isFlightCancellable)
 
   const chargesAndPayment = bookingType === 'standard'
@@ -1341,7 +1344,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const pageContent = (
       <>
       <div className="min-h-screen bg-gray-100">
-        <div className="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-8 pb-24">
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-8 pb-24">
 
         <div className="mb-6">
           <div className="flex items-center gap-2 text-sm text-gray-400 mb-4">
@@ -1360,10 +1363,10 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             </Link>
           </div>
 
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
             <div className="min-w-0">
-              <h1 className="text-2xl font-semibold text-[#152d5a]">{displayPageTitle}</h1>
-              <p className="text-sm text-gray-400 mt-1">
+              <h1 className="text-xl sm:text-2xl font-semibold text-[#152d5a]">{displayPageTitle}</h1>
+              <p className="text-xs sm:text-sm text-gray-400 mt-1">
                 {hasPendingReschedule
                   ? 'Compare the current and requested times, then approve or reject.'
                   : isCancellationRequested
@@ -1371,8 +1374,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                     : 'View and manage this booking.'}
               </p>
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="flex items-center gap-2 flex-wrap justify-end">
+            <div className="flex flex-col items-start sm:items-end gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-start sm:justify-end">
                 {canBeClosedPermanently && (
                   <AdminCloseBookingButton
                     bookingId={booking.id}
@@ -1831,7 +1834,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           {/* ── Checkout action panel ─────────────────────────────────────── */}
           {/* checkout_requested uses AdminCheckoutReviewPanel above in the left column */}
           {(isCheckoutConfirmed || isCheckoutOutcomePending) && !hasPendingReschedule && (
-            <div className={`rounded-2xl border p-6 shadow-sm ${
+            <div className={`rounded-2xl border p-3 sm:p-5 md:p-6 shadow-sm ${
               isCheckoutConfirmed ? 'border-green-500/15 bg-white' : 'border-amber-500/15 bg-white'
             }`}>
               <AdminCheckoutActions

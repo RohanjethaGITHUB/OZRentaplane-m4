@@ -345,6 +345,7 @@ export async function runAdminWeeklyDigestSweep(admin: SupabaseClient, now: Date
       [
         ADMIN_EMAIL,
         'devjamaviation@gmail.com',
+        'rohanjetha14@gmail.com',
       ].filter(Boolean) as string[],
     ),
   )
