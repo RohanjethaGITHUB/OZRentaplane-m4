@@ -234,7 +234,7 @@ export default function CustomerPortalNav({
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/* Become an Instructor CTA Button — Refined Aviation Theme */}
+            {/* Become an Instructor CTA Button — Temporarily commented out
             <Link
               href="/dashboard/instructor"
               className={`hidden xl:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[13px] font-semibold font-sans transition-all duration-200 shadow-sm ${
@@ -246,6 +246,7 @@ export default function CustomerPortalNav({
               <span className="material-symbols-outlined text-[16px]">school</span>
               <span>Become an Instructor</span>
             </Link>
+            */}
 
             <Link
               href="/dashboard/messages"
@@ -282,6 +283,7 @@ export default function CustomerPortalNav({
                     <div className="text-[11px] text-white/50 truncate">{email}</div>
                   </div>
 
+                  {/*
                   <Link
                     href="/dashboard/instructor"
                     onClick={() => setMenuOpen(false)}
@@ -292,6 +294,7 @@ export default function CustomerPortalNav({
                     </span>
                     <span>Become an Instructor</span>
                   </Link>
+                  */}
 
                   <Link
                     href="/dashboard/settings"

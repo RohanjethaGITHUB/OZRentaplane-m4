@@ -12,7 +12,7 @@ export default function BookingsViewedTracker() {
     markBookingsViewed()
   }, [])
 
-  useRealtimeRefresh(['booking:status', 'payment:updated', 'ops:queue'])
+  useRealtimeRefresh(['booking:status', 'payment:updated', 'ops:queue', 'clearance:updated'])
 
   return null
 }

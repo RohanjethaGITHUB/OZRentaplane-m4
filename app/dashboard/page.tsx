@@ -111,10 +111,10 @@ export default async function DashboardPage({
   if (profile?.role === 'instructor') redirect('/instructor/dashboard')
 
   // ── Login tracking ────────────────────────────────────────────────────────
-  const authLastSignIn   = user.last_sign_in_at ? new Date(user.last_sign_in_at) : null
+  const authLastSignIn = user.last_sign_in_at ? new Date(user.last_sign_in_at) : null
   const profileLastLogin = profile?.last_login_at ? new Date(profile.last_login_at) : null
-  const isNewSession     = authLastSignIn !== null && (profileLastLogin === null || authLastSignIn > profileLastLogin)
-  const isFirstLogin     = isNewSession && (profile?.login_count ?? 1) === 0
+  const isNewSession = authLastSignIn !== null && (profileLastLogin === null || authLastSignIn > profileLastLogin)
+  const isFirstLogin = isNewSession && (profile?.login_count ?? 1) === 0
 
   const loginTrackingPromise = isNewSession
     ? perf.time(
@@ -124,14 +124,14 @@ export default async function DashboardPage({
         .from('profiles')
         .update({
           last_login_at: new Date().toISOString(),
-          login_count:   (profile?.login_count ?? 0) + 1,
+          login_count: (profile?.login_count ?? 0) + 1,
         })
         .eq('id', user.id),
     )
     : Promise.resolve(null)
 
   const clearanceStatus = ((profile as Profile | null)?.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
-  const paymentPending  = clearanceStatus === 'checkout_payment_required'
+  const paymentPending = clearanceStatus === 'checkout_payment_required'
   const nowIso = new Date().toISOString()
   const passwordUpdated = searchParams?.passwordUpdated === '1'
   const mustChangePassword = Boolean((profile as Profile | null)?.must_change_password)
@@ -161,14 +161,14 @@ export default async function DashboardPage({
       .limit(20),
     paymentPending
       ? supabase
-          .from('bookings')
-          .select('id')
-          .eq('booking_owner_user_id', user.id)
-          .eq('booking_type', 'checkout')
-          .eq('status', 'checkout_payment_required')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single()
+        .from('bookings')
+        .select('id')
+        .eq('booking_owner_user_id', user.id)
+        .eq('booking_type', 'checkout')
+        .eq('status', 'checkout_payment_required')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
       : Promise.resolve({ data: null }),
     supabase
       .from('bookings')
@@ -307,13 +307,13 @@ export default async function DashboardPage({
         .limit(10),
       searchParams?.block_time_purchase === 'success'
         ? supabase
-            .from('invoices')
-            .select('pdf_url')
-            .eq('user_id', user.id)
-            .eq('type', 'block_time_purchase')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle()
+          .from('invoices')
+          .select('pdf_url')
+          .eq('user_id', user.id)
+          .eq('type', 'block_time_purchase')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
         : Promise.resolve({ data: null }),
     ]),
     (result) => ({
@@ -433,15 +433,15 @@ export default async function DashboardPage({
   const standardSnapshotBooking = postFlightPaymentRequiredBooking ?? postFlightRequiredBooking ?? postFlightUnderReviewBooking ?? upcomingConfirmedBooking
   const flightSnapshotBooking: DashboardFlightSnapshot | null = standardSnapshotBooking
     ? {
-        id: standardSnapshotBooking.id,
-        bookingType: 'standard',
-        status: standardSnapshotBooking.status,
-        scheduledStart: standardSnapshotBooking.scheduled_start ?? '',
-        scheduledEnd: standardSnapshotBooking.scheduled_end ?? null,
-        aircraftRegistration: extractAircraftReg(standardSnapshotBooking.aircraft),
-      }
+      id: standardSnapshotBooking.id,
+      bookingType: 'standard',
+      status: standardSnapshotBooking.status,
+      scheduledStart: standardSnapshotBooking.scheduled_start ?? '',
+      scheduledEnd: standardSnapshotBooking.scheduled_end ?? null,
+      aircraftRegistration: extractAircraftReg(standardSnapshotBooking.aircraft),
+    }
     : checkoutSnapshotBooking
-    ? {
+      ? {
         id: checkoutSnapshotBooking.id,
         bookingType: 'checkout',
         status: checkoutSnapshotBooking.status,
@@ -449,7 +449,7 @@ export default async function DashboardPage({
         scheduledEnd: checkoutSnapshotBooking.scheduled_end ?? null,
         aircraftRegistration: extractAircraftReg(checkoutSnapshotBooking.aircraft),
       }
-    : null
+      : null
 
   // Unpaid block-time landing fee invoices — hours are already settled from the
   // package, but the customer still owes landing fees via Purchases.
@@ -480,32 +480,32 @@ export default async function DashboardPage({
   const bookingFocusState: DashboardBookingFocusState | null =
     postFlightPaymentRequiredBooking
       ? {
-          mode:
-            postFlightBankTransferStatus === 'rejected'
-              ? 'post_flight_payment_proof_rejected'
-              : postFlightBankTransferStatus === 'pending_review'
-                ? 'post_flight_payment_proof_under_review'
-                : postFlightBankTransferStatus === 'approved'
-                  ? 'post_flight_payment_approved'
-                  : isBlockTimeLandingFeeOnly
-                    ? 'block_time_landing_fee_required'
-                    : 'post_flight_payment_required',
-          bookingId: postFlightPaymentRequiredBooking.id,
-        }
+        mode:
+          postFlightBankTransferStatus === 'rejected'
+            ? 'post_flight_payment_proof_rejected'
+            : postFlightBankTransferStatus === 'pending_review'
+              ? 'post_flight_payment_proof_under_review'
+              : postFlightBankTransferStatus === 'approved'
+                ? 'post_flight_payment_approved'
+                : isBlockTimeLandingFeeOnly
+                  ? 'block_time_landing_fee_required'
+                  : 'post_flight_payment_required',
+        bookingId: postFlightPaymentRequiredBooking.id,
+      }
       : postFlightRequiredBooking
         ? { mode: 'post_flight_required', bookingId: postFlightRequiredBooking.id }
-      : postFlightUnderReviewBooking
+        : postFlightUnderReviewBooking
           ? {
-              mode: postFlightUnderReviewBooking.status === 'needs_clarification'
-                ? 'post_flight_clarification_required'
-                : 'post_flight_under_review',
-              bookingId: postFlightUnderReviewBooking.id,
-            }
+            mode: postFlightUnderReviewBooking.status === 'needs_clarification'
+              ? 'post_flight_clarification_required'
+              : 'post_flight_under_review',
+            bookingId: postFlightUnderReviewBooking.id,
+          }
           : outstandingLandingFeeInvoice?.booking_id
             ? {
-                mode: 'block_time_landing_fee_required',
-                bookingId: outstandingLandingFeeInvoice.booking_id,
-              }
+              mode: 'block_time_landing_fee_required',
+              bookingId: outstandingLandingFeeInvoice.booking_id,
+            }
             : upcomingConfirmedBooking
               ? { mode: 'upcoming_confirmed', bookingId: upcomingConfirmedBooking.id }
               : null
@@ -560,22 +560,22 @@ export default async function DashboardPage({
 
     if (invoiceRow) {
       checkoutInvoice = {
-        invoiceId:               invoiceRow.invoice_id as string,
-        invoiceStatus:           (invoiceStatusRow as { status?: string } | null)?.status ?? null,
-        subtotalCents:           invoiceRow.subtotal_cents as number,
-        advanceAppliedCents:     invoiceRow.advance_applied_cents as number,
-        totalPaidCents:          invoiceRow.total_paid_cents as number,
-        currentCreditCents:      invoiceRow.current_credit_balance_cents as number,
-        displayAmountDueCents:   invoiceRow.display_amount_due_cents as number,
-        checkoutOutcome:         invoiceRow.checkout_outcome as string | null,
-        checkoutDurationHours:   invoiceRow.checkout_duration_hours as number | null,
-        landingSubtotalCents:    invoiceRow.checkout_landing_subtotal_cents as number,
+        invoiceId: invoiceRow.invoice_id as string,
+        invoiceStatus: (invoiceStatusRow as { status?: string } | null)?.status ?? null,
+        subtotalCents: invoiceRow.subtotal_cents as number,
+        advanceAppliedCents: invoiceRow.advance_applied_cents as number,
+        totalPaidCents: invoiceRow.total_paid_cents as number,
+        currentCreditCents: invoiceRow.current_credit_balance_cents as number,
+        displayAmountDueCents: invoiceRow.display_amount_due_cents as number,
+        checkoutOutcome: invoiceRow.checkout_outcome as string | null,
+        checkoutDurationHours: invoiceRow.checkout_duration_hours as number | null,
+        landingSubtotalCents: invoiceRow.checkout_landing_subtotal_cents as number,
         bankTransferStatus,
         bankTransferNote,
-        landingCharges:          ((landingRows ?? []) as any[]).map(lc => ({
-          airportIcao:    (lc.airports as any)?.icao_code ?? '',
-          airportName:    (lc.airports as any)?.name ?? '',
-          landingCount:   lc.landing_count as number,
+        landingCharges: ((landingRows ?? []) as any[]).map(lc => ({
+          airportIcao: (lc.airports as any)?.icao_code ?? '',
+          airportName: (lc.airports as any)?.name ?? '',
+          landingCount: lc.landing_count as number,
           unitAmountCents: lc.unit_amount_cents as number,
           totalAmountCents: lc.total_amount_cents as number,
         })),
@@ -599,42 +599,42 @@ export default async function DashboardPage({
         historicalClearance?.id
           ? Promise.resolve({ data: historicalClearance })
           : admin
-              .from('historical_checkout_completions')
-              .select('id')
-              .eq('customer_id', user.id)
-              .eq('checkout_outcome', 'cleared_to_fly')
-              .eq('is_active', true)
-              .order('recorded_at', { ascending: false })
-              .limit(1)
-              .maybeSingle(),
+            .from('historical_checkout_completions')
+            .select('id')
+            .eq('customer_id', user.id)
+            .eq('checkout_outcome', 'cleared_to_fly')
+            .eq('is_active', true)
+            .order('recorded_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
         paidCheckoutInvoice?.id
           ? Promise.resolve({ data: paidCheckoutInvoice })
           : admin
-              .from('checkout_invoices')
-              .select('id')
-              .eq('customer_id', user.id)
-              .eq('status', 'paid')
-              .limit(1)
-              .maybeSingle(),
+            .from('checkout_invoices')
+            .select('id')
+            .eq('customer_id', user.id)
+            .eq('status', 'paid')
+            .limit(1)
+            .maybeSingle(),
         latestTermsAcceptance?.accepted_at
           ? Promise.resolve({ data: latestTermsAcceptance })
           : admin
-              .from('booking_terms_acceptances')
-              .select('terms_document_id, terms_version, terms_content_hash, accepted_at')
-              .eq('user_id', user.id)
-              .order('accepted_at', { ascending: false })
-              .limit(1)
-              .maybeSingle(),
+            .from('booking_terms_acceptances')
+            .select('terms_document_id, terms_version, terms_content_hash, accepted_at')
+            .eq('user_id', user.id)
+            .order('accepted_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
         termsPrimary.data
           ? Promise.resolve({ data: termsPrimary.data })
           : admin
-              .from('terms_documents')
-              .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
-              .eq('is_active', true)
-              .order('effective_from', { ascending: false })
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle(),
+            .from('terms_documents')
+            .select('id, version, public_url, content_hash, is_active, created_at, effective_from')
+            .eq('is_active', true)
+            .order('effective_from', { ascending: false })
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
       ])
 
       return [
@@ -697,11 +697,11 @@ export default async function DashboardPage({
     ),
     checkoutPayment: checkoutBookingId
       ? {
-          bookingId: checkoutBookingId,
-          invoiceStatus: checkoutInvoice?.invoiceStatus ?? null,
-          bankTransferStatus: checkoutInvoice?.bankTransferStatus ?? null,
-          bankTransferNote: checkoutInvoice?.bankTransferNote ?? null,
-        }
+        bookingId: checkoutBookingId,
+        invoiceStatus: checkoutInvoice?.invoiceStatus ?? null,
+        bankTransferStatus: checkoutInvoice?.bankTransferStatus ?? null,
+        bankTransferNote: checkoutInvoice?.bankTransferNote ?? null,
+      }
       : null,
     bookingFocusState,
     flightSnapshotBooking,
@@ -740,26 +740,26 @@ export default async function DashboardPage({
   const showBlockTimeSummary = blockTimePurchases.length > 0
   const blockTimeSummary: BlockTimeSummary | null = showBlockTimeSummary
     ? {
-        totalActiveHoursRemaining,
-        activePurchaseCount: activeBlockTimePurchases.length,
-        pendingPurchaseCount: pendingBlockTimePurchases.length,
-        earliestExpiry,
-        latestPurchase: latestPurchase
-          ? {
-              packageName: latestPurchasePackageName,
-              hoursPurchased: latestPurchaseHours,
-              purchasedAt: latestPurchase.purchased_at,
-              status: latestPurchase.status,
-            }
-          : null,
-      }
+      totalActiveHoursRemaining,
+      activePurchaseCount: activeBlockTimePurchases.length,
+      pendingPurchaseCount: pendingBlockTimePurchases.length,
+      earliestExpiry,
+      latestPurchase: latestPurchase
+        ? {
+          packageName: latestPurchasePackageName,
+          hoursPurchased: latestPurchaseHours,
+          purchasedAt: latestPurchase.purchased_at,
+          status: latestPurchase.status,
+        }
+        : null,
+    }
     : null
 
   const purchaseSelectedBlockTime = selectedBlockTimePackage
     ? async () => {
-        'use server'
-        await createBlockTimePurchaseIntent(selectedBlockTimePackage.id)
-      }
+      'use server'
+      await createBlockTimePurchaseIntent(selectedBlockTimePackage.id)
+    }
     : null
 
   const newlyPurchasedInvoicePdfUrl = recentBlockTimeInvoice?.pdf_url ?? null
@@ -787,7 +787,7 @@ export default async function DashboardPage({
               {effectiveClearanceStatus === 'cleared_to_fly' ? (
                 <form action={purchaseSelectedBlockTime ?? undefined} className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <button
-                     type="submit"
+                    type="submit"
                     className="inline-flex items-center justify-center rounded-xl bg-[#f59e0b] px-5 py-3.5 font-sans text-[0.8rem] font-bold uppercase tracking-[0.16em] text-white transition-colors hover:bg-[#e08f00]"
                   >
                     Purchase Block Time
@@ -829,19 +829,19 @@ export default async function DashboardPage({
         flashNotice={
           searchParams?.block_time_purchase === 'success'
             ? {
-                kind: 'success',
-                title: 'Purchase Successful!',
-                message: 'Your block time package has been successfully activated.',
-                actionLabel: newlyPurchasedInvoicePdfUrl ? 'Download PDF Invoice' : undefined,
-                actionUrl: newlyPurchasedInvoicePdfUrl ?? undefined,
-              }
+              kind: 'success',
+              title: 'Purchase Successful!',
+              message: 'Your block time package has been successfully activated.',
+              actionLabel: newlyPurchasedInvoicePdfUrl ? 'Download PDF Invoice' : undefined,
+              actionUrl: newlyPurchasedInvoicePdfUrl ?? undefined,
+            }
             : passwordUpdated
-            ? {
+              ? {
                 kind: 'success',
                 title: 'Password updated',
                 message: 'Your new password is now active.',
               }
-            : null
+              : null
         }
       />
     </>

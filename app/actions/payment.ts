@@ -958,9 +958,14 @@ export async function adminApproveBankTransfer(submissionId: string, bookingId: 
     console.warn("Failed to send approval notification (non-fatal):", notifErr?.message);
   }
 
+  revalidatePath("/admin");
   revalidatePath("/admin/bookings");
+  revalidatePath("/admin/bookings/flights");
   revalidatePath(`/admin/bookings/requests/${bookingId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/bookings");
   revalidatePath(`/dashboard/bookings/${bookingId}`);
+  revalidatePath("/dashboard/purchases");
 
   const approvedSub = await supabase
     .from("checkout_bank_transfer_submissions")
@@ -1418,8 +1423,12 @@ export async function adminRejectBankTransfer(submissionId: string, bookingId: s
     }
   }
 
+  revalidatePath("/admin");
   revalidatePath("/admin/bookings");
+  revalidatePath("/admin/bookings/flights");
   revalidatePath(`/admin/bookings/requests/${bookingId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/bookings");
   revalidatePath(`/dashboard/bookings/${bookingId}`);
 
   if (sub) {
@@ -1616,9 +1625,14 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
     }
   }
 
+  revalidatePath("/admin");
   revalidatePath("/admin/bookings");
+  revalidatePath("/admin/bookings/flights");
   revalidatePath(`/admin/bookings/requests/${input.bookingId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/bookings");
   revalidatePath(`/dashboard/bookings/${input.bookingId}`);
+  revalidatePath("/dashboard/purchases");
 
   void emitPaymentUpdated({ userId: booking.booking_owner_user_id, bookingId: input.bookingId });
   void emitBookingChanged({ bookingId: input.bookingId, userId: booking.booking_owner_user_id });

@@ -13,7 +13,7 @@ const NAV_LINKS = [
   { label: 'Resources', href: '/resources' },
   { label: 'Pricing', href: '/pricing' },
   { label: 'Contact Us', href: '/contact-us' },
-  { label: 'Become an Instructor', href: '/become-an-instructor' },
+  // { label: 'Become an Instructor', href: '/become-an-instructor' },
   { label: 'Shop', href: '/shop', disabled: true },
 ]
 

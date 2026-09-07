@@ -539,7 +539,7 @@ export default function DashboardContent({
               {actionState.heroLabel}
             </div>
 
-            {/* Tablet/Medium screen: Beside booking confirmed pill */}
+            {/* Tablet/Medium screen: Beside booking confirmed pill — Temporarily commented out
             <Link
               href="/dashboard/instructor"
               className="hidden sm:inline-flex xl:hidden items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12.5px] font-semibold font-sans transition-all duration-200 hover:brightness-110 shadow-xs"
@@ -552,6 +552,7 @@ export default function DashboardContent({
               <span className="material-symbols-outlined text-[16px]">school</span>
               <span>Become an Instructor</span>
             </Link>
+            */}
           </div>
           <p className="text-[15px] text-white/80 leading-relaxed mb-6 max-w-xl">
             {actionState.heroMessage}
@@ -578,7 +579,7 @@ export default function DashboardContent({
                   {actionState.secondaryAction.label}
                 </button>
               )}
-              {/* Mobile screen: Below View Booking button */}
+              {/* Mobile screen: Below View Booking button — Temporarily commented out
               <Link
                 href="/dashboard/instructor"
                 className="sm:hidden inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold transition-all duration-200 shadow-sm hover:brightness-110 text-center"
@@ -591,23 +592,9 @@ export default function DashboardContent({
                 <span className="material-symbols-outlined text-[18px]">school</span>
                 <span>Become an Instructor</span>
               </Link>
+              */}
             </div>
-          ) : (
-            <div className="sm:hidden">
-              <Link
-                href="/dashboard/instructor"
-                className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold transition-all duration-200 shadow-sm hover:brightness-110 text-center"
-                style={{
-                  backgroundColor: 'rgba(14, 165, 233, 0.15)',
-                  color: '#38BDF8',
-                  border: '1px solid #0EA5E9',
-                }}
-              >
-                <span className="material-symbols-outlined text-[18px]">school</span>
-                <span>Become an Instructor</span>
-              </Link>
-            </div>
-          )}
+          ) : null}
         </div>
         <div
           className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none"
