@@ -199,7 +199,7 @@ export async function runAdminWeeklyDigestSweep(admin: SupabaseClient, now: Date
       ? admin.from('profiles').select('id, email, first_name, full_name').in('id', ownerUserIds)
       : Promise.resolve({ data: [] }),
     aircraftIds.length > 0
-      ? admin.from('aircraft').select('id, registration, model').in('id', aircraftIds)
+      ? admin.from('aircraft').select('id, registration, model, aircraft_type').in('id', aircraftIds)
       : Promise.resolve({ data: [] }),
   ])
 
@@ -220,9 +220,11 @@ export async function runAdminWeeklyDigestSweep(admin: SupabaseClient, now: Date
     const customerEmail = prof?.email || 'No email'
 
     const aircraftObj = aircraftMap.get(b.aircraft_id) as any
+    const rawType = aircraftObj?.aircraft_type || aircraftObj?.model || 'Cessna 172N'
+    const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
     const aircraftLabel = aircraftObj?.registration
-      ? `${aircraftObj.registration}${aircraftObj.model ? ` (${aircraftObj.model})` : ''}`
-      : 'OZRentAPlane Aircraft'
+      ? `${cleanType} (${aircraftObj.registration})`
+      : 'Cessna 172N (VH-KZG)'
 
     const bookingRef = b.booking_reference || `BK-${b.id.slice(0, 8).toUpperCase()}`
 

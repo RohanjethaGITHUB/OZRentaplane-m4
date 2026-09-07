@@ -337,11 +337,15 @@ export async function createBooking(
   if (userEmail) {
     const { data: aircraftRow } = await supabase
       .from('aircraft')
-      .select('registration, model')
+      .select('registration, model, aircraft_type')
       .eq('id', input.aircraft_id)
       .single()
 
-    const aircraftLabel = aircraftRow ? `${aircraftRow.registration} (${aircraftRow.model || 'Aircraft'})` : 'OZRentAPlane Aircraft'
+    const rawType = aircraftRow?.aircraft_type || aircraftRow?.model || 'Cessna 172N'
+    const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
+    const aircraftLabel = aircraftRow?.registration
+      ? `${cleanType} (${aircraftRow.registration})`
+      : 'Cessna 172N (VH-KZG)'
 
     const startObj = new Date(input.scheduled_start)
     const endObj = new Date(input.scheduled_end)

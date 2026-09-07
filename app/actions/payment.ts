@@ -794,9 +794,11 @@ export async function submitBankTransferProof(
     const aircraftData = Array.isArray(bookingRecord?.aircraft)
       ? bookingRecord.aircraft[0]
       : bookingRecord?.aircraft;
+    const rawType = aircraftData?.aircraft_type || (aircraftData as any)?.model || 'Cessna 172N'
+    const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
     const aircraftLabel = aircraftData?.registration
-      ? `${aircraftData.registration}${aircraftData.aircraft_type ? ` (${aircraftData.aircraft_type})` : ""}`
-      : "OZRentAPlane Aircraft";
+      ? `${cleanType} (${aircraftData.registration})`
+      : "Cessna 172N (VH-KZG)";
 
     const flightDateFormatted = bookingRecord?.scheduled_start
       ? new Date(bookingRecord.scheduled_start).toLocaleDateString("en-AU", {
@@ -917,9 +919,11 @@ export async function adminApproveBankTransfer(submissionId: string, bookingId: 
         const aircraftData = Array.isArray(bookingRecord?.aircraft)
           ? bookingRecord.aircraft[0]
           : bookingRecord?.aircraft;
+        const rawType = aircraftData?.aircraft_type || (aircraftData as any)?.model || 'Cessna 172N'
+        const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
         const aircraftLabel = aircraftData?.registration
-          ? `${aircraftData.registration}${aircraftData.aircraft_type ? ` (${aircraftData.aircraft_type})` : ""}`
-          : "Assigned Aircraft";
+          ? `${cleanType} (${aircraftData.registration})`
+          : "Cessna 172N (VH-KZG)";
 
         const flightDateFormatted = bookingRecord?.scheduled_start
           ? new Date(bookingRecord.scheduled_start).toLocaleDateString("en-AU", {
@@ -1316,9 +1320,11 @@ export async function submitStandardBankTransferProof(
     const aircraftData = Array.isArray(bookingRecord?.aircraft)
       ? bookingRecord.aircraft[0]
       : bookingRecord?.aircraft;
+    const rawType = aircraftData?.aircraft_type || (aircraftData as any)?.model || 'Cessna 172N'
+    const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
     const aircraftLabel = aircraftData?.registration
-      ? `${aircraftData.registration}${aircraftData.aircraft_type ? ` (${aircraftData.aircraft_type})` : ""}`
-      : "OZRentAPlane Aircraft";
+      ? `${cleanType} (${aircraftData.registration})`
+      : "Cessna 172N (VH-KZG)";
 
     const flightDateFormatted = bookingRecord?.scheduled_start
       ? new Date(bookingRecord.scheduled_start).toLocaleDateString("en-AU", {
@@ -1571,9 +1577,11 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
 
     if (!input.suppressEmail && profile?.email) {
       const aircraftData = Array.isArray(booking?.aircraft) ? booking.aircraft[0] : booking?.aircraft;
+      const rawType = aircraftData?.aircraft_type || (aircraftData as any)?.model || 'Cessna 172N'
+      const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
       const aircraftLabel = aircraftData?.registration
-        ? `${aircraftData.registration}${aircraftData.aircraft_type ? ` (${aircraftData.aircraft_type})` : ""}`
-        : "OZRentAPlane Aircraft";
+        ? `${cleanType} (${aircraftData.registration})`
+        : "Cessna 172N (VH-KZG)";
 
       const flightDateFormatted = booking?.scheduled_start
         ? new Date(booking.scheduled_start).toLocaleDateString("en-AU", {

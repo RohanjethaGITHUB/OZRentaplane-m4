@@ -128,9 +128,11 @@ export async function settleCheckoutInvoiceManually(
     const aircraftData = Array.isArray(bookingRecord?.aircraft)
       ? bookingRecord.aircraft[0]
       : bookingRecord?.aircraft;
+    const rawType = aircraftData?.aircraft_type || (aircraftData as any)?.model || 'Cessna 172N'
+    const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
     const aircraftLabel = aircraftData?.registration
-      ? `${aircraftData.registration}${aircraftData.aircraft_type ? ` (${aircraftData.aircraft_type})` : ""}`
-      : "Assigned aircraft";
+      ? `${cleanType} (${aircraftData.registration})`
+      : "Cessna 172N (VH-KZG)";
 
     const flightDateFormatted = bookingRecord?.scheduled_start
       ? new Date(bookingRecord.scheduled_start).toLocaleDateString("en-AU", {

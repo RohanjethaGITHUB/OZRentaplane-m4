@@ -1099,19 +1099,25 @@ export async function confirmCheckoutBooking(
       .single(),
     supabase
       .from('aircraft')
-      .select('registration')
+      .select('registration, aircraft_type, model')
       .eq('id', booking.aircraft_id)
       .single(),
   ])
   const customerProfile = customerProfileRes.data
   const aircraft = aircraftRes.data
   if (customerProfile?.email) {
+    const rawType = aircraft?.aircraft_type || aircraft?.model || 'Cessna 172N'
+    const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
+    const aircraftLabel = aircraft?.registration
+      ? `${cleanType} (${aircraft.registration})`
+      : 'Cessna 172N (VH-KZG)'
+
     await perf.time('checkout_approval', 'checkout_approval_email_enqueue', () => enqueueCheckoutConfirmedEmail({
       customerName: customerProfile.full_name ?? 'Pilot',
       customerEmail: customerProfile.email,
       bookingId,
       time: fmtStart,
-      aircraft: aircraft?.registration ?? 'Assigned aircraft',
+      aircraft: aircraftLabel,
     }))
   }
 
@@ -1524,16 +1530,18 @@ export async function markCheckoutOutcome(input: {
 
     const [{ data: aircraftRecord }, { data: invoiceRecord }] = await Promise.all([
       booking.aircraft_id
-        ? supabase.from('aircraft').select('registration, model').eq('id', booking.aircraft_id).maybeSingle()
+        ? supabase.from('aircraft').select('registration, model, aircraft_type').eq('id', booking.aircraft_id).maybeSingle()
         : Promise.resolve({ data: null }),
       rpcRows?.[0]?.out_invoice_id
         ? supabase.from('invoices').select('invoice_number, total').eq('id', rpcRows[0].out_invoice_id).maybeSingle()
         : supabase.from('invoices').select('invoice_number, total').eq('booking_id', input.bookingId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     ])
 
+    const rawType = aircraftRecord?.aircraft_type || aircraftRecord?.model || 'Cessna 172N'
+    const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
     const aircraftLabel = aircraftRecord?.registration
-      ? `${aircraftRecord.registration}${aircraftRecord.model ? ` (${aircraftRecord.model})` : ''}`
-      : 'OZRentAPlane Aircraft'
+      ? `${cleanType} (${aircraftRecord.registration})`
+      : 'Cessna 172N (VH-KZG)'
 
     const amountDueCents = rpcRows?.[0]?.out_amount_due_now_cents ?? (invoiceRecord?.total ? Math.round(invoiceRecord.total * 100) : 0)
     const amountFormatted = `$${(amountDueCents / 100).toFixed(2)} AUD`
@@ -2938,9 +2946,11 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
       const aircraftData = Array.isArray(bookingRecord?.aircraft)
         ? bookingRecord.aircraft[0]
         : bookingRecord?.aircraft
+      const rawType = aircraftData?.aircraft_type || (aircraftData as any)?.model || 'Cessna 172N'
+      const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
       const aircraftLabel = aircraftData?.registration
-        ? `${aircraftData.registration}${aircraftData.aircraft_type ? ` (${aircraftData.aircraft_type})` : ''}`
-        : 'OZRentAPlane Aircraft'
+        ? `${cleanType} (${aircraftData.registration})`
+        : 'Cessna 172N (VH-KZG)'
 
       const flightDateFormatted = bookingRecord?.scheduled_start
         ? new Date(bookingRecord.scheduled_start).toLocaleDateString('en-AU', {
@@ -4062,16 +4072,18 @@ export async function finaliseStandardBookingInvoice(input: {
 
     const [{ data: aircraftRecord }, { data: invoiceRecord }] = await Promise.all([
       booking.aircraft_id
-        ? supabase.from('aircraft').select('registration, model').eq('id', booking.aircraft_id).maybeSingle()
+        ? supabase.from('aircraft').select('registration, model, aircraft_type').eq('id', booking.aircraft_id).maybeSingle()
         : Promise.resolve({ data: null }),
       invoiceId
         ? supabase.from('invoices').select('invoice_number, total, pdf_url').eq('id', invoiceId).maybeSingle()
         : Promise.resolve({ data: null }),
     ])
 
+    const rawType = aircraftRecord?.aircraft_type || aircraftRecord?.model || 'Cessna 172N'
+    const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
     const aircraftLabel = aircraftRecord?.registration
-      ? `${aircraftRecord.registration}${aircraftRecord.model ? ` (${aircraftRecord.model})` : ''}`
-      : 'OZRentAPlane Aircraft'
+      ? `${cleanType} (${aircraftRecord.registration})`
+      : 'Cessna 172N (VH-KZG)'
 
     const amountFormatted = `$${((amountDueNowCents || (invoiceRecord?.total ? Math.round(invoiceRecord.total * 100) : 0)) / 100).toFixed(2)} AUD`
     const flightDateFormatted = booking.scheduled_start

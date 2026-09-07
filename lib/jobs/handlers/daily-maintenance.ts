@@ -1011,7 +1011,7 @@ async function runAdminPendingFlightRecordReviewSweep(admin: JobContext['admin']
       ? admin.from('profiles').select('id, email, first_name, full_name, phone_number, phone_country_code, pilot_arn').in('id', userIds)
       : Promise.resolve({ data: [] }),
     aircraftIds.length > 0
-      ? admin.from('aircraft').select('id, registration, model').in('id', aircraftIds)
+      ? admin.from('aircraft').select('id, registration, model, aircraft_type').in('id', aircraftIds)
       : Promise.resolve({ data: [] }),
   ])
 
@@ -1030,9 +1030,11 @@ async function runAdminPendingFlightRecordReviewSweep(admin: JobContext['admin']
 
     const hoursSinceSubmission = Math.max(24, Math.floor((now.getTime() - new Date(submissionTime).getTime()) / (60 * 60 * 1000)))
     const aircraftObj = aircraftMap.get(booking.aircraft_id) as any
+    const rawType = aircraftObj?.aircraft_type || aircraftObj?.model || 'Cessna 172N'
+    const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
     const aircraftLabel = aircraftObj?.registration
-      ? `${aircraftObj.registration}${aircraftObj.model ? ` (${aircraftObj.model})` : ''}`
-      : 'OZRentAPlane Aircraft'
+      ? `${cleanType} (${aircraftObj.registration})`
+      : 'Cessna 172N (VH-KZG)'
 
     const customerName = prof?.full_name?.trim() || prof?.first_name?.trim() || 'Pilot'
     const customerEmail = prof?.email || ''

@@ -4,6 +4,7 @@ import { enqueuePostFlightRecordPendingEmails } from '@/lib/email/outbox'
 type AircraftJoin = {
   registration: string | null
   model?: string | null
+  aircraft_type?: string | null
 }
 
 type ProfileJoin = {
@@ -108,7 +109,7 @@ export async function runPostFlightActionRemindersSweep(
       ? admin.from('profiles').select('id, email, first_name, full_name, phone_number, phone_country_code, pilot_arn').in('id', userIds)
       : Promise.resolve({ data: [] }),
     aircraftIds.length > 0
-      ? admin.from('aircraft').select('id, registration, model').in('id', aircraftIds)
+      ? admin.from('aircraft').select('id, registration, model, aircraft_type').in('id', aircraftIds)
       : Promise.resolve({ data: [] }),
   ])
 
@@ -161,9 +162,11 @@ export async function runPostFlightActionRemindersSweep(
       : null
 
     const aircraftObj = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
+    const rawType = aircraftObj?.aircraft_type || aircraftObj?.model || 'Cessna 172N'
+    const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
     const aircraftLabel = aircraftObj?.registration
-      ? `${aircraftObj.registration}${aircraftObj.model ? ` (${aircraftObj.model})` : ''}`
-      : 'OZRentAPlane Aircraft'
+      ? `${cleanType} (${aircraftObj.registration})`
+      : 'Cessna 172N (VH-KZG)'
 
     const bookingRef = booking.booking_reference || `BK-${booking.id.slice(0, 8).toUpperCase()}`
 

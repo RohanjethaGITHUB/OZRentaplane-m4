@@ -8,6 +8,7 @@ type AircraftJoin = {
   registration: string | null
   display_name?: string | null
   model?: string | null
+  aircraft_type?: string | null
 }
 
 type ProfileJoin = {
@@ -144,9 +145,11 @@ export async function runUpcomingFlightRemindersSweep(
     const bookingRef = booking.booking_reference || `BK-${booking.id.slice(0, 8).toUpperCase()}`
 
     const aircraftObj = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
+    const rawType = aircraftObj?.aircraft_type || aircraftObj?.model || 'Cessna 172N'
+    const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
     const aircraftLabel = aircraftObj?.registration
-      ? `${aircraftObj.registration}${aircraftObj.model ? ` (${aircraftObj.model})` : aircraftObj.display_name ? ` (${aircraftObj.display_name})` : ''}`
-      : 'Assigned Aircraft'
+      ? `${cleanType} (${aircraftObj.registration})`
+      : 'Cessna 172N (VH-KZG)'
 
     const customerName =
       prof?.full_name?.trim() ||
