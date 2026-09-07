@@ -903,7 +903,7 @@ export async function adminApproveBankTransfer(submissionId: string, bookingId: 
         supabase.from("profiles").select("email, full_name").eq("id", sub.customer_id).single(),
         supabase
           .from("bookings")
-          .select("booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, aircraft_type)")
+          .select("booking_reference, scheduled_start, checkout_type, aircraft_id, aircraft:aircraft_id(registration, aircraft_type)")
           .eq("id", bookingId)
           .maybeSingle(),
         supabase
@@ -912,6 +912,26 @@ export async function adminApproveBankTransfer(submissionId: string, bookingId: 
           .eq("id", sub.invoice_id)
           .maybeSingle(),
       ]);
+
+      // If instructor checkout and cleared_to_fly, activate aircraft clearance and instructor role
+      if (bookingRecord?.checkout_type === "instructor" && outcome === "cleared_to_fly" && bookingRecord.aircraft_id) {
+        const nowIso = new Date().toISOString();
+        await supabase
+          .from("instructor_aircraft_clearances")
+          .upsert({
+            instructor_id: sub.customer_id,
+            aircraft_id: bookingRecord.aircraft_id,
+            clearance_status: "approved",
+            cleared_at: nowIso,
+            updated_at: nowIso,
+          }, { onConflict: "instructor_id,aircraft_id" });
+
+        await supabase
+          .from("profiles")
+          .update({ role: "instructor", updated_at: nowIso })
+          .eq("id", sub.customer_id)
+          .eq("role", "customer");
+      }
 
       if (profile?.email) {
         const aircraftData = Array.isArray(bookingRecord?.aircraft)

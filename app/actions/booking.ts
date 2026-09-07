@@ -63,7 +63,7 @@ async function requireCustomer() {
     .single()
 
   if (!profile) throw new Error('Profile not found')
-  if (profile.role !== 'customer') throw new Error('Not a customer account')
+  if (profile.role !== 'customer' && profile.role !== 'instructor') throw new Error('Not a customer or instructor account')
   if (profile.account_status === 'blocked') {
     throw new Error('ACCOUNT_BLOCKED: Your account has been blocked. Please contact support.')
   }
@@ -94,7 +94,7 @@ async function requireClearedCustomer(perf?: ReturnType<typeof createPerfLogger>
       .single()
 
     if (!profile) throw new Error('Profile not found')
-    if (profile.role !== 'customer') throw new Error('Not a customer account')
+    if (profile.role !== 'customer' && profile.role !== 'instructor') throw new Error('Not a customer or instructor account')
     if (isNoShowLockedProfile(profile)) {
       throw new Error('ACCOUNT_BLOCKED: Your account is locked due to a checkout no-show. Please contact OZ Rent A Plane.')
     }

@@ -16,6 +16,7 @@ import { formatDateTime } from '@/lib/formatDateTime'
 type BookingLite = {
   id: string
   booking_type: string
+  checkout_type?: string | null
   status: string
   scheduled_start: string
   scheduled_end?: string | null
@@ -525,11 +526,13 @@ function AvailabilityTimeline({
 function CheckoutRescheduleModal({
   aircraftId,
   submitting,
+  isInstructor = false,
   onClose,
   onSubmit,
 }: {
   aircraftId: string
   submitting: boolean
+  isInstructor?: boolean
   onClose: () => void
   onSubmit: (date: string, time: string) => void
 }) {
@@ -603,8 +606,12 @@ function CheckoutRescheduleModal({
       <div className="w-full max-w-3xl max-h-[calc(100vh-7.5rem)] bg-white border border-[#152d5a]/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#152d5a]/10">
           <div>
-            <p className="text-xs uppercase tracking-widest text-[#1a4fd6] font-bold">Checkout change request</p>
-            <h3 className="text-lg font-semibold text-[#152d5a]">Request checkout reschedule</h3>
+            <p className="text-xs uppercase tracking-widest text-[#1a4fd6] font-bold">
+              {isInstructor ? 'Instructor checkout change request' : 'Checkout change request'}
+            </p>
+            <h3 className="text-lg font-semibold text-[#152d5a]">
+              {isInstructor ? 'Request instructor checkout reschedule' : 'Request checkout reschedule'}
+            </h3>
           </div>
           <button onClick={onClose} className="text-[#94a3b8] hover:text-[#152d5a] transition-colors">
             <span className="material-symbols-outlined text-xl">close</span>
@@ -613,7 +620,9 @@ function CheckoutRescheduleModal({
         <div className="px-5 py-5 space-y-4 overflow-y-auto min-h-0">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-[#64748b] mb-2">Checkout date</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#64748b] mb-2">
+                {isInstructor ? 'Instructor checkout date' : 'Checkout date'}
+              </p>
               <CalendarDateField
                 value={date}
                 onChange={(next) => { setDate(next); setStartTime(''); setError(null) }}
@@ -861,6 +870,8 @@ export default function CheckoutChangeActions({
     checkout.checkout_lifecycle_status !== 'cancelled_by_admin' &&
     checkout.checkout_lifecycle_status !== 'completed'
 
+  const isInstructor = checkout.checkout_type === 'instructor'
+
   const cancelButtonClass = isListCard
     ? 'flex items-center justify-center whitespace-nowrap border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed text-[10px] font-bold tracking-[0.06em] uppercase px-5 py-2.5 rounded-xl transition-colors w-full min-h-[40px]'
     : 'inline-flex items-center gap-2 px-6 py-3 border border-rose-300 bg-white text-rose-600 hover:bg-rose-50 disabled:bg-[#f8fafc] disabled:border-[#e2e8f0] disabled:text-[#94a3b8] rounded-full text-[10px] font-bold uppercase tracking-[0.15em] transition-all'
@@ -876,23 +887,27 @@ export default function CheckoutChangeActions({
           <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-white border border-[#152d5a]/10 rounded-2xl shadow-2xl overflow-hidden">
             <div className="px-5 py-4 border-b border-[#152d5a]/10">
-              <h3 className="text-lg font-semibold text-[#152d5a]">Cancel checkout flight?</h3>
+              <h3 className="text-lg font-semibold text-[#152d5a]">
+                {isInstructor ? 'Cancel instructor checkout flight?' : 'Cancel checkout flight?'}
+              </h3>
             </div>
             <div className="px-5 py-5">
               <p className="text-sm text-[#4b6390] leading-relaxed">
-                You can cancel your checkout flight if it is more than 12 hours away. This will release your current checkout slot.
+                {isInstructor
+                  ? 'You can cancel your instructor checkout flight if it is more than 12 hours away. This will release your current instructor checkout slot.'
+                  : 'You can cancel your checkout flight if it is more than 12 hours away. This will release your current checkout slot.'}
               </p>
             </div>
             <div className="px-5 py-4 border-t border-[#152d5a]/10 flex justify-end gap-3">
               <button onClick={() => setCancelModalOpen(false)} className="px-4 py-2 text-sm text-[#4b6390] border border-[#152d5a]/15 rounded-lg">
-                Keep checkout
+                {isInstructor ? 'Keep instructor checkout' : 'Keep checkout'}
               </button>
               <button
                 onClick={handleCancel}
                 disabled={isCancelling}
                 className="px-4 py-2 text-sm text-white bg-rose-500/70 hover:bg-rose-500 rounded-lg disabled:opacity-40"
               >
-                {isCancelling ? 'Cancelling...' : 'Cancel checkout'}
+                {isCancelling ? 'Cancelling...' : isInstructor ? 'Cancel instructor checkout' : 'Cancel checkout'}
               </button>
             </div>
           </div>
@@ -905,15 +920,20 @@ export default function CheckoutChangeActions({
           <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
             <div className="w-full max-w-lg bg-white border border-[#152d5a]/10 rounded-2xl shadow-2xl overflow-hidden">
               <div className="px-5 py-4 border-b border-[#152d5a]/10">
-                <h3 className="text-lg font-semibold text-[#152d5a]">Request cancellation?</h3>
+                <h3 className="text-lg font-semibold text-[#152d5a]">
+                  {isInstructor ? 'Request instructor checkout cancellation?' : 'Request cancellation?'}
+                </h3>
               </div>
               <div className="px-5 py-5 space-y-4">
                 <p className="text-sm text-[#4b6390] leading-relaxed">
-                  Your checkout flight is less than 12 hours away. You can submit a cancellation request for operations review.
-                  A cancellation charge may apply — the team can waive or apply the charge when they review your request.
+                  {isInstructor
+                    ? 'Your instructor checkout flight is less than 12 hours away. You can submit a cancellation request for operations review. A cancellation charge may apply — the team can waive or apply the charge when they review your request.'
+                    : 'Your checkout flight is less than 12 hours away. You can submit a cancellation request for operations review. A cancellation charge may apply — the team can waive or apply the charge when they review your request.'}
                 </p>
                 <div className="rounded-xl border border-[#1a4fd6]/15 bg-[#f7faff] px-4 py-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b6390]">Checkout details</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b6390]">
+                    {isInstructor ? 'Instructor checkout details' : 'Checkout details'}
+                  </p>
                   <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4b6390]">Departure</p>
@@ -955,7 +975,7 @@ export default function CheckoutChangeActions({
                   disabled={isCancelling}
                   className="px-4 py-2 text-sm text-[#4b6390] border border-[#152d5a]/15 rounded-lg disabled:opacity-50"
                 >
-                  Keep checkout
+                  {isInstructor ? 'Keep instructor checkout' : 'Keep checkout'}
                 </button>
                 <button
                   onClick={handleLateCancel}
@@ -979,7 +999,9 @@ export default function CheckoutChangeActions({
               </div>
               <div className="px-5 py-5 space-y-3">
                 <p className="text-sm text-[#4b6390] leading-relaxed">
-                  Your checkout flight is less than 12 hours away.
+                  {isInstructor
+                    ? 'Your instructor checkout flight is less than 12 hours away.'
+                    : 'Your checkout flight is less than 12 hours away.'}
                 </p>
                 <p className="text-sm text-[#4b6390] leading-relaxed">
                   To reschedule at this stage, please call OZ Rent A Plane so the team can review and approve the change manually.
@@ -1008,6 +1030,7 @@ export default function CheckoutChangeActions({
         <CheckoutRescheduleModal
           aircraftId={aircraftId}
           submitting={isRescheduling}
+          isInstructor={isInstructor}
           onClose={() => setRescheduleModalOpen(false)}
           onSubmit={handleRescheduleSubmit}
         />
@@ -1027,7 +1050,9 @@ export default function CheckoutChangeActions({
 
       <div className={isListCard ? 'space-y-2' : 'mt-4 space-y-3'}>
         {!isListCard && checkout.checkout_lifecycle_status === 'cancelled_by_customer' && (
-          <p className="text-sm text-emerald-600">Your checkout flight has been cancelled.</p>
+          <p className="text-sm text-emerald-600">
+            {isInstructor ? 'Your instructor checkout flight has been cancelled.' : 'Your checkout flight has been cancelled.'}
+          </p>
         )}
         {isLateCancelPending && !isListCard && (
           <p className="text-sm text-amber-600">
@@ -1047,7 +1072,7 @@ export default function CheckoutChangeActions({
                 </span>
               </div>
               <p className="text-sm text-amber-950 font-medium">
-                The operations team proposed a new time for your checkout flight: <strong className="font-bold">{requestedRescheduleLabel}</strong>.
+                The operations team proposed a new time for your {isInstructor ? 'instructor ' : ''}checkout flight: <strong className="font-bold">{requestedRescheduleLabel}</strong>.
               </p>
               <button
                 type="button"
@@ -1062,7 +1087,7 @@ export default function CheckoutChangeActions({
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
               <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Reschedule Under Review</p>
               <p className="text-sm text-amber-900/90 leading-relaxed">
-                Your reschedule request is waiting for admin review. Your current checkout time remains active.
+                Your reschedule request is waiting for admin review. Your current {isInstructor ? 'instructor ' : ''}checkout time remains active.
                 {requestedRescheduleLabel ? (
                   <>
                     {' '}
@@ -1076,14 +1101,16 @@ export default function CheckoutChangeActions({
         {!isListCard && !hasPendingReschedule && latestApproved && (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 space-y-1">
             <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">New Time Confirmed</p>
-            <p className="text-sm text-emerald-800">Your checkout flight has been rescheduled to the approved time.</p>
+            <p className="text-sm text-emerald-800">
+              Your {isInstructor ? 'instructor ' : ''}checkout flight has been rescheduled to the approved time.
+            </p>
           </div>
         )}
         {!isListCard && !hasPendingReschedule && latestRejected && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
             <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Reschedule Not Approved</p>
             <p className="text-sm text-amber-900/90 leading-relaxed">
-              Your reschedule request was not approved. Your original checkout time remains active.
+              Your reschedule request was not approved. Your original {isInstructor ? 'instructor ' : ''}checkout time remains active.
               {rejectedRescheduleLabel ? (
                 <>
                   {' '}

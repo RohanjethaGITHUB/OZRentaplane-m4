@@ -1784,6 +1784,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             <AdminCheckoutReviewPanel
               bookingId={booking.id}
               aircraftId={booking.aircraft_id}
+              checkoutType={(booking as any).checkout_type ?? 'standard'}
               bookingReference={bookingRef}
               scheduledStart={booking.scheduled_start}
               scheduledEnd={booking.scheduled_end}

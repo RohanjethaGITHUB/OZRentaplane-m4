@@ -21,6 +21,7 @@ export type BookingDirectoryRow = {
   displayStatus: string
   statusLabel: string
   bookingType: string
+  checkoutType?: 'standard' | 'instructor' | null
   billingMode: 'pay_as_you_fly' | 'block_time' | 'checkout' | null
   billingRateCentsPerHour: number | null
   blockTimePackageName: string | null
@@ -435,6 +436,7 @@ function getStatusPresentation(row: BookingDirectoryRow): BookingStatusPresentat
 
 function BookingTypePresentation({ row }: { row: BookingDirectoryRow }) {
   const isCheckout = isCheckoutBooking(row)
+  const isInstructor = isCheckout && row.checkoutType === 'instructor'
   const detailLabel = isCheckout
     ? row.bookingTypeSecondaryLabel
     : row.bookingTypePrimaryLabel.replace(/^Rental\s*[—–-]\s*/i, '')
@@ -443,15 +445,17 @@ function BookingTypePresentation({ row }: { row: BookingDirectoryRow }) {
     <div title={row.billingBasisIsProvisional ? 'Billing basis may change before flight finalisation.' : undefined}>
       <span
         className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.08em] ${
-          isCheckout
+          isInstructor
             ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+            : isCheckout
+              ? 'border-blue-200 bg-blue-50 text-blue-700'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-700'
         }`}
       >
         <span className="material-symbols-outlined text-[14px]" aria-hidden="true">
-          {isCheckout ? 'flight_takeoff' : 'flight'}
+          {isInstructor ? 'school' : isCheckout ? 'flight_takeoff' : 'flight'}
         </span>
-        {isCheckout ? 'Checkout' : 'Rental'}
+        {isInstructor ? 'Instructor Checkout' : isCheckout ? 'Checkout' : 'Rental'}
       </span>
       <p className="mt-1.5 text-[13px] font-medium text-[var(--admin-text)]">{detailLabel}</p>
       {!isCheckout ? (

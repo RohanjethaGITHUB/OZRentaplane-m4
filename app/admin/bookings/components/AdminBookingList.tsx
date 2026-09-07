@@ -149,7 +149,7 @@ export default async function AdminBookingList({
   let query = supabase
     .from('bookings')
     .select(`
-      id, booking_reference, booking_type, created_at, scheduled_start, scheduled_end, status,
+      id, booking_reference, booking_type, checkout_type, created_at, scheduled_start, scheduled_end, status,
       pic_name, estimated_amount, booking_owner_user_id,
       aircraft ( id, registration, aircraft_type ),
       flight_records ( status, submitted_at )
@@ -224,28 +224,36 @@ export default async function AdminBookingList({
   })
 
   const sortedRows = [...rows].sort((a, b) => {
-    const aircraftA = Array.isArray(a.aircraft) ? a.aircraft[0] : a.aircraft
-    const aircraftB = Array.isArray(b.aircraft) ? b.aircraft[0] : b.aircraft
-    const pa = profileMap.get(a.booking_owner_user_id)
-    const pb = profileMap.get(b.booking_owner_user_id)
-    const va: Record<SortKey, string | number> = {
-      customer: fullCustomerName(pa, a.pic_name).toLowerCase(),
-      email: (pa?.email ?? '').toLowerCase(),
-      aircraft: (aircraftA?.registration ?? '').toLowerCase(),
-      scheduled: new Date(a.scheduled_start).getTime(),
-      status: (STATUS_BADGE[deriveBookingStatusForFlightRecord(a)]?.label ?? deriveBookingStatusForFlightRecord(a)).toLowerCase(),
-      ref: (a.booking_reference ?? a.id).toLowerCase(),
+    let aVal: string | number = ''
+    let bVal: string | number = ''
+
+    if (sort === 'customer') {
+      const aProf = profileMap.get(a.booking_owner_user_id)
+      const bProf = profileMap.get(b.booking_owner_user_id)
+      aVal = fullCustomerName(aProf, a.pic_name).toLowerCase()
+      bVal = fullCustomerName(bProf, b.pic_name).toLowerCase()
+    } else if (sort === 'email') {
+      aVal = (profileMap.get(a.booking_owner_user_id)?.email ?? '').toLowerCase()
+      bVal = (profileMap.get(b.booking_owner_user_id)?.email ?? '').toLowerCase()
+    } else if (sort === 'aircraft') {
+      const aAc = Array.isArray(a.aircraft) ? a.aircraft[0] : a.aircraft
+      const bAc = Array.isArray(b.aircraft) ? b.aircraft[0] : b.aircraft
+      aVal = (aAc?.registration ?? '').toLowerCase()
+      bVal = (bAc?.registration ?? '').toLowerCase()
+    } else if (sort === 'scheduled') {
+      aVal = a.scheduled_start ? new Date(a.scheduled_start).getTime() : 0
+      bVal = b.scheduled_start ? new Date(b.scheduled_start).getTime() : 0
+    } else if (sort === 'status') {
+      aVal = a.status.toLowerCase()
+      bVal = b.status.toLowerCase()
+    } else if (sort === 'ref') {
+      aVal = (a.booking_reference ?? a.id).toLowerCase()
+      bVal = (b.booking_reference ?? b.id).toLowerCase()
     }
-    const vb: Record<SortKey, string | number> = {
-      customer: fullCustomerName(pb, b.pic_name).toLowerCase(),
-      email: (pb?.email ?? '').toLowerCase(),
-      aircraft: (aircraftB?.registration ?? '').toLowerCase(),
-      scheduled: new Date(b.scheduled_start).getTime(),
-      status: (STATUS_BADGE[deriveBookingStatusForFlightRecord(b)]?.label ?? deriveBookingStatusForFlightRecord(b)).toLowerCase(),
-      ref: (b.booking_reference ?? b.id).toLowerCase(),
-    }
-    const cmp = va[sort] < vb[sort] ? -1 : va[sort] > vb[sort] ? 1 : 0
-    return dir === 'asc' ? cmp : -cmp
+
+    if (aVal < bVal) return dir === 'asc' ? -1 : 1
+    if (aVal > bVal) return dir === 'asc' ? 1 : -1
+    return 0
   })
 
   const nextDir = (key: SortKey): SortDir => (sort === key && dir === 'asc' ? 'desc' : 'asc')
@@ -260,9 +268,6 @@ export default async function AdminBookingList({
     { label: 'Completed', value: 'completed' },
   ]
 
-  // The manual dispatch step has been removed — nothing sets 'dispatched'
-  // anymore, so the queue tabs jump from Upcoming straight to the post-flight
-  // states. Legacy 'dispatched' rows still render with their badge under All.
   const standardTabs = [
     { label: 'Upcoming', value: 'confirmed' },
     { label: 'Awaiting Flight Record', value: 'awaiting_flight_record' },
@@ -366,6 +371,7 @@ export default async function AdminBookingList({
                     const displayStatus = deriveBookingStatusForFlightRecord(booking)
                     const isProposalPending = pendingAdminProposalIds.has(booking.id)
                     const isReschedulePending = pendingRescheduleIds.has(booking.id)
+                    const isInstructorCheckout = (booking as any).checkout_type === 'instructor'
                     const badge = getStatusBadge(displayStatus, appearance, {
                       pendingReschedule: isReschedulePending,
                       pendingAdminProposal: isProposalPending,
@@ -382,9 +388,16 @@ export default async function AdminBookingList({
                     return (
                       <tr key={booking.id} className={rowClassName}>
                         <td className={customerCellClassName}>
-                          <Link href={`/admin/users/${booking.booking_owner_user_id}`} className={customerLinkClassName}>
-                            {customerName}
-                          </Link>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Link href={`/admin/users/${booking.booking_owner_user_id}`} className={customerLinkClassName}>
+                              {customerName}
+                            </Link>
+                            {isInstructorCheckout && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 dark:bg-indigo-950/50 dark:border-indigo-800 dark:text-indigo-300 text-[10.5px] font-semibold px-2 py-0.5">
+                                Instructor
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className={emailCellClassName}>{email}</td>
                         <td className={bodyValueClassName}>{aircraft?.registration ?? 'VH-KZG'}</td>
@@ -412,6 +425,7 @@ export default async function AdminBookingList({
                 const displayStatus = deriveBookingStatusForFlightRecord(booking)
                 const isProposalPending = pendingAdminProposalIds.has(booking.id)
                 const isReschedulePending = pendingRescheduleIds.has(booking.id)
+                const isInstructorCheckout = (booking as any).checkout_type === 'instructor'
                 const badge = getStatusBadge(displayStatus, appearance, {
                   pendingReschedule: isReschedulePending,
                   pendingAdminProposal: isProposalPending,
@@ -425,7 +439,14 @@ export default async function AdminBookingList({
                   <div key={booking.id} className={mobileCardClassName}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className={isLightOperational ? 'text-[14px] font-semibold text-[var(--admin-text)]' : 'text-white font-medium'}>{customerName}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className={isLightOperational ? 'text-[14px] font-semibold text-[var(--admin-text)]' : 'text-white font-medium'}>{customerName}</p>
+                          {isInstructorCheckout && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 dark:bg-indigo-950/50 dark:border-indigo-800 dark:text-indigo-300 text-[10.5px] font-semibold px-2 py-0.5">
+                              Instructor
+                            </span>
+                          )}
+                        </div>
                         <p className={isLightOperational ? 'mt-1 text-[13px] text-[var(--admin-text-secondary)]' : 'text-xs text-slate-400 mt-1'}>{formatDateTime(booking.scheduled_start)}</p>
                       </div>
                       <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11.5px] font-semibold ${badge.className}`}>{badge.label}</span>

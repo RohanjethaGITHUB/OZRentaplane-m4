@@ -22,8 +22,8 @@ export async function acceptTermsAndConditions(): Promise<AcceptTermsResult> {
     .eq('id', user.id)
     .single()
 
-  if (!profile || profile.role !== 'customer') {
-    return { ok: false, error: 'Only customer accounts can accept the terms and conditions.' }
+  if (!profile || (profile.role !== 'customer' && profile.role !== 'instructor')) {
+    return { ok: false, error: 'Only customer or instructor accounts can accept the terms and conditions.' }
   }
 
   const primaryTerms = await supabase

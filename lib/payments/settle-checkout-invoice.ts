@@ -119,10 +119,42 @@ export async function settleCheckoutInvoiceManually(
       .single(),
     supabase
       .from("bookings")
-      .select("booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, aircraft_type)")
+      .select("booking_reference, scheduled_start, aircraft_id, checkout_type, aircraft:aircraft_id(registration, aircraft_type)")
       .eq("id", input.bookingId)
       .maybeSingle(),
   ]);
+
+  if (checkoutOutcome === "cleared_to_fly" && bookingRecord?.checkout_type === "instructor" && bookingRecord.aircraft_id) {
+    try {
+      const nowIso = new Date().toISOString();
+      await supabase
+        .from("instructor_aircraft_clearances")
+        .upsert({
+          instructor_id: input.customerId,
+          aircraft_id: bookingRecord.aircraft_id,
+          clearance_status: "approved",
+          cleared_at: nowIso,
+          cleared_by: adminId,
+          updated_at: nowIso,
+        }, { onConflict: "instructor_id,aircraft_id" });
+
+      await supabase
+        .from("profiles")
+        .update({ role: "instructor", updated_at: nowIso })
+        .eq("id", input.customerId);
+
+      await supabase
+        .from("user_roles")
+        .upsert({
+          user_id: input.customerId,
+          role: "instructor",
+          granted_by: adminId,
+          granted_at: nowIso,
+        }, { onConflict: "user_id,role" });
+    } catch (instructorErr) {
+      console.error("[settleCheckoutInvoiceManually] error promoting instructor clearance:", instructorErr);
+    }
+  }
 
   if (profile?.email) {
     const aircraftData = Array.isArray(bookingRecord?.aircraft)

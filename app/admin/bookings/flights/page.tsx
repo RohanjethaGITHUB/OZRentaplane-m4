@@ -16,6 +16,7 @@ type BookingRecord = {
   id: string
   booking_reference: string | null
   booking_type: string
+  checkout_type?: 'standard' | 'instructor' | null
   created_at: string
   scheduled_start: string
   scheduled_end: string
@@ -114,23 +115,26 @@ function formatHourlyRateLabel(rateCentsPerHour: number | null | undefined) {
 
 function resolveBookingTypePresentation({
   bookingType,
+  checkoutType,
   invoice,
   usage,
   activePurchase,
 }: {
   bookingType: string
+  checkoutType?: 'standard' | 'instructor' | null
   invoice: BookingInvoiceRecord | null
   usage: BlockTimeUsageRecord | null
   activePurchase: ActiveBlockTimePurchaseRecord | null
 }): BookingTypePresentation {
   if (bookingType === 'checkout') {
+    const isInstructor = checkoutType === 'instructor'
     return {
       bookingType,
       billingMode: 'checkout',
       billingRateCentsPerHour: CHECKOUT_RATE_PER_HOUR * 100,
       blockTimePackageName: null,
       billingBasisIsProvisional: false,
-      bookingTypePrimaryLabel: 'Checkout',
+      bookingTypePrimaryLabel: isInstructor ? 'Instructor Checkout' : 'Checkout',
       bookingTypeSecondaryLabel: formatHourlyRateLabel(CHECKOUT_RATE_PER_HOUR * 100) ?? 'Billing details unavailable',
     }
   }
@@ -262,10 +266,10 @@ export default async function FlightBookingsPage({
   const dir = (searchParams.dir as SortDir | undefined) === 'asc' ? 'asc' : 'desc'
   const initialFilter = searchParams.status ?? 'all'
 
-  const { data } = await supabase
+    const { data } = await supabase
     .from('bookings')
     .select(`
-      id, booking_reference, booking_type, created_at, scheduled_start, scheduled_end, status,
+      id, booking_reference, booking_type, checkout_type, created_at, scheduled_start, scheduled_end, status,
       pic_name, booking_owner_user_id,
       aircraft ( id, registration, aircraft_type ),
       flight_records ( status, submitted_at )
@@ -425,6 +429,7 @@ export default async function FlightBookingsPage({
     const displayStatus = deriveBookingStatusForFlightRecord(booking)
     const bookingTypePresentation = resolveBookingTypePresentation({
       bookingType: booking.booking_type,
+      checkoutType: booking.checkout_type,
       invoice: bookingInvoiceMap.get(booking.id) ?? null,
       usage: blockTimeUsageMap.get(booking.id) ?? null,
       activePurchase: activePurchaseMap.get(booking.booking_owner_user_id) ?? null,
@@ -463,6 +468,7 @@ export default async function FlightBookingsPage({
               ? 'Landing Fee Pending'
               : getStatusLabel(displayStatus),
       bookingType: bookingTypePresentation.bookingType,
+      checkoutType: (booking.checkout_type as 'standard' | 'instructor' | null | undefined) ?? null,
       billingMode: bookingTypePresentation.billingMode,
       billingRateCentsPerHour: bookingTypePresentation.billingRateCentsPerHour,
       blockTimePackageName: bookingTypePresentation.blockTimePackageName,

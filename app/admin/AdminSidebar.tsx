@@ -59,6 +59,7 @@ const NAV_GROUPS: NavGroupType[] = [
     items: [
       { label: 'Customer Directory', href: '/admin/customers/all' },
       { label: 'Customer Billing', href: '/admin/customers/ledger' },
+      { label: 'Instructors', href: '/admin/customers/instructors' },
     ],
   },
   {

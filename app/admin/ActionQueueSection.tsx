@@ -40,6 +40,14 @@ function formatRelativeAge(timestamp: string | null) {
 }
 
 function ActionBadge({ badge }: { badge: ActionItem['badge'] }) {
+  if (badge === 'Instructor Checkout') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2.5 py-0.5 text-[12px] font-semibold text-purple-700 dark:border-purple-800/60 dark:bg-purple-950/40 dark:text-purple-300">
+        <span className="material-symbols-outlined text-[13px]">school</span>
+        Instructor Checkout
+      </span>
+    )
+  }
   if (badge === 'Checkout') {
     return (
       <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-[12px] font-semibold text-indigo-700 dark:border-indigo-800/60 dark:bg-indigo-950/40 dark:text-indigo-300">

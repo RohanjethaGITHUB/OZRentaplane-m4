@@ -98,7 +98,7 @@ function formatScheduleRange(start: string | null | undefined, end: string | nul
 export type ActionItem = {
   key: string
   groups: WorkflowFilter[]
-  badge: 'Checkout' | 'Rental' | 'Document Review'
+  badge: 'Checkout' | 'Instructor Checkout' | 'Rental' | 'Document Review'
   badgeTone: 'primary' | 'info' | 'warning' | 'success' | 'danger' | 'indigo' | 'emerald'
   title: string
   description: string
@@ -377,25 +377,25 @@ export default async function AdminActionsPage({
     safeQuery('checkout issue count', supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'customer').in('pilot_clearance_status', ['additional_checkout_required', 'checkout_reschedule_required', 'not_currently_eligible'])),
     safeQuery('checkout requested rows', supabase
       .from('bookings')
-      .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
+      .select('id, booking_reference, booking_type, checkout_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
       .eq('booking_type', 'checkout')
       .eq('status', 'checkout_requested')
       .order('created_at', { ascending: false })),
     safeQuery('checkout confirmed rows', supabase
       .from('bookings')
-      .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
+      .select('id, booking_reference, booking_type, checkout_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
       .eq('booking_type', 'checkout')
       .eq('status', 'checkout_confirmed')
       .order('scheduled_start', { ascending: false })),
     safeQuery('checkout payment rows', supabase
       .from('bookings')
-      .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
+      .select('id, booking_reference, booking_type, checkout_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
       .eq('booking_type', 'checkout')
       .eq('status', 'checkout_payment_required')
       .order('created_at', { ascending: false })),
     safeQuery('checkout review rows', supabase
       .from('bookings')
-      .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
+      .select('id, booking_reference, booking_type, checkout_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
       .eq('booking_type', 'checkout')
       .eq('status', 'checkout_completed_under_review')
       .order('updated_at', { ascending: false })),
@@ -717,16 +717,19 @@ export default async function AdminActionsPage({
     .filter((row) => !pendingRescheduleBookingIds.has((row as BookingRow).id))
     .map((row) => {
     const booking = row as BookingRow
+    const isInstructor = (booking as any).checkout_type === 'instructor'
     const aircraft = firstItem(booking.aircraft)
     const profile = profileFor(booking.booking_owner_user_id)
     const customerLabel = fullCustomerName(profile, booking.pic_name)
     return {
       key: `checkout-request-${booking.id}`,
       groups: ['checkout'] as WorkflowFilter[],
-      badge: 'Checkout' as const,
-      badgeTone: 'primary' as const,
-      title: 'New checkout request',
-      description: 'Review documents and confirm the new checkout request.',
+      badge: isInstructor ? ('Instructor Checkout' as const) : ('Checkout' as const),
+      badgeTone: isInstructor ? ('indigo' as const) : ('primary' as const),
+      title: isInstructor ? 'New instructor checkout request' : 'New checkout request',
+      description: isInstructor
+        ? 'Review qualifications and confirm instructor standardization checkout.'
+        : 'Review documents and confirm the new checkout request.',
       customerLabel,
       customerEmail: profile?.email ?? null,
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
@@ -736,7 +739,7 @@ export default async function AdminActionsPage({
       aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
       scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
       receivedAt: booking.created_at,
-      nextStep: 'Review and confirm',
+      nextStep: isInstructor ? 'Review instructor request' : 'Review and confirm',
       href: `/admin/bookings/requests/${booking.id}`,
     } satisfies ActionItem
   })
@@ -745,16 +748,19 @@ export default async function AdminActionsPage({
     .filter((row) => !pendingRescheduleBookingIds.has((row as BookingRow).id))
     .map((row) => {
       const booking = row as BookingRow
+      const isInstructor = (booking as any).checkout_type === 'instructor'
       const aircraft = firstItem(booking.aircraft)
       const profile = profileFor(booking.booking_owner_user_id)
       const customerLabel = fullCustomerName(profile, booking.pic_name)
       return {
         key: `checkout-confirmed-${booking.id}`,
         groups: ['checkout'] as WorkflowFilter[],
-        badge: 'Checkout' as const,
-        badgeTone: 'primary' as const,
-        title: 'Upcoming checkout flight',
-        description: 'Checkout is confirmed and scheduled. Manage booking or mark complete after flight.',
+        badge: isInstructor ? ('Instructor Checkout' as const) : ('Checkout' as const),
+        badgeTone: isInstructor ? ('indigo' as const) : ('primary' as const),
+        title: isInstructor ? 'Upcoming instructor checkout flight' : 'Upcoming checkout flight',
+        description: isInstructor
+          ? 'Instructor checkout is confirmed. Complete standardization flight and sign off clearance.'
+          : 'Checkout is confirmed and scheduled. Manage booking or mark complete after flight.',
         customerLabel,
         customerEmail: profile?.email ?? null,
         customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,

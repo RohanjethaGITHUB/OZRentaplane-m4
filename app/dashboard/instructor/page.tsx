@@ -1,10 +1,20 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FadeUp, StaggerContainer, StaggerItem, HoverEmphasize } from '@/components/MotionPresets'
+import {
+  getInstructorApplicationStatus,
+  getInstructorFleetClearances,
+  getInstructorStudents,
+  addInstructorStudent,
+  removeInstructorStudent,
+  type InstructorApplicationState,
+  type InstructorFleetClearanceItem,
+  type InstructorStudentItem,
+} from '@/app/actions/instructor'
 import {
   ArrowRight,
   Check,
@@ -14,9 +24,23 @@ import {
   HelpCircle,
   Calendar,
   ShieldCheck,
+  Clock,
+  Award,
+  AlertCircle,
+  Plane,
+  Users,
+  UserPlus,
+  BookOpen,
+  FileCheck,
+  Plus,
+  X,
+  Search,
+  Phone,
+  Mail,
+  GraduationCap,
 } from 'lucide-react'
 
-// Aircraft selection options with real plane images
+// Aircraft selection options for candidate view
 const AIRCRAFT_OPTIONS = [
   {
     id: 'cessna-172n',
@@ -100,23 +124,635 @@ export default function InstructorDashboardPage() {
   const router = useRouter()
   const [selectedAircraft, setSelectedAircraft] = useState<string>('cessna-172n')
   const [openFaq, setOpenFaq] = useState<string | null>(null)
+  const [appState, setAppState] = useState<InstructorApplicationState | null>(null)
+  const [fleetClearances, setFleetClearances] = useState<InstructorFleetClearanceItem[]>([])
+  const [students, setStudents] = useState<InstructorStudentItem[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Tab state for approved instructors: 'fleet' | 'students' | 'resources'
+  const [activeTab, setActiveTab] = useState<'fleet' | 'students' | 'resources'>('fleet')
+
+  // Add student modal state
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false)
+  const [studentInput, setStudentInput] = useState('')
+  const [studentNotes, setStudentNotes] = useState('')
+  const [addingStudent, setAddingStudent] = useState(false)
+  const [addStudentError, setAddStudentError] = useState<string | null>(null)
+  const [studentSearchQuery, setStudentSearchQuery] = useState('')
+
+  const loadData = async (active = true) => {
+    try {
+      const [appStatus, fleet, studentList] = await Promise.all([
+        getInstructorApplicationStatus(selectedAircraft),
+        getInstructorFleetClearances(),
+        getInstructorStudents(),
+      ])
+      if (active) {
+        setAppState(appStatus)
+        setFleetClearances(fleet)
+        setStudents(studentList)
+        setLoading(false)
+      }
+    } catch {
+      if (active) setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    let active = true
+    loadData(active)
+    return () => {
+      active = false
+    }
+  }, [selectedAircraft])
+
+  const isApprovedInstructor = Boolean(appState?.hasInstructorClearance || fleetClearances.some(f => f.clearanceStatus === 'approved'))
+  const activeBooking = appState?.activeCheckoutBooking
+  const isPending = activeBooking?.status === 'checkout_requested' || appState?.clearanceStatus === 'pending'
+  const isConfirmed = activeBooking?.status === 'checkout_confirmed'
+  const hasActiveBooking = Boolean(activeBooking)
 
   const handleBookingClick = () => {
-    router.push('/dashboard/bookings/new')
+    if (activeBooking) {
+      router.push(`/dashboard/bookings`)
+    } else {
+      router.push(`/dashboard/checkout?type=instructor&aircraftId=${selectedAircraft}`)
+    }
+  }
+
+  const handleAircraftCheckoutClick = (aircraftId: string) => {
+    router.push(`/dashboard/checkout?type=instructor&aircraftId=${aircraftId}`)
+  }
+
+  const handleBookDualFlight = (aircraftId?: string) => {
+    if (aircraftId) {
+      router.push(`/dashboard/bookings/new?aircraftId=${aircraftId}`)
+    } else {
+      router.push(`/dashboard/bookings/new`)
+    }
+  }
+
+  const handleAddStudentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!studentInput.trim()) return
+    setAddingStudent(true)
+    setAddStudentError(null)
+
+    const res = await addInstructorStudent(studentInput, studentNotes)
+    if (res.ok && res.student) {
+      setStudents((prev) => [res.student!, ...prev.filter((s) => s.studentId !== res.student!.studentId)])
+      setShowAddStudentModal(false)
+      setStudentInput('')
+      setStudentNotes('')
+    } else {
+      setAddStudentError(res.message || 'Unable to assign student.')
+    }
+    setAddingStudent(false)
+  }
+
+  const handleRemoveStudent = async (studentId: string) => {
+    if (!confirm('Are you sure you want to remove this student from your active roster?')) return
+    await removeInstructorStudent(studentId)
+    setStudents((prev) => prev.filter((s) => s.studentId !== studentId))
   }
 
   const toggleFaq = (id: string) => {
     setOpenFaq((prev) => (prev === id ? null : id))
   }
 
+  const approvedFleet = fleetClearances.filter((f) => f.clearanceStatus === 'approved')
+  const filteredStudents = students.filter((s) =>
+    s.name.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
+    s.email.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
+    (s.pilotArn && s.pilotArn.toLowerCase().includes(studentSearchQuery.toLowerCase()))
+  )
+
+  const selectedPlaneName = AIRCRAFT_OPTIONS.find((a) => a.id === selectedAircraft)?.name ?? 'Aircraft'
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // VIEW 1: APPROVED INSTRUCTOR COMMAND HUB
+  // ─────────────────────────────────────────────────────────────────────────────
+  if (isApprovedInstructor) {
+    return (
+      <div className="max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-7 space-y-6 sm:space-y-7">
+        {/* ─── 1. INSTRUCTOR HERO HEADER CARD ─────────────────────── */}
+        <FadeUp duration={0.8}>
+          <section className="bg-gradient-to-br from-[#0c2340] via-[#0f2d52] to-[#153e6f] text-white rounded-[22px] p-6 sm:p-9 border border-blue-500/20 shadow-lg relative overflow-hidden">
+            {/* Background ambient lighting */}
+            <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+              <div className="space-y-3 max-w-2xl">
+                <div className="inline-flex items-center gap-2 bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold px-3.5 py-1 rounded-full">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Verified OZRentaplane Flight Instructor</span>
+                </div>
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white">
+                  Instructor Command Hub
+                </h1>
+                <p className="text-sm sm:text-base text-blue-100/80 leading-relaxed">
+                  Manage your aircraft authorizations, schedule dual training flights with your flight students, and maintain standardization currency.
+                </p>
+              </div>
+
+              {/* Quick Summary Metric Badges */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full lg:w-auto shrink-0">
+                <div className="bg-white/10 border border-white/15 rounded-xl p-3.5 text-center min-w-[110px]">
+                  <p className="text-2xl font-black text-white">{approvedFleet.length}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-200 mt-0.5">
+                    Authorized Aircraft
+                  </p>
+                </div>
+                <div className="bg-white/10 border border-white/15 rounded-xl p-3.5 text-center min-w-[110px]">
+                  <p className="text-2xl font-black text-white">{students.length}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-200 mt-0.5">
+                    Active Students
+                  </p>
+                </div>
+                <div className="bg-white/10 border border-white/15 rounded-xl p-3.5 text-center col-span-2 sm:col-span-1 min-w-[110px]">
+                  <p className="text-sm font-black text-emerald-300 pt-1">Current</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-200 mt-1">
+                    CASA Endorsement
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Navigation Tabs */}
+            <div className="flex items-center gap-2 mt-7 pt-6 border-t border-white/10 overflow-x-auto no-scrollbar">
+              <button
+                onClick={() => setActiveTab('fleet')}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all whitespace-nowrap ${
+                  activeTab === 'fleet'
+                    ? 'bg-[#1268f3] text-white shadow-md'
+                    : 'bg-white/5 hover:bg-white/10 text-white/80'
+                }`}
+              >
+                <Plane className="w-4 h-4" />
+                <span>Aircraft Authorizations ({fleetClearances.length})</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('students')}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all whitespace-nowrap ${
+                  activeTab === 'students'
+                    ? 'bg-[#1268f3] text-white shadow-md'
+                    : 'bg-white/5 hover:bg-white/10 text-white/80'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                <span>My Students ({students.length})</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('resources')}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all whitespace-nowrap ${
+                  activeTab === 'resources'
+                    ? 'bg-[#1268f3] text-white shadow-md'
+                    : 'bg-white/5 hover:bg-white/10 text-white/80'
+                }`}
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>SOPs &amp; Briefings</span>
+              </button>
+            </div>
+          </section>
+        </FadeUp>
+
+        {/* ─── TAB 1: FLEET AIRCRAFT AUTHORIZATIONS ───────────────── */}
+        {activeTab === 'fleet' && (
+          <FadeUp duration={0.6}>
+            <div className="space-y-5">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-black text-[#0c2340]">Aircraft Clearances</h2>
+                  <p className="text-xs sm:text-sm text-[#64748b] mt-0.5">
+                    Clearance is granted on an aircraft-by-aircraft basis. Book a standardization checkout for any aircraft not yet cleared.
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleBookDualFlight()}
+                  className="bg-[#1268f3] hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-sm transition-all inline-flex items-center gap-2"
+                >
+                  <Plane className="w-4 h-4" />
+                  <span>Book Dual Flight</span>
+                </button>
+              </div>
+
+              {/* Fleet Cards Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {fleetClearances.map((plane) => {
+                  const isPlaneApproved = plane.clearanceStatus === 'approved'
+                  const isPlanePending = plane.clearanceStatus === 'pending'
+
+                  return (
+                    <div
+                      key={plane.aircraftId}
+                      className="bg-white rounded-[20px] border border-slate-200/80 shadow-xs overflow-hidden flex flex-col justify-between hover:shadow-md transition-shadow"
+                    >
+                      <div>
+                        {/* Plane Image & Status Overlay */}
+                        <div className="relative h-44 bg-slate-100 overflow-hidden">
+                          <img
+                            src={plane.imageUrl || '/Cessna-fleet.png'}
+                            alt={plane.displayName}
+                            className="w-full h-full object-cover object-center"
+                          />
+                          <div className="absolute top-3 right-3">
+                            {isPlaneApproved ? (
+                              <span className="bg-emerald-500 text-white text-[11px] font-black px-3 py-1 rounded-full shadow-md flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Approved Instructor</span>
+                              </span>
+                            ) : isPlanePending ? (
+                              <span className="bg-amber-500 text-white text-[11px] font-black px-3 py-1 rounded-full shadow-md flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>Checkout Pending</span>
+                              </span>
+                            ) : (
+                              <span className="bg-slate-700/80 backdrop-blur-xs text-white text-[11px] font-bold px-3 py-1 rounded-full">
+                                Standardization Required
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Details */}
+                        <div className="p-5 space-y-3">
+                          <div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-[#1268f3] tracking-wider uppercase">
+                                {plane.registration}
+                              </span>
+                              {plane.status === 'active' && (
+                                <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  Fleet Ready
+                                </span>
+                              )}
+                            </div>
+                            <h3 className="text-lg font-black text-[#0c2340] leading-tight mt-0.5">
+                              {plane.displayName}
+                            </h3>
+                          </div>
+
+                          <p className="text-xs text-[#64748b] leading-relaxed">
+                            {isPlaneApproved
+                              ? `Cleared for student dual flight training and instructor check flights.`
+                              : `Requires 1 checkout flight with an OZRentaplane check pilot to activate instructor clearance.`}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Card Action Footer */}
+                      <div className="p-5 pt-0">
+                        {isPlaneApproved ? (
+                          <button
+                            type="button"
+                            onClick={() => handleBookDualFlight(plane.aircraftId)}
+                            className="w-full bg-[#1268f3] hover:bg-blue-700 text-white font-bold text-xs sm:text-sm py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-xs"
+                          >
+                            <span>Book Flight on {plane.registration}</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
+                        ) : isPlanePending ? (
+                          <button
+                            type="button"
+                            onClick={() => router.push('/dashboard/bookings')}
+                            className="w-full bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 font-bold text-xs sm:text-sm py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            <span>View Checkout Booking</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleAircraftCheckoutClick(plane.aircraftId)}
+                            className="w-full bg-slate-900 hover:bg-black text-white font-bold text-xs sm:text-sm py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-xs"
+                          >
+                            <span>Book Instructor Checkout</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </FadeUp>
+        )}
+
+        {/* ─── TAB 2: MY STUDENTS & DUAL TRAINING ─────────────────── */}
+        {activeTab === 'students' && (
+          <FadeUp duration={0.6}>
+            <div className="space-y-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-black text-[#0c2340]">Assigned Flight Students</h2>
+                  <p className="text-xs sm:text-sm text-[#64748b] mt-0.5">
+                    Manage your active student roster, view training progress, and schedule instructional flights.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddStudentModal(true)}
+                  className="bg-[#1268f3] hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-sm transition-all inline-flex items-center gap-2"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Assign New Student</span>
+                </button>
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative max-w-md">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search students by name, email, or ARN..."
+                  value={studentSearchQuery}
+                  onChange={(e) => setStudentSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#1268f3]"
+                />
+              </div>
+
+              {/* Student Roster Table / Grid */}
+              {filteredStudents.length === 0 ? (
+                <div className="bg-white rounded-[20px] p-8 sm:p-12 text-center border border-slate-200/80 shadow-xs space-y-4">
+                  <div className="w-14 h-14 rounded-full bg-blue-50 text-[#1268f3] flex items-center justify-center mx-auto">
+                    <Users className="w-7 h-7" />
+                  </div>
+                  <div className="space-y-1 max-w-md mx-auto">
+                    <h3 className="text-base font-bold text-[#0c2340]">No students assigned yet</h3>
+                    <p className="text-xs sm:text-sm text-[#64748b]">
+                      You can assign a registered pilot to your instructor roster by entering their email address or Pilot ARN.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddStudentModal(true)}
+                    className="bg-[#1268f3] hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow-sm transition-all inline-flex items-center gap-2"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Assign First Student</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredStudents.map((student) => (
+                    <div
+                      key={student.id}
+                      className="bg-white rounded-[20px] p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between space-y-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-11 h-11 rounded-full bg-blue-100/70 text-[#1268f3] font-bold text-sm flex items-center justify-center shrink-0">
+                            {student.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <h4 className="text-sm sm:text-base font-bold text-[#0c2340] leading-tight">
+                              {student.name}
+                            </h4>
+                            <p className="text-xs text-[#64748b] mt-0.5">
+                              ARN: <span className="font-semibold text-slate-800">{student.pilotArn || 'Pending'}</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold px-2.5 py-0.5 rounded-full">
+                          Active
+                        </span>
+                      </div>
+
+                      <div className="text-xs text-[#64748b] space-y-1 bg-slate-50 p-3 rounded-xl">
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">{student.email}</span>
+                        </div>
+                        {student.phone && (
+                          <div className="flex items-center gap-2">
+                            <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{student.phone}</span>
+                          </div>
+                        )}
+                        {student.notes && (
+                          <p className="text-[11px] text-slate-500 pt-1 italic">
+                            Note: {student.notes}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => handleBookDualFlight()}
+                          className="flex-1 bg-[#1268f3] hover:bg-blue-700 text-white font-bold text-xs py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+                        >
+                          <Plane className="w-3.5 h-3.5" />
+                          <span>Schedule Flight</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveStudent(student.studentId)}
+                          className="text-xs text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3 py-2 rounded-lg font-semibold transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </FadeUp>
+        )}
+
+        {/* ─── TAB 3: INSTRUCTOR SOPS & BRIEFINGS ──────────────────── */}
+        {activeTab === 'resources' && (
+          <FadeUp duration={0.6}>
+            <div className="bg-white rounded-[20px] p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
+              <div>
+                <h2 className="text-lg sm:text-xl font-black text-[#0c2340]">Instructor Standardization &amp; SOPs</h2>
+                <p className="text-xs sm:text-sm text-[#64748b] mt-0.5">
+                  Reference guides, standardized briefing checklists, and standard operating procedures for OZRentaplane instructors.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-5 space-y-2">
+                  <div className="flex items-center gap-2.5 text-[#1268f3]">
+                    <BookOpen className="w-5 h-5" />
+                    <h3 className="font-bold text-sm text-[#0c2340]">Standard Operating Procedures</h3>
+                  </div>
+                  <p className="text-xs text-[#475569] leading-relaxed">
+                    Review required pre-flight walkaround, crosswind limits, fuel management guidelines, and post-flight debrief standards.
+                  </p>
+                </div>
+
+                <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-5 space-y-2">
+                  <div className="flex items-center gap-2.5 text-[#1268f3]">
+                    <FileCheck className="w-5 h-5" />
+                    <h3 className="font-bold text-sm text-[#0c2340]">Pre-Flight Student Briefing Guide</h3>
+                  </div>
+                  <p className="text-xs text-[#475569] leading-relaxed">
+                    Checklist for student documentation verification, weight &amp; balance computation, and local training area safety notices.
+                  </p>
+                </div>
+
+                <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-5 space-y-2">
+                  <div className="flex items-center gap-2.5 text-[#1268f3]">
+                    <ShieldCheck className="w-5 h-5" />
+                    <h3 className="font-bold text-sm text-[#0c2340]">Emergency &amp; Standardization Maneuvers</h3>
+                  </div>
+                  <p className="text-xs text-[#475569] leading-relaxed">
+                    Approved recovery profiles, forced landing simulations, engine failure on take-off briefing, and go-around policies.
+                  </p>
+                </div>
+
+                <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-5 space-y-2">
+                  <div className="flex items-center gap-2.5 text-[#1268f3]">
+                    <GraduationCap className="w-5 h-5" />
+                    <h3 className="font-bold text-sm text-[#0c2340]">CASA Flight Instructor Endorsements</h3>
+                  </div>
+                  <p className="text-xs text-[#475569] leading-relaxed">
+                    Compliance standards for Grade 3 / Grade 2 flight instructors and sign-off criteria for first solo clearances.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </FadeUp>
+        )}
+
+        {/* ─── ASSIGN STUDENT MODAL ────────────────────────────────── */}
+        <AnimatePresence>
+          {showAddStudentModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 relative"
+              >
+                <button
+                  onClick={() => setShowAddStudentModal(false)}
+                  className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                <div>
+                  <h3 className="text-lg font-bold text-[#0c2340]">Assign Flight Student</h3>
+                  <p className="text-xs text-[#64748b] mt-0.5">
+                    Enter the student's registered account email address or Pilot ARN.
+                  </p>
+                </div>
+
+                <form onSubmit={handleAddStudentSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Student Email or Pilot ARN
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. pilot@example.com or 123456"
+                      value={studentInput}
+                      onChange={(e) => setStudentInput(e.target.value)}
+                      required
+                      className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-[#1268f3]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Instructor Notes (Optional)
+                    </label>
+                    <textarea
+                      placeholder="e.g. PPL training student, practicing circuit landings"
+                      value={studentNotes}
+                      onChange={(e) => setStudentNotes(e.target.value)}
+                      rows={3}
+                      className="w-full px-3.5 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-[#1268f3]"
+                    />
+                  </div>
+
+                  {addStudentError && (
+                    <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{addStudentError}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-end gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddStudentModal(false)}
+                      className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={addingStudent || !studentInput.trim()}
+                      className="bg-[#1268f3] hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-xs"
+                    >
+                      {addingStudent ? 'Assigning…' : 'Assign Student'}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+      </div>
+    )
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // VIEW 2: INSTRUCTOR CANDIDATE ONBOARDING & APPLICATION FLOW
+  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-7 space-y-6 sm:space-y-7">
+      {/* ─── 0. NOTIFICATION BANNER WHEN BOOKED / APPROVED ──────── */}
+      {hasActiveBooking && (
+        <FadeUp duration={0.6}>
+          <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white rounded-2xl p-4 sm:p-5 shadow-sm border border-blue-700/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5 w-full sm:w-auto flex-1">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
+                {isConfirmed ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                ) : (
+                  <Clock className="w-5 h-5 text-amber-300" />
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-blue-200 uppercase tracking-wider">
+                  {isConfirmed ? 'Checkout Flight Confirmed' : 'Instructor Checkout Requested'}
+                </p>
+                <p className="text-sm sm:text-base font-bold text-white mt-0.5 leading-snug">
+                  {isConfirmed
+                    ? `Your standardization checkout flight for ${selectedPlaneName} is scheduled. Ref: ${activeBooking?.booking_reference}`
+                    : `Checkout flight requested for ${selectedPlaneName} — awaiting admin confirmation.`}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => router.push('/dashboard/bookings')}
+              className="w-full sm:w-auto bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl transition-all inline-flex items-center justify-center gap-1.5 shrink-0"
+            >
+              <span>View Booking</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </FadeUp>
+      )}
+
       {/* ─── 1. HERO CARD: "Become an Instructor" ───────────────── */}
       <FadeUp duration={0.9}>
         <section className="bg-[#f0f6ff] border border-blue-100/90 rounded-[20px] sm:rounded-[22px] overflow-hidden relative shadow-[0_4px_24px_rgba(18,104,243,0.04)]">
           <div className="grid grid-cols-1 lg:grid-cols-12 min-h-[350px]">
             {/* Left Content Area */}
-            <div className="lg:col-span-6 p-6 sm:p-9 lg:p-12 flex flex-col justify-center relative z-10 order-2 lg:order-1">
+            <div className="lg:col-span-6 p-5 sm:p-9 lg:p-12 flex flex-col justify-center relative z-10 order-2 lg:order-1">
               <StaggerContainer staggerDelay={0.14}>
                 <StaggerItem duration={1.0}>
                   <h1 className="text-2xl sm:text-3xl lg:text-[40px] font-black text-[#0c2340] tracking-tight leading-tight mb-3">
@@ -138,32 +774,27 @@ export default function InstructorDashboardPage() {
                 </StaggerItem>
 
                 <StaggerItem duration={1.15}>
-                  <div className="relative inline-block w-full sm:w-fit rounded-xl overflow-hidden cursor-not-allowed select-none shadow-md">
-                    {/* Below layer: The blue CTA */}
-                    <div className="bg-[#1268f3] text-white font-bold text-[14px] sm:text-[15px] px-6 sm:px-7 py-3.5 inline-flex items-center gap-2.5 w-full justify-center">
-                      <span>Book Instructor Checkout Flight</span>
-                      <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
-                    </div>
-
-                    {/* First layer (layer above): Coming Soon overlay */}
-                    <div className="absolute inset-0 bg-[#0c2340]/40 backdrop-blur-[1.5px] flex items-center justify-center z-10">
-                      <span className="bg-white/95 text-[#0c2340] border border-white/60 font-black text-[11px] sm:text-[11.5px] px-3.5 py-1 rounded-full uppercase tracking-wider shadow-sm">
-                        Coming Soon
-                      </span>
-                    </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={handleBookingClick}
+                      className="bg-[#1268f3] hover:bg-blue-700 text-white font-bold text-[14px] sm:text-[15px] px-6 sm:px-7 py-3.5 rounded-xl shadow-md hover:shadow-lg transition-all inline-flex items-center gap-2.5 w-full sm:w-fit justify-center group"
+                    >
+                      <span>{hasActiveBooking ? 'View Active Booking' : 'Book Instructor Checkout Flight'}</span>
+                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" strokeWidth={2.5} />
+                    </button>
                   </div>
                 </StaggerItem>
               </StaggerContainer>
             </div>
 
             {/* Right Pilot Cockpit Image */}
-            <div className="lg:col-span-6 relative min-h-[220px] sm:min-h-[280px] lg:min-h-full order-1 lg:order-2">
+            <div className="lg:col-span-6 relative h-48 sm:h-64 lg:h-auto min-h-[190px] lg:min-h-full order-1 lg:order-2 overflow-hidden">
               <img
                 src="/instructor/hero-pilot-cockpit.jpg"
                 alt="Instructor in cockpit"
                 className="w-full h-full object-cover object-[65%_center] lg:object-center select-none"
               />
-              {/* Soft Gradient Overlay on Left Edge to blend image into hero background */}
               <div className="hidden lg:block absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-[#f0f6ff] via-[#f0f6ff]/40 to-transparent pointer-events-none" />
             </div>
           </div>
@@ -173,19 +804,30 @@ export default function InstructorDashboardPage() {
       {/* ─── 2. APPLICATION STATUS & STEPPER CARD ───────────────── */}
       <FadeUp duration={0.9} delay={0.06}>
         <section className="bg-white rounded-[20px] sm:rounded-[22px] p-5 sm:p-8 lg:p-10 border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
-          {/* Header Row: Title & Not Approved Status Badge */}
+          {/* Header Row */}
           <div className="flex items-center justify-between flex-wrap gap-3 pb-5 sm:pb-6">
             <h2 className="text-[18px] sm:text-[22px] font-black text-[#0c2340] tracking-tight">
               Your Instructor Application
             </h2>
-            <div className="bg-[#fff7ed] text-[#ea580c] border border-[#ffedd5] font-bold text-[12px] sm:text-[12.5px] px-3.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
-              <span>Not Approved</span>
-            </div>
+            {isConfirmed ? (
+              <div className="bg-blue-50 text-blue-700 border border-blue-200 font-bold text-[12px] sm:text-[12.5px] px-3.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
+                <Clock className="w-3.5 h-3.5 text-blue-600" />
+                <span>Checkout Confirmed</span>
+              </div>
+            ) : isPending ? (
+              <div className="bg-amber-50 text-amber-700 border border-amber-200 font-bold text-[12px] sm:text-[12.5px] px-3.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
+                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                <span>Pending Admin Review</span>
+              </div>
+            ) : (
+              <div className="bg-[#fff7ed] text-[#ea580c] border border-[#ffedd5] font-bold text-[12px] sm:text-[12.5px] px-3.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
+                <span>Not Approved</span>
+              </div>
+            )}
           </div>
 
-          {/* Desktop Stepper — Horizontal Inline Layout */}
+          {/* Desktop Stepper */}
           <div className="hidden sm:flex items-center justify-between py-3 mb-6 sm:mb-8 max-w-[760px] mx-auto">
-            {/* Step 1: Active */}
             <div className="flex items-center gap-2.5 shrink-0">
               <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#1268f3] text-white font-black text-[13px] sm:text-[14px] flex items-center justify-center shadow-sm">
                 1
@@ -195,10 +837,8 @@ export default function InstructorDashboardPage() {
               </span>
             </div>
 
-            {/* Line 1 */}
             <div className="h-[2px] bg-slate-200 flex-1 mx-4 min-w-[30px]" />
 
-            {/* Step 2: Review Requirements */}
             <div className="flex items-center gap-2.5 shrink-0">
               <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-slate-300 bg-white text-[#64748b] font-bold text-[13px] sm:text-[14px] flex items-center justify-center">
                 2
@@ -208,10 +848,8 @@ export default function InstructorDashboardPage() {
               </span>
             </div>
 
-            {/* Line 2 */}
             <div className="h-[2px] bg-slate-200 flex-1 mx-4 min-w-[30px]" />
 
-            {/* Step 3: Submit Request */}
             <div className="flex items-center gap-2.5 shrink-0">
               <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-slate-300 bg-white text-[#64748b] font-bold text-[13px] sm:text-[14px] flex items-center justify-center">
                 3
@@ -222,15 +860,12 @@ export default function InstructorDashboardPage() {
             </div>
           </div>
 
-          {/* Mobile Stepper — Balanced 3-Column Grid */}
+          {/* Mobile Stepper */}
           <div className="sm:hidden py-2 mb-6 w-full">
             <div className="grid grid-cols-3 relative">
-              {/* Connecting line 1 to 2 */}
               <div className="absolute top-[16px] left-[16.6%] right-[50%] h-[2px] bg-slate-200 z-0" />
-              {/* Connecting line 2 to 3 */}
               <div className="absolute top-[16px] left-[50%] right-[16.6%] h-[2px] bg-slate-200 z-0" />
 
-              {/* Step 1: Active */}
               <div className="flex flex-col items-center text-center relative z-10 px-1">
                 <div className="w-8 h-8 rounded-full bg-[#1268f3] text-white font-black text-[13px] flex items-center justify-center shadow-sm mb-1.5 ring-4 ring-white">
                   1
@@ -240,7 +875,6 @@ export default function InstructorDashboardPage() {
                 </span>
               </div>
 
-              {/* Step 2: Review Requirements */}
               <div className="flex flex-col items-center text-center relative z-10 px-1">
                 <div className="w-8 h-8 rounded-full border border-slate-300 bg-white text-[#64748b] font-bold text-[13px] flex items-center justify-center mb-1.5 ring-4 ring-white">
                   2
@@ -250,7 +884,6 @@ export default function InstructorDashboardPage() {
                 </span>
               </div>
 
-              {/* Step 3: Submit Request */}
               <div className="flex flex-col items-center text-center relative z-10 px-1">
                 <div className="w-8 h-8 rounded-full border border-slate-300 bg-white text-[#64748b] font-bold text-[13px] flex items-center justify-center mb-1.5 ring-4 ring-white">
                   3
@@ -262,7 +895,6 @@ export default function InstructorDashboardPage() {
             </div>
           </div>
 
-          {/* Divider */}
           <div className="w-full h-px bg-slate-100 mb-5 sm:mb-6" />
 
           {/* Step 1: Select Aircraft */}
@@ -274,7 +906,6 @@ export default function InstructorDashboardPage() {
               Choose the aircraft you want to become an instructor on.
             </p>
 
-            {/* 3 Aircraft Selection Cards */}
             <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 sm:gap-4 mb-4" staggerDelay={0.12}>
               {AIRCRAFT_OPTIONS.map((aircraft) => {
                 const isSelected = selectedAircraft === aircraft.id
@@ -295,7 +926,6 @@ export default function InstructorDashboardPage() {
                             : 'border border-slate-200 hover:border-slate-300 bg-white shadow-xs cursor-pointer'
                         }`}
                       >
-                        {/* Left: Thumbnail & Details */}
                         <div className="flex items-center gap-3">
                           <img
                             src={aircraft.image}
@@ -305,7 +935,6 @@ export default function InstructorDashboardPage() {
                             }`}
                           />
                           <div>
-                            {/* Status label: Coming soon vs Most popular */}
                             {!isAvailable ? (
                               <span className="bg-slate-100 text-slate-500 border border-slate-200/80 text-[10px] sm:text-[10.5px] font-bold px-2 py-0.5 rounded-md mb-1 inline-block">
                                 Coming Soon
@@ -324,7 +953,6 @@ export default function InstructorDashboardPage() {
                           </div>
                         </div>
 
-                        {/* Right: Radio Selection Check Circle */}
                         <div>
                           {isSelected && isAvailable ? (
                             <div className="w-5 h-5 rounded-full bg-[#1268f3] text-white flex items-center justify-center shrink-0 shadow-xs">
@@ -343,7 +971,6 @@ export default function InstructorDashboardPage() {
               })}
             </StaggerContainer>
 
-            {/* Aircraft Specific Notice */}
             <div className="flex items-center gap-2 text-[12px] sm:text-[12.5px] text-[#475569] pt-1">
               <Info className="w-4 h-4 text-slate-500 shrink-0" />
               <span>
@@ -362,7 +989,6 @@ export default function InstructorDashboardPage() {
           </h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
-            {/* Left Column: 6 Checklist items */}
             <StaggerContainer className="lg:col-span-7 space-y-3 sm:space-y-3.5" staggerDelay={0.1}>
               {[
                 'Valid Pilot Certificate (PPL or higher)',
@@ -381,7 +1007,6 @@ export default function InstructorDashboardPage() {
               ))}
             </StaggerContainer>
 
-            {/* Right Column: Approval Information Box */}
             <div className="lg:col-span-5 flex flex-col justify-between">
               <HoverEmphasize hoverY={-2}>
                 <div className="bg-[#f0fdf4] border border-[#bbf7d0] rounded-2xl p-4 sm:p-6 shadow-xs">
@@ -485,35 +1110,30 @@ export default function InstructorDashboardPage() {
       <FadeUp duration={0.9} delay={0.12}>
         <section className="bg-[#eef5ff] border border-blue-100/90 rounded-[20px] sm:rounded-[22px] p-5 sm:p-7 lg:p-8 flex flex-col sm:flex-row items-center justify-between gap-5 sm:gap-6 shadow-[0_2px_12px_rgba(18,104,243,0.03)]">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3.5 sm:gap-5 text-center sm:text-left">
-            {/* Calendar Icon inside white rounded box */}
             <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-white border border-blue-200 text-[#1268f3] flex items-center justify-center shadow-sm shrink-0">
               <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-[#1268f3]" strokeWidth={2.2} />
             </div>
             <div>
               <h3 className="text-[16px] sm:text-[18.5px] font-black text-[#0c2340] mb-0.5">
-                Ready to Take the Next Step?
+                {hasActiveBooking ? 'Checkout Request In Progress' : 'Ready to Take the Next Step?'}
               </h3>
               <p className="text-[12.5px] sm:text-[13px] text-[#475569] font-normal leading-snug">
-                Book your instructor checkout flight today and start your journey to joining the OZRentaplane instructor team.
+                {hasActiveBooking
+                  ? `Your instructor checkout flight request for ${selectedPlaneName} is active. View your booking details or contact flight ops if you need adjustments.`
+                  : 'Book your instructor checkout flight today and start your journey to joining the OZRentaplane instructor team.'}
               </p>
             </div>
           </div>
 
           <div className="w-full sm:w-auto">
-            <div className="relative inline-block w-full sm:w-auto rounded-xl overflow-hidden cursor-not-allowed select-none shadow-md">
-              {/* Below layer: The blue CTA */}
-              <div className="w-full sm:w-auto bg-[#1268f3] text-white font-bold text-[13.5px] sm:text-[14px] px-5 sm:px-6 py-3 sm:py-3.5 inline-flex items-center justify-center gap-2 shrink-0 whitespace-nowrap">
-                <span>Book Instructor Checkout Flight</span>
-                <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
-              </div>
-
-              {/* First layer (layer above): Coming Soon overlay */}
-              <div className="absolute inset-0 bg-[#0c2340]/40 backdrop-blur-[1.5px] flex items-center justify-center z-10">
-                <span className="bg-white/95 text-[#0c2340] border border-white/60 font-black text-[10.5px] sm:text-[11px] px-3.5 py-1 rounded-full uppercase tracking-wider shadow-sm">
-                  Coming Soon
-                </span>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={handleBookingClick}
+              className="w-full sm:w-auto bg-[#1268f3] hover:bg-blue-700 text-white font-bold text-[13.5px] sm:text-[14px] px-5 sm:px-6 py-3 sm:py-3.5 rounded-xl shadow-md hover:shadow-lg transition-all inline-flex items-center justify-center gap-2 shrink-0 group whitespace-nowrap"
+            >
+              <span>{hasActiveBooking ? 'View Booking' : 'Book Instructor Checkout Flight'}</span>
+              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" strokeWidth={2.5} />
+            </button>
           </div>
         </section>
       </FadeUp>

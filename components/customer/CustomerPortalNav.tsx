@@ -21,6 +21,7 @@ type CustomerPortalNavProps = {
   hideCheckout?: boolean
   unreadMessageCount?: number
   hasDocumentIssue?: boolean
+  isInstructor?: boolean
 }
 
 const BASE_PORTAL_LINKS: PortalLink[] = [
@@ -62,6 +63,7 @@ export default function CustomerPortalNav({
   hideCheckout = false,
   unreadMessageCount = 0,
   hasDocumentIssue = false,
+  isInstructor = false,
 }: CustomerPortalNavProps) {
   const pathname = usePathname()
   const router = useRouter()
@@ -155,13 +157,12 @@ export default function CustomerPortalNav({
           borderBottom: '1px solid rgba(167, 200, 255, 0.12)',
         }}
       >
-        <div className="relative max-w-[1400px] mx-auto h-[64px] px-6 md:px-10 flex items-center justify-between gap-6">
+        <div className="relative max-w-[1400px] mx-auto h-[64px] px-3 sm:px-6 md:px-10 flex items-center justify-between gap-2 sm:gap-6">
           <Link
             href="/"
-            className="shrink-0 flex items-center gap-3 select-none"
+            className="shrink-0 flex items-center gap-2 sm:gap-3 select-none pl-2 sm:pl-3"
             style={{
               borderLeft: '3px solid rgba(245, 158, 11, 0.6)',
-              paddingLeft: '12px',
             }}
           >
             <Image
@@ -169,7 +170,7 @@ export default function CustomerPortalNav({
               alt="OZRentAPlane logo"
               width={160}
               height={48}
-              className="block h-12 w-auto object-contain bg-transparent"
+              className="block h-8 sm:h-10 md:h-12 w-auto object-contain bg-transparent"
               priority
               style={{
                 filter: 'drop-shadow(0 0 8px rgba(167,200,255,0.45)) drop-shadow(0 0 3px rgba(167,200,255,0.3))',
@@ -177,24 +178,17 @@ export default function CustomerPortalNav({
             />
             <div className="flex flex-col justify-center leading-none">
               <span
+                className="font-extrabold tracking-[0.08em] text-[#f59e0b] text-[16px] sm:text-[18px] md:text-[20px]"
                 style={{
                   fontFamily: 'Manrope, system-ui, sans-serif',
-                  fontSize: '20px',
-                  fontWeight: 800,
-                  letterSpacing: '0.08em',
-                  color: '#f59e0b',
                 }}
               >
                 OZ
               </span>
               <span
+                className="font-semibold tracking-[0.12em] text-[#a7c8ff]/85 uppercase text-[10px] sm:text-[12px] md:text-[13px]"
                 style={{
                   fontFamily: 'Manrope, system-ui, sans-serif',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  letterSpacing: '0.12em',
-                  color: 'rgba(167,200,255,0.85)',
-                  textTransform: 'uppercase',
                 }}
               >
                 Rent A Plane
@@ -234,17 +228,21 @@ export default function CustomerPortalNav({
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/* Become an Instructor CTA Button — Refined Aviation Theme */}
+            {/* Instructor / Become an Instructor CTA Button — Refined Aviation Theme */}
             <Link
               href="/dashboard/instructor"
               className={`hidden xl:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[13px] font-semibold font-sans transition-all duration-200 shadow-sm ${
                 pathname === '/dashboard/instructor' || pathname === '/dashboard/become-an-instructor'
-                  ? 'bg-sky-500/25 text-sky-200 border border-sky-400/60 shadow-[0_0_12px_rgba(56,189,248,0.20)]'
-                  : 'bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-400/30 hover:border-sky-400/50'
+                  ? isInstructor
+                    ? 'bg-blue-600/30 text-blue-200 border border-blue-400/60 shadow-[0_0_12px_rgba(37,99,235,0.25)]'
+                    : 'bg-sky-500/25 text-sky-200 border border-sky-400/60 shadow-[0_0_12px_rgba(56,189,248,0.20)]'
+                  : isInstructor
+                    ? 'bg-blue-600/15 hover:bg-blue-600/25 text-blue-300 border border-blue-400/35 hover:border-blue-400/55'
+                    : 'bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-400/30 hover:border-sky-400/50'
               }`}
             >
               <span className="material-symbols-outlined text-[16px]">school</span>
-              <span>Become an Instructor</span>
+              <span>{isInstructor ? 'Instructor Dashboard' : 'Become an Instructor'}</span>
             </Link>
 
             <Link
@@ -290,7 +288,7 @@ export default function CustomerPortalNav({
                     <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
                       school
                     </span>
-                    <span>Become an Instructor</span>
+                    <span>{isInstructor ? 'Instructor Dashboard' : 'Become an Instructor'}</span>
                   </Link>
 
                   <Link

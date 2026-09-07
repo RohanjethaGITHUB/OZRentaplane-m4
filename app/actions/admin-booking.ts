@@ -974,7 +974,7 @@ export async function confirmCheckoutBooking(
 
   const { data: booking, error: fetchErr } = await perf.time('checkout_approval', 'checkout_approval_booking_read', () => supabase
     .from('bookings')
-    .select('status, booking_type, aircraft_id, booking_owner_user_id, booking_reference, scheduled_start, scheduled_end')
+    .select('status, booking_type, checkout_type, aircraft_id, booking_owner_user_id, booking_reference, scheduled_start, scheduled_end')
     .eq('id', bookingId)
     .single(),
     (result) => ({ rowCount: result.data ? 1 : 0 }),
@@ -992,7 +992,7 @@ export async function confirmCheckoutBooking(
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('has_night_vfr_rating')
+    .select('has_night_vfr_rating, pilot_clearance_status')
     .eq('id', booking.booking_owner_user_id)
     .single()
 
@@ -1026,9 +1026,12 @@ export async function confirmCheckoutBooking(
     }
   }
 
+  const isInstructorCheckout = (booking as { checkout_type?: string | null }).checkout_type === 'instructor'
   const actionNote = options?.overrideUnapprovedDocs
-    ? 'Approved instructor confirmed checkout booking (with pending/rejected documents acknowledged by admin).'
-    : 'Approved instructor confirmed checkout booking.'
+    ? `Approved instructor confirmed ${isInstructorCheckout ? 'instructor ' : ''}checkout booking (with pending/rejected documents acknowledged by admin).`
+    : `Approved instructor confirmed ${isInstructorCheckout ? 'instructor ' : ''}checkout booking.`
+
+  const shouldPreserveSoloClearance = isInstructorCheckout && profile?.pilot_clearance_status === 'cleared_to_fly'
 
   const { bookingUpdate, historyInsert, auditInsert, profileUpdate } = await perf.time('checkout_approval', 'checkout_approval_primary_write', async () => {
     const bookingUpdate = await supabase
@@ -1055,12 +1058,14 @@ export async function confirmCheckoutBooking(
         actor_role:    'admin',
         event_type:    'checkout_confirmed',
         event_summary: actionNote,
-        new_value:     { status: 'checkout_confirmed', override_unapproved_docs: !!options?.overrideUnapprovedDocs },
+        new_value:     { status: 'checkout_confirmed', checkout_type: booking.checkout_type, override_unapproved_docs: !!options?.overrideUnapprovedDocs },
       }),
-      supabase
-        .from('profiles')
-        .update({ pilot_clearance_status: 'checkout_confirmed', updated_at: now })
-        .eq('id', booking.booking_owner_user_id),
+      shouldPreserveSoloClearance
+        ? Promise.resolve({ error: null })
+        : supabase
+            .from('profiles')
+            .update({ pilot_clearance_status: 'checkout_confirmed', updated_at: now })
+            .eq('id', booking.booking_owner_user_id),
     ])
 
     return { bookingUpdate, historyInsert, auditInsert, profileUpdate }
@@ -1077,6 +1082,13 @@ export async function confirmCheckoutBooking(
   const fmtStart = new Date(booking.scheduled_start).toLocaleString('en-AU', {
     timeZone: 'Australia/Sydney', dateStyle: 'medium', timeStyle: 'short',
   })
+  const notifTitle = isInstructorCheckout
+    ? 'Instructor checkout flight confirmed'
+    : 'Checkout flight confirmed'
+  const notifBody = isInstructorCheckout
+    ? `Your instructor checkout flight has been confirmed for ${fmtStart} (Sydney time).`
+    : `Your checkout flight has been confirmed for ${fmtStart} (Sydney time).`
+
   const { error: notifErr } = await perf.time('checkout_approval', 'checkout_approval_notification_write', () => supabase.from('verification_events').insert({
     user_id:       booking.booking_owner_user_id,
     actor_user_id: adminId,
@@ -1084,8 +1096,8 @@ export async function confirmCheckoutBooking(
     event_type:    'approved',
     request_kind:  'booking_update',
     request_id:    bookingId,
-    title:         'Checkout flight confirmed',
-    body:          `Your checkout flight has been confirmed for ${fmtStart} (Sydney time).`,
+    title:         notifTitle,
+    body:          notifBody,
     is_read:       false,
     email_status:  'skipped',
   }))
@@ -1270,7 +1282,7 @@ export async function markCheckoutOutcome(input: {
 
   const { data: booking, error: fetchErr } = await supabase
     .from('bookings')
-    .select('status, booking_type, aircraft_id, booking_owner_user_id, booking_reference, scheduled_start')
+    .select('status, booking_type, checkout_type, aircraft_id, booking_owner_user_id, booking_reference, scheduled_start')
     .eq('id', input.bookingId)
     .single()
 
@@ -1645,10 +1657,41 @@ export async function markCheckoutOutcome(input: {
     }
   }
 
+  // If this was an instructor checkout and approved, grant aircraft-specific clearance and ensure role
+  if (booking.checkout_type === 'instructor' && input.outcome === 'cleared_to_fly') {
+    try {
+      const nowIso = new Date().toISOString()
+      const admin = createAdminClient()
+      await admin
+        .from('instructor_aircraft_clearances')
+        .upsert({
+          instructor_id: booking.booking_owner_user_id,
+          aircraft_id: booking.aircraft_id,
+          clearance_status: 'approved',
+          cleared_at: nowIso,
+          cleared_by: adminId,
+          updated_at: nowIso,
+        }, { onConflict: 'instructor_id,aircraft_id' })
+
+      await admin
+        .from('user_roles')
+        .upsert({
+          user_id: booking.booking_owner_user_id,
+          role: 'instructor',
+          granted_by: adminId,
+          granted_at: nowIso,
+        }, { onConflict: 'user_id,role' })
+    } catch (clearanceErr) {
+      console.error('[markCheckoutOutcome] error updating instructor clearance:', clearanceErr)
+    }
+  }
+
   revalidatePath('/admin')
+  revalidatePath('/admin/customers/instructors')
   revalidatePath('/admin/bookings/checkout')
   revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
   revalidatePath('/dashboard')
+  revalidatePath('/dashboard/instructor')
 
   void emitBookingChanged({ bookingId: input.bookingId, userId: booking.booking_owner_user_id })
   void emitClearanceUpdated(booking.booking_owner_user_id)

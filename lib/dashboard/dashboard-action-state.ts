@@ -17,6 +17,7 @@ export type DashboardJourneyStep = 'account' | 'documents' | 'checkout' | 'appro
 export type DashboardFlightSnapshot = {
   id: string
   bookingType: 'standard' | 'checkout'
+  checkoutType?: 'standard' | 'instructor' | null
   status: string
   scheduledStart: string
   scheduledEnd: string | null
@@ -728,36 +729,60 @@ export function resolveDashboardActionState(input: DashboardActionStateInput): D
     })
   }
 
-  if (clearanceStatus === 'checkout_requested') {
+  const isInstructorCheckout =
+    input.flightSnapshotBooking?.bookingType === 'checkout' &&
+    input.flightSnapshotBooking?.checkoutType === 'instructor'
+
+  if (
+    clearanceStatus === 'checkout_requested' ||
+    (input.flightSnapshotBooking?.bookingType === 'checkout' &&
+      input.flightSnapshotBooking?.status === 'checkout_requested')
+  ) {
     return buildState({
       phase: 'checkout',
       statusKey: 'checkout_requested',
       tone: 'info',
       responsibleActor: 'admin',
       customerActionRequired: false,
-      heroLabel: 'Checkout Requested',
-      heroMessage: 'Your checkout request has been submitted and is waiting for team confirmation.',
-      actionHeading: 'Your checkout request is waiting for review',
-      actionDescription: 'The team is reviewing your requested checkout slot and will confirm it or suggest a different time if needed.',
+      heroLabel: isInstructorCheckout ? 'Instructor Checkout Requested' : 'Checkout Requested',
+      heroMessage: isInstructorCheckout
+        ? 'Your instructor checkout request has been submitted and is waiting for team confirmation.'
+        : 'Your checkout request has been submitted and is waiting for team confirmation.',
+      actionHeading: isInstructorCheckout
+        ? 'Your instructor checkout request is waiting for review'
+        : 'Your checkout request is waiting for review',
+      actionDescription: isInstructorCheckout
+        ? 'The team is reviewing your requested instructor checkout slot and will confirm it or suggest a different time if needed.'
+        : 'The team is reviewing your requested checkout slot and will confirm it or suggest a different time if needed.',
       secondaryAction: { label: 'View Checkout', href: input.checkoutBookingId ? `/dashboard/bookings/${input.checkoutBookingId}` : '/dashboard/bookings' },
       waitingMessage: 'No action is required from you right now.',
-      nextMilestone: 'After review, your checkout booking will be confirmed or rescheduled.',
+      nextMilestone: isInstructorCheckout
+        ? 'After review, your instructor checkout booking will be confirmed or rescheduled.'
+        : 'After review, your checkout booking will be confirmed or rescheduled.',
       journeyStep: 'checkout',
       severityReason: 'checkout_requested',
     })
   }
 
-  if (clearanceStatus === 'checkout_confirmed') {
+  if (
+    clearanceStatus === 'checkout_confirmed' ||
+    (input.flightSnapshotBooking?.bookingType === 'checkout' &&
+      input.flightSnapshotBooking?.status === 'checkout_confirmed')
+  ) {
     return buildState({
       phase: 'checkout',
       statusKey: 'checkout_confirmed',
       tone: 'info',
       responsibleActor: 'instructor',
       customerActionRequired: false,
-      heroLabel: 'Checkout Confirmed',
-      heroMessage: 'Your checkout booking is confirmed and no online action is required before the flight.',
-      actionHeading: 'Your checkout is booked',
-      actionDescription: 'Review the booking details and arrive ready for your checkout flight. The next step after the flight is instructor assessment.',
+      heroLabel: isInstructorCheckout ? 'Instructor Checkout Confirmed' : 'Checkout Confirmed',
+      heroMessage: isInstructorCheckout
+        ? 'Your instructor checkout booking is confirmed and no online action is required before the flight.'
+        : 'Your checkout booking is confirmed and no online action is required before the flight.',
+      actionHeading: isInstructorCheckout ? 'Your instructor checkout is booked' : 'Your checkout is booked',
+      actionDescription: isInstructorCheckout
+        ? 'Review the booking details and arrive ready for your instructor checkout flight.'
+        : 'Review the booking details and arrive ready for your checkout flight. The next step after the flight is instructor assessment.',
       primaryAction: { label: 'View Booking', href: input.checkoutBookingId ? `/dashboard/bookings/${input.checkoutBookingId}` : '/dashboard/bookings' },
       waitingMessage: 'No action is required from you right now.',
       nextMilestone: 'After the checkout flight, your instructor outcome will be recorded.',

@@ -46,6 +46,8 @@ export type Profile = {
   has_night_vfr_rating: boolean | null   // null = not answered, true = yes, false = no
   has_instrument_rating: boolean | null  // null = not answered, true = yes, false = no
   last_flight_date: string | null  // YYYY-MM-DD — shared between Documents page and checkout flow
+  terms_accepted_at: string | null
+  terms_version: string | null
   last_login_at: string | null
   login_count: number
   last_bookings_viewed_at: string | null
@@ -257,4 +259,34 @@ export type BlockTimeSummary = {
   totalHoursRemaining: number
   activePackages: (BlockTimePurchase & { package?: BlockTimePackage })[]
   earliestExpiry: string | null
+}
+
+export type InstructorClearanceStatus = 'pending' | 'approved' | 'suspended' | 'revoked' | 'expired'
+
+export type InstructorAircraftClearance = {
+  id: string
+  instructor_id: string
+  aircraft_id: string
+  clearance_status: InstructorClearanceStatus
+  cleared_at: string | null
+  cleared_by: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+  aircraft?: {
+    id: string
+    registration: string
+    aircraft_type: string
+    display_name: string
+  }
+}
+
+export type InstructorStudent = {
+  id: string
+  instructor_id: string
+  student_id: string
+  status: 'active' | 'inactive' | 'transferred'
+  assigned_at: string
+  notes: string | null
+  student?: Profile
 }

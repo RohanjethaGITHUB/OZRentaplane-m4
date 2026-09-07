@@ -19,6 +19,7 @@ type Props = {
   booking: {
     id: string
     booking_type: string
+    checkout_type?: string | null
     status: string
     scheduled_start: string
     scheduled_end?: string | null
@@ -57,10 +58,10 @@ export default function UpcomingBookingActions({
     <div className="flex flex-col gap-2 p-4 justify-center sm:border-l border-t sm:border-t-0 border-[#152d5a]/[0.07] w-full sm:w-[200px] flex-shrink-0">
       <Link
         href={`/dashboard/bookings/${booking.id}`}
-        className="flex items-center justify-between whitespace-nowrap bg-[#152d5a] hover:bg-[#1a3a6e] text-white text-[13px] font-bold px-4 py-2.5 rounded-xl transition-colors"
+        className="flex items-center justify-center gap-2 whitespace-nowrap bg-[#152d5a] hover:bg-[#1a3a6e] text-white text-[13px] font-bold px-4 py-2.5 rounded-xl transition-colors"
       >
-        VIEW DETAILS
-        <span className="material-symbols-outlined text-[16px] ml-2">chevron_right</span>
+        <span>VIEW DETAILS</span>
+        <span className="material-symbols-outlined text-[16px]">chevron_right</span>
       </Link>
 
       {isCheckout && booking.aircraft_id ? (
@@ -69,6 +70,7 @@ export default function UpcomingBookingActions({
           checkout={{
             id: booking.id,
             booking_type: booking.booking_type,
+            checkout_type: booking.checkout_type ?? null,
             status: booking.status,
             scheduled_start: booking.scheduled_start,
             scheduled_end: booking.scheduled_end ?? null,

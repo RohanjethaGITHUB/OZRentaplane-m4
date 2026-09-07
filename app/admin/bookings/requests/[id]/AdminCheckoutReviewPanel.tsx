@@ -61,6 +61,7 @@ export type DocSummary = {
 type Props = {
   bookingId:          string
   aircraftId:         string
+  checkoutType?:      'standard' | 'instructor' | 'renewal'
   bookingReference:   string
   scheduledStart:     string       // UTC ISO — current value
   scheduledEnd:       string       // UTC ISO — current value
@@ -465,7 +466,7 @@ function TimeDropdown({
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function AdminCheckoutReviewPanel({
-  bookingId, aircraftId, bookingReference,
+  bookingId, aircraftId, checkoutType = 'standard', bookingReference,
   scheduledStart, scheduledEnd,
   customerNotes, lastFlightDate, redCardExpiryMonth, redCardExpiryYear, customerId, customerName, customerEmail, customerPhone, pilotArn,
   hasNightVfrRating = false,
@@ -790,6 +791,28 @@ export default function AdminCheckoutReviewPanel({
 
   return (
       <div className="space-y-4 pb-24">
+      {checkoutType === 'instructor' && (
+        <div className="bg-gradient-to-r from-indigo-900 to-blue-950 text-white rounded-2xl p-5 shadow-sm border border-indigo-700/60 flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-indigo-300 text-2xl">school</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="bg-indigo-500/30 text-indigo-200 text-xs font-bold px-2.5 py-0.5 rounded-full border border-indigo-400/30 uppercase tracking-wider">
+                  Instructor Checkout
+                </span>
+                <span className="text-xs text-indigo-200 font-semibold">Standardization Flight</span>
+              </div>
+              <h3 className="text-base font-bold text-white mt-1">Aircraft-Specific Instructor Checkout Request</h3>
+              <p className="text-xs text-indigo-200/80 mt-0.5">
+                Approving this checkout flight will grant instructor clearance for this specific aircraft.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <section className="bg-white border-t border-r border-b border-gray-100 border-l-4 border-l-[#1a4fd6] rounded-xl p-6 mb-4 shadow-sm">
         <div className="flex items-center gap-3 mb-5">
           <div className="w-8 h-8 rounded-full bg-[#152d5a] text-white text-sm font-semibold flex items-center justify-center flex-shrink-0">

@@ -58,23 +58,42 @@ function CheckoutSetupUnavailable() {
   )
 }
 
-function CheckoutHero({ clearanceStatus }: { clearanceStatus: PilotClearanceStatus }) {
+function CheckoutHero({
+  clearanceStatus,
+  isInstructorCheckout = false,
+  aircraftDisplayName,
+  aircraftRegistration,
+}: {
+  clearanceStatus: PilotClearanceStatus
+  isInstructorCheckout?: boolean
+  aircraftDisplayName?: string
+  aircraftRegistration?: string
+}) {
+  const planeName = aircraftDisplayName || 'Cessna 172N'
+  const planeReg = aircraftRegistration ? ` (${aircraftRegistration})` : ''
   return (
     <PortalPageHero
-      eyebrow="CHECKOUT STATUS"
-      title="Your Checkout Flight"
+      eyebrow={isInstructorCheckout ? 'INSTRUCTOR CHECKOUT' : 'CHECKOUT STATUS'}
+      title={isInstructorCheckout ? `Instructor Checkout — ${planeName}${planeReg}` : 'Your Checkout Flight'}
       subtitle={
-        clearanceStatus === 'cleared_to_fly'
-          ? "Your checkout flight has been approved. You're cleared to book and fly solo."
-          : "Before you can hire an aircraft independently, you'll need to complete a one-time checkout flight with a member of our team. They'll assess your flying skills and provide a result. Once cleared, you're free to book solo flights anytime."
+        isInstructorCheckout
+          ? `Complete your aircraft-specific standardization checkout for ${planeName}${planeReg} with an authorized OZRentaplane check instructor to activate your instructor clearance.`
+          : clearanceStatus === 'cleared_to_fly'
+            ? "Your checkout flight has been approved. You're cleared to book and fly solo."
+            : "Before you can hire an aircraft independently, you'll need to complete a one-time checkout flight with a member of our team. They'll assess your flying skills and provide a result. Once cleared, you're free to book solo flights anytime."
       }
       backgroundImage="/CustomerDashboard/CustomerDashboard-CheckoutHero.png"
     />
   )
 }
 
-export default async function CheckoutPage() {
+export default async function CheckoutPage({
+  searchParams,
+}: {
+  searchParams?: { type?: string; aircraftId?: string }
+}) {
   const supabase = await createClient()
+  const isInstructorCheckout = searchParams?.type === 'instructor'
   const ACTIVE_CHECKOUT_STATUSES = [
     'checkout_confirmed',
     'checkout_requested',
@@ -122,7 +141,7 @@ export default async function CheckoutPage() {
   const activeCheckoutBookingForRedirect = activeCheckoutBookingResult.data
 
   const TERMINAL_STATES = ['cleared_to_fly', 'not_currently_eligible']
-  if (!activeCheckoutBookingForRedirect && TERMINAL_STATES.includes(clearanceStatus)) {
+  if (!isInstructorCheckout && !activeCheckoutBookingForRedirect && TERMINAL_STATES.includes(clearanceStatus)) {
     redirect('/dashboard')
   }
 
@@ -263,7 +282,12 @@ export default async function CheckoutPage() {
   if (!aircraft || !activeCheckoutTerms) {
     return (
       <CustomerBookingShell user={user as User} profile={typedProfile}>
-        <CheckoutHero clearanceStatus={clearanceStatus} />
+        <CheckoutHero
+          clearanceStatus={clearanceStatus}
+          isInstructorCheckout={isInstructorCheckout}
+          aircraftDisplayName={aircraft?.display_name || aircraft?.aircraft_type}
+          aircraftRegistration={aircraft?.registration}
+        />
         <div className="space-y-5 mt-5">
           <CheckoutSetupUnavailable />
         </div>
@@ -279,10 +303,16 @@ export default async function CheckoutPage() {
   })
   return (
     <CustomerBookingShell user={user as User} profile={typedProfile}>
-      <CheckoutHero clearanceStatus={clearanceStatus} />
+      <CheckoutHero
+        clearanceStatus={clearanceStatus}
+        isInstructorCheckout={isInstructorCheckout}
+        aircraftDisplayName={aircraft.display_name || aircraft.aircraft_type}
+        aircraftRegistration={aircraft.registration}
+      />
       <div className="space-y-5 mt-5">
         <CheckoutFlow
           firstName={firstName}
+          checkoutType={isInstructorCheckout ? 'instructor' : 'standard'}
           aircraftId={aircraft.id}
           aircraftRegistration={aircraft.registration}
           aircraftDisplayName={aircraft.display_name || aircraft.aircraft_type}
@@ -294,6 +324,7 @@ export default async function CheckoutPage() {
           initialLastFlightDate={typedProfile?.last_flight_date ?? ''}
           initialNightVfrRating={typedProfile?.has_night_vfr_rating ?? null}
           initialInstrumentRating={typedProfile?.has_instrument_rating ?? null}
+          initialTermsAcceptedAt={typedProfile?.terms_accepted_at ?? null}
           activeCheckoutTerms={activeCheckoutTerms}
           activeCheckoutBooking={
             checkoutBooking

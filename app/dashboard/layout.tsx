@@ -22,8 +22,9 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
   if (!user) redirect('/login')
 
   // Profile + lightweight unread head-count + document issue check.
+  // Profile + lightweight unread head-count + document issue check + instructor check.
   // Do NOT load full verification_events history here — that blocked every /dashboard/* nav.
-  const [{ data: profile }, { count: unreadMessageCount }, { data: userDocs }] = await perf.time(
+  const [{ data: profile }, { count: unreadMessageCount }, { data: userDocs }, { count: instructorClearancesCount }] = await perf.time(
     'customer_dashboard_layout',
     'profile_unread_badge_group',
     () => Promise.all([
@@ -40,6 +41,11 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
         .from('user_documents')
         .select('id, document_type, status, expiry_date, red_card_expiry_month, red_card_expiry_year')
         .eq('user_id', user.id),
+      supabase
+        .from('instructor_aircraft_clearances')
+        .select('id', { count: 'exact', head: true })
+        .eq('instructor_id', user.id)
+        .eq('clearance_status', 'approved'),
     ]),
     (result) => ({
       rowCount: (result[0].data ? 1 : 0) + (result[1].count ?? 0) + (result[2].data?.length ?? 0),
@@ -49,6 +55,7 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
   if (profile?.role === 'admin') redirect('/admin')
   const firstName = (profile as any)?.first_name ?? user.email?.split('@')[0] ?? 'Pilot'
   const email = user.email ?? ''
+  const isInstructor = profile?.role === 'instructor' || (instructorClearancesCount ?? 0) > 0
   
   const todayStr = new Date().toISOString().slice(0, 10)
   const now = new Date()
@@ -80,6 +87,7 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
         hideCheckout={true}
         unreadMessageCount={unreadMessageCount ?? 0}
         hasDocumentIssue={hasDocumentIssue}
+        isInstructor={isInstructor}
       />
       <div
         className="relative min-h-screen pt-[64px] text-deep-ink dashboard-theme overflow-x-hidden"

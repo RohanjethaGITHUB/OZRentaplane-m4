@@ -118,6 +118,7 @@ type BookingRow = {
   booking_reference: string | null
   status:            string
   booking_type:      string
+  checkout_type?:    string | null
   aircraft_id?:      string | null
   checkout_lifecycle_status?: string | null
   admin_notes?:      string | null
@@ -378,7 +379,7 @@ export default async function CustomerBookingsPage() {
     supabase
       .from('bookings')
       .select(`
-        id, booking_reference, status, booking_type, aircraft_id,
+        id, booking_reference, status, booking_type, checkout_type, aircraft_id,
         checkout_lifecycle_status, admin_notes, cancellation_category, cancellation_reason,
         scheduled_start, scheduled_end,
         estimated_hours, estimated_amount, pic_name, created_at,
@@ -943,10 +944,16 @@ export default async function CustomerBookingsPage() {
                             <div className="flex items-center justify-between gap-2 flex-wrap">
                               <span className={`text-[11px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full ${
                                 booking.booking_type === 'checkout'
-                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                  ? (booking as any).checkout_type === 'instructor'
+                                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
                                   : 'bg-blue-50 text-blue-700 border border-blue-200'
                               }`}>
-                                {booking.booking_type === 'checkout' ? 'Checkout Flight' : 'Rental Booking'}
+                                {booking.booking_type === 'checkout'
+                                  ? (booking as any).checkout_type === 'instructor'
+                                    ? 'Instructor Checkout'
+                                    : 'Checkout Flight'
+                                  : 'Rental Booking'}
                               </span>
                               <StatusBadge
                                 status={booking.status}
@@ -1032,6 +1039,7 @@ export default async function CustomerBookingsPage() {
                             booking={{
                               id: booking.id,
                               booking_type: booking.booking_type,
+                              checkout_type: booking.checkout_type,
                               status: booking.status,
                               scheduled_start: booking.scheduled_start,
                               scheduled_end: booking.scheduled_end,
@@ -1107,10 +1115,16 @@ export default async function CustomerBookingsPage() {
                           <div className="flex items-center justify-between gap-2 flex-wrap">
                             <span className={`text-[11px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full ${
                               booking.booking_type === 'checkout'
-                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                ? (booking as any).checkout_type === 'instructor'
+                                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                  : 'bg-amber-50 text-amber-700 border border-amber-200'
                                 : 'bg-[#f0f6ff] text-[#4b6390] border border-[#152d5a]/10'
                             }`}>
-                              {booking.booking_type === 'checkout' ? 'Checkout Flight' : 'Rental Booking'}
+                              {booking.booking_type === 'checkout'
+                                ? (booking as any).checkout_type === 'instructor'
+                                  ? 'Instructor Checkout'
+                                  : 'Checkout Flight'
+                                : 'Rental Booking'}
                             </span>
                             <StatusBadge
                               status={booking.status}
@@ -1211,10 +1225,10 @@ export default async function CustomerBookingsPage() {
                         <div className="flex flex-col gap-2 p-4 justify-center sm:border-l border-t sm:border-t-0 border-[#152d5a]/[0.07] w-full sm:w-[180px] flex-shrink-0">
                           <Link
                             href={`/dashboard/bookings/${booking.id}`}
-                            className="flex items-center justify-between whitespace-nowrap bg-[#152d5a] hover:bg-[#1a3a6e] text-white text-[13px] font-bold px-4 py-2.5 rounded-xl transition-colors"
+                            className="flex items-center justify-center gap-2 whitespace-nowrap bg-[#152d5a] hover:bg-[#1a3a6e] text-white text-[13px] font-bold px-4 py-2.5 rounded-xl transition-colors"
                           >
-                            VIEW DETAILS
-                            <span className="material-symbols-outlined text-[16px] ml-2">chevron_right</span>
+                            <span>VIEW DETAILS</span>
+                            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
                           </Link>
                           {booking.booking_type !== 'checkout' && bookingInvoice && bookingInvoice.status !== 'waived' && booking.status === 'payment_pending' && (
                             <Link

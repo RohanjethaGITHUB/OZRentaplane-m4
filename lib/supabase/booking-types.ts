@@ -33,9 +33,8 @@ export type Aircraft = {
   updated_at: string
 }
 
-// ─── Bookings ─────────────────────────────────────────────────────────────────
-
 export type BookingType = 'checkout' | 'standard'
+export type CheckoutType = 'standard' | 'instructor' | 'renewal'
 
 export type BookingStatus =
   // Standard booking lifecycle
@@ -95,6 +94,7 @@ export type Booking = {
   aircraft_id: string
   booking_owner_user_id: string
   booking_type: BookingType
+  checkout_type?: CheckoutType
   pic_user_id: string | null
   pic_name: string | null
   pic_arn: string | null
@@ -524,6 +524,7 @@ export const CLARIFICATION_CATEGORY_LABELS: Record<ClarificationCategory, string
 
 export type CreateCheckoutBookingInput = {
   aircraft_id:           string
+  checkout_type?:        CheckoutType
   scheduled_start:       string          // ISO 8601 UTC
   scheduled_date_sydney: string          // YYYY-MM-DD
   scheduled_time_sydney: string          // HH:MM

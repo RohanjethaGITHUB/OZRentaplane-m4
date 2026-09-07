@@ -207,7 +207,7 @@ export default async function DashboardPage({
       .maybeSingle(),
     supabase
       .from('bookings')
-      .select('id, status, scheduled_start, scheduled_end, aircraft(registration)')
+      .select('id, status, checkout_type, scheduled_start, scheduled_end, aircraft(registration)')
       .eq('booking_owner_user_id', user.id)
       .eq('booking_type', 'checkout')
       .in('status', ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required'])
@@ -328,7 +328,7 @@ export default async function DashboardPage({
     [
       { data: documents },
       { data: events },
-      checkoutBookingResult,
+      checkoutPaymentPendingBookingResult,
       activeBookingResult,
       postFlightRequiredBookingResult,
       postFlightUnderReviewBookingResult,
@@ -343,6 +343,7 @@ export default async function DashboardPage({
   type BookingSnapshotRow = {
     id: string
     status: string
+    checkout_type?: 'standard' | 'instructor' | null
     scheduled_start?: string | null
     scheduled_end?: string | null
     aircraft?: { registration: string } | { registration: string }[] | null
@@ -354,14 +355,27 @@ export default async function DashboardPage({
     return (aircraft as { registration: string }).registration ?? null
   }
 
-  const checkoutBookingId = (checkoutBookingResult.data as { id: string } | null)?.id ?? null
+  const activeBooking = (activeBookingResult.data as { id: string; status: string } | null) ?? null
+  const postFlightRequiredBooking = ((postFlightRequiredBookingResult.data as BookingSnapshotRow[] | null) ?? [])
+    .find((booking) => isAwaitingFlightRecordDue(booking)) ?? null
+  const postFlightUnderReviewBooking = (postFlightUnderReviewBookingResult.data as BookingSnapshotRow | null) ?? null
+  const upcomingConfirmedBooking = (upcomingConfirmedBookingResult.data as BookingSnapshotRow | null) ?? null
+  const checkoutSnapshotBooking = (checkoutSnapshotBookingResult.data as BookingSnapshotRow | null) ?? null
+  const postFlightPaymentRequiredBooking = (postFlightPaymentRequiredBookingResult.data as BookingSnapshotRow | null) ?? null
+
+  const activeCheckoutBookingId =
+    checkoutSnapshotBooking?.id ??
+    (checkoutPaymentPendingBookingResult.data as { id: string } | null)?.id ??
+    null
+  const checkoutBookingId = activeCheckoutBookingId
 
   // Self-heal: if profile clearance status is checkout_requested or checkout_confirmed,
   // but no active checkout booking exists (e.g. after cancellation/closure), reconcile to checkout_required.
+  // Conversely, if profile is checkout_required but an active checkout booking exists, reconcile profile.
   let effectiveClearanceStatus = clearanceStatus
   if (
     (clearanceStatus === 'checkout_requested' || clearanceStatus === 'checkout_confirmed') &&
-    !checkoutBookingId
+    !activeCheckoutBookingId
   ) {
     effectiveClearanceStatus = 'checkout_required'
     const admin = createAdminClient()
@@ -376,14 +390,41 @@ export default async function DashboardPage({
         console.error('[dashboard] Failed to auto-reconcile orphaned checkout clearance:', err)
       }
     })()
+  } else if (
+    effectiveClearanceStatus === 'checkout_required' &&
+    checkoutSnapshotBooking?.status === 'checkout_requested'
+  ) {
+    effectiveClearanceStatus = 'checkout_requested'
+    const admin = createAdminClient()
+    void (async () => {
+      try {
+        await admin
+          .from('profiles')
+          .update({ pilot_clearance_status: 'checkout_requested', updated_at: new Date().toISOString() })
+          .eq('id', user.id)
+        void emitClearanceUpdated(user.id)
+      } catch (err) {
+        console.error('[dashboard] Failed to auto-sync checkout clearance:', err)
+      }
+    })()
+  } else if (
+    effectiveClearanceStatus === 'checkout_required' &&
+    checkoutSnapshotBooking?.status === 'checkout_confirmed'
+  ) {
+    effectiveClearanceStatus = 'checkout_confirmed'
+    const admin = createAdminClient()
+    void (async () => {
+      try {
+        await admin
+          .from('profiles')
+          .update({ pilot_clearance_status: 'checkout_confirmed', updated_at: new Date().toISOString() })
+          .eq('id', user.id)
+        void emitClearanceUpdated(user.id)
+      } catch (err) {
+        console.error('[dashboard] Failed to auto-sync checkout clearance:', err)
+      }
+    })()
   }
-  const activeBooking = (activeBookingResult.data as { id: string; status: string } | null) ?? null
-  const postFlightRequiredBooking = ((postFlightRequiredBookingResult.data as BookingSnapshotRow[] | null) ?? [])
-    .find((booking) => isAwaitingFlightRecordDue(booking)) ?? null
-  const postFlightUnderReviewBooking = (postFlightUnderReviewBookingResult.data as BookingSnapshotRow | null) ?? null
-  const upcomingConfirmedBooking = (upcomingConfirmedBookingResult.data as BookingSnapshotRow | null) ?? null
-  const checkoutSnapshotBooking = (checkoutSnapshotBookingResult.data as BookingSnapshotRow | null) ?? null
-  const postFlightPaymentRequiredBooking = (postFlightPaymentRequiredBookingResult.data as BookingSnapshotRow | null) ?? null
 
   // ── Post-flight bank transfer status ──────────────────────────────────────
   let postFlightBankTransferStatus: string | null = null
@@ -444,6 +485,7 @@ export default async function DashboardPage({
     ? {
         id: checkoutSnapshotBooking.id,
         bookingType: 'checkout',
+        checkoutType: checkoutSnapshotBooking.checkout_type ?? 'standard',
         status: checkoutSnapshotBooking.status,
         scheduledStart: checkoutSnapshotBooking.scheduled_start ?? '',
         scheduledEnd: checkoutSnapshotBooking.scheduled_end ?? null,

@@ -17,7 +17,7 @@ export async function acceptCurrentBookingTermsFromReadiness() {
     .eq('id', user.id)
     .single()
 
-  if (!profile || profile.role !== 'customer') return { ok: false, error: 'Only customer accounts can accept booking terms.' as const }
+  if (!profile || (profile.role !== 'customer' && profile.role !== 'instructor')) return { ok: false, error: 'Only customer or instructor accounts can accept booking terms.' as const }
 
   const rejectedGate = await getRejectedDocumentGateMessage(supabase, user.id)
   if (rejectedGate) return { ok: false, error: rejectedGate }
@@ -113,7 +113,7 @@ export async function saveNightVfrRatingFromReadiness(input: { hasNightVfrRating
     .eq('id', user.id)
     .single()
 
-  if (!profile || profile.role !== 'customer') throw new Error('Forbidden')
+  if (!profile || (profile.role !== 'customer' && profile.role !== 'instructor')) throw new Error('Forbidden')
 
   const rejectedGate = await getRejectedDocumentGateMessage(supabase, user.id)
   if (rejectedGate) throw new Error(rejectedGate)
