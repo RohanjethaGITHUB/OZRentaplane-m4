@@ -21,6 +21,7 @@ type InvoicePdfInput = {
   paymentMethodLabel?: string | null
   billingModeLabel?: string | null
   bookingRefLabel?: string | null
+  flightDate?: string | null
   billToName: string
   billToEmail: string
   billToPhone?: string | null
@@ -301,6 +302,7 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
               <div class="value">
                 Date: ${escapeHtml(formatDate(input.createdAt))}<br />
               ${detailDateLabel}: ${escapeHtml(formatDate(input.documentKind === 'receipt' ? input.paidAt ?? input.createdAt : input.dueAt ?? input.createdAt))}<br />
+              ${input.flightDate ? `Flight date: ${escapeHtml(formatDate(input.flightDate))}<br />` : ''}
               ${input.documentKind === 'receipt' && input.paymentMethodLabel ? `Payment method: ${escapeHtml(input.paymentMethodLabel)}<br />` : ''}
               ${input.billingModeLabel ? `Billing: ${escapeHtml(input.billingModeLabel)}<br />` : ''}
               ${input.bookingRefLabel ? `${escapeHtml(input.bookingRefLabel)}<br />` : ''}

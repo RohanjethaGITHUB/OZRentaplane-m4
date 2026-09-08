@@ -1216,6 +1216,17 @@ export default async function CustomerBookingsPage() {
                             VIEW DETAILS
                             <span className="material-symbols-outlined text-[16px] ml-2">chevron_right</span>
                           </Link>
+                          {((bookingInvoice && bookingInvoice.status !== 'waived') || booking.status === 'completed' || isCheckout) && (
+                            <a
+                              href={bookingInvoice?.pdf_url ?? `/dashboard/bookings/${booking.id}/invoice`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-center gap-1.5 whitespace-nowrap bg-white hover:bg-[#f0f6ff] text-[#152d5a] border border-[#152d5a]/20 text-[11px] font-bold tracking-[0.04em] px-3.5 py-2 rounded-xl transition-colors shadow-sm"
+                            >
+                              <span className="material-symbols-outlined text-[15px] text-[#1a4fd6]">download</span>
+                              Download Invoice
+                            </a>
+                          )}
                           {booking.booking_type !== 'checkout' && bookingInvoice && bookingInvoice.status !== 'waived' && booking.status === 'payment_pending' && (
                             <Link
                               href={`/dashboard/bookings/${booking.id}#payment`}

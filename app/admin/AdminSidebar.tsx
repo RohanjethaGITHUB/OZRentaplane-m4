@@ -50,6 +50,7 @@ const NAV_GROUPS: NavGroupType[] = [
     badgeKey: 'bookings',
     items: [
       { label: 'Booking Directory', href: '/admin/bookings/flights' },
+      { label: 'Invoices & Payments', href: '/admin/bookings/payments' },
     ],
   },
   {

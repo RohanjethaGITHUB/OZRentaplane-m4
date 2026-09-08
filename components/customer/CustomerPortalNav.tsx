@@ -308,12 +308,23 @@ export default function CustomerPortalNav({
                   </Link>
 
                   <Link
-                    href="/dashboard/purchases"
+                    href="/dashboard/billing"
                     onClick={() => setMenuOpen(false)}
                     className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-white/75 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
                       receipt_long
+                    </span>
+                    <span>Billing & Invoices</span>
+                  </Link>
+
+                  <Link
+                    href="/dashboard/purchases"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-white/75 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+                      shopping_bag
                     </span>
                     <span>Purchases</span>
                   </Link>

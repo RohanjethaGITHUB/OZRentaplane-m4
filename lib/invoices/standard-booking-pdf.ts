@@ -72,7 +72,7 @@ export async function generateStandardBookingInvoicePdf(params: {
   const [{ data: booking, error: bookingErr }, { data: profile, error: profileErr }, { data: landingCharges, error: landingErr }] = await Promise.all([
     supabase
       .from('bookings')
-      .select('booking_reference, booking_owner_user_id')
+      .select('booking_reference, booking_owner_user_id, scheduled_start')
       .eq('id', invoice.booking_id)
       .single(),
     supabase
@@ -164,6 +164,7 @@ export async function generateStandardBookingInvoicePdf(params: {
     paymentMethodLabel: formatPaymentMethodLabel(resolvedPaymentMethod),
     billingModeLabel,
     bookingRefLabel,
+    flightDate: booking.scheduled_start ?? null,
     billToName,
     billToEmail,
     billToPhone,

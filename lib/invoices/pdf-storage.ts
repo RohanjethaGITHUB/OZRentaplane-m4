@@ -8,7 +8,7 @@ type StoreInvoicePdfParams = {
   // while admin finalisation runs as the admin session — session RLS would
   // reject the upload (bucket policy requires folder = auth.uid()).
   supabase?: any
-  table: 'invoices' | 'booking_invoices'
+  table: 'invoices' | 'booking_invoices' | 'checkout_invoices'
   rowId: string
   userId: string
   invoiceNumber: string
