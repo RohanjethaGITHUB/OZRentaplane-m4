@@ -7,13 +7,11 @@ import {
   BlockTimePackageSummary,
   FlightUsageItem,
   RecentActivityItem,
-  CustomerBillingDetails,
 } from './billing/types'
 import PaymentSummaryCards from './billing/PaymentSummaryCards'
 import InvoiceToolbar, { DateRangePreset } from './billing/InvoiceToolbar'
 import InvoiceStatusTabs, { TabKey } from './billing/InvoiceStatusTabs'
 import InvoiceTable from './billing/InvoiceTable'
-import InvoiceDetailsDrawer from './billing/InvoiceDetailsDrawer'
 import RecentPaymentActivity from './billing/RecentPaymentActivity'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 
@@ -70,9 +68,6 @@ export default function CustomerPaymentsInvoicesClient({
   const [page, setPage] = useState(1)
   const pageSize = 8
 
-  // Drawer state
-  const [selectedInvoice, setSelectedInvoice] = useState<CustomerInvoice | null>(null)
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
 
@@ -211,12 +206,6 @@ export default function CustomerPaymentsInvoicesClient({
     }
   }
 
-  // Actions
-  const handleViewInvoice = useCallback((inv: CustomerInvoice) => {
-    setSelectedInvoice(inv)
-    setIsDrawerOpen(true)
-  }, [])
-
   const handleDownloadInvoice = useCallback(
     async (inv: CustomerInvoice) => {
       setDownloadingId(inv.id)
@@ -284,15 +273,6 @@ export default function CustomerPaymentsInvoicesClient({
 
     showToast('Invoices exported successfully.')
   }, [filteredInvoices])
-
-  const billingDetails: CustomerBillingDetails = useMemo(() => {
-    return {
-      name: customerName,
-      email: customerEmail,
-      phone: customerPhone,
-      address: customerAddress || '123 Aviation Drive, Melbourne, VIC 3000 Australia',
-    }
-  }, [customerName, customerEmail, customerPhone, customerAddress])
 
   return (
     <div className="space-y-8">
@@ -481,7 +461,6 @@ export default function CustomerPaymentsInvoicesClient({
           /* Primary Invoices Table */
           <InvoiceTable
             invoices={filteredInvoices}
-            onViewInvoice={handleViewInvoice}
             onDownloadInvoice={handleDownloadInvoice}
             downloadingId={downloadingId}
             sortField={sortField}
@@ -502,16 +481,6 @@ export default function CustomerPaymentsInvoicesClient({
           const el = document.getElementById('invoices-main-container')
           el?.scrollIntoView({ behavior: 'smooth' })
         }}
-      />
-
-      {/* Slide-out Invoice Details Drawer */}
-      <InvoiceDetailsDrawer
-        invoice={selectedInvoice}
-        billingDetails={billingDetails}
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        onDownloadPdf={handleDownloadInvoice}
-        isDownloading={downloadingId === selectedInvoice?.id}
       />
     </div>
   )
