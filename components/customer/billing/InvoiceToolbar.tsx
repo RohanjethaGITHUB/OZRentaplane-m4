@@ -220,7 +220,6 @@ export default function InvoiceToolbar({
     { value: 'PENDING', label: 'Pending' },
     { value: 'WAIVED', label: 'Waived' },
     { value: 'SETTLED', label: 'Settled' },
-    { value: 'REFUNDED', label: 'Refunded' },
     { value: 'FAILED', label: 'Failed' },
     { value: 'CANCELLED', label: 'Cancelled' },
   ]
@@ -239,7 +238,6 @@ export default function InvoiceToolbar({
     { value: 'CUSTOMER_PAYMENT', label: 'Customer Payment' },
     { value: 'ADMIN_WAIVER', label: 'Admin Waiver' },
     { value: 'ADMIN_SETTLEMENT', label: 'Admin Settlement' },
-    { value: 'REFUND', label: 'Refund' },
     { value: 'ADJUSTMENT', label: 'Adjustment' },
   ]
 

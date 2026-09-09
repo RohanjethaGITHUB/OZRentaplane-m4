@@ -59,7 +59,6 @@ export default function InvoiceStatusTabs({
     { key: 'paid', label: 'Paid', count: counts.paid },
     ...(counts.partial > 0 ? [{ key: 'partial' as TabKey, label: 'Partially Paid', count: counts.partial }] : []),
     { key: 'pending', label: 'Pending', count: counts.pending },
-    { key: 'refunded', label: 'Refunded', count: counts.refunded },
     { key: 'waived', label: 'Waived', count: counts.waived },
     { key: 'settled', label: 'Settled', count: counts.settled },
     { key: 'failed', label: 'Failed', count: counts.failed },
