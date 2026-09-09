@@ -48,6 +48,11 @@ function formatCurrency(cents: number) {
   return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format((cents || 0) / 100)
 }
 
+function cleanAircraftName(aircraft?: string | null): string {
+  if (!aircraft) return 'Cessna 172'
+  return aircraft.replace(/^VH-[A-Z0-9]+\s*([·—\-–]\s*)?/i, '').trim() || 'Cessna 172'
+}
+
 function LedgerStatusBadge({ status }: { status: string }) {
   const s = String(status || '').toLowerCase()
 
@@ -658,7 +663,7 @@ export default function CustomerBillingInteractive({
                               </span>
                               {r.aircraft && (
                                 <span className="text-[11px] text-slate-400 font-medium block">
-                                  {r.aircraft}
+                                  {cleanAircraftName(r.aircraft)}
                                 </span>
                               )}
                             </div>
@@ -779,7 +784,7 @@ export default function CustomerBillingInteractive({
                           </span>
                           {r.aircraft && (
                             <span className="text-[10px] text-slate-500 font-medium block truncate">
-                              {r.aircraft}
+                              {cleanAircraftName(r.aircraft)}
                             </span>
                           )}
                         </div>
@@ -1072,7 +1077,7 @@ export default function CustomerBillingInteractive({
                     </p>
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100 bg-white shadow-sm">
+                  <div className="space-y-3">
                     {selectedCustomerPayments.map((p) => {
                       const invoiceUrl = p.bookingId
                         ? `/dashboard/bookings/${p.bookingId}/invoice`
@@ -1087,18 +1092,21 @@ export default function CustomerBillingInteractive({
                         : '—'
 
                       return (
-                        <div key={p.id} className="p-3 sm:p-4 hover:bg-slate-50/70 transition-colors space-y-2.5">
+                        <div
+                          key={p.id}
+                          className="rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4 shadow-sm hover:border-blue-200/80 transition-all space-y-3"
+                        >
                           {/* Top Row: Service & Status */}
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
                               <div
-                                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 border ${
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
                                   p.is_checkout
                                     ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
                                     : 'bg-blue-50 text-[#1a4fd6] border-blue-100'
                                 }`}
                               >
-                                <span className="material-symbols-outlined text-[15px] sm:text-[16px]">
+                                <span className="material-symbols-outlined text-[16px]">
                                   {p.is_checkout ? 'flight_takeoff' : 'flight'}
                                 </span>
                               </div>
@@ -1106,14 +1114,14 @@ export default function CustomerBillingInteractive({
                                 <span className="font-bold text-xs text-[#152d5a] block truncate">
                                   {p.is_checkout ? 'Checkout Flight' : 'Aircraft Rental'}
                                 </span>
-                                <span className="text-[10px] sm:text-[11px] font-mono text-slate-500 font-medium truncate block">
+                                <span className="text-[11px] font-mono text-slate-500 font-medium truncate block">
                                   Ref: {p.booking_ref}
                                 </span>
                               </div>
                             </div>
 
                             <div className="text-right shrink-0">
-                              <span className="font-bold text-xs sm:text-sm text-[#152d5a] block">
+                              <span className="font-bold text-sm text-[#152d5a] block">
                                 {formatCurrency(p.amount_cents)}
                               </span>
                               <div className="mt-0.5">
@@ -1122,8 +1130,8 @@ export default function CustomerBillingInteractive({
                             </div>
                           </div>
 
-                          {/* Middle Row: Meta details */}
-                          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-[11px] text-slate-500">
+                          {/* Middle Row: Meta details with clear visible divider */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-slate-200 text-[11px] text-slate-500">
                             <div className="flex flex-wrap items-center gap-1.5">
                               <span>Paid: <strong className="text-slate-700 font-medium">{pDate}</strong></span>
                               <span>·</span>

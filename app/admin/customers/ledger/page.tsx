@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import AdminPortalHero from '@/components/AdminPortalHero'
 import CustomerBillingInteractive, {
   PaymentRow,
   CustomerSummary,
@@ -39,10 +38,28 @@ type CheckoutInvoiceRow = {
   status: string
   payment_method: string | null
   subtotal_cents: number | null
+  checkout_calculated_amount_cents?: number | null
+  checkout_landing_subtotal_cents?: number | null
   total_paid_cents: number | null
+  waiver_reason?: string | null
   created_at: string | null
   updated_at?: string | null
+  paid_at?: string | null
   pdf_url?: string | null
+}
+
+type GeneralInvoiceRow = {
+  id: string
+  booking_id: string | null
+  user_id: string | null
+  invoice_number?: string | null
+  status: string
+  payment_method: string | null
+  total: number | null
+  created_at: string | null
+  pdf_url?: string | null
+  is_block_time_overage?: boolean | null
+  type?: string | null
 }
 
 type BookingBankTransferSubmissionRow = {
@@ -85,6 +102,7 @@ export default async function CustomerBillingPage({
   const [
     { data: standardInvoices },
     { data: checkoutInvoices },
+    { data: generalInvoices },
     { data: pendingReviewSubmissions },
     { data: checkoutBankSubmissions },
     { data: allBookings },
@@ -102,8 +120,12 @@ export default async function CustomerBillingPage({
     supabase
       .from('checkout_invoices')
       .select(
-        'id, booking_id, customer_id, invoice_number, status, payment_method, subtotal_cents, total_paid_cents, created_at, pdf_url',
+        'id, booking_id, customer_id, invoice_number, status, payment_method, subtotal_cents, checkout_calculated_amount_cents, checkout_landing_subtotal_cents, total_paid_cents, waiver_reason, created_at, paid_at, pdf_url',
       )
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('invoices')
+      .select('id, booking_id, user_id, invoice_number, status, payment_method, total, created_at, pdf_url, is_block_time_overage, type')
       .order('created_at', { ascending: false }),
     supabase
       .from('booking_bank_transfer_submissions')
@@ -116,7 +138,7 @@ export default async function CustomerBillingPage({
     supabase
       .from('bookings')
       .select(
-        'id, booking_reference, booking_type, pic_name, booking_owner_user_id, scheduled_start, status, checkout_lifecycle_status, aircraft ( registration, display_name )',
+        'id, booking_reference, booking_type, pic_name, booking_owner_user_id, scheduled_start, scheduled_end, estimated_hours, status, checkout_lifecycle_status, created_at, updated_at, aircraft ( registration, display_name )',
       )
       .order('scheduled_start', { ascending: false }),
     supabase
@@ -139,6 +161,7 @@ export default async function CustomerBillingPage({
 
   const stdInvoiceRows = (standardInvoices ?? []) as BookingInvoiceRow[]
   const chkInvoiceRows = (checkoutInvoices ?? []) as CheckoutInvoiceRow[]
+  const genInvoiceRows = (generalInvoices ?? []) as GeneralInvoiceRow[]
   const bankSubmissions = (pendingReviewSubmissions ?? []) as BookingBankTransferSubmissionRow[]
   const chkSubmissions = (checkoutBankSubmissions ?? []) as BookingBankTransferSubmissionRow[]
 
@@ -176,6 +199,9 @@ export default async function CustomerBillingPage({
     if (submission.status === 'pending_review' && submission.invoice_id && !latestPendingReviewByInvoice.has(submission.invoice_id)) {
       latestPendingReviewByInvoice.set(submission.invoice_id, submission)
     }
+    if (submission.status === 'pending_review' && submission.booking_id && !latestPendingReviewByInvoice.has(submission.booking_id)) {
+      latestPendingReviewByInvoice.set(submission.booking_id, submission)
+    }
   }
 
   const profilesById = new Map<
@@ -203,6 +229,9 @@ export default async function CustomerBillingPage({
       status: string
       checkout_status?: string | null
       aircraftDisplay?: string | null
+      estimated_hours?: number | null
+      created_at?: string | null
+      updated_at?: string | null
     }
   >()
 
@@ -210,26 +239,34 @@ export default async function CustomerBillingPage({
     const rawAc = b.aircraft as unknown
     const ac = Array.isArray(rawAc) ? rawAc[0] : (rawAc as { registration?: string; display_name?: string } | null)
     bookingsById.set(b.id, {
-      booking_ref: b.booking_reference,
+      booking_ref: b.booking_reference || `BK-${b.id.slice(0, 6).toUpperCase()}`,
       booking_type: b.booking_type,
       pic_name: b.pic_name,
       owner_id: b.booking_owner_user_id,
       flight_date: b.scheduled_start,
       status: b.status,
       checkout_status: b.checkout_lifecycle_status,
-      aircraftDisplay: ac?.display_name || ac?.registration || null,
+      aircraftDisplay: (ac?.display_name || ac?.registration || 'Cessna 172').replace(/^VH-[A-Z0-9]+\s*([·—\-–]\s*)?/i, '').trim() || 'Cessna 172',
+      estimated_hours: b.estimated_hours,
+      created_at: b.created_at,
+      updated_at: b.updated_at,
     })
   }
 
   const paymentRows: PaymentRow[] = []
+  const seenBookingIds = new Set<string>()
+  const seenInvoiceIds = new Set<string>()
 
-  // 1. Booking Invoices (Rental / Flights)
+  // 1. Standard Rental Booking Invoices
   for (const inv of stdInvoiceRows) {
+    if (inv.booking_id) seenBookingIds.add(inv.booking_id)
+    seenInvoiceIds.add(inv.id)
+
     const bkg = inv.booking_id ? bookingsById.get(inv.booking_id) : null
     const custId = inv.customer_id || bkg?.owner_id || null
     const profile = custId ? profilesById.get(custId) : null
     const submission = submissionByInvoice.get(inv.id) || (inv.booking_id ? submissionByInvoice.get(inv.booking_id) : null)
-    const pendingSubmission = latestPendingReviewByInvoice.get(inv.id)
+    const pendingSubmission = latestPendingReviewByInvoice.get(inv.id) || (inv.booking_id ? latestPendingReviewByInvoice.get(inv.booking_id) : null)
 
     const effectiveStatus = pendingSubmission ? 'manual_review' : inv.status
     const receiptUrl = submission?.receipt_storage_path ? receiptUrlMap.get(submission.receipt_storage_path) ?? null : null
@@ -246,14 +283,14 @@ export default async function CustomerBillingPage({
       aircraft: bkg?.aircraftDisplay,
       is_checkout: false,
       flight_date: bkg?.flight_date ?? null,
-      paid_at: inv.paid_at || null,
+      paid_at: inv.paid_at || (inv.status === 'paid' ? inv.updated_at || inv.created_at : null),
       amount_cents: inv.subtotal_cents ?? inv.stripe_amount_due_cents ?? inv.total_paid_cents ?? 0,
       status: effectiveStatus,
-      method: inv.payment_method || (submission ? 'bank_transfer' : 'stripe'),
+      method: inv.payment_method || (submission ? 'bank_transfer' : 'card'),
       created: inv.created_at,
       updated: inv.updated_at || inv.paid_at || inv.created_at,
       href: inv.booking_id ? `/admin/bookings/requests/${inv.booking_id}` : '#',
-      pdf_url: inv.pdf_url,
+      pdf_url: inv.pdf_url ?? (inv.booking_id ? `/dashboard/bookings/${inv.booking_id}/invoice` : null),
       bank_reference: submission?.reference,
       bank_submission_id: pendingSubmission?.id,
       receipt_url: receiptUrl,
@@ -262,14 +299,25 @@ export default async function CustomerBillingPage({
 
   // 2. Checkout Invoices
   for (const inv of chkInvoiceRows) {
+    if (inv.booking_id) seenBookingIds.add(inv.booking_id)
+    seenInvoiceIds.add(inv.id)
+
     const bkg = inv.booking_id ? bookingsById.get(inv.booking_id) : null
     const custId = inv.customer_id || bkg?.owner_id || null
     const profile = custId ? profilesById.get(custId) : null
     const submission = submissionByInvoice.get(inv.id) || (inv.booking_id ? submissionByInvoice.get(inv.booking_id) : null)
-    const pendingSubmission = latestPendingReviewByInvoice.get(inv.id)
+    const pendingSubmission = latestPendingReviewByInvoice.get(inv.id) || (inv.booking_id ? latestPendingReviewByInvoice.get(inv.booking_id) : null)
 
-    const effectiveStatus = pendingSubmission ? 'manual_review' : inv.status
+    const isWaived = inv.status === 'waived' || Boolean(inv.waiver_reason)
+    let effectiveStatus = inv.status
+    if (pendingSubmission) {
+      effectiveStatus = 'manual_review'
+    } else if (isWaived) {
+      effectiveStatus = 'waived'
+    }
+
     const receiptUrl = submission?.receipt_storage_path ? receiptUrlMap.get(submission.receipt_storage_path) ?? null : null
+    const amountCents = Number(inv.subtotal_cents || inv.checkout_calculated_amount_cents || inv.total_paid_cents || 25000)
 
     paymentRows.push({
       id: inv.id,
@@ -283,14 +331,125 @@ export default async function CustomerBillingPage({
       aircraft: bkg?.aircraftDisplay,
       is_checkout: true,
       flight_date: bkg?.flight_date ?? null,
-      paid_at: (inv as any).paid_at || null,
-      amount_cents: inv.subtotal_cents ?? inv.total_paid_cents ?? 0,
+      paid_at: inv.paid_at || (inv.status === 'paid' ? inv.created_at : null),
+      amount_cents: amountCents,
       status: effectiveStatus,
-      method: inv.payment_method || (submission ? 'bank_transfer' : 'stripe'),
+      method: inv.payment_method || (submission ? 'bank_transfer' : 'card'),
       created: inv.created_at,
       updated: inv.updated_at || inv.created_at,
       href: inv.booking_id ? `/admin/bookings/requests/${inv.booking_id}` : '#',
-      pdf_url: inv.pdf_url,
+      pdf_url: inv.pdf_url ?? (inv.booking_id ? `/dashboard/bookings/${inv.booking_id}/invoice` : null),
+      bank_reference: submission?.reference,
+      bank_submission_id: pendingSubmission?.id,
+      receipt_url: receiptUrl,
+    })
+  }
+
+  // 3. General Invoices (Block time / overages)
+  for (const inv of genInvoiceRows) {
+    if (seenInvoiceIds.has(inv.id)) continue
+    if (inv.booking_id && seenBookingIds.has(inv.booking_id)) continue
+
+    if (inv.booking_id) seenBookingIds.add(inv.booking_id)
+    seenInvoiceIds.add(inv.id)
+
+    const custId = inv.user_id
+    const profile = custId ? profilesById.get(custId) : null
+    const bkg = inv.booking_id ? bookingsById.get(inv.booking_id) : null
+
+    paymentRows.push({
+      id: inv.id,
+      invoiceId: inv.invoice_number || `INV-${inv.id.slice(0, 8).toUpperCase()}`,
+      bookingId: inv.booking_id,
+      ownerId: custId,
+      customer: profile?.name || 'Customer',
+      email: profile?.email || '—',
+      booking_ref: bkg?.booking_ref || inv.invoice_number || 'N/A',
+      service_name: inv.is_block_time_overage ? 'Block Time Overage' : 'Flight Invoice',
+      aircraft: bkg?.aircraftDisplay,
+      is_checkout: false,
+      flight_date: inv.created_at,
+      paid_at: inv.status === 'paid' ? inv.created_at : null,
+      amount_cents: Math.round(Number(inv.total || 0) * 100),
+      status: inv.status,
+      method: inv.payment_method || 'card',
+      created: inv.created_at,
+      updated: inv.created_at,
+      href: inv.booking_id ? `/admin/bookings/requests/${inv.booking_id}` : '#',
+      pdf_url: inv.pdf_url ?? null,
+    })
+  }
+
+  // 4. Fallback for all Bookings that do not have a dedicated invoice row yet
+  for (const b of allBookings ?? []) {
+    if (seenBookingIds.has(b.id)) continue
+    seenBookingIds.add(b.id)
+
+    const isCheckout = b.booking_type === 'checkout'
+    const custId = b.booking_owner_user_id
+    const profile = custId ? profilesById.get(custId) : null
+    const rawAc = b.aircraft as unknown
+    const ac = Array.isArray(rawAc) ? rawAc[0] : (rawAc as { registration?: string; display_name?: string } | null)
+    const aircraftDisplay = ac?.display_name || ac?.registration || 'Cessna 172'
+
+    const submission = submissionByInvoice.get(b.id)
+    const pendingSubmission = latestPendingReviewByInvoice.get(b.id)
+
+    let status = 'pending'
+    if (pendingSubmission) {
+      status = 'manual_review'
+    } else if (isCheckout) {
+      if (b.status === 'checkout_payment_required' || b.checkout_lifecycle_status === 'checkout_payment_required') {
+        status = 'payment_required'
+      } else if (b.status === 'completed' || b.checkout_lifecycle_status === 'cleared_to_fly') {
+        status = 'paid'
+      } else if (b.status === 'cancelled' || b.checkout_lifecycle_status?.startsWith('cancelled')) {
+        status = 'cancelled'
+      } else {
+        status = 'pending'
+      }
+    } else {
+      if (b.status === 'payment_pending') {
+        status = 'payment_required'
+      } else if (b.status === 'completed') {
+        status = 'paid'
+      } else if (b.status === 'cancelled') {
+        status = 'cancelled'
+      } else {
+        status = 'pending'
+      }
+    }
+
+    const amountCents = isCheckout
+      ? 25000
+      : Math.round(Number(b.estimated_hours || 1.0) * 33000)
+
+    const invoiceNumber = isCheckout
+      ? `INV-CHK-${b.id.slice(0, 6).toUpperCase()}`
+      : `INV-BKG-${b.id.slice(0, 6).toUpperCase()}`
+
+    const receiptUrl = submission?.receipt_storage_path ? receiptUrlMap.get(submission.receipt_storage_path) ?? null : null
+
+    paymentRows.push({
+      id: b.id,
+      invoiceId: invoiceNumber,
+      bookingId: b.id,
+      ownerId: custId,
+      customer: profile?.name || b.pic_name || 'Customer',
+      email: profile?.email || '—',
+      booking_ref: b.booking_reference || `BK-${b.id.slice(0, 6).toUpperCase()}`,
+      service_name: isCheckout ? 'Checkout Flight' : 'Aircraft Rental',
+      aircraft: aircraftDisplay,
+      is_checkout: isCheckout,
+      flight_date: b.scheduled_start,
+      paid_at: status === 'paid' ? b.scheduled_start || b.created_at : null,
+      amount_cents: amountCents,
+      status,
+      method: submission ? 'bank_transfer' : 'card',
+      created: b.created_at,
+      updated: b.updated_at || b.created_at,
+      href: `/admin/bookings/requests/${b.id}`,
+      pdf_url: `/dashboard/bookings/${b.id}/invoice`,
       bank_reference: submission?.reference,
       bank_submission_id: pendingSubmission?.id,
       receipt_url: receiptUrl,
@@ -324,6 +483,15 @@ export default async function CustomerBillingPage({
       row.customer_id,
       (totalPaidByCustomer.get(row.customer_id) ?? 0) + (row.amount_cents ?? 0),
     )
+  }
+
+  for (const r of paymentRows) {
+    if (r.status === 'paid' && r.ownerId) {
+      const current = totalPaidByCustomer.get(r.ownerId) ?? 0
+      if (current < r.amount_cents) {
+        totalPaidByCustomer.set(r.ownerId, current + r.amount_cents)
+      }
+    }
   }
 
   const creditBalanceByCustomer = new Map<string, number>()
@@ -361,7 +529,13 @@ export default async function CustomerBillingPage({
     .reduce((sum, r) => sum + r.amount_cents, 0)
 
   const outstanding = paymentRows
-    .filter((r) => r.status === 'payment_required' || r.status === 'pending')
+    .filter(
+      (r) =>
+        r.status === 'payment_required' ||
+        r.status === 'pending' ||
+        r.status === 'manual_review' ||
+        r.status === 'payment_review_pending',
+    )
     .reduce((sum, r) => sum + r.amount_cents, 0)
 
   const manualReviewCount = paymentRows.filter(
