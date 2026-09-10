@@ -34,6 +34,8 @@ export default async function CustomerBillingPage() {
     { data: landingInvoiceRows },
     { data: customerBookings },
     { data: bkgInvoicesByUser },
+    { data: chkBankTransferSubs },
+    { data: bkgBankTransferSubs },
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -100,6 +102,16 @@ export default async function CustomerBillingPage() {
       `)
       .eq('customer_id', user.id)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('checkout_bank_transfer_submissions')
+      .select('id, invoice_id, booking_id, status, submitted_at')
+      .eq('customer_id', user.id)
+      .order('submitted_at', { ascending: false }),
+    supabase
+      .from('booking_bank_transfer_submissions')
+      .select('id, invoice_id, booking_id, status, submitted_at')
+      .eq('customer_id', user.id)
+      .order('submitted_at', { ascending: false }),
   ])
 
   // Fetch checkout_invoices via customer_id or user's booking_ids
@@ -153,6 +165,23 @@ export default async function CustomerBillingPage() {
         }
       : null
 
+  // Build maps of pending bank transfer reviews
+  const pendingChkSubByInvoice = new Map<string, any>()
+  for (const sub of chkBankTransferSubs ?? []) {
+    if (sub.status === 'pending_review') {
+      if (sub.invoice_id) pendingChkSubByInvoice.set(sub.invoice_id, sub)
+      if (sub.booking_id) pendingChkSubByInvoice.set(sub.booking_id, sub)
+    }
+  }
+
+  const pendingBkgSubByInvoice = new Map<string, any>()
+  for (const sub of bkgBankTransferSubs ?? []) {
+    if (sub.status === 'pending_review') {
+      if (sub.invoice_id) pendingBkgSubByInvoice.set(sub.invoice_id, sub)
+      if (sub.booking_id) pendingBkgSubByInvoice.set(sub.booking_id, sub)
+    }
+  }
+
   // 1. Build Invoices List
   const allInvoices: CustomerInvoice[] = []
   const seenBookingIds = new Set<string>()
@@ -169,11 +198,15 @@ export default async function CustomerBillingPage() {
     const isWaived = ci.status === 'waived' || Boolean(ci.waiver_reason)
     const isPaid = ci.status === 'paid'
     const isSettled = ci.status === 'settled'
+    const hasPendingVerification =
+      pendingChkSubByInvoice.has(ci.id) ||
+      (ci.booking_id ? pendingChkSubByInvoice.has(ci.booking_id) : false)
 
     let status: PaymentStatus = 'PENDING'
     if (isWaived) status = 'WAIVED'
     else if (isSettled) status = 'SETTLED'
     else if (isPaid) status = 'PAID'
+    else if (hasPendingVerification) status = 'PAYMENT_VERIFICATION_PENDING'
     else if (ci.status === 'failed') status = 'FAILED'
     else if (ci.status === 'refunded') status = 'REFUNDED'
     else if (ci.status === 'cancelled') status = 'CANCELLED'
@@ -187,7 +220,7 @@ export default async function CustomerBillingPage() {
     const paidCents = isWaived ? 0 : isPaid ? totalCents : Number(ci.total_paid_cents || 0)
     const amount = totalCents / 100
     const paidAmount = paidCents / 100
-    const outstandingAmount = isWaived ? 0 : Math.max(0, amount - paidAmount)
+    const outstandingAmount = isWaived ? 0 : hasPendingVerification ? 0 : Math.max(0, amount - paidAmount)
 
     const vdoHours = Number(ci.vdo_reading || ci.checkout_duration_hours || 1.0)
     const landingFee = Number(ci.checkout_landing_subtotal_cents || 0) / 100
@@ -198,8 +231,8 @@ export default async function CustomerBillingPage() {
 
     let paymentMethod: PaymentMethodType = 'card'
     if (isWaived || isSettled) paymentMethod = 'none'
+    else if (hasPendingVerification || ci.payment_method === 'bank_transfer') paymentMethod = 'bank_transfer'
     else if (ci.payment_method === 'cash') paymentMethod = 'cash'
-    else if (ci.payment_method === 'bank_transfer') paymentMethod = 'bank_transfer'
     else if (ci.payment_method === 'stripe' || ci.payment_method === 'card') paymentMethod = 'card'
 
     allInvoices.push({
@@ -309,11 +342,15 @@ export default async function CustomerBillingPage() {
     const isWaived = bi.status === 'waived'
     const isSettled = bi.status === 'settled'
     const isPaid = bi.status === 'paid'
+    const hasPendingVerification =
+      pendingBkgSubByInvoice.has(bi.id) ||
+      (bi.booking_id ? pendingBkgSubByInvoice.has(bi.booking_id) : false)
 
     let status: PaymentStatus = 'PENDING'
     if (isWaived) status = 'WAIVED'
     else if (isSettled) status = 'SETTLED'
     else if (isPaid) status = 'PAID'
+    else if (hasPendingVerification) status = 'PAYMENT_VERIFICATION_PENDING'
     else if (bi.status === 'failed') status = 'FAILED'
     else if (bi.status === 'void' || bi.status === 'cancelled') status = 'CANCELLED'
 
@@ -325,7 +362,7 @@ export default async function CustomerBillingPage() {
     const paidCents = isPaid ? totalCents : Number(bi.total_paid_cents || 0)
     const amount = totalCents / 100
     const paidAmount = paidCents / 100
-    const outstandingAmount = isWaived ? 0 : Math.max(0, amount - paidAmount)
+    const outstandingAmount = isWaived ? 0 : hasPendingVerification ? 0 : Math.max(0, amount - paidAmount)
 
     const vdoHours = Number(bi.vdo_reading || 1.5)
     const landingFee = Number(bi.landing_subtotal_cents || 0) / 100
@@ -336,8 +373,8 @@ export default async function CustomerBillingPage() {
 
     let paymentMethod: PaymentMethodType = 'card'
     if (isWaived || isSettled) paymentMethod = 'none'
+    else if (hasPendingVerification || bi.payment_method === 'bank_transfer') paymentMethod = 'bank_transfer'
     else if (bi.payment_method === 'cash') paymentMethod = 'cash'
-    else if (bi.payment_method === 'bank_transfer') paymentMethod = 'bank_transfer'
 
     allInvoices.push({
       id: bi.id,

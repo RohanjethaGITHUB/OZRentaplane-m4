@@ -24,6 +24,15 @@ export default function InvoiceStatusBadge({ status }: { status: PaymentStatus |
         </span>
       )
 
+    case 'PAYMENT_VERIFICATION_PENDING':
+    case 'BANK_TRANSFER_PENDING_REVIEW':
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 whitespace-nowrap">
+          <span className="material-symbols-outlined text-[13px] text-blue-600 animate-pulse">hourglass_empty</span>
+          Payment Verification Pending
+        </span>
+      )
+
     case 'PENDING':
     case 'PAYMENT_REQUIRED':
     case 'AWAITING':

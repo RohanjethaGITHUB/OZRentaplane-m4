@@ -9,6 +9,8 @@ export type PaymentStatus =
   | 'PAID'
   | 'PARTIALLY_PAID'
   | 'PENDING'
+  | 'PAYMENT_VERIFICATION_PENDING'
+  | 'BANK_TRANSFER_PENDING_REVIEW'
   | 'FAILED'
   | 'REFUNDED'
   | 'WAIVED'

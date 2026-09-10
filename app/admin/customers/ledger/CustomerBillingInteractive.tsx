@@ -53,7 +53,7 @@ function cleanAircraftName(aircraft?: string | null): string {
   return aircraft.replace(/^VH-[A-Z0-9]+\s*([·—\-–]\s*)?/i, '').trim() || 'Cessna 172'
 }
 
-function LedgerStatusBadge({ status }: { status: string }) {
+function LedgerStatusBadge({ status, href }: { status: string; href?: string }) {
   const s = String(status || '').toLowerCase()
 
   if (s === 'paid') {
@@ -88,6 +88,21 @@ function LedgerStatusBadge({ status }: { status: string }) {
     s === 'payment_review_pending' ||
     s === 'bank_transfer_pending_review'
   ) {
+    if (href && href !== '#') {
+      return (
+        <Link
+          href={href}
+          className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 hover:bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900 shrink-0 transition-all shadow-xs group cursor-pointer"
+          title="Click to review bank transfer proof"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+          <span>Manual Review</span>
+          <span className="material-symbols-outlined text-[13px] text-amber-700 group-hover:translate-x-0.5 transition-transform">
+            arrow_forward
+          </span>
+        </Link>
+      )
+    }
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200/90 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800 shrink-0">
         <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
@@ -686,7 +701,7 @@ export default function CustomerBillingInteractive({
 
                         {/* Payment Status */}
                         <td className="px-5 py-4">
-                          <LedgerStatusBadge status={r.status} />
+                          <LedgerStatusBadge status={r.status} href={r.href} />
                         </td>
 
                         {/* Method */}
@@ -773,7 +788,7 @@ export default function CustomerBillingInteractive({
                           <span title={r.email} className="text-[10px] text-slate-400 truncate block">{r.email}</span>
                         </div>
                       </div>
-                      <LedgerStatusBadge status={r.status} />
+                      <LedgerStatusBadge status={r.status} href={r.href} />
                     </div>
 
                     {/* Flight Details & Amount Card */}
@@ -1142,7 +1157,7 @@ export default function CustomerBillingInteractive({
                                 {formatCurrency(p.amount_cents)}
                               </span>
                               <div className="mt-0.5">
-                                <LedgerStatusBadge status={p.status} />
+                                <LedgerStatusBadge status={p.status} href={p.href} />
                               </div>
                             </div>
                           </div>

@@ -271,6 +271,9 @@ export default async function CustomerBillingPage({
     const effectiveStatus = pendingSubmission ? 'manual_review' : inv.status
     const receiptUrl = submission?.receipt_storage_path ? receiptUrlMap.get(submission.receipt_storage_path) ?? null : null
 
+    const isBankTransfer = Boolean(pendingSubmission || submission || inv.payment_method === 'bank_transfer')
+    const method = isBankTransfer ? 'bank_transfer' : (inv.payment_method || 'card')
+
     paymentRows.push({
       id: inv.id,
       invoiceId: inv.invoice_number ?? inv.id,
@@ -286,7 +289,7 @@ export default async function CustomerBillingPage({
       paid_at: inv.paid_at || (inv.status === 'paid' ? inv.updated_at || inv.created_at : null),
       amount_cents: inv.subtotal_cents ?? inv.stripe_amount_due_cents ?? inv.total_paid_cents ?? 0,
       status: effectiveStatus,
-      method: inv.payment_method || (submission ? 'bank_transfer' : 'card'),
+      method,
       created: inv.created_at,
       updated: inv.updated_at || inv.paid_at || inv.created_at,
       href: inv.booking_id ? `/admin/bookings/requests/${inv.booking_id}` : '#',
@@ -318,6 +321,8 @@ export default async function CustomerBillingPage({
 
     const receiptUrl = submission?.receipt_storage_path ? receiptUrlMap.get(submission.receipt_storage_path) ?? null : null
     const amountCents = Number(inv.subtotal_cents || inv.checkout_calculated_amount_cents || inv.total_paid_cents || 25000)
+    const isBankTransfer = Boolean(pendingSubmission || submission || inv.payment_method === 'bank_transfer')
+    const method = isBankTransfer ? 'bank_transfer' : (inv.payment_method || 'card')
 
     paymentRows.push({
       id: inv.id,
@@ -334,7 +339,7 @@ export default async function CustomerBillingPage({
       paid_at: inv.paid_at || (inv.status === 'paid' ? inv.created_at : null),
       amount_cents: amountCents,
       status: effectiveStatus,
-      method: inv.payment_method || (submission ? 'bank_transfer' : 'card'),
+      method,
       created: inv.created_at,
       updated: inv.updated_at || inv.created_at,
       href: inv.booking_id ? `/admin/bookings/requests/${inv.booking_id}` : '#',
