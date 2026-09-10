@@ -110,7 +110,7 @@ export default async function CustomerBillingPage() {
         .select(`
           id, booking_id, customer_id, invoice_number, status,
           subtotal_cents, stripe_amount_due_cents, total_paid_cents,
-          created_at, paid_at, pdf_url, payment_method, waiver_reason,
+          created_at, paid_at, payment_method, waiver_reason,
           checkout_outcome, checkout_completed_at, vdo_reading,
           checkout_duration_hours, checkout_rate_cents_per_hour,
           checkout_calculated_amount_cents, checkout_landing_subtotal_cents,
@@ -123,7 +123,7 @@ export default async function CustomerBillingPage() {
         .select(`
           id, booking_id, customer_id, invoice_number, status,
           subtotal_cents, stripe_amount_due_cents, total_paid_cents,
-          created_at, paid_at, pdf_url, payment_method, waiver_reason,
+          created_at, paid_at, payment_method, waiver_reason,
           checkout_outcome, checkout_completed_at, vdo_reading,
           checkout_duration_hours, checkout_rate_cents_per_hour,
           checkout_calculated_amount_cents, checkout_landing_subtotal_cents,
@@ -222,7 +222,7 @@ export default async function CustomerBillingPage() {
       card: paymentMethod === 'card' ? { brand: 'visa', last4: '4242' } : null,
       transactionId: ci.stripe_payment_intent_id || (isPaid ? `txn_${ci.id.slice(0, 10)}` : null),
       provider: paymentMethod === 'card' ? 'Stripe' : undefined,
-      pdfUrl: ci.pdf_url ?? (ci.booking_id ? `/dashboard/bookings/${ci.booking_id}/invoice` : null),
+      pdfUrl: ci.booking_id ? `/dashboard/bookings/${ci.booking_id}/invoice` : null,
       payUrl: `/dashboard/bookings/${ci.booking_id}#payment`,
       items: [
         {
@@ -415,91 +415,7 @@ export default async function CustomerBillingPage() {
     })
   }
 
-  // C. Fallback for Bookings without separate invoice row
-  for (const b of customerBookings ?? []) {
-    if (!seenBookingIds.has(b.id)) {
-      const isCheckout = b.booking_type === 'checkout'
-      const aircraft = one(b.aircraft)
-      const rawName = aircraft?.display_name || 'Cessna 172'
-      const aircraftName = rawName.replace(/^VH-[A-Z0-9]+\s*([·—\-–]\s*)?/i, '').trim() || 'Cessna 172'
-      const reg = aircraft?.registration || 'VH-KZG'
-      const isPaidOrCleared = b.status === 'completed' || b.checkout_lifecycle_status === 'cleared_to_fly'
-
-      const amount = isCheckout ? 250.0 : 330.0
-      const invoiceNumber = isCheckout
-        ? `INV-CHK-${b.id.slice(0, 6).toUpperCase()}`
-        : `INV-BKG-${b.id.slice(0, 6).toUpperCase()}`
-
-      const subtotal = Math.round((amount / 1.1) * 100) / 100
-      const gst = Math.round((amount - subtotal) * 100) / 100
-
-      allInvoices.push({
-        id: b.id,
-        invoiceNumber,
-        bookingId: b.id,
-        bookingReference: b.booking_reference || `BK-${b.id.slice(0, 4).toUpperCase()}`,
-        serviceName: isCheckout ? 'Checkout Flight' : 'Aircraft Rental',
-        aircraftRegistration: reg,
-        aircraftModel: aircraftName,
-        serviceType: isCheckout ? 'checkout' : 'rental',
-        date: b.scheduled_start ?? new Date().toISOString(),
-        amount,
-        paidAmount: isPaidOrCleared ? amount : 0,
-        outstandingAmount: isPaidOrCleared ? 0 : amount,
-        currency: 'AUD',
-        status: isPaidOrCleared ? 'PAID' : 'PENDING',
-        settlementType: 'CUSTOMER_PAYMENT',
-        paymentMethod: 'card',
-        card: { brand: 'visa', last4: '4242' },
-        pdfUrl: `/dashboard/bookings/${b.id}/invoice`,
-        payUrl: `/dashboard/bookings/${b.id}#payment`,
-        items: [
-          {
-            description: `${isCheckout ? 'Checkout flight fee' : 'Flight rental'} — ${aircraftName} (${reg})`,
-            amount,
-          },
-        ],
-        subtotal,
-        gst,
-        total: amount,
-        payments: isPaidOrCleared
-          ? [
-              {
-                id: `pmt-${b.id}`,
-                amount,
-                method: 'card',
-                settlementType: 'CUSTOMER_PAYMENT',
-                status: 'PAID',
-                paidAt: b.scheduled_start,
-                card: { brand: 'visa', last4: '4242' },
-              },
-            ]
-          : [],
-        timeline: [
-          ...(isPaidOrCleared
-            ? [
-                {
-                  id: `tl-1-${b.id}`,
-                  title: 'Payment completed',
-                  description: `$${amount.toFixed(2)} received for ${invoiceNumber}`,
-                  timestamp: formatDateFromISO(b.scheduled_start),
-                  type: 'payment' as const,
-                },
-              ]
-            : []),
-          {
-            id: `tl-2-${b.id}`,
-            title: 'Invoice generated',
-            description: invoiceNumber,
-            timestamp: formatDateFromISO(b.scheduled_start),
-            type: 'invoice' as const,
-          },
-        ],
-      })
-    }
-  }
-
-  // D. Block-time package purchase invoices
+  // C. Block-time package purchase invoices
   for (const p of purchaseRows ?? []) {
     const pkg = one((p as any).package)
     const amount = Number(p.amount_paid || 0)

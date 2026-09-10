@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import Link from 'next/link'
 import { CustomerInvoice } from './types'
 import PaymentMethodBadge from './PaymentMethodBadge'
 import InvoiceStatusBadge from './InvoiceStatusBadge'
@@ -120,6 +121,8 @@ export default function InvoiceTable({
                   inv.serviceType === 'package' ||
                   inv.serviceName?.toLowerCase().includes('package') ||
                   inv.invoiceNumber?.toLowerCase().includes('pkg')
+                const isPending = inv.status === 'PENDING'
+                const payTarget = inv.payUrl || (inv.bookingId ? `/dashboard/bookings/${inv.bookingId}#payment` : '/dashboard/bookings')
 
                 return (
                   <tr key={inv.id} className="hover:bg-slate-50/70 transition-colors group">
@@ -165,13 +168,23 @@ export default function InvoiceTable({
                       {formatAud(inv.amount)}
                     </td>
 
-                    {/* Payment Method */}
+                    {/* Payment Method / Pay Button */}
                     <td className="px-6 py-4 text-xs">
-                      <PaymentMethodBadge
-                        method={inv.paymentMethod}
-                        status={inv.status}
-                        card={inv.card}
-                      />
+                      {isPending ? (
+                        <Link
+                          href={payTarget}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a4fd6] hover:bg-[#153eb5] text-white text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap active:scale-[0.98]"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">credit_card</span>
+                          Pay Invoice
+                        </Link>
+                      ) : (
+                        <PaymentMethodBadge
+                          method={inv.paymentMethod}
+                          status={inv.status}
+                          card={inv.card}
+                        />
+                      )}
                     </td>
 
                     {/* Status */}
@@ -226,6 +239,8 @@ export default function InvoiceTable({
               inv.serviceType === 'package' ||
               inv.serviceName?.toLowerCase().includes('package') ||
               inv.invoiceNumber?.toLowerCase().includes('pkg')
+            const isPending = inv.status === 'PENDING'
+            const payTarget = inv.payUrl || (inv.bookingId ? `/dashboard/bookings/${inv.bookingId}#payment` : '/dashboard/bookings')
 
             return (
               <div key={inv.id} className="p-4 space-y-3 bg-white">
@@ -273,12 +288,24 @@ export default function InvoiceTable({
                     </span>
                   </div>
                   <div className="col-span-2">
-                    <span className="text-slate-400 text-[10px] block uppercase mb-1">Payment Method</span>
-                    <PaymentMethodBadge
-                      method={inv.paymentMethod}
-                      status={inv.status}
-                      card={inv.card}
-                    />
+                    <span className="text-slate-400 text-[10px] block uppercase mb-1">
+                      {isPending ? 'Action Required' : 'Payment Method'}
+                    </span>
+                    {isPending ? (
+                      <Link
+                        href={payTarget}
+                        className="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-[#1a4fd6] hover:bg-[#153eb5] text-white font-bold text-xs transition-all shadow-sm cursor-pointer active:scale-[0.98]"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">credit_card</span>
+                        Pay Invoice
+                      </Link>
+                    ) : (
+                      <PaymentMethodBadge
+                        method={inv.paymentMethod}
+                        status={inv.status}
+                        card={inv.card}
+                      />
+                    )}
                   </div>
                 </div>
 

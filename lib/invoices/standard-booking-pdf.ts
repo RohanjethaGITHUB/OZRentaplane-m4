@@ -61,14 +61,6 @@ export async function generateStandardBookingInvoicePdf(params: {
     .eq('id', invoiceId)
     .single()
 
-  if (invoiceErr || !invoice) {
-    throw new Error(invoiceErr?.message ?? 'Booking invoice not found.')
-  }
-
-  if (invoice.status === 'waived') {
-    return null
-  }
-
   const [{ data: booking, error: bookingErr }, { data: profile, error: profileErr }, { data: landingCharges, error: landingErr }] = await Promise.all([
     supabase
       .from('bookings')
@@ -112,16 +104,19 @@ export async function generateStandardBookingInvoicePdf(params: {
   const grossTotal = roundToCents(invoice.subtotal_cents / 100)
   const subtotal = roundToCents(grossTotal / 1.1)
   const gstAmount = roundToCents(grossTotal - subtotal)
-  const amountPaid = roundToCents((invoice.total_paid_cents ?? 0) / 100)
+  const isWaived = invoice.status === 'waived'
+  const amountPaid = isWaived ? 0 : roundToCents((invoice.total_paid_cents ?? 0) / 100)
   const advanceAppliedAmount = invoice.advance_applied_cents > 0
     ? roundToCents(invoice.advance_applied_cents / 100)
     : undefined
   const documentKind = invoice.status === 'paid' ? 'receipt' : 'tax_invoice'
   const statusLabel = invoice.status === 'paid'
     ? 'PAID'
-    : invoice.status === 'payment_required'
-      ? 'PAYMENT REQUIRED'
-      : String(invoice.status).toUpperCase()
+    : isWaived
+      ? 'WAIVED'
+      : invoice.status === 'payment_required'
+        ? 'PAYMENT REQUIRED'
+        : String(invoice.status).toUpperCase()
   const billingModeLabel = 'Standard Booking'
   const bookingRefLabel = booking.booking_reference ? `Booking: ${booking.booking_reference}` : null
   const billToName = getFullName(profile ?? null)
@@ -154,6 +149,12 @@ export async function generateStandardBookingInvoicePdf(params: {
     }),
   ]
 
+  const footerNote = invoice.status === 'paid'
+    ? 'This receipt confirms payment for your standard booking invoice. All prices include GST.'
+    : isWaived
+      ? 'This invoice has been waived by operations management. No payment is required.'
+      : 'All prices include GST. Payment is required by the due date shown above.'
+
   const pdfBuffer = await generateInvoicePdf({
     documentKind,
     invoiceNumber: invoice.invoice_number,
@@ -172,9 +173,7 @@ export async function generateStandardBookingInvoicePdf(params: {
     subtotal,
     gstAmount,
     total: grossTotal,
-    footerNote: invoice.status === 'paid'
-      ? 'This receipt confirms payment for your standard booking invoice. All prices include GST.'
-      : 'All prices include GST. Payment is required by the due date shown above.',
+    footerNote,
     creditAppliedAmount: advanceAppliedAmount,
     amountPaid,
   })

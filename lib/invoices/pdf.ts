@@ -172,6 +172,18 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
           letter-spacing: 0.12em;
           text-transform: uppercase;
         }
+        .meta .status.paid {
+          background: #ecfdf5;
+          color: #047857;
+        }
+        .meta .status.payment-required {
+          background: #fffbeb;
+          color: #b45309;
+        }
+        .meta .status.waived {
+          background: #f5f3ff;
+          color: #6d28d9;
+        }
         .details {
           display: grid;
           grid-template-columns: 1.1fr 0.9fr;
@@ -284,7 +296,7 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
           <div class="meta">
             <div class="type">${escapeHtml(documentTypeLabel)}</div>
             <h2 class="invoice-number">${escapeHtml(input.invoiceNumber)}</h2>
-            <div class="status">${escapeHtml(input.statusLabel)}</div>
+            <div class="status ${escapeHtml(input.statusLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-'))}">${escapeHtml(input.statusLabel)}</div>
           </div>
         </div>
 

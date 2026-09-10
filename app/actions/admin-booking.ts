@@ -3967,6 +3967,18 @@ export async function finaliseStandardBookingInvoice(input: {
         updated_at: now,
       })
       .eq('id', input.bookingId)
+
+    try {
+      const pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId })
+      if (pdfResult) {
+        console.log('[finaliseStandardBookingInvoice] standard booking waived invoice generated', {
+          invoiceId,
+          pdfUrl: pdfResult.pdfUrl,
+        })
+      }
+    } catch (error) {
+      console.error('[finaliseStandardBookingInvoice] standard booking waived invoice generation failed:', error)
+    }
   } else if (billingBranch.kind === 'invoice' && input.submissionMode === 'mark_paid' && amountDueNowCents > 0) {
     await recordManualPayment({
       bookingId: input.bookingId,

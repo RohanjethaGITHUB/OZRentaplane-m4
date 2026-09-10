@@ -120,7 +120,7 @@ export default async function CustomerBillingPage({
     supabase
       .from('checkout_invoices')
       .select(
-        'id, booking_id, customer_id, invoice_number, status, payment_method, subtotal_cents, checkout_calculated_amount_cents, checkout_landing_subtotal_cents, total_paid_cents, waiver_reason, created_at, paid_at, pdf_url',
+        'id, booking_id, customer_id, invoice_number, status, payment_method, subtotal_cents, checkout_calculated_amount_cents, checkout_landing_subtotal_cents, total_paid_cents, waiver_reason, created_at, paid_at',
       )
       .order('created_at', { ascending: false }),
     supabase
@@ -338,7 +338,7 @@ export default async function CustomerBillingPage({
       created: inv.created_at,
       updated: inv.updated_at || inv.created_at,
       href: inv.booking_id ? `/admin/bookings/requests/${inv.booking_id}` : '#',
-      pdf_url: inv.pdf_url ?? (inv.booking_id ? `/dashboard/bookings/${inv.booking_id}/invoice` : null),
+      pdf_url: inv.booking_id ? `/dashboard/bookings/${inv.booking_id}/invoice` : null,
       bank_reference: submission?.reference,
       bank_submission_id: pendingSubmission?.id,
       receipt_url: receiptUrl,
@@ -380,87 +380,19 @@ export default async function CustomerBillingPage({
     })
   }
 
-  // 4. Fallback for all Bookings that do not have a dedicated invoice row yet
-  for (const b of allBookings ?? []) {
-    if (seenBookingIds.has(b.id)) continue
-    seenBookingIds.add(b.id)
-
-    const isCheckout = b.booking_type === 'checkout'
-    const custId = b.booking_owner_user_id
-    const profile = custId ? profilesById.get(custId) : null
-    const rawAc = b.aircraft as unknown
-    const ac = Array.isArray(rawAc) ? rawAc[0] : (rawAc as { registration?: string; display_name?: string } | null)
-    const aircraftDisplay = ac?.display_name || ac?.registration || 'Cessna 172'
-
-    const submission = submissionByInvoice.get(b.id)
-    const pendingSubmission = latestPendingReviewByInvoice.get(b.id)
-
-    let status = 'pending'
-    if (pendingSubmission) {
-      status = 'manual_review'
-    } else if (isCheckout) {
-      if (b.status === 'checkout_payment_required' || b.checkout_lifecycle_status === 'checkout_payment_required') {
-        status = 'payment_required'
-      } else if (b.status === 'completed' || b.checkout_lifecycle_status === 'cleared_to_fly') {
-        status = 'paid'
-      } else if (b.status === 'cancelled' || b.checkout_lifecycle_status?.startsWith('cancelled')) {
-        status = 'cancelled'
-      } else {
-        status = 'pending'
-      }
-    } else {
-      if (b.status === 'payment_pending') {
-        status = 'payment_required'
-      } else if (b.status === 'completed') {
-        status = 'paid'
-      } else if (b.status === 'cancelled') {
-        status = 'cancelled'
-      } else {
-        status = 'pending'
-      }
-    }
-
-    const amountCents = isCheckout
-      ? 25000
-      : Math.round(Number(b.estimated_hours || 1.0) * 33000)
-
-    const invoiceNumber = isCheckout
-      ? `INV-CHK-${b.id.slice(0, 6).toUpperCase()}`
-      : `INV-BKG-${b.id.slice(0, 6).toUpperCase()}`
-
-    const receiptUrl = submission?.receipt_storage_path ? receiptUrlMap.get(submission.receipt_storage_path) ?? null : null
-
-    paymentRows.push({
-      id: b.id,
-      invoiceId: invoiceNumber,
-      bookingId: b.id,
-      ownerId: custId,
-      customer: profile?.name || b.pic_name || 'Customer',
-      email: profile?.email || '—',
-      booking_ref: b.booking_reference || `BK-${b.id.slice(0, 6).toUpperCase()}`,
-      service_name: isCheckout ? 'Checkout Flight' : 'Aircraft Rental',
-      aircraft: aircraftDisplay,
-      is_checkout: isCheckout,
-      flight_date: b.scheduled_start,
-      paid_at: status === 'paid' ? b.scheduled_start || b.created_at : null,
-      amount_cents: amountCents,
-      status,
-      method: submission ? 'bank_transfer' : 'card',
-      created: b.created_at,
-      updated: b.updated_at || b.created_at,
-      href: `/admin/bookings/requests/${b.id}`,
-      pdf_url: `/dashboard/bookings/${b.id}/invoice`,
-      bank_reference: submission?.reference,
-      bank_submission_id: pendingSubmission?.id,
-      receipt_url: receiptUrl,
-    })
-  }
-
-  // Sort paymentRows descending by updated date
+  // Sort paymentRows strictly newest first
   paymentRows.sort((a, b) => {
-    const dateA = a.updated ? new Date(a.updated).getTime() : 0
-    const dateB = b.updated ? new Date(b.updated).getTime() : 0
-    return dateB - dateA
+    const timeA = Math.max(
+      a.updated ? new Date(a.updated).getTime() : 0,
+      a.created ? new Date(a.created).getTime() : 0,
+      a.paid_at ? new Date(a.paid_at).getTime() : 0,
+    )
+    const timeB = Math.max(
+      b.updated ? new Date(b.updated).getTime() : 0,
+      b.created ? new Date(b.created).getTime() : 0,
+      b.paid_at ? new Date(b.paid_at).getTime() : 0,
+    )
+    return timeB - timeA
   })
 
   // Customer Summaries & Balances

@@ -50,10 +50,6 @@ export async function GET(request: Request, { params }: { params: { id: string }
     .maybeSingle()
 
   if (stdInvoice) {
-    if (stdInvoice.status === 'waived') {
-      return NextResponse.json({ error: 'No PDF is available for waived invoices.' }, { status: 404 })
-    }
-
     if (stdInvoice.pdf_url) {
       return NextResponse.redirect(stdInvoice.pdf_url)
     }
@@ -73,19 +69,15 @@ export async function GET(request: Request, { params }: { params: { id: string }
   // -- 3. Try checkout_invoices (for checkout-type bookings)
   const { data: chkInvoice } = await supabase
     .from('checkout_invoices')
-    .select('id, pdf_url, status, invoice_number, subtotal_cents, total_paid_cents, stripe_amount_due_cents, payment_method, created_at, paid_at, customer_id')
+    .select('id, status, invoice_number, subtotal_cents, total_paid_cents, stripe_amount_due_cents, payment_method, created_at, paid_at, customer_id, waiver_reason')
     .eq('booking_id', params.id)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
   if (chkInvoice) {
-    if (chkInvoice.status === 'waived' || chkInvoice.status === 'cancelled') {
-      return NextResponse.json({ error: 'No PDF available for this checkout invoice.' }, { status: 404 })
-    }
-
-    if (chkInvoice.pdf_url) {
-      return NextResponse.redirect(chkInvoice.pdf_url)
+    if (chkInvoice.status === 'cancelled') {
+      return NextResponse.json({ error: 'No PDF available for this cancelled checkout.' }, { status: 404 })
     }
 
     // Generate a checkout PDF on the fly
@@ -109,22 +101,36 @@ export async function GET(request: Request, { params }: { params: { id: string }
         : null
 
       const isPaid = chkInvoice.status === 'paid'
-      const grossTotal = Number(isPaid
-        ? (chkInvoice.total_paid_cents ?? chkInvoice.subtotal_cents ?? 0)
-        : (chkInvoice.stripe_amount_due_cents ?? chkInvoice.subtotal_cents ?? 0)) / 100
+      const isWaived = chkInvoice.status === 'waived' || Boolean(chkInvoice.waiver_reason)
+      const grossTotal = Number(
+        isWaived
+          ? 0
+          : isPaid
+          ? chkInvoice.total_paid_cents ?? chkInvoice.subtotal_cents ?? 0
+          : chkInvoice.stripe_amount_due_cents ?? chkInvoice.subtotal_cents ?? 0
+      ) / 100
 
-      const subtotal = Math.round(grossTotal / 1.1 * 100) / 100
-      const gstAmount = Math.round((grossTotal - subtotal) * 100) / 100
+      const originalTotal = Number(chkInvoice.subtotal_cents || 25000) / 100
+      const displayTotal = isWaived ? originalTotal : grossTotal
+      const subtotal = Math.round((displayTotal / 1.1) * 100) / 100
+      const gstAmount = Math.round((displayTotal - subtotal) * 100) / 100
       const invoiceNumber = chkInvoice.invoice_number ?? `CHK-${chkInvoice.id.slice(0, 8).toUpperCase()}`
 
       const rawAircraft = booking.aircraft
       const aircraftObj = Array.isArray(rawAircraft) ? rawAircraft[0] : rawAircraft
       const aircraftDesc = (aircraftObj as { display_name?: string; registration?: string } | null)?.display_name || (aircraftObj as { display_name?: string; registration?: string } | null)?.registration || 'Aircraft'
 
+      const statusLabel = isPaid ? 'PAID' : isWaived ? 'WAIVED' : 'PAYMENT REQUIRED'
+      const footerNote = isPaid
+        ? 'This receipt confirms payment for your checkout flight. All prices include GST.'
+        : isWaived
+        ? `This checkout invoice has been waived by operations management${chkInvoice.waiver_reason ? `: ${chkInvoice.waiver_reason}` : ''}. No payment is required.`
+        : 'All prices include GST. Payment is required to proceed with your checkout flight.'
+
       const pdfBuffer = await generateInvoicePdf({
         documentKind: isPaid ? 'receipt' : 'tax_invoice',
         invoiceNumber,
-        statusLabel: isPaid ? 'PAID' : 'PAYMENT REQUIRED',
+        statusLabel,
         createdAt: chkInvoice.created_at ?? new Date().toISOString(),
         paidAt: chkInvoice.paid_at ?? null,
         dueAt: chkInvoice.created_at ?? null,
@@ -139,17 +145,15 @@ export async function GET(request: Request, { params }: { params: { id: string }
           {
             description: `Checkout flight fee — ${aircraftDesc}${booking.booking_reference ? ` (${booking.booking_reference})` : ''}`,
             quantity: 1,
-            unitPrice: grossTotal,
-            amount: grossTotal,
+            unitPrice: displayTotal,
+            amount: displayTotal,
           },
         ],
         subtotal,
         gstAmount,
-        total: grossTotal,
-        amountPaid: isPaid ? grossTotal : undefined,
-        footerNote: isPaid
-          ? 'This receipt confirms payment for your checkout flight. All prices include GST.'
-          : 'All prices include GST. Payment is required to proceed with your checkout flight.',
+        total: displayTotal,
+        amountPaid: isPaid ? grossTotal : 0,
+        footerNote,
       })
 
       // Store it for next time

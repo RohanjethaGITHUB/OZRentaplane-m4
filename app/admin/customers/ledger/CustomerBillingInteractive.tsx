@@ -611,13 +611,16 @@ export default function CustomerBillingInteractive({
                       ? `/dashboard/bookings/${r.bookingId}/invoice`
                       : r.pdf_url ?? null
 
-                    const paidAtDisplay = r.paid_at
-                      ? formatDateFromISO(r.paid_at)
-                      : r.updated
-                      ? formatDateFromISO(r.updated)
-                      : r.created
-                      ? formatDateFromISO(r.created)
-                      : '—'
+                    const paidAtDisplay =
+                      r.status === 'paid'
+                        ? r.paid_at
+                          ? formatDateFromISO(r.paid_at)
+                          : r.updated
+                          ? formatDateFromISO(r.updated)
+                          : r.created
+                          ? formatDateFromISO(r.created)
+                          : '—'
+                        : '—'
 
                     return (
                       <tr key={r.id} className="hover:bg-slate-50/70 transition-colors group">
@@ -627,18 +630,19 @@ export default function CustomerBillingInteractive({
                             <div className="w-8 h-8 rounded-full bg-[#1a4fd6]/10 text-[#1a4fd6] flex items-center justify-center font-bold text-xs shrink-0">
                               {r.customer.trim().charAt(0).toUpperCase() || 'C'}
                             </div>
-                            <div>
+                            <div className="min-w-0 max-w-[170px] lg:max-w-[220px]">
                               {r.ownerId ? (
                                 <Link
                                   href={`/admin/users/${r.ownerId}`}
-                                  className="font-semibold text-[#152d5a] hover:underline hover:text-[#1a4fd6] transition-colors block"
+                                  title={r.customer}
+                                  className="font-semibold text-[#152d5a] hover:underline hover:text-[#1a4fd6] transition-colors truncate block"
                                 >
                                   {r.customer}
                                 </Link>
                               ) : (
-                                <span className="font-semibold text-[#152d5a] block">{r.customer}</span>
+                                <span title={r.customer} className="font-semibold text-[#152d5a] truncate block">{r.customer}</span>
                               )}
-                              <span className="text-[11px] text-slate-400 block">{r.email}</span>
+                              <span title={r.email} className="text-[11px] text-slate-400 truncate block">{r.email}</span>
                             </div>
                           </div>
                         </td>
@@ -687,7 +691,11 @@ export default function CustomerBillingInteractive({
 
                         {/* Method */}
                         <td className="px-5 py-4">
-                          <LedgerMethodBadge method={r.method} />
+                          {r.status === 'payment_required' || r.status === 'pending' ? (
+                            <span className="text-slate-400 text-xs font-medium">—</span>
+                          ) : (
+                            <LedgerMethodBadge method={r.method} />
+                          )}
                         </td>
 
                         {/* Actions: Download Invoice Centered */}
@@ -731,13 +739,16 @@ export default function CustomerBillingInteractive({
                   ? `/dashboard/bookings/${r.bookingId}/invoice`
                   : r.pdf_url ?? null
 
-                const paidAtDisplay = r.paid_at
-                  ? formatDateFromISO(r.paid_at)
-                  : r.updated
-                  ? formatDateFromISO(r.updated)
-                  : r.created
-                  ? formatDateFromISO(r.created)
-                  : '—'
+                const paidAtDisplay =
+                  r.status === 'paid'
+                    ? r.paid_at
+                      ? formatDateFromISO(r.paid_at)
+                      : r.updated
+                      ? formatDateFromISO(r.updated)
+                      : r.created
+                      ? formatDateFromISO(r.created)
+                      : '—'
+                    : '—'
 
                 return (
                   <div key={r.id} className="p-4 space-y-3 hover:bg-slate-50/60 transition-colors">
@@ -747,18 +758,19 @@ export default function CustomerBillingInteractive({
                         <div className="w-8 h-8 rounded-full bg-[#1a4fd6]/10 text-[#1a4fd6] flex items-center justify-center font-bold text-xs shrink-0">
                           {r.customer.trim().charAt(0).toUpperCase() || 'C'}
                         </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           {r.ownerId ? (
                             <Link
                               href={`/admin/users/${r.ownerId}`}
+                              title={r.customer}
                               className="font-bold text-xs text-[#152d5a] hover:underline hover:text-[#1a4fd6] truncate block"
                             >
                               {r.customer}
                             </Link>
                           ) : (
-                            <span className="font-bold text-xs text-[#152d5a] truncate block">{r.customer}</span>
+                            <span title={r.customer} className="font-bold text-xs text-[#152d5a] truncate block">{r.customer}</span>
                           )}
-                          <span className="text-[11px] text-slate-400 truncate block">{r.email}</span>
+                          <span title={r.email} className="text-[10px] text-slate-400 truncate block">{r.email}</span>
                         </div>
                       </div>
                       <LedgerStatusBadge status={r.status} />
@@ -805,7 +817,11 @@ export default function CustomerBillingInteractive({
                       </div>
                       <div>
                         <span className="text-slate-400 text-[10px] block uppercase font-bold mb-0.5">Method</span>
-                        <LedgerMethodBadge method={r.method} />
+                        {r.status === 'payment_required' || r.status === 'pending' ? (
+                          <span className="text-slate-400 text-xs font-medium">—</span>
+                        ) : (
+                          <LedgerMethodBadge method={r.method} />
+                        )}
                       </div>
                     </div>
 
@@ -867,14 +883,15 @@ export default function CustomerBillingInteractive({
                           <div className="w-8 h-8 rounded-full bg-[#152d5a]/10 text-[#152d5a] flex items-center justify-center font-bold text-xs shrink-0">
                             {cust.name.trim().charAt(0).toUpperCase() || 'C'}
                           </div>
-                          <div>
+                          <div className="min-w-0 max-w-[170px] lg:max-w-[220px]">
                             <Link
                               href={`/admin/users/${cust.id}`}
-                              className="font-semibold text-[#152d5a] hover:underline hover:text-[#1a4fd6] transition-colors block"
+                              title={cust.name}
+                              className="font-semibold text-[#152d5a] hover:underline hover:text-[#1a4fd6] transition-colors truncate block"
                             >
                               {cust.name}
                             </Link>
-                            <span className="text-[11px] text-slate-400 block">{cust.email}</span>
+                            <span title={cust.email} className="text-[11px] text-slate-400 truncate block">{cust.email}</span>
                           </div>
                         </div>
                       </td>
@@ -1135,7 +1152,7 @@ export default function CustomerBillingInteractive({
                             <div className="flex flex-wrap items-center gap-1.5">
                               <span>Paid: <strong className="text-slate-700 font-medium">{pDate}</strong></span>
                               <span>·</span>
-                              <span>Method: <strong className="text-slate-700 font-medium">{p.method.replace(/_/g, ' ')}</strong></span>
+                              <span>Method: <strong className="text-slate-700 font-medium">{p.status === 'payment_required' || p.status === 'pending' ? '—' : p.method.replace(/_/g, ' ')}</strong></span>
                               {p.bank_reference && (
                                 <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-mono text-[10px]">
                                   Ref: {p.bank_reference}
