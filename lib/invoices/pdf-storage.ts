@@ -52,13 +52,15 @@ export async function storeInvoicePdf({
   const { data: publicUrlData } = admin.storage.from('invoice_pdfs').getPublicUrl(storagePath)
   const pdfUrl = publicUrlData.publicUrl
 
-  const { error: updateError } = await admin
-    .from(table)
-    .update({ pdf_url: pdfUrl })
-    .eq('id', rowId)
+  if (table !== 'checkout_invoices') {
+    const { error: updateError } = await admin
+      .from(table)
+      .update({ pdf_url: pdfUrl })
+      .eq('id', rowId)
 
-  if (updateError) {
-    throw updateError
+    if (updateError) {
+      console.warn(`[pdf-storage] Could not update pdf_url on ${table}:`, updateError.message)
+    }
   }
 
   return {

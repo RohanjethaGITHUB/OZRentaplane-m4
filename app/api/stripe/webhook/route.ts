@@ -1375,36 +1375,9 @@ export async function POST(req: Request) {
         });
 
       try {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("email")
-          .eq("id", customerId)
-          .single();
-
-        if (profile?.email) {
-          const template = paymentConfirmedEmail("Payment has been received and recorded for your flight.");
-          await sendEmail({
-            to: profile.email,
-            subject: template.subject,
-            html: template.html,
-            eventType: "post_flight_payment_received",
-            entityType: "booking",
-            entityId: bookingId,
-          });
-        }
-
-        await supabase.from("verification_events").insert({
-          user_id: customerId,
-          actor_role: "system",
-          event_type: "approved",
-          title: "Flight payment received - booking complete",
-          body: "Your flight payment has been received. Your booking is now complete.",
-          is_read: false,
-          email_status: "skipped",
-        });
-
+        let pdfResult: any = null;
         try {
-          const pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId })
+          pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId });
           if (pdfResult) {
             console.log("[webhook] Standard booking receipt generated", {
               invoiceId,
@@ -1416,6 +1389,100 @@ export async function POST(req: Request) {
             message: pdfErr?.message,
           });
         }
+
+        const [{ data: profile }, { data: bookingRecord }, { data: invRecord }] = await Promise.all([
+          supabase.from("profiles").select("email, full_name").eq("id", customerId).single(),
+          supabase
+            .from("bookings")
+            .select("booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, aircraft_type)")
+            .eq("id", bookingId)
+            .maybeSingle(),
+          supabase
+            .from("booking_invoices")
+            .select("invoice_number, subtotal_cents")
+            .eq("id", invoiceId)
+            .maybeSingle(),
+        ]);
+
+        const aircraftData = Array.isArray(bookingRecord?.aircraft) ? bookingRecord.aircraft[0] : bookingRecord?.aircraft;
+        const rawType = aircraftData?.aircraft_type || (aircraftData as any)?.model || 'Cessna 172N';
+        const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N');
+        const aircraftLabel = aircraftData?.registration
+          ? `${cleanType} (${aircraftData.registration})`
+          : "Cessna 172N (VH-KZG)";
+
+        const flightDateFormatted = bookingRecord?.scheduled_start
+          ? new Date(bookingRecord.scheduled_start).toLocaleDateString("en-AU", {
+              timeZone: "Australia/Sydney",
+              dateStyle: "full",
+            })
+          : null;
+
+        const amountFormatted = invRecord?.subtotal_cents
+          ? `$${(invRecord.subtotal_cents / 100).toFixed(2)} AUD`
+          : `$${(amountPaid / 100).toFixed(2)} AUD`;
+
+        if (profile?.email) {
+          const { flightPaymentSettledEmail } = await import("@/lib/email/templates/payment");
+          const template = flightPaymentSettledEmail({
+            bookingId,
+            bookingReference: bookingRecord?.booking_reference ?? null,
+            flightDate: flightDateFormatted,
+            aircraft: aircraftLabel,
+            amountPaid: amountFormatted,
+            paymentMethod: "card",
+            invoiceNumber: invRecord?.invoice_number ?? null,
+            pdfUrl: pdfResult?.pdfUrl ?? null,
+            message: "Payment has been received and recorded for your flight. Your booking is now complete.",
+          });
+
+          await sendEmail({
+            to: profile.email,
+            subject: template.subject,
+            html: template.html,
+            eventType: "post_flight_payment_received",
+            entityType: "booking",
+            entityId: bookingId,
+            attachments: pdfResult ? [pdfResult.attachment] : undefined,
+          });
+        }
+
+        if (ADMIN_EMAIL) {
+          const { adminFlightPaymentSettledEmail } = await import("@/lib/email/templates/payment");
+          const adminTemplate = adminFlightPaymentSettledEmail({
+            bookingId,
+            customerName: profile?.full_name,
+            customerEmail: profile?.email,
+            bookingReference: bookingRecord?.booking_reference ?? null,
+            flightDate: flightDateFormatted,
+            aircraft: aircraftLabel,
+            amountPaid: amountFormatted,
+            paymentMethod: "card",
+            invoiceNumber: invRecord?.invoice_number ?? null,
+            note: "Paid online via Stripe",
+            pdfUrl: pdfResult?.pdfUrl ?? null,
+          });
+
+          await sendEmail({
+            to: ADMIN_EMAIL,
+            subject: adminTemplate.subject,
+            html: adminTemplate.html,
+            eventType: "admin_payment_settled",
+            entityType: "booking",
+            entityId: bookingId,
+            attachments: pdfResult ? [pdfResult.attachment] : undefined,
+          }).catch((err) => console.error("[webhook] standard admin email failed:", err));
+        }
+
+        await supabase.from("verification_events").insert({
+          user_id: customerId,
+          actor_role: "system",
+          event_type: "approved",
+          title: "Flight payment received - booking complete",
+          body: "Your flight payment has been received. Your booking is now complete.",
+          is_read: false,
+          email_status: "skipped",
+        });
       } catch (notifEx: any) {
         console.warn("[webhook] Standard notification failed (non-fatal)", notifEx?.message);
       }
@@ -1467,7 +1534,7 @@ export async function POST(req: Request) {
 
     const { data: invoiceRow } = await supabase
       .from("checkout_invoices")
-      .select("checkout_outcome")
+      .select("checkout_outcome, invoice_number, subtotal_cents, amount_cents")
       .eq("id", invoiceId)
       .single();
 
@@ -1494,14 +1561,59 @@ export async function POST(req: Request) {
     }
 
     try {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("email")
-        .eq("id", customerId)
-        .single();
+      let pdfResult: any = null;
+      try {
+        const { generateCheckoutBookingInvoicePdf } = await import("@/lib/invoices/checkout-booking-pdf");
+        pdfResult = await generateCheckoutBookingInvoicePdf({
+          supabase,
+          bookingId,
+          invoiceId,
+        });
+      } catch (pdfErr) {
+        console.warn("[webhook] Checkout invoice PDF generation failed (non-fatal):", pdfErr);
+      }
+
+      const [{ data: profile }, { data: bookingRecord }] = await Promise.all([
+        supabase.from("profiles").select("email, full_name").eq("id", customerId).single(),
+        supabase
+          .from("bookings")
+          .select("booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, aircraft_type)")
+          .eq("id", bookingId)
+          .maybeSingle(),
+      ]);
+
+      const aircraftData = Array.isArray(bookingRecord?.aircraft) ? bookingRecord.aircraft[0] : bookingRecord?.aircraft;
+      const rawType = aircraftData?.aircraft_type || (aircraftData as any)?.model || 'Cessna 172N';
+      const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N');
+      const aircraftLabel = aircraftData?.registration
+        ? `${cleanType} (${aircraftData.registration})`
+        : "Cessna 172N (VH-KZG)";
+
+      const flightDateFormatted = bookingRecord?.scheduled_start
+        ? new Date(bookingRecord.scheduled_start).toLocaleDateString("en-AU", {
+            timeZone: "Australia/Sydney",
+            dateStyle: "full",
+          })
+        : null;
+
+      const totalCents = invoiceRow?.amount_cents ?? invoiceRow?.subtotal_cents ?? amountPaid;
+      const amountFormatted = `$${(totalCents / 100).toFixed(2)} AUD`;
+      const invoiceNumber = invoiceRow?.invoice_number ?? null;
 
       if (profile?.email) {
-        const template = paymentConfirmedEmail(notifBody);
+        const { flightPaymentSettledEmail } = await import("@/lib/email/templates/payment");
+        const template = flightPaymentSettledEmail({
+          bookingId,
+          bookingReference: bookingRecord?.booking_reference ?? null,
+          flightDate: flightDateFormatted,
+          aircraft: aircraftLabel,
+          amountPaid: amountFormatted,
+          paymentMethod: "card",
+          invoiceNumber,
+          pdfUrl: pdfResult?.pdfUrl ?? null,
+          message: notifBody,
+        });
+
         await sendEmail({
           to: profile.email,
           subject: template.subject,
@@ -1509,8 +1621,37 @@ export async function POST(req: Request) {
           eventType: "payment_confirmed",
           entityType: "checkout",
           entityId: bookingId,
-          metadata: { checkoutOutcome: checkoutOutcome ?? null },
+          metadata: { checkoutOutcome: checkoutOutcome ?? null, paymentMethod: "card" },
+          attachments: pdfResult ? [pdfResult.attachment] : undefined,
         });
+      }
+
+      if (ADMIN_EMAIL) {
+        const { adminFlightPaymentSettledEmail } = await import("@/lib/email/templates/payment");
+        const adminTemplate = adminFlightPaymentSettledEmail({
+          bookingId,
+          customerName: profile?.full_name,
+          customerEmail: profile?.email,
+          bookingReference: bookingRecord?.booking_reference ?? null,
+          flightDate: flightDateFormatted,
+          aircraft: aircraftLabel,
+          amountPaid: amountFormatted,
+          paymentMethod: "card",
+          invoiceNumber,
+          note: "Paid online via Stripe",
+          pdfUrl: pdfResult?.pdfUrl ?? null,
+        });
+
+        await sendEmail({
+          to: ADMIN_EMAIL,
+          subject: adminTemplate.subject,
+          html: adminTemplate.html,
+          eventType: "admin_payment_settled",
+          entityType: "checkout",
+          entityId: bookingId,
+          metadata: { checkoutOutcome: checkoutOutcome ?? null, paymentMethod: "card" },
+          attachments: pdfResult ? [pdfResult.attachment] : undefined,
+        }).catch((err) => console.error("[webhook] checkout admin email failed:", err));
       }
 
       const { error: notifErr } = await supabase.from("verification_events").insert({

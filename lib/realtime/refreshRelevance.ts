@@ -52,16 +52,18 @@ export function isCustomerLayoutRefreshRelevant(
     case 'payment:updated':
       return (
         pathname === '/dashboard' ||
+        pathStarts(pathname, '/dashboard/billing') ||
         pathStarts(pathname, '/dashboard/bookings') ||
         pathStarts(pathname, '/dashboard/checkout') ||
         pathStarts(pathname, '/dashboard/purchases')
       )
     case 'flight_record:updated':
-      return pathname === '/dashboard' || pathStarts(pathname, '/dashboard/bookings')
+      return pathname === '/dashboard' || pathStarts(pathname, '/dashboard/bookings') || pathStarts(pathname, '/dashboard/billing')
     case 'verification:updated':
     case 'clearance:updated':
       return (
         pathname === '/dashboard' ||
+        pathStarts(pathname, '/dashboard/billing') ||
         pathStarts(pathname, '/dashboard/documents') ||
         pathStarts(pathname, '/dashboard/bookings') ||
         pathStarts(pathname, '/dashboard/checkout') ||
@@ -71,13 +73,14 @@ export function isCustomerLayoutRefreshRelevant(
     case 'ledger:updated':
       return (
         pathname === '/dashboard' ||
+        pathStarts(pathname, '/dashboard/billing') ||
         pathStarts(pathname, '/dashboard/pricing') ||
         pathStarts(pathname, '/dashboard/purchases') ||
         pathStarts(pathname, '/dashboard/bookings')
       )
     case 'ops:queue':
     case 'ops:counts':
-      return pathname === '/dashboard' || pathStarts(pathname, '/dashboard/bookings')
+      return pathname === '/dashboard' || pathStarts(pathname, '/dashboard/billing') || pathStarts(pathname, '/dashboard/bookings')
     default:
       return pathname === '/dashboard'
   }

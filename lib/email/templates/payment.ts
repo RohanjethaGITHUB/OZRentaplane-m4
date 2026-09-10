@@ -144,3 +144,82 @@ export function flightPaymentWaivedEmail(details: {
     }),
   }
 }
+
+/** Bank transfer payment proof rejected email. */
+export function bankTransferProofRejectedEmail(details: {
+  bookingId: string
+  bookingReference?: string | null
+  flightDate?: string | null
+  aircraft?: string | null
+  invoiceNumber?: string | null
+  rejectionReason: string
+}) {
+  return {
+    subject: `Payment verification update for booking${details.bookingReference ? ` ${details.bookingReference}` : ''} — OZ Rent A Plane`,
+    html: renderBaseTemplate({
+      headline: 'Payment proof review update',
+      message: `Your submitted bank transfer proof could not be verified by operations management. Reason: ${details.rejectionReason}. Please complete payment online using your card or re-submit a clear bank transfer receipt.`,
+      details: [
+        ...(details.bookingReference ? [{ label: 'Booking Reference', value: details.bookingReference }] : []),
+        ...(details.aircraft ? [{ label: 'Aircraft', value: details.aircraft }] : []),
+        ...(details.flightDate ? [{ label: 'Flight Date', value: details.flightDate }] : []),
+        ...(details.invoiceNumber ? [{ label: 'Invoice Number', value: details.invoiceNumber }] : []),
+        { label: 'Status', value: 'Payment Required / Verification Failed' },
+        { label: 'Reviewer Note', value: details.rejectionReason },
+      ],
+      ctaLabel: 'Review & Pay Now',
+      ctaUrl: `${appUrl}/dashboard/bookings/${details.bookingId}#payment`,
+    }),
+  }
+}
+
+/** Admin notification when flight payment is received / settled. */
+export function adminFlightPaymentSettledEmail(details: {
+  bookingId: string
+  customerName?: string | null
+  customerEmail?: string | null
+  bookingReference?: string | null
+  flightDate?: string | null
+  aircraft?: string | null
+  amountPaid: string
+  paymentMethod?: string | null
+  invoiceNumber?: string | null
+  note?: string | null
+  pdfUrl?: string | null
+}) {
+  const methodText = details.paymentMethod
+    ? details.paymentMethod === 'cash'
+      ? 'Cash'
+      : details.paymentMethod === 'card_in_person'
+      ? 'Card (In Person)'
+      : details.paymentMethod === 'bank_transfer'
+      ? 'Bank Transfer'
+      : details.paymentMethod === 'credit'
+      ? 'Account Credit'
+      : details.paymentMethod === 'card' || details.paymentMethod === 'stripe'
+      ? 'Card (Online)'
+      : details.paymentMethod
+    : 'Direct Payment'
+
+  return {
+    subject: `[Payment Received] ${details.amountPaid} for ${details.bookingReference || details.invoiceNumber || 'Booking'} — ${details.customerName || 'Customer'}`,
+    html: renderBaseTemplate({
+      headline: 'Flight payment confirmed',
+      message: `Payment of ${details.amountPaid} has been settled via ${methodText} for ${details.customerName || 'the customer'}.`,
+      details: [
+        ...(details.customerName ? [{ label: 'Customer', value: `${details.customerName} (${details.customerEmail || '—'})` }] : []),
+        ...(details.bookingReference ? [{ label: 'Booking Reference', value: details.bookingReference }] : []),
+        ...(details.aircraft ? [{ label: 'Aircraft', value: details.aircraft }] : []),
+        ...(details.flightDate ? [{ label: 'Flight Date', value: details.flightDate }] : []),
+        ...(details.invoiceNumber ? [{ label: 'Invoice Number', value: details.invoiceNumber }] : []),
+        { label: 'Amount Paid', value: details.amountPaid },
+        { label: 'Payment Method', value: methodText },
+        ...(details.note ? [{ label: 'Settlement Note', value: details.note }] : []),
+      ],
+      ctaLabel: 'View in Admin Command',
+      ctaUrl: `${appUrl}/admin/bookings/requests/${details.bookingId}`,
+      extraHtml: invoicePdfExtraHtml(details.pdfUrl ?? undefined),
+    }),
+  }
+}
+

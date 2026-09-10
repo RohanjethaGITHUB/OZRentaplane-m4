@@ -910,10 +910,22 @@ export async function adminApproveBankTransfer(submissionId: string, bookingId: 
           .maybeSingle(),
         supabase
           .from("checkout_invoices")
-          .select("amount_cents, invoice_number")
+          .select("amount_cents, subtotal_cents, invoice_number")
           .eq("id", sub.invoice_id)
           .maybeSingle(),
       ]);
+
+      let pdfResult: any = null;
+      try {
+        const { generateCheckoutBookingInvoicePdf } = await import("@/lib/invoices/checkout-booking-pdf");
+        pdfResult = await generateCheckoutBookingInvoicePdf({
+          supabase,
+          bookingId,
+          invoiceId: sub.invoice_id,
+        });
+      } catch (pdfErr) {
+        console.warn("[adminApproveBankTransfer] PDF generation failed (non-fatal):", pdfErr);
+      }
 
       if (profile?.email) {
         const aircraftData = Array.isArray(bookingRecord?.aircraft)
@@ -932,9 +944,9 @@ export async function adminApproveBankTransfer(submissionId: string, bookingId: 
             })
           : null;
 
-        const amountFormatted = invRecord?.amount_cents
-          ? `$${(invRecord.amount_cents / 100).toFixed(2)} AUD`
-          : "$290.00 AUD";
+        const amountCents = invRecord?.amount_cents ?? invRecord?.subtotal_cents ?? 25000;
+        const amountFormatted = `$${(amountCents / 100).toFixed(2)} AUD`;
+        const invoiceNumber = invRecord?.invoice_number ?? null;
 
         const template = flightPaymentSettledEmail({
           bookingId,
@@ -943,7 +955,8 @@ export async function adminApproveBankTransfer(submissionId: string, bookingId: 
           aircraft: aircraftLabel,
           amountPaid: amountFormatted,
           paymentMethod: "bank_transfer",
-          invoiceNumber: invRecord?.invoice_number ?? null,
+          invoiceNumber,
+          pdfUrl: pdfResult?.pdfUrl ?? null,
           message: notifBody,
         });
 
@@ -955,7 +968,37 @@ export async function adminApproveBankTransfer(submissionId: string, bookingId: 
           entityType: "checkout",
           entityId: bookingId,
           metadata: { outcome: outcome ?? null },
-        }).catch((error) => console.error("[adminApproveBankTransfer] email failed:", error));
+          attachments: pdfResult ? [pdfResult.attachment] : undefined,
+        }).catch((error) => console.error("[adminApproveBankTransfer] customer email failed:", error));
+
+        const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'devjamaviation@gmail.com';
+        if (ADMIN_EMAIL) {
+          const { adminFlightPaymentSettledEmail } = await import("@/lib/email/templates/payment");
+          const adminTemplate = adminFlightPaymentSettledEmail({
+            bookingId,
+            customerName: profile.full_name,
+            customerEmail: profile.email,
+            bookingReference: bookingRecord?.booking_reference ?? null,
+            flightDate: flightDateFormatted,
+            aircraft: aircraftLabel,
+            amountPaid: amountFormatted,
+            paymentMethod: "bank_transfer",
+            invoiceNumber,
+            note: "Bank transfer payment proof approved by admin.",
+            pdfUrl: pdfResult?.pdfUrl ?? null,
+          });
+
+          await sendEmail({
+            to: ADMIN_EMAIL,
+            subject: adminTemplate.subject,
+            html: adminTemplate.html,
+            eventType: "admin_bank_transfer_approved",
+            entityType: "checkout",
+            entityId: bookingId,
+            metadata: { outcome: outcome ?? null },
+            attachments: pdfResult ? [pdfResult.attachment] : undefined,
+          }).catch((err) => console.error("[adminApproveBankTransfer] admin email failed:", err));
+        }
       }
     }
   } catch (notifErr: any) {
@@ -1393,11 +1436,9 @@ export async function adminRejectBankTransfer(submissionId: string, bookingId: s
     throw new Error(error.message || "Failed to reject bank transfer.");
   }
 
-  // Notify customer? The prompt says "Notify the customer to upload a better receipt or contact admin."
-  // We can just add a verification_event for this.
   const { data: sub } = await supabase
     .from("checkout_bank_transfer_submissions")
-    .select("customer_id")
+    .select("customer_id, invoice_id")
     .eq("id", submissionId)
     .single();
 
@@ -1409,19 +1450,54 @@ export async function adminRejectBankTransfer(submissionId: string, bookingId: s
       title: "Bank Transfer Proof Rejected",
       body: `Your bank transfer payment proof was rejected. Note: ${adminNote}. Please upload a new receipt or contact support.`,
       is_read: false,
-      email_status: "pending"
+      email_status: "pending",
     });
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("email")
-      .eq("id", sub.customer_id)
-      .single();
+    const [{ data: profile }, { data: bookingRecord }, { data: invRecord }] = await Promise.all([
+      supabase.from("profiles").select("email, full_name").eq("id", sub.customer_id).single(),
+      supabase
+        .from("bookings")
+        .select("booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, aircraft_type)")
+        .eq("id", bookingId)
+        .maybeSingle(),
+      supabase
+        .from("checkout_invoices")
+        .select("amount_cents, subtotal_cents, invoice_number")
+        .eq("id", sub.invoice_id)
+        .maybeSingle(),
+    ]);
+
     if (profile?.email) {
+      const aircraftData = Array.isArray(bookingRecord?.aircraft)
+        ? bookingRecord.aircraft[0]
+        : bookingRecord?.aircraft;
+      const rawType = aircraftData?.aircraft_type || (aircraftData as any)?.model || 'Cessna 172N';
+      const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N');
+      const aircraftLabel = aircraftData?.registration
+        ? `${cleanType} (${aircraftData.registration})`
+        : "Cessna 172N (VH-KZG)";
+
+      const flightDateFormatted = bookingRecord?.scheduled_start
+        ? new Date(bookingRecord.scheduled_start).toLocaleDateString("en-AU", {
+            timeZone: "Australia/Sydney",
+            dateStyle: "full",
+          })
+        : null;
+
+      const { bankTransferProofRejectedEmail } = await import("@/lib/email/templates/payment");
+      const template = bankTransferProofRejectedEmail({
+        bookingId,
+        bookingReference: bookingRecord?.booking_reference ?? null,
+        flightDate: flightDateFormatted,
+        aircraft: aircraftLabel,
+        invoiceNumber: invRecord?.invoice_number ?? null,
+        rejectionReason: adminNote,
+      });
+
       await sendEmail({
         to: profile.email,
-        subject: "Payment proof update",
-        html: paymentConfirmedEmail(`Your bank transfer payment proof was rejected. Note: ${adminNote}. Please upload a new receipt or contact support.`).html,
+        subject: template.subject,
+        html: template.html,
         eventType: "bank_transfer_rejected",
         entityType: "payment",
         entityId: bookingId,
@@ -1564,8 +1640,21 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
       email_status: "skipped",
     });
 
+    let pdfResult: any = null;
+    try {
+      pdfResult = await generateStandardBookingInvoicePdf({ supabase: admin, invoiceId: invoice.id });
+      if (pdfResult) {
+        console.log('[recordManualPayment] standard booking receipt generated', {
+          invoiceId: invoice.id,
+          pdfUrl: pdfResult.pdfUrl,
+        });
+      }
+    } catch (error) {
+      console.error('[recordManualPayment] standard booking receipt generation failed:', error);
+    }
+
     const [{ data: profile }, { data: invoiceRecord }] = await Promise.all([
-      admin.from("profiles").select("email").eq("id", booking.booking_owner_user_id).single(),
+      admin.from("profiles").select("email, full_name").eq("id", booking.booking_owner_user_id).single(),
       admin
         .from("invoices")
         .select("invoice_number, total, pdf_url")
@@ -1577,8 +1666,8 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
 
     if (!input.suppressEmail && profile?.email) {
       const aircraftData = Array.isArray(booking?.aircraft) ? booking.aircraft[0] : booking?.aircraft;
-      const rawType = aircraftData?.aircraft_type || (aircraftData as any)?.model || 'Cessna 172N'
-      const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
+      const rawType = aircraftData?.aircraft_type || (aircraftData as any)?.model || 'Cessna 172N';
+      const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N');
       const aircraftLabel = aircraftData?.registration
         ? `${cleanType} (${aircraftData.registration})`
         : "Cessna 172N (VH-KZG)";
@@ -1602,13 +1691,10 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
         amountPaid: amountFormatted,
         paymentMethod: methodLabel,
         invoiceNumber: invoiceRecord?.invoice_number ?? null,
-        pdfUrl: invoiceRecord?.pdf_url ?? null,
+        pdfUrl: pdfResult?.pdfUrl ?? invoiceRecord?.pdf_url ?? null,
         message: "Payment has been received and recorded for your flight. Your booking is now complete.",
       });
 
-      // Manual settlement is complete at this point; the confirmation email
-      // can be queued in the background so admin callers do not wait on the
-      // external mail API before they see success.
       void sendEmail({
         to: profile.email,
         subject: template.subject,
@@ -1617,19 +1703,37 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
         entityType: "booking",
         entityId: input.bookingId,
         metadata: { paymentMethod },
+        attachments: pdfResult ? [pdfResult.attachment] : undefined,
       }).catch((error) => console.error('[recordManualPayment] email failed:', error));
-    }
 
-    try {
-      const pdfResult = await generateStandardBookingInvoicePdf({ supabase: admin, invoiceId: invoice.id })
-      if (pdfResult) {
-        console.log('[recordManualPayment] standard booking receipt generated', {
-          invoiceId: invoice.id,
-          pdfUrl: pdfResult.pdfUrl,
-        })
+      const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'devjamaviation@gmail.com';
+      if (ADMIN_EMAIL) {
+        const { adminFlightPaymentSettledEmail } = await import("@/lib/email/templates/payment");
+        const adminTemplate = adminFlightPaymentSettledEmail({
+          bookingId: input.bookingId,
+          customerName: profile.full_name,
+          customerEmail: profile.email,
+          bookingReference: booking?.booking_reference ?? null,
+          flightDate: flightDateFormatted,
+          aircraft: aircraftLabel,
+          amountPaid: amountFormatted,
+          paymentMethod: methodLabel,
+          invoiceNumber: invoiceRecord?.invoice_number ?? null,
+          note: trimmedNote,
+          pdfUrl: pdfResult?.pdfUrl ?? invoiceRecord?.pdf_url ?? null,
+        });
+
+        void sendEmail({
+          to: ADMIN_EMAIL,
+          subject: adminTemplate.subject,
+          html: adminTemplate.html,
+          eventType: "admin_payment_settled",
+          entityType: "booking",
+          entityId: input.bookingId,
+          metadata: { paymentMethod },
+          attachments: pdfResult ? [pdfResult.attachment] : undefined,
+        }).catch((err) => console.error("[recordManualPayment] admin email failed:", err));
       }
-    } catch (error) {
-      console.error('[recordManualPayment] standard booking receipt generation failed:', error)
     }
   }
 

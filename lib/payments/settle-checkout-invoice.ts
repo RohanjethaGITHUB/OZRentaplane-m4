@@ -111,7 +111,19 @@ export async function settleCheckoutInvoiceManually(
     email_status: "skipped",
   });
 
-  const [{ data: profile }, { data: bookingRecord }] = await Promise.all([
+  let pdfResult: any = null;
+  try {
+    const { generateCheckoutBookingInvoicePdf } = await import("@/lib/invoices/checkout-booking-pdf");
+    pdfResult = await generateCheckoutBookingInvoicePdf({
+      supabase,
+      bookingId: input.bookingId,
+      invoiceId: invoice.id,
+    });
+  } catch (pdfErr) {
+    console.warn("[settleCheckoutInvoiceManually] PDF generation failed (non-fatal):", pdfErr);
+  }
+
+  const [{ data: profile }, { data: bookingRecord }, { data: invRecord }] = await Promise.all([
     supabase
       .from("profiles")
       .select("email, full_name")
@@ -122,7 +134,15 @@ export async function settleCheckoutInvoiceManually(
       .select("booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, aircraft_type)")
       .eq("id", input.bookingId)
       .maybeSingle(),
+    supabase
+      .from("checkout_invoices")
+      .select("invoice_number")
+      .eq("id", invoice.id)
+      .maybeSingle(),
   ]);
+
+  const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'devjamaviation@gmail.com';
+  const invoiceNumber = invRecord?.invoice_number ?? null;
 
   if (profile?.email) {
     const aircraftData = Array.isArray(bookingRecord?.aircraft)
@@ -150,6 +170,8 @@ export async function settleCheckoutInvoiceManually(
       aircraft: aircraftLabel,
       amountPaid: amountFormatted,
       paymentMethod: input.paymentMethod,
+      invoiceNumber,
+      pdfUrl: pdfResult?.pdfUrl ?? null,
       message: notifBody,
     });
 
@@ -161,6 +183,35 @@ export async function settleCheckoutInvoiceManually(
       entityType: "checkout",
       entityId: input.bookingId,
       metadata: { checkoutOutcome: checkoutOutcome ?? null, paymentMethod: input.paymentMethod },
-    });
+      attachments: pdfResult ? [pdfResult.attachment] : undefined,
+    }).catch((err) => console.error("[settleCheckoutInvoiceManually] customer email failed:", err));
+
+    if (ADMIN_EMAIL) {
+      const { adminFlightPaymentSettledEmail } = await import("@/lib/email/templates/payment");
+      const adminTemplate = adminFlightPaymentSettledEmail({
+        bookingId: input.bookingId,
+        customerName: profile.full_name,
+        customerEmail: profile.email,
+        bookingReference: bookingRecord?.booking_reference ?? null,
+        flightDate: flightDateFormatted,
+        aircraft: aircraftLabel,
+        amountPaid: amountFormatted,
+        paymentMethod: input.paymentMethod,
+        invoiceNumber,
+        note: trimmedNote,
+        pdfUrl: pdfResult?.pdfUrl ?? null,
+      });
+
+      await sendEmail({
+        to: ADMIN_EMAIL,
+        subject: adminTemplate.subject,
+        html: adminTemplate.html,
+        eventType: "admin_payment_settled",
+        entityType: "checkout",
+        entityId: input.bookingId,
+        metadata: { checkoutOutcome: checkoutOutcome ?? null, paymentMethod: input.paymentMethod },
+        attachments: pdfResult ? [pdfResult.attachment] : undefined,
+      }).catch((err) => console.error("[settleCheckoutInvoiceManually] admin email failed:", err));
+    }
   }
 }

@@ -39,6 +39,15 @@ function getPhoneDisplay(profile: {
   return countryCode ? `${countryCode} ${phoneNumber}` : phoneNumber
 }
 
+function cleanAircraftModel(model: string | null | undefined, reg: string): string {
+  if (!model) return 'Cessna 172N'
+  let cleaned = model.replace(new RegExp(`^${reg}\\s*[·—\\-–]?\\s*`, 'i'), '').trim()
+  if (cleaned.toLowerCase() === 'cessna 172') {
+    cleaned = 'Cessna 172N'
+  }
+  return cleaned || 'Cessna 172N'
+}
+
 function getAirportLabel(airport: {
   icao_code?: string | null
   name?: string | null
@@ -61,10 +70,15 @@ export async function generateStandardBookingInvoicePdf(params: {
     .eq('id', invoiceId)
     .single()
 
-  const [{ data: booking, error: bookingErr }, { data: profile, error: profileErr }, { data: landingCharges, error: landingErr }] = await Promise.all([
+  const [
+    { data: booking, error: bookingErr },
+    { data: profile, error: profileErr },
+    { data: landingCharges, error: landingErr },
+    { data: flightLog },
+  ] = await Promise.all([
     supabase
       .from('bookings')
-      .select('booking_reference, booking_owner_user_id, scheduled_start')
+      .select('booking_reference, booking_owner_user_id, scheduled_start, aircraft(registration, display_name, aircraft_type)')
       .eq('id', invoice.booking_id)
       .single(),
     supabase
@@ -77,6 +91,11 @@ export async function generateStandardBookingInvoicePdf(params: {
       .select('landing_count, unit_amount_cents, total_amount_cents, airports(icao_code, name)')
       .eq('booking_invoice_id', invoice.id)
       .order('created_at', { ascending: true }),
+    supabase
+      .from('aircraft_flight_logs')
+      .select('vdo_start, vdo_stop, vdo_total, tacho_start, tacho_stop, tacho_total, air_switch_start, air_switch_stop, air_switch_total, flight_time_hours, landings')
+      .eq('related_booking_id', invoice.booking_id)
+      .maybeSingle(),
   ])
 
   if (bookingErr || !booking) {
@@ -88,6 +107,14 @@ export async function generateStandardBookingInvoicePdf(params: {
   if (landingErr) {
     throw new Error(landingErr.message ?? 'Failed to load landing charges for invoice PDF generation.')
   }
+
+  const rawAircraft = booking.aircraft
+  const aircraftObj = Array.isArray(rawAircraft) ? rawAircraft[0] : rawAircraft
+  const aircraftReg = (aircraftObj as { registration?: string; display_name?: string; aircraft_type?: string } | null)?.registration || 'VH-KZG'
+  const rawModel = (aircraftObj as { registration?: string; display_name?: string; aircraft_type?: string } | null)?.aircraft_type ||
+                   (aircraftObj as { registration?: string; display_name?: string; aircraft_type?: string } | null)?.display_name ||
+                   'Cessna 172N'
+  const aircraftModel = cleanAircraftModel(rawModel, aircraftReg)
 
   const resolvedPaymentMethod = invoice.payment_method ?? (
     invoice.status === 'paid'
@@ -117,8 +144,8 @@ export async function generateStandardBookingInvoicePdf(params: {
       : invoice.status === 'payment_required'
         ? 'PAYMENT REQUIRED'
         : String(invoice.status).toUpperCase()
-  const billingModeLabel = 'Standard Booking'
-  const bookingRefLabel = booking.booking_reference ? `Booking: ${booking.booking_reference}` : null
+  const billingModeLabel = 'Standard Aircraft Rental'
+  const bookingRefLabel = booking.booking_reference ? `Booking Ref: ${booking.booking_reference}` : null
   const billToName = getFullName(profile ?? null)
   const billToEmail = profile?.email ?? '—'
   const billToPhone = getPhoneDisplay(profile ?? null)
@@ -126,9 +153,33 @@ export async function generateStandardBookingInvoicePdf(params: {
     ? roundToCents((invoice.base_amount_cents / invoice.rate_cents_per_hour) * 10) / 10
     : 0)
 
+  const vdoStart = flightLog?.vdo_start != null ? Number(flightLog.vdo_start) : null
+  const vdoEnd = flightLog?.vdo_stop != null ? Number(flightLog.vdo_stop) : null
+  const airswitchStart = flightLog?.air_switch_start != null ? Number(flightLog.air_switch_start) : null
+  const airswitchEnd = flightLog?.air_switch_stop != null ? Number(flightLog.air_switch_stop) : null
+  const airswitchHours = flightLog?.air_switch_total != null
+    ? Number(flightLog.air_switch_total)
+    : airswitchStart != null && airswitchEnd != null && airswitchEnd >= airswitchStart
+    ? roundToCents(airswitchEnd - airswitchStart)
+    : null
+
+  const tachStart = flightLog?.tacho_start != null ? Number(flightLog.tacho_start) : null
+  const tachEnd = flightLog?.tacho_stop != null ? Number(flightLog.tacho_stop) : null
+  const tachHours = flightLog?.tacho_total != null
+    ? Number(flightLog.tacho_total)
+    : tachStart != null && tachEnd != null && tachEnd >= tachStart
+    ? roundToCents(tachEnd - tachStart)
+    : null
+
+  let totalLandingsCount = 0
+  for (const charge of landingCharges ?? []) {
+    totalLandingsCount += Number(charge.landing_count || 1)
+  }
+
+  const vdoSuffix = vdoStart != null && vdoEnd != null ? ` (VDO ${vdoStart.toFixed(1)} → ${vdoEnd.toFixed(1)})` : ''
   const lineItems = [
     {
-      description: `Standard booking flight hours${booking.booking_reference ? ` — ${booking.booking_reference}` : ''}`,
+      description: `Flight Rental Hours — ${aircraftReg} (${aircraftModel})${vdoSuffix}`,
       quantity: vdoQuantity,
       unitPrice: roundToCents(invoice.rate_cents_per_hour / 100),
       amount: roundToCents(invoice.base_amount_cents / 100),
@@ -150,7 +201,7 @@ export async function generateStandardBookingInvoicePdf(params: {
   ]
 
   const footerNote = invoice.status === 'paid'
-    ? 'This receipt confirms payment for your standard booking invoice. All prices include GST.'
+    ? 'This receipt confirms full payment for your aircraft rental booking. All prices include GST.'
     : isWaived
       ? 'This invoice has been waived by operations management. No payment is required.'
       : 'All prices include GST. Payment is required by the due date shown above.'
@@ -176,6 +227,20 @@ export async function generateStandardBookingInvoicePdf(params: {
     footerNote,
     creditAppliedAmount: advanceAppliedAmount,
     amountPaid,
+    flightMetrics: {
+      aircraftRegistration: aircraftReg,
+      aircraftModel,
+      vdoStart,
+      vdoEnd,
+      vdoHours: vdoQuantity,
+      airswitchStart,
+      airswitchEnd,
+      airswitchHours,
+      tachStart,
+      tachEnd,
+      tachHours,
+      landingsCount: totalLandingsCount || flightLog?.landings || null,
+    },
   })
 
   return storeInvoicePdf({

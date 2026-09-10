@@ -343,19 +343,31 @@ export function checkoutPaymentRequiredEmail(details: {
   invoiceNumber?: string | null
 }) {
   return {
-    subject: 'Payment required for your checkout flight',
+    subject: `Payment required for your checkout flight (${details.invoiceNumber || details.bookingReference || 'Invoice'}) — OZ Rent A Plane`,
     html: renderBaseTemplate({
-      headline: 'Payment required for your checkout flight',
+      headline: 'Payment Required for Checkout Flight',
       message:
-        'Your checkout flight has been reviewed and your invoice is ready. Payment is required before the checkout process can be completed. You can pay securely online by card or bank transfer.',
+        'Your checkout flight assessment has been reviewed and your official Tax Invoice has been generated. Payment is required before your solo clearance / checkout certification can be finalized. You can pay online via credit/debit card or via direct bank transfer.',
       details: [
         ...(details.bookingReference ? [{ label: 'Booking Reference', value: details.bookingReference }] : []),
         ...(details.aircraft ? [{ label: 'Aircraft', value: details.aircraft }] : []),
         ...(details.flightDate ? [{ label: 'Flight Date', value: details.flightDate }] : []),
         ...(details.invoiceNumber ? [{ label: 'Invoice Number', value: details.invoiceNumber }] : []),
-        { label: 'Amount Due', value: details.amountDue },
+        { label: 'Amount Due (Inc. GST)', value: details.amountDue },
       ],
-      ctaLabel: 'Pay Now',
+      extraHtml: `
+        <div style="margin:20px 0;padding:16px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;">
+          <p style="margin:0 0 8px;font-weight:700;color:#0f172a;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;">Payment Options</p>
+          <p style="margin:0 0 10px;font-size:13px;color:#475569;line-height:1.5;">
+            <strong>Option 1 (Instant):</strong> Pay online via credit or debit card on your pilot portal.<br />
+            <strong>Option 2 (Bank Transfer):</strong> NAB &bull; BSB: 082-902 &bull; Acc: 89-123-4567 &bull; Ref: <strong>${details.invoiceNumber || details.bookingReference || 'Checkout'}</strong>
+          </p>
+          <p style="margin:0;font-size:12px;">
+            <a href="${appUrl}/dashboard/bookings/${details.bookingId}/invoice" style="color:#1a4fd6;font-weight:600;text-decoration:underline;">&darr; Download PDF Tax Invoice</a>
+          </p>
+        </div>
+      `,
+      ctaLabel: 'Pay Invoice Online',
       ctaUrl: `${appUrl}/dashboard/bookings/${details.bookingId}#payment`,
     }),
   }

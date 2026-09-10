@@ -34,6 +34,7 @@ import {
 import { generateInvoicePdf } from '@/lib/invoices/pdf'
 import { storeInvoicePdf } from '@/lib/invoices/pdf-storage'
 import { generateStandardBookingInvoicePdf } from '@/lib/invoices/standard-booking-pdf'
+import { generateCheckoutBookingInvoicePdf } from '@/lib/invoices/checkout-booking-pdf'
 import {
   type AircraftReadings,
   type TotalOnlyReadings,
@@ -1597,6 +1598,21 @@ export async function markCheckoutOutcome(input: {
       (input.suppressPaymentRequestEmail === true || input.manualPayment != null) &&
       emailEventType === 'checkout_payment_required'
 
+    // Pre-generate and store the checkout invoice PDF immediately so it's in storage and attachable to email
+    let checkoutPdfResult: Awaited<ReturnType<typeof generateCheckoutBookingInvoicePdf>> = null
+    try {
+      checkoutPdfResult = await generateCheckoutBookingInvoicePdf({
+        supabase,
+        bookingId: input.bookingId,
+        invoiceId: rpcRows?.[0]?.out_invoice_id ?? null,
+      })
+      if (checkoutPdfResult) {
+        console.log('[markCheckoutOutcome] checkout invoice PDF generated and stored immediately:', checkoutPdfResult.pdfUrl)
+      }
+    } catch (pdfErr) {
+      console.error('[markCheckoutOutcome] immediate checkout PDF generation failed (will generate on demand):', pdfErr)
+    }
+
     if (!skipPaymentRequestEmail) {
       await sendEmail({
         to: profileForEmail.email,
@@ -1606,6 +1622,7 @@ export async function markCheckoutOutcome(input: {
         entityType: 'checkout',
         entityId: input.bookingId,
         metadata: { outcome: input.outcome, finalBookingStatus, finalClearanceStatus },
+        attachments: checkoutPdfResult?.attachment ? [checkoutPdfResult.attachment] : undefined,
       }).catch((error) => console.error('[markCheckoutOutcome] email failed:', error))
     }
   }
@@ -1654,9 +1671,14 @@ export async function markCheckoutOutcome(input: {
   }
 
   revalidatePath('/admin')
+  revalidatePath('/admin/bookings')
   revalidatePath('/admin/bookings/checkout')
+  revalidatePath('/admin/bookings/requests')
   revalidatePath(`/admin/bookings/requests/${input.bookingId}`)
   revalidatePath('/dashboard')
+  revalidatePath('/dashboard/billing')
+  revalidatePath('/dashboard/bookings')
+  revalidatePath(`/dashboard/bookings/${input.bookingId}`)
 
   void emitBookingChanged({ bookingId: input.bookingId, userId: booking.booking_owner_user_id })
   void emitClearanceUpdated(booking.booking_owner_user_id)
