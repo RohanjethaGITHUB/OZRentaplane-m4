@@ -716,16 +716,20 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
               <div class="meta-line">
                 <!-- Location Pin -->
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="#1e40af"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-                <span>Hangar 210, Tower Road, Bankstown Airport NSW 2200</span>
+                <span>8 Wackett St, Bankstown Aerodrome NSW 2200, Australia</span>
               </div>
               <div class="meta-line">
                 <!-- Tax / Building Icon -->
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="#1e40af"><path d="M4 10v7h3v-7H4zm6 0v7h3v-7h-3zM2 22h19v-3H2v3zm14-12v7h3v-7h-3zm-5-7L2 6v2h19V6l-10-5z"/></svg>
-                <span><strong>ABN: 69 679 543 198</strong></span>
+                <span><strong>ABN: 76 695 639 555</strong></span>
+                <span style="color: #cbd5e1;">&nbsp;|&nbsp;</span>
+                <!-- Phone Icon -->
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="#1e40af"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+                <span>+61 474576085</span>
                 <span style="color: #cbd5e1;">&nbsp;|&nbsp;</span>
                 <!-- Mail Icon -->
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="#1e40af"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-                <span>ops@ozrentaplane.com.au</span>
+                <span>ozrentaplane@gmail.com</span>
               </div>
             </div>
           </div>
@@ -990,7 +994,7 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
             <strong>Note:</strong> ${escapeHtml(input.footerNote)}
           </p>
           <p class="footer-law-text">
-            Issued by OZ Rent A Plane Pty Ltd (ABN 69 679 543 198) in accordance with A New Tax System (Goods and Services Tax) Act 1999.
+            Issued by OZ Rent A Plane Pty Ltd (ABN 76 695 639 555) in accordance with A New Tax System (Goods and Services Tax) Act 1999.
           </p>
         </footer>
       </div>

@@ -90,7 +90,7 @@ export async function generateStandardBookingInvoicePdf(params: {
     supabase
       .from('booking_landing_charges')
       .select('landing_count, unit_amount_cents, total_amount_cents, airports(icao_code, name)')
-      .eq('booking_invoice_id', invoice.id)
+      .or(`booking_invoice_id.eq.${invoice.id},booking_id.eq.${invoice.booking_id}`)
       .order('created_at', { ascending: true }),
     supabase
       .from('aircraft_flight_logs')
