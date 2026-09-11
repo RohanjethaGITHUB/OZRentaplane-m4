@@ -121,21 +121,31 @@ export async function generateStandardBookingInvoicePdf(params: {
   const aircraftModel = cleanAircraftModel(rawModel, aircraftReg)
 
   let resolvedPaymentMethod = invoice.payment_method
-  if (!resolvedPaymentMethod && isPaid) {
-    const ledgerRow = (await supabase
-      .from('customer_payment_ledger')
-      .select('payment_method')
-      .eq('invoice_id', invoice.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()).data
-    resolvedPaymentMethod = ledgerRow?.payment_method ?? (
-      invoice.stripe_payment_intent_id && !invoice.stripe_payment_intent_id.startsWith('manual-')
-        ? 'card'
-        : invoice.advance_applied_cents >= invoice.subtotal_cents
-        ? 'account_credit'
-        : null
-    )
+  if (!resolvedPaymentMethod || resolvedPaymentMethod === 'card') {
+    if (invoice.stripe_payment_intent_id?.startsWith('manual-cash-')) {
+      resolvedPaymentMethod = 'cash'
+    } else if (invoice.stripe_payment_intent_id?.startsWith('manual-card_in_person-')) {
+      resolvedPaymentMethod = 'card_in_person'
+    } else if (invoice.stripe_payment_intent_id?.startsWith('manual-bank_transfer-')) {
+      resolvedPaymentMethod = 'bank_transfer'
+    } else if (isPaid) {
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const adminSupabase = createAdminClient()
+      const ledgerRow = (await adminSupabase
+        .from('customer_payment_ledger')
+        .select('payment_method')
+        .eq('invoice_id', invoice.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()).data
+      if (ledgerRow?.payment_method) {
+        resolvedPaymentMethod = ledgerRow.payment_method
+      } else if (invoice.advance_applied_cents >= invoice.subtotal_cents) {
+        resolvedPaymentMethod = 'account_credit'
+      } else if (invoice.stripe_payment_intent_id && !invoice.stripe_payment_intent_id.startsWith('manual-')) {
+        resolvedPaymentMethod = 'card'
+      }
+    }
   }
 
   const advanceAppliedAmount = invoice.advance_applied_cents > 0
@@ -248,7 +258,7 @@ export async function generateStandardBookingInvoicePdf(params: {
     createdAt: invoice.created_at,
     dueAt: isPaid ? invoice.paid_at ?? invoice.created_at : invoice.created_at,
     paidAt: isPaid ? invoice.paid_at ?? invoice.created_at : null,
-    paymentMethodLabel: formatPaymentMethodLabel(resolvedPaymentMethod),
+    paymentMethodLabel: isWaived ? 'Waived (No payment required)' : formatPaymentMethodLabel(resolvedPaymentMethod),
     billingModeLabel,
     bookingRefLabel,
     flightDate: booking.scheduled_start ?? null,

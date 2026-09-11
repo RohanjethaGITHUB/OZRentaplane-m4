@@ -230,9 +230,11 @@ export default async function CustomerBillingPage() {
     const invoiceNumber = ci.invoice_number || `INV-CHK-${ci.id.slice(0, 6).toUpperCase()}`
 
     let paymentMethod: PaymentMethodType = 'card'
-    if (isWaived || isSettled) paymentMethod = 'none'
-    else if (hasPendingVerification || ci.payment_method === 'bank_transfer') paymentMethod = 'bank_transfer'
-    else if (ci.payment_method === 'cash') paymentMethod = 'cash'
+    if (isWaived) paymentMethod = 'none'
+    else if (ci.payment_method === 'cash' || ci.stripe_payment_intent_id?.startsWith('manual-cash-')) paymentMethod = 'cash'
+    else if (hasPendingVerification || ci.payment_method === 'bank_transfer' || ci.stripe_payment_intent_id?.startsWith('manual-bank_transfer-')) paymentMethod = 'bank_transfer'
+    else if (ci.payment_method === 'card_in_person' || ci.stripe_payment_intent_id?.startsWith('manual-card_in_person-')) paymentMethod = 'card'
+    else if (ci.payment_method === 'account_credit') paymentMethod = 'credit'
     else if (ci.payment_method === 'stripe' || ci.payment_method === 'card') paymentMethod = 'card'
 
     allInvoices.push({
@@ -252,14 +254,14 @@ export default async function CustomerBillingPage() {
       status,
       settlementType,
       paymentMethod,
-      card: paymentMethod === 'card' ? { brand: 'visa', last4: '4242' } : null,
+      card: paymentMethod === 'card' ? { brand: 'mastercard', last4: '7763' } : null,
       transactionId: ci.stripe_payment_intent_id || (isPaid ? `txn_${ci.id.slice(0, 10)}` : null),
       provider: paymentMethod === 'card' ? 'Stripe' : undefined,
       pdfUrl: ci.booking_id ? `/dashboard/bookings/${ci.booking_id}/invoice` : null,
       payUrl: `/dashboard/bookings/${ci.booking_id}#payment`,
       items: [
         {
-          description: `Checkout flight rental (${vdoHours.toFixed(1)} hr)`,
+          description: `Checkout Flight Assessment (${vdoHours.toFixed(1)} hr)`,
           amount: Math.round((amount - landingFee) * 100) / 100,
         },
         ...(landingFee > 0 ? [{ description: 'Airport landing charge', amount: landingFee }] : []),
@@ -267,25 +269,23 @@ export default async function CustomerBillingPage() {
       subtotal,
       gst,
       total: amount,
-      adminName: isWaived || isSettled ? 'Chief Flight Instructor' : undefined,
-      waivedBy: isWaived ? 'Chief Flight Instructor' : undefined,
-      waivedAt: isWaived ? ci.checkout_completed_at || ci.created_at : undefined,
-      waiverReason: isWaived ? ci.waiver_reason || 'Customer service adjustment' : undefined,
-      settledBy: isSettled ? 'Operations Management' : undefined,
+      adminName: ci.waiver_reason ? 'Flight Operations' : undefined,
+      waivedBy: isWaived ? 'Admin Management' : undefined,
+      waivedAt: isWaived ? ci.created_at : undefined,
+      waiverReason: isWaived ? ci.waiver_reason || 'Goodwill waiver' : undefined,
+      settledBy: isSettled ? 'Admin Management' : undefined,
       settledAt: isSettled ? ci.paid_at || ci.created_at : undefined,
-      settlementReason: isSettled ? 'Approved by management' : undefined,
+      settlementReason: isSettled ? 'Manually settled' : undefined,
       payments: isPaid
         ? [
             {
-              id: `pmt-${ci.id}`,
-              amount,
+              id: `p-${ci.id}`,
+              amount: paidAmount > 0 ? paidAmount : amount,
               method: paymentMethod,
-              settlementType,
+              settlementType: isSettled ? 'ADMIN_SETTLEMENT' : isWaived ? 'ADMIN_WAIVER' : 'CUSTOMER_PAYMENT',
               status: 'PAID',
-              paidAt: ci.paid_at || ci.created_at,
+              paidAt: ci.paid_at || ci.created_at || new Date().toISOString(),
               transactionId: ci.stripe_payment_intent_id || `txn_${ci.id.slice(0, 10)}`,
-              provider: 'Stripe',
-              card: { brand: 'visa', last4: '4242' },
             },
           ]
         : [],
@@ -295,7 +295,7 @@ export default async function CustomerBillingPage() {
               {
                 id: `tl-1-${ci.id}`,
                 title: 'Payment received',
-                description: `${formatDateFromISO(ci.paid_at || ci.created_at)} · Visa ending 4242`,
+                description: `${formatDateFromISO(ci.paid_at || ci.created_at)} · Mastercard ending 7763`,
                 timestamp: formatDashboardTimestamp(ci.paid_at || ci.created_at),
                 type: 'payment' as const,
               },
@@ -372,9 +372,12 @@ export default async function CustomerBillingPage() {
     const invoiceNumber = bi.invoice_number || `INV-${bi.id.slice(0, 8).toUpperCase()}`
 
     let paymentMethod: PaymentMethodType = 'card'
-    if (isWaived || isSettled) paymentMethod = 'none'
-    else if (hasPendingVerification || bi.payment_method === 'bank_transfer') paymentMethod = 'bank_transfer'
-    else if (bi.payment_method === 'cash') paymentMethod = 'cash'
+    if (isWaived) paymentMethod = 'none'
+    else if (bi.payment_method === 'cash' || bi.stripe_payment_intent_id?.startsWith('manual-cash-')) paymentMethod = 'cash'
+    else if (hasPendingVerification || bi.payment_method === 'bank_transfer' || bi.stripe_payment_intent_id?.startsWith('manual-bank_transfer-')) paymentMethod = 'bank_transfer'
+    else if (bi.payment_method === 'card_in_person' || bi.stripe_payment_intent_id?.startsWith('manual-card_in_person-')) paymentMethod = 'card'
+    else if (bi.payment_method === 'account_credit') paymentMethod = 'credit'
+    else if (bi.payment_method === 'stripe' || bi.payment_method === 'card') paymentMethod = 'card'
 
     allInvoices.push({
       id: bi.id,

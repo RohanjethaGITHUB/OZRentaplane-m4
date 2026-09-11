@@ -1620,10 +1620,11 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
 
     if (rpcErr) throw new Error(rpcErr.message || "Failed to settle booking invoice.");
 
+    const dbPaymentMethod = paymentMethod === "bank_transfer" ? "bank_transfer" : "card";
     await admin
       .from("booking_invoices")
       .update({
-        payment_method: paymentMethod ?? "cash",
+        payment_method: dbPaymentMethod,
         paid_at: new Date().toISOString(),
         total_paid_cents: input.amountCents,
       })

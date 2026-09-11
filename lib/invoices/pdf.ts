@@ -819,7 +819,7 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
               <span class="bkg-val">${escapeHtml(input.billingModeLabel || 'Checkout Flight Assessment')}</span>
 
               <span class="bkg-lbl">Payment Method:</span>
-              <span class="bkg-val">${escapeHtml(input.paymentMethodLabel || (isPaid ? 'Card (online)' : 'Direct Deposit / Online'))}</span>
+              <span class="bkg-val">${escapeHtml(isWaived ? 'Waived (No payment required)' : input.paymentMethodLabel || (isPaid ? 'Card (online)' : 'Direct Deposit / Online'))}</span>
             </div>
           </div>
         </section>

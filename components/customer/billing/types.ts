@@ -23,6 +23,8 @@ export type PaymentMethodType =
   | 'online_payment'
   | 'bank_transfer'
   | 'block_time'
+  | 'credit'
+  | 'account_credit'
   | 'other'
   | 'none'
 

@@ -267,6 +267,30 @@ export async function generateCheckoutBookingInvoicePdf(params: {
     landingsCount: totalLandingsCount || flightLog?.landings || null,
   }
 
+  let resolvedPaymentMethod = chkInvoice.payment_method
+  if (!resolvedPaymentMethod || resolvedPaymentMethod === 'stripe' || resolvedPaymentMethod === 'card') {
+    if (chkInvoice.stripe_payment_intent_id?.startsWith('manual-cash-')) {
+      resolvedPaymentMethod = 'cash'
+    } else if (chkInvoice.stripe_payment_intent_id?.startsWith('manual-card_in_person-')) {
+      resolvedPaymentMethod = 'card_in_person'
+    } else if (chkInvoice.stripe_payment_intent_id?.startsWith('manual-bank_transfer-')) {
+      resolvedPaymentMethod = 'bank_transfer'
+    } else if (isPaid) {
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const adminSupabase = createAdminClient()
+      const ledgerRow = (await adminSupabase
+        .from('customer_payment_ledger')
+        .select('payment_method')
+        .eq('invoice_id', chkInvoice.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()).data
+      if (ledgerRow?.payment_method) {
+        resolvedPaymentMethod = ledgerRow.payment_method
+      }
+    }
+  }
+
   const pdfBuffer = await generateInvoicePdf({
     documentKind: isPaid ? 'receipt' : 'tax_invoice',
     invoiceNumber,
@@ -274,7 +298,7 @@ export async function generateCheckoutBookingInvoicePdf(params: {
     createdAt: chkInvoice.created_at ?? new Date().toISOString(),
     paidAt: chkInvoice.paid_at ?? null,
     dueAt: chkInvoice.created_at ?? null,
-    paymentMethodLabel: formatPaymentMethod(chkInvoice.payment_method),
+    paymentMethodLabel: isWaived ? 'Waived (No payment required)' : formatPaymentMethod(resolvedPaymentMethod),
     billingModeLabel: 'Checkout Flight Assessment',
     bookingRefLabel: booking.booking_reference ? `Booking Ref: ${booking.booking_reference}` : null,
     flightDate: booking.scheduled_start ?? null,

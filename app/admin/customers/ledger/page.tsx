@@ -28,6 +28,7 @@ type BookingInvoiceRow = {
   updated_at: string | null
   paid_at: string | null
   pdf_url?: string | null
+  stripe_payment_intent_id?: string | null
 }
 
 type CheckoutInvoiceRow = {
@@ -46,6 +47,7 @@ type CheckoutInvoiceRow = {
   updated_at?: string | null
   paid_at?: string | null
   pdf_url?: string | null
+  stripe_payment_intent_id?: string | null
 }
 
 type GeneralInvoiceRow = {
@@ -114,13 +116,13 @@ export default async function CustomerBillingPage({
     supabase
       .from('booking_invoices')
       .select(
-        'id, booking_id, customer_id, invoice_number, status, payment_method, subtotal_cents, stripe_amount_due_cents, total_paid_cents, created_at, updated_at, paid_at, pdf_url',
+        'id, booking_id, customer_id, invoice_number, status, payment_method, subtotal_cents, stripe_amount_due_cents, total_paid_cents, created_at, updated_at, paid_at, pdf_url, stripe_payment_intent_id',
       )
       .order('updated_at', { ascending: false }),
     supabase
       .from('checkout_invoices')
       .select(
-        'id, booking_id, customer_id, invoice_number, status, payment_method, subtotal_cents, checkout_calculated_amount_cents, checkout_landing_subtotal_cents, total_paid_cents, waiver_reason, created_at, paid_at',
+        'id, booking_id, customer_id, invoice_number, status, payment_method, subtotal_cents, checkout_calculated_amount_cents, checkout_landing_subtotal_cents, total_paid_cents, waiver_reason, created_at, paid_at, stripe_payment_intent_id',
       )
       .order('created_at', { ascending: false }),
     supabase
@@ -271,8 +273,29 @@ export default async function CustomerBillingPage({
     const effectiveStatus = pendingSubmission ? 'manual_review' : inv.status
     const receiptUrl = submission?.receipt_storage_path ? receiptUrlMap.get(submission.receipt_storage_path) ?? null : null
 
-    const isBankTransfer = Boolean(pendingSubmission || submission || inv.payment_method === 'bank_transfer')
-    const method = isBankTransfer ? 'bank_transfer' : (inv.payment_method || 'card')
+    const isBankTransfer = Boolean(
+      pendingSubmission ||
+      submission ||
+      inv.payment_method === 'bank_transfer' ||
+      inv.stripe_payment_intent_id?.startsWith('manual-bank_transfer-')
+    )
+    const isManualCash = inv.stripe_payment_intent_id?.startsWith('manual-cash-') || inv.payment_method === 'cash'
+    const isManualCardInPerson = inv.stripe_payment_intent_id?.startsWith('manual-card_in_person-') || inv.payment_method === 'card_in_person'
+
+    let method = 'card'
+    if (inv.status === 'waived') {
+      method = 'none'
+    } else if (isManualCash) {
+      method = 'cash'
+    } else if (isManualCardInPerson) {
+      method = 'card'
+    } else if (isBankTransfer) {
+      method = 'bank_transfer'
+    } else if (inv.payment_method === 'account_credit') {
+      method = 'advance_credit'
+    } else {
+      method = inv.payment_method || 'card'
+    }
 
     paymentRows.push({
       id: inv.id,
@@ -321,8 +344,29 @@ export default async function CustomerBillingPage({
 
     const receiptUrl = submission?.receipt_storage_path ? receiptUrlMap.get(submission.receipt_storage_path) ?? null : null
     const amountCents = Number(inv.subtotal_cents || inv.checkout_calculated_amount_cents || inv.total_paid_cents || 25000)
-    const isBankTransfer = Boolean(pendingSubmission || submission || inv.payment_method === 'bank_transfer')
-    const method = isBankTransfer ? 'bank_transfer' : (inv.payment_method || 'card')
+    const isBankTransfer = Boolean(
+      pendingSubmission ||
+      submission ||
+      inv.payment_method === 'bank_transfer' ||
+      inv.stripe_payment_intent_id?.startsWith('manual-bank_transfer-')
+    )
+    const isManualCash = inv.stripe_payment_intent_id?.startsWith('manual-cash-') || inv.payment_method === 'cash'
+    const isManualCardInPerson = inv.stripe_payment_intent_id?.startsWith('manual-card_in_person-') || inv.payment_method === 'card_in_person'
+
+    let method = 'card'
+    if (isWaived) {
+      method = 'none'
+    } else if (isManualCash) {
+      method = 'cash'
+    } else if (isManualCardInPerson) {
+      method = 'card'
+    } else if (isBankTransfer) {
+      method = 'bank_transfer'
+    } else if (inv.payment_method === 'account_credit') {
+      method = 'advance_credit'
+    } else {
+      method = inv.payment_method || 'card'
+    }
 
     paymentRows.push({
       id: inv.id,

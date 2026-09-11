@@ -201,6 +201,10 @@ function ClearanceStatusBadge({ status }: { status: { label: string; tone: strin
 function LedgerMethodBadge({ method }: { method: string }) {
   const m = String(method || '').toLowerCase()
 
+  if (!m || m === 'none' || m === 'waived' || m === '—' || m === '-') {
+    return <span className="text-xs text-slate-400 font-medium">—</span>
+  }
+
   if (m === 'card' || m === 'stripe') {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#152d5a] bg-blue-50/80 px-2.5 py-1 rounded-lg border border-blue-200/60 shrink-0">
