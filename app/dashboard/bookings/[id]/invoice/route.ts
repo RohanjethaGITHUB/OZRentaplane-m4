@@ -52,13 +52,25 @@ export async function GET(request: Request, { params }: { params: { id: string }
   if (stdInvoice) {
     try {
       const pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId: stdInvoice.id })
+      if (pdfResult?.pdfBuffer) {
+        return new NextResponse(new Uint8Array(pdfResult.pdfBuffer), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `inline; filename="${pdfResult.fileName}"`,
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
+        })
+      }
       if (pdfResult?.pdfUrl) {
-        return NextResponse.redirect(pdfResult.pdfUrl)
+        return NextResponse.redirect(`${pdfResult.pdfUrl}?v=${Date.now()}`)
       }
     } catch (error) {
       console.error('[booking invoice route] Standard PDF generation failed', error)
       if (stdInvoice.pdf_url) {
-        return NextResponse.redirect(stdInvoice.pdf_url)
+        return NextResponse.redirect(`${stdInvoice.pdf_url}?v=${Date.now()}`)
       }
     }
 
@@ -87,8 +99,20 @@ export async function GET(request: Request, { params }: { params: { id: string }
         invoiceId: chkInvoice.id,
       })
 
+      if (pdfResult?.pdfBuffer) {
+        return new NextResponse(new Uint8Array(pdfResult.pdfBuffer), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `inline; filename="${pdfResult.fileName}"`,
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
+        })
+      }
       if (pdfResult?.pdfUrl) {
-        return NextResponse.redirect(pdfResult.pdfUrl)
+        return NextResponse.redirect(`${pdfResult.pdfUrl}?v=${Date.now()}`)
       }
     } catch (error) {
       console.error('[booking invoice route] Checkout PDF generation failed', error)

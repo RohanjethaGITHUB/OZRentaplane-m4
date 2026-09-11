@@ -19,6 +19,7 @@ type StoredInvoicePdfResult = {
   pdfUrl: string
   storagePath: string
   fileName: string
+  pdfBuffer: Buffer
   attachment: {
     filename: string
     content: string
@@ -42,7 +43,7 @@ export async function storeInvoicePdf({
     .upload(storagePath, pdfBuffer, {
       contentType: 'application/pdf',
       upsert: true,
-      cacheControl: '3600',
+      cacheControl: '0',
     })
 
   if (uploadResult.error) {
@@ -67,6 +68,7 @@ export async function storeInvoicePdf({
     pdfUrl,
     storagePath,
     fileName,
+    pdfBuffer,
     attachment: {
       filename: fileName,
       content: pdfBuffer.toString('base64'),
