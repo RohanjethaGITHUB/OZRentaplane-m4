@@ -396,7 +396,7 @@ export default async function CustomerBillingPage() {
       card: paymentMethod === 'card' ? { brand: 'mastercard', last4: '7763' } : null,
       transactionId: bi.stripe_payment_intent_id || (isPaid ? `txn_${bi.id.slice(0, 10)}` : null),
       provider: paymentMethod === 'card' ? 'Stripe' : undefined,
-      pdfUrl: bi.pdf_url ?? (bi.booking_id ? `/dashboard/bookings/${bi.booking_id}/invoice` : null),
+      pdfUrl: bi.booking_id ? `/dashboard/bookings/${bi.booking_id}/invoice` : bi.pdf_url ?? null,
       payUrl: `/dashboard/bookings/${bi.booking_id}#payment`,
       items: [
         {

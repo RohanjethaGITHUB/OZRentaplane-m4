@@ -1976,7 +1976,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                   {bookingType === 'standard' && standardInvoice && standardInvoice.status !== 'waived' && (
                     <div className="pt-3">
                       <a
-                        href={standardInvoice.pdf_url ?? `/dashboard/bookings/${booking.id}/invoice`}
+                        href={`/dashboard/bookings/${booking.id}/invoice`}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#1a4fd6] hover:underline"

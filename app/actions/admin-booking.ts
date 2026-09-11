@@ -30,6 +30,7 @@ import {
   standardBookingInvoicePaymentRequiredEmail,
   flightPaymentSettledEmail,
   flightPaymentWaivedEmail,
+  bankTransferProofRejectedEmail,
 } from '@/lib/email/templates/payment'
 import { generateInvoicePdf } from '@/lib/invoices/pdf'
 import { storeInvoicePdf } from '@/lib/invoices/pdf-storage'
@@ -2927,6 +2928,15 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
     }
   }
 
+  let pdfResult: any = null
+  if (!blockTimeInvoice && subData?.invoice_id) {
+    try {
+      pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId: subData.invoice_id })
+    } catch (pdfErr) {
+      console.error('[adminConfirmStandardBankTransfer] standard invoice PDF generation failed:', pdfErr)
+    }
+  }
+
   const { data: sub } = await supabase
     .from('booking_bank_transfer_submissions')
     .select('customer_id')
@@ -2944,7 +2954,7 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
       email_status: 'pending',
     })
 
-    const [{ data: profileForPaymentEmail }, { data: bookingRecord }, { data: invoiceRecord }] = await Promise.all([
+    const [{ data: profileForPaymentEmail }, { data: bookingRecord }, { data: stdInvoiceRecord }] = await Promise.all([
       supabase
         .from('profiles')
         .select('email, full_name')
@@ -2955,13 +2965,13 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
         .select('booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, aircraft_type)')
         .eq('id', bookingId)
         .maybeSingle(),
-      supabase
-        .from('invoices')
-        .select('invoice_number, total, pdf_url')
-        .eq('booking_id', bookingId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+      subData?.invoice_id && !blockTimeInvoice
+        ? supabase
+            .from('booking_invoices')
+            .select('invoice_number, subtotal_cents, total_paid_cents, pdf_url')
+            .eq('id', subData.invoice_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
     ])
 
     if (profileForPaymentEmail?.email) {
@@ -2981,9 +2991,16 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
           })
         : null
 
-      const amountFormatted = invoiceRecord?.total
-        ? `$${Number(invoiceRecord.total).toFixed(2)} AUD`
+      const amountFormatted = blockTimeInvoice
+        ? `$${Number(blockTimeInvoice.total).toFixed(2)} AUD`
+        : stdInvoiceRecord?.total_paid_cents
+        ? `$${(stdInvoiceRecord.total_paid_cents / 100).toFixed(2)} AUD`
+        : stdInvoiceRecord?.subtotal_cents
+        ? `$${(stdInvoiceRecord.subtotal_cents / 100).toFixed(2)} AUD`
         : 'Confirmed'
+
+      const invoiceNum = blockTimeInvoice?.invoice_number ?? stdInvoiceRecord?.invoice_number ?? null
+      const pdfUrl = pdfResult?.pdfUrl ?? stdInvoiceRecord?.pdf_url ?? null
 
       const template = flightPaymentSettledEmail({
         bookingId,
@@ -2992,8 +3009,8 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
         aircraft: aircraftLabel,
         amountPaid: amountFormatted,
         paymentMethod: 'bank_transfer',
-        invoiceNumber: invoiceRecord?.invoice_number ?? null,
-        pdfUrl: invoiceRecord?.pdf_url ?? null,
+        invoiceNumber: invoiceNum,
+        pdfUrl: pdfUrl,
         message: 'Your bank transfer payment has been confirmed by our operations team. Your flight booking is now complete.',
       })
 
@@ -3007,6 +3024,7 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
         eventType: 'post_flight_payment_received',
         entityType: 'booking',
         entityId: bookingId,
+        attachments: pdfResult ? [pdfResult.attachment] : undefined,
       }).catch((emailError) => console.error('[adminConfirmStandardBankTransfer] email failed:', emailError))
     }
   }
@@ -3051,7 +3069,7 @@ export async function adminRejectStandardBankTransfer(
   const { data: blockTimeInvoice } = subData?.invoice_id
     ? await supabase
         .from('invoices')
-        .select('id, total, status')
+        .select('id, total, status, invoice_number')
         .eq('id', subData.invoice_id)
         .maybeSingle()
     : { data: null }
@@ -3121,16 +3139,56 @@ export async function adminRejectStandardBankTransfer(
       email_status: 'pending',
     })
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('email')
-      .eq('id', sub.customer_id)
-      .single()
+    const [{ data: profile }, { data: bookingRecord }, { data: stdInvoiceRecord }] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('email, full_name')
+        .eq('id', sub.customer_id)
+        .single(),
+      supabase
+        .from('bookings')
+        .select('booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, aircraft_type)')
+        .eq('id', bookingId)
+        .maybeSingle(),
+      subData?.invoice_id && !blockTimeInvoice
+        ? supabase
+            .from('booking_invoices')
+            .select('invoice_number')
+            .eq('id', subData.invoice_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ])
+
     if (profile?.email) {
+      const aircraftData = Array.isArray(bookingRecord?.aircraft)
+        ? bookingRecord.aircraft[0]
+        : bookingRecord?.aircraft
+      const rawType = aircraftData?.aircraft_type || (aircraftData as any)?.model || 'Cessna 172N'
+      const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
+      const aircraftLabel = aircraftData?.registration
+        ? `${cleanType} (${aircraftData.registration})`
+        : 'Cessna 172N (VH-KZG)'
+
+      const flightDateFormatted = bookingRecord?.scheduled_start
+        ? new Date(bookingRecord.scheduled_start).toLocaleDateString('en-AU', {
+            timeZone: 'Australia/Sydney',
+            dateStyle: 'full',
+          })
+        : null
+
+      const template = bankTransferProofRejectedEmail({
+        bookingId,
+        bookingReference: bookingRecord?.booking_reference ?? null,
+        flightDate: flightDateFormatted,
+        aircraft: aircraftLabel,
+        invoiceNumber: blockTimeInvoice?.invoice_number ?? stdInvoiceRecord?.invoice_number ?? null,
+        rejectionReason: adminNote.trim(),
+      })
+
       await sendEmail({
         to: profile.email,
-        subject: 'Payment proof update',
-        html: paymentConfirmedEmail(`Your bank transfer payment proof was rejected. Note: ${adminNote}. Please upload a new receipt or contact support.`).html,
+        subject: template.subject,
+        html: template.html,
         eventType: 'bank_transfer_rejected',
         entityType: 'payment',
         entityId: bookingId,
@@ -3968,6 +4026,8 @@ export async function finaliseStandardBookingInvoice(input: {
     billingBranch.kind !== 'waived' &&
     !(billingBranch.kind === 'invoice' && input.submissionMode === 'mark_paid' && amountDueNowCents > 0)
 
+  let standardPdfResult: any = null
+
   if (billingBranch.kind === 'waived') {
     const { error: waivedInvoiceErr } = await supabase
       .from('booking_invoices')
@@ -3991,11 +4051,11 @@ export async function finaliseStandardBookingInvoice(input: {
       .eq('id', input.bookingId)
 
     try {
-      const pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId })
-      if (pdfResult) {
+      standardPdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId })
+      if (standardPdfResult) {
         console.log('[finaliseStandardBookingInvoice] standard booking waived invoice generated', {
           invoiceId,
-          pdfUrl: pdfResult.pdfUrl,
+          pdfUrl: standardPdfResult.pdfUrl,
         })
       }
     } catch (error) {
@@ -4011,11 +4071,11 @@ export async function finaliseStandardBookingInvoice(input: {
     })
 
     try {
-      const pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId })
-      if (pdfResult) {
+      standardPdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId })
+      if (standardPdfResult) {
         console.log('[finaliseStandardBookingInvoice] standard booking receipt generated', {
           invoiceId,
-          pdfUrl: pdfResult.pdfUrl,
+          pdfUrl: standardPdfResult.pdfUrl,
         })
       }
     } catch (error) {
@@ -4025,11 +4085,11 @@ export async function finaliseStandardBookingInvoice(input: {
 
   if (shouldGenerateStandardPdfNow) {
     try {
-      const pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId })
-      if (pdfResult) {
+      standardPdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId })
+      if (standardPdfResult) {
         console.log('[finaliseStandardBookingInvoice] standard booking PDF generated', {
           invoiceId,
-          pdfUrl: pdfResult.pdfUrl,
+          pdfUrl: standardPdfResult.pdfUrl,
         })
       }
     } catch (error) {
@@ -4109,7 +4169,7 @@ export async function finaliseStandardBookingInvoice(input: {
         ? supabase.from('aircraft').select('registration, model, aircraft_type').eq('id', booking.aircraft_id).maybeSingle()
         : Promise.resolve({ data: null }),
       invoiceId
-        ? supabase.from('invoices').select('invoice_number, total, pdf_url').eq('id', invoiceId).maybeSingle()
+        ? supabase.from('booking_invoices').select('invoice_number, subtotal_cents, total_paid_cents, pdf_url').eq('id', invoiceId).maybeSingle()
         : Promise.resolve({ data: null }),
     ])
 
@@ -4119,10 +4179,12 @@ export async function finaliseStandardBookingInvoice(input: {
       ? `${cleanType} (${aircraftRecord.registration})`
       : 'Cessna 172N (VH-KZG)'
 
-    const amountFormatted = `$${((amountDueNowCents || (invoiceRecord?.total ? Math.round(invoiceRecord.total * 100) : 0)) / 100).toFixed(2)} AUD`
+    const amountFormatted = `$${((amountDueNowCents || (invoiceRecord?.subtotal_cents ?? 0)) / 100).toFixed(2)} AUD`
     const flightDateFormatted = booking.scheduled_start
       ? new Date(booking.scheduled_start).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'full' })
       : null
+
+    const pdfUrl = standardPdfResult?.pdfUrl || invoiceRecord?.pdf_url || null
 
     let template
     let eventType = 'post_flight_payment_required'
@@ -4148,7 +4210,7 @@ export async function finaliseStandardBookingInvoice(input: {
         amountPaid: amountFormatted,
         paymentMethod: input.manualPaymentMethod ?? null,
         invoiceNumber: invoiceRecord?.invoice_number || null,
-        pdfUrl: invoiceRecord?.pdf_url || null,
+        pdfUrl: pdfUrl,
         message: `${invoiceEmailPrefix}Payment has been recorded for your flight. Your booking is now complete.`.trim(),
       })
     } else if (isSettledByCredit) {
@@ -4161,7 +4223,7 @@ export async function finaliseStandardBookingInvoice(input: {
         amountPaid: amountFormatted,
         paymentMethod: 'credit',
         invoiceNumber: invoiceRecord?.invoice_number || null,
-        pdfUrl: invoiceRecord?.pdf_url || null,
+        pdfUrl: pdfUrl,
         message: `${invoiceEmailPrefix}Your flight invoice has been settled using your account credit. Your booking is now complete.`.trim(),
       })
     } else {
@@ -4174,7 +4236,7 @@ export async function finaliseStandardBookingInvoice(input: {
         aircraft: aircraftLabel,
         amountDue: amountFormatted,
         invoiceNumber: invoiceRecord?.invoice_number || null,
-        pdfUrl: invoiceRecord?.pdf_url || null,
+        pdfUrl: pdfUrl,
         customMessage: invoiceEmailPrefix ? `${invoiceEmailPrefix}Your post-flight invoice is ready. Please complete payment from your dashboard.` : undefined,
       })
     }
@@ -4189,6 +4251,7 @@ export async function finaliseStandardBookingInvoice(input: {
       eventType,
       entityType: 'booking',
       entityId: input.bookingId,
+      attachments: standardPdfResult ? [standardPdfResult.attachment] : undefined,
     }).catch((error) => console.error('[finaliseStandardBookingInvoice] email failed:', error))
   }
 

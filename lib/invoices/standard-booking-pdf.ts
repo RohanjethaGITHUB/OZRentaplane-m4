@@ -12,9 +12,10 @@ function roundToCents(value: number): number {
 function formatPaymentMethodLabel(paymentMethod: string | null): string | null {
   if (!paymentMethod) return null
   if (paymentMethod === 'bank_transfer') return 'Bank transfer'
-  if (paymentMethod === 'card') return 'Card'
+  if (paymentMethod === 'card' || paymentMethod === 'stripe') return 'Card (online)'
   if (paymentMethod === 'cash') return 'Cash'
   if (paymentMethod === 'card_in_person') return 'Card (in person)'
+  if (paymentMethod === 'account_credit') return 'Account credit'
   return paymentMethod.replace(/_/g, ' ')
 }
 
@@ -66,7 +67,7 @@ export async function generateStandardBookingInvoicePdf(params: {
 
   const { data: invoice, error: invoiceErr } = await supabase
     .from('booking_invoices')
-    .select('id, invoice_number, booking_id, customer_id, status, created_at, paid_at, payment_method, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, total_paid_cents, rate_cents_per_hour, base_amount_cents, landing_subtotal_cents, vdo_reading')
+    .select('id, invoice_number, booking_id, customer_id, status, created_at, paid_at, payment_method, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, total_paid_cents, rate_cents_per_hour, base_amount_cents, landing_subtotal_cents, vdo_reading, online_payment_surcharge_cents, stripe_gross_amount_cents, stripe_payment_intent_id')
     .eq('id', invoiceId)
     .single()
 
@@ -108,6 +109,9 @@ export async function generateStandardBookingInvoicePdf(params: {
     throw new Error(landingErr.message ?? 'Failed to load landing charges for invoice PDF generation.')
   }
 
+  const isPaid = invoice.status === 'paid'
+  const isWaived = invoice.status === 'waived'
+
   const rawAircraft = booking.aircraft
   const aircraftObj = Array.isArray(rawAircraft) ? rawAircraft[0] : rawAircraft
   const aircraftReg = (aircraftObj as { registration?: string; display_name?: string; aircraft_type?: string } | null)?.registration || 'VH-KZG'
@@ -116,28 +120,29 @@ export async function generateStandardBookingInvoicePdf(params: {
                    'Cessna 172N'
   const aircraftModel = cleanAircraftModel(rawModel, aircraftReg)
 
-  const resolvedPaymentMethod = invoice.payment_method ?? (
-    invoice.status === 'paid'
-      ? (await supabase
-          .from('customer_payment_ledger')
-          .select('payment_method')
-          .eq('invoice_id', invoice.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()).data?.payment_method ?? null
-      : null
-  )
+  let resolvedPaymentMethod = invoice.payment_method
+  if (!resolvedPaymentMethod && isPaid) {
+    const ledgerRow = (await supabase
+      .from('customer_payment_ledger')
+      .select('payment_method')
+      .eq('invoice_id', invoice.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()).data
+    resolvedPaymentMethod = ledgerRow?.payment_method ?? (
+      invoice.stripe_payment_intent_id && !invoice.stripe_payment_intent_id.startsWith('manual-')
+        ? 'card'
+        : invoice.advance_applied_cents >= invoice.subtotal_cents
+        ? 'account_credit'
+        : null
+    )
+  }
 
-  const grossTotal = roundToCents(invoice.subtotal_cents / 100)
-  const subtotal = roundToCents(grossTotal / 1.1)
-  const gstAmount = roundToCents(grossTotal - subtotal)
-  const isWaived = invoice.status === 'waived'
-  const amountPaid = isWaived ? 0 : roundToCents((invoice.total_paid_cents ?? 0) / 100)
   const advanceAppliedAmount = invoice.advance_applied_cents > 0
     ? roundToCents(invoice.advance_applied_cents / 100)
     : undefined
-  const documentKind = invoice.status === 'paid' ? 'receipt' : 'tax_invoice'
-  const statusLabel = invoice.status === 'paid'
+  const documentKind = isPaid ? 'receipt' : 'tax_invoice'
+  const statusLabel = isPaid
     ? 'PAID'
     : isWaived
       ? 'WAIVED'
@@ -200,7 +205,37 @@ export async function generateStandardBookingInvoicePdf(params: {
     }),
   ]
 
-  const footerNote = invoice.status === 'paid'
+  // Online Card Payment Surcharge (if paid online via Stripe or surcharge applied)
+  const isOnlinePayment =
+    invoice.payment_method === 'stripe' ||
+    invoice.payment_method === 'card' ||
+    (Boolean(invoice.stripe_payment_intent_id) && !invoice.stripe_payment_intent_id?.startsWith('manual-'))
+
+  const surchargeCents = Number(
+    invoice.online_payment_surcharge_cents ||
+    (isPaid && isOnlinePayment && invoice.total_paid_cents > invoice.subtotal_cents
+      ? invoice.total_paid_cents - invoice.subtotal_cents
+      : 0)
+  )
+
+  const surchargeDollars = roundToCents(surchargeCents / 100)
+  if (surchargeDollars > 0 && (isPaid || isOnlinePayment)) {
+    lineItems.push({
+      description: 'Online Payment Surcharge (Card 1.7% + 30¢)',
+      quantity: 1,
+      unitPrice: surchargeDollars,
+      amount: surchargeDollars,
+    })
+  }
+
+  const itemsTotal = roundToCents(lineItems.reduce((sum, item) => sum + item.amount, 0))
+  const originalBaseTotal = roundToCents(invoice.subtotal_cents / 100)
+  const displayTotal = isWaived ? originalBaseTotal : itemsTotal
+  const subtotal = roundToCents(displayTotal / 1.1)
+  const gstAmount = roundToCents(displayTotal - subtotal)
+  const amountPaid = isPaid ? displayTotal : 0
+
+  const footerNote = isPaid
     ? 'This receipt confirms full payment for your aircraft rental booking. All prices include GST.'
     : isWaived
       ? 'This invoice has been waived by operations management. No payment is required.'
@@ -211,8 +246,8 @@ export async function generateStandardBookingInvoicePdf(params: {
     invoiceNumber: invoice.invoice_number,
     statusLabel,
     createdAt: invoice.created_at,
-    dueAt: invoice.status === 'paid' ? invoice.paid_at ?? invoice.created_at : invoice.created_at,
-    paidAt: invoice.paid_at,
+    dueAt: isPaid ? invoice.paid_at ?? invoice.created_at : invoice.created_at,
+    paidAt: isPaid ? invoice.paid_at ?? invoice.created_at : null,
     paymentMethodLabel: formatPaymentMethodLabel(resolvedPaymentMethod),
     billingModeLabel,
     bookingRefLabel,
@@ -223,7 +258,7 @@ export async function generateStandardBookingInvoicePdf(params: {
     lineItems,
     subtotal,
     gstAmount,
-    total: grossTotal,
+    total: displayTotal,
     footerNote,
     creditAppliedAmount: advanceAppliedAmount,
     amountPaid,

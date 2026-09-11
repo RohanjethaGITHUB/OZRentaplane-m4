@@ -89,6 +89,8 @@ export function flightPaymentSettledEmail(details: {
       ? 'Bank Transfer'
       : details.paymentMethod === 'credit'
       ? 'Account Credit'
+      : details.paymentMethod === 'card' || details.paymentMethod === 'stripe'
+      ? 'Card (Online)'
       : details.paymentMethod
     : 'Direct Payment'
 

@@ -293,7 +293,7 @@ export default async function CustomerBillingPage({
       created: inv.created_at,
       updated: inv.updated_at || inv.paid_at || inv.created_at,
       href: inv.booking_id ? `/admin/bookings/requests/${inv.booking_id}` : '#',
-      pdf_url: inv.pdf_url ?? (inv.booking_id ? `/dashboard/bookings/${inv.booking_id}/invoice` : null),
+      pdf_url: inv.booking_id ? `/dashboard/bookings/${inv.booking_id}/invoice` : inv.pdf_url ?? null,
       bank_reference: submission?.reference,
       bank_submission_id: pendingSubmission?.id,
       receipt_url: receiptUrl,

@@ -50,10 +50,6 @@ export async function GET(request: Request, { params }: { params: { id: string }
     .maybeSingle()
 
   if (stdInvoice) {
-    if (stdInvoice.pdf_url) {
-      return NextResponse.redirect(stdInvoice.pdf_url)
-    }
-
     try {
       const pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId: stdInvoice.id })
       if (pdfResult?.pdfUrl) {
@@ -61,6 +57,9 @@ export async function GET(request: Request, { params }: { params: { id: string }
       }
     } catch (error) {
       console.error('[booking invoice route] Standard PDF generation failed', error)
+      if (stdInvoice.pdf_url) {
+        return NextResponse.redirect(stdInvoice.pdf_url)
+      }
     }
 
     return NextResponse.json({ error: 'Unable to generate invoice PDF.' }, { status: 500 })

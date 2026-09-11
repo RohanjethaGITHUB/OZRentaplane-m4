@@ -1362,6 +1362,27 @@ export async function POST(req: Request) {
       await markEventProcessed(supabase, event);
 
       await supabase
+        .from("booking_invoices")
+        .update({ payment_method: "card", paid_at: new Date().toISOString() })
+        .eq("id", invoiceId);
+
+      await supabase.from("customer_payment_ledger").insert({
+        customer_id: customerId,
+        booking_id: bookingId,
+        invoice_id: invoiceId,
+        invoice_source_type: "booking",
+        amount_cents: amountPaid,
+        currency: "aud",
+        entry_type: "stripe_charge",
+        payment_method: "card",
+        note: "Paid online via Stripe",
+        stripe_payment_intent_id: paymentIntentId,
+        stripe_checkout_session_id: session.id,
+      }).then(({ error: e }) => {
+        if (e) console.warn("[webhook] standard payment ledger insert (non-critical)", e.message);
+      });
+
+      await supabase
         .from("booking_status_history")
         .insert({
           booking_id: bookingId,
@@ -1399,7 +1420,7 @@ export async function POST(req: Request) {
             .maybeSingle(),
           supabase
             .from("booking_invoices")
-            .select("invoice_number, subtotal_cents")
+            .select("invoice_number, subtotal_cents, total_paid_cents")
             .eq("id", invoiceId)
             .maybeSingle(),
         ]);
@@ -1418,9 +1439,8 @@ export async function POST(req: Request) {
             })
           : null;
 
-        const amountFormatted = invRecord?.subtotal_cents
-          ? `$${(invRecord.subtotal_cents / 100).toFixed(2)} AUD`
-          : `$${(amountPaid / 100).toFixed(2)} AUD`;
+        const effectivePaidCents = amountPaid > 0 ? amountPaid : (invRecord?.total_paid_cents || invRecord?.subtotal_cents || 0);
+        const amountFormatted = `$${(effectivePaidCents / 100).toFixed(2)} AUD`;
 
         if (profile?.email) {
           const { flightPaymentSettledEmail } = await import("@/lib/email/templates/payment");

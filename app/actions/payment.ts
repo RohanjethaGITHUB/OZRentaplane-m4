@@ -1621,6 +1621,15 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
     if (rpcErr) throw new Error(rpcErr.message || "Failed to settle booking invoice.");
 
     await admin
+      .from("booking_invoices")
+      .update({
+        payment_method: paymentMethod ?? "cash",
+        paid_at: new Date().toISOString(),
+        total_paid_cents: input.amountCents,
+      })
+      .eq("id", invoice.id);
+
+    await admin
       .from("booking_status_history")
       .insert({
         booking_id: input.bookingId,
@@ -1656,11 +1665,9 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
     const [{ data: profile }, { data: invoiceRecord }] = await Promise.all([
       admin.from("profiles").select("email, full_name").eq("id", booking.booking_owner_user_id).single(),
       admin
-        .from("invoices")
-        .select("invoice_number, total, pdf_url")
-        .eq("booking_id", input.bookingId)
-        .order("created_at", { ascending: false })
-        .limit(1)
+        .from("booking_invoices")
+        .select("invoice_number, subtotal_cents, pdf_url")
+        .eq("id", invoice.id)
         .maybeSingle(),
     ]);
 
@@ -1679,9 +1686,7 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
           })
         : null;
 
-      const amountFormatted = invoiceRecord?.total
-        ? `$${Number(invoiceRecord.total).toFixed(2)} AUD`
-        : `$${(input.amountCents / 100).toFixed(2)} AUD`;
+      const amountFormatted = `$${(input.amountCents / 100).toFixed(2)} AUD`;
 
       const template = flightPaymentSettledEmail({
         bookingId: input.bookingId,
