@@ -243,7 +243,7 @@ function ProductCard({ product }: { product: Product }) {
         )}
         {product.buttonType === 'enquire' && (
           <a
-            href="mailto:ops@ozrentaplane.com.au?subject=Shop%20enquiry"
+            href="mailto:ozrentaplane@gmail.com?subject=Shop%20enquiry"
             className="w-full text-center border border-clearsky/35 text-clearsky rounded-md font-sans font-bold tracking-widest uppercase text-[0.68rem] px-5 py-3 hover:bg-clearsky/5 transition-colors"
           >
             Enquire
@@ -685,7 +685,7 @@ export default function ShopPage() {
                     accessories will be added over time.
                   </p>
                   <a
-                    href="mailto:ops@ozrentaplane.com.au?subject=Shop%20item%20suggestion"
+                    href="mailto:ozrentaplane@gmail.com?subject=Shop%20item%20suggestion"
                     className="inline-block bg-gradient-to-r from-clearsky to-panel-deep text-ink-deep rounded-full font-sans font-bold tracking-widest uppercase text-[0.72rem] px-6 py-3 shadow-lg shadow-clearsky/10 transition-all active:scale-95 hover:brightness-110"
                   >
                     Suggest an item

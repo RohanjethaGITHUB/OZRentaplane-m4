@@ -258,8 +258,8 @@ export default async function FlightBookingsPage({
   const { data: profile } = await getCachedProfile(user.id, 'admin')
   if (profile?.role !== 'admin') redirect('/dashboard')
 
-  const sort = (searchParams.sort as SortKey | undefined) ?? 'created'
-  const dir = (searchParams.dir as SortDir | undefined) === 'asc' ? 'asc' : 'desc'
+  const sort = (searchParams.sort as SortKey | undefined) ?? 'scheduled'
+  const dir = (searchParams.dir as SortDir | undefined) === 'desc' ? 'desc' : 'asc'
   const initialFilter = searchParams.status ?? 'all'
 
   const { data } = await supabase

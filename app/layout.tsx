@@ -102,7 +102,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   "description": "A modern aircraft rental platform for licensed pilots.",
                   "contactPoint": {
                     "@type": "ContactPoint",
-                    "email": "ops@ozrentaplane.com.au",
+                    "email": "ozrentaplane@gmail.com",
                     "contactType": "customer support"
                   }
                 },

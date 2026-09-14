@@ -591,7 +591,7 @@ export default function FaqPage() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
-              href="mailto:ops@ozrentaplane.com.au"
+              href="mailto:ozrentaplane@gmail.com"
               className="inline-flex items-center justify-center font-sans font-bold text-[11px] tracking-[0.2em] uppercase px-10 py-4 rounded-full transition-all duration-300 hover:brightness-110 active:scale-95"
               style={{
                 background: 'linear-gradient(135deg, #aec7f7, #608bca)',

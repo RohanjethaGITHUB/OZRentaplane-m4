@@ -361,7 +361,7 @@ export default function PilotRequirementsPage() {
             </StaggerItem>
             <StaggerItem duration={1.6}>
               <a 
-                href="mailto:ops@ozrentaplane.com.au" 
+                href="mailto:ozrentaplane@gmail.com" 
                 className="inline-block bg-gradient-to-r from-clearsky to-panel-deep text-ink-deep rounded-md font-sans font-bold tracking-widest uppercase text-lg px-16 py-6 shadow-2xl shadow-clearsky/20 transition-all active:scale-95 hover:brightness-110"
               >
                 Begin Your Application

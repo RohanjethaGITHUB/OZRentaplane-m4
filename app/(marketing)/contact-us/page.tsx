@@ -1,6 +1,11 @@
 import type { Metadata } from 'next'
 import PreFooterCTA from '@/components/marketing/PreFooterCTA'
 import AtmoClouds from '@/components/AtmoClouds'
+import {
+  ADMIN_CONTACT_PHONE_DISPLAY,
+  ADMIN_CONTACT_PHONE_TEL,
+  ADMIN_CONTACT_EMAIL,
+} from '@/lib/contact'
 
 export const dynamic = 'force-static'
 
@@ -122,7 +127,9 @@ export default function ContactPage() {
               </div>
               <div>
                 <h3 className="font-sans text-lg font-semibold text-deep-ink">Call the Team</h3>
-                <p className="mt-1 font-sans text-sm text-muted-ink">0474 576 085</p>
+                <a href={`tel:${ADMIN_CONTACT_PHONE_TEL}`} className="mt-1 block font-sans text-sm text-muted-ink hover:text-brand-blue hover:underline">
+                  {ADMIN_CONTACT_PHONE_DISPLAY}
+                </a>
                 <p className="mt-0.5 font-sans text-xs uppercase tracking-[0.11em] text-[#93a8c6]">Available 0600 - 2000 AEST</p>
               </div>
             </div>
@@ -135,7 +142,9 @@ export default function ContactPage() {
               </div>
               <div>
                 <h3 className="font-sans text-lg font-semibold text-deep-ink">Email Us</h3>
-                <p className="mt-1 font-sans text-sm text-muted-ink">ops@ozrentaplane.com.au</p>
+                <a href={`mailto:${ADMIN_CONTACT_EMAIL}`} className="mt-1 block font-sans text-sm text-muted-ink hover:text-brand-blue hover:underline">
+                  {ADMIN_CONTACT_EMAIL}
+                </a>
                 <p className="mt-0.5 font-sans text-xs uppercase tracking-[0.11em] text-[#93a8c6]">Typical response within 2 hrs</p>
               </div>
             </div>

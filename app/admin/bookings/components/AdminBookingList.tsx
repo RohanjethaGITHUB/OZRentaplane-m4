@@ -134,7 +134,7 @@ export default async function AdminBookingList({
 
   const requestedFilter = searchParams.status ?? 'all'
   const sort = (searchParams.sort as SortKey | undefined) ?? 'scheduled'
-  const dir = (searchParams.dir as SortDir | undefined) === 'asc' ? 'asc' : 'desc'
+  const dir = (searchParams.dir as SortDir | undefined) === 'desc' ? 'desc' : 'asc'
   const normalizeStatusFilter = (value: string) => {
     if (bookingTypeFilter !== 'checkout') return value
     const aliasMap: Record<string, string> = {

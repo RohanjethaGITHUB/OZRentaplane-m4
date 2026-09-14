@@ -194,13 +194,6 @@ function formatDuration(hours: number): string {
   return `${h}h ${m}m`;
 }
 
-function getVdoHourlyRate(hours: number): number {
-  if (hours < 10) return 330;
-  if (hours < 25) return 320;
-  if (hours < 50) return 310;
-  if (hours < 100) return 300;
-  return 290;
-}
 
 // ── Date input ─────────────────────────────────────────────────────────────────
 
@@ -912,10 +905,7 @@ export default function BookingRequestForm({
     return formatDurationLabelFromMinutes(bookingDurationMinutes);
   }, [bookingDurationMinutes]);
 
-  const estimatedRate = useMemo(() => {
-    if (estimatedHours == null) return payfRatePerHour;
-    return getVdoHourlyRate(estimatedHours);
-  }, [estimatedHours, payfRatePerHour]);
+  const estimatedRate = displayedRatePerHour;
 
   const bookingDayCount = useMemo(() => {
     if (bookingMode !== "multi" || !startDate || !bookingReturnDate) return 0;
@@ -2192,9 +2182,9 @@ export default function BookingRequestForm({
                               {formatHourlyRate(displayedRatePerHour)}
                             </span>
                           </span>
-                        ) : estimatedHours != null
-                          ? `$${getVdoHourlyRate(estimatedHours)}/hr`
-                          : "From $290–$330/hr"}
+                        ) : (
+                          formatHourlyRate(displayedRatePerHour)
+                        )}
                       </span>
                     </div>
                     <div className="flex items-center pt-1">

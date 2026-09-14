@@ -14,6 +14,11 @@ import {
   CHECKOUT_OUTCOME_AUDIT_EVENT_TYPES,
   outcomeFromAuditNewValue,
 } from '@/lib/checkout-outcome'
+import {
+  ADMIN_CONTACT_PHONE_DISPLAY,
+  ADMIN_CONTACT_PHONE_TEL,
+  ADMIN_CONTACT_EMAIL,
+} from '@/lib/contact'
 
 export const metadata = { title: 'My Bookings | OZRentAPlane' }
 export const dynamic = 'force-dynamic'
@@ -1377,8 +1382,8 @@ export default async function CustomerBookingsPage() {
               </div>
               <p className="text-[14px] font-semibold text-[#152d5a]">Need assistance?</p>
               <p className="text-[12px] text-[#4b6390] mt-1 mb-3">Our operations team is here to help.</p>
-              <a href="tel:+61395800555" className="block text-[13px] font-semibold text-[#1a4fd6] hover:underline">+61 3 9580 0555</a>
-              <a href="mailto:ops@ozrentaplane.com.au" className="block text-[13px] text-[#1a4fd6] hover:underline mt-0.5">ops@ozrentaplane.com.au</a>
+              <a href={`tel:${ADMIN_CONTACT_PHONE_TEL}`} className="block text-[13px] font-semibold text-[#1a4fd6] hover:underline">{ADMIN_CONTACT_PHONE_DISPLAY}</a>
+              <a href={`mailto:${ADMIN_CONTACT_EMAIL}`} className="block text-[13px] text-[#1a4fd6] hover:underline mt-0.5">{ADMIN_CONTACT_EMAIL}</a>
             </div>
 
             <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
