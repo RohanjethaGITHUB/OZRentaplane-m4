@@ -80,11 +80,11 @@ function escapeHtml(input: string): string {
     .replace(/'/g, '&#39;')
 }
 
-function getPublicAssetBase64(relativePath: string, mimeType: string): string {
+function getInvoiceAssetBase64(filename: string, mimeType: string): string {
   try {
-    const fullPath = join(process.cwd(), 'public', relativePath)
-    if (existsSync(fullPath)) {
-      const buffer = readFileSync(fullPath)
+    const directPath = join(process.cwd(), 'lib', 'invoices', 'assets', filename)
+    if (existsSync(directPath)) {
+      const buffer = readFileSync(directPath)
       return `data:${mimeType};base64,${buffer.toString('base64')}`
     }
   } catch {
@@ -128,14 +128,9 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
   const hasLandings = metrics?.landingsCount != null && metrics.landingsCount > 0
   const hasFlightSection = Boolean(metrics?.aircraftRegistration || hasVdo || hasAirswitch || hasTach || hasLandings)
 
-  // Load high-resolution embedded image assets
-  const topAircraftSrc = getPublicAssetBase64('CessnaImage-1.webp', 'image/webp') ||
-                         getPublicAssetBase64('Cessna-fleet.jpg', 'image/jpeg') ||
-                         getPublicAssetBase64('CessnaTarmac.webp', 'image/webp')
-
-  const wingCloudSrc = getPublicAssetBase64('Login-wing.png', 'image/png') ||
-                       getPublicAssetBase64('CustomerDashboard/CustomerDashboard-bookingHero.png', 'image/png') ||
-                       getPublicAssetBase64('CloudLayerA.webp', 'image/webp')
+  // Load high-resolution embedded image assets from isolated lib/invoices/assets folder
+  const topAircraftSrc = getInvoiceAssetBase64('CessnaImage-1.webp', 'image/webp')
+  const wingCloudSrc = getInvoiceAssetBase64('Login-wing.png', 'image/png')
 
   return `<!doctype html>
   <html lang="en">
