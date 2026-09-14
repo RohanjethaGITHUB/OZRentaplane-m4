@@ -476,7 +476,51 @@ export default async function FlightBookingsPage({
     } satisfies BookingDirectoryRow
   })
 
+function getBookingScheduleRank(row: { rawStatus: string; displayStatus?: string }) {
+  // Rank 0: Upcoming flights (confirmed, scheduled, requested)
+  if (
+    row.rawStatus === 'confirmed' ||
+    row.rawStatus === 'checkout_confirmed' ||
+    row.rawStatus === 'ready_for_dispatch' ||
+    row.rawStatus === 'dispatched' ||
+    row.rawStatus === 'pending_confirmation' ||
+    row.rawStatus === 'checkout_requested'
+  ) {
+    return 0
+  }
+  // Rank 1: In-flight / Post-flight review & payment pending
+  if (
+    row.displayStatus === 'awaiting_flight_record' ||
+    row.rawStatus === 'awaiting_flight_record' ||
+    row.rawStatus === 'flight_record_overdue' ||
+    row.rawStatus === 'pending_post_flight_review' ||
+    row.rawStatus === 'checkout_completed_under_review' ||
+    row.rawStatus === 'payment_pending' ||
+    row.rawStatus === 'checkout_payment_required' ||
+    row.rawStatus === 'on_hold_pending_documents'
+  ) {
+    return 1
+  }
+  // Rank 2: Completed / Cancelled / Past
+  return 2
+}
+
   const sortedRows = [...rows].sort((a, b) => {
+    if (sort === 'scheduled') {
+      const rankA = getBookingScheduleRank(a)
+      const rankB = getBookingScheduleRank(b)
+      if (rankA !== rankB) {
+        return dir === 'asc' ? rankA - rankB : rankB - rankA
+      }
+      const timeA = new Date(a.scheduledStart).getTime()
+      const timeB = new Date(b.scheduledStart).getTime()
+      if (rankA <= 1) {
+        return dir === 'asc' ? timeA - timeB : timeB - timeA
+      }
+      // For completed/past bookings, show most recent first
+      return dir === 'asc' ? timeB - timeA : timeA - timeB
+    }
+
     const valueA: Record<SortKey, string | number> = {
       created: new Date(a.createdAt).getTime(),
       customer: a.customerName.toLowerCase(),

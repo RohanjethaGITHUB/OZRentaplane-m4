@@ -223,7 +223,48 @@ export default async function AdminBookingList({
     return new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime()
   })
 
+  function getBookingListScheduleRank(status: string) {
+    if (
+      status === 'confirmed' ||
+      status === 'checkout_confirmed' ||
+      status === 'ready_for_dispatch' ||
+      status === 'dispatched' ||
+      status === 'pending_confirmation' ||
+      status === 'checkout_requested'
+    ) {
+      return 0
+    }
+    if (
+      status === 'awaiting_flight_record' ||
+      status === 'flight_record_overdue' ||
+      status === 'pending_post_flight_review' ||
+      status === 'checkout_completed_under_review' ||
+      status === 'payment_pending' ||
+      status === 'checkout_payment_required' ||
+      status === 'on_hold_pending_documents'
+    ) {
+      return 1
+    }
+    return 2
+  }
+
   const sortedRows = [...rows].sort((a, b) => {
+    if (sort === 'scheduled') {
+      const statusA = deriveBookingStatusForFlightRecord(a)
+      const statusB = deriveBookingStatusForFlightRecord(b)
+      const rankA = getBookingListScheduleRank(statusA)
+      const rankB = getBookingListScheduleRank(statusB)
+      if (rankA !== rankB) {
+        return dir === 'asc' ? rankA - rankB : rankB - rankA
+      }
+      const timeA = new Date(a.scheduled_start).getTime()
+      const timeB = new Date(b.scheduled_start).getTime()
+      if (rankA <= 1) {
+        return dir === 'asc' ? timeA - timeB : timeB - timeA
+      }
+      return dir === 'asc' ? timeB - timeA : timeA - timeB
+    }
+
     const aircraftA = Array.isArray(a.aircraft) ? a.aircraft[0] : a.aircraft
     const aircraftB = Array.isArray(b.aircraft) ? b.aircraft[0] : b.aircraft
     const pa = profileMap.get(a.booking_owner_user_id)
