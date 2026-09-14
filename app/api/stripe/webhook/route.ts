@@ -9,9 +9,7 @@ import {
   blockTimeTopupConfirmedEmail,
   adminBlockTimeTopupConfirmedEmail,
 } from "@/lib/email/templates/block-time";
-import { generateInvoicePdf } from "@/lib/invoices/pdf";
-import { storeInvoicePdf } from "@/lib/invoices/pdf-storage";
-import { generateStandardBookingInvoicePdf } from "@/lib/invoices/standard-booking-pdf";
+import { requestPdfGeneration } from "@/lib/invoices/request-pdf";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'devjamaviation@gmail.com';
 import {
@@ -86,178 +84,6 @@ function buildGstBreakdown(totalAmount: number) {
     gstAmount,
     total,
   };
-}
-
-function getFullName(profile: { full_name?: string | null; first_name?: string | null; last_name?: string | null } | null | undefined): string {
-  const fullName = profile?.full_name?.trim()
-  if (fullName) return fullName
-  const parts = [profile?.first_name?.trim(), profile?.last_name?.trim()].filter(Boolean)
-  return parts.join(' ') || 'Pilot'
-}
-
-function getPhoneDisplay(profile: { phone_country_code?: string | null; phone_number?: string | null } | null | undefined): string | null {
-  const phoneNumber = profile?.phone_number?.trim()
-  if (!phoneNumber) return null
-  const countryCode = profile?.phone_country_code?.trim()
-  return countryCode ? `${countryCode} ${phoneNumber}` : phoneNumber
-}
-
-async function createBlockTimeInvoicePdf(params: {
-  supabase: any
-  invoiceId: string
-  invoiceNumber: string
-  userId: string
-  createdAt: string
-  packageName: string
-  packageHours: number
-  ratePerHour: number
-  validityDays: number
-  amountPaid: number
-  subtotal: number
-  gstAmount: number
-  total: number
-  customerProfile: {
-    full_name?: string | null
-    first_name?: string | null
-    last_name?: string | null
-    phone_country_code?: string | null
-    phone_number?: string | null
-    email?: string | null
-  } | null
-}) {
-  const {
-    supabase,
-    invoiceId,
-    invoiceNumber,
-    userId,
-    createdAt,
-    packageName,
-    packageHours,
-    ratePerHour,
-    validityDays,
-    amountPaid,
-    subtotal,
-    gstAmount,
-    total,
-    customerProfile,
-  } = params
-
-  const purchaseDate = new Date(createdAt)
-  const expiryDate = new Date(purchaseDate.getTime() + validityDays * 24 * 60 * 60 * 1000)
-  const pdfBuffer = await generateInvoicePdf({
-    invoiceNumber,
-    documentKind: 'tax_invoice',
-    statusLabel: 'PAID',
-    createdAt,
-    dueAt: createdAt,
-    billingModeLabel: 'Block Time',
-    billToName: getFullName(customerProfile),
-    billToEmail: customerProfile?.email ?? '—',
-    billToPhone: getPhoneDisplay(customerProfile),
-    lineItems: [
-      {
-        description: `Block Time Package — ${packageName}`,
-        quantity: packageHours,
-        unitPrice: ratePerHour,
-        amount: amountPaid,
-      },
-    ],
-    subtotal,
-    gstAmount,
-    total,
-    footerNote: `All prices include GST. Hours are valid until ${new Intl.DateTimeFormat('en-AU', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    }).format(expiryDate)}. Unused hours at expiry are forfeited per Terms & Conditions.`,
-  })
-
-  return storeInvoicePdf({
-    supabase,
-    table: 'invoices',
-    rowId: invoiceId,
-    userId,
-    invoiceNumber,
-    pdfBuffer,
-  })
-}
-
-async function createBlockTimeTopupInvoicePdf(params: {
-  supabase: any
-  invoiceId: string
-  invoiceNumber: string
-  userId: string
-  createdAt: string
-  packageName: string
-  hoursAdded: number
-  ratePerHour: number
-  amountPaid: number
-  subtotal: number
-  gstAmount: number
-  total: number
-  newExpiresAt: string
-  customerProfile: {
-    full_name?: string | null
-    first_name?: string | null
-    last_name?: string | null
-    phone_country_code?: string | null
-    phone_number?: string | null
-    email?: string | null
-  } | null
-}) {
-  const {
-    supabase,
-    invoiceId,
-    invoiceNumber,
-    userId,
-    createdAt,
-    packageName,
-    hoursAdded,
-    ratePerHour,
-    amountPaid,
-    subtotal,
-    gstAmount,
-    total,
-    newExpiresAt,
-    customerProfile,
-  } = params
-
-  const pdfBuffer = await generateInvoicePdf({
-    invoiceNumber,
-    documentKind: 'tax_invoice',
-    statusLabel: 'PAID',
-    createdAt,
-    dueAt: createdAt,
-    billingModeLabel: 'Block Time',
-    billToName: getFullName(customerProfile),
-    billToEmail: customerProfile?.email ?? '—',
-    billToPhone: getPhoneDisplay(customerProfile),
-    lineItems: [
-      {
-        description: `Block Time Top-Up — ${packageName}`,
-        quantity: hoursAdded,
-        unitPrice: ratePerHour,
-        amount: amountPaid,
-      },
-    ],
-    subtotal,
-    gstAmount,
-    total,
-    footerNote: `All prices include GST. Hours are valid until ${new Intl.DateTimeFormat('en-AU', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    }).format(new Date(newExpiresAt))}. Unused hours at expiry are forfeited per Terms & Conditions.`,
-  })
-
-  return storeInvoicePdf({
-    supabase,
-    table: 'invoices',
-    rowId: invoiceId,
-    userId,
-    invoiceNumber,
-    pdfBuffer,
-  })
 }
 
 export async function POST(req: Request) {
@@ -504,13 +330,11 @@ export async function POST(req: Request) {
             .eq("id", topup.out_user_id)
             .single();
 
-          let pdfResult:
-            | Awaited<ReturnType<typeof createBlockTimeTopupInvoicePdf>>
-            | null = null;
+          let pdfResult: any = null;
 
           try {
-            pdfResult = await createBlockTimeTopupInvoicePdf({
-              supabase,
+            pdfResult = await requestPdfGeneration({
+              type: "block_time_topup",
               invoiceId: invoiceRecord.id,
               invoiceNumber: invoiceRecord.invoice_number,
               userId: topup.out_user_id,
@@ -994,8 +818,8 @@ export async function POST(req: Request) {
               .eq("id", purchase.user_id)
               .single();
 
-            const pdfResult = await createBlockTimeInvoicePdf({
-              supabase,
+            const pdfResult = await requestPdfGeneration({
+              type: "block_time_purchase",
               invoiceId: existingInvoice.id,
               invoiceNumber: existingInvoice.invoice_number,
               userId: purchase.user_id,
@@ -1013,7 +837,7 @@ export async function POST(req: Request) {
 
             console.log("[webhook] Existing block time invoice PDF generated", {
               invoiceId: existingInvoice.id,
-              pdfUrl: pdfResult.pdfUrl,
+              pdfUrl: pdfResult?.pdfUrl,
             });
           } catch (pdfErr: any) {
             console.warn("[webhook] Existing block time invoice PDF generation failed (non-fatal)", {
@@ -1121,13 +945,11 @@ export async function POST(req: Request) {
           .eq("id", purchase.user_id)
           .single();
 
-        let pdfResult:
-          | Awaited<ReturnType<typeof createBlockTimeInvoicePdf>>
-          | null = null;
+        let pdfResult: any = null;
 
         try {
-          pdfResult = await createBlockTimeInvoicePdf({
-            supabase,
+          pdfResult = await requestPdfGeneration({
+            type: "block_time_purchase",
             invoiceId: invoice.id,
             invoiceNumber: invoice.invoice_number,
             userId: purchase.user_id,
@@ -1398,7 +1220,10 @@ export async function POST(req: Request) {
       try {
         let pdfResult: any = null;
         try {
-          pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId });
+          pdfResult = await requestPdfGeneration({
+            type: "standard_booking",
+            invoiceId,
+          });
           if (pdfResult) {
             console.log("[webhook] Standard booking receipt generated", {
               invoiceId,
@@ -1583,14 +1408,13 @@ export async function POST(req: Request) {
     try {
       let pdfResult: any = null;
       try {
-        const { generateCheckoutBookingInvoicePdf } = await import("@/lib/invoices/checkout-booking-pdf");
-        pdfResult = await generateCheckoutBookingInvoicePdf({
-          supabase,
+        pdfResult = await requestPdfGeneration({
+          type: "checkout_booking",
           bookingId,
           invoiceId,
         });
-      } catch (pdfErr) {
-        console.warn("[webhook] Checkout invoice PDF generation failed (non-fatal):", pdfErr);
+      } catch (pdfErr: any) {
+        console.warn("[webhook] Checkout invoice PDF generation failed (non-fatal):", pdfErr?.message);
       }
 
       const [{ data: profile }, { data: bookingRecord }] = await Promise.all([
