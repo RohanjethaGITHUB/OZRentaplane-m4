@@ -665,6 +665,8 @@ export default async function CustomerBookingsPage() {
     return dateA.localeCompare(dateB)
   })
 
+  const activeCheckoutStatus = checkoutBooking?.status ?? clearanceStatus
+
   return (
     <>
       <BookingsViewedTracker />
@@ -677,7 +679,7 @@ export default async function CustomerBookingsPage() {
         backgroundPosition="center"
         {...(isCleared
           ? { cta: { label: 'Book New Flight', href: '/dashboard/bookings/new', icon: 'flight_takeoff' } }
-          : clearanceStatus === 'checkout_payment_required'
+          : activeCheckoutStatus === 'checkout_payment_required'
             ? {
                 cta: {
                   label: paymentSubmittedAwaitingConfirmation ? 'View Payment' : 'Pay Invoice',
@@ -685,7 +687,31 @@ export default async function CustomerBookingsPage() {
                   icon: 'payments',
                 },
               }
-            : { cta: { label: 'Book a Checkout', href: '/dashboard/checkout', icon: 'flight_takeoff' } })}
+            : activeCheckoutStatus === 'checkout_confirmed'
+              ? {
+                  cta: {
+                    label: 'View Checkout',
+                    href: checkoutBooking?.id ? `/dashboard/bookings/${checkoutBooking.id}` : '/dashboard/checkout',
+                    icon: 'event_available',
+                  },
+                }
+              : activeCheckoutStatus === 'checkout_requested'
+                ? {
+                    cta: {
+                      label: 'View Checkout',
+                      href: checkoutBooking?.id ? `/dashboard/bookings/${checkoutBooking.id}` : '/dashboard/checkout',
+                      icon: 'hourglass_empty',
+                    },
+                  }
+                : activeCheckoutStatus === 'checkout_completed_under_review'
+                  ? {
+                      cta: {
+                        label: 'View Outcome',
+                        href: '/dashboard/checkout',
+                        icon: 'manage_search',
+                      },
+                    }
+                  : { cta: { label: 'Book a Checkout', href: '/dashboard/checkout', icon: 'flight_takeoff' } })}
       />
 
       <div className="max-w-[1320px] mx-auto pt-0 pb-16">
@@ -758,6 +784,7 @@ export default async function CustomerBookingsPage() {
           let cardStyle = 'bg-amber-50 border border-amber-200 border-l-4 border-l-amber-500 rounded-2xl p-5 mb-6'
 
           const status = clearanceStatus
+          const activeCheckoutStatus = checkoutBooking?.status ?? clearanceStatus
           const hasUpcoming = allUpcoming.length > 0
 
           if (status === 'cleared_to_fly' && hasUpcoming) {
@@ -784,7 +811,7 @@ export default async function CustomerBookingsPage() {
             ctaHref = '/dashboard/bookings/new'
             ctaStyle = 'bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e]'
             cardStyle = 'bg-white border border-blue-200 border-l-4 border-l-[#1a4fd6] rounded-2xl p-5 mb-6'
-          } else if (status === 'checkout_confirmed') {
+          } else if (activeCheckoutStatus === 'checkout_confirmed') {
             icon = 'event_available'
             iconBg = 'bg-blue-100'
             iconColor = 'text-[#1a4fd6]'
@@ -796,7 +823,7 @@ export default async function CustomerBookingsPage() {
             ctaHref = '/dashboard/checkout'
             ctaStyle = 'bg-[#152d5a] hover:bg-[#1a3a6e] text-white'
             cardStyle = 'bg-white border border-blue-200 border-l-4 border-l-[#1a4fd6] rounded-2xl p-5 mb-6'
-          } else if (status === 'checkout_requested') {
+          } else if (activeCheckoutStatus === 'checkout_requested') {
             if (hasPendingReschedule) {
               icon = 'event_repeat'
               iconBg = 'bg-amber-100'
@@ -822,7 +849,7 @@ export default async function CustomerBookingsPage() {
               ctaStyle = 'bg-[#152d5a] hover:bg-[#1a3a6e] text-white'
               cardStyle = 'bg-white border border-blue-200 border-l-4 border-l-[#1a4fd6] rounded-2xl p-5 mb-6'
             }
-          } else if (status === 'checkout_payment_required') {
+          } else if (activeCheckoutStatus === 'checkout_payment_required') {
             if (paymentSubmittedAwaitingConfirmation) {
               icon = 'hourglass_empty'
               iconBg = 'bg-blue-100'
@@ -834,6 +861,7 @@ export default async function CustomerBookingsPage() {
               ctaLabel = 'View Details'
               ctaHref = checkoutPaymentHref
               ctaStyle = 'bg-[#152d5a] hover:bg-[#1a3a6e] text-white'
+              cardStyle = 'bg-white border border-blue-200 border-l-4 border-l-[#1a4fd6] rounded-2xl p-5 mb-6'
             } else {
               icon = 'payments'
               iconBg = 'bg-amber-100'
@@ -845,8 +873,9 @@ export default async function CustomerBookingsPage() {
               ctaLabel = 'Pay Invoice'
               ctaHref = checkoutPaymentHref
               ctaStyle = 'bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e]'
+              cardStyle = 'bg-amber-50 border border-amber-200 border-l-4 border-l-amber-500 rounded-2xl p-5 mb-6'
             }
-          } else if (status === 'checkout_completed_under_review') {
+          } else if (activeCheckoutStatus === 'checkout_completed_under_review') {
             icon = 'manage_search'
             iconBg = 'bg-blue-100'
             iconColor = 'text-[#1a4fd6]'
@@ -859,10 +888,17 @@ export default async function CustomerBookingsPage() {
             ctaStyle = 'bg-[#152d5a] hover:bg-[#1a3a6e] text-white'
             cardStyle = 'bg-white border border-blue-200 border-l-4 border-l-[#1a4fd6] rounded-2xl p-5 flex items-start gap-4 mb-6'
           } else {
+            icon = 'flight_takeoff'
+            iconBg = 'bg-blue-100'
+            iconColor = 'text-[#1a4fd6]'
+            label = 'NEXT STEP'
+            labelColor = 'text-[#1a4fd6]'
             heading = 'Complete Your Checkout to Start Flying'
             body = 'A one-time checkout flight is required before you can hire an aircraft solo. Upload your documents and book your checkout to get started.'
             ctaLabel = 'Book a Checkout'
             ctaHref = '/dashboard/checkout'
+            ctaStyle = 'bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e]'
+            cardStyle = 'bg-white border border-blue-200 border-l-4 border-l-[#1a4fd6] rounded-2xl p-5 mb-6'
           }
 
           return (

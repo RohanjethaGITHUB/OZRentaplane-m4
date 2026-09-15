@@ -9,7 +9,7 @@ type Props = {
   flightSnapshotBooking?: DashboardFlightSnapshot | null
 }
 
-function responsibilityBadge(state: DashboardActionState): { label: string; className: string; icon: string } {
+function responsibilityBadge(state: DashboardActionState): { label: string; className: string; icon: string } | null {
   if (state.phase === 'blocked') {
     return {
       label: 'Account restricted',
@@ -38,11 +38,7 @@ function responsibilityBadge(state: DashboardActionState): { label: string; clas
       icon: 'school',
     }
   }
-  return {
-    label: 'No action required',
-    className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    icon: 'check_circle',
-  }
+  return null
 }
 
 function toneStyles(tone: DashboardActionState['tone']) {
@@ -171,12 +167,14 @@ export default function DashboardNextActionPanel({ state, flightSnapshotBooking 
             </h2>
           </div>
 
-          <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-[11px] font-semibold ${badge.className}`}>
-            <span className="material-symbols-outlined text-[15px]" aria-hidden="true">
-              {badge.icon}
-            </span>
-            <span>{badge.label}</span>
-          </div>
+          {badge ? (
+            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-[11px] font-semibold ${badge.className}`}>
+              <span className="material-symbols-outlined text-[15px]" aria-hidden="true">
+                {badge.icon}
+              </span>
+              <span>{badge.label}</span>
+            </div>
+          ) : null}
         </div>
 
         <div className="max-w-3xl">

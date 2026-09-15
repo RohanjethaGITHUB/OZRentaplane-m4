@@ -277,14 +277,14 @@ function NextActionCard({
   postFlightAttachments?:   (FlightRecordAttachment & { signedUrl: string | null })[]
   checkoutInvoice?:         { id: string; invoice_number: string; subtotal_cents: number; advance_applied_cents: number; stripe_amount_due_cents: number } | null
   bankTransferSubmission?:  { id: string; status: string } | null
-  bankDetails?:             { accountName: string; bsb: string; accountNumber: string } | null
+  bankDetails?:             { bankName?: string; accountName: string; bsb: string; accountNumber: string } | null
   checkoutOutcome?:         string | null
   standardBilling?:         { subtotal_cents: number; advance_applied_cents: number; amount_due_cents: number } | null
   bookingInvoice?:          StandardBookingInvoicePreview | null
   invoiceLandingCharges?:   InvoiceLandingChargePreview[]
   bookingSlotHours:         number
   standardBankTransferSub?: { id: string; status: string } | null
-  standardBankDetails?:     { accountName: string; bsb: string; accountNumber: string } | null
+  standardBankDetails?:     { bankName?: string; accountName: string; bsb: string; accountNumber: string } | null
   blockTimePayInvoice?: {
     id: string
     invoice_number: string
@@ -293,7 +293,7 @@ function NextActionCard({
     payment_method: string | null
     is_block_time_overage: boolean
   } | null
-  blockTimeBankDetails?: { accountName: string; bsb: string; accountNumber: string } | null
+  blockTimeBankDetails?: { bankName?: string; accountName: string; bsb: string; accountNumber: string } | null
   cancellationRequest?:     { status: string; charge_amount_cents: number | null; customer_message: string | null } | null
   showFlightRecordButton?:  boolean
   showCancelButton?:        boolean
@@ -1179,8 +1179,9 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
     const name = PAYMENT_CONFIG.BANK_ACCOUNT_NAME
     const bsb  = PAYMENT_CONFIG.BANK_BSB
     const acct = PAYMENT_CONFIG.BANK_ACCOUNT_NUMBER
+    const bank = PAYMENT_CONFIG.BANK_NAME
     if (name && bsb && acct) {
-      bankDetails = { accountName: name, bsb, accountNumber: acct }
+      bankDetails = { bankName: bank, accountName: name, bsb, accountNumber: acct }
     } else {
       console.warn('[checkout] Bank transfer env vars not configured — bank transfer option hidden')
     }
@@ -1190,7 +1191,7 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
   let bookingInvoice: StandardBookingInvoicePreview | null = null
   let invoiceLandingCharges: InvoiceLandingChargePreview[] = []
   let standardBankTransferSub: { id: string; status: string } | null = null
-  let standardBankDetails: { accountName: string; bsb: string; accountNumber: string } | null = null
+  let standardBankDetails: { bankName?: string; accountName: string; bsb: string; accountNumber: string } | null = null
 
   if (status === 'payment_pending') {
     const { data: bInv } = await supabase
@@ -1244,8 +1245,9 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
     const name = PAYMENT_CONFIG.BANK_ACCOUNT_NAME
     const bsb  = PAYMENT_CONFIG.BANK_BSB
     const acct = PAYMENT_CONFIG.BANK_ACCOUNT_NUMBER
+    const bank = PAYMENT_CONFIG.BANK_NAME
     if (name && bsb && acct) {
-      standardBankDetails = { accountName: name, bsb, accountNumber: acct }
+      standardBankDetails = { bankName: bank, accountName: name, bsb, accountNumber: acct }
     }
   }
 
@@ -1259,7 +1261,7 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
     is_block_time_overage: boolean
   }
   let blockTimePayInvoice: BlockTimePayInvoice | null = null
-  let blockTimeBankDetails: { accountName: string; bsb: string; accountNumber: string } | null = null
+  let blockTimeBankDetails: { bankName?: string; accountName: string; bsb: string; accountNumber: string } | null = null
   if (bookingType === 'standard' && (status === 'completed' || status === 'post_flight_approved' || status === 'payment_pending')) {
     const { data: btInvoice } = await supabase
       .from('invoices')
@@ -1279,8 +1281,9 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
       const name = PAYMENT_CONFIG.BANK_ACCOUNT_NAME
       const bsb = PAYMENT_CONFIG.BANK_BSB
       const acct = PAYMENT_CONFIG.BANK_ACCOUNT_NUMBER
+      const bank = PAYMENT_CONFIG.BANK_NAME
       if (name && bsb && acct) {
-        blockTimeBankDetails = { accountName: name, bsb, accountNumber: acct }
+        blockTimeBankDetails = { bankName: bank, accountName: name, bsb, accountNumber: acct }
       }
 
       const [{ data: bSub }, { data: flightRec }] = await Promise.all([

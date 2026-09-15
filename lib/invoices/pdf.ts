@@ -938,8 +938,8 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
                        <div class="note-status-texts">
                          <div class="note-status-title pending">HOW TO PAY: DIRECT DEPOSIT (EFT)</div>
                          <p class="note-status-body">
-                           <strong>Account Name:</strong> OZ Rent A Plane Pty Ltd<br />
-                           <strong>BSB:</strong> 082-902 &nbsp;|&nbsp; <strong>Account:</strong> 89-123-4567<br />
+                           <strong>Account Name:</strong> JAM Aviation PTY LTD<br />
+                           <strong>BSB:</strong> 085-005 &nbsp;|&nbsp; <strong>Account:</strong> 388004197<br />
                            <strong>Bank:</strong> National Australia Bank (NAB)<br />
                            <strong>Payment Reference:</strong> <strong>${escapeHtml(input.invoiceNumber)}</strong>
                          </p>

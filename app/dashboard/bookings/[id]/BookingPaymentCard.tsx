@@ -41,6 +41,7 @@ type Props = {
   }>
   bankTransferSubmission?: { id: string; status: string } | null
   bankDetails?: {
+    bankName?: string
     accountName: string
     bsb: string
     accountNumber: string
@@ -387,16 +388,20 @@ export default function BookingPaymentCard({
             </div>
             <div className="pt-3 border-t border-[#152d5a]/10 space-y-2 text-[#4b6390]">
               <div className="flex justify-between">
+                <span className="text-[#4b6390]">Bank</span>
+                <span className="font-medium text-[#152d5a]">{bankDetails?.bankName || 'National Australia Bank (NAB)'}</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-[#4b6390]">Account Name</span>
-                <span className="font-medium text-[#152d5a]">{bankDetails?.accountName}</span>
+                <span className="font-medium text-[#152d5a]">{bankDetails?.accountName || 'JAM Aviation PTY LTD'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#4b6390]">BSB</span>
-                <span className="font-mono text-[#152d5a]">{bankDetails?.bsb}</span>
+                <span className="font-mono text-[#152d5a]">{bankDetails?.bsb || '085-005'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#4b6390]">Account Number</span>
-                <span className="font-mono text-[#152d5a]">{bankDetails?.accountNumber}</span>
+                <span className="font-mono text-[#152d5a]">{bankDetails?.accountNumber || '388004197'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#4b6390]">Payment Reference</span>

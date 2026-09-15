@@ -360,7 +360,7 @@ export function checkoutPaymentRequiredEmail(details: {
           <p style="margin:0 0 8px;font-weight:700;color:#0f172a;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;">Payment Options</p>
           <p style="margin:0 0 10px;font-size:13px;color:#475569;line-height:1.5;">
             <strong>Option 1 (Instant):</strong> Pay online via credit or debit card on your pilot portal.<br />
-            <strong>Option 2 (Bank Transfer):</strong> NAB &bull; BSB: 082-902 &bull; Acc: 89-123-4567 &bull; Ref: <strong>${details.invoiceNumber || details.bookingReference || 'Checkout'}</strong>
+            <strong>Option 2 (Bank Transfer):</strong> NAB &bull; BSB: 085-005 &bull; Acc: 388004197 &bull; Ref: <strong>${details.invoiceNumber || details.bookingReference || 'Checkout'}</strong>
           </p>
           <p style="margin:0;font-size:12px;">
             <a href="${appUrl}/dashboard/bookings/${details.bookingId}/invoice" style="color:#1a4fd6;font-weight:600;text-decoration:underline;">&darr; Download PDF Tax Invoice</a>

@@ -849,7 +849,7 @@ export function resolveDashboardActionState(input: DashboardActionStateInput): D
       statusKey: 'cleared_ready_to_book',
       tone: 'success',
       responsibleActor: 'customer',
-      customerActionRequired: true,
+      customerActionRequired: false,
       heroLabel: 'Cleared to Fly',
       heroMessage: 'You are cleared and ready to book an aircraft.',
       actionHeading: 'Book your next aircraft',

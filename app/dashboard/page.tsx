@@ -354,12 +354,22 @@ export default async function DashboardPage({
     return (aircraft as { registration: string }).registration ?? null
   }
 
-  const checkoutBookingId = (checkoutBookingResult.data as { id: string } | null)?.id ?? null
+  const checkoutSnapshotBooking = (checkoutSnapshotBookingResult.data as BookingSnapshotRow | null) ?? null
+  const checkoutBookingId =
+    checkoutSnapshotBooking?.id ??
+    (checkoutBookingResult.data as { id: string } | null)?.id ??
+    null
 
-  // Self-heal: if profile clearance status is checkout_requested or checkout_confirmed,
-  // but no active checkout booking exists (e.g. after cancellation/closure), reconcile to checkout_required.
+  // Sync effective clearance status with active checkout booking if available
   let effectiveClearanceStatus = clearanceStatus
   if (
+    checkoutSnapshotBooking &&
+    ['checkout_requested', 'checkout_confirmed', 'checkout_completed_under_review', 'checkout_payment_required'].includes(checkoutSnapshotBooking.status)
+  ) {
+    if (clearanceStatus !== 'cleared_to_fly') {
+      effectiveClearanceStatus = checkoutSnapshotBooking.status as PilotClearanceStatus
+    }
+  } else if (
     (clearanceStatus === 'checkout_requested' || clearanceStatus === 'checkout_confirmed') &&
     !checkoutBookingId
   ) {
@@ -382,7 +392,6 @@ export default async function DashboardPage({
     .find((booking) => isAwaitingFlightRecordDue(booking)) ?? null
   const postFlightUnderReviewBooking = (postFlightUnderReviewBookingResult.data as BookingSnapshotRow | null) ?? null
   const upcomingConfirmedBooking = (upcomingConfirmedBookingResult.data as BookingSnapshotRow | null) ?? null
-  const checkoutSnapshotBooking = (checkoutSnapshotBookingResult.data as BookingSnapshotRow | null) ?? null
   const postFlightPaymentRequiredBooking = (postFlightPaymentRequiredBookingResult.data as BookingSnapshotRow | null) ?? null
 
   // ── Post-flight bank transfer status ──────────────────────────────────────

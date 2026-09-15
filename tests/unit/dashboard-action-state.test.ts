@@ -424,7 +424,7 @@ test('rejected checkout bank proof routes back to replacement action', () => {
   )
 
   assert.equal(state.statusKey, 'checkout_payment_proof_rejected')
-  assert.equal(state.primaryAction?.href, '/dashboard/bookings/checkout-1')
+  assert.equal(state.primaryAction?.href, '/dashboard/bookings/checkout-1#payment')
 })
 
 test('checkout required routes to checkout instead of bookings', () => {
@@ -622,3 +622,125 @@ test('rejected documents win before other downstream states', () => {
 
   assert.equal(state.statusKey, 'documents_rejected')
 })
+
+test('checkout_requested shows waiting review and no warning badge', () => {
+  const state = resolveDashboardActionState(
+    buildInput({
+      profile: {
+        account_status: 'active',
+        account_lock_reason: null,
+        pilot_clearance_status: 'checkout_requested',
+        has_night_vfr_rating: false,
+        last_flight_date: '2026-06-15',
+      },
+      checkoutBookingId: 'checkout-1',
+    }),
+  )
+
+  assert.equal(state.statusKey, 'checkout_requested')
+  assert.equal(state.customerActionRequired, false)
+  assert.equal(state.tone, 'info')
+  assert.equal(state.heroLabel, 'Checkout Requested')
+  assert.equal(state.secondaryAction?.href, '/dashboard/bookings/checkout-1')
+})
+
+test('checkout_confirmed shows confirmed status and no warning badge', () => {
+  const state = resolveDashboardActionState(
+    buildInput({
+      profile: {
+        account_status: 'active',
+        account_lock_reason: null,
+        pilot_clearance_status: 'checkout_confirmed',
+        has_night_vfr_rating: false,
+        last_flight_date: '2026-06-15',
+      },
+      checkoutBookingId: 'checkout-1',
+    }),
+  )
+
+  assert.equal(state.statusKey, 'checkout_confirmed')
+  assert.equal(state.customerActionRequired, false)
+  assert.equal(state.tone, 'info')
+  assert.equal(state.heroLabel, 'Checkout Confirmed')
+  assert.equal(state.primaryAction?.label, 'View Booking')
+  assert.equal(state.primaryAction?.href, '/dashboard/bookings/checkout-1')
+})
+
+test('checkout_completed_under_review shows outcome review in progress', () => {
+  const state = resolveDashboardActionState(
+    buildInput({
+      profile: {
+        account_status: 'active',
+        account_lock_reason: null,
+        pilot_clearance_status: 'checkout_completed_under_review',
+        has_night_vfr_rating: false,
+        last_flight_date: '2026-06-15',
+      },
+      checkoutBookingId: 'checkout-1',
+    }),
+  )
+
+  assert.equal(state.statusKey, 'checkout_outcome_under_review')
+  assert.equal(state.customerActionRequired, false)
+  assert.equal(state.heroLabel, 'Checkout Under Review')
+})
+
+test('checkout_payment_required prompts customer to complete payment', () => {
+  const state = resolveDashboardActionState(
+    buildInput({
+      profile: {
+        account_status: 'active',
+        account_lock_reason: null,
+        pilot_clearance_status: 'checkout_payment_required',
+        has_night_vfr_rating: false,
+        last_flight_date: '2026-06-15',
+      },
+      checkoutBookingId: 'checkout-1',
+      checkoutPayment: {
+        bookingId: 'checkout-1',
+        invoiceStatus: 'payment_required',
+        bankTransferStatus: null,
+        bankTransferNote: null,
+      },
+    }),
+  )
+
+  assert.equal(state.statusKey, 'checkout_payment_required')
+  assert.equal(state.customerActionRequired, true)
+  assert.equal(state.tone, 'warning')
+  assert.equal(state.primaryAction?.href, '/dashboard/bookings/checkout-1#payment')
+})
+
+test('additional_checkout_required and checkout_reschedule_required prompt to book checkout', () => {
+  const addState = resolveDashboardActionState(
+    buildInput({
+      profile: {
+        account_status: 'active',
+        account_lock_reason: null,
+        pilot_clearance_status: 'additional_checkout_required',
+        has_night_vfr_rating: false,
+        last_flight_date: '2026-06-15',
+      },
+    }),
+  )
+  const reschedState = resolveDashboardActionState(
+    buildInput({
+      profile: {
+        account_status: 'active',
+        account_lock_reason: null,
+        pilot_clearance_status: 'checkout_reschedule_required',
+        has_night_vfr_rating: false,
+        last_flight_date: '2026-06-15',
+      },
+    }),
+  )
+
+  assert.equal(addState.statusKey, 'additional_checkout_required')
+  assert.equal(addState.customerActionRequired, true)
+  assert.equal(addState.primaryAction?.href, '/dashboard/checkout')
+
+  assert.equal(reschedState.statusKey, 'checkout_reschedule_required')
+  assert.equal(reschedState.customerActionRequired, true)
+  assert.equal(reschedState.primaryAction?.href, '/dashboard/checkout')
+})
+
