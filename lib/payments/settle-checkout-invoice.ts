@@ -75,6 +75,15 @@ export async function settleCheckoutInvoiceManually(
   if (rpcErr) throw new Error(rpcErr.message || "Failed to settle checkout invoice.");
 
   await supabase
+    .from("checkout_invoices")
+    .update({
+      payment_method: input.paymentMethod,
+      paid_at: new Date().toISOString(),
+      total_paid_cents: input.amountCents,
+    })
+    .eq("id", invoice.id);
+
+  await supabase
     .from("booking_status_history")
     .insert({
       booking_id: input.bookingId,

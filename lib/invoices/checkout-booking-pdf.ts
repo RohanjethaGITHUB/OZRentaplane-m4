@@ -298,7 +298,7 @@ export async function generateCheckoutBookingInvoicePdf(params: {
     createdAt: chkInvoice.created_at ?? new Date().toISOString(),
     paidAt: chkInvoice.paid_at ?? null,
     dueAt: chkInvoice.created_at ?? null,
-    paymentMethodLabel: isWaived ? 'Waived (No payment required)' : formatPaymentMethod(resolvedPaymentMethod),
+    paymentMethodLabel: isWaived ? 'Waived (No payment required)' : (isPaid ? (formatPaymentMethod(resolvedPaymentMethod) || 'Card (online)') : '—'),
     billingModeLabel: 'Checkout Flight Assessment',
     bookingRefLabel: booking.booking_reference ? `Booking Ref: ${booking.booking_reference}` : null,
     flightDate: booking.scheduled_start ?? null,

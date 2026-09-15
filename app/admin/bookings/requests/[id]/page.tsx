@@ -1973,7 +1973,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                         <span className="text-[11px] font-medium text-deep-ink text-right ml-3">{line.value}</span>
                       </div>
                     ))}
-                  {bookingType === 'standard' && standardInvoice && standardInvoice.status !== 'waived' && (
+                  {bookingType === 'standard' && standardInvoice && standardInvoice.status !== 'cancelled' && (
                     <div className="pt-3">
                       <a
                         href={`/dashboard/bookings/${booking.id}/invoice`}

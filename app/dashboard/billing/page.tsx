@@ -36,6 +36,7 @@ export default async function CustomerBillingPage() {
     { data: bkgInvoicesByUser },
     { data: chkBankTransferSubs },
     { data: bkgBankTransferSubs },
+    { data: customerLedgerRows },
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -112,6 +113,11 @@ export default async function CustomerBillingPage() {
       .select('id, invoice_id, booking_id, status, submitted_at')
       .eq('customer_id', user.id)
       .order('submitted_at', { ascending: false }),
+    supabase
+      .from('customer_payment_ledger')
+      .select('invoice_id, booking_id, payment_method, entry_type, stripe_payment_intent_id, created_at')
+      .eq('customer_id', user.id)
+      .order('created_at', { ascending: false }),
   ])
 
   // Fetch checkout_invoices via customer_id or user's booking_ids
@@ -182,6 +188,17 @@ export default async function CustomerBillingPage() {
     }
   }
 
+  const ledgerMethodByInvoiceId = new Map<string, string>()
+  const ledgerMethodByBookingId = new Map<string, string>()
+  for (const row of (customerLedgerRows ?? []) as Array<{ invoice_id?: string | null; booking_id?: string | null; payment_method?: string | null }>) {
+    if (row.invoice_id && row.payment_method && !ledgerMethodByInvoiceId.has(row.invoice_id)) {
+      ledgerMethodByInvoiceId.set(row.invoice_id, row.payment_method)
+    }
+    if (row.booking_id && row.payment_method && !ledgerMethodByBookingId.has(row.booking_id)) {
+      ledgerMethodByBookingId.set(row.booking_id, row.payment_method)
+    }
+  }
+
   // 1. Build Invoices List
   const allInvoices: CustomerInvoice[] = []
   const seenBookingIds = new Set<string>()
@@ -229,13 +246,42 @@ export default async function CustomerBillingPage() {
 
     const invoiceNumber = ci.invoice_number || `INV-CHK-${ci.id.slice(0, 6).toUpperCase()}`
 
+    const ledgerMethod =
+      (ci.id ? ledgerMethodByInvoiceId.get(ci.id) : null) ||
+      (ci.booking_id ? ledgerMethodByBookingId.get(ci.booking_id) : null)
+
     let paymentMethod: PaymentMethodType = 'card'
-    if (isWaived) paymentMethod = 'none'
-    else if (ci.payment_method === 'cash' || ci.stripe_payment_intent_id?.startsWith('manual-cash-')) paymentMethod = 'cash'
-    else if (hasPendingVerification || ci.payment_method === 'bank_transfer' || ci.stripe_payment_intent_id?.startsWith('manual-bank_transfer-')) paymentMethod = 'bank_transfer'
-    else if (ci.payment_method === 'card_in_person' || ci.stripe_payment_intent_id?.startsWith('manual-card_in_person-')) paymentMethod = 'card'
-    else if (ci.payment_method === 'account_credit') paymentMethod = 'credit'
-    else if (ci.payment_method === 'stripe' || ci.payment_method === 'card') paymentMethod = 'card'
+    if (isWaived) {
+      paymentMethod = 'none'
+    } else if (
+      ci.payment_method === 'cash' ||
+      ledgerMethod === 'cash' ||
+      ci.stripe_payment_intent_id?.startsWith('manual-cash-')
+    ) {
+      paymentMethod = 'cash'
+    } else if (
+      hasPendingVerification ||
+      ci.payment_method === 'bank_transfer' ||
+      ledgerMethod === 'bank_transfer' ||
+      ci.stripe_payment_intent_id?.startsWith('manual-bank_transfer-')
+    ) {
+      paymentMethod = 'bank_transfer'
+    } else if (
+      ci.payment_method === 'card_in_person' ||
+      ledgerMethod === 'card_in_person' ||
+      ci.stripe_payment_intent_id?.startsWith('manual-card_in_person-')
+    ) {
+      paymentMethod = 'card_in_person'
+    } else if (
+      ci.payment_method === 'account_credit' ||
+      ledgerMethod === 'account_credit'
+    ) {
+      paymentMethod = 'credit'
+    } else if (ci.payment_method === 'stripe' || ci.payment_method === 'card') {
+      paymentMethod = 'card'
+    } else if (ledgerMethod) {
+      paymentMethod = ledgerMethod as PaymentMethodType
+    }
 
     allInvoices.push({
       id: ci.id,
@@ -295,7 +341,13 @@ export default async function CustomerBillingPage() {
               {
                 id: `tl-1-${ci.id}`,
                 title: 'Payment received',
-                description: `${formatDateFromISO(ci.paid_at || ci.created_at)} · Mastercard ending 7763`,
+                description: `${formatDateFromISO(ci.paid_at || ci.created_at)} · ${
+                  paymentMethod === 'cash'
+                    ? 'Cash settlement'
+                    : paymentMethod === 'bank_transfer'
+                    ? 'Bank transfer'
+                    : 'Card payment'
+                }`,
                 timestamp: formatDashboardTimestamp(ci.paid_at || ci.created_at),
                 type: 'payment' as const,
               },
@@ -371,13 +423,42 @@ export default async function CustomerBillingPage() {
 
     const invoiceNumber = bi.invoice_number || `INV-${bi.id.slice(0, 8).toUpperCase()}`
 
+    const ledgerMethod =
+      (bi.id ? ledgerMethodByInvoiceId.get(bi.id) : null) ||
+      (bi.booking_id ? ledgerMethodByBookingId.get(bi.booking_id) : null)
+
     let paymentMethod: PaymentMethodType = 'card'
-    if (isWaived) paymentMethod = 'none'
-    else if (bi.payment_method === 'cash' || bi.stripe_payment_intent_id?.startsWith('manual-cash-')) paymentMethod = 'cash'
-    else if (hasPendingVerification || bi.payment_method === 'bank_transfer' || bi.stripe_payment_intent_id?.startsWith('manual-bank_transfer-')) paymentMethod = 'bank_transfer'
-    else if (bi.payment_method === 'card_in_person' || bi.stripe_payment_intent_id?.startsWith('manual-card_in_person-')) paymentMethod = 'card'
-    else if (bi.payment_method === 'account_credit') paymentMethod = 'credit'
-    else if (bi.payment_method === 'stripe' || bi.payment_method === 'card') paymentMethod = 'card'
+    if (isWaived) {
+      paymentMethod = 'none'
+    } else if (
+      bi.payment_method === 'cash' ||
+      ledgerMethod === 'cash' ||
+      bi.stripe_payment_intent_id?.startsWith('manual-cash-')
+    ) {
+      paymentMethod = 'cash'
+    } else if (
+      hasPendingVerification ||
+      bi.payment_method === 'bank_transfer' ||
+      ledgerMethod === 'bank_transfer' ||
+      bi.stripe_payment_intent_id?.startsWith('manual-bank_transfer-')
+    ) {
+      paymentMethod = 'bank_transfer'
+    } else if (
+      bi.payment_method === 'card_in_person' ||
+      ledgerMethod === 'card_in_person' ||
+      bi.stripe_payment_intent_id?.startsWith('manual-card_in_person-')
+    ) {
+      paymentMethod = 'card_in_person'
+    } else if (
+      bi.payment_method === 'account_credit' ||
+      ledgerMethod === 'account_credit'
+    ) {
+      paymentMethod = 'credit'
+    } else if (bi.payment_method === 'stripe' || bi.payment_method === 'card') {
+      paymentMethod = 'card'
+    } else if (ledgerMethod) {
+      paymentMethod = ledgerMethod as PaymentMethodType
+    }
 
     allInvoices.push({
       id: bi.id,
@@ -428,7 +509,7 @@ export default async function CustomerBillingPage() {
               status: 'PAID',
               paidAt: bi.paid_at || bi.created_at,
               transactionId: bi.stripe_payment_intent_id || `txn_${bi.id.slice(0, 10)}`,
-              card: { brand: 'mastercard', last4: '7763' },
+              card: paymentMethod === 'card' ? { brand: 'mastercard', last4: '7763' } : null,
             },
           ]
         : [],
@@ -438,7 +519,13 @@ export default async function CustomerBillingPage() {
               {
                 id: `tl-1-${bi.id}`,
                 title: 'Payment received',
-                description: `${formatDateFromISO(bi.paid_at || bi.created_at)} · Mastercard ending 7763`,
+                description: `${formatDateFromISO(bi.paid_at || bi.created_at)} · ${
+                  paymentMethod === 'cash'
+                    ? 'Cash settlement'
+                    : paymentMethod === 'bank_transfer'
+                    ? 'Bank transfer'
+                    : 'Card payment'
+                }`,
                 timestamp: formatDashboardTimestamp(bi.paid_at || bi.created_at),
                 type: 'payment' as const,
               },

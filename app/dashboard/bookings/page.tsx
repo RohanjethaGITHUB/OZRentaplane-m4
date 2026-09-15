@@ -407,19 +407,39 @@ export default async function CustomerBookingsPage() {
   const standardBookingIds = rows
     .filter((booking) => booking.booking_type !== 'checkout')
     .map((booking) => booking.id)
+  const checkoutBookingIds = rows
+    .filter((booking) => booking.booking_type === 'checkout')
+    .map((booking) => booking.id)
 
-  const { data: standardInvoiceRows } = standardBookingIds.length > 0
-    ? await supabase
-        .from('booking_invoices')
-        .select('booking_id, status, pdf_url, invoice_number')
-        .in('booking_id', standardBookingIds)
-    : { data: null }
+  const [{ data: standardInvoiceRows }, { data: checkoutInvoiceRows }] = await Promise.all([
+    standardBookingIds.length > 0
+      ? supabase
+          .from('booking_invoices')
+          .select('booking_id, status, pdf_url, invoice_number')
+          .in('booking_id', standardBookingIds)
+      : Promise.resolve({ data: null, error: null }),
+    checkoutBookingIds.length > 0
+      ? supabase
+          .from('checkout_invoices')
+          .select('booking_id, status, invoice_number')
+          .in('booking_id', checkoutBookingIds)
+      : Promise.resolve({ data: null, error: null }),
+  ])
 
   const standardInvoiceByBookingId = new Map<string, { status: string; pdf_url: string | null; invoice_number: string }>()
   for (const row of (standardInvoiceRows ?? []) as { booking_id: string; status: string; pdf_url: string | null; invoice_number: string }[]) {
     standardInvoiceByBookingId.set(row.booking_id, {
       status: row.status,
       pdf_url: row.pdf_url,
+      invoice_number: row.invoice_number,
+    })
+  }
+
+  const checkoutInvoiceByBookingId = new Map<string, { status: string; pdf_url: string | null; invoice_number: string }>()
+  for (const row of (checkoutInvoiceRows ?? []) as { booking_id: string; status: string; invoice_number: string }[]) {
+    checkoutInvoiceByBookingId.set(row.booking_id, {
+      status: row.status,
+      pdf_url: null,
       invoice_number: row.invoice_number,
     })
   }
@@ -497,7 +517,9 @@ export default async function CustomerBookingsPage() {
 
   const rowsWithInvoices = rows.map((booking) => ({
     ...booking,
-    bookingInvoice: standardInvoiceByBookingId.get(booking.id) ?? null,
+    bookingInvoice: booking.booking_type === 'checkout'
+      ? (checkoutInvoiceByBookingId.get(booking.id) ?? null)
+      : (standardInvoiceByBookingId.get(booking.id) ?? null),
     blockTimePayInvoice: blockTimePayInvoiceByBookingId.get(booking.id) ?? null,
   }))
 
@@ -1257,7 +1279,7 @@ export default async function CustomerBookingsPage() {
                             VIEW DETAILS
                             <span className="material-symbols-outlined text-[16px] ml-2">chevron_right</span>
                           </Link>
-                          {((bookingInvoice && bookingInvoice.status !== 'waived') || booking.status === 'completed' || isCheckout) && (
+                          {Boolean(bookingInvoice && bookingInvoice.status !== 'cancelled') && (
                             <a
                               href={`/dashboard/bookings/${booking.id}/invoice`}
                               target="_blank"

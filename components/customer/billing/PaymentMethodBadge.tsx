@@ -106,6 +106,15 @@ export default function PaymentMethodBadge({
     )
   }
 
+  if (m === 'card_in_person') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200">
+        <span className="material-symbols-outlined text-[14px] text-purple-600">contactless</span>
+        Card (in person)
+      </span>
+    )
+  }
+
   if (m === 'bank_transfer') {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">

@@ -258,7 +258,7 @@ export async function generateStandardBookingInvoicePdf(params: {
     createdAt: invoice.created_at,
     dueAt: isPaid ? invoice.paid_at ?? invoice.created_at : invoice.created_at,
     paidAt: isPaid ? invoice.paid_at ?? invoice.created_at : null,
-    paymentMethodLabel: isWaived ? 'Waived (No payment required)' : formatPaymentMethodLabel(resolvedPaymentMethod),
+    paymentMethodLabel: isWaived ? 'Waived (No payment required)' : (isPaid ? (formatPaymentMethodLabel(resolvedPaymentMethod) || 'Card (online)') : '—'),
     billingModeLabel,
     bookingRefLabel,
     flightDate: booking.scheduled_start ?? null,

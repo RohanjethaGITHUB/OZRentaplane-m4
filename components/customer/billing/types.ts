@@ -25,6 +25,7 @@ export type PaymentMethodType =
   | 'block_time'
   | 'credit'
   | 'account_credit'
+  | 'card_in_person'
   | 'other'
   | 'none'
 
