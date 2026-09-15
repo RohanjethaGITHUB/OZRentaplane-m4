@@ -78,6 +78,7 @@ export async function settleCheckoutInvoiceManually(
     .from("checkout_invoices")
     .update({
       payment_method: input.paymentMethod,
+      stripe_payment_intent_id: manualRef,
       paid_at: new Date().toISOString(),
       total_paid_cents: input.amountCents,
     })

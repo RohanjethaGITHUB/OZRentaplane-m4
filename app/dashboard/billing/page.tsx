@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { PAYMENT_CONFIG } from '@/lib/payments/config'
 import PaymentSummaryCards from '@/components/customer/billing/PaymentSummaryCards'
 import CustomerPaymentsInvoicesClient, {
@@ -113,7 +114,7 @@ export default async function CustomerBillingPage() {
       .select('id, invoice_id, booking_id, status, submitted_at')
       .eq('customer_id', user.id)
       .order('submitted_at', { ascending: false }),
-    supabase
+    createAdminClient()
       .from('customer_payment_ledger')
       .select('invoice_id, booking_id, payment_method, entry_type, stripe_payment_intent_id, created_at')
       .eq('customer_id', user.id)

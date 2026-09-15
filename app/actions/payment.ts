@@ -1625,6 +1625,7 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
       .from("booking_invoices")
       .update({
         payment_method: dbPaymentMethod,
+        stripe_payment_intent_id: manualRef,
         paid_at: new Date().toISOString(),
         total_paid_cents: input.amountCents,
       })

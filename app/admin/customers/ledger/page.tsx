@@ -149,8 +149,8 @@ export default async function CustomerBillingPage({
       .order('created_at', { ascending: false }),
     supabase
       .from('customer_payment_ledger')
-      .select('customer_id, amount_cents')
-      .gt('amount_cents', 0),
+      .select('customer_id, booking_id, invoice_id, payment_method, entry_type, stripe_payment_intent_id, created_at, amount_cents')
+      .order('created_at', { ascending: false }),
     supabase
       .from('customer_credit_balances')
       .select('customer_id, balance_cents'),
@@ -160,6 +160,17 @@ export default async function CustomerBillingPage({
       .eq('booking_type', 'checkout')
       .not('booking_owner_user_id', 'is', null),
   ])
+
+  const allLedgerRows = (revenueRows ?? []) as Array<{
+    customer_id?: string | null
+    booking_id?: string | null
+    invoice_id?: string | null
+    payment_method?: string | null
+    entry_type?: string | null
+    stripe_payment_intent_id?: string | null
+    created_at?: string | null
+    amount_cents?: number | null
+  }>
 
   const stdInvoiceRows = (standardInvoices ?? []) as BookingInvoiceRow[]
   const chkInvoiceRows = (checkoutInvoices ?? []) as CheckoutInvoiceRow[]
@@ -255,6 +266,17 @@ export default async function CustomerBillingPage({
     })
   }
 
+  const ledgerMethodByInvoiceId = new Map<string, string>()
+  const ledgerMethodByBookingId = new Map<string, string>()
+  for (const row of allLedgerRows) {
+    if (row.invoice_id && row.payment_method && !ledgerMethodByInvoiceId.has(row.invoice_id)) {
+      ledgerMethodByInvoiceId.set(row.invoice_id, row.payment_method)
+    }
+    if (row.booking_id && row.payment_method && !ledgerMethodByBookingId.has(row.booking_id)) {
+      ledgerMethodByBookingId.set(row.booking_id, row.payment_method)
+    }
+  }
+
   const paymentRows: PaymentRow[] = []
   const seenBookingIds = new Set<string>()
   const seenInvoiceIds = new Set<string>()
@@ -273,14 +295,25 @@ export default async function CustomerBillingPage({
     const effectiveStatus = pendingSubmission ? 'manual_review' : inv.status
     const receiptUrl = submission?.receipt_storage_path ? receiptUrlMap.get(submission.receipt_storage_path) ?? null : null
 
+    const ledgerMethod =
+      (inv.id ? ledgerMethodByInvoiceId.get(inv.id) : null) ||
+      (inv.booking_id ? ledgerMethodByBookingId.get(inv.booking_id) : null)
+
     const isBankTransfer = Boolean(
       pendingSubmission ||
       submission ||
       inv.payment_method === 'bank_transfer' ||
+      ledgerMethod === 'bank_transfer' ||
       inv.stripe_payment_intent_id?.startsWith('manual-bank_transfer-')
     )
-    const isManualCash = inv.stripe_payment_intent_id?.startsWith('manual-cash-') || inv.payment_method === 'cash'
-    const isManualCardInPerson = inv.stripe_payment_intent_id?.startsWith('manual-card_in_person-') || inv.payment_method === 'card_in_person'
+    const isManualCash =
+      inv.stripe_payment_intent_id?.startsWith('manual-cash-') ||
+      inv.payment_method === 'cash' ||
+      ledgerMethod === 'cash'
+    const isManualCardInPerson =
+      inv.stripe_payment_intent_id?.startsWith('manual-card_in_person-') ||
+      inv.payment_method === 'card_in_person' ||
+      ledgerMethod === 'card_in_person'
 
     let method = 'card'
     if (inv.status === 'waived') {
@@ -288,13 +321,13 @@ export default async function CustomerBillingPage({
     } else if (isManualCash) {
       method = 'cash'
     } else if (isManualCardInPerson) {
-      method = 'card'
+      method = 'card_in_person'
     } else if (isBankTransfer) {
       method = 'bank_transfer'
-    } else if (inv.payment_method === 'account_credit') {
+    } else if (inv.payment_method === 'account_credit' || ledgerMethod === 'advance_credit' || ledgerMethod === 'account_credit') {
       method = 'advance_credit'
     } else {
-      method = inv.payment_method || 'card'
+      method = ledgerMethod || inv.payment_method || 'card'
     }
 
     paymentRows.push({
@@ -344,14 +377,26 @@ export default async function CustomerBillingPage({
 
     const receiptUrl = submission?.receipt_storage_path ? receiptUrlMap.get(submission.receipt_storage_path) ?? null : null
     const amountCents = Number(inv.subtotal_cents || inv.checkout_calculated_amount_cents || inv.total_paid_cents || 25000)
+
+    const ledgerMethod =
+      (inv.id ? ledgerMethodByInvoiceId.get(inv.id) : null) ||
+      (inv.booking_id ? ledgerMethodByBookingId.get(inv.booking_id) : null)
+
     const isBankTransfer = Boolean(
       pendingSubmission ||
       submission ||
       inv.payment_method === 'bank_transfer' ||
+      ledgerMethod === 'bank_transfer' ||
       inv.stripe_payment_intent_id?.startsWith('manual-bank_transfer-')
     )
-    const isManualCash = inv.stripe_payment_intent_id?.startsWith('manual-cash-') || inv.payment_method === 'cash'
-    const isManualCardInPerson = inv.stripe_payment_intent_id?.startsWith('manual-card_in_person-') || inv.payment_method === 'card_in_person'
+    const isManualCash =
+      inv.stripe_payment_intent_id?.startsWith('manual-cash-') ||
+      inv.payment_method === 'cash' ||
+      ledgerMethod === 'cash'
+    const isManualCardInPerson =
+      inv.stripe_payment_intent_id?.startsWith('manual-card_in_person-') ||
+      inv.payment_method === 'card_in_person' ||
+      ledgerMethod === 'card_in_person'
 
     let method = 'card'
     if (isWaived) {
@@ -359,13 +404,13 @@ export default async function CustomerBillingPage({
     } else if (isManualCash) {
       method = 'cash'
     } else if (isManualCardInPerson) {
-      method = 'card'
+      method = 'card_in_person'
     } else if (isBankTransfer) {
       method = 'bank_transfer'
-    } else if (inv.payment_method === 'account_credit') {
+    } else if (inv.payment_method === 'account_credit' || ledgerMethod === 'advance_credit' || ledgerMethod === 'account_credit') {
       method = 'advance_credit'
     } else {
-      method = inv.payment_method || 'card'
+      method = ledgerMethod || inv.payment_method || 'card'
     }
 
     paymentRows.push({

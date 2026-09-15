@@ -241,6 +241,15 @@ function LedgerMethodBadge({ method }: { method: string }) {
     )
   }
 
+  if (m === 'card_in_person') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 shrink-0">
+        <span className="material-symbols-outlined text-[14px] text-purple-600">contactless</span>
+        Card (In Person)
+      </span>
+    )
+  }
+
   if (m === 'block_time') {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200 shrink-0">
