@@ -470,6 +470,34 @@ export default function DashboardContent({
     termsAccepted: bookingReadiness?.currentTermsAccepted ?? false,
   })
 
+  const hasPendingReviewDocuments = documentReadinessItems.some(
+    (item) => item.state === 'needs_review',
+  )
+  const hasRejectedDocuments =
+    documentProgress.bannerState === 'rejected' ||
+    documentReadinessItems.some(
+      (item) => item.state === 'needs_review' && item.detail.toLowerCase().startsWith('rejected'),
+    )
+  const hasExpiredDocuments = documentReadinessItems.some((item) => item.state === 'expired')
+  const hasMissingDocuments =
+    documentReadinessItems.some((item) => item.state === 'missing') ||
+    documentProgress.statuses.some((status) => status !== 'complete')
+
+  const allDocumentsApproved =
+    documentProgress.allApproved &&
+    documentProgress.bannerState === 'unlocked' &&
+    documentReadinessItems.every((item) => item.state === 'complete')
+
+  const isDocumentReadinessComplete =
+    documentProgress.percent === 100 &&
+    allDocumentsApproved &&
+    !hasPendingReviewDocuments &&
+    !hasRejectedDocuments &&
+    !hasExpiredDocuments &&
+    !hasMissingDocuments
+
+  const showDocumentReadiness = !isDocumentReadinessComplete
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -821,7 +849,7 @@ export default function DashboardContent({
       ) : null}
 
       {/* ─── SECTION 3: UPCOMING BOOKING + DOCUMENT READINESS ───────────────── */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div className={showDocumentReadiness ? "grid grid-cols-1 gap-5 lg:grid-cols-2" : "grid grid-cols-1 gap-5"}>
         <div
           className="relative rounded-2xl overflow-hidden bg-white border border-[#152d5a]/10"
           style={{
@@ -939,139 +967,141 @@ export default function DashboardContent({
           </div>
         </div>
 
-        <div
-          className="bg-white border border-[#152d5a]/10 rounded-2xl p-5 flex flex-col"
-          style={{
-            boxShadow: '0 4px 40px rgba(2,10,22,0.08)',
-          }}
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">description</span>
-            <span className="text-[16px] font-semibold text-[#4b6390]">Document Readiness</span>
-          </div>
-
-          <div className="flex items-start gap-4 mb-5">
-            <div className="flex-shrink-0">
-              <svg viewBox="0 0 100 100" className="w-28 h-28 flex-shrink-0">
-                <circle cx="50" cy="50" r="40" fill="none" stroke="#e2e8f0" strokeWidth="14" />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="40"
-                  fill="none"
-                  stroke="#1a4fd6"
-                  strokeWidth="14"
-                  strokeLinecap="round"
-                  strokeDasharray={`${(documentProgress.percent / 100) * 251.2} 251.2`}
-                  transform="rotate(-90 50 50)"
-                />
-                <text x="50" y="46" textAnchor="middle" fontWeight="800" fontSize="18" fill="#152d5a">
-                  {documentProgress.percent}%
-                </text>
-                <text x="50" y="62" textAnchor="middle" fontSize="12" fill="#4b6390">
-                  Ready
-                </text>
-              </svg>
+        {showDocumentReadiness && (
+          <div
+            className="bg-white border border-[#152d5a]/10 rounded-2xl p-5 flex flex-col"
+            style={{
+              boxShadow: '0 4px 40px rgba(2,10,22,0.08)',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <span className="material-symbols-outlined text-[16px] text-[#1a4fd6]">description</span>
+              <span className="text-[16px] font-semibold text-[#4b6390]">Document Readiness</span>
             </div>
-            <div className="flex-1 min-w-0 pt-1">
-              <p className="text-[19px] font-semibold text-[#152d5a] leading-snug">{documentProgress.bannerHeading}</p>
-              <p className="mt-2 text-[12px] text-[#4b6390] leading-relaxed">{documentProgress.bannerBody}</p>
+
+            <div className="flex items-start gap-4 mb-5">
+              <div className="flex-shrink-0">
+                <svg viewBox="0 0 100 100" className="w-28 h-28 flex-shrink-0">
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#e2e8f0" strokeWidth="14" />
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="40"
+                    fill="none"
+                    stroke="#1a4fd6"
+                    strokeWidth="14"
+                    strokeLinecap="round"
+                    strokeDasharray={`${(documentProgress.percent / 100) * 251.2} 251.2`}
+                    transform="rotate(-90 50 50)"
+                  />
+                  <text x="50" y="46" textAnchor="middle" fontWeight="800" fontSize="18" fill="#152d5a">
+                    {documentProgress.percent}%
+                  </text>
+                  <text x="50" y="62" textAnchor="middle" fontSize="12" fill="#4b6390">
+                    Ready
+                  </text>
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0 pt-1">
+                <p className="text-[19px] font-semibold text-[#152d5a] leading-snug">{documentProgress.bannerHeading}</p>
+                <p className="mt-2 text-[12px] text-[#4b6390] leading-relaxed">{documentProgress.bannerBody}</p>
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-3 mb-5">
-            {documentReadinessItems.map((item) => {
-              const isRejected = item.state === 'needs_review' && item.detail.toLowerCase().startsWith('rejected')
-              const tone = isRejected
-                ? { icon: 'error', iconClassName: 'text-rose-600', labelClassName: 'text-rose-600 font-bold', label: 'REJECTED' }
-                : readinessTone(item.state)
-              const isExpired = item.state === 'expired'
-              return (
-                <div
-                  key={item.key}
-                  className={`flex items-start gap-3 rounded-xl border px-3 py-3 ${
-                    isRejected
-                      ? 'border-rose-200 bg-rose-50'
-                      : isExpired
-                        ? 'border-red-200 bg-red-50'
-                        : 'border-[#152d5a]/8 bg-[#f8fbff]'
-                  }`}
-                >
-                  <span className={`material-symbols-outlined text-[18px] ${tone.iconClassName}`}>{tone.icon}</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className={`text-[12px] font-semibold ${isRejected ? 'text-rose-800' : isExpired ? 'text-red-800' : 'text-[#152d5a]'}`}>
-                        {item.label}
-                      </span>
-                      <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${tone.labelClassName}`}>
-                        {tone.label}
-                      </span>
+            <div className="space-y-3 mb-5">
+              {documentReadinessItems.map((item) => {
+                const isRejected = item.state === 'needs_review' && item.detail.toLowerCase().startsWith('rejected')
+                const tone = isRejected
+                  ? { icon: 'error', iconClassName: 'text-rose-600', labelClassName: 'text-rose-600 font-bold', label: 'REJECTED' }
+                  : readinessTone(item.state)
+                const isExpired = item.state === 'expired'
+                return (
+                  <div
+                    key={item.key}
+                    className={`flex items-start gap-3 rounded-xl border px-3 py-3 ${
+                      isRejected
+                        ? 'border-rose-200 bg-rose-50'
+                        : isExpired
+                          ? 'border-red-200 bg-red-50'
+                          : 'border-[#152d5a]/8 bg-[#f8fbff]'
+                    }`}
+                  >
+                    <span className={`material-symbols-outlined text-[18px] ${tone.iconClassName}`}>{tone.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className={`text-[12px] font-semibold ${isRejected ? 'text-rose-800' : isExpired ? 'text-red-800' : 'text-[#152d5a]'}`}>
+                          {item.label}
+                        </span>
+                        <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${tone.labelClassName}`}>
+                          {tone.label}
+                        </span>
+                      </div>
+                      <p className={`mt-1 text-[11px] leading-relaxed ${isRejected ? 'font-medium text-rose-700' : isExpired ? 'font-medium text-red-700' : 'text-[#4b6390]'}`}>
+                        {item.detail}
+                      </p>
                     </div>
-                    <p className={`mt-1 text-[11px] leading-relaxed ${isRejected ? 'font-medium text-rose-700' : isExpired ? 'font-medium text-red-700' : 'text-[#4b6390]'}`}>
-                      {item.detail}
-                    </p>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
 
-            {[
-              {
-                key: 'flight_review',
-                label: 'Flight review and red card',
-                detail:
-                  profile?.last_flight_date?.trim() && pilotLicenceDocument?.red_card_expiry_month && pilotLicenceDocument?.red_card_expiry_year
-                    ? 'Flight review recorded and red card details are on file.'
-                    : profile?.last_flight_date?.trim()
-                      ? 'Flight review date is saved. Add red card details to complete this step.'
-                      : 'Add your last flight review date and red card details.',
-                status: documentProgress.statuses[1],
-              },
-              {
-                key: 'night_vfr',
-                label: 'Night VFR requirement',
-                detail:
-                  profile?.has_night_vfr_rating === true
-                    ? documentReadinessItems.some((item) => item.key === 'night_vfr_evidence')
-                      ? 'Night VFR evidence is being tracked in your required documents.'
-                      : 'Night VFR is enabled but supporting evidence is still needed.'
-                    : profile?.has_night_vfr_rating === false
-                      ? 'No Night VFR evidence is required for your current profile.'
-                      : 'Answer the Night VFR question so the correct evidence requirement can be applied.',
-                status: documentProgress.statuses[2],
-              },
-              {
-                key: 'terms',
-                label: 'Current booking terms',
-                detail: bookingReadiness?.currentTermsAccepted
-                  ? 'The latest terms have been accepted.'
-                  : 'Accept the latest booking terms to complete your readiness.',
-                status: documentProgress.statuses[3],
-              },
-            ].map((item) => {
-              const tone = progressStatusTone(item.status)
-              return (
-                <div key={item.key} className="flex items-start gap-3 rounded-xl border border-[#152d5a]/8 bg-white px-3 py-3">
-                  <span className={`material-symbols-outlined text-[18px] ${tone.iconClassName}`}>{tone.icon}</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-[12px] font-semibold text-[#152d5a]">{item.label}</span>
-                      <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${tone.labelClassName}`}>
-                        {tone.label}
-                      </span>
+              {[
+                {
+                  key: 'flight_review',
+                  label: 'Flight review and red card',
+                  detail:
+                    profile?.last_flight_date?.trim() && pilotLicenceDocument?.red_card_expiry_month && pilotLicenceDocument?.red_card_expiry_year
+                      ? 'Flight review recorded and red card details are on file.'
+                      : profile?.last_flight_date?.trim()
+                        ? 'Flight review date is saved. Add red card details to complete this step.'
+                        : 'Add your last flight review date and red card details.',
+                  status: documentProgress.statuses[1],
+                },
+                {
+                  key: 'night_vfr',
+                  label: 'Night VFR requirement',
+                  detail:
+                    profile?.has_night_vfr_rating === true
+                      ? documentReadinessItems.some((item) => item.key === 'night_vfr_evidence')
+                        ? 'Night VFR evidence is being tracked in your required documents.'
+                        : 'Night VFR is enabled but supporting evidence is still needed.'
+                      : profile?.has_night_vfr_rating === false
+                        ? 'No Night VFR evidence is required for your current profile.'
+                        : 'Answer the Night VFR question so the correct evidence requirement can be applied.',
+                  status: documentProgress.statuses[2],
+                },
+                {
+                  key: 'terms',
+                  label: 'Current booking terms',
+                  detail: bookingReadiness?.currentTermsAccepted
+                    ? 'The latest terms have been accepted.'
+                    : 'Accept the latest booking terms to complete your readiness.',
+                  status: documentProgress.statuses[3],
+                },
+              ].map((item) => {
+                const tone = progressStatusTone(item.status)
+                return (
+                  <div key={item.key} className="flex items-start gap-3 rounded-xl border border-[#152d5a]/8 bg-white px-3 py-3">
+                    <span className={`material-symbols-outlined text-[18px] ${tone.iconClassName}`}>{tone.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[12px] font-semibold text-[#152d5a]">{item.label}</span>
+                        <span className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${tone.labelClassName}`}>
+                          {tone.label}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[11px] leading-relaxed text-[#4b6390]">{item.detail}</p>
                     </div>
-                    <p className="mt-1 text-[11px] leading-relaxed text-[#4b6390]">{item.detail}</p>
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
 
-          <Link href="/dashboard/documents" className="flex items-center gap-1 text-[15px] font-semibold text-[#1a4fd6] hover:underline mt-auto">
-            {documentProgress.ctaLabel}
-            <span className="material-symbols-outlined text-[15px]">chevron_right</span>
-          </Link>
-        </div>
+            <Link href="/dashboard/documents" className="flex items-center gap-1 text-[15px] font-semibold text-[#1a4fd6] hover:underline mt-auto">
+              {documentProgress.ctaLabel}
+              <span className="material-symbols-outlined text-[15px]">chevron_right</span>
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="bg-white border border-[#152d5a]/10 rounded-2xl px-6 py-5">
