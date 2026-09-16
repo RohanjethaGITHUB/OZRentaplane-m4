@@ -228,7 +228,7 @@ function QueueActionRow({ item }: { item: ActionItem }) {
                     aria-label={`Email ${customerLabel} at ${item.customerEmail}`}
                     className="group/email inline-flex max-w-full items-center gap-1.5 text-[12px] text-[var(--admin-text-secondary)] transition-colors hover:text-[var(--admin-accent-blue)]"
                   >
-                    <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover/email:text-[var(--admin-accent-blue)]" />
+                    <Mail className="h-3.5 w-3.5 shrink-0 text-[#D97706] transition-colors group-hover/email:text-[#b45309]" />
                     <span className="truncate underline decoration-slate-300 underline-offset-2 group-hover/email:decoration-current">
                       {item.customerEmail}
                     </span>
@@ -244,7 +244,7 @@ function QueueActionRow({ item }: { item: ActionItem }) {
                     aria-label={`Call ${customerLabel} at ${item.customerPhone}`}
                     className="group/call inline-flex max-w-full items-center gap-1.5 text-[12px] text-[var(--admin-text-secondary)] transition-colors hover:text-[var(--admin-accent-blue)]"
                   >
-                    <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover/call:text-[var(--admin-accent-blue)]" />
+                    <Phone className="h-3.5 w-3.5 shrink-0 text-[#0284C7] transition-colors group-hover/call:text-[#0369a1]" />
                     <span className="break-words underline decoration-slate-300 underline-offset-2 group-hover/call:decoration-current">
                       {item.customerPhone}
                     </span>

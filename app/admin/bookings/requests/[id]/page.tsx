@@ -1500,7 +1500,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                     title={`Send email to ${customer.email}`}
                     className="group/email inline-flex max-w-full items-center gap-1.5 text-[12.5px] text-[var(--admin-text-muted)] transition-colors hover:text-[var(--admin-accent-blue)]"
                   >
-                    <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover/email:text-[var(--admin-accent-blue)]" />
+                    <Mail className="h-3.5 w-3.5 shrink-0 text-[#D97706] transition-colors group-hover/email:text-[#b45309]" />
                     <span className="truncate">{customer.email}</span>
                   </a>
                 </div>
@@ -1515,7 +1515,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                     aria-label={`Call ${customer?.full_name ?? 'customer'} at ${customerPhone}`}
                     className="group/call inline-flex max-w-full items-center gap-1.5 text-[12.5px] font-medium text-[var(--admin-text)] transition-colors hover:text-[var(--admin-accent-blue)]"
                   >
-                    <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover/call:text-[var(--admin-accent-blue)]" />
+                    <Phone className="h-3.5 w-3.5 shrink-0 text-[#0284C7] transition-colors group-hover/call:text-[#0369a1]" />
                     <span className="truncate tabular-nums">
                       {customerPhone}
                     </span>

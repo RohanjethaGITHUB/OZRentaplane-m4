@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { Phone } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { formatDateTime } from '@/lib/formatDateTime'
 import AdminPortalHero from '@/components/AdminPortalHero'
@@ -449,9 +450,9 @@ export default async function AdminBookingList({
                                 href={`tel:${callablePhone}`}
                                 title={`Call ${customerName} (${formattedPhone})`}
                                 aria-label={`Call ${customerName} at ${formattedPhone}`}
-                                className="inline-flex items-center text-[#4b6390] transition-colors hover:text-[var(--admin-accent-blue)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(96,165,250,0.45)] rounded"
+                                className="inline-flex items-center text-[#0284C7] transition-colors hover:text-[#0369a1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(96,165,250,0.45)] rounded"
                               >
-                                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">call</span>
+                                <Phone className="h-3.5 w-3.5" />
                               </a>
                             ) : null}
                           </div>
@@ -504,9 +505,9 @@ export default async function AdminBookingList({
                               href={`tel:${callablePhone}`}
                               title={`Call ${customerName} (${formattedPhone})`}
                               aria-label={`Call ${customerName} at ${formattedPhone}`}
-                              className="inline-flex items-center text-[#4b6390] transition-colors hover:text-[var(--admin-accent-blue)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(96,165,250,0.45)] rounded"
+                              className="inline-flex items-center text-[#0284C7] transition-colors hover:text-[#0369a1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(96,165,250,0.45)] rounded"
                             >
-                              <span className="material-symbols-outlined text-[16px]" aria-hidden="true">call</span>
+                              <Phone className="h-3.5 w-3.5" />
                             </a>
                           ) : null}
                         </div>

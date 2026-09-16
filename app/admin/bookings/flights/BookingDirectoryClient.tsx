@@ -781,7 +781,7 @@ export default function BookingDirectoryClient({
                                   aria-label={`Call ${row.customerName} at ${row.customerPhone}`}
                                   className="group/call mt-1 inline-flex items-center gap-1.5 text-[13px] text-[var(--admin-text-muted)] transition-colors hover:text-[var(--admin-accent-blue)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-offset-2 focus-visible:ring-offset-white rounded"
                                 >
-                                  <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover/call:text-[var(--admin-accent-blue)]" />
+                                  <Phone className="h-3.5 w-3.5 shrink-0 text-[#0284C7] transition-colors group-hover/call:text-[#0369a1]" />
                                   <span className="break-words underline decoration-slate-300 underline-offset-2 group-hover/call:decoration-current">
                                     {row.customerPhone}
                                   </span>
@@ -855,9 +855,9 @@ export default function BookingDirectoryClient({
                                 onClick={(e) => e.stopPropagation()}
                                 title={`Call ${row.customerName}`}
                                 aria-label={`Call ${row.customerName} at ${row.customerPhone}`}
-                                className="pointer-events-auto relative z-30 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[rgba(12,35,64,0.12)] bg-white text-[var(--admin-accent-blue)] shadow-sm transition-colors hover:bg-blue-50 active:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)]"
+                                className="pointer-events-auto relative z-30 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-200/80 bg-sky-50/90 text-[#0284C7] shadow-sm transition-colors hover:bg-sky-100 active:bg-sky-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)]"
                               >
-                                <Phone className="h-4 w-4" />
+                                <Phone className="h-4 w-4 text-[#0284C7]" />
                               </a>
                             ) : null}
                           </div>

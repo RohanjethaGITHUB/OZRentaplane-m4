@@ -639,7 +639,7 @@ export default function CustomerDirectoryTable({
                                   className="group/email inline-flex max-w-full items-center gap-1.5 text-[13px] font-medium text-[var(--admin-text)] transition-colors hover:text-[var(--admin-accent-blue)]"
                                   title={`Send email to ${row.email}`}
                                 >
-                                  <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover/email:text-[var(--admin-accent-blue)]" />
+                                  <Mail className="h-3.5 w-3.5 shrink-0 text-[#D97706] transition-colors group-hover/email:text-[#b45309]" />
                                   <span className="truncate">{row.email}</span>
                                 </a>
                               </div>
@@ -651,7 +651,7 @@ export default function CustomerDirectoryTable({
                                     className="group/phone inline-flex max-w-full items-center gap-1.5 text-[12.5px] font-medium text-[var(--admin-text-muted)] transition-colors hover:text-[var(--admin-accent-blue)]"
                                     title={`Call ${phoneText}`}
                                   >
-                                    <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover/phone:text-[var(--admin-accent-blue)]" />
+                                    <Phone className="h-3.5 w-3.5 shrink-0 text-[#0284C7] transition-colors group-hover/phone:text-[#0369a1]" />
                                     <span className="tabular-nums">{phoneText}</span>
                                   </a>
                                 ) : (
@@ -725,14 +725,14 @@ export default function CustomerDirectoryTable({
                               <a
                                 href={`tel:${callablePhone}`}
                                 onClick={(e) => e.stopPropagation()}
-                                className="group/phone flex items-center gap-2.5 rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5 transition-colors hover:border-[rgba(26,79,214,0.25)] hover:bg-blue-50/60"
+                                className="group/phone flex items-center gap-2.5 rounded-[10px] border border-sky-200/80 bg-sky-50/70 px-3 py-2.5 transition-colors hover:border-sky-300 hover:bg-sky-100/70"
                               >
-                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100/70 text-[var(--admin-accent-blue)]">
-                                  <Phone className="h-3.5 w-3.5" />
+                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 text-[#0284C7]">
+                                  <Phone className="h-3.5 w-3.5 text-[#0284C7]" />
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-dim)]">Call Phone</p>
-                                  <p className="truncate text-[12.5px] font-medium text-[var(--admin-text)] group-hover/phone:text-[var(--admin-accent-blue)]">{phoneText}</p>
+                                  <p className="truncate text-[12.5px] font-medium text-[var(--admin-text)] group-hover/phone:text-[#0284C7]">{phoneText}</p>
                                 </div>
                               </a>
                             ) : (
@@ -750,14 +750,14 @@ export default function CustomerDirectoryTable({
                             <a
                               href={`mailto:${row.email}`}
                               onClick={(e) => e.stopPropagation()}
-                              className="group/mail flex items-center gap-2.5 rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5 transition-colors hover:border-[rgba(26,79,214,0.25)] hover:bg-blue-50/60"
+                              className="group/mail flex items-center gap-2.5 rounded-[10px] border border-amber-200/70 bg-amber-50/50 px-3 py-2.5 transition-colors hover:border-amber-300 hover:bg-amber-100/60"
                             >
-                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100/70 text-[var(--admin-accent-blue)]">
-                                <Mail className="h-3.5 w-3.5" />
+                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[#D97706]">
+                                <Mail className="h-3.5 w-3.5 text-[#D97706]" />
                               </div>
                               <div className="min-w-0 flex-1">
                                 <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-dim)]">Send Email</p>
-                                <p className="truncate text-[12.5px] font-medium text-[var(--admin-text)] group-hover/mail:text-[var(--admin-accent-blue)]">{row.email}</p>
+                                <p className="truncate text-[12.5px] font-medium text-[var(--admin-text)] group-hover/mail:text-[#D97706]">{row.email}</p>
                               </div>
                             </a>
                           </div>
