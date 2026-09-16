@@ -18,14 +18,14 @@ export const BOOKING_TYPE_CARDS: BookingTypeCard[] = [
     ],
   },
   {
-    eyebrow: 'BLOCK TIME COMBO PACKAGES',
+    eyebrow: 'FLEXIBLE BLOCK TIME PACKAGES',
     title: 'Prepaid Block Time Packages',
-    subtitle: 'Great for regular flyers, training & hour building.',
+    subtitle: 'Great for regular flyers, training & hour building with flexible top-up options.',
     bullets: [
-      'Discounted hourly rates',
-      'Prepay and save more',
-      'Perfect for training & building hours',
-      'Use your hours when it suits you',
+      'Discounted hourly rates (save up to $40/hr)',
+      'Flexible flying across your bookings',
+      'Add hours anytime to your active package',
+      'Top-ups automatically extend package validity',
     ],
   },
 ]

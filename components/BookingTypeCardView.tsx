@@ -61,11 +61,14 @@ export function BookingTypeCardView({ card, cta }: Props) {
             </>
           ) : (
             <>
-              <p className="font-serif text-4xl text-oz-navy">From $290/hr</p>
+              <p className="font-serif text-3xl sm:text-4xl text-oz-navy">As low as $290 per hour</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#c8860a]">
                 SAVE UP TO $40/HR VS PAYF
               </p>
               <p className="mt-2 text-xs text-[#3a4d70]">+ $28.95 landing fee per flight (not included in hourly rate)</p>
+              <p className="mt-2 text-xs font-semibold text-[#1a4fd6]">
+                ✦ Easily top up hours anytime to your package
+              </p>
             </>
           )}
         </div>

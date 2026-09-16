@@ -789,7 +789,7 @@ export default async function DashboardPage({
                   {selectedBlockTimePackage.name} selected
                 </h2>
                 <p className="mt-3 font-sans text-[0.95rem] leading-relaxed text-[#4b6390]">
-                  {selectedBlockTimePackage.hours} hours at ${selectedBlockTimePackage.rate_per_hour.toFixed(0)}/hr, valid for {Math.round(selectedBlockTimePackage.validity_days / 30)} months. Landing fees are always billed separately.
+                  {selectedBlockTimePackage.hours} hours at ${selectedBlockTimePackage.rate_per_hour.toFixed(0)}/hr. Hours must be used within {Math.round(selectedBlockTimePackage.validity_days / 30) === 1 ? 'one month' : `${Math.round(selectedBlockTimePackage.validity_days / 30)} months`}. Landing fees are always billed separately.
                 </p>
               </div>
 

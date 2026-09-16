@@ -804,7 +804,9 @@ export default function DashboardContent({
                             {pkg.total_price.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 })}
                           </p>
                           <p className="mt-1 text-[13px] text-[#4b6390] font-sans">
-                            Valid for {pkg.validity_days} days
+                            {Math.round(pkg.validity_days / 30) === 1
+                              ? 'Hours must be used within one month'
+                              : `Hours must be used within ${Math.round(pkg.validity_days / 30)} months`}
                           </p>
                           <p className="mt-2 text-[13px] font-medium text-[#1a4fd6] font-sans">
                             {savings > 0

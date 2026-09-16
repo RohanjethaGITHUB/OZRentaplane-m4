@@ -156,26 +156,37 @@ function FeaturePill({
 function BillingStepCard({
   title,
   steps,
+  note,
 }: {
   title: string
   steps: BillingStep[]
+  note?: string
 }) {
   return (
-    <article className="rounded-2xl border border-mkt-subtle bg-white p-6 shadow-[0_18px_55px_rgba(16,38,74,0.12)] md:p-7">
-      <h3 className="text-center font-serif text-xl font-normal text-oz-deep">{title}</h3>
-      <div className="mt-6 grid gap-3 md:grid-cols-4 md:gap-0 md:divide-x md:divide-mkt-subtle">
-        {steps.map((step) => (
-          <div key={step.title} className="flex flex-col items-center text-center md:px-4">
-            <div className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-mkt-subtle bg-mkt-main text-oz-navy">
-              <Icon name={step.icon} className="!text-[20px]" />
+    <article className="flex flex-col justify-between rounded-2xl border border-mkt-subtle bg-white p-6 shadow-[0_18px_55px_rgba(16,38,74,0.12)] md:p-7">
+      <div>
+        <h3 className="text-center font-serif text-xl font-normal text-oz-deep">{title}</h3>
+        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-4 md:gap-0 md:divide-x md:divide-mkt-subtle">
+          {steps.map((step) => (
+            <div key={step.title} className="flex flex-col items-center text-center md:px-4">
+              <div className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-mkt-subtle bg-mkt-main text-oz-navy">
+                <Icon name={step.icon} className="!text-[20px]" />
+              </div>
+              <p className="mt-3 font-sans text-base font-semibold text-oz-navy">{step.title}</p>
+              <p className="mt-1 max-w-[14rem] font-sans text-sm leading-relaxed text-[#3a4d70]">
+                {step.caption}
+              </p>
             </div>
-            <p className="mt-3 font-sans text-base font-semibold text-oz-navy">{step.title}</p>
-            <p className="mt-1 max-w-[14rem] font-sans text-sm leading-relaxed text-[#3a4d70]">
-              {step.caption}
-            </p>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
+      {note ? (
+        <div className="mt-6 rounded-xl border border-[#1a4fd6]/15 bg-[#f0f6ff] px-4 py-3 text-center">
+          <p className="font-sans text-xs font-semibold text-[#1a4fd6] leading-relaxed">
+            {note}
+          </p>
+        </div>
+      ) : null}
     </article>
   )
 }
@@ -277,7 +288,7 @@ const BLOCK_TIME_PACKAGES = [
     accent: 'from-[#f5b429] via-[#f2a51d] to-[#de8d12]',
     featured: false,
     badge: 'Entry package',
-    features: ['Ideal for getting started', 'Great for occasional training', 'Use within 1 month'],
+    features: ['Flexible flying across bookings', 'Hours must be used within one month', 'Top-up hours available'],
   },
   {
     name: 'Regular Block',
@@ -291,7 +302,7 @@ const BLOCK_TIME_PACKAGES = [
     accent: 'from-[#8ab3ff] via-[#5f86e9] to-[#315fd8]',
     featured: false,
     badge: 'Most popular',
-    features: ['Popular with regular flyers', 'Perfect for training', 'Use within 2 months'],
+    features: ['Flexible flying across bookings', 'Hours must be used within 2 months', 'Top-up hours available'],
   },
   {
     name: 'Committed Block',
@@ -305,7 +316,7 @@ const BLOCK_TIME_PACKAGES = [
     accent: 'from-[#9ad6ff] via-[#6fb7f8] to-[#2f7fd6]',
     featured: true,
     badge: 'Best value',
-    features: ['Best value for frequent flyers', 'Ideal for hour building', 'Use within 3 months'],
+    features: ['Flexible flying across bookings', 'Hours must be used within 3 months', 'Top-up hours available'],
   },
   {
     name: 'Pro Block',
@@ -319,7 +330,7 @@ const BLOCK_TIME_PACKAGES = [
     accent: 'from-[#2d59d6] via-[#234ab2] to-[#17317a]',
     featured: false,
     badge: 'Top tier',
-    features: ['Maximum savings', 'Built for serious flyers', 'Use within 6 months'],
+    features: ['Maximum hourly savings', 'Hours must be used within 6 months', 'Top-up hours available'],
   },
 ]
 
@@ -331,7 +342,9 @@ function buildBlockTimeLoginHref(packageName: string) {
 
 function formatValidityMonths(validityDays: number) {
   const months = Math.round(validityDays / 30)
-  return `Valid for ${months} ${months === 1 ? 'month' : 'months'}`
+  return months === 1
+    ? 'Hours must be used within one month'
+    : `Hours must be used within ${months} months`
 }
 
 function parseRateAmount(rate: string) {
@@ -349,21 +362,31 @@ const FAQ_ITEMS: FaqItemType[] = [
       'VDO hours are based on the aircraft’s VDO meter reading. Final standard hire charges are calculated from the VDO hours recorded for the booking.',
   },
   {
-    question: 'Are these fixed packages?',
+    question: 'Are block time packages flexible?',
     answer:
-      'No. These are flexible hourly rate tiers. Your hourly rate depends on the total VDO hours flown for that booking.',
+      'Yes. Block time packages give you flexible prepaid flying hours that you can draw down across any bookings. You can fly at your own pace within the package validity window and top up additional hours anytime at your locked-in rate.',
+  },
+  {
+    question: 'How does package validity work?',
+    answer:
+      'Each block-time package includes a clear validity period (ranging from 30 to 180 days based on the package size). Hours remain active for flying throughout this validity window starting upon purchase activation.',
+  },
+  {
+    question: 'Can I top up hours or extend my package validity?',
+    answer:
+      'Yes. If you have an active package, you can top up additional hours at your original locked-in hourly rate. In accordance with package rules, every top-up automatically extends your package expiry date so you never lose unused flying time.',
   },
   {
     question: 'Is this Wet Hire pricing?',
-    answer: 'Yes. Standard hire rates on this page are Wet Hire rates.',
+    answer: 'Yes. Standard hire rates on this page are Wet Hire rates (fuel included).',
   },
   {
     question: 'Is GST included?',
-    answer: 'Yes. The listed hourly rates include GST.',
+    answer: 'Yes. All listed hourly rates include GST.',
   },
   {
     question: 'Are landing fees included?',
-    answer: 'No. A $28.95 charge applies per landing.',
+    answer: 'No. A flat $28.95 charge applies per landing and is invoiced separately.',
   },
   {
     question: 'How does the multi-day minimum work?',
@@ -383,7 +406,7 @@ const BLOCK_BILLING_STEPS: BillingStep[] = [
   { title: 'Choose a package', icon: 'calendar_month', caption: 'Pick the block that suits your needs.' },
   { title: 'Pay upfront', icon: 'flight', caption: 'Secure your hours with payment.' },
   { title: 'Fly & use hours', icon: 'credit_card', caption: 'Hours are deducted as you fly.' },
-  { title: 'Receive invoice', icon: 'receipt_long', caption: 'Monthly statement of hours used.' },
+  { title: 'Top up anytime', icon: 'add_circle', caption: 'Easily top up hours anytime to your package at your locked rate.' },
 ]
 
 export default function PricingPage() {
@@ -457,7 +480,7 @@ export default function PricingPage() {
             />
           </FadeUp>
 
-          <StaggerContainer className="mt-10 grid grid-cols-2 gap-6 items-stretch" staggerDelay={0.12} viewportMargin="-80px">
+          <StaggerContainer className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch" staggerDelay={0.12} viewportMargin="-80px">
             {BOOKING_TYPE_CARDS.map((card) => (
               <StaggerItem key={card.title} duration={0.9}>
                 <BookingTypeCardView card={card} />
@@ -536,7 +559,7 @@ export default function PricingPage() {
                           feature: 'Hourly rate',
                           payf: '$330/hr',
                           payfCaption: 'Fixed, regardless of hours flown',
-                          block: 'From $290/hr',
+                          block: 'As low as $290 per hour',
                           blockCaption: 'Lower rates with more hours',
                         },
                         {
@@ -550,6 +573,13 @@ export default function PricingPage() {
                           feature: 'Billing',
                           payf: 'Billed after each flight',
                           block: 'Billed upfront for selected block',
+                        },
+                        {
+                          icon: 'add_circle',
+                          feature: 'Package top-ups',
+                          payf: 'N/A (pay as you fly)',
+                          block: 'Add hours anytime at locked rate',
+                          blockCaption: 'Easily top up hours whenever you need',
                         },
                         {
                           icon: 'do_not_disturb_on',
@@ -607,12 +637,14 @@ export default function PricingPage() {
           <FadeUp duration={1.05} viewportMargin="-80px">
             <div className="mb-3 text-center">
               <p className="mb-3 text-center text-xs font-bold uppercase tracking-[0.15em] text-runway-amber">
-                BLOCK TIME COMBO PACKAGES
+                FLEXIBLE BLOCK TIME PACKAGES
               </p>
               <h2 className="mb-3 text-center font-serif text-4xl font-normal text-white md:text-5xl">
-                Save more with prepaid flying hours
+                Save more with flexible prepaid flying hours
               </h2>
-              <p className="mb-12 text-center text-base text-white/60">Lock in your hours and reduce your hourly rate.</p>
+              <p className="mb-12 text-center text-base text-white/70 max-w-2xl mx-auto">
+                Lock in your discounted hourly rate. Fly at your own pace with generous validity, plus top up extra hours anytime at your locked-in rate.
+              </p>
             </div>
           </FadeUp>
 
@@ -690,7 +722,7 @@ export default function PricingPage() {
           </StaggerContainer>
 
           <div
-            className="mt-10 grid grid-cols-1 gap-6 rounded-2xl border border-white/15 p-6 md:grid-cols-3"
+            className="mt-10 grid grid-cols-1 gap-6 rounded-2xl border border-white/15 p-6 md:grid-cols-2 lg:grid-cols-4"
             style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}
           >
             <div className="flex items-start gap-4">
@@ -698,11 +730,13 @@ export default function PricingPage() {
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20"
                 style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
               >
-                <Icon name="sell" className="text-xl text-white" />
+                <Icon name="flight_takeoff" className="text-xl text-white" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-white">Rates locked in</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-white/50">Lock in today's rate for your pre-paid hours.</p>
+                <p className="text-sm font-semibold text-white">Flexible flying</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-white/60">
+                  Fly whenever you choose. Deduct hours seamlessly across any booking with no rigid slots.
+                </p>
               </div>
             </div>
 
@@ -711,11 +745,13 @@ export default function PricingPage() {
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20"
                 style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
               >
-                <Icon name="schedule" className="text-xl text-white" />
+                <Icon name="event_available" className="text-xl text-white" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-white">Use at your pace</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-white/50">Each package has its own validity period.</p>
+                <p className="text-sm font-semibold text-white">Package validity applies</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-white/60">
+                  Clear validity periods (30 to 180 days) give you ample time to complete your hours.
+                </p>
               </div>
             </div>
 
@@ -724,11 +760,28 @@ export default function PricingPage() {
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20"
                 style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
               >
-                <Icon name="swap_horiz" className="text-xl text-white" />
+                <Icon name="add_circle" className="text-xl text-white" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-white">Fully transferable</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-white/50">Transfer your block to another eligible pilot.</p>
+                <p className="text-sm font-semibold text-white">Top-up & extend expiry</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-white/60">
+                  Top up active packages anytime at your locked-in rate to add hours and automatically extend expiry.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4">
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20"
+                style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
+              >
+                <Icon name="lock" className="text-xl text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">Locked-in rates</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-white/60">
+                  Lock in today&apos;s discounted rate for all your hours, saving up to $40/hr vs Pay As You Fly.
+                </p>
               </div>
             </div>
           </div>
@@ -743,7 +796,11 @@ export default function PricingPage() {
 
           <div className="mt-10 grid gap-6 lg:grid-cols-2">
             <BillingStepCard title="Pay As You Fly (PAYF)" steps={PAYF_BILLING_STEPS} />
-            <BillingStepCard title="Block Time Packages" steps={BLOCK_BILLING_STEPS} />
+            <BillingStepCard
+              title="Block Time Packages"
+              steps={BLOCK_BILLING_STEPS}
+              note="✦ Flexible Package: You can easily top up hours anytime to your active package at your original locked-in rate to add flying time and extend package validity."
+            />
           </div>
         </FadeUp>
       </section>

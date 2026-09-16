@@ -270,8 +270,62 @@ export default async function BlockTimePage({
               </p>
             </div>
           ) : null}
+
+          {/* Promotional / Supporting Messaging for Flexible Block Time */}
+          <div className="mb-6 rounded-2xl border border-[#1a4fd6]/15 bg-gradient-to-br from-[#f0f6ff] via-[#f8fbff] to-white p-5 sm:p-6 shadow-[0_4px_20px_rgba(26,79,214,0.06)]">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-xl">
+                <div className="inline-flex items-center gap-2 rounded-full border border-[#1a4fd6]/20 bg-[#1a4fd6]/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#1a4fd6]">
+                  <span className="material-symbols-outlined text-[15px]">auto_awesome</span>
+                  Flexible Block-Time Packages
+                </div>
+                <h3
+                  className="mt-2 text-2xl font-normal text-[#152d5a] md:text-3xl"
+                  style={{ fontFamily: 'Newsreader, Georgia, serif' }}
+                >
+                  Save more with flexible flying & locked-in rates
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-[#4b6390]">
+                  Fly at your own pace across your package validity window. You can easily add hours anytime to your active package at your locked-in discounted rate—each top-up automatically extends your package expiry.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:w-[480px]">
+                <div className="rounded-xl border border-[#152d5a]/10 bg-white p-3.5 shadow-sm">
+                  <div className="flex items-center gap-2 text-[#1a4fd6]">
+                    <span className="material-symbols-outlined text-[18px]">flight_takeoff</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider">Flexible Use</span>
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-[#4b6390]">
+                    Fly when you want. Hours deducted per flight automatically.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-[#152d5a]/10 bg-white p-3.5 shadow-sm">
+                  <div className="flex items-center gap-2 text-[#1a4fd6]">
+                    <span className="material-symbols-outlined text-[18px]">event_available</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider">Clear Validity</span>
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-[#4b6390]">
+                    1 to 6 months validity per tier to comfortably fly your block.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-[#f59e0b]/30 bg-[#fffdfa] p-3.5 shadow-sm">
+                  <div className="flex items-center gap-2 text-[#d97706]">
+                    <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#92400e]">Easy Top-Ups</span>
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-[#4b6390]">
+                    Add hours anytime at your locked rate & extend package expiry.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {packages.length > 0 ? (
-            <div className="grid grid-cols-1 gap-5 pt-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-5 pt-2 sm:grid-cols-2 xl:grid-cols-4">
               {packages.map((pkg, index) => {
                 const featured = index === packages.length - 2 && packages.length >= 3
                 const packageSlug = slugifyPackageName(pkg.name)
@@ -328,10 +382,36 @@ export default async function BlockTimePage({
               <p className="text-[14px] font-medium text-[#152d5a]">No block time packages are available right now.</p>
             </div>
           )}
-          <p className="mt-4 text-[12px] text-[#4b6390]">
-            All packages include GST and fuel. Landing fees are charged separately. You will be sent to Stripe checkout to
-            complete payment securely.
-          </p>
+
+          {/* Package Rules & Conditions Callout */}
+          <div className="mt-6 rounded-2xl border border-[#152d5a]/10 bg-[#f8fbff] p-5 sm:p-6">
+            <div className="flex items-center gap-2 text-[#152d5a]">
+              <span className="material-symbols-outlined text-[18px] text-[#1a4fd6]">info</span>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[#152d5a]">
+                Flexible Package Rules & Validity Conditions
+              </h4>
+            </div>
+            <div className="mt-3.5 grid grid-cols-1 gap-4 text-xs text-[#4b6390] sm:grid-cols-3">
+              <div className="rounded-xl border border-[#152d5a]/5 bg-white p-3.5">
+                <span className="font-semibold text-[#152d5a]">Package Validity Applies</span>
+                <p className="mt-1 leading-relaxed">
+                  Validity starts upon package purchase. Hours remain active for the stated package period (1–6 months) and apply to any booking within that window.
+                </p>
+              </div>
+              <div className="rounded-xl border border-[#152d5a]/5 bg-white p-3.5">
+                <span className="font-semibold text-[#152d5a]">Top-Up Hours at Locked Rates</span>
+                <p className="mt-1 leading-relaxed">
+                  Need extra flying time? Active package holders can top up hours (min. 10% of package) anytime at their locked-in rate, which automatically extends package expiry.
+                </p>
+              </div>
+              <div className="rounded-xl border border-[#152d5a]/5 bg-white p-3.5">
+                <span className="font-semibold text-[#152d5a]">Inclusive Wet Hire</span>
+                <p className="mt-1 leading-relaxed">
+                  All packages include fuel (Wet Hire) and GST. Landing fees ($28.95 per landing) are charged separately per flight. Payment completed securely via Stripe.
+                </p>
+              </div>
+            </div>
+          </div>
         </section>
       </div>
     </>
