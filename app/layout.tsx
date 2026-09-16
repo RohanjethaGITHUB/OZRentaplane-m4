@@ -60,6 +60,9 @@ export const metadata: Metadata = {
     shortcut: ['/favicon.ico'],
     apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
   },
+  verification: {
+    google: 'AJahBdvgPvQm8imlEzZl9QWQ4Hw6_f8Pd8TcJ4l76O4',
+  },
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
