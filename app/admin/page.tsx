@@ -27,6 +27,8 @@ type ProfileRow = {
   last_name: string | null
   full_name: string | null
   email: string | null
+  phone_country_code?: string | null
+  phone_number?: string | null
 }
 
 type AircraftRow = {
@@ -86,6 +88,13 @@ type CancelRequestRow = {
   bookings: BookingRow | BookingRow[] | null
 }
 
+function formatCustomerPhone(profile: ProfileRow | null | undefined): string | null {
+  const countryCode = profile?.phone_country_code?.replace(/\D/g, '') ?? ''
+  const phoneNumber = profile?.phone_number?.replace(/[^\d]/g, '') ?? ''
+  if (!phoneNumber) return null
+  return countryCode ? `+${countryCode} ${phoneNumber}` : phoneNumber
+}
+
 function formatScheduleRange(start: string | null | undefined, end: string | null | undefined): string | null {
   if (!start) return null
   const startDate = formatDateFromISO(start)
@@ -104,6 +113,7 @@ export type ActionItem = {
   description: string
   customerLabel: string
   customerEmail?: string | null
+  customerPhone?: string | null
   customerHref: string | null
   referenceLabel: string
   referenceHref: string | null
@@ -500,7 +510,7 @@ export default async function AdminActionsPage({
       ownerUserIds.size
         ? safeQuery(
             'owner profiles',
-            supabase.from('profiles').select('id, first_name, last_name, full_name, email').in('id', Array.from(ownerUserIds)),
+            supabase.from('profiles').select('id, first_name, last_name, full_name, email, phone_country_code, phone_number').in('id', Array.from(ownerUserIds)),
           )
         : Promise.resolve({ data: [] as Array<ProfileRow & { id: string }> }),
       documentReviewUserIds.length
@@ -700,6 +710,7 @@ export default async function AdminActionsPage({
             : 'Pending reschedule request awaiting your approval.',
         customerLabel,
         customerEmail: profile?.email ?? null,
+        customerPhone: formatCustomerPhone(profile),
         customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
         referenceLabel: bookingReference(booking),
         referenceHref: `/admin/bookings/requests/${booking.id}`,
@@ -729,6 +740,7 @@ export default async function AdminActionsPage({
       description: 'Review documents and confirm the new checkout request.',
       customerLabel,
       customerEmail: profile?.email ?? null,
+      customerPhone: formatCustomerPhone(profile),
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: bookingReference(booking),
       referenceHref: `/admin/bookings/requests/${booking.id}`,
@@ -757,6 +769,7 @@ export default async function AdminActionsPage({
         description: 'Checkout is confirmed and scheduled. Manage booking or mark complete after flight.',
         customerLabel,
         customerEmail: profile?.email ?? null,
+        customerPhone: formatCustomerPhone(profile),
         customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
         referenceLabel: bookingReference(booking),
         referenceHref: `/admin/bookings/requests/${booking.id}`,
@@ -783,6 +796,7 @@ export default async function AdminActionsPage({
       description: 'Flight is done. Record the checkout outcome and move the booking forward.',
       customerLabel,
       customerEmail: profile?.email ?? null,
+      customerPhone: formatCustomerPhone(profile),
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: bookingReference(booking),
       referenceHref: `/admin/bookings/requests/${booking.id}`,
@@ -815,6 +829,7 @@ export default async function AdminActionsPage({
       description: paymentState.description,
       customerLabel,
       customerEmail: profile?.email ?? null,
+      customerPhone: formatCustomerPhone(profile),
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: bookingReference(booking),
       referenceHref: `/admin/bookings/requests/${booking.id}`,
@@ -856,6 +871,7 @@ export default async function AdminActionsPage({
       description,
       customerLabel,
       customerEmail: profile?.email ?? null,
+      customerPhone: formatCustomerPhone(profile),
       customerHref: `/admin/users/${userId}?tab=documents`,
       referenceLabel: 'Documents',
       referenceHref: `/admin/users/${userId}?tab=documents`,
@@ -882,6 +898,7 @@ export default async function AdminActionsPage({
       description: 'Customer flew over their purchased block time and is gated until paid.',
       customerLabel,
       customerEmail: profile?.email ?? null,
+      customerPhone: formatCustomerPhone(profile),
       customerHref: row.user_id ? `/admin/users/${row.user_id}` : null,
       referenceLabel: `Invoice ${row.invoice_number}`,
       referenceHref: row.user_id ? `/admin/users/${row.user_id}?tab=blockTime` : `/admin/users`,
@@ -909,6 +926,7 @@ export default async function AdminActionsPage({
       description: 'Flight booking is confirmed and scheduled. Manage booking or submit readings after flight.',
       customerLabel,
       customerEmail: profile?.email ?? null,
+      customerPhone: formatCustomerPhone(profile),
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: booking.booking_reference ?? booking.id.slice(0, 8).toUpperCase(),
       referenceHref: `/admin/bookings/requests/${booking.id}`,
@@ -938,6 +956,7 @@ export default async function AdminActionsPage({
       description: 'Customer flight record submission is still outstanding.',
       customerLabel,
       customerEmail: profile?.email ?? null,
+      customerPhone: formatCustomerPhone(profile),
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: booking.booking_reference ?? booking.id.slice(0, 8).toUpperCase(),
       referenceHref: `/admin/bookings/requests/${booking.id}`,
@@ -965,6 +984,7 @@ export default async function AdminActionsPage({
       description: 'Admin review is pending for the submitted flight record.',
       customerLabel,
       customerEmail: profile?.email ?? null,
+      customerPhone: formatCustomerPhone(profile),
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: booking.booking_reference ?? booking.id.slice(0, 8).toUpperCase(),
       referenceHref: `/admin/bookings/requests/${booking.id}`,
@@ -998,6 +1018,7 @@ export default async function AdminActionsPage({
       description: paymentState.description,
       customerLabel,
       customerEmail: profile?.email ?? null,
+      customerPhone: formatCustomerPhone(profile),
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: booking.booking_reference ?? booking.id.slice(0, 8).toUpperCase(),
       referenceHref: `/admin/bookings/requests/${booking.id}`,
@@ -1026,6 +1047,7 @@ export default async function AdminActionsPage({
       description: (row as CancelRequestRow).customer_message ? 'Customer submitted a cancellation request.' : 'Pending cancellation request awaiting review.',
       customerLabel,
       customerEmail: profile?.email ?? null,
+      customerPhone: formatCustomerPhone(profile),
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: booking.booking_reference ?? booking.id.slice(0, 8).toUpperCase(),
       referenceHref: `/admin/bookings/requests/${booking.id}`,

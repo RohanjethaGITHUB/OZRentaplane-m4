@@ -33,6 +33,8 @@ import {
   DollarSign,
   Eye,
   FileText,
+  Mail,
+  Phone,
   XCircle,
 } from 'lucide-react'
 import { RescheduleReviewFooterWarning } from './AdminRescheduleReviewProvider'
@@ -810,11 +812,40 @@ export default function AdminCheckoutReviewPanel({
           </div>
           <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Email</p>
-            <p className="mt-1 break-all text-sm font-medium text-[#152d5a]">{customerEmail || '—'}</p>
+            {customerEmail && customerEmail.trim() !== '—' && customerEmail.trim() !== '' ? (
+              <div className="mt-1">
+                <a
+                  href={`mailto:${customerEmail}`}
+                  title={`Send email to ${customerEmail}`}
+                  className="group/email inline-flex max-w-full items-center gap-1.5 text-sm font-medium text-[#152d5a] transition-colors hover:text-[var(--admin-accent-blue)]"
+                >
+                  <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover/email:text-[var(--admin-accent-blue)]" />
+                  <span className="truncate">{customerEmail}</span>
+                </a>
+              </div>
+            ) : (
+              <p className="mt-1 break-all text-sm font-medium text-[#152d5a]">—</p>
+            )}
           </div>
           <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Phone</p>
-            <p className="mt-1 text-sm font-medium text-[#152d5a]">{customerPhone || '—'}</p>
+            {customerPhone && customerPhone.trim() !== '—' && customerPhone.trim() !== '' ? (
+              <div className="mt-1">
+                <a
+                  href={`tel:${customerPhone.replace(/[^\d+]/g, '')}`}
+                  title={`Call ${customerName || 'customer'} (${customerPhone})`}
+                  aria-label={`Call ${customerName || 'customer'} at ${customerPhone}`}
+                  className="group/call inline-flex max-w-full items-center gap-1.5 text-sm font-medium text-[#152d5a] transition-colors hover:text-[var(--admin-accent-blue)]"
+                >
+                  <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover/call:text-[var(--admin-accent-blue)]" />
+                  <span className="truncate tabular-nums">
+                    {customerPhone}
+                  </span>
+                </a>
+              </div>
+            ) : (
+              <p className="mt-1 text-sm font-medium text-[#152d5a]">—</p>
+            )}
           </div>
           <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">ARN</p>

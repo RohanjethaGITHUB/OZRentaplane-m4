@@ -108,6 +108,19 @@ function getStatusBadge(
   }
 }
 
+function formatCustomerPhone(profile: { phone_country_code: string | null; phone_number: string | null } | undefined) {
+  const countryCode = profile?.phone_country_code?.replace(/\D/g, '') ?? ''
+  const phoneNumber = profile?.phone_number?.replace(/[^\d]/g, '') ?? ''
+  if (!phoneNumber) return null
+  return countryCode ? `+${countryCode} ${phoneNumber}` : phoneNumber
+}
+
+function getCallablePhone(phone: string | null | undefined): string | null {
+  if (!phone || phone.trim() === '' || phone.trim() === '—') return null
+  const cleaned = phone.replace(/[^\d+]/g, '')
+  return cleaned.length >= 3 ? cleaned : null
+}
+
 export default async function AdminBookingList({
   searchParams,
   bookingTypeFilter,
@@ -174,12 +187,12 @@ export default async function AdminBookingList({
   }
 
   const customerIds = Array.from(new Set(bookings.map((b) => b.booking_owner_user_id).filter(Boolean)))
-  const profileMap = new Map<string, { first_name: string | null; last_name: string | null; full_name: string | null; email: string | null }>()
+  const profileMap = new Map<string, { first_name: string | null; last_name: string | null; full_name: string | null; email: string | null; phone_country_code: string | null; phone_number: string | null }>()
 
   if (customerIds.length > 0) {
     const { data: customerProfiles } = await supabase
       .from('profiles')
-      .select('id, first_name, last_name, full_name, email')
+      .select('id, first_name, last_name, full_name, email, phone_country_code, phone_number')
       .in('id', customerIds)
 
     for (const p of customerProfiles ?? []) {
@@ -188,6 +201,8 @@ export default async function AdminBookingList({
         last_name: p.last_name,
         full_name: p.full_name,
         email: p.email,
+        phone_country_code: p.phone_country_code,
+        phone_number: p.phone_number,
       })
     }
   }
@@ -403,6 +418,8 @@ export default async function AdminBookingList({
                     const aircraft = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
                     const prof = profileMap.get(booking.booking_owner_user_id)
                     const customerName = fullCustomerName(prof, booking.pic_name)
+                    const formattedPhone = formatCustomerPhone(prof)
+                    const callablePhone = getCallablePhone(formattedPhone)
                     const email = prof?.email ?? '—'
                     const displayStatus = deriveBookingStatusForFlightRecord(booking)
                     const isProposalPending = pendingAdminProposalIds.has(booking.id)
@@ -423,9 +440,21 @@ export default async function AdminBookingList({
                     return (
                       <tr key={booking.id} className={rowClassName}>
                         <td className={customerCellClassName}>
-                          <Link href={`/admin/users/${booking.booking_owner_user_id}`} className={customerLinkClassName}>
-                            {customerName}
-                          </Link>
+                          <div className="inline-flex items-center gap-2">
+                            <Link href={`/admin/users/${booking.booking_owner_user_id}`} className={customerLinkClassName}>
+                              {customerName}
+                            </Link>
+                            {callablePhone ? (
+                              <a
+                                href={`tel:${callablePhone}`}
+                                title={`Call ${customerName} (${formattedPhone})`}
+                                aria-label={`Call ${customerName} at ${formattedPhone}`}
+                                className="inline-flex items-center text-[#4b6390] transition-colors hover:text-[var(--admin-accent-blue)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(96,165,250,0.45)] rounded"
+                              >
+                                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">call</span>
+                              </a>
+                            ) : null}
+                          </div>
                         </td>
                         <td className={emailCellClassName}>{email}</td>
                         <td className={bodyValueClassName}>{aircraft?.registration ?? 'VH-KZG'}</td>
@@ -449,6 +478,8 @@ export default async function AdminBookingList({
                 const aircraft = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
                 const prof = profileMap.get(booking.booking_owner_user_id)
                 const customerName = fullCustomerName(prof, booking.pic_name)
+                const formattedPhone = formatCustomerPhone(prof)
+                const callablePhone = getCallablePhone(formattedPhone)
                 const email = prof?.email ?? '—'
                 const displayStatus = deriveBookingStatusForFlightRecord(booking)
                 const isProposalPending = pendingAdminProposalIds.has(booking.id)
@@ -466,7 +497,19 @@ export default async function AdminBookingList({
                   <div key={booking.id} className={mobileCardClassName}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className={isLightOperational ? 'text-[14px] font-semibold text-[var(--admin-text)]' : 'text-white font-medium'}>{customerName}</p>
+                        <div className="flex items-center gap-2">
+                          <p className={isLightOperational ? 'text-[14px] font-semibold text-[var(--admin-text)]' : 'text-white font-medium'}>{customerName}</p>
+                          {callablePhone ? (
+                            <a
+                              href={`tel:${callablePhone}`}
+                              title={`Call ${customerName} (${formattedPhone})`}
+                              aria-label={`Call ${customerName} at ${formattedPhone}`}
+                              className="inline-flex items-center text-[#4b6390] transition-colors hover:text-[var(--admin-accent-blue)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(96,165,250,0.45)] rounded"
+                            >
+                              <span className="material-symbols-outlined text-[16px]" aria-hidden="true">call</span>
+                            </a>
+                          ) : null}
+                        </div>
                         <p className={isLightOperational ? 'mt-1 text-[13px] text-[var(--admin-text-secondary)]' : 'text-xs text-slate-400 mt-1'}>{formatDateTime(booking.scheduled_start)}</p>
                       </div>
                       <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11.5px] font-semibold ${badge.className}`}>{badge.label}</span>

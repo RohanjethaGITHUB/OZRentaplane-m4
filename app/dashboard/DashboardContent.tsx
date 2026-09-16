@@ -498,6 +498,10 @@ export default function DashboardContent({
 
   const showDocumentReadiness = !isDocumentReadinessComplete
 
+  const isClearedToFly =
+    profile?.pilot_clearance_status === 'cleared_to_fly' ||
+    bookingReadiness?.clearanceStatus === 'cleared_to_fly'
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -632,8 +636,10 @@ export default function DashboardContent({
 
       <DashboardNextActionPanel state={actionState} flightSnapshotBooking={flightSnapshotBooking ?? null} />
 
-      {/* ─── SECTION 2: PILOT JOURNEY CARD ───────────────────────────────────── */}
-      <PilotJourneyStrip currentStep={actionState.journeyStep} />
+      {/* ─── SECTION 2: PILOT JOURNEY CARD (Only visible while un-cleared) ────── */}
+      {!isClearedToFly && (
+        <PilotJourneyStrip currentStep={actionState.journeyStep} />
+      )}
 
       {/* ─── SECTION 2.5: BLOCK TIME BALANCE BANNER ──────────────────────────── */}
       {blockTimeSummary && (

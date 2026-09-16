@@ -1,6 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { CalendarDays, Clock, Tag, User } from 'lucide-react'
+import { CalendarDays, Clock, Mail, Phone, Tag, User } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatDateTime, formatTime12hFromISO } from '@/lib/formatDateTime'
@@ -1493,11 +1493,34 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               ) : (
                 <p className="truncate text-[15px] font-semibold text-[var(--admin-text)]">{customer?.full_name ?? '—'}</p>
               )}
-              <p className="mt-1 truncate text-[12.5px] text-[var(--admin-text-muted)]">{customer?.email ?? '—'}</p>
-              {customer?.phone_number ? (
-                <p className="mt-0.5 truncate text-[12px] text-[var(--admin-text-muted)]">
-                  {customer.phone_country_code ? `${customer.phone_country_code} ` : ''}{customer.phone_number}
-                </p>
+              {customer?.email ? (
+                <div className="mt-1">
+                  <a
+                    href={`mailto:${customer.email}`}
+                    title={`Send email to ${customer.email}`}
+                    className="group/email inline-flex max-w-full items-center gap-1.5 text-[12.5px] text-[var(--admin-text-muted)] transition-colors hover:text-[var(--admin-accent-blue)]"
+                  >
+                    <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover/email:text-[var(--admin-accent-blue)]" />
+                    <span className="truncate">{customer.email}</span>
+                  </a>
+                </div>
+              ) : (
+                <p className="mt-1 truncate text-[12.5px] text-[var(--admin-text-muted)]">—</p>
+              )}
+              {customerPhone ? (
+                <div className="mt-1">
+                  <a
+                    href={`tel:${customerPhone.replace(/[^\d+]/g, '')}`}
+                    title={`Call ${customer?.full_name ?? 'customer'} (${customerPhone})`}
+                    aria-label={`Call ${customer?.full_name ?? 'customer'} at ${customerPhone}`}
+                    className="group/call inline-flex max-w-full items-center gap-1.5 text-[12.5px] font-medium text-[var(--admin-text)] transition-colors hover:text-[var(--admin-accent-blue)]"
+                  >
+                    <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover/call:text-[var(--admin-accent-blue)]" />
+                    <span className="truncate tabular-nums">
+                      {customerPhone}
+                    </span>
+                  </a>
+                </div>
               ) : null}
             </div>
           </div>

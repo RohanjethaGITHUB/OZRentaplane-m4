@@ -4,6 +4,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Mail, Phone } from 'lucide-react'
 import {
   getCustomerDerivedStatusMeta,
   getStatusFromQuery,
@@ -91,9 +92,14 @@ const FILTERS: Array<{ key: CustomerFilterKey; label: string }> = [
 ]
 
 function formatPhone(phone?: string | null) {
-  const raw = phone ?? ''
-  const cleaned = raw.replace(/^\+\+61\s?/, '').replace(/^\+61\s?/, '').trim()
-  return cleaned || '—'
+  if (!phone || !phone.trim() || phone.trim() === '—') return '—'
+  return phone.replace(/^\++/, '+').trim()
+}
+
+function getCallablePhone(phone?: string | null): string | null {
+  if (!phone || phone.trim() === '' || phone.trim() === '—') return null
+  const cleaned = phone.replace(/[^\d+]/g, '')
+  return cleaned.length >= 3 ? cleaned : null
 }
 
 function customerDetailHref(customerId: string) {
@@ -289,25 +295,29 @@ function RowLink({
   className: string
   children: ReactNode
 }) {
+  const router = useRouter()
   return (
-    <Link
-      href={href}
+    <div
+      role="link"
+      tabIndex={0}
       aria-label={label}
       className={className}
       onClick={(event) => {
         if (hasTextSelection()) {
           event.preventDefault()
+          return
         }
+        router.push(href)
       }}
       onKeyDown={(event) => {
-        if (event.key === ' ') {
+        if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
-          event.currentTarget.click()
+          router.push(href)
         }
       }}
     >
       {children}
-    </Link>
+    </div>
   )
 }
 
@@ -574,6 +584,7 @@ export default function CustomerDirectoryTable({
                       const status = getCustomerDerivedStatusMeta(row.lifecycleStatus)
                       const presentation = getRowPresentation(row)
                       const phoneText = formatPhone(row.phone)
+                      const callablePhone = getCallablePhone(row.phone)
                       const initials = getCustomerInitials(row.fullName)
                       const href = customerDetailHref(row.id)
 
@@ -621,11 +632,35 @@ export default function CustomerDirectoryTable({
                             </div>
 
                             <div className="min-w-0 py-5 pr-6">
-                              <p className="break-words text-[13px] font-medium text-[var(--admin-text)]">{row.email}</p>
-                              <p className="mt-1 break-words text-[12.5px] text-[var(--admin-text-muted)]">{phoneText}</p>
-                              <p className="mt-1 text-[12px] text-[var(--admin-text-muted)]">
-                                {phoneText === '—' ? 'Email only on file' : 'Email and phone on file'}
-                              </p>
+                              <div>
+                                <a
+                                  href={`mailto:${row.email}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="group/email inline-flex max-w-full items-center gap-1.5 text-[13px] font-medium text-[var(--admin-text)] transition-colors hover:text-[var(--admin-accent-blue)]"
+                                  title={`Send email to ${row.email}`}
+                                >
+                                  <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover/email:text-[var(--admin-accent-blue)]" />
+                                  <span className="truncate">{row.email}</span>
+                                </a>
+                              </div>
+                              <div className="mt-1.5">
+                                {callablePhone ? (
+                                  <a
+                                    href={`tel:${callablePhone}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="group/phone inline-flex max-w-full items-center gap-1.5 text-[12.5px] font-medium text-[var(--admin-text-muted)] transition-colors hover:text-[var(--admin-accent-blue)]"
+                                    title={`Call ${phoneText}`}
+                                  >
+                                    <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover/phone:text-[var(--admin-accent-blue)]" />
+                                    <span className="tabular-nums">{phoneText}</span>
+                                  </a>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 text-[12.5px] text-[var(--admin-text-dim)]">
+                                    <Phone className="h-3.5 w-3.5 shrink-0 text-slate-300" />
+                                    <span>No phone on file</span>
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </RowLink>
@@ -638,6 +673,8 @@ export default function CustomerDirectoryTable({
                   {visibleRows.map((row) => {
                     const status = getCustomerDerivedStatusMeta(row.lifecycleStatus)
                     const presentation = getRowPresentation(row)
+                    const phoneText = formatPhone(row.phone)
+                    const callablePhone = getCallablePhone(row.phone)
                     const href = customerDetailHref(row.id)
 
                     return (
@@ -684,18 +721,45 @@ export default function CustomerDirectoryTable({
                           </p>
 
                           <div className="grid gap-2 text-[13px] sm:grid-cols-2">
-                            <div className="rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5">
-                              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-dim)]">Phone</p>
-                              <p className="mt-1 text-[var(--admin-text)]">{formatPhone(row.phone)}</p>
-                              <p className="mt-1 text-[12px] text-[var(--admin-text-muted)]">
-                                {formatPhone(row.phone) === '—' ? 'No phone on file' : 'Phone available'}
-                              </p>
-                            </div>
-                            <div className="rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5">
-                              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-dim)]">Email</p>
-                              <p className="mt-1 break-words text-[var(--admin-text)]">{row.email}</p>
-                              <p className="mt-1 text-[12px] text-[var(--admin-text-muted)]">Primary email on file</p>
-                            </div>
+                            {callablePhone ? (
+                              <a
+                                href={`tel:${callablePhone}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="group/phone flex items-center gap-2.5 rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5 transition-colors hover:border-[rgba(26,79,214,0.25)] hover:bg-blue-50/60"
+                              >
+                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100/70 text-[var(--admin-accent-blue)]">
+                                  <Phone className="h-3.5 w-3.5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-dim)]">Call Phone</p>
+                                  <p className="truncate text-[12.5px] font-medium text-[var(--admin-text)] group-hover/phone:text-[var(--admin-accent-blue)]">{phoneText}</p>
+                                </div>
+                              </a>
+                            ) : (
+                              <div className="flex items-center gap-2.5 rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5 opacity-60">
+                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                                  <Phone className="h-3.5 w-3.5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-dim)]">Phone</p>
+                                  <p className="truncate text-[12.5px] text-[var(--admin-text-muted)]">No phone on file</p>
+                                </div>
+                              </div>
+                            )}
+
+                            <a
+                              href={`mailto:${row.email}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="group/mail flex items-center gap-2.5 rounded-[10px] border border-[rgba(12,35,64,0.08)] bg-[rgba(247,251,255,0.85)] px-3 py-2.5 transition-colors hover:border-[rgba(26,79,214,0.25)] hover:bg-blue-50/60"
+                            >
+                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100/70 text-[var(--admin-accent-blue)]">
+                                <Mail className="h-3.5 w-3.5" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-dim)]">Send Email</p>
+                                <p className="truncate text-[12.5px] font-medium text-[var(--admin-text)] group-hover/mail:text-[var(--admin-accent-blue)]">{row.email}</p>
+                              </div>
+                            </a>
                           </div>
                         </div>
                       </RowLink>

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Phone } from 'lucide-react'
 
 export type BookingDirectoryRow = {
   id: string
@@ -123,6 +124,12 @@ function isBookingFilterKey(filter: string): filter is BookingFilterKey {
 
 function isCheckoutBooking(row: BookingDirectoryRow) {
   return row.bookingType === 'checkout' || row.billingMode === 'checkout'
+}
+
+function getCallablePhone(phone: string | null | undefined): string | null {
+  if (!phone || phone.trim() === '' || phone.trim() === '—') return null
+  const cleaned = phone.replace(/[^\d+]/g, '')
+  return cleaned.length >= 3 ? cleaned : null
 }
 
 function matchesBookingFilter(row: BookingDirectoryRow, filter: string) {
@@ -738,17 +745,19 @@ export default function BookingDirectoryClient({
                     const schedule = formatSchedulePresentation(row.scheduledStart, row.scheduledEnd)
                     const isCheckout = isCheckoutBooking(row)
 
+                    const callablePhone = getCallablePhone(row.customerPhone)
+
                     return (
                       <article key={row.id} className="group relative cursor-pointer">
                         <Link
                           href={`/admin/bookings/requests/${row.bookingId}`}
                           aria-label={`Open booking ${row.bookingReference} for ${row.customerName}`}
-                          className="absolute inset-0 z-10 rounded-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-inset"
+                          className="absolute inset-0 z-0 rounded-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-inset"
                         >
                           <span className="sr-only">Open booking {row.bookingReference}</span>
                         </Link>
 
-                        <div className={`relative z-0 ${DESKTOP_ROW_GRID} ${isCheckout ? 'bg-violet-50/55' : 'bg-emerald-50/30'} ${DESKTOP_ROW_PADDING} py-0 transition-colors group-hover:bg-[var(--booking-directory-row-hover)]`}>
+                        <div className={`relative z-10 pointer-events-none ${DESKTOP_ROW_GRID} ${isCheckout ? 'bg-violet-50/55' : 'bg-emerald-50/30'} ${DESKTOP_ROW_PADDING} py-0 transition-colors group-hover:bg-[var(--booking-directory-row-hover)]`}>
                           <span
                             aria-hidden="true"
                             className={`pointer-events-none absolute inset-y-0 left-0 w-[3px] ${isCheckout ? 'bg-indigo-500' : 'bg-emerald-500'}`}
@@ -756,18 +765,33 @@ export default function BookingDirectoryClient({
                           <div className="pointer-events-none relative z-0 py-5">
                             <BookingTypePresentation row={row} />
                           </div>
-                          <div className="relative z-0 min-w-0 py-5">
-                            <Link
-                              href={`/admin/users/${row.bookingOwnerUserId}`}
-                              className="relative z-20 inline-flex max-w-full flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                            >
-                              <span className="truncate text-[15px] font-[650] text-[var(--admin-text)] transition-colors hover:text-[var(--admin-accent-blue)]">
+                          <div className="pointer-events-auto relative z-20 min-w-0 py-5">
+                            <div className="inline-flex max-w-full flex-col">
+                              <Link
+                                href={`/admin/users/${row.bookingOwnerUserId}`}
+                                className="truncate text-[15px] font-[650] text-[var(--admin-text)] transition-colors hover:text-[var(--admin-accent-blue)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                              >
                                 {row.customerName}
-                              </span>
-                              <span className="mt-1 break-words text-[13px] text-[var(--admin-text-muted)]">
-                                {row.customerPhone}
-                              </span>
-                            </Link>
+                              </Link>
+                              {callablePhone ? (
+                                <a
+                                  href={`tel:${callablePhone}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  title={`Call ${row.customerName} (${row.customerPhone})`}
+                                  aria-label={`Call ${row.customerName} at ${row.customerPhone}`}
+                                  className="group/call mt-1 inline-flex items-center gap-1.5 text-[13px] text-[var(--admin-text-muted)] transition-colors hover:text-[var(--admin-accent-blue)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-offset-2 focus-visible:ring-offset-white rounded"
+                                >
+                                  <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover/call:text-[var(--admin-accent-blue)]" />
+                                  <span className="break-words underline decoration-slate-300 underline-offset-2 group-hover/call:decoration-current">
+                                    {row.customerPhone}
+                                  </span>
+                                </a>
+                              ) : (
+                                <span className="mt-1 break-words text-[13px] text-[var(--admin-text-muted)]">
+                                  {row.customerPhone}
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           <div className="pointer-events-none relative z-0 min-w-0 py-5 text-center">
@@ -794,6 +818,7 @@ export default function BookingDirectoryClient({
                     const status = getStatusPresentation(row)
                     const schedule = formatSchedulePresentation(row.scheduledStart, row.scheduledEnd)
                     const isCheckout = isCheckoutBooking(row)
+                    const callablePhone = getCallablePhone(row.customerPhone)
 
                     return (
                       <article key={row.id} className={`group relative cursor-pointer overflow-hidden rounded-[12px] border border-[rgba(12,35,64,0.10)] ${isCheckout ? 'bg-violet-50/55' : 'bg-emerald-50/30'}`}>
@@ -804,26 +829,37 @@ export default function BookingDirectoryClient({
                         <Link
                           href={`/admin/bookings/requests/${row.bookingId}`}
                           aria-label={`Open booking ${row.bookingReference} for ${row.customerName}`}
-                          className="absolute inset-0 z-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-inset"
+                          className="absolute inset-0 z-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-inset"
                         >
                           <span className="sr-only">Open booking {row.bookingReference}</span>
                         </Link>
 
-                        <div className="relative z-0 flex flex-col gap-4 px-5 py-4 transition-colors group-hover:bg-[var(--booking-directory-row-hover)]">
-                          <div className="flex items-start gap-3">
-                            <div className="min-w-0 flex-1">
-                              <Link
-                                href={`/admin/users/${row.bookingOwnerUserId}`}
-                                className="relative z-20 inline-flex max-w-full flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                              >
-                                <span className="break-words text-[15px] font-[650] leading-[1.3] text-[var(--admin-text)] transition-colors hover:text-[var(--admin-accent-blue)]">
+                        <div className="relative z-10 pointer-events-none flex flex-col gap-4 px-5 py-4 transition-colors group-hover:bg-[var(--booking-directory-row-hover)]">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1 pointer-events-auto">
+                              <div className="inline-flex max-w-full flex-col">
+                                <Link
+                                  href={`/admin/users/${row.bookingOwnerUserId}`}
+                                  className="break-words text-[15px] font-[650] leading-[1.3] text-[var(--admin-text)] transition-colors hover:text-[var(--admin-accent-blue)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)] focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                                >
                                   {row.customerName}
-                                </span>
+                                </Link>
                                 <span className="mt-1 break-words text-[13px] text-[var(--admin-text-muted)]">
                                   {row.customerPhone}
                                 </span>
-                              </Link>
+                              </div>
                             </div>
+                            {callablePhone ? (
+                              <a
+                                href={`tel:${callablePhone}`}
+                                onClick={(e) => e.stopPropagation()}
+                                title={`Call ${row.customerName}`}
+                                aria-label={`Call ${row.customerName} at ${row.customerPhone}`}
+                                className="pointer-events-auto relative z-30 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[rgba(12,35,64,0.12)] bg-white text-[var(--admin-accent-blue)] shadow-sm transition-colors hover:bg-blue-50 active:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(26,79,214,0.26)]"
+                              >
+                                <Phone className="h-4 w-4" />
+                              </a>
+                            ) : null}
                           </div>
 
                           <div className="flex items-center gap-3">

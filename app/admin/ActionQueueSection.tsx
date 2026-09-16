@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Mail, Phone } from 'lucide-react'
 import { AdminStatusBadge } from './components/AdminUi'
 import type { ActionItem } from './page'
 
@@ -214,15 +215,42 @@ function QueueActionRow({ item }: { item: ActionItem }) {
           {/* Customer Details */}
           <div className="min-w-0 border-t border-[var(--admin-divider)] pt-3 lg:border-t-0 lg:pt-0">
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--admin-text-muted)]">Customer</p>
-            <div className="mt-0.5">
+            <div className="mt-0.5 space-y-1">
               <span className="block truncate text-[14px] font-semibold text-[var(--admin-text)]">
                 {customerLabel}
               </span>
-              {item.customerEmail && (
-                <span className="block truncate text-[12px] text-[var(--admin-text-secondary)]">
-                  {item.customerEmail}
-                </span>
-              )}
+              {item.customerEmail ? (
+                <div>
+                  <a
+                    href={`mailto:${item.customerEmail}`}
+                    onClick={(e) => e.stopPropagation()}
+                    title={`Email ${customerLabel} (${item.customerEmail})`}
+                    aria-label={`Email ${customerLabel} at ${item.customerEmail}`}
+                    className="group/email inline-flex max-w-full items-center gap-1.5 text-[12px] text-[var(--admin-text-secondary)] transition-colors hover:text-[var(--admin-accent-blue)]"
+                  >
+                    <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover/email:text-[var(--admin-accent-blue)]" />
+                    <span className="truncate underline decoration-slate-300 underline-offset-2 group-hover/email:decoration-current">
+                      {item.customerEmail}
+                    </span>
+                  </a>
+                </div>
+              ) : null}
+              {item.customerPhone ? (
+                <div>
+                  <a
+                    href={`tel:${item.customerPhone.replace(/[^\d+]/g, '')}`}
+                    onClick={(e) => e.stopPropagation()}
+                    title={`Call ${customerLabel} (${item.customerPhone})`}
+                    aria-label={`Call ${customerLabel} at ${item.customerPhone}`}
+                    className="group/call inline-flex max-w-full items-center gap-1.5 text-[12px] text-[var(--admin-text-secondary)] transition-colors hover:text-[var(--admin-accent-blue)]"
+                  >
+                    <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover/call:text-[var(--admin-accent-blue)]" />
+                    <span className="break-words underline decoration-slate-300 underline-offset-2 group-hover/call:decoration-current">
+                      {item.customerPhone}
+                    </span>
+                  </a>
+                </div>
+              ) : null}
             </div>
           </div>
 
