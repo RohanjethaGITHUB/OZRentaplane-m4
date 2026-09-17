@@ -398,6 +398,56 @@ export async function saveCustomerArn(arn: string): Promise<void> {
   revalidatePath('/dashboard/bookings/new')
 }
 
+// ─── Save customer phone number ───────────────────────────────────────────────
+// Customer enters country code and phone number during onboarding/verification
+// if not already present on profiles.
+
+export async function saveCustomerPhone(input: {
+  phoneCountryCode?: string
+  phoneNumber: string
+}): Promise<{ success: true } | { error: string }> {
+  const phoneCountryCode = (input.phoneCountryCode ?? '+61').trim() || '+61'
+  const phoneNumber = input.phoneNumber.trim()
+
+  const COUNTRY_CODE_REGEX = /^\+?\d{1,4}$/
+  const PHONE_NUMBER_REGEX = /^\d{6,15}$/
+
+  if (!COUNTRY_CODE_REGEX.test(phoneCountryCode)) {
+    return { error: 'Country code must be + followed by 1-4 digits.' }
+  }
+  if (!phoneNumber) {
+    return { error: 'Phone number is required.' }
+  }
+  const cleanNumber = phoneNumber.replace(/[\s-]/g, '')
+  if (!PHONE_NUMBER_REGEX.test(cleanNumber)) {
+    return { error: 'Please enter a valid phone number (6-15 digits).' }
+  }
+
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) return { error: 'Unauthorized' }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      phone_country_code: phoneCountryCode,
+      phone_number: cleanNumber,
+    })
+    .eq('id', user.id)
+
+  if (error) {
+    return { error: 'Failed to save phone number. Please try again.' }
+  }
+
+  revalidatePath('/dashboard/documents')
+  revalidatePath('/dashboard/checkout')
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard/bookings/new')
+  revalidatePath('/dashboard')
+  return { success: true }
+}
+
+
 export async function updateDocumentStatus(
   input: UpdateDocumentStatusInput,
 ): Promise<{ success: true } | { success: false; error: string }> {

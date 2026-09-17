@@ -44,8 +44,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url, 308)
   }
 
-  let supabaseResponse = NextResponse.next({ request })
   const pathname = normalizePath(request.nextUrl.pathname)
+
+  // OAuth code redirect fallback:
+  // If an OAuth provider or Supabase redirects with ?code= or ?error= to root or any non-callback page,
+  // forward immediately to /auth/callback so the session exchange occurs reliably.
+  const hasAuthCode = request.nextUrl.searchParams.has('code')
+  const hasAuthError = request.nextUrl.searchParams.has('error') || request.nextUrl.searchParams.has('error_description')
+  if ((hasAuthCode || hasAuthError) && pathname !== '/auth/callback') {
+    const callbackUrl = new URL('/auth/callback', request.url)
+    request.nextUrl.searchParams.forEach((value, key) => {
+      callbackUrl.searchParams.set(key, value)
+    })
+    return NextResponse.redirect(callbackUrl)
+  }
+
+  let supabaseResponse = NextResponse.next({ request })
 
   // Anonymous visitors on public pages: skip getUser() network round-trip.
   // Logged-in users (auth cookie present) still refresh the session everywhere.

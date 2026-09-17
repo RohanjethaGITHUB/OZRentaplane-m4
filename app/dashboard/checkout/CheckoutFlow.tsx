@@ -57,6 +57,8 @@ type Props = {
   initialLastFlightDate:    string
   initialNightVfrRating:    boolean | null
   initialInstrumentRating:  boolean | null
+  initialPhoneCountryCode?: string | null
+  initialPhoneNumber?:      string | null
   activeCheckoutTerms: {
     id: string
     version: string
@@ -846,6 +848,8 @@ export default function CheckoutFlow({
   initialLastFlightDate,
   initialNightVfrRating,
   initialInstrumentRating,
+  initialPhoneCountryCode,
+  initialPhoneNumber,
   activeCheckoutTerms,
   activeCheckoutBooking,
   pendingRescheduleRequest,
@@ -1605,6 +1609,8 @@ export default function CheckoutFlow({
                 initialFlightDate={initialLastFlightDate}
                 initialRedCardMonth={pilotLicenceDocument?.red_card_expiry_month ?? null}
                 initialRedCardYear={pilotLicenceDocument?.red_card_expiry_year ?? null}
+                initialPhoneCountryCode={initialPhoneCountryCode}
+                initialPhoneNumber={initialPhoneNumber}
               />
             </div>
           )}

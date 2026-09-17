@@ -10,6 +10,8 @@ export type CheckoutDocumentGateState = {
   lastFlightDate: string | null
   hasNightVfrRating: boolean | null
   pilotLicenceDoc: UserDocument | null
+  phoneCountryCode: string | null
+  phoneNumber: string | null
 }
 
 export default function CheckoutDocumentsStep({
@@ -24,6 +26,8 @@ export default function CheckoutDocumentsStep({
   initialFlightDate,
   initialRedCardMonth,
   initialRedCardYear,
+  initialPhoneCountryCode,
+  initialPhoneNumber,
 }: {
   checkoutGate: CheckoutDocumentGateState | null
   checkoutGateLoading: boolean
@@ -36,6 +40,8 @@ export default function CheckoutDocumentsStep({
   initialFlightDate: string
   initialRedCardMonth: number | null
   initialRedCardYear: number | null
+  initialPhoneCountryCode?: string | null
+  initialPhoneNumber?: string | null
 }) {
   if (checkoutGateLoading) {
     return (
@@ -72,6 +78,8 @@ export default function CheckoutDocumentsStep({
         termsAcceptedAt={checkoutGate?.termsAcceptedAt ?? null}
         initialRedCardMonth={initialRedCardMonth ?? pilotDoc?.red_card_expiry_month ?? null}
         initialRedCardYear={initialRedCardYear ?? pilotDoc?.red_card_expiry_year ?? null}
+        initialPhoneCountryCode={initialPhoneCountryCode ?? checkoutGate?.phoneCountryCode ?? '+61'}
+        initialPhoneNumber={initialPhoneNumber ?? checkoutGate?.phoneNumber ?? null}
         onSuccess={onRefresh}
         onSubmit={(note) => { onNoteChange(note); onContinue() }}
         onBackToStep1={onBackToStep1}

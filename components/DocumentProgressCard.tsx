@@ -2,10 +2,13 @@
 
 export type DocumentProgressStepStatus = 'not_started' | 'in_progress' | 'complete'
 
+type StepLabel = { label: string; num: number }
+
 type DocumentProgressCardProps = {
   heading: string
   subheading: string
   className?: string
+  stepLabels?: StepLabel[]
 } & (
   | {
       variant?: 'wizard'
@@ -17,12 +20,12 @@ type DocumentProgressCardProps = {
     }
 )
 
-const DEFAULT_STEP_LABELS = [
+const DEFAULT_STEP_LABELS: StepLabel[] = [
   { label: 'Documents', num: 1 },
   { label: 'Flight & Red Card', num: 2 },
   { label: 'Night VFR', num: 3 },
   { label: 'Terms & Submit', num: 4 },
-] as const
+]
 
 function stepClasses(status: DocumentProgressStepStatus) {
   if (status === 'complete') {
@@ -110,7 +113,7 @@ export default function DocumentProgressCard(props: DocumentProgressCardProps) {
       </div>
 
       <div className="flex items-center gap-0">
-        {DEFAULT_STEP_LABELS.map((step, index) => {
+        {(props.stepLabels ?? DEFAULT_STEP_LABELS).map((step, index, arr) => {
           const status = props.statuses[index] ?? 'not_started'
           const classes = stepClasses(status)
           const isComplete = status === 'complete'
@@ -138,7 +141,7 @@ export default function DocumentProgressCard(props: DocumentProgressCardProps) {
                 </div>
                 <span className="hidden truncate sm:inline">{step.label}</span>
               </div>
-              {index < DEFAULT_STEP_LABELS.length - 1 && (
+              {index < arr.length - 1 && (
                 <div className={`mx-1 h-px flex-1 ${classes.connector}`} />
               )}
             </div>

@@ -97,6 +97,8 @@ export type CheckoutDocumentGateState = {
   lastFlightDate: string | null
   hasNightVfrRating: boolean | null
   pilotLicenceDoc: UserDocument | null
+  phoneCountryCode: string | null
+  phoneNumber: string | null
 }
 
 const CUSTOMER_MODIFIABLE_CHECKOUT_STATUSES = ['checkout_requested', 'checkout_confirmed'] as const
@@ -163,7 +165,7 @@ export async function getCheckoutDocumentGateState(): Promise<
         .order('created_at', { ascending: false }),
       supabase
         .from('profiles')
-        .select('terms_accepted_at, terms_version, last_flight_date, has_night_vfr_rating')
+        .select('terms_accepted_at, terms_version, last_flight_date, has_night_vfr_rating, phone_country_code, phone_number')
         .eq('id', userId)
         .single(),
     ])
@@ -187,6 +189,8 @@ export async function getCheckoutDocumentGateState(): Promise<
         lastFlightDate: profileRes.data?.last_flight_date ?? null,
         hasNightVfrRating: profileRes.data?.has_night_vfr_rating ?? null,
         pilotLicenceDoc,
+        phoneCountryCode: profileRes.data?.phone_country_code ?? null,
+        phoneNumber: profileRes.data?.phone_number ?? null,
       },
     }
   } catch (error) {

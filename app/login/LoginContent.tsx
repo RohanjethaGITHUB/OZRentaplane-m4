@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { LoadingButtonContent } from '@/components/ui/Spinner'
 import { notifyNewRegistration } from '@/app/actions/auth'
+import SocialAuthButtons from '@/components/auth/SocialAuthButtons'
 
 type AuthMode = 'signin' | 'signup'
 
@@ -59,6 +60,18 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
 
   const anyLoading = loading || forgotLoading
   const isModal = presentation === 'modal'
+
+  useEffect(() => {
+    const urlError = searchParams?.get('error_description') || searchParams?.get('error')
+    if (urlError) {
+      const decoded = decodeURIComponent(urlError.replace(/\+/g, ' '))
+      if (mode === 'signin') {
+        setSiError(decoded)
+      } else {
+        setSuError(decoded)
+      }
+    }
+  }, [searchParams, mode])
 
   function clearErrors() {
     setSiError('')
@@ -365,6 +378,14 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                     className="space-y-5"
                     onSubmit={handleSignIn}
                   >
+                    <SocialAuthButtons
+                      mode="signin"
+                      nextPath={nextPath}
+                      disabled={anyLoading}
+                      onError={setSiError}
+                      onLoadingChange={setLoading}
+                    />
+
                     <div>
                       <label className={FIELD_LABEL_CLASS}>Email address</label>
                       <div className="relative">
@@ -392,13 +413,13 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                           onChange={e => setSiPassword(e.target.value)}
                           required
                           disabled={loading}
-                          className={`${FIELD_INPUT_CLASS} pl-10 pr-11 font-mono disabled:opacity-60`}
+                          className={`${FIELD_INPUT_CLASS} pl-10 pr-11 disabled:opacity-60`}
                         />
                         <button
                           type="button"
                           onClick={() => setSiShowPassword(v => !v)}
                           aria-label={siShowPassword ? 'Hide password' : 'Show password'}
-                          className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-[#94a3b8] hover:text-[#4b6390] transition-colors leading-none"
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-[#94a3b8] hover:text-[#4b6390] transition-colors leading-none cursor-pointer"
                         >
                           <span className="material-symbols-outlined text-[18px] leading-none block" style={{ fontVariationSettings: "'wght' 300" }}>
                             {siShowPassword ? 'visibility_off' : 'visibility'}
@@ -537,6 +558,14 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                     className="space-y-5"
                     onSubmit={handleSignUp}
                   >
+                    <SocialAuthButtons
+                      mode="signup"
+                      nextPath={nextPath}
+                      disabled={anyLoading}
+                      onError={setSuError}
+                      onLoadingChange={setLoading}
+                    />
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div>
                         <label className={FIELD_LABEL_CLASS}>First name</label>
@@ -624,13 +653,13 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                             onChange={e => setSuPassword(e.target.value)}
                             required
                             disabled={loading}
-                            className={`${FIELD_INPUT_CLASS} pl-10 pr-11 font-mono disabled:opacity-60`}
+                            className={`${FIELD_INPUT_CLASS} pl-10 pr-11 disabled:opacity-60`}
                           />
                           <button
                             type="button"
                             onClick={() => setSuShowPassword(v => !v)}
                             aria-label={suShowPassword ? 'Hide password' : 'Show password'}
-                            className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-[#94a3b8] hover:text-[#4b6390] transition-colors leading-none"
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-[#94a3b8] hover:text-[#4b6390] transition-colors leading-none cursor-pointer"
                           >
                             <span className="material-symbols-outlined text-[18px] leading-none block" style={{ fontVariationSettings: "'wght' 300" }}>
                               {suShowPassword ? 'visibility_off' : 'visibility'}
@@ -649,13 +678,13 @@ export default function LoginContent({ presentation = 'page', onRequestClose, on
                             onChange={e => setSuConfirm(e.target.value)}
                             required
                             disabled={loading}
-                            className={`${FIELD_INPUT_CLASS} pl-10 pr-11 font-mono disabled:opacity-60`}
+                            className={`${FIELD_INPUT_CLASS} pl-10 pr-11 disabled:opacity-60`}
                           />
                           <button
                             type="button"
                             onClick={() => setSuShowConfirm(v => !v)}
                             aria-label={suShowConfirm ? 'Hide confirm password' : 'Show confirm password'}
-                            className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-[#94a3b8] hover:text-[#4b6390] transition-colors leading-none"
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center text-[#94a3b8] hover:text-[#4b6390] transition-colors leading-none cursor-pointer"
                           >
                             <span className="material-symbols-outlined text-[18px] leading-none block" style={{ fontVariationSettings: "'wght' 300" }}>
                               {suShowConfirm ? 'visibility_off' : 'visibility'}

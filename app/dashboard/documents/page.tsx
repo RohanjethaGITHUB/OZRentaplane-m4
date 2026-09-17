@@ -18,7 +18,7 @@ export default async function CustomerDocumentsPage() {
   const [profileResult, documentsResult, activeTermsResult, latestTermsAcceptanceResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('role, last_flight_date, has_night_vfr_rating, has_instrument_rating, terms_accepted_at, terms_version, pilot_clearance_status')
+      .select('role, last_flight_date, has_night_vfr_rating, has_instrument_rating, terms_accepted_at, terms_version, pilot_clearance_status, phone_country_code, phone_number')
       .eq('id', user.id)
       .single(),
     supabase
@@ -105,6 +105,8 @@ export default async function CustomerDocumentsPage() {
           lastFlightDate={profile?.last_flight_date ?? null}
           hasNightVfrRating={profile?.has_night_vfr_rating ?? null}
           hasInstrumentRating={profile?.has_instrument_rating ?? null}
+          initialPhoneCountryCode={profile?.phone_country_code ?? '+61'}
+          initialPhoneNumber={profile?.phone_number ?? null}
           termsAcceptedAt={termsAcceptedAt}
           clearanceStatus={clearanceStatus}
           checkoutPaymentBookingId={checkoutPaymentBookingId}

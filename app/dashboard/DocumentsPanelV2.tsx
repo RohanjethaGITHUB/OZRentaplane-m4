@@ -12,6 +12,8 @@ type Props = {
   lastFlightDate: string | null
   hasNightVfrRating: boolean | null
   hasInstrumentRating: boolean | null
+  initialPhoneCountryCode?: string | null
+  initialPhoneNumber?: string | null
   termsAcceptedAt: string | null
   clearanceStatus?: string | null
   checkoutPaymentBookingId?: string | null
@@ -23,6 +25,8 @@ export default function DocumentsPanelV2({
   pilotLicenceDocument,
   lastFlightDate,
   hasNightVfrRating,
+  initialPhoneCountryCode,
+  initialPhoneNumber,
   termsAcceptedAt,
   clearanceStatus,
   checkoutPaymentBookingId,
@@ -37,6 +41,8 @@ export default function DocumentsPanelV2({
       pilotLicenceDocument={pilotDoc}
       lastFlightDate={lastFlightDate}
       hasNightVfrRating={hasNightVfrRating}
+      initialPhoneCountryCode={initialPhoneCountryCode}
+      initialPhoneNumber={initialPhoneNumber}
       termsAcceptedAt={termsAcceptedAt}
       initialRedCardMonth={pilotDoc?.red_card_expiry_month ?? null}
       initialRedCardYear={pilotDoc?.red_card_expiry_year ?? null}

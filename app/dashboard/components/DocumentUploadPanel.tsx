@@ -8,7 +8,7 @@ import type { UserDocument, DocumentType } from '@/lib/supabase/types'
 import { uploadVerificationDocument, replaceVerificationDocument } from '@/app/actions/upload'
 import { getDocumentSignedUrlsForType } from '@/app/actions/documents'
 import { acceptTermsAndConditions } from '@/app/actions/terms'
-import { saveLastFlightDate } from '@/app/actions/verification'
+import { saveLastFlightDate, saveCustomerPhone } from '@/app/actions/verification'
 import { saveNightVfrRatingFromReadiness } from '@/app/actions/booking-readiness'
 import { getFlightReviewCutoff } from '@/lib/utils/flight-review'
 import { formatDateFromISO } from '@/lib/formatDateTime'
@@ -40,6 +40,8 @@ export type DocumentUploadPanelProps = {
   termsAcceptedAt?: string | null
   initialRedCardMonth?: number | null
   initialRedCardYear?: number | null
+  initialPhoneCountryCode?: string | null
+  initialPhoneNumber?: string | null
   clearanceStatus?: string | null
   checkoutPaymentBookingId?: string | null
   onSuccess: () => void
@@ -525,6 +527,8 @@ export default function DocumentUploadPanel({
   termsAcceptedAt,
   initialRedCardMonth,
   initialRedCardYear,
+  initialPhoneCountryCode,
+  initialPhoneNumber,
   clearanceStatus,
   checkoutPaymentBookingId,
   onSuccess,
@@ -592,6 +596,16 @@ export default function DocumentUploadPanel({
   const [isScrolledToBottom, setIsScrolledToBottom] = useState(false)
   const termsScrollRef = useRef<HTMLDivElement>(null)
 
+  // Phone number (required if user signed up with Google or has no phone in profiles)
+  const hasInitialPhone = Boolean(initialPhoneNumber && initialPhoneNumber.trim().length > 0)
+  const [phoneCountryCode, setPhoneCountryCode] = useState(initialPhoneCountryCode || '+61')
+  const [phoneNumber, setPhoneNumber] = useState(initialPhoneNumber || '')
+  const [phoneSaving, setPhoneSaving] = useState(false)
+  const [phoneSaved, setPhoneSaved] = useState(false)
+  const [phoneError, setPhoneError] = useState('')
+  const phoneDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const phoneSavedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
     setLocalTermsAcceptedAt(termsAcceptedAt ?? null)
   }, [termsAcceptedAt])
@@ -610,12 +624,13 @@ export default function DocumentUploadPanel({
   }, [termsSuccess])
 
   const [customerNote, setCustomerNote] = useState('')
-  const [validationErrors, setValidationErrors] = useState<{ s1?: string; s2?: string; s3?: string; s4?: string }>({})
+  const [validationErrors, setValidationErrors] = useState<{ s1?: string; s2?: string; s3?: string; s4?: string; s5?: string }>({})
 
   const section1Ref = useRef<HTMLDivElement>(null)
   const section2Ref = useRef<HTMLDivElement>(null)
   const section3Ref = useRef<HTMLDivElement>(null)
   const section4Ref = useRef<HTMLDivElement>(null)
+  const section5Ref = useRef<HTMLDivElement>(null)
 
   const docChecks = useMemo(() => DOC_TYPES.map(def => ({
     def, doc: docMap[def.type] as UserDocument | undefined, state: getDocUiState(docMap[def.type]),
@@ -633,17 +648,30 @@ export default function DocumentUploadPanel({
   const allDocsUploaded = docChecks.every(({ state }) => state !== 'missing')
   const allDocsApproved = docChecks.every(({ state }) => state === 'approved')
 
-  const docsGateReady = docChecks.every(({ state }) => state !== 'missing' && state !== 'rejected')
-  const docsFullyApproved = allDocsApproved
-
   const s1: SectionStatus = allDocsUploaded ? 'complete' : docChecks.some(({ state }) => state !== 'missing') ? 'in_progress' : 'not_started'
   const flightDateComplete = Boolean(flightDate)
   const redCardComplete = Boolean(redCardMonth && redCardYear)
   const s2: SectionStatus = flightDateComplete && redCardComplete ? 'complete' : flightDateComplete || redCardComplete ? 'in_progress' : 'not_started'
   const s3: SectionStatus = nightVfr === null ? 'not_started' : nightVfr === false ? 'complete' : docMap['night_vfr_evidence'] ? 'complete' : 'in_progress'
   const s4: SectionStatus = termsAccepted ? 'complete' : 'not_started'
-  const completedCount = [s1, s2, s3, s4].filter(s => s === 'complete').length
-  const fullyReady = allDocsApproved && s2 === 'complete' && s3 === 'complete' && s4 === 'complete'
+  const s5: SectionStatus = (phoneNumber.trim().length >= 6 && !phoneError) ? 'complete' : phoneNumber.trim().length > 0 ? 'in_progress' : 'not_started'
+
+  const docsGateReady = docChecks.every(({ state }) => state !== 'missing' && state !== 'rejected') && (hasInitialPhone || s5 === 'complete')
+  const docsFullyApproved = allDocsApproved
+
+  const statuses: DocumentProgressStepStatus[] = hasInitialPhone ? [s1, s2, s3, s4] : [s1, s2, s3, s4, s5]
+  const stepLabels = hasInitialPhone
+    ? undefined
+    : [
+        { label: 'Documents', num: 1 },
+        { label: 'Flight & Red Card', num: 2 },
+        { label: 'Night VFR', num: 3 },
+        { label: 'Terms', num: 4 },
+        { label: 'Phone Number', num: 5 },
+      ]
+
+  const completedCount = statuses.filter(s => s === 'complete').length
+  const fullyReady = allDocsApproved && s2 === 'complete' && s3 === 'complete' && s4 === 'complete' && (hasInitialPhone || s5 === 'complete')
   const isClearedToFly = clearanceStatus === 'cleared_to_fly'
   const isCheckoutPaymentRequired = clearanceStatus === 'checkout_payment_required'
   const checkoutPaymentHref = checkoutPaymentBookingId
@@ -652,7 +680,7 @@ export default function DocumentUploadPanel({
 
   const docsReadyBanner = (() => {
     if (!fullyReady) {
-      if (allDocsUploaded && termsAccepted) {
+      if (allDocsUploaded && termsAccepted && (hasInitialPhone || s5 === 'complete')) {
         return {
           tone: 'review' as const,
           icon: 'hourglass_top',
@@ -712,6 +740,44 @@ export default function DocumentUploadPanel({
         onSuccess()
       } catch (e: unknown) { setFlightDateError(e instanceof Error ? e.message : 'Could not save.') }
       finally { setFlightDateSaving(false) }
+    }, 600)
+  }
+
+  function handlePhoneChange(nextCode: string, nextNum: string) {
+    setPhoneCountryCode(nextCode)
+    setPhoneNumber(nextNum)
+    setPhoneSaved(false)
+    setValidationErrors(p => ({ ...p, s5: undefined }))
+    if (phoneDebounceRef.current) clearTimeout(phoneDebounceRef.current)
+    phoneDebounceRef.current = setTimeout(async () => {
+      const trimmed = nextNum.trim()
+      if (!trimmed) return
+      if (!/^\+?\d{1,4}$/.test(nextCode.trim() || '+61')) {
+        setPhoneError('Country code must be + followed by 1-4 digits.')
+        return
+      }
+      const cleanNumber = trimmed.replace(/[\s-]/g, '')
+      if (!/^\d{6,15}$/.test(cleanNumber)) {
+        setPhoneError('Please enter a valid phone number (6-15 digits).')
+        return
+      }
+      setPhoneSaving(true)
+      setPhoneError('')
+      try {
+        const result = await saveCustomerPhone({ phoneCountryCode: nextCode, phoneNumber: trimmed })
+        if ('error' in result) {
+          setPhoneError(result.error)
+          return
+        }
+        setPhoneSaved(true)
+        if (phoneSavedTimeoutRef.current) clearTimeout(phoneSavedTimeoutRef.current)
+        phoneSavedTimeoutRef.current = setTimeout(() => setPhoneSaved(false), 2000)
+        onSuccess()
+      } catch (e: unknown) {
+        setPhoneError(e instanceof Error ? e.message : 'Could not save phone number.')
+      } finally {
+        setPhoneSaving(false)
+      }
     }, 600)
   }
 
@@ -778,17 +844,21 @@ export default function DocumentUploadPanel({
   }
 
   function validateAndScroll(): boolean {
-    const errors: { s1?: string; s2?: string; s3?: string; s4?: string } = {}
+    const errors: { s1?: string; s2?: string; s3?: string; s4?: string; s5?: string } = {}
     if (docChecks.some(({ state }) => state === 'missing')) errors.s1 = 'Please upload all required documents.'
     if (!flightDate) errors.s2 = 'Please enter your last flight review date.'
     if (hasPilotDoc && (!redCardMonth || !redCardYear)) errors.s2 = errors.s2 ?? 'Please enter your Red Card expiry date.'
     if (nightVfr === null) errors.s3 = 'Please declare your Night VFR endorsement status.'
     if (!termsAccepted && !termsChecked) errors.s4 = 'Please accept the terms and conditions.'
+    if (!hasInitialPhone && (!phoneNumber.trim() || phoneNumber.trim().replace(/[\s-]/g, '').length < 6)) {
+      errors.s5 = 'Please provide a valid contact phone number.'
+    }
     setValidationErrors(errors)
     if (errors.s1) { section1Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return false }
     if (errors.s2) { section2Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return false }
     if (errors.s3) { section3Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return false }
     if (errors.s4) { section4Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return false }
+    if (errors.s5) { section5Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return false }
     if (termsChecked && !termsAccepted) {
       setTermsError('Please accept the Terms & Conditions and wait for confirmation before continuing.')
       section4Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -800,10 +870,12 @@ export default function DocumentUploadPanel({
   return (
     <div className="space-y-4">
       <DocumentProgressCard
-        statuses={[s1, s2, s3, s4]}
-        heading="Complete all 4 steps to submit your documents"
+        statuses={statuses}
+        stepLabels={stepLabels}
+        heading={`Complete all ${statuses.length} steps to submit your documents`}
         subheading="Our team will review and confirm your checkout request."
       />
+
 
       <div className="bg-[#dce3ed] rounded-2xl p-3 space-y-3">
         <div ref={section1Ref} className="scroll-mt-4">
@@ -1112,6 +1184,75 @@ export default function DocumentUploadPanel({
             </div>
           </Section>
         </div>
+
+        {!hasInitialPhone && (
+          <div ref={section5Ref} className="scroll-mt-4">
+            <Section
+              num={5}
+              title="Contact Phone Number"
+              desc="Provide your contact phone number so our flight ops team can reach you regarding your bookings."
+              status={s5}
+              error={validationErrors.s5}
+            >
+              <div className="mt-3 bg-[#f8fbff] border border-[#152d5a]/08 rounded-xl p-4">
+                <div className="flex items-center gap-2.5 mb-3">
+                  <div className="w-8 h-8 rounded-xl bg-[#f0f6ff] border border-[#152d5a]/10 flex items-center justify-center flex-shrink-0">
+                    <span className="material-symbols-outlined text-[#1a4fd6] text-[15px]" style={{ fontVariationSettings: "'wght' 300" }}>call</span>
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-semibold text-[#152d5a]">Phone Number Required</p>
+                    <p className="text-[12px] text-[#4b6390]">Enter your mobile or contact number with country code.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-[130px_minmax(0,1fr)] gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#64748b] uppercase tracking-widest mb-1.5">Country Code</label>
+                    <input
+                      type="text"
+                      value={phoneCountryCode}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        if (/^\+?\d{0,4}$/.test(val)) {
+                          handlePhoneChange(val, phoneNumber)
+                        }
+                      }}
+                      placeholder="+61"
+                      className="w-full h-10 border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] bg-white focus:outline-none focus:border-blue-500/60"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#64748b] uppercase tracking-widest mb-1.5">Phone Number</label>
+                    <input
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        if (/^[\d\s-]*$/.test(val)) {
+                          handlePhoneChange(phoneCountryCode, val)
+                        }
+                      }}
+                      placeholder="e.g. 0412 345 678"
+                      className="w-full h-10 border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] bg-white focus:outline-none focus:border-blue-500/60"
+                    />
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center gap-1.5 h-4">
+                  {phoneSaving && <span className="material-symbols-outlined text-[#1a4fd6] text-[13px] animate-spin">progress_activity</span>}
+                  {phoneSaved && !phoneSaving && (
+                    <span className="text-[11px] text-green-600 flex items-center gap-0.5">
+                      <span className="material-symbols-outlined text-[12px]">check_circle</span>Saved
+                    </span>
+                  )}
+                  {phoneError && (
+                    <span className="text-[11px] text-red-500 flex items-center gap-0.5">
+                      <span className="material-symbols-outlined text-[12px]">error</span>{phoneError}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </Section>
+          </div>
+        )}
       </div>
 
       {!onSubmit && (

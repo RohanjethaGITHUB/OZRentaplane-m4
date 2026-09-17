@@ -294,6 +294,8 @@ export default async function CheckoutPage() {
           initialLastFlightDate={typedProfile?.last_flight_date ?? ''}
           initialNightVfrRating={typedProfile?.has_night_vfr_rating ?? null}
           initialInstrumentRating={typedProfile?.has_instrument_rating ?? null}
+          initialPhoneCountryCode={typedProfile?.phone_country_code ?? '+61'}
+          initialPhoneNumber={typedProfile?.phone_number ?? ''}
           activeCheckoutTerms={activeCheckoutTerms}
           activeCheckoutBooking={
             checkoutBooking
