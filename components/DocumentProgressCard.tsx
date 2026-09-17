@@ -24,7 +24,8 @@ const DEFAULT_STEP_LABELS: StepLabel[] = [
   { label: 'Documents', num: 1 },
   { label: 'Flight & Red Card', num: 2 },
   { label: 'Night VFR', num: 3 },
-  { label: 'Terms & Submit', num: 4 },
+  { label: 'Terms', num: 4 },
+  { label: 'Phone', num: 5 },
 ]
 
 function stepClasses(status: DocumentProgressStepStatus) {
@@ -86,12 +87,12 @@ export default function DocumentProgressCard(props: DocumentProgressCardProps) {
   const { heading, subheading, className } = props
   if (props.variant === 'compact') {
     return (
-      <div className={`rounded-2xl bg-[#152d5a] px-6 py-5 ${className ?? ''}`}>
-        <div className="flex items-center gap-5">
+      <div className={`rounded-2xl bg-[#152d5a] px-4 py-4 sm:px-6 sm:py-5 ${className ?? ''}`}>
+        <div className="flex items-center gap-3.5 sm:gap-5">
           <CompactProgressRing percent={props.percent} />
           <div>
-            <p className="text-[16px] font-semibold leading-snug text-white">{heading}</p>
-            <p className="mt-1 text-[13px] text-white/60">{subheading}</p>
+            <p className="text-[14px] sm:text-[16px] font-semibold leading-snug text-white">{heading}</p>
+            <p className="mt-1 text-[12px] sm:text-[13px] text-white/60">{subheading}</p>
           </div>
         </div>
       </div>
@@ -103,16 +104,16 @@ export default function DocumentProgressCard(props: DocumentProgressCardProps) {
   )
 
   return (
-    <div className={`rounded-2xl bg-[#152d5a] px-6 py-5 ${className ?? ''}`}>
-      <div className="mb-4 flex items-center gap-5">
+    <div className={`rounded-2xl bg-[#152d5a] px-3.5 py-4 sm:px-6 sm:py-5 ${className ?? ''}`}>
+      <div className="mb-4 flex items-center gap-3.5 sm:gap-5">
         <CompactProgressRing percent={percent} />
-        <div>
-          <p className="text-[16px] font-semibold leading-snug text-white">{heading}</p>
-          <p className="mt-1 text-[13px] text-white/60">{subheading}</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-[14px] sm:text-[16px] font-semibold leading-snug text-white">{heading}</p>
+          <p className="mt-0.5 sm:mt-1 text-[11px] sm:text-[13px] text-white/60 leading-relaxed">{subheading}</p>
         </div>
       </div>
 
-      <div className="flex items-center gap-0">
+      <div className="flex items-center gap-0 w-full overflow-hidden">
         {(props.stepLabels ?? DEFAULT_STEP_LABELS).map((step, index, arr) => {
           const status = props.statuses[index] ?? 'not_started'
           const classes = stepClasses(status)
@@ -121,12 +122,12 @@ export default function DocumentProgressCard(props: DocumentProgressCardProps) {
           return (
             <div key={step.num} className="flex min-w-0 flex-1 items-center">
               <div
-                className={`flex flex-shrink-0 items-center gap-2 rounded-full px-3 py-2 text-[11px] font-semibold transition-all ${
+                className={`flex flex-shrink-0 items-center gap-1 sm:gap-2 rounded-full px-1.5 sm:px-3 py-1.5 sm:py-2 text-[11px] font-semibold transition-all ${
                   classes.pill
                 }`}
               >
                 <div
-                  className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${classes.circle}`}
+                  className={`flex h-5 w-5 sm:h-5 sm:w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${classes.circle}`}
                 >
                   {isComplete ? (
                     <span
@@ -139,10 +140,10 @@ export default function DocumentProgressCard(props: DocumentProgressCardProps) {
                     step.num
                   )}
                 </div>
-                <span className="hidden truncate sm:inline">{step.label}</span>
+                <span className="hidden truncate md:inline">{step.label}</span>
               </div>
               {index < arr.length - 1 && (
-                <div className={`mx-1 h-px flex-1 ${classes.connector}`} />
+                <div className={`mx-0.5 sm:mx-1 h-px flex-1 min-w-[6px] ${classes.connector}`} />
               )}
             </div>
           )
@@ -151,3 +152,4 @@ export default function DocumentProgressCard(props: DocumentProgressCardProps) {
     </div>
   )
 }
+

@@ -162,29 +162,29 @@ function Section({ num, title, desc, status, error, badge, children }: {
   return (
     <div className="bg-white border border-[#152d5a]/15 rounded-2xl overflow-hidden shadow-sm">
       <button type="button" onClick={() => setOpen(o => !o)}
-        className="w-full flex items-start px-4 py-4 md:px-6 md:py-5 hover:bg-[#f8fbff] transition-colors text-left">
+        className="w-full flex items-start px-3.5 py-3.5 sm:px-6 sm:py-5 hover:bg-[#f8fbff] transition-colors text-left">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-8 h-8 rounded-full bg-[#1a4fd6] flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-[12px] font-bold">{num}</span>
+          <div className="flex items-center gap-2.5 sm:gap-3 mb-2">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1a4fd6] flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-[11px] sm:text-[12px] font-bold">{num}</span>
             </div>
             <div className="flex-1" />
             <SectionBadge status={status} />
             <span className={`material-symbols-outlined text-[#4b6390] text-[20px] transition-transform duration-200 ${open ? 'rotate-0' : '-rotate-90'}`}>expand_less</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[16px] font-semibold text-[#152d5a] leading-snug">{title}</p>
+            <p className="text-[15px] sm:text-[16px] font-semibold text-[#152d5a] leading-snug">{title}</p>
             {badge}
           </div>
-          <p className="text-[13px] text-[#4b6390] mt-1 leading-relaxed">{desc}</p>
+          <p className="text-[12px] sm:text-[13px] text-[#4b6390] mt-1 leading-relaxed">{desc}</p>
         </div>
       </button>
       {open && (
-        <div className="px-3 pb-4 pt-3 md:px-6 md:pb-6 md:pt-4 border-t border-[#152d5a]/08">
+        <div className="px-3 pb-4 pt-3 sm:px-6 sm:pb-6 sm:pt-4 border-t border-[#152d5a]/08">
           {error && (
-            <div className="mb-4 flex items-center gap-3 bg-red-50 border-2 border-red-400 rounded-xl px-4 py-4 shadow-[0_0_0_4px_rgba(239,68,68,0.08)]">
-              <span className="material-symbols-outlined text-red-500 text-[22px] flex-shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
-              <p className="text-[15px] text-red-700 font-semibold leading-snug">{error}</p>
+            <div className="mb-4 flex items-center gap-2.5 sm:gap-3 bg-red-50 border-2 border-red-400 rounded-xl px-3.5 py-3 sm:px-4 sm:py-4 shadow-[0_0_0_4px_rgba(239,68,68,0.08)]">
+              <span className="material-symbols-outlined text-red-500 text-[20px] sm:text-[22px] flex-shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
+              <p className="text-[13px] sm:text-[15px] text-red-700 font-semibold leading-snug">{error}</p>
             </div>
           )}
           {children}
@@ -596,8 +596,7 @@ export default function DocumentUploadPanel({
   const [isScrolledToBottom, setIsScrolledToBottom] = useState(false)
   const termsScrollRef = useRef<HTMLDivElement>(null)
 
-  // Phone number (required if user signed up with Google or has no phone in profiles)
-  const hasInitialPhone = Boolean(initialPhoneNumber && initialPhoneNumber.trim().length > 0)
+  // Phone number (pre-filled if present in profile, always editable & saved automatically)
   const [phoneCountryCode, setPhoneCountryCode] = useState(initialPhoneCountryCode || '+61')
   const [phoneNumber, setPhoneNumber] = useState(initialPhoneNumber || '')
   const [phoneSaving, setPhoneSaving] = useState(false)
@@ -656,22 +655,20 @@ export default function DocumentUploadPanel({
   const s4: SectionStatus = termsAccepted ? 'complete' : 'not_started'
   const s5: SectionStatus = (phoneNumber.trim().length >= 6 && !phoneError) ? 'complete' : phoneNumber.trim().length > 0 ? 'in_progress' : 'not_started'
 
-  const docsGateReady = docChecks.every(({ state }) => state !== 'missing' && state !== 'rejected') && (hasInitialPhone || s5 === 'complete')
+  const docsGateReady = docChecks.every(({ state }) => state !== 'missing' && state !== 'rejected') && s5 === 'complete'
   const docsFullyApproved = allDocsApproved
 
-  const statuses: DocumentProgressStepStatus[] = hasInitialPhone ? [s1, s2, s3, s4] : [s1, s2, s3, s4, s5]
-  const stepLabels = hasInitialPhone
-    ? undefined
-    : [
-        { label: 'Documents', num: 1 },
-        { label: 'Flight & Red Card', num: 2 },
-        { label: 'Night VFR', num: 3 },
-        { label: 'Terms', num: 4 },
-        { label: 'Phone Number', num: 5 },
-      ]
+  const statuses: DocumentProgressStepStatus[] = [s1, s2, s3, s4, s5]
+  const stepLabels = [
+    { label: 'Documents', num: 1 },
+    { label: 'Flight & Red Card', num: 2 },
+    { label: 'Night VFR', num: 3 },
+    { label: 'Terms', num: 4 },
+    { label: 'Phone', num: 5 },
+  ]
 
   const completedCount = statuses.filter(s => s === 'complete').length
-  const fullyReady = allDocsApproved && s2 === 'complete' && s3 === 'complete' && s4 === 'complete' && (hasInitialPhone || s5 === 'complete')
+  const fullyReady = allDocsApproved && s2 === 'complete' && s3 === 'complete' && s4 === 'complete' && s5 === 'complete'
   const isClearedToFly = clearanceStatus === 'cleared_to_fly'
   const isCheckoutPaymentRequired = clearanceStatus === 'checkout_payment_required'
   const checkoutPaymentHref = checkoutPaymentBookingId
@@ -680,7 +677,7 @@ export default function DocumentUploadPanel({
 
   const docsReadyBanner = (() => {
     if (!fullyReady) {
-      if (allDocsUploaded && termsAccepted && (hasInitialPhone || s5 === 'complete')) {
+      if (allDocsUploaded && termsAccepted && s5 === 'complete') {
         return {
           tone: 'review' as const,
           icon: 'hourglass_top',
@@ -699,6 +696,7 @@ export default function DocumentUploadPanel({
         cta: null as { label: string; href: string } | null,
       }
     }
+
     if (isClearedToFly) {
       return {
         tone: 'ready' as const,
@@ -850,7 +848,7 @@ export default function DocumentUploadPanel({
     if (hasPilotDoc && (!redCardMonth || !redCardYear)) errors.s2 = errors.s2 ?? 'Please enter your Red Card expiry date.'
     if (nightVfr === null) errors.s3 = 'Please declare your Night VFR endorsement status.'
     if (!termsAccepted && !termsChecked) errors.s4 = 'Please accept the terms and conditions.'
-    if (!hasInitialPhone && (!phoneNumber.trim() || phoneNumber.trim().replace(/[\s-]/g, '').length < 6)) {
+    if (!phoneNumber.trim() || phoneNumber.trim().replace(/[\s-]/g, '').length < 6) {
       errors.s5 = 'Please provide a valid contact phone number.'
     }
     setValidationErrors(errors)
@@ -1007,17 +1005,17 @@ export default function DocumentUploadPanel({
           >
             <div className="mt-3 space-y-3">
               <p className="text-[13px] text-[#4b6390]">Do you hold a Night VFR endorsement?</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 {([true, false] as const).map(val => (
                   <button key={String(val)} type="button" onClick={() => void handleNightVfrChange(val)} disabled={nightVfrSaving}
-                    className={`py-3.5 px-4 rounded-xl border text-left transition-all disabled:opacity-60 ${nightVfr === val ? 'bg-[#1a4fd6]/5 border-[#1a4fd6]/40 text-[#152d5a]' : 'bg-white border-[#152d5a]/10 text-[#4b6390] hover:border-[#152d5a]/20'}`}>
+                    className={`py-3 px-3.5 sm:py-3.5 sm:px-4 rounded-xl border text-left transition-all disabled:opacity-60 ${nightVfr === val ? 'bg-[#1a4fd6]/5 border-[#1a4fd6]/40 text-[#152d5a]' : 'bg-white border-[#152d5a]/10 text-[#4b6390] hover:border-[#152d5a]/20'}`}>
                     <div className="flex items-center gap-2.5">
                       <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${nightVfr === val ? 'border-[#1a4fd6] bg-[#1a4fd6]' : 'border-[#cbd5e1]'}`}>
                         {nightVfr === val && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                       </div>
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <p className="text-[14px] font-semibold">{val ? 'Yes' : 'No'}</p>
-                        <p className="text-[11px] mt-0.5 text-[#4b6390]">{val ? 'I hold a Night VFR endorsement' : 'I do not hold a Night VFR endorsement'}</p>
+                        <p className="text-[11px] mt-0.5 text-[#4b6390] leading-snug">{val ? 'I hold a Night VFR endorsement' : 'I do not hold a Night VFR endorsement'}</p>
                       </div>
                     </div>
                   </button>
@@ -1185,74 +1183,72 @@ export default function DocumentUploadPanel({
           </Section>
         </div>
 
-        {!hasInitialPhone && (
-          <div ref={section5Ref} className="scroll-mt-4">
-            <Section
-              num={5}
-              title="Contact Phone Number"
-              desc="Provide your contact phone number so our flight ops team can reach you regarding your bookings."
-              status={s5}
-              error={validationErrors.s5}
-            >
-              <div className="mt-3 bg-[#f8fbff] border border-[#152d5a]/08 rounded-xl p-4">
-                <div className="flex items-center gap-2.5 mb-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#f0f6ff] border border-[#152d5a]/10 flex items-center justify-center flex-shrink-0">
-                    <span className="material-symbols-outlined text-[#1a4fd6] text-[15px]" style={{ fontVariationSettings: "'wght' 300" }}>call</span>
-                  </div>
-                  <div>
-                    <p className="text-[13px] font-semibold text-[#152d5a]">Phone Number Required</p>
-                    <p className="text-[12px] text-[#4b6390]">Enter your mobile or contact number with country code.</p>
-                  </div>
+        <div ref={section5Ref} className="scroll-mt-4">
+          <Section
+            num={5}
+            title="Contact Phone Number"
+            desc="Provide your contact phone number so our flight ops team can reach you regarding your bookings."
+            status={s5}
+            error={validationErrors.s5}
+          >
+            <div className="mt-3 bg-[#f8fbff] border border-[#152d5a]/08 rounded-xl p-4">
+              <div className="flex items-center gap-2.5 mb-3">
+                <div className="w-8 h-8 rounded-xl bg-[#f0f6ff] border border-[#152d5a]/10 flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[#1a4fd6] text-[15px]" style={{ fontVariationSettings: "'wght' 300" }}>call</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-[130px_minmax(0,1fr)] gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#64748b] uppercase tracking-widest mb-1.5">Country Code</label>
-                    <input
-                      type="text"
-                      value={phoneCountryCode}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        if (/^\+?\d{0,4}$/.test(val)) {
-                          handlePhoneChange(val, phoneNumber)
-                        }
-                      }}
-                      placeholder="+61"
-                      className="w-full h-10 border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] bg-white focus:outline-none focus:border-blue-500/60"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#64748b] uppercase tracking-widest mb-1.5">Phone Number</label>
-                    <input
-                      type="tel"
-                      value={phoneNumber}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        if (/^[\d\s-]*$/.test(val)) {
-                          handlePhoneChange(phoneCountryCode, val)
-                        }
-                      }}
-                      placeholder="e.g. 0412 345 678"
-                      className="w-full h-10 border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] bg-white focus:outline-none focus:border-blue-500/60"
-                    />
-                  </div>
-                </div>
-                <div className="mt-2 flex items-center gap-1.5 h-4">
-                  {phoneSaving && <span className="material-symbols-outlined text-[#1a4fd6] text-[13px] animate-spin">progress_activity</span>}
-                  {phoneSaved && !phoneSaving && (
-                    <span className="text-[11px] text-green-600 flex items-center gap-0.5">
-                      <span className="material-symbols-outlined text-[12px]">check_circle</span>Saved
-                    </span>
-                  )}
-                  {phoneError && (
-                    <span className="text-[11px] text-red-500 flex items-center gap-0.5">
-                      <span className="material-symbols-outlined text-[12px]">error</span>{phoneError}
-                    </span>
-                  )}
+                <div>
+                  <p className="text-[13px] font-semibold text-[#152d5a]">Contact Phone Number</p>
+                  <p className="text-[12px] text-[#4b6390]">Keep your contact number up to date. Updates are saved automatically.</p>
                 </div>
               </div>
-            </Section>
-          </div>
-        )}
+              <div className="grid grid-cols-1 sm:grid-cols-[130px_minmax(0,1fr)] gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-[#64748b] uppercase tracking-widest mb-1.5">Country Code</label>
+                  <input
+                    type="text"
+                    value={phoneCountryCode}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      if (/^\+?\d{0,4}$/.test(val)) {
+                        handlePhoneChange(val, phoneNumber)
+                      }
+                    }}
+                    placeholder="+61"
+                    className="w-full h-10 border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] bg-white focus:outline-none focus:border-blue-500/60"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#64748b] uppercase tracking-widest mb-1.5">Phone Number</label>
+                  <input
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      if (/^[\d\s-]*$/.test(val)) {
+                        handlePhoneChange(phoneCountryCode, val)
+                      }
+                    }}
+                    placeholder="e.g. 0412 345 678"
+                    className="w-full h-10 border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] bg-white focus:outline-none focus:border-blue-500/60"
+                  />
+                </div>
+              </div>
+              <div className="mt-2 flex items-center gap-1.5 h-4">
+                {phoneSaving && <span className="material-symbols-outlined text-[#1a4fd6] text-[13px] animate-spin">progress_activity</span>}
+                {phoneSaved && !phoneSaving && (
+                  <span className="text-[11px] text-green-600 flex items-center gap-0.5">
+                    <span className="material-symbols-outlined text-[12px]">check_circle</span>Saved
+                  </span>
+                )}
+                {phoneError && (
+                  <span className="text-[11px] text-red-500 flex items-center gap-0.5">
+                    <span className="material-symbols-outlined text-[12px]">error</span>{phoneError}
+                  </span>
+                )}
+              </div>
+            </div>
+          </Section>
+        </div>
       </div>
 
       {!onSubmit && (
@@ -1311,25 +1307,30 @@ export default function DocumentUploadPanel({
       {onSubmit && (
         <div className="space-y-3">
           <div className="bg-white border border-[#152d5a]/15 rounded-2xl overflow-hidden shadow-sm">
-            <div className="flex items-center gap-4 px-6 py-5">
-              <div className="w-9 h-9 rounded-full bg-[#f0f6ff] flex items-center justify-center flex-shrink-0 border border-[#152d5a]/10">
-                <span className="material-symbols-outlined text-[#1a4fd6] text-[16px]" style={{ fontVariationSettings: "'wght' 300" }}>edit_note</span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-4 sm:px-6 sm:py-5">
+              <div className="flex items-start sm:items-center gap-3 min-w-0">
+                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#f0f6ff] flex items-center justify-center flex-shrink-0 border border-[#152d5a]/10 mt-0.5 sm:mt-0">
+                  <span className="material-symbols-outlined text-[#1a4fd6] text-[16px]" style={{ fontVariationSettings: "'wght' 300" }}>edit_note</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-[15px] sm:text-[17px] font-semibold text-[#152d5a] leading-snug">Additional Notes</p>
+                    <span className="sm:hidden text-[9px] font-bold uppercase px-2 py-0.5 rounded-full tracking-widest text-[#94a3b8] border border-[#152d5a]/10 bg-white">Optional</span>
+                  </div>
+                  <p className="text-[12px] sm:text-[13px] text-[#4b6390] mt-0.5 sm:mt-1 leading-snug">Optional — include any message or context for our team.</p>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[17px] font-semibold text-[#152d5a] leading-snug">Additional Notes</p>
-                <p className="text-[13px] text-[#4b6390] mt-1">Optional — include any message or context for our team.</p>
-              </div>
-              <span className="text-[10px] font-bold uppercase px-2.5 py-1 rounded-full tracking-widest whitespace-nowrap text-[#94a3b8] border border-[#152d5a]/10 bg-white">Optional</span>
+              <span className="hidden sm:inline-flex text-[10px] font-bold uppercase px-2.5 py-1 rounded-full tracking-widest whitespace-nowrap text-[#94a3b8] border border-[#152d5a]/10 bg-white">Optional</span>
             </div>
-            <div className="px-6 pb-6 pt-1 border-t border-[#152d5a]/08">
+            <div className="px-4 pb-4 pt-1 sm:px-6 sm:pb-6 border-t border-[#152d5a]/08">
               <textarea
                 value={customerNote}
                 onChange={e => setCustomerNote(e.target.value)}
                 placeholder="e.g. I have prior experience in a similar aircraft, or I have a time constraint on this date…"
-                rows={4}
-                className="w-full border border-[#152d5a]/15 rounded-xl px-4 py-3 text-[14px] text-[#152d5a] bg-[#f8fbff] placeholder:text-[#94a3b8] focus:outline-none focus:border-[#1a4fd6]/40 resize-none transition-colors"
+                rows={3}
+                className="w-full border border-[#152d5a]/15 rounded-xl px-3.5 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-[14px] text-[#152d5a] bg-[#f8fbff] placeholder:text-[#94a3b8] focus:outline-none focus:border-[#1a4fd6]/40 resize-none transition-colors"
               />
-              <p className="text-[12px] text-[#94a3b8] mt-1.5">This message will be visible to the OZ Rent A Plane team only.</p>
+              <p className="text-[11px] sm:text-[12px] text-[#94a3b8] mt-1.5">This message will be visible to the OZ Rent A Plane team only.</p>
             </div>
           </div>
 

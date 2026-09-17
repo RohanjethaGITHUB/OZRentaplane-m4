@@ -1264,38 +1264,38 @@ export default function CheckoutFlow({
         Back to Dashboard
       </Link>
 
-      <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
+      <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-3.5 sm:p-5">
         <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-[#152d5a]/10">
-          <div className="flex items-center gap-4 py-3 md:py-0 md:px-6 md:first:pl-0 flex-1">
-            <div className="w-10 h-10 rounded-full bg-[#f0f6ff] flex items-center justify-center flex-shrink-0">
-              <span className="material-symbols-outlined text-[20px] text-[#1a4fd6]">flight</span>
+          <div className="flex items-center gap-3 sm:gap-4 py-2.5 sm:py-3 md:py-0 md:px-6 md:first:pl-0 flex-1">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#f0f6ff] flex items-center justify-center flex-shrink-0">
+              <span className="material-symbols-outlined text-[18px] sm:text-[20px] text-[#1a4fd6]">flight</span>
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="text-[10px] font-semibold tracking-[0.15em] uppercase text-[#1a4fd6] mb-0.5">Aircraft</div>
-              <div className="text-[15px] font-semibold text-[#152d5a]">
+              <div className="text-[14px] sm:text-[15px] font-semibold text-[#152d5a] truncate">
                 {(aircraftDisplayName ?? 'Cessna 172N').replace('VH-KZG – ', '').replace('Cessna 172', 'Cessna 172N')}
               </div>
-              <div className="text-[12px] text-[#4b6390]">{aircraftRegistration}</div>
+              <div className="text-[11px] sm:text-[12px] text-[#4b6390]">{aircraftRegistration}</div>
             </div>
           </div>
-          <div className="flex items-center gap-4 py-3 md:py-0 md:px-6 flex-1">
-            <div className="w-10 h-10 rounded-full bg-[#f0f6ff] flex items-center justify-center flex-shrink-0">
-              <span className="material-symbols-outlined text-[20px] text-[#1a4fd6]">schedule</span>
+          <div className="flex items-center gap-3 sm:gap-4 py-2.5 sm:py-3 md:py-0 md:px-6 flex-1">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#f0f6ff] flex items-center justify-center flex-shrink-0">
+              <span className="material-symbols-outlined text-[18px] sm:text-[20px] text-[#1a4fd6]">schedule</span>
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="text-[10px] font-semibold tracking-[0.15em] uppercase text-[#1a4fd6] mb-0.5">Duration</div>
-              <div className="text-[15px] font-semibold text-[#152d5a]">Expected duration: 2 hours</div>
-              <div className="text-[12px] text-[#4b6390]">Approx. 1 hr familiarisation + 1 hr checkout</div>
+              <div className="text-[14px] sm:text-[15px] font-semibold text-[#152d5a]">Expected duration: 2 hours</div>
+              <div className="text-[11px] sm:text-[12px] text-[#4b6390]">Approx. 1 hr familiarisation + 1 hr checkout</div>
             </div>
           </div>
-          <div className="flex items-center gap-4 py-3 md:py-0 md:px-6 md:last:pr-0 flex-1">
-            <div className="w-10 h-10 rounded-full bg-[#f0f6ff] flex items-center justify-center flex-shrink-0">
-              <span className="material-symbols-outlined text-[20px] text-[#1a4fd6]">sell</span>
+          <div className="flex items-center gap-3 sm:gap-4 py-2.5 sm:py-3 md:py-0 md:px-6 md:last:pr-0 flex-1">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#f0f6ff] flex items-center justify-center flex-shrink-0">
+              <span className="material-symbols-outlined text-[18px] sm:text-[20px] text-[#1a4fd6]">sell</span>
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="text-[10px] font-semibold tracking-[0.15em] uppercase text-[#1a4fd6] mb-0.5">Rate</div>
-              <div className="text-[15px] font-semibold text-[#152d5a]">${CHECKOUT_RATE} per VDO hour</div>
-              <div className="text-[12px] text-[#4b6390]">Plus landing fee</div>
+              <div className="text-[14px] sm:text-[15px] font-semibold text-[#152d5a]">${CHECKOUT_RATE} per VDO hour</div>
+              <div className="text-[11px] sm:text-[12px] text-[#4b6390]">Plus landing fee</div>
             </div>
           </div>
         </div>
@@ -1588,12 +1588,12 @@ export default function CheckoutFlow({
 
           {/* ── STEP 2: Document verification ───────────────────────────────── */}
           {step === 'docs_check' && (
-            <div ref={stepSectionRef} className={`${CARD} p-6 md:p-8 space-y-6`}>
+            <div ref={stepSectionRef} className={`${CARD} p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6`}>
               <div>
-                <h2 className="text-[28px] font-bold text-[#152d5a] tracking-tight leading-tight">
+                <h2 className="text-[20px] sm:text-[24px] md:text-[28px] font-bold text-[#152d5a] tracking-tight leading-tight">
                   Document Verification
                 </h2>
-                <p className="text-[14px] text-[#4b6390] mt-1.5 leading-relaxed">
+                <p className="text-[13px] sm:text-[14px] text-[#4b6390] mt-1 sm:mt-1.5 leading-relaxed">
                   Upload and verify your documents before your checkout flight. All documents are reviewed by our team.
                 </p>
               </div>
