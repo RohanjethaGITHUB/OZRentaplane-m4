@@ -188,7 +188,7 @@ export default async function DashboardPage({
       .limit(10),
     supabase
       .from('bookings')
-      .select('id, status, scheduled_start, scheduled_end, updated_at, aircraft(registration)')
+      .select('id, status, scheduled_start, scheduled_end, updated_at, aircraft(registration), flight_records(id, status, submitted_at)')
       .eq('booking_owner_user_id', user.id)
       .eq('booking_type', 'standard')
       .in('status', ['pending_post_flight_review', 'needs_clarification'])
@@ -505,7 +505,10 @@ export default async function DashboardPage({
         ? { mode: 'post_flight_required', bookingId: postFlightRequiredBooking.id }
         : postFlightUnderReviewBooking
           ? {
-            mode: postFlightUnderReviewBooking.status === 'needs_clarification'
+            mode: (
+              postFlightUnderReviewBooking.status === 'needs_clarification' ||
+              postFlightUnderReviewBooking.flight_records?.[0]?.status === 'needs_clarification'
+            )
               ? 'post_flight_clarification_required'
               : 'post_flight_under_review',
             bookingId: postFlightUnderReviewBooking.id,

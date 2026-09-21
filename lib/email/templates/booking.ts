@@ -422,3 +422,78 @@ export function adminFlightRecordSubmittedReviewEmail(opts: {
   }
 }
 
+export function postFlightClarificationRequestedCustomerEmail(opts: {
+  customerName: string
+  bookingReference: string
+  category: string
+  message: string
+  bookingId: string
+  updatedAmountPayableCents?: number | null
+  vdoHours?: number | null
+}) {
+  const formattedAmount = opts.updatedAmountPayableCents != null
+    ? `$${(opts.updatedAmountPayableCents / 100).toFixed(2)} AUD`
+    : null
+
+  return {
+    subject: `Clarification Required for Flight Record (${opts.bookingReference}) — OZ Rent A Plane`,
+    html: renderBaseTemplate({
+      headline: 'Flight Record Clarification Needed',
+      badgeHtml: '<div style="margin: 0 0 16px;"><span style="display: inline-block; padding: 4px 12px; background: #fef3c7; color: #d97706; border: 1px solid #fde68a; border-radius: 9999px; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">Action Required</span></div>',
+      message: `Hi ${opts.customerName}, our operations team has reviewed your submitted post-flight record for booking <strong>${opts.bookingReference}</strong> and requires further clarification before approving.`,
+      details: [
+        { label: 'Booking Reference', value: opts.bookingReference },
+        { label: 'Query Category', value: opts.category },
+        { label: 'Status', value: 'Awaiting Customer Clarification' },
+        ...(opts.vdoHours != null ? [{ label: 'VDO Flight Hours', value: `${opts.vdoHours.toFixed(1)} hrs` }] : []),
+        ...(formattedAmount ? [{ label: 'Updated Amount Payable', value: formattedAmount }] : []),
+      ],
+      extraHtml: `
+        <div style="margin-top: 20px; padding: 16px; background-color: #fffbeb; border: 1px solid #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px;">
+          <h4 style="margin: 0 0 8px 0; color: #92400e; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Message from Operations</h4>
+          <p style="margin: 0; color: #78350f; font-size: 14px; line-height: 1.6;">${opts.message}</p>
+        </div>
+        <p style="margin-top: 16px; font-size: 13px; color: #64748b;">
+          Please log into your pilot portal to review the updated invoice and record details, adjust meter readings or landings if needed, settle any remaining balance, or upload updated evidence photos.
+        </p>
+      `,
+      ctaLabel: 'Respond & Update Record',
+      ctaUrl: `${appUrl}/dashboard/bookings/${opts.bookingId}`,
+    }),
+  }
+}
+
+export function adminFlightRecordResubmittedReviewEmail(opts: {
+  customerName: string
+  customerEmail: string
+  bookingReference: string
+  aircraft: string
+  bookingDate: string
+  bookingId: string
+  vdoHours?: number
+  totalAmountCents?: number
+}) {
+  return {
+    subject: `Flight Record Updated: ${opts.customerName} — ${opts.aircraft} (${opts.bookingReference})`,
+    html: renderBaseTemplate({
+      headline: 'Flight Record Updated & Resubmitted',
+      badgeHtml: '<div style="margin: 0 0 16px;"><span style="display: inline-block; padding: 4px 12px; background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; border-radius: 9999px; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">Updated Record</span></div>',
+      message: `${opts.customerName} has updated and resubmitted their post-flight record following clarification. The updated meter readings, invoice totals, and evidence are ready for review.`,
+      details: [
+        { label: 'Customer', value: opts.customerName },
+        { label: 'Email', value: opts.customerEmail },
+        { label: 'Booking Reference', value: opts.bookingReference },
+        { label: 'Aircraft', value: opts.aircraft },
+        { label: 'Flight Date', value: opts.bookingDate },
+        ...(opts.vdoHours != null ? [{ label: 'VDO Hours', value: `${opts.vdoHours.toFixed(1)} hrs` }] : []),
+        ...(opts.totalAmountCents != null ? [{ label: 'Invoice Total', value: `$${(opts.totalAmountCents / 100).toFixed(2)} AUD` }] : []),
+        { label: 'Status', value: 'Resubmitted — Under Review' },
+      ],
+      ctaLabel: 'Review & Verify Flight Record',
+      ctaUrl: `${appUrl}/admin/bookings/post-flight/${opts.bookingId}`,
+    }),
+  }
+}
+
+
+

@@ -11,6 +11,8 @@ import {
   adminProxyBookingCreatedEmail,
   customerFlightRecordSubmittedEmail,
   adminFlightRecordSubmittedReviewEmail,
+  adminFlightRecordResubmittedReviewEmail,
+  postFlightClarificationRequestedCustomerEmail,
 } from '@/lib/email/templates/booking'
 import {
   checkoutRequestReceivedEmail,
@@ -318,34 +320,70 @@ export async function notifyPostFlightClarificationRequested(opts: {
   category: string
   message: string
   bookingId?: string
+  updatedAmountPayableCents?: number | null
+  vdoHours?: number | null
 }) {
-  const template = checkoutRequestReceivedEmail()
+  const template = postFlightClarificationRequestedCustomerEmail({
+    customerName: opts.customerName,
+    bookingReference: opts.ref,
+    category: opts.category,
+    message: opts.message,
+    bookingId: opts.bookingId ?? '',
+    updatedAmountPayableCents: opts.updatedAmountPayableCents,
+    vdoHours: opts.vdoHours,
+  })
   await sendEmail({
     to: opts.customerEmail,
-    subject: 'Flight record submitted',
+    subject: template.subject,
     html: template.html,
-    eventType: 'flight_record_submitted',
+    eventType: 'post_flight_clarification_requested',
     entityType: 'booking',
     entityId: opts.bookingId ?? null,
-    metadata: { category: opts.category, message: opts.message, ref: opts.ref },
+    metadata: {
+      category: opts.category,
+      message: opts.message,
+      ref: opts.ref,
+      updatedAmountPayableCents: opts.updatedAmountPayableCents ?? null,
+      vdoHours: opts.vdoHours ?? null,
+    },
   })
 }
 
 export async function notifyFlightRecordResubmitted(opts: {
-  ref: string
+  bookingId: string
+  bookingReference?: string | null
+  ref?: string | null
+  customerEmail?: string | null
   customerName: string
-  aircraftReg: string
-  bookingId?: string
+  aircraft?: string | null
+  aircraftReg?: string | null
+  bookingDate?: string | null
+  vdoHours?: number | null
+  totalAmountCents?: number | null
 }) {
   if (!ADMIN_EMAIL) return
+  const ref = opts.bookingReference ?? opts.ref ?? opts.bookingId.slice(0, 8).toUpperCase()
+  const aircraft = opts.aircraft ?? opts.aircraftReg ?? 'Aircraft'
+  const bookingDate = opts.bookingDate ?? new Date().toLocaleDateString('en-CA')
+  const adminTemplate = adminFlightRecordResubmittedReviewEmail({
+    customerName: opts.customerName,
+    customerEmail: opts.customerEmail ?? '',
+    bookingReference: ref,
+    aircraft,
+    bookingDate,
+    bookingId: opts.bookingId,
+    vdoHours: opts.vdoHours ?? undefined,
+    totalAmountCents: opts.totalAmountCents ?? undefined,
+  })
+
   await sendEmail({
     to: ADMIN_EMAIL,
-    subject: 'Flight record submitted for review',
-    html: adminNewCheckoutRequestEmail({ customerName: opts.customerName, customerEmail: '', requestedTime: '', bookingId: opts.bookingId ?? null }).html,
+    subject: adminTemplate.subject,
+    html: adminTemplate.html,
     eventType: 'admin_flight_record_review_required',
     entityType: 'booking',
-    entityId: opts.bookingId ?? null,
-    metadata: { ref: opts.ref, aircraftReg: opts.aircraftReg },
+    entityId: opts.bookingId,
+    metadata: { aircraft, bookingReference: ref },
   })
 }
 

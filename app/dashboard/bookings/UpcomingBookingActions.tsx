@@ -31,6 +31,8 @@ type Props = {
   pendingRescheduleRequest: RescheduleRequestLite | null
   latestRescheduleRequest: RescheduleRequestLite | null
   hasNightVfrRating?: boolean | null
+  hasInvoice?: boolean
+  flightRecordStatus?: string | null
 }
 
 export default function UpcomingBookingActions({
@@ -38,6 +40,8 @@ export default function UpcomingBookingActions({
   pendingRescheduleRequest,
   latestRescheduleRequest,
   hasNightVfrRating,
+  hasInvoice,
+  flightRecordStatus,
 }: Props) {
   const isCheckout = booking.booking_type === 'checkout'
   const msUntilDeparture = new Date(booking.scheduled_start).getTime() - Date.now()
@@ -53,8 +57,22 @@ export default function UpcomingBookingActions({
   const showCancelButton =
     !isCheckout && CANCELLABLE_STATUSES.includes(booking.status)
 
+  const isClarificationNeeded =
+    booking.status === 'needs_clarification' ||
+    (booking.status === 'pending_post_flight_review' && flightRecordStatus === 'needs_clarification')
+
   return (
     <div className="flex flex-col gap-2 p-4 justify-center sm:border-l border-t sm:border-t-0 border-[#152d5a]/[0.07] w-full sm:w-[200px] flex-shrink-0">
+      {isClarificationNeeded ? (
+        <Link
+          href={`/dashboard/bookings/${booking.id}?action=flight_record`}
+          className="flex items-center justify-between whitespace-nowrap bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-[12px] font-bold tracking-wide px-4 py-2.5 rounded-xl transition-all shadow-sm hover:shadow"
+        >
+          <span>Update Flight Record</span>
+          <span className="material-symbols-outlined text-[17px]">edit_note</span>
+        </Link>
+      ) : null}
+
       <Link
         href={`/dashboard/bookings/${booking.id}`}
         className="flex items-center justify-between whitespace-nowrap bg-[#152d5a] hover:bg-[#1a3a6e] text-white text-[13px] font-bold px-4 py-2.5 rounded-xl transition-colors"
@@ -62,6 +80,18 @@ export default function UpcomingBookingActions({
         VIEW DETAILS
         <span className="material-symbols-outlined text-[16px] ml-2">chevron_right</span>
       </Link>
+
+      {hasInvoice && (
+        <a
+          href={`/dashboard/bookings/${booking.id}/invoice`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-1.5 whitespace-nowrap bg-white hover:bg-[#f0f6ff] text-[#152d5a] border border-[#152d5a]/20 text-[11px] font-bold tracking-[0.04em] px-3.5 py-2 rounded-xl transition-colors shadow-sm"
+        >
+          <span className="material-symbols-outlined text-[15px] text-[#1a4fd6]">download</span>
+          Download Invoice
+        </a>
+      )}
 
       {isCheckout && booking.aircraft_id ? (
         <CheckoutChangeActions

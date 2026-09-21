@@ -53,6 +53,7 @@ export function getStandardBookingPaymentDisplayState(
 
   if (
     invoiceStatus === 'bank_transfer_pending_review' ||
+    invoiceStatus === 'payment_verification_required' ||
     latestSubmissionStatus === 'pending_review'
   ) {
     return 'payment_review_pending'

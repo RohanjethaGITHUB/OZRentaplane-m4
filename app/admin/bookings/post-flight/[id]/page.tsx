@@ -1,25 +1,28 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import AdminPortalHero from '@/components/AdminPortalHero'
-import RequestClarificationFormWrapper from './RequestClarificationFormWrapper'
-import AttachmentViewer from './AttachmentViewer'
-import AdminStandardBillingPanel from '@/app/admin/bookings/requests/[id]/AdminStandardBillingPanel'
-import { formatDateFromISOShort, formatDateTime } from '@/lib/formatDateTime'
-import type { FlightRecordClarification, FlightRecordAttachment } from '@/lib/supabase/booking-types'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { formatDateTime } from '@/lib/formatDateTime'
+import type { FlightRecordAttachment } from '@/lib/supabase/booking-types'
 import { getAircraftFlightLogStartSuggestions } from '@/lib/aircraft-flight-log'
 import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
+import PostFlightVerificationConsole, {
+  type EvidenceAttachment,
+  type LandingRowItem,
+} from './PostFlightVerificationConsole'
 
-export const metadata = { title: 'Review Detail | Admin' }
+export const metadata = { title: 'Post-Flight Review & Verification | Admin' }
 
-const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  pending_review:     { label: 'Pending Review',     cls: 'bg-blue-500/10 text-blue-400 border-blue-500/20'   },
-  needs_clarification:{ label: 'Needs Clarification', cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-  resubmitted:        { label: 'Resubmitted',         cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+function formatCustomerPhone(profile: { phone_country_code?: string | null; phone_number?: string | null } | null | undefined): string {
+  const countryCode = profile?.phone_country_code?.replace(/\D/g, '') ?? ''
+  const phoneNumber = profile?.phone_number?.replace(/[^\d]/g, '') ?? ''
+  if (!phoneNumber) return '—'
+  return countryCode ? `+${countryCode} ${phoneNumber}` : phoneNumber
 }
 
 export default async function AdminPostFlightReviewDetailPage({ params }: { params: { id: string } }) {
   const supabase = await createClient()
+  const adminSupabase = createAdminClient()
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
@@ -28,10 +31,10 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
 
   const recordSelect = `
     *,
-    aircraft ( id, registration, aircraft_type, default_hourly_rate )
+    aircraft ( id, registration, aircraft_type, default_hourly_rate, billing_meter_type )
   `
 
-  const { data: directRecord } = await supabase
+  const { data: directRecord } = await adminSupabase
     .from('flight_records')
     .select(recordSelect)
     .eq('id', params.id)
@@ -47,25 +50,27 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
     customer_notes: string | null
     booking_owner_user_id: string | null
     booking_reference: string | null
+    pic_name: string | null
+    pic_arn: string | null
   }
 
   if (record) {
-    const { data: bookingRow } = await supabase
+    const { data: bookingRow } = await adminSupabase
       .from('bookings')
-      .select('id, status, booking_type, scheduled_start, scheduled_end, customer_notes, booking_owner_user_id, booking_reference')
+      .select('id, status, booking_type, scheduled_start, scheduled_end, customer_notes, booking_owner_user_id, booking_reference, pic_name, pic_arn')
       .eq('id', record.booking_id)
       .maybeSingle()
     booking = bookingRow as typeof booking
   } else {
-    const { data: bookingRow } = await supabase
+    const { data: bookingRow } = await adminSupabase
       .from('bookings')
-      .select('id, status, booking_type, scheduled_start, scheduled_end, customer_notes, booking_owner_user_id, booking_reference')
+      .select('id, status, booking_type, scheduled_start, scheduled_end, customer_notes, booking_owner_user_id, booking_reference, pic_name, pic_arn')
       .eq('id', params.id)
       .maybeSingle()
     booking = bookingRow as typeof booking
 
     if (booking) {
-      const { data: bookingRecord } = await supabase
+      const { data: bookingRecord } = await adminSupabase
         .from('flight_records')
         .select(recordSelect)
         .eq('booking_id', booking.id)
@@ -77,330 +82,255 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
   }
 
   if (!record) {
-    return <div className="p-10 text-[var(--admin-text)]">Record not found.</div>
+    return <div className="p-10 text-[var(--admin-text)]">Flight record not found.</div>
   }
 
-  const aircraft   = Array.isArray(record.aircraft) ? record.aircraft[0] : record.aircraft
-  const customerId = booking?.booking_owner_user_id ?? null
-  const bookingId  = booking?.id ?? null
-  const bookingRef = booking?.booking_reference ?? null
+  const aircraft = Array.isArray(record.aircraft) ? record.aircraft[0] : record.aircraft
+  const customerId = booking?.booking_owner_user_id ?? record.user_id ?? null
+  const bookingId = booking?.id ?? record.booking_id
+  const bookingRef = booking?.booking_reference ?? record.booking_id?.slice(0, 8).toUpperCase()
 
-  // ── Determine whether this is the standard billing flow ────────────────────
-  // A booking in pending_post_flight_review (standard) goes straight to billing.
-  // Other states (needs_clarification, etc.) fall through to the clarification UI.
-  const bookingStatus  = (booking?.status as string | null | undefined) ?? null
-  const bookingType    = (booking?.booking_type as string | null | undefined) ?? 'standard'
-  const isStandardBillingReady =
-    bookingType === 'standard' &&
-    bookingStatus === 'pending_post_flight_review' &&
-    record.status !== 'needs_clarification'
+  // Fetch customer profile
+  let customerName = record.pic_name || booking?.pic_name || 'Pilot'
+  let customerEmail = '—'
+  let customerPhone = '—'
 
-  // Fetch latest open clarification (if any)
-  const { data: clarifications } = await supabase
-    .from('flight_record_clarifications')
-    .select('*')
-    .eq('flight_record_id', record.id)
-    .order('created_at', { ascending: false })
-    .limit(5)
+  if (customerId) {
+    const { data: custProf } = await adminSupabase
+      .from('profiles')
+      .select('full_name, email, phone_number, phone_country_code')
+      .eq('id', customerId)
+      .maybeSingle()
 
-  const latestOpen = (clarifications ?? []).find(
-    (c: FlightRecordClarification) => !c.is_resolved,
-  ) ?? null
+    if (custProf) {
+      customerName = custProf.full_name || customerName
+      customerEmail = custProf.email || customerEmail
+      customerPhone = formatCustomerPhone(custProf)
+    }
 
-  const startStr = booking?.scheduled_start ? formatDateTime(booking.scheduled_start) : 'Unknown'
-  const endStr   = booking?.scheduled_end   ? formatDateTime(booking.scheduled_end)   : 'Unknown'
-  const bookingSlotHours = booking?.scheduled_start && booking?.scheduled_end
-    ? Math.max(
-        0,
-        (new Date(booking.scheduled_end).getTime() - new Date(booking.scheduled_start).getTime()) / (1000 * 60 * 60),
-      )
-    : 0
-
-  const statusBadge = STATUS_BADGE[record.status] ?? {
-    label: record.status,
-    cls:   'bg-slate-100 text-slate-600 border-slate-200',
+    if (customerEmail === '—') {
+      const { data: authUser } = await adminSupabase.auth.admin.getUserById(customerId)
+      if (authUser?.user?.email) {
+        customerEmail = authUser.user.email
+      }
+    }
   }
 
-  // Fetch evidence attachments + generate signed URLs (1-hour expiry)
-  const { data: rawAttachments } = await supabase
+  const scheduledStartStr = booking?.scheduled_start ? formatDateTime(booking.scheduled_start) : 'Unknown'
+  const scheduledEndStr = booking?.scheduled_end ? formatDateTime(booking.scheduled_end) : 'Unknown'
+
+  // Fetch evidence attachments with signed URLs (check both flight_record_id and booking_id)
+  const { data: rawAttachments } = await adminSupabase
     .from('flight_record_attachments')
     .select('*')
-    .eq('flight_record_id', record.id)
+    .or(`flight_record_id.eq.${record.id},booking_id.eq.${bookingId}`)
     .order('created_at', { ascending: true })
 
-  type AttachmentWithUrl = FlightRecordAttachment & { signedUrl: string | null }
-  const attachments: AttachmentWithUrl[] = await Promise.all(
-    (rawAttachments ?? []).map(async (att: FlightRecordAttachment) => {
-      const { data } = await supabase.storage
-        .from('flight_record_evidence')
+  const evidenceAttachments: EvidenceAttachment[] = []
+  for (const att of rawAttachments ?? []) {
+    let signedUrl: string | null = null
+    const res1 = await adminSupabase.storage
+      .from('flight_record_evidence')
+      .createSignedUrl(att.storage_path, 3600)
+    signedUrl = res1.data?.signedUrl ?? null
+
+    if (!signedUrl) {
+      const res2 = await adminSupabase.storage
+        .from('bank_transfer_receipts')
         .createSignedUrl(att.storage_path, 3600)
-      return { ...att, signedUrl: data?.signedUrl ?? null }
-    }),
-  )
+      signedUrl = res2.data?.signedUrl ?? null
+    }
 
-  // ── Billing panel data — only fetched when needed ──────────────────────────
-  let airports: { id: string; icao_code: string; name: string; default_landing_fee_cents: number }[] = []
-  let customerCreditCents = 0
-  let activeBlockTime: { hoursRemaining: number; ratePerHour: number; expiresAt: string } | null = null
-  let initialLandingCharges: { airportId: string; landingCount: number }[] = []
-
-  if (isStandardBillingReady && customerId) {
-    const [{ data: airportRows }, { data: creditRow }, { data: activeBlockTimeRow }, { data: landingRows }] = await Promise.all([
-      supabase
-        .from('airports')
-        .select('id, icao_code, name, default_landing_fee_cents')
-        .eq('is_active', true)
-        .order('name'),
-      supabase
-        .from('customer_credit_balances')
-        .select('balance_cents')
-        .eq('customer_id', customerId)
-        .maybeSingle(),
-      supabase
-        .from('pilot_block_time_purchases')
-        .select('hours_remaining, rate_per_hour, expires_at')
-        .eq('user_id', customerId)
-        .eq('status', 'active')
-        .gt('expires_at', new Date().toISOString())
-        .order('queue_position', { ascending: true, nullsFirst: false })
-        .order('activated_at', { ascending: true })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from('flight_record_landings')
-        .select('airport_id, landing_count')
-        .eq('flight_record_id', record.id),
-    ])
-
-    const rawAirports = (airportRows ?? []) as typeof airports
-    // Sort: Bankstown first, then alphabetical
-    airports = [...rawAirports].sort((a, b) => {
-      const isBankstownA = a.icao_code === 'YSBK' || a.name.toLowerCase().includes('bankstown')
-      const isBankstownB = b.icao_code === 'YSBK' || b.name.toLowerCase().includes('bankstown')
-      if (isBankstownA && !isBankstownB) return -1
-      if (!isBankstownA && isBankstownB) return 1
-      return a.name.localeCompare(b.name)
-    })
-    customerCreditCents = (creditRow as { balance_cents?: number } | null)?.balance_cents ?? 0
-    initialLandingCharges = ((landingRows ?? []) as { airport_id: string; landing_count: number }[])
-      .filter((row) => row.airport_id && Number(row.landing_count) > 0)
-      .map((row) => ({
-        airportId: row.airport_id,
-        landingCount: Number(row.landing_count),
-      }))
-    activeBlockTime = (activeBlockTimeRow as { hours_remaining: number; rate_per_hour: number; expires_at: string } | null)
-      ? {
-          hoursRemaining: Number((activeBlockTimeRow as { hours_remaining: number }).hours_remaining),
-          ratePerHour: Number((activeBlockTimeRow as { rate_per_hour: number }).rate_per_hour),
-          expiresAt: (activeBlockTimeRow as { expires_at: string }).expires_at,
-        }
-      : null
+    if (signedUrl) {
+      evidenceAttachments.push({
+        id: att.id,
+        file_name: att.file_name,
+        signedUrl,
+        file_size: att.file_size,
+        created_at: att.created_at,
+      })
+    }
   }
+
+  // Fetch invoice (standard booking invoice)
+  const { data: bookingInvoice } = await adminSupabase
+    .from('booking_invoices')
+    .select('*')
+    .eq('booking_id', bookingId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  // Fetch landing charges
+  let { data: rawLandingCharges } = bookingInvoice
+    ? await adminSupabase
+        .from('booking_landing_charges')
+        .select(`
+          id, airport_id, landing_count, unit_amount_cents, total_amount_cents,
+          airport:airports ( id, icao_code, name )
+        `)
+        .or(`booking_invoice_id.eq.${bookingInvoice.id},booking_id.eq.${bookingId}`)
+        .order('created_at', { ascending: true })
+    : { data: [] }
+
+  if (!rawLandingCharges || rawLandingCharges.length === 0) {
+    const { data: frLandings } = await adminSupabase
+      .from('flight_record_landings')
+      .select('airport_id, landing_count, airport:airports(id, icao_code, name, default_landing_fee_cents)')
+      .eq('flight_record_id', record.id)
+    if (frLandings && frLandings.length > 0) {
+      rawLandingCharges = frLandings.map((frl: any) => {
+        const apt = Array.isArray(frl.airport) ? frl.airport[0] : frl.airport
+        const unitAmount = apt?.default_landing_fee_cents ?? 2895
+        const count = Number(frl.landing_count) || 1
+        return {
+          id: `frl-${frl.airport_id}`,
+          airport_id: frl.airport_id,
+          landing_count: count,
+          unit_amount_cents: unitAmount,
+          total_amount_cents: count * unitAmount,
+          airport: apt,
+        }
+      })
+    }
+  }
+
+  const landingItems: LandingRowItem[] = (rawLandingCharges ?? []).map((lc: any) => {
+    const apt = Array.isArray(lc.airport) ? lc.airport[0] : lc.airport
+    return {
+      airportId: lc.airport_id,
+      airportName: apt?.name || 'Airport',
+      icaoCode: apt?.icao_code || 'YSBK',
+      landingCount: Number(lc.landing_count || 1),
+      rateCents: Number(lc.unit_amount_cents || 2895),
+      totalCents: Number(lc.total_amount_cents || 2895),
+    }
+  })
+
+  // Fetch bank transfer submission if any
+  const { data: bankSubmission } = await adminSupabase
+    .from('booking_bank_transfer_submissions')
+    .select('*')
+    .eq('booking_id', bookingId)
+    .order('submitted_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  let bankReceiptSignedUrl: string | null = null
+  if (bankSubmission?.receipt_storage_path) {
+    const res1 = await adminSupabase.storage
+      .from('bank_transfer_receipts')
+      .createSignedUrl(bankSubmission.receipt_storage_path, 3600)
+    bankReceiptSignedUrl = res1.data?.signedUrl ?? null
+
+    if (!bankReceiptSignedUrl) {
+      const res2 = await adminSupabase.storage
+        .from('flight_record_evidence')
+        .createSignedUrl(bankSubmission.receipt_storage_path, 3600)
+      bankReceiptSignedUrl = res2.data?.signedUrl ?? null
+    }
+  }
+
+  // Fetch active clarification if any
+  const { data: clarData } = await adminSupabase
+    .from('flight_record_clarifications')
+    .select('category, message')
+    .or(`flight_record_id.eq.${record.id},booking_id.eq.${bookingId}`)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
   const flightLogStartSuggestions = record.aircraft_id
     ? (await getAircraftFlightLogStartSuggestions(record.aircraft_id)).suggestedStarts
     : { vdo_start: null, tacho_start: null, air_switch_start: null, mr_start: null }
 
-  const canRequestClarification = ['pending_review', 'resubmitted', 'pending_post_flight_review'].includes(record.status)
-  const awaitingCustomer         = record.status === 'needs_clarification'
+  const { data: allAirports } = await adminSupabase
+    .from('airports')
+    .select('id, icao_code, name, default_landing_fee_cents')
+    .eq('is_active', true)
+    .order('icao_code', { ascending: true })
+
+  const rawHourlyRate = bookingInvoice?.rate_cents_per_hour
+    ? bookingInvoice.rate_cents_per_hour / 100
+    : Number(aircraft?.default_hourly_rate ?? PAYF_RATE_PER_HOUR)
+  const hourlyRate = rawHourlyRate >= 290 ? rawHourlyRate : PAYF_RATE_PER_HOUR
+
+  const vdoTotal = record.vdo_total != null ? Number(record.vdo_total) : null
+  const vdoStart = record.vdo_start != null ? Number(record.vdo_start) : flightLogStartSuggestions.vdo_start
+  const vdoStop = record.vdo_stop != null 
+    ? Number(record.vdo_stop) 
+    : (vdoStart != null && vdoTotal != null ? Number((Number(vdoStart) + vdoTotal).toFixed(1)) : null)
+
+  const airSwitchTotal = record.air_switch_total != null ? Number(record.air_switch_total) : null
+  const airSwitchStart = record.air_switch_start != null ? Number(record.air_switch_start) : flightLogStartSuggestions.air_switch_start
+  const airSwitchStop = record.air_switch_stop != null 
+    ? Number(record.air_switch_stop) 
+    : (airSwitchStart != null && airSwitchTotal != null ? Number((Number(airSwitchStart) + airSwitchTotal).toFixed(1)) : null)
+
+  const flightChargeCents = bookingInvoice?.base_amount_cents ?? (Number(vdoTotal ?? 0) * hourlyRate * 100)
+  const landingSubtotalCents = bookingInvoice?.landing_subtotal_cents ?? landingItems.reduce((sum, item) => sum + item.totalCents, 0)
+  const creditAppliedCents = bookingInvoice?.advance_applied_cents ?? 0
+  const subtotalCents = bookingInvoice?.subtotal_cents ?? (flightChargeCents + landingSubtotalCents)
+  const gstCents = Math.round(subtotalCents - (subtotalCents / 1.1))
+  const totalAmountCents = bookingInvoice?.stripe_amount_due_cents ?? subtotalCents
+
+  const paymentMethod = bookingInvoice?.payment_method ?? (bankSubmission ? 'bank_transfer' : 'stripe_card')
+
+  const scheduledStart = booking?.scheduled_start ? new Date(booking.scheduled_start) : null
+  const scheduledEnd = booking?.scheduled_end ? new Date(booking.scheduled_end) : null
+  const bookingSlotHours = scheduledStart && scheduledEnd
+    ? Math.max(0, (scheduledEnd.getTime() - scheduledStart.getTime()) / (1000 * 60 * 60))
+    : 0
+  const upfrontPaidCents = (bookingInvoice?.total_paid_cents && bookingInvoice.total_paid_cents > 0)
+    ? bookingInvoice.total_paid_cents
+    : (bookingInvoice?.subtotal_cents ?? subtotalCents)
 
   return (
-    <div>
-      <Link href="/admin/bookings/post-flight" className="text-[#1a4fd6] hover:text-[#152d5a] text-sm mb-6 inline-flex items-center gap-1.5 font-medium">
-        <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-        Back to Queue
-      </Link>
-
-      <AdminPortalHero
-        eyebrow="Bookings"
-        title="Post-Flight Verification"
-        subtitle={`${isStandardBillingReady ? 'Billing review for' : 'Approving flight metrics for'} ${aircraft?.registration || 'Unknown'}.`}
-        actions={
-          <>
-            <span className={`px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider ${statusBadge.cls}`}>
-              {statusBadge.label}
-            </span>
-            {customerId && (
-              <Link
-                href={`/admin/users/${customerId}`}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[var(--admin-border)] bg-[var(--admin-button-bg)] text-[var(--admin-text)] rounded-lg text-xs font-medium transition-colors hover:border-[rgba(26,79,214,0.24)]"
-              >
-                <span className="material-symbols-outlined text-[14px]">chat</span>
-                Open Conversation
-              </Link>
-            )}
-          </>
-        }
-      />
-
-      <div className="max-w-[1450px] mx-auto px-6 md:px-10 py-10 pb-24">
-        {bookingRef && (
-          <p className="text-[10px] text-[var(--admin-text-muted)] uppercase tracking-widest mb-4 font-mono">{bookingRef}</p>
-        )}
-
-      {/* Awaiting customer banner */}
-      {awaitingCustomer && latestOpen && (
-        <div className="mb-8 p-5 bg-amber-50 border border-amber-200 rounded-2xl flex gap-4 shadow-sm">
-          <span className="material-symbols-outlined text-amber-400 text-xl flex-shrink-0 mt-0.5">hourglass_empty</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-amber-700 mb-1">Awaiting customer response</p>
-            <p className="text-xs text-[var(--admin-text-muted)] mb-3">
-              A clarification request was sent. The flight record is locked until the customer resubmits.
-            </p>
-            <div className="bg-white border border-amber-100 rounded-xl p-4 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">Category</span>
-                <span className="text-xs text-amber-700 font-medium">{latestOpen.category}</span>
-              </div>
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500 block mb-1">Message sent</span>
-                <p className="text-sm text-[var(--admin-text)] leading-relaxed">{latestOpen.message}</p>
-              </div>
-              <p className="text-[10px] text-[var(--admin-text-muted)]">
-                Sent {formatDateFromISOShort(latestOpen.created_at)}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Resubmitted banner */}
-      {record.status === 'resubmitted' && (
-        <div className="mb-8 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3 shadow-sm">
-          <span className="material-symbols-outlined text-emerald-400 text-lg">refresh</span>
-          <p className="text-sm text-emerald-700">
-            Customer has resubmitted this flight record for review. Please check the updated readings below.
-          </p>
-        </div>
-      )}
-
-      {/* Clarification history */}
-      {clarifications && clarifications.length > 0 && (
-        <div className="mb-8 rounded-2xl border border-[var(--admin-border)] bg-white p-6 shadow-[var(--admin-shadow-panel)]">
-          <h3 className="text-xs font-semibold tracking-widest text-[var(--admin-text-muted)] uppercase mb-4">Clarification History</h3>
-          <div className="space-y-3">
-            {(clarifications as FlightRecordClarification[]).map((c, i) => (
-              <div key={c.id} className={`p-4 rounded-xl border text-sm ${c.is_resolved ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-amber-50 border-amber-100'}`}>
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider ${c.is_resolved ? 'text-[var(--admin-text-muted)]' : 'text-amber-600'}`}>
-                    {i === 0 ? 'Latest' : `Cycle ${clarifications.length - i}`} · {c.category}
-                  </span>
-                  {c.is_resolved && (
-                    <span className="text-[10px] text-emerald-600 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[12px]">check</span>
-                      Resolved
-                    </span>
-                  )}
-                </div>
-                <p className="text-[var(--admin-text)]">{c.message}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-6">
-
-        {/* Flight Summary */}
-        <div className="rounded-2xl border border-[var(--admin-border)] bg-white p-6 shadow-[var(--admin-shadow-panel)]">
-          <h3 className="text-lg font-semibold tracking-wide text-[var(--admin-text)] mb-6">Flight Summary</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-[var(--admin-text-muted)] mb-1">Date</p>
-              <p className="text-sm border-b border-[var(--admin-border)] pb-2 tabular-nums text-[var(--admin-text)]">{record.date}</p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-[var(--admin-text-muted)] mb-1">PIC Name</p>
-              <p className="text-sm border-b border-[var(--admin-border)] pb-2 text-[var(--admin-text)]">{record.pic_name || '—'}</p>
-            </div>
-            <div className="col-span-2">
-              <p className="text-[10px] uppercase tracking-widest text-[var(--admin-text-muted)] mb-1">Scheduled Window</p>
-              <p className="text-sm border-b border-[var(--admin-border)] pb-2 tabular-nums text-[var(--admin-text)]">
-                {startStr} &mdash; {endStr}
-              </p>
-            </div>
-          </div>
-          {record.customer_notes && (
-            <div className="mt-6 p-4 rounded-xl bg-[#f7f9fc] border border-[var(--admin-border)]">
-              <p className="text-[10px] font-medium uppercase tracking-widest text-[var(--admin-text-muted)] mb-2">Customer Remarks</p>
-              <p className="text-sm text-[var(--admin-text)] italic">&quot;{record.customer_notes}&quot;</p>
-            </div>
-          )}
-        </div>
-
-        {/* Meter Readings */}
-        <div className="rounded-2xl border border-[var(--admin-border)] bg-white overflow-hidden shadow-[var(--admin-shadow-panel)]">
-          <h3 className="text-lg font-semibold tracking-wide text-[var(--admin-text)] px-6 py-5 bg-[#f7f9fc] border-b border-[var(--admin-border)]">Meter Readings</h3>
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-[#f7f9fc]">
-              <tr className="border-b border-[var(--admin-border)] text-[var(--admin-text-muted)]">
-                <th className="px-6 py-4 font-normal">Type</th>
-                <th className="px-6 py-4 font-normal text-right">Start</th>
-                <th className="px-6 py-4 font-normal text-right">Stop</th>
-                <th className="px-6 py-4 font-normal text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--admin-border)]">
-              {[
-                { label: 'Tacho',      start: record.tacho_start,      stop: record.tacho_stop,      total: record.tacho_total      },
-                { label: 'VDO',        start: record.vdo_start,        stop: record.vdo_stop,        total: record.vdo_total        },
-                { label: 'Air Switch', start: record.air_switch_start, stop: record.air_switch_stop, total: record.air_switch_total },
-                { label: 'MR',         start: record.mr_start,         stop: record.mr_stop,         total: record.mr_total         },
-              ].map(row => (
-                <tr key={row.label}>
-                  <td className="px-6 py-4 font-medium text-[var(--admin-text)]">{row.label}</td>
-                  <td className="px-6 py-4 text-right tabular-nums text-[var(--admin-text)]">{row.start ?? '—'}</td>
-                  <td className="px-6 py-4 text-right tabular-nums text-[var(--admin-text)]">{row.stop ?? '—'}</td>
-                  <td className="px-6 py-4 text-right tabular-nums font-bold text-[#1a4fd6]">{row.total ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Flight Billing — full main-column width, below Meter Readings */}
-        {isStandardBillingReady && bookingId && (
-          <AdminStandardBillingPanel
-            bookingId={bookingId}
-            airports={airports}
-            customerCreditCents={customerCreditCents}
-            initialFlightRecord={record}
-            initialLandingCharges={initialLandingCharges}
-            startSuggestions={flightLogStartSuggestions}
-            bookingSlotHours={bookingSlotHours}
-            activeBlockTime={activeBlockTime}
-            defaultHourlyRate={PAYF_RATE_PER_HOUR}
-            redirectAfterSuccess="/admin/bookings/post-flight"
-          />
-        )}
-
-      {/* Billing locked notice */}
-      {awaitingCustomer && !isStandardBillingReady && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex items-start gap-3 shadow-sm">
-          <span className="material-symbols-outlined text-amber-500 text-[20px] flex-shrink-0 mt-0.5">lock</span>
-          <div>
-            <p className="text-sm font-medium text-amber-700 mb-1">Billing Locked</p>
-            <p className="text-sm text-[var(--admin-text-muted)] leading-relaxed">
-              A clarification request is open. Billing is locked until the customer resubmits the flight record.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Evidence Photos */}
-      <AttachmentViewer attachments={(attachments as AttachmentWithUrl[]).filter((att): att is AttachmentWithUrl & { signedUrl: string } => !!att.signedUrl)} />
-
-        {/* Request Clarification */}
-        {!awaitingCustomer && canRequestClarification && customerId && bookingId && (
-          <RequestClarificationFormWrapper
-            flightRecordId={record.id}
-            bookingId={bookingId}
-            customerId={customerId}
-          />
-        )}
-
-      </div>
-      </div>
-    </div>
+    <PostFlightVerificationConsole
+      flightRecordId={record.id}
+      bookingId={bookingId}
+      customerId={customerId || ''}
+      bookingRef={bookingRef}
+      customerName={customerName}
+      customerEmail={customerEmail}
+      customerPhone={customerPhone}
+      picArn={record.pic_arn || booking?.pic_arn}
+      flightDate={record.date || '—'}
+      scheduledStartStr={scheduledStartStr}
+      scheduledEndStr={scheduledEndStr}
+      bookingSlotHours={bookingSlotHours}
+      upfrontPaidCents={upfrontPaidCents}
+      customerNotes={record.customer_notes}
+      aircraftReg={aircraft?.registration || 'VH-KZG'}
+      aircraftType={aircraft?.aircraft_type || 'Cessna 172'}
+      currentStatus={record.status}
+      vdoStart={vdoStart}
+      vdoStop={vdoStop}
+      vdoTotal={vdoTotal}
+      vdoBaseline={flightLogStartSuggestions.vdo_start}
+      airSwitchStart={airSwitchStart}
+      airSwitchStop={airSwitchStop}
+      airSwitchTotal={airSwitchTotal}
+      airSwitchBaseline={flightLogStartSuggestions.air_switch_start}
+      hourlyRate={hourlyRate}
+      availableAirports={(allAirports ?? []) as any}
+      landingItems={landingItems}
+      flightChargeCents={flightChargeCents}
+      landingSubtotalCents={landingSubtotalCents}
+      creditAppliedCents={creditAppliedCents}
+      subtotalCents={subtotalCents}
+      gstCents={gstCents}
+      totalAmountCents={totalAmountCents}
+      invoiceNumber={bookingInvoice?.invoice_number}
+      paymentMethod={paymentMethod}
+      stripePaymentIntentId={bookingInvoice?.stripe_payment_intent_id}
+      bankReference={bankSubmission?.reference_number || bankSubmission?.reference}
+      bankReceiptSignedUrl={bankReceiptSignedUrl}
+      bankReceiptFilename={bankSubmission?.receipt_filename}
+      bankSubmittedAt={bankSubmission?.submitted_at}
+      evidenceAttachments={evidenceAttachments}
+      clarificationCategory={clarData?.category}
+      clarificationMessage={clarData?.message}
+    />
   )
 }

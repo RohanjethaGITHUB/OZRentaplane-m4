@@ -45,9 +45,8 @@ const STATUS_CFG: Record<string, {
   ready_for_dispatch:              { label: 'Ready to Fly',           sublabel: 'Pre-flight checks done',      color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20',  icon: 'flight_takeoff'  },
   dispatched:                      { label: 'Airborne',               sublabel: 'Flight in progress',          color: 'text-green-300',  bg: 'bg-green-500/10',  border: 'border-green-400/20',  icon: 'flight'          },
   awaiting_flight_record:          { label: 'Awaiting Record',        sublabel: 'Submit your flight log',      color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  icon: 'assignment'      },
-  flight_record_overdue:           { label: 'Record Overdue',         sublabel: 'Flight log required now',     color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    icon: 'assignment_late' },
-  pending_post_flight_review:      { label: 'Under Review',           sublabel: 'Post-flight review',          color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', icon: 'rate_review'     },
-  needs_clarification:             { label: 'Clarification Needed',   sublabel: 'Please respond to query',     color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', icon: 'help'            },
+  pending_post_flight_review:      { label: 'Payment Verification Required', sublabel: 'Flight log & payment under review', color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: 'verified_user' },
+  needs_clarification:             { label: 'Clarification Needed',   sublabel: 'Please update flight record or details', color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: 'help'            },
   post_flight_approved:            { label: 'Flight Approved',        sublabel: 'Records accepted',            color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20',  icon: 'verified'        },
   payment_pending:                 { label: 'Payment Required',       sublabel: 'Pay to close booking',        color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', icon: 'payments'      },
   completed:                       { label: 'Completed',              sublabel: 'Booking closed',              color: 'text-slate-400',  bg: 'bg-white/5',       border: 'border-white/10',      icon: 'done_all'        },
@@ -661,28 +660,62 @@ function NextActionCard({
       )
     }
 
-    // Under review (pending_review or resubmitted) — show status + evidence summary
+    // Under review (pending_review or resubmitted) — show status + invoice download + evidence summary
     const isResubmitted = flightRecord?.status === 'resubmitted'
     const attCount = postFlightAttachments?.length ?? 0
     return (
-      <div className={`rounded-[1.25rem] p-6 space-y-4 bg-white border border-[#152d5a]/10`}>
-        <div className="flex items-center gap-3">
-          <span className={`material-symbols-outlined text-lg ${isResubmitted ? 'text-emerald-500' : 'text-purple-500'}`}>
-            {isResubmitted ? 'refresh' : 'rate_review'}
-          </span>
-          <h3 className={`text-xs font-bold uppercase tracking-widest ${isResubmitted ? 'text-emerald-600' : 'text-purple-600'}`}>
-            {isResubmitted ? 'Resubmitted — Under Review' : 'Under Review'}
-          </h3>
+      <div className="rounded-[1.25rem] p-6 space-y-4 bg-white border border-[#152d5a]/10 shadow-[0_4px_24px_rgba(21,45,90,0.04)]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className={`material-symbols-outlined text-xl ${isResubmitted ? 'text-emerald-500' : 'text-amber-500'}`}>
+              {isResubmitted ? 'refresh' : 'verified_user'}
+            </span>
+            <div>
+              <h3 className={`text-xs font-bold uppercase tracking-widest ${isResubmitted ? 'text-emerald-700' : 'text-amber-700'}`}>
+                {isResubmitted ? 'Resubmitted — Under Review' : 'Payment Verification Required'}
+              </h3>
+              <p className="text-[11px] text-[#4b6390] mt-0.5">Flight log & payment proof submitted</p>
+            </div>
+          </div>
+          {bookingInvoice && (
+            <a
+              href={`/dashboard/bookings/${bookingId}/invoice`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap bg-white hover:bg-[#f0f6ff] text-[#152d5a] border border-[#152d5a]/20 text-[11px] font-bold tracking-[0.04em] px-3.5 py-2 rounded-xl transition-colors shadow-sm self-start sm:self-auto"
+            >
+              <span className="material-symbols-outlined text-[15px] text-[#1a4fd6]">download</span>
+              Download Invoice
+            </a>
+          )}
         </div>
         <p className="text-sm text-[#4b6390] leading-relaxed">
           {isResubmitted
             ? 'Your updated flight record has been submitted and is back with the operations team for review.'
-            : 'Your flight record has been submitted and is currently being reviewed by the operations team.'}
+            : 'Your post-flight meter readings, declared landing charges, and payment proof have been recorded. Our operations team is reviewing the flight record to complete verification.'}
         </p>
+        {bookingInvoice && (
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 p-3.5 rounded-xl bg-[#f8fbff] border border-[#dbe7f4] text-xs">
+            <div>
+              <span className="text-[#4b6390]">Invoice Ref:</span>{' '}
+              <span className="font-semibold text-[#152d5a]">{bookingInvoice.invoice_number}</span>
+            </div>
+            <div>
+              <span className="text-[#4b6390]">Total Amount:</span>{' '}
+              <span className="font-semibold text-[#152d5a]">${(bookingInvoice.subtotal_cents / 100).toFixed(2)} AUD</span>
+            </div>
+            <div>
+              <span className="text-[#4b6390]">Status:</span>{' '}
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                Payment Verification Required
+              </span>
+            </div>
+          </div>
+        )}
         {attCount > 0 && (
           <div className="pt-3 border-t border-[#152d5a]/10">
             <p className="text-[10px] font-bold uppercase tracking-widest text-[#4b6390] mb-3">
-              Submitted Evidence
+              Submitted Evidence & Proof
               <span className="ml-2 font-normal text-[#4b6390]/70">({attCount} photo{attCount !== 1 ? 's' : ''})</span>
             </p>
             <div className="flex flex-wrap gap-2">
@@ -1444,7 +1477,7 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
   const isPostFlightEntry =
     status === 'awaiting_flight_record' ||
     (bookingType === 'standard' &&
-      ['confirmed', 'ready_for_dispatch', 'dispatched'].includes(status) &&
+      ['confirmed', 'ready_for_dispatch', 'dispatched', 'pending_post_flight_review', 'needs_clarification'].includes(status) &&
       searchParams?.action === 'flight_record')
 
   const showCancelButton =
@@ -1496,21 +1529,21 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
     .reverse()
     .find(r => r.new_status === 'needs_clarification')?.note ?? null
 
-  // ── Post-flight clarification — fetch flight record + clarification + attachments
-  // Only executed when booking is in pending_post_flight_review.
+  // ── Post-flight clarification — fetch flight record + clarification + attachments + landings
   let postFlightRecord: FlightRecord | null = null
   let postFlightClarification: FlightRecordClarification | null = null
   type AttachmentWithUrl = FlightRecordAttachment & { signedUrl: string | null }
   let postFlightAttachments: AttachmentWithUrl[] = []
+  let postFlightLandings: Array<{ airport_id: string; landing_count: number; airports?: { icao_code: string; name: string } | null }> = []
 
-  if (status === 'pending_post_flight_review') {
+  if (['pending_post_flight_review', 'needs_clarification', 'awaiting_flight_record'].includes(status) || isPostFlightEntry) {
     const { data: frData } = await supabase
       .from('flight_records')
       .select('*')
       .eq('booking_id', booking.id)
       .order('submitted_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
     postFlightRecord = (frData ?? null) as FlightRecord | null
 
@@ -1531,18 +1564,42 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
         }),
       )
 
-      if (postFlightRecord.status === 'needs_clarification') {
-        const { data: clarData } = await supabase
+      const [{ data: clarData }, { data: landData }] = await Promise.all([
+        supabase
           .from('flight_record_clarifications')
           .select('*')
-          .eq('flight_record_id', postFlightRecord.id)
           .eq('is_resolved', false)
+          .or(`flight_record_id.eq.${postFlightRecord.id},booking_id.eq.${booking.id}`)
           .order('created_at', { ascending: false })
           .limit(1)
-          .single()
+          .maybeSingle(),
+        supabase
+          .from('flight_record_landings')
+          .select('airport_id, landing_count, airports(icao_code, name)')
+          .eq('flight_record_id', postFlightRecord.id),
+      ])
 
-        postFlightClarification = (clarData ?? null) as FlightRecordClarification | null
-      }
+      postFlightClarification = (clarData ?? null) as FlightRecordClarification | null
+      postFlightLandings = (landData ?? []) as any
+    }
+  }
+
+  // Override status cfg if flight record is under clarification or resubmitted
+  if (status === 'pending_post_flight_review') {
+    if (postFlightRecord?.status === 'needs_clarification' || (postFlightClarification && !postFlightClarification.is_resolved)) {
+      cfg.label = 'Clarification Requested'
+      cfg.sublabel = 'Action required: respond to operations'
+      cfg.color = 'text-amber-800'
+      cfg.bg = 'bg-amber-50'
+      cfg.border = 'border-amber-300'
+      cfg.icon = 'warning'
+    } else if (postFlightRecord?.status === 'resubmitted') {
+      cfg.label = 'Resubmitted — Under Review'
+      cfg.sublabel = 'Flight record and payment under review'
+      cfg.color = 'text-emerald-800'
+      cfg.bg = 'bg-emerald-50'
+      cfg.border = 'border-emerald-300'
+      cfg.icon = 'refresh'
     }
   }
 
@@ -1564,13 +1621,31 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
     const aircraftTypeShort = (aircraft as { aircraft_type?: string } | null)?.aircraft_type
       ?.toUpperCase().replace(/_/g, ' ')
 
-    // Fetch active airports for the landing details section of the flight record form
-    const { data: airportRows } = await supabase
-      .from('airports')
-      .select('id, icao_code, name')
-      .eq('is_active', true)
-      .order('icao_code', { ascending: true })
-    const airports = (airportRows ?? []) as { id: string; icao_code: string; name: string }[]
+    // Fetch active airports & customer credit for live calculation
+    const [{ data: airportRows }, { data: creditRow }] = await Promise.all([
+      supabase
+        .from('airports')
+        .select('id, icao_code, name, default_landing_fee_cents')
+        .eq('is_active', true)
+        .order('icao_code', { ascending: true }),
+      supabase
+        .from('customer_credit_balances')
+        .select('balance_cents')
+        .eq('customer_id', user.id)
+        .maybeSingle(),
+    ])
+    const airports = (airportRows ?? []) as { id: string; icao_code: string; name: string; default_landing_fee_cents: number }[]
+    const customerCreditCents = creditRow?.balance_cents ?? 0
+    const defaultHourlyRate = Number((aircraft as any)?.default_hourly_rate ?? 330)
+
+    let postFlightBankDetails = null
+    const name = PAYMENT_CONFIG.BANK_ACCOUNT_NAME
+    const bsb = PAYMENT_CONFIG.BANK_BSB
+    const acct = PAYMENT_CONFIG.BANK_ACCOUNT_NUMBER
+    const bank = PAYMENT_CONFIG.BANK_NAME
+    if (name && bsb && acct) {
+      postFlightBankDetails = { bankName: bank, accountName: name, bsb, accountNumber: acct }
+    }
 
     // Simplified journey for awaiting_flight_record
     const JOURNEY = [
@@ -1713,6 +1788,39 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
                   </ul>
                 </div>
 
+                {/* Operations & Support Contact */}
+                <div className="bg-white border border-[#dbe7f4] rounded-[1.5rem] p-6 shadow-[0_8px_24px_rgba(21,45,90,0.06)] space-y-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-[#1a4fd6]">
+                      <span className="material-symbols-outlined text-lg">support_agent</span>
+                    </span>
+                    <div>
+                      <h3 className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#1a4fd6]">
+                        Operations Support
+                      </h3>
+                      <p className="text-[10px] text-[#4b6390]">Have questions about readings or billing?</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2 pt-1">
+                    <a
+                      href="tel:+61474576085"
+                      title="Call Operations (+61 474 576 085)"
+                      className="flex items-center gap-2.5 text-xs font-semibold text-[#152d5a] hover:text-[#1a4fd6] p-2.5 rounded-xl bg-[#f8fbff] border border-[#dbe7f4] transition-colors group"
+                    >
+                      <span className="material-symbols-outlined text-base text-[#1a4fd6] group-hover:scale-110 transition-transform">call</span>
+                      <span>+61 474 576 085</span>
+                    </a>
+                    <a
+                      href="mailto:ozrentaplane@gmail.com"
+                      title="Email Operations (ozrentaplane@gmail.com)"
+                      className="flex items-center gap-2.5 text-xs font-semibold text-[#152d5a] hover:text-[#1a4fd6] p-2.5 rounded-xl bg-[#f8fbff] border border-[#dbe7f4] transition-colors group"
+                    >
+                      <span className="material-symbols-outlined text-base text-[#1a4fd6] group-hover:scale-110 transition-transform">mail</span>
+                      <span className="truncate">ozrentaplane@gmail.com</span>
+                    </a>
+                  </div>
+                </div>
+
               </div>
 
               {/* ── Right column — form ──────────────────────────────────── */}
@@ -1726,6 +1834,31 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
                   activePackage={activePackage as ActiveBlockTimePackage | null}
                   bookingSlotHours={bookingSlotHours}
                   is24HourBooking={is24HourBooking}
+                  customerCreditCents={customerCreditCents}
+                  defaultHourlyRate={defaultHourlyRate}
+                  bankDetails={postFlightBankDetails}
+                  initialRecord={postFlightRecord ? {
+                    vdo_total: postFlightRecord.vdo_total,
+                    air_switch_total: postFlightRecord.air_switch_total,
+                    customer_notes: postFlightRecord.customer_notes,
+                  } : null}
+                  initialLandings={postFlightLandings.length > 0 ? postFlightLandings.map(l => ({
+                    airportId: l.airport_id,
+                    icaoCode: (l.airports as any)?.icao_code ?? null,
+                    landingCount: l.landing_count,
+                  })) : null}
+                  initialAttachments={postFlightAttachments.map(a => ({
+                    id: a.id,
+                    file_name: a.file_name,
+                    signedUrl: a.signedUrl,
+                  }))}
+                  clarification={postFlightClarification ? {
+                    category: postFlightClarification.category,
+                    message: postFlightClarification.message,
+                  } : (postFlightRecord?.status === 'needs_clarification' || status === 'needs_clarification' ? {
+                    category: 'Clarification Required',
+                    message: clarificationQuestion || 'Operations requested clarification on your submitted post-flight readings or evidence photos. Please update your details and resubmit.',
+                  } : null)}
                 />
               </div>
 

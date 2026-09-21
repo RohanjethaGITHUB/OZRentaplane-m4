@@ -109,6 +109,31 @@ export async function generateStandardBookingInvoicePdf(params: {
     throw new Error(landingErr.message ?? 'Failed to load landing charges for invoice PDF generation.')
   }
 
+  let resolvedLandingCharges = landingCharges ?? []
+  if (resolvedLandingCharges.length === 0) {
+    const { data: flightRec } = await supabase
+      .from('flight_records')
+      .select('id, flight_record_landings(landing_count, airports(icao_code, name, default_landing_fee_cents))')
+      .eq('booking_id', invoice.booking_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (flightRec?.flight_record_landings) {
+      resolvedLandingCharges = (flightRec.flight_record_landings as any[]).map((row: any) => {
+        const airport = Array.isArray(row.airports) ? row.airports[0] : row.airports
+        const unitAmountCents = airport?.default_landing_fee_cents ?? 2895
+        const count = Number(row.landing_count) || 0
+        return {
+          landing_count: count,
+          unit_amount_cents: unitAmountCents,
+          total_amount_cents: count * unitAmountCents,
+          airports: airport,
+        }
+      }).filter((r: any) => r.landing_count > 0)
+    }
+  }
+
   const isPaid = invoice.status === 'paid'
   const isWaived = invoice.status === 'waived'
 
@@ -152,13 +177,18 @@ export async function generateStandardBookingInvoicePdf(params: {
     ? roundToCents(invoice.advance_applied_cents / 100)
     : undefined
   const documentKind = isPaid ? 'receipt' : 'tax_invoice'
+  const isVerificationRequired =
+    invoice.status === 'payment_verification_required' ||
+    invoice.status === 'bank_transfer_pending_review'
   const statusLabel = isPaid
     ? 'PAID'
     : isWaived
       ? 'WAIVED'
-      : invoice.status === 'payment_required'
-        ? 'PAYMENT REQUIRED'
-        : String(invoice.status).toUpperCase()
+      : isVerificationRequired
+        ? 'PAYMENT VERIFICATION REQUIRED'
+        : invoice.status === 'payment_required'
+          ? 'PAYMENT REQUIRED'
+          : String(invoice.status).toUpperCase()
   const billingModeLabel = 'Standard Aircraft Rental'
   const bookingRefLabel = booking.booking_reference ? `Booking Ref: ${booking.booking_reference}` : null
   const billToName = getFullName(profile ?? null)
@@ -187,7 +217,7 @@ export async function generateStandardBookingInvoicePdf(params: {
     : null
 
   let totalLandingsCount = 0
-  for (const charge of landingCharges ?? []) {
+  for (const charge of resolvedLandingCharges) {
     totalLandingsCount += Number(charge.landing_count || 1)
   }
 
@@ -199,7 +229,7 @@ export async function generateStandardBookingInvoicePdf(params: {
       unitPrice: roundToCents(invoice.rate_cents_per_hour / 100),
       amount: roundToCents(invoice.base_amount_cents / 100),
     },
-    ...(landingCharges ?? []).map((charge: {
+    ...resolvedLandingCharges.map((charge: {
       landing_count: number
       unit_amount_cents: number
       total_amount_cents: number
@@ -245,10 +275,22 @@ export async function generateStandardBookingInvoicePdf(params: {
   const gstAmount = roundToCents(displayTotal - subtotal)
   const amountPaid = isPaid ? displayTotal : 0
 
+  const resolvedMethodLabel = isWaived
+    ? 'Waived (No payment required)'
+    : resolvedPaymentMethod === 'bank_transfer' || invoice.payment_method === 'bank_transfer'
+    ? 'Direct Deposit (NAB Bank Transfer)'
+    : resolvedPaymentMethod === 'card' || invoice.payment_method === 'stripe' || invoice.payment_method === 'stripe_card'
+    ? 'Card (Online)'
+    : resolvedPaymentMethod === 'account_credit'
+    ? 'Account Credit / Block Time'
+    : formatPaymentMethodLabel(resolvedPaymentMethod || invoice.payment_method) || (isPaid ? 'Card (Online)' : '—')
+
   const footerNote = isPaid
     ? 'This receipt confirms full payment for your aircraft rental booking. All prices include GST.'
     : isWaived
       ? 'This invoice has been waived by operations management. No payment is required.'
+      : isVerificationRequired
+      ? 'Payment proof received. This invoice is under operations review and verification. All prices include GST.'
       : 'All prices include GST. Payment is required by the due date shown above.'
 
   const pdfBuffer = await generateInvoicePdf({
@@ -258,7 +300,7 @@ export async function generateStandardBookingInvoicePdf(params: {
     createdAt: invoice.created_at,
     dueAt: isPaid ? invoice.paid_at ?? invoice.created_at : invoice.created_at,
     paidAt: isPaid ? invoice.paid_at ?? invoice.created_at : null,
-    paymentMethodLabel: isWaived ? 'Waived (No payment required)' : (isPaid ? (formatPaymentMethodLabel(resolvedPaymentMethod) || 'Card (online)') : '—'),
+    paymentMethodLabel: resolvedMethodLabel,
     billingModeLabel,
     bookingRefLabel,
     flightDate: booking.scheduled_start ?? null,
@@ -284,7 +326,7 @@ export async function generateStandardBookingInvoicePdf(params: {
       tachStart,
       tachEnd,
       tachHours,
-      landingsCount: totalLandingsCount || flightLog?.landings || null,
+      landingsCount: totalLandingsCount || flightLog?.landings || (landingCharges?.length ? landingCharges.length : null),
     },
   })
 

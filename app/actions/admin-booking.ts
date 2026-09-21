@@ -46,6 +46,7 @@ import {
 } from '@/lib/aircraft-readings'
 import {
   getAircraftFlightLogByRelatedBooking,
+  getAircraftFlightLogStartSuggestions,
   getLastFinalizedLogStop,
   buildReadingsFromTotals,
   upsertAircraftFlightLogRecord,
@@ -63,6 +64,7 @@ import {
   FLIGHT_RECORD_APPROVAL_STATUSES,
 } from '@/lib/booking/status-constants'
 import { createFlightRecordForBooking } from '@/lib/booking/flight-record-submission'
+import { calculatePostFlightCharges } from '@/lib/booking/live-booking-calculator'
 import { sydneyInputToUTC, todaySydneyDateKey } from '@/lib/utils/sydney-time'
 import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
 import { createPerfLogger } from '@/lib/perf/timing'
@@ -194,20 +196,69 @@ export async function approvePostFlightReview(
     throw new Error('Flight record not found.')
   }
 
-  // Approval is only permitted from review-ready statuses.
-  // needs_clarification is explicitly blocked: the record was flagged by this
-  // admin as needing more information, and the customer must formally resubmit
-  // before approval can proceed.
+  // Approval is permitted from review-ready statuses, or if admin explicitly overrides
   const allowedForApproval: readonly string[] = FLIGHT_RECORD_APPROVAL_STATUSES
   if (!allowedForApproval.includes(flightRecord.status)) {
-    const reason = flightRecord.status === 'needs_clarification'
-      ? 'This flight record is awaiting customer clarification. The customer must formally resubmit before it can be approved.'
-      : `Cannot approve a flight record with status "${flightRecord.status}".`
-    throw new Error(`VALIDATION: ${reason}`)
+    if (flightRecord.status === 'needs_clarification' && (input.allow_override || input.with_correction)) {
+      // Allowed: admin explicitly overrides clarification status to complete the booking immediately
+    } else {
+      const reason = flightRecord.status === 'needs_clarification'
+        ? 'This flight record is awaiting customer clarification. You can use Override & Settle to finalize it, or wait for customer resubmission.'
+        : `Cannot approve a flight record with status "${flightRecord.status}".`
+      throw new Error(`VALIDATION: ${reason}`)
+    }
   }
 
   if (!flightRecord.booking_id) {
     throw new Error('Flight record has no associated booking.')
+  }
+
+  // If admin provided updated readings, apply them to the record
+  if (input.vdo_total != null || input.air_switch_total != null || input.landing_rows != null) {
+    const { suggestedStarts } = await getAircraftFlightLogStartSuggestions(flightRecord.aircraft_id)
+    const effectiveVdoTotal = input.vdo_total != null ? Number(input.vdo_total) : (flightRecord.vdo_total != null ? Number(flightRecord.vdo_total) : null)
+    const effectiveAirSwitchTotal = input.air_switch_total != null ? Number(input.air_switch_total) : (flightRecord.air_switch_total != null ? Number(flightRecord.air_switch_total) : null)
+
+    const vdoStart = suggestedStarts.vdo_start != null ? Number(suggestedStarts.vdo_start) : (flightRecord.vdo_start != null ? Number(flightRecord.vdo_start) : null)
+    const vdoStop = vdoStart != null && effectiveVdoTotal != null ? Number((vdoStart + effectiveVdoTotal).toFixed(1)) : null
+
+    const airSwitchStart = suggestedStarts.air_switch_start != null ? Number(suggestedStarts.air_switch_start) : (flightRecord.air_switch_start != null ? Number(flightRecord.air_switch_start) : null)
+    const airSwitchStop = airSwitchStart != null && effectiveAirSwitchTotal != null ? Number((airSwitchStart + effectiveAirSwitchTotal).toFixed(1)) : null
+
+    const recordUpdates: Record<string, any> = { updated_at: now }
+    if (effectiveVdoTotal != null) {
+      if (vdoStart != null) recordUpdates.vdo_start = vdoStart
+      if (vdoStop != null) recordUpdates.vdo_stop = vdoStop
+      flightRecord.vdo_total = effectiveVdoTotal
+      flightRecord.vdo_start = vdoStart
+      flightRecord.vdo_stop = vdoStop
+    }
+    if (effectiveAirSwitchTotal != null) {
+      if (airSwitchStart != null) recordUpdates.air_switch_start = airSwitchStart
+      if (airSwitchStop != null) recordUpdates.air_switch_stop = airSwitchStop
+      flightRecord.air_switch_total = effectiveAirSwitchTotal
+      flightRecord.air_switch_start = airSwitchStart
+      flightRecord.air_switch_stop = airSwitchStop
+    }
+
+    await supabase.from('flight_records').update(recordUpdates).eq('id', flightRecord.id)
+
+    if (input.landing_rows != null) {
+      await supabase.from('flight_record_landings').delete().eq('flight_record_id', flightRecord.id)
+      const validLandings = input.landing_rows
+        .map(r => ({ airport_id: r.airport_id, landing_count: Number(r.landing_count) || 0 }))
+        .filter(r => r.airport_id && r.landing_count > 0)
+
+      if (validLandings.length > 0) {
+        await supabase.from('flight_record_landings').insert(
+          validLandings.map(vl => ({
+            flight_record_id: flightRecord.id,
+            airport_id: vl.airport_id,
+            landing_count: vl.landing_count,
+          }))
+        )
+      }
+    }
   }
 
   // Fetch aircraft for billing settings
@@ -220,6 +271,10 @@ export async function approvePostFlightReview(
   if (aircraftError || !aircraft) {
     throw new Error('Aircraft not found.')
   }
+
+  const effectiveRate = aircraft.default_hourly_rate && Number(aircraft.default_hourly_rate) >= 290
+    ? Number(aircraft.default_hourly_rate)
+    : PAYF_RATE_PER_HOUR
 
   // Placeholder billing calculation based on billing_meter_type
   const meterType = aircraft.billing_meter_type as MeterType
@@ -237,11 +292,11 @@ export async function approvePostFlightReview(
 
   const finalAmount =
     billedHours != null
-      ? Math.round(billedHours * Number(aircraft.default_hourly_rate) * 100) / 100
+      ? Math.round(billedHours * effectiveRate * 100) / 100
       : null
 
   // 1. Approve flight record
-  const newFlightStatus = input.with_correction ? 'approved_with_correction' : 'approved'
+  const newFlightStatus = (input.with_correction || input.allow_override) ? 'approved_with_correction' : 'approved'
 
   const { error: frUpdateError } = await supabase
     .from('flight_records')
@@ -259,30 +314,128 @@ export async function approvePostFlightReview(
     throw new Error('Failed to approve flight record.')
   }
 
-  // 2. Update booking & apply credit atomically
+  // 2. Update booking & apply credit atomically / mark completed
+  // 2. Update booking & apply credit atomically / mark completed
   const subtotalCents = finalAmount != null ? Math.round(finalAmount * 100) : 0
-  const { error: bookingUpdateError } = await supabase.rpc('apply_credit_to_standard_booking_atomic', {
-    p_booking_id: flightRecord.booking_id,
-    p_subtotal_cents: subtotalCents,
-    p_final_amount: finalAmount,
-    p_new_status: 'post_flight_approved',
-    p_admin_notes: input.admin_booking_notes ?? null
-  })
-
-  if (bookingUpdateError) {
-    // Flight record approval already committed — log but don't throw
-    console.error('[approvePostFlightReview] Booking update failed:', bookingUpdateError)
-  } else {
-    await supabase.from('booking_status_history').insert({
-      booking_id:         flightRecord.booking_id,
-      old_status:         'pending_post_flight_review',
-      new_status:         'post_flight_approved',
-      changed_by_user_id: adminId,
-      note: input.with_correction
-        ? `Admin approved post-flight review with correction. ${input.correction_reason ?? ''}`
-        : 'Admin approved post-flight review.',
+  try {
+    await supabase.rpc('apply_credit_to_standard_booking_atomic', {
+      p_booking_id: flightRecord.booking_id,
+      p_subtotal_cents: subtotalCents,
+      p_final_amount: finalAmount,
+      p_new_status: 'completed',
+      p_admin_notes: input.admin_booking_notes ?? null
     })
+  } catch (rpcErr) {
+    console.warn('[approvePostFlightReview] apply_credit_to_standard_booking_atomic note:', rpcErr)
   }
+
+  // Ensure booking status is completed and payment_status is paid
+  await supabase
+    .from('bookings')
+    .update({
+      status: 'completed',
+      payment_status: 'paid',
+      admin_notes: input.admin_booking_notes ?? null,
+      updated_at: now,
+    })
+    .eq('id', flightRecord.booking_id)
+
+  // Settle booking invoice to paid
+  const { data: bookingInvoice, error: invFetchErr } = await supabase
+    .from('booking_invoices')
+    .select('id, status, customer_id, invoice_number, subtotal_cents, total_paid_cents, pdf_url')
+    .eq('booking_id', flightRecord.booking_id)
+    .maybeSingle()
+
+  if (invFetchErr) {
+    console.error('[approvePostFlightReview] Error fetching booking invoice:', invFetchErr)
+  }
+
+  let finalPdfResult: any = null
+  const paidAmountCents = bookingInvoice?.subtotal_cents || subtotalCents || bookingInvoice?.total_paid_cents || 0
+
+  if (bookingInvoice) {
+    const { error: invUpdateErr } = await supabase
+      .from('booking_invoices')
+      .update({
+        status: 'paid',
+        paid_at: now,
+        total_paid_cents: paidAmountCents,
+        finalised_at: now,
+        finalised_by: adminId,
+        updated_at: now,
+      })
+      .eq('id', bookingInvoice.id)
+
+    if (invUpdateErr) {
+      console.error('[approvePostFlightReview] Failed to update booking invoice to paid:', invUpdateErr)
+    }
+
+    // Ensure customer_payment_ledger has a completed payment entry
+    const { data: existingLedger } = await supabase
+      .from('customer_payment_ledger')
+      .select('id')
+      .eq('booking_id', flightRecord.booking_id)
+      .maybeSingle()
+
+    if (!existingLedger && bookingInvoice.customer_id) {
+      const { error: ledgerInsertErr } = await supabase.from('customer_payment_ledger').insert({
+        customer_id: bookingInvoice.customer_id,
+        booking_id: flightRecord.booking_id,
+        invoice_id: bookingInvoice.id,
+        invoice_source_type: 'booking',
+        amount_cents: paidAmountCents,
+        entry_type: 'bank_transfer',
+        payment_method: 'bank_transfer',
+        note: input.allow_override
+          ? 'Direct settlement & override approved by admin'
+          : 'Post-flight payment approved and settled by admin',
+        created_by: adminId,
+      })
+      if (ledgerInsertErr) {
+        console.warn('[approvePostFlightReview] ledger insert note:', ledgerInsertErr)
+      }
+    }
+
+    // Generate updated PAID tax invoice / receipt PDF
+    try {
+      finalPdfResult = await generateStandardBookingInvoicePdf({
+        supabase,
+        invoiceId: bookingInvoice.id,
+      })
+    } catch (pdfErr) {
+      console.error('[approvePostFlightReview] failed to generate paid PDF:', pdfErr)
+    }
+  }
+
+  // Approve any pending bank transfer submissions for this booking
+  await supabase
+    .from('booking_bank_transfer_submissions')
+    .update({
+      status: 'approved',
+      reviewed_by: adminId,
+      reviewed_at: now,
+      updated_at: now,
+    })
+    .eq('booking_id', flightRecord.booking_id)
+    .in('status', ['pending_review', 'pending'])
+
+  // Release any active schedule blocks
+  await supabase
+    .from('schedule_blocks')
+    .update({ status: 'cancelled' })
+    .eq('related_booking_id', flightRecord.booking_id)
+    .eq('status', 'active')
+
+  await supabase.from('booking_status_history').insert({
+    booking_id:         flightRecord.booking_id,
+    old_status:         'pending_post_flight_review',
+    new_status:         'completed',
+    changed_by_user_id: adminId,
+    note: input.with_correction
+      ? `Admin approved post-flight review with correction. ${input.correction_reason ?? ''}`
+      : 'Admin approved post-flight review and verified payment.',
+  })
 
   // 3. Write official aircraft_meter_history
   // Meter entries are only created for non-null readings.
@@ -398,7 +551,7 @@ export async function approvePostFlightReview(
       event_summary:       `Admin approved post-flight review. ${meterEntries.length} meter record(s) committed. Final amount: ${finalAmount != null ? `$${finalAmount.toFixed(2)}` : 'not calculated'}.`,
       new_value: {
         flight_record_status:   newFlightStatus,
-        booking_status:         'post_flight_approved',
+        booking_status:         'completed',
         billed_hours:           billedHours,
         final_amount:           finalAmount,
         meter_entries_created:  meterEntries.length,
@@ -406,17 +559,83 @@ export async function approvePostFlightReview(
       },
     })
 
-  revalidatePath(`/admin/bookings/requests/${flightRecord.booking_id}`)
-  revalidatePath(`/dashboard/bookings/${flightRecord.booking_id}`)
-
-  const { data: ownerRow } = await supabase
+  // 5. Send Paid Tax Invoice & Settlement Email to Customer
+  const { data: bookingOwner } = await supabase
     .from('bookings')
-    .select('booking_owner_user_id')
+    .select('booking_owner_user_id, booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, aircraft_type)')
     .eq('id', flightRecord.booking_id)
     .single()
-  if (ownerRow?.booking_owner_user_id) {
-    void emitBookingChanged({ bookingId: flightRecord.booking_id, userId: ownerRow.booking_owner_user_id })
-    void emitFlightRecordUpdated({ bookingId: flightRecord.booking_id, userId: ownerRow.booking_owner_user_id })
+
+  const targetUserId = bookingInvoice?.customer_id || bookingOwner?.booking_owner_user_id
+  if (targetUserId) {
+    const { data: customerProfile } = await supabase
+      .from('profiles')
+      .select('email, full_name')
+      .eq('id', targetUserId)
+      .single()
+
+    if (customerProfile?.email) {
+      const aircraftData = Array.isArray(bookingOwner?.aircraft)
+        ? bookingOwner.aircraft[0]
+        : bookingOwner?.aircraft
+      const rawType = aircraftData?.aircraft_type || (aircraftData as any)?.model || 'Cessna 172N'
+      const cleanType = rawType.replace(/^Cessna 172$/, 'Cessna 172N')
+      const aircraftLabel = aircraftData?.registration
+        ? `${cleanType} (${aircraftData.registration})`
+        : 'Cessna 172N (VH-KZG)'
+
+      const flightDateFormatted = bookingOwner?.scheduled_start
+        ? new Date(bookingOwner.scheduled_start).toLocaleDateString('en-AU', {
+            timeZone: 'Australia/Sydney',
+            dateStyle: 'full',
+          })
+        : null
+
+      const amountFormatted = bookingInvoice?.subtotal_cents
+        ? `$${(bookingInvoice.subtotal_cents / 100).toFixed(2)} AUD`
+        : finalAmount != null
+        ? `$${finalAmount.toFixed(2)} AUD`
+        : 'Settled'
+
+      const template = flightPaymentSettledEmail({
+        bookingId: flightRecord.booking_id,
+        bookingReference: bookingOwner?.booking_reference ?? null,
+        flightDate: flightDateFormatted,
+        aircraft: aircraftLabel,
+        amountPaid: amountFormatted,
+        paymentMethod: 'bank_transfer',
+        invoiceNumber: bookingInvoice?.invoice_number ?? null,
+        pdfUrl: finalPdfResult?.pdfUrl ?? bookingInvoice?.pdf_url ?? null,
+        message: input.allow_override
+          ? 'Your post-flight flight record and payment settlement have been approved and confirmed by our operations team. Your booking is complete and your paid tax invoice receipt is attached.'
+          : 'Your post-flight meter readings and payment have been verified and approved by our operations team. Your booking is complete and your paid tax invoice receipt is attached.',
+      })
+
+      void sendEmail({
+        to: customerProfile.email,
+        subject: template.subject,
+        html: template.html,
+        eventType: 'post_flight_payment_received',
+        entityType: 'booking',
+        entityId: flightRecord.booking_id,
+        attachments: finalPdfResult?.attachment ? [finalPdfResult.attachment] : undefined,
+      }).catch((emailErr) => {
+        console.error('[approvePostFlightReview] Settlement email dispatch failed:', emailErr)
+      })
+    }
+  }
+
+  revalidatePath(`/admin/bookings/requests/${flightRecord.booking_id}`)
+  revalidatePath(`/dashboard/bookings/${flightRecord.booking_id}`)
+  revalidatePath('/dashboard/bookings')
+  revalidatePath('/dashboard/billing')
+  revalidatePath('/admin/customers/ledger')
+  revalidatePath('/admin/bookings')
+  revalidatePath(`/admin/bookings/post-flight/${flightRecord.booking_id}`)
+
+  if (targetUserId) {
+    void emitBookingChanged({ bookingId: flightRecord.booking_id, userId: targetUserId })
+    void emitFlightRecordUpdated({ bookingId: flightRecord.booking_id, userId: targetUserId })
   }
   void emitOpsChanged()
 }
@@ -842,33 +1061,37 @@ export async function requestPostFlightClarification(input: {
   customerId:     string
   category:       string
   message:        string
+  vdo_total?:     number | null
+  air_switch_total?: number | null
+  landing_rows?:  Array<{ airport_id: string; landing_count: number | string }>
 }): Promise<void> {
   const { supabase, adminId } = await requireAdmin()
+  const adminSupabase = createAdminClient()
 
   if (!input.category.trim()) throw new Error('VALIDATION: A clarification category is required.')
   if (!input.message.trim())  throw new Error('VALIDATION: A clarification message is required.')
 
   // Verify flight record state
-  const { data: fr, error: frErr } = await supabase
+  const { data: fr, error: frErr } = await adminSupabase
     .from('flight_records')
-    .select('id, status, booking_id, aircraft_id')
+    .select('id, status, booking_id, aircraft_id, vdo_total, vdo_start, vdo_stop, air_switch_total, air_switch_start, air_switch_stop')
     .eq('id', input.flightRecordId)
     .single()
 
   if (frErr || !fr) throw new Error('Flight record not found.')
   if (fr.booking_id !== input.bookingId) throw new Error('Flight record does not belong to this booking.')
 
-  const allowedFromStatuses = ['pending_review', 'resubmitted']
+  const allowedFromStatuses = ['pending_review', 'resubmitted', 'needs_clarification']
   if (!allowedFromStatuses.includes(fr.status)) {
     throw new Error(
-      `VALIDATION: Clarification can only be requested when status is pending_review or resubmitted. Current: '${fr.status}'.`,
+      `VALIDATION: Clarification can only be requested when status is pending_review, resubmitted, or needs_clarification. Current: '${fr.status}'.`,
     )
   }
 
   // Verify booking is in post-flight review
-  const { data: booking, error: bookingErr } = await supabase
+  const { data: booking, error: bookingErr } = await adminSupabase
     .from('bookings')
-    .select('status, booking_reference')
+    .select('status, booking_reference, scheduled_start, scheduled_end')
     .eq('id', input.bookingId)
     .single()
 
@@ -881,13 +1104,144 @@ export async function requestPostFlightClarification(input: {
 
   const now = new Date().toISOString()
 
-  // 1. Update flight record status
-  const { error: frUpdateErr } = await supabase
-    .from('flight_records')
-    .update({ status: 'needs_clarification', updated_at: now })
-    .eq('id', input.flightRecordId)
+  // 1. If admin adjusted meters or landings, compute readings & recalculate invoice
+  let updatedAmountPayableCents: number | null = null
+  let effectiveVdoHours: number | null = fr.vdo_total != null ? Number(fr.vdo_total) : null
 
-  if (frUpdateErr) throw new Error('Failed to update flight record status.')
+  if (input.vdo_total != null || input.air_switch_total != null || input.landing_rows != null) {
+    const { suggestedStarts } = await getAircraftFlightLogStartSuggestions(fr.aircraft_id)
+    const effectiveVdoTotal = input.vdo_total != null ? Number(input.vdo_total) : (fr.vdo_total != null ? Number(fr.vdo_total) : null)
+    const effectiveAirSwitchTotal = input.air_switch_total != null ? Number(input.air_switch_total) : (fr.air_switch_total != null ? Number(fr.air_switch_total) : null)
+    effectiveVdoHours = effectiveVdoTotal
+
+    const vdoStart = suggestedStarts.vdo_start != null ? Number(suggestedStarts.vdo_start) : (fr.vdo_start != null ? Number(fr.vdo_start) : null)
+    const vdoStop = vdoStart != null && effectiveVdoTotal != null ? Number((vdoStart + effectiveVdoTotal).toFixed(1)) : null
+
+    const airSwitchStart = suggestedStarts.air_switch_start != null ? Number(suggestedStarts.air_switch_start) : (fr.air_switch_start != null ? Number(fr.air_switch_start) : null)
+    const airSwitchStop = airSwitchStart != null && effectiveAirSwitchTotal != null ? Number((airSwitchStart + effectiveAirSwitchTotal).toFixed(1)) : null
+
+    const recordUpdates: Record<string, any> = {
+      status: 'needs_clarification',
+      updated_at: now,
+    }
+    // Note: vdo_total and air_switch_total are GENERATED ALWAYS STORED columns in Postgres.
+    // Setting start and stop automatically updates the generated total.
+    if (effectiveVdoTotal != null) {
+      if (vdoStart != null) recordUpdates.vdo_start = vdoStart
+      if (vdoStop != null) recordUpdates.vdo_stop = vdoStop
+    }
+    if (effectiveAirSwitchTotal != null) {
+      if (airSwitchStart != null) recordUpdates.air_switch_start = airSwitchStart
+      if (airSwitchStop != null) recordUpdates.air_switch_stop = airSwitchStop
+    }
+
+    const { error: frUpdateErr } = await adminSupabase
+      .from('flight_records')
+      .update(recordUpdates)
+      .eq('id', input.flightRecordId)
+
+    if (frUpdateErr) {
+      console.error('[requestPostFlightClarification] frUpdateErr:', frUpdateErr)
+      throw new Error(`Failed to update flight record status and readings: ${frUpdateErr.message}`)
+    }
+
+    if (input.landing_rows != null) {
+      await adminSupabase.from('flight_record_landings').delete().eq('flight_record_id', input.flightRecordId)
+      const validLandings = input.landing_rows
+        .map(r => ({ airport_id: r.airport_id, landing_count: Number(r.landing_count) || 0 }))
+        .filter(r => r.airport_id && r.landing_count > 0)
+
+      if (validLandings.length > 0) {
+        await adminSupabase.from('flight_record_landings').insert(
+          validLandings.map(vl => ({
+            flight_record_id: input.flightRecordId,
+            airport_id: vl.airport_id,
+            landing_count: vl.landing_count,
+          }))
+        )
+      }
+    }
+
+    // Recalculate invoice charges
+    const scheduledStart = new Date(booking.scheduled_start)
+    const scheduledEnd = new Date(booking.scheduled_end)
+    const bookingSlotHours = Math.max(0, (scheduledEnd.getTime() - scheduledStart.getTime()) / (1000 * 60 * 60))
+
+    const [{ data: airportRows }, { data: creditRow }, { data: activeBlockTimeRow }] = await Promise.all([
+      supabase.from('airports').select('id, icao_code, name, default_landing_fee_cents').eq('is_active', true),
+      supabase.from('customer_credit_balances').select('balance_cents').eq('customer_id', input.customerId).maybeSingle(),
+      supabase.from('pilot_block_time_purchases')
+        .select('id, hours_remaining, rate_per_hour, expires_at')
+        .eq('user_id', input.customerId)
+        .eq('status', 'active')
+        .gt('expires_at', new Date().toISOString())
+        .gt('hours_remaining', 0)
+        .order('activated_at', { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+    ])
+
+    const calc = calculatePostFlightCharges({
+      vdoTotal: effectiveVdoTotal,
+      bookingSlotHours,
+      defaultHourlyRate: PAYF_RATE_PER_HOUR,
+      airports: (airportRows ?? []) as any[],
+      landingRows: input.landing_rows ?? [],
+      activeBlockTime: activeBlockTimeRow ?? null,
+      customerCreditCents: creditRow?.balance_cents ?? 0,
+    })
+
+    updatedAmountPayableCents = calc.stripeGrossAmountCents
+
+    // Update booking_invoices
+    const { data: inv } = await supabase
+      .from('booking_invoices')
+      .select('id')
+      .eq('booking_id', input.bookingId)
+      .maybeSingle()
+
+    if (inv) {
+      await supabase
+        .from('booking_invoices')
+        .update({
+          rate_cents_per_hour: Math.round(calc.hourlyRate * 100),
+          base_amount_cents: calc.flightBaseCents,
+          landing_subtotal_cents: calc.landingSubtotalCents,
+          subtotal_cents: calc.subtotalCents,
+          advance_applied_cents: calc.creditAppliedCents,
+          stripe_amount_due_cents: calc.stripeGrossAmountCents,
+          total_amount_cents: calc.stripeGrossAmountCents,
+          status: 'payment_verification_required',
+          updated_at: now,
+        })
+        .eq('id', inv.id)
+
+      await supabase.from('booking_landing_charges').delete().eq('booking_invoice_id', inv.id)
+      if (calc.landingItems.length > 0) {
+        await supabase.from('booking_landing_charges').insert(
+          calc.landingItems.map(item => ({
+            booking_invoice_id: inv.id,
+            booking_id: input.bookingId,
+            airport_id: item.airportId,
+            landing_count: item.landingCount,
+            unit_amount_cents: item.unitAmountCents,
+            total_amount_cents: item.totalAmountCents,
+          }))
+        )
+      }
+    }
+  } else {
+    // Just update status to needs_clarification
+    const { error: frUpdateErr } = await adminSupabase
+      .from('flight_records')
+      .update({ status: 'needs_clarification', updated_at: now })
+      .eq('id', input.flightRecordId)
+
+    if (frUpdateErr) {
+      console.error('[requestPostFlightClarification] fallback frUpdateErr:', frUpdateErr)
+      throw new Error(`Failed to update flight record status: ${frUpdateErr.message}`)
+    }
+  }
 
   // 2. Insert structured clarification record
   const { error: clarErr } = await supabase
@@ -932,6 +1286,7 @@ export async function requestPostFlightClarification(input: {
       flight_record_status: 'needs_clarification',
       category:             input.category,
       message:              input.message,
+      updated_amount_cents: updatedAmountPayableCents,
     },
   })
 
@@ -950,6 +1305,8 @@ export async function requestPostFlightClarification(input: {
       category:      input.category,
       message:       input.message,
       bookingId:     input.bookingId,
+      updatedAmountPayableCents,
+      vdoHours:      effectiveVdoHours,
     }).catch(e => console.error('[requestPostFlightClarification] email error:', e))
   }
 

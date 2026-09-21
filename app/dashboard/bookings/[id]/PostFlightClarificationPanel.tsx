@@ -105,12 +105,20 @@ export default function PostFlightClarificationPanel({
 
         {/* Actions */}
         <div className="flex flex-wrap gap-3">
+          <Link
+            href={`/dashboard/bookings/${bookingId}?action=flight_record`}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold uppercase tracking-[0.14em] transition-colors shadow-sm"
+          >
+            <span className="material-symbols-outlined text-[15px]">edit_note</span>
+            Update Flight Record
+          </Link>
           <button
+            type="button"
             onClick={() => setShowForm(v => !v)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 rounded-lg text-xs font-semibold uppercase tracking-[0.14em] transition-colors"
           >
-            <span className="material-symbols-outlined text-[14px]">edit</span>
-            {showForm ? 'Hide Update Form' : 'Update Flight Record'}
+            <span className="material-symbols-outlined text-[14px]">tune</span>
+            {showForm ? 'Hide Quick Form' : 'Quick Update Form'}
           </button>
           <Link
             href="/dashboard/messages"

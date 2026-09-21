@@ -14,6 +14,8 @@ import {
 import { createFlightRecordForBooking } from '@/lib/booking/flight-record-submission'
 import { getOutstandingOverageInvoices, overageGateMessage } from '@/lib/payments/block-time-overage'
 import { validateTotalOnlyReadings } from '@/lib/aircraft-readings'
+import { calculatePostFlightCharges } from '@/lib/booking/live-booking-calculator'
+import Stripe from 'stripe'
 import { normalizeActiveCheckoutTerms } from '@/lib/checkout-terms'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { evaluateBookingDocumentsReadiness, hasAcceptedCurrentTerms } from '@/lib/booking-readiness'
@@ -23,6 +25,7 @@ import {
   notifyCancellationRequested,
   notifyAdminCancellationReviewRequired,
   notifyClarificationResponseReceived,
+  notifyFlightRecordSubmitted,
   notifyFlightRecordResubmitted,
 } from '@/lib/booking/notifications'
 import {
@@ -544,6 +547,541 @@ export async function submitFlightRecord(
   )
 }
 
+export type SubmitAndPayPostFlightInput = SubmitFlightRecordInput & {
+  payment_method: 'stripe' | 'bank_transfer' | 'credit_or_block_time' | 'previous_payment'
+  bank_transfer_reference?: string | null
+  bank_transfer_receipt_path?: string | null
+}
+
+export async function submitAndPayPostFlight(
+  input: SubmitAndPayPostFlightInput,
+): Promise<{
+  flightRecordId: string
+  invoiceId: string
+  invoiceNumber: string
+  stripeCheckoutUrl?: string | null
+  amountDueCents: number
+  settledImmediately: boolean
+}> {
+  const { supabase, userId } = await requireCustomer()
+
+  // 1. Verify booking ownership and status
+  const { data: booking, error: bookingError } = await supabase
+    .from('bookings')
+    .select('id, booking_reference, aircraft_id, booking_owner_user_id, scheduled_start, scheduled_end, status, pic_name, pic_arn, aircraft:aircraft_id(id, registration, default_hourly_rate)')
+    .eq('id', input.booking_id)
+    .eq('booking_owner_user_id', userId)
+    .single()
+
+  if (bookingError || !booking) {
+    throw new Error('Booking not found or access denied.')
+  }
+
+  const allowedStatuses = [
+    'confirmed',
+    'ready_for_dispatch',
+    'dispatched',
+    'awaiting_flight_record',
+    'flight_record_overdue',
+    'pending_post_flight_review',
+  ]
+  if (!allowedStatuses.includes(booking.status)) {
+    throw new Error(
+      `VALIDATION: Cannot submit flight record for a booking with status "${booking.status}".`
+    )
+  }
+
+  // Check if active flight record already exists
+  const { data: existingRecords } = await supabase
+    .from('flight_records')
+    .select('id, status, submitted_at')
+    .eq('booking_id', input.booking_id)
+  
+  let flightRecordId: string
+  const existingActiveRecord = (existingRecords ?? []).find(r => !['draft', 'rejected'].includes(r.status ?? ''))
+  
+  if (existingActiveRecord) {
+    flightRecordId = existingActiveRecord.id
+    const adminSupabase = createAdminClient()
+
+    const scheduledHours =
+      (new Date(booking.scheduled_end).getTime() - new Date(booking.scheduled_start).getTime()) /
+      (1000 * 60 * 60)
+
+    // Validate total-only input
+    validateTotalOnlyReadings({
+      vdo_total: input.vdo_total,
+      tacho_total: input.tacho_total,
+      air_switch_total: input.air_switch_total,
+      mr_total: input.mr_total,
+      oil_added: input.oil_added ?? null,
+      oil_total: input.oil_total ?? null,
+      fuel_added: input.fuel_added ?? null,
+      fuel_returned: input.fuel_returned ?? null,
+      landings: input.landings ?? null,
+      notes: input.customer_notes ?? null,
+    })
+
+    // Compute start/stop from last finalized aircraft log
+    const baseline = await getLastFinalizedLogStop(booking.aircraft_id)
+    const readings = buildReadingsFromTotals(
+      {
+        vdo_total: input.vdo_total,
+        tacho_total: input.tacho_total,
+        air_switch_total: input.air_switch_total,
+        mr_total: input.mr_total,
+        oil_added: input.oil_added ?? null,
+        oil_total: input.oil_total ?? null,
+        fuel_added: input.fuel_added ?? null,
+        fuel_returned: input.fuel_returned ?? null,
+        landings: input.landings ?? null,
+        notes: input.customer_notes ?? null,
+      },
+      baseline,
+    )
+
+    const flags: ReviewFlag[] = generateReviewFlags({
+      tacho_start: readings.tacho_start,
+      tacho_stop: readings.tacho_stop,
+      vdo_start: readings.vdo_start,
+      vdo_stop: readings.vdo_stop,
+      air_switch_start: readings.air_switch_start,
+      air_switch_stop: readings.air_switch_stop,
+      oil_added: input.oil_added,
+      fuel_added: input.fuel_added,
+      landings: input.landings,
+      scheduled_hours: scheduledHours,
+    })
+
+    const now = new Date().toISOString()
+
+    const { error: frUpdateErr } = await adminSupabase
+      .from('flight_records')
+      .update({
+        date: input.date,
+        pic_name: input.pic_name ?? null,
+        pic_arn: input.pic_arn ?? null,
+        tacho_start: readings.tacho_start,
+        tacho_stop: readings.tacho_stop,
+        vdo_start: readings.vdo_start,
+        vdo_stop: readings.vdo_stop,
+        air_switch_start: readings.air_switch_start,
+        air_switch_stop: readings.air_switch_stop,
+        mr_start: readings.mr_start,
+        mr_stop: readings.mr_stop,
+        oil_added: input.oil_added ?? null,
+        oil_total: input.oil_total ?? null,
+        fuel_added: input.fuel_added ?? null,
+        fuel_returned: input.fuel_returned ?? null,
+        landings: input.landings ?? null,
+        customer_notes: input.customer_notes ?? null,
+        declaration_accepted_at: input.declaration_accepted ? now : null,
+        signature_type: input.signature_type ?? 'none',
+        signature_value: input.signature_value ?? null,
+        status: 'resubmitted',
+        review_flags: flags.length > 0 ? flags : null,
+        updated_at: now,
+      })
+      .eq('id', flightRecordId)
+
+    if (frUpdateErr) {
+      console.error('[submitAndPayPostFlight] flight_records update failed:', frUpdateErr)
+      throw new Error(`Failed to update flight record: ${frUpdateErr.message}`)
+    }
+
+    const { data: snapshotProfile } = await supabase
+      .from('profiles')
+      .select('full_name, pilot_arn')
+      .eq('id', booking.booking_owner_user_id)
+      .single()
+
+    const ledgerPicName =
+      input.pic_name?.trim() ||
+      booking.pic_name ||
+      snapshotProfile?.full_name ||
+      'Pilot'
+    const ledgerPicArn =
+      input.pic_arn?.trim() ||
+      booking.pic_arn ||
+      snapshotProfile?.pilot_arn ||
+      null
+
+    await upsertAircraftFlightLogRecord({
+      aircraft_id: booking.aircraft_id,
+      flight_date: input.date,
+      pic_user_id: booking.booking_owner_user_id,
+      pic_name: ledgerPicName,
+      pic_arn: ledgerPicArn,
+      readings,
+      related_booking_id: input.booking_id,
+      source: 'booking_customer_post_flight',
+      review_status: 'pending_admin_review',
+      created_by: userId,
+      updated_by: userId,
+    })
+
+    // Mark any active clarification as resolved
+    await adminSupabase
+      .from('flight_record_clarifications')
+      .update({ is_resolved: true, resolved_at: now })
+      .or(`flight_record_id.eq.${flightRecordId},booking_id.eq.${input.booking_id}`)
+
+    // Sync flight_record_landings
+    if (input.landing_rows && input.landing_rows.length > 0) {
+      await adminSupabase.from('flight_record_landings').delete().eq('flight_record_id', flightRecordId)
+      const frlPayload = input.landing_rows
+        .filter(r => r.airport_id && Number(r.landing_count) > 0)
+        .map(r => ({
+          flight_record_id: flightRecordId,
+          airport_id: r.airport_id,
+          landing_count: Number(r.landing_count),
+        }))
+      if (frlPayload.length > 0) {
+        await adminSupabase.from('flight_record_landings').insert(frlPayload)
+      }
+    }
+
+    // Ensure booking status is pending_post_flight_review
+    await adminSupabase
+      .from('bookings')
+      .update({ status: 'pending_post_flight_review', updated_at: now })
+      .eq('id', input.booking_id)
+
+    // Audit log
+    await supabase
+      .from('booking_audit_events')
+      .insert({
+        booking_id: input.booking_id,
+        aircraft_id: booking.aircraft_id,
+        related_record_type: 'flight_record',
+        related_record_id: flightRecordId,
+        actor_user_id: userId,
+        actor_role: 'customer',
+        event_type: 'flight_record_resubmitted',
+        event_summary: `Customer resubmitted updated flight record following clarification request. ${flags.length} review flag(s) generated.`,
+        new_value: {
+          flight_record_id: flightRecordId,
+          booking_status: 'pending_post_flight_review',
+          review_flag_count: flags.length,
+          has_errors: flags.some(f => f.severity === 'error'),
+        },
+      })
+
+    // Resubmission notification to operations
+    const [{ data: ownerProfile }, { data: aircraft }] = await Promise.all([
+      supabase.from('profiles').select('full_name, email').eq('id', booking.booking_owner_user_id).single(),
+      supabase.from('aircraft').select('registration, model').eq('id', booking.aircraft_id).single(),
+    ])
+
+    const aircraftData = aircraft as { registration?: string; model?: string } | null
+    const aircraftLabel = aircraftData?.registration
+      ? `${aircraftData.registration}${aircraftData.model ? ` (${aircraftData.model})` : ''}`
+      : 'Aircraft'
+
+    const bookingRecordWithRef = booking as { booking_reference?: string | null; scheduled_start: string }
+
+    await notifyFlightRecordResubmitted({
+      bookingId: input.booking_id,
+      bookingReference: bookingRecordWithRef.booking_reference ?? input.booking_id.slice(0, 8).toUpperCase(),
+      customerEmail: ownerProfile?.email ?? '',
+      customerName: ownerProfile?.full_name ?? 'Pilot',
+      aircraft: aircraftLabel,
+      bookingDate: new Date(booking.scheduled_start).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'full' }),
+    }).catch((error) => console.error('[submitAndPayPostFlight] resubmission notification failed:', error))
+  } else {
+    const submissionResult = await createFlightRecordForBooking(
+      supabase,
+      booking,
+      input,
+      { userId, role: 'customer' },
+    )
+    flightRecordId = submissionResult.flightRecordId
+  }
+
+  // 2. Fetch pricing data & calculate charges
+  const scheduledStart = new Date(booking.scheduled_start)
+  const scheduledEnd = new Date(booking.scheduled_end)
+  const bookingSlotHours = Math.max(0, (scheduledEnd.getTime() - scheduledStart.getTime()) / (1000 * 60 * 60))
+
+  const aircraftData = Array.isArray(booking.aircraft) ? booking.aircraft[0] : booking.aircraft
+  const rawHourlyRate = aircraftData?.default_hourly_rate ? Number(aircraftData.default_hourly_rate) : 330
+  const defaultHourlyRate = rawHourlyRate >= 290 ? rawHourlyRate : 330
+
+  const [{ data: airportRows }, { data: creditRow }, { data: activeBlockTimeRow }] = await Promise.all([
+    supabase.from('airports').select('id, icao_code, name, default_landing_fee_cents').eq('is_active', true),
+    supabase.from('customer_credit_balances').select('balance_cents').eq('customer_id', userId).maybeSingle(),
+    supabase.from('pilot_block_time_purchases')
+      .select('id, hours_remaining, rate_per_hour, expires_at')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .gt('expires_at', new Date().toISOString())
+      .gt('hours_remaining', 0)
+      .order('activated_at', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  const calc = calculatePostFlightCharges({
+    vdoTotal: input.vdo_total,
+    bookingSlotHours,
+    defaultHourlyRate,
+    airports: (airportRows ?? []) as any[],
+    landingRows: input.landing_rows ?? [],
+    activeBlockTime: activeBlockTimeRow ?? null,
+    customerCreditCents: creditRow?.balance_cents ?? 0,
+    minimumVdoDecision: input.minimum_vdo_decision,
+  })
+
+  if (calc.validationError) {
+    throw new Error(`VALIDATION: ${calc.validationError}`)
+  }
+
+  const now = new Date().toISOString()
+  const adminSupabase = createAdminClient()
+
+  // 3. Find or create booking invoice in booking_invoices
+  const { data: existingInvoice } = await adminSupabase
+    .from('booking_invoices')
+    .select('id, invoice_number, status, payment_method')
+    .eq('booking_id', input.booking_id)
+    .maybeSingle()
+
+  let invoiceId = existingInvoice?.id
+  let invoiceNumber = existingInvoice?.invoice_number
+
+  const rateCents = Math.round(calc.hourlyRate * 100)
+  const invoiceStatus = input.payment_method === 'previous_payment'
+    ? (existingInvoice?.status ?? 'bank_transfer_pending_review')
+    : input.payment_method === 'bank_transfer'
+    ? 'bank_transfer_pending_review'
+    : (calc.amountDueCents === 0 ? 'paid' : 'payment_verification_required')
+
+  const dbPaymentMethod = input.payment_method === 'previous_payment'
+    ? (existingInvoice?.payment_method ?? 'card')
+    : input.payment_method === 'stripe'
+    ? 'card'
+    : (input.payment_method === 'credit_or_block_time' ? 'card' : input.payment_method)
+
+  if (!invoiceId) {
+    invoiceNumber = `BKINV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${new Date().toTimeString().slice(0, 8).replace(/:/g, '')}-${input.booking_id.slice(0, 6).toUpperCase()}`
+
+    const { data: newInvoice, error: invInsertErr } = await adminSupabase
+      .from('booking_invoices')
+      .insert({
+        booking_id: input.booking_id,
+        customer_id: userId,
+        invoice_number: invoiceNumber,
+        status: invoiceStatus,
+        currency: 'aud',
+        vdo_reading: calc.billedVdoHours,
+        rate_cents_per_hour: rateCents,
+        base_amount_cents: calc.flightBaseCents,
+        landing_subtotal_cents: calc.landingSubtotalCents,
+        subtotal_cents: calc.subtotalCents,
+        advance_applied_cents: calc.creditAppliedCents,
+        stripe_amount_due_cents: calc.amountDueCents,
+        total_paid_cents: (input.payment_method === 'credit_or_block_time' && calc.amountDueCents === 0) ? calc.subtotalCents : 0,
+        payment_method: dbPaymentMethod,
+        paid_at: (input.payment_method === 'credit_or_block_time' && calc.amountDueCents === 0) ? now : null,
+        finalised_by: userId,
+        finalised_at: now,
+        admin_notes: input.customer_notes ?? null,
+      })
+      .select('id, invoice_number')
+      .single()
+
+    if (invInsertErr || !newInvoice) {
+      console.error('[submitAndPayPostFlight] Invoice creation failed with status', invoiceStatus, invInsertErr)
+      const { data: fallbackInvoice, error: fallbackErr } = await adminSupabase
+        .from('booking_invoices')
+        .insert({
+          booking_id: input.booking_id,
+          customer_id: userId,
+          invoice_number: invoiceNumber,
+          status: 'payment_required',
+          currency: 'aud',
+          vdo_reading: calc.billedVdoHours,
+          rate_cents_per_hour: rateCents,
+          base_amount_cents: calc.flightBaseCents,
+          landing_subtotal_cents: calc.landingSubtotalCents,
+          subtotal_cents: calc.subtotalCents,
+          advance_applied_cents: calc.creditAppliedCents,
+          stripe_amount_due_cents: calc.amountDueCents,
+          total_paid_cents: 0,
+          payment_method: dbPaymentMethod,
+          finalised_by: userId,
+          finalised_at: now,
+          admin_notes: input.customer_notes ?? null,
+        })
+        .select('id, invoice_number')
+        .single()
+
+      if (fallbackErr || !fallbackInvoice) {
+        console.error('[submitAndPayPostFlight] Invoice creation fallback failed:', fallbackErr)
+        throw new Error('Failed to create booking invoice.')
+      }
+      invoiceId = fallbackInvoice.id
+      invoiceNumber = fallbackInvoice.invoice_number
+    } else {
+      invoiceId = newInvoice.id
+      invoiceNumber = newInvoice.invoice_number
+    }
+
+    // Insert landing charges
+    if (calc.landingItems.length > 0 && invoiceId) {
+      await adminSupabase.from('booking_landing_charges').delete().eq('booking_invoice_id', invoiceId)
+      const { error: landingInsertErr } = await adminSupabase.from('booking_landing_charges').insert(
+        calc.landingItems.map(item => ({
+          booking_invoice_id: invoiceId,
+          booking_id: input.booking_id,
+          airport_id: item.airportId,
+          landing_count: item.landingCount,
+          unit_amount_cents: item.unitAmountCents,
+          total_amount_cents: item.totalAmountCents,
+        }))
+      )
+      if (landingInsertErr) {
+        console.error('[submitAndPayPostFlight] Landing charges insert failed:', landingInsertErr)
+      }
+    }
+  } else {
+    // Update existing invoice
+    const updatePayload: Record<string, any> = {
+      vdo_reading: calc.billedVdoHours,
+      rate_cents_per_hour: rateCents,
+      base_amount_cents: calc.flightBaseCents,
+      landing_subtotal_cents: calc.landingSubtotalCents,
+      subtotal_cents: calc.subtotalCents,
+      advance_applied_cents: calc.creditAppliedCents,
+      stripe_amount_due_cents: calc.amountDueCents,
+      admin_notes: input.customer_notes ?? null,
+      updated_at: now,
+    }
+    if (input.payment_method !== 'previous_payment') {
+      updatePayload.payment_method = dbPaymentMethod
+      updatePayload.status = invoiceStatus
+    }
+    await adminSupabase.from('booking_invoices').update(updatePayload).eq('id', invoiceId)
+
+    // Sync landing charges for existing invoice
+    if (invoiceId) {
+      await adminSupabase.from('booking_landing_charges').delete().eq('booking_invoice_id', invoiceId)
+      if (calc.landingItems.length > 0) {
+        await adminSupabase.from('booking_landing_charges').insert(
+          calc.landingItems.map(item => ({
+            booking_invoice_id: invoiceId,
+            booking_id: input.booking_id,
+            airport_id: item.airportId,
+            landing_count: item.landingCount,
+            unit_amount_cents: item.unitAmountCents,
+            total_amount_cents: item.totalAmountCents,
+          }))
+        )
+      }
+    }
+  }
+
+  // 4. Handle specific payment methods
+  let stripeCheckoutUrl: string | null = null
+
+  if (input.payment_method === 'bank_transfer' && input.bank_transfer_receipt_path) {
+    // Insert into booking_bank_transfer_submissions using admin client
+    await adminSupabase.from('booking_bank_transfer_submissions').insert({
+      invoice_id: invoiceId,
+      booking_id: input.booking_id,
+      customer_id: userId,
+      reference: input.bank_transfer_reference?.trim() || invoiceNumber,
+      receipt_storage_path: input.bank_transfer_receipt_path,
+      status: 'pending_review',
+    })
+  } else if (input.payment_method === 'stripe' && calc.amountDueCents > 0) {
+    const stripeKey = process.env.STRIPE_SECRET_KEY
+    if (stripeKey) {
+      const stripe = new Stripe(stripeKey, { apiVersion: '2023-10-16' as any })
+      const appUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      const { data: userProfile } = await supabase.from('profiles').select('email, full_name').eq('id', userId).single()
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        mode: 'payment',
+        customer_email: userProfile?.email ?? undefined,
+        line_items: [
+          {
+            price_data: {
+              currency: 'aud',
+              product_data: { name: `OZ Rent A Plane Flight (${invoiceNumber})` },
+              unit_amount: calc.stripeGrossAmountCents,
+            },
+            quantity: 1,
+          },
+        ],
+        metadata: {
+          invoice_id: invoiceId,
+          booking_id: input.booking_id,
+          customer_id: userId,
+          invoice_type: 'standard',
+        },
+        success_url: `${appUrl}/dashboard/bookings/${input.booking_id}?payment=success`,
+        cancel_url: `${appUrl}/dashboard/bookings/${input.booking_id}?payment=cancelled`,
+      })
+
+      stripeCheckoutUrl = session.url
+
+      await supabase.from('booking_invoices').update({
+        stripe_checkout_session_id: session.id,
+      }).eq('id', invoiceId)
+    }
+  }
+
+  // 5. Send notification email to admin and customer
+  const { data: userProfile } = await supabase.from('profiles').select('email, full_name').eq('id', userId).maybeSingle()
+  const bookingRef = booking.booking_reference ?? booking.id.slice(0, 8).toUpperCase()
+  const reg = aircraftData?.registration ?? 'Aircraft'
+  const bookingDateStr = new Date(booking.scheduled_start).toLocaleDateString('en-CA')
+
+  if (existingActiveRecord) {
+    void notifyFlightRecordResubmitted({
+      bookingId: input.booking_id,
+      bookingReference: bookingRef,
+      customerEmail: userProfile?.email ?? '',
+      customerName: userProfile?.full_name ?? booking.pic_name ?? 'Customer',
+      aircraft: reg,
+      bookingDate: bookingDateStr,
+      vdoHours: calc.billedVdoHours,
+      totalAmountCents: calc.subtotalCents,
+    })
+  } else {
+    void notifyFlightRecordSubmitted({
+      bookingId: input.booking_id,
+      bookingReference: bookingRef,
+      customerEmail: userProfile?.email ?? '',
+      customerName: userProfile?.full_name ?? booking.pic_name ?? 'Customer',
+      aircraft: reg,
+      bookingDate: bookingDateStr,
+    })
+  }
+
+  revalidatePath('/dashboard')
+  revalidatePath(`/dashboard/bookings/${input.booking_id}`)
+  revalidatePath('/dashboard/billing')
+  revalidatePath('/admin')
+  revalidatePath('/admin/bookings/post-flight')
+
+  void emitFlightRecordUpdated({ bookingId: input.booking_id, userId })
+  void emitBookingChanged({ bookingId: input.booking_id, userId })
+  void emitOpsChanged()
+
+  return {
+    flightRecordId,
+    invoiceId,
+    invoiceNumber: invoiceNumber!,
+    stripeCheckoutUrl,
+    amountDueCents: calc.amountDueCents,
+    settledImmediately: calc.amountDueCents === 0 || input.payment_method === 'bank_transfer' || input.payment_method === 'previous_payment',
+  }
+}
+
+
 // ─── Submit clarification response ────────────────────────────────────────────
 // Customer responds to an admin clarification request.
 // Status moves back to pending_confirmation so the admin can re-review.
@@ -877,19 +1415,27 @@ export async function uploadFlightRecordEvidence(
 
   // Build a unique, collision-safe storage path
   const ext     = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-  const safeExt = ['jpg', 'jpeg', 'png'].includes(ext) ? ext : 'jpg'
+  const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'pdf'].includes(ext) ? ext : 'jpg'
   const unique  = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`
   const storagePath = `${bookingId}/${flightRecordId}/${unique}.${safeExt}`
+  const adminSupabase = createAdminClient()
 
-  // Upload to bucket
-  const { error: uploadErr } = await supabase.storage
+  // Upload to bucket with fallback
+  let uploadErr = (await adminSupabase.storage
     .from('flight_record_evidence')
-    .upload(storagePath, file, { contentType: file.type })
+    .upload(storagePath, file, { contentType: file.type, upsert: false })).error
+
+  if (uploadErr) {
+    const fallbackRes = await adminSupabase.storage
+      .from('bank_transfer_receipts')
+      .upload(storagePath, file, { contentType: file.type, upsert: false })
+    uploadErr = fallbackRes.error
+  }
 
   if (uploadErr) throw new Error(`Upload failed: ${uploadErr.message}`)
 
   // Record metadata — atomic: if this fails, remove the orphaned file
-  const { data: attachment, error: dbErr } = await supabase
+  const { data: attachment, error: dbErr } = await adminSupabase
     .from('flight_record_attachments')
     .insert({
       flight_record_id:    flightRecordId,
@@ -907,7 +1453,7 @@ export async function uploadFlightRecordEvidence(
 
   if (dbErr || !attachment) {
     // Best-effort cleanup of the already-uploaded file
-    await supabase.storage.from('flight_record_evidence').remove([storagePath])
+    await adminSupabase.storage.from('flight_record_evidence').remove([storagePath])
     throw new Error('Failed to record attachment metadata. The file was not saved.')
   }
 
@@ -918,6 +1464,51 @@ export async function uploadFlightRecordEvidence(
 
   return { storagePath, attachmentId: attachment.id }
 }
+
+export async function uploadPostFlightBankTransferReceipt(
+  formData: FormData,
+): Promise<{ storagePath: string }> {
+  const { supabase, userId } = await requireCustomer()
+
+  const file = formData.get('receipt') as File | null
+  const bookingId = formData.get('bookingId') as string | null
+
+  if (!file || !bookingId) {
+    throw new Error('VALIDATION: Missing receipt file or booking ID.')
+  }
+
+  const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+  if (!validTypes.includes(file.type)) {
+    throw new Error('VALIDATION: Invalid file type. Please upload JPEG, PNG, WebP, or PDF.')
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error('VALIDATION: File is too large. Maximum size is 10MB.')
+  }
+
+  const fileExt = file.name.split('.').pop()
+  const filePath = `receipts/${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+  const adminSupabase = createAdminClient()
+
+  let uploadError = (await adminSupabase.storage
+    .from('bank_transfer_receipts')
+    .upload(filePath, file, { contentType: file.type, upsert: false })).error
+
+  if (uploadError) {
+    console.warn('[uploadPostFlightBankTransferReceipt] primary bucket failed, trying flight_record_evidence:', uploadError)
+    const fallbackRes = await adminSupabase.storage
+      .from('flight_record_evidence')
+      .upload(filePath, file, { contentType: file.type, upsert: false })
+    uploadError = fallbackRes.error
+  }
+
+  if (uploadError) {
+    console.error('[uploadPostFlightBankTransferReceipt] upload error:', uploadError)
+    throw new Error('Failed to upload bank transfer receipt. Please try again.')
+  }
+
+  return { storagePath: filePath }
+}
+
 
 // ─── Customer cancellation ────────────────────────────────────────────────────
 

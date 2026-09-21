@@ -441,6 +441,7 @@ export type SubmitFlightRecordInput = {
   landings?: number | null
   landing_rows?: FlightRecordLandingRow[]
   customer_notes?: string | null
+  minimum_vdo_decision?: 'enforce_minimum' | 'bill_actual' | null
   declaration_accepted?: boolean
   signature_type?: SignatureType
   signature_value?: string | null
@@ -471,6 +472,10 @@ export type ApproveFlightRecordInput = {
   correction_reason?: string | null
   admin_notes?: string | null
   admin_booking_notes?: string | null
+  allow_override?: boolean
+  vdo_total?: number | null
+  air_switch_total?: number | null
+  landing_rows?: Array<{ airport_id: string; landing_count: number | string }>
 }
 
 export type ResubmitFlightRecordInput = {

@@ -350,6 +350,10 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
           background: #ea580c;
           color: #ffffff;
         }
+        .status-badge.verification {
+          background: #d97706;
+          color: #ffffff;
+        }
         .status-badge.waived {
           background: #7c3aed;
           color: #ffffff;
@@ -757,13 +761,13 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
               <span class="meta-val">${escapeHtml(formatDate(isPaid ? input.paidAt ?? input.createdAt : input.dueAt ?? input.createdAt))}</span>
             </div>
 
-            <div class="status-badge ${isPaid ? 'paid' : isWaived ? 'waived' : 'pending'}">
+            <div class="status-badge ${isPaid ? 'paid' : isWaived ? 'waived' : (input.statusLabel?.includes('VERIFICATION') ? 'verification' : 'pending')}">
               ${
                 isPaid
                   ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="#ffffff"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg> PAID`
                   : isWaived
                   ? `WAIVED`
-                  : `PAYMENT REQUIRED`
+                  : escapeHtml(input.statusLabel || 'PAYMENT REQUIRED')
               }
             </div>
           </div>

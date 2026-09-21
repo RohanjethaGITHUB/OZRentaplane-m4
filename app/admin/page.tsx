@@ -49,6 +49,7 @@ type BookingRow = {
   booking_owner_user_id: string | null
   pic_name: string | null
   aircraft: AircraftRow | AircraftRow[] | null
+  flight_records?: Array<{ id: string; status: string; submitted_at: string }> | null
 }
 
 type BookingInvoiceRow = {
@@ -436,7 +437,7 @@ export default async function AdminActionsPage({
       .order('created_at', { ascending: false })),
     safeQuery('post-flight review rows', supabase
       .from('bookings')
-      .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration )')
+      .select('id, booking_reference, booking_type, status, scheduled_start, scheduled_end, created_at, updated_at, booking_owner_user_id, pic_name, aircraft ( id, registration ), flight_records ( id, status, submitted_at )')
       .eq('booking_type', 'standard')
       .eq('status', 'pending_post_flight_review')
       .order('updated_at', { ascending: false })),
@@ -975,25 +976,52 @@ export default async function AdminActionsPage({
     const aircraft = firstItem(booking.aircraft)
     const profile = profileFor(booking.booking_owner_user_id)
     const customerLabel = fullCustomerName(profile, booking.pic_name)
+    const frStatus = booking.flight_records?.[0]?.status
+
+    const isClarification = frStatus === 'needs_clarification'
+    const isResubmitted = frStatus === 'resubmitted'
+
+    const title = isClarification
+      ? 'Clarification Requested'
+      : isResubmitted
+      ? 'Flight Record Resubmitted'
+      : 'Payment Verification Required'
+
+    const description = isClarification
+      ? 'Clarification requested from customer. Awaiting updated readings or evidence.'
+      : isResubmitted
+      ? 'Customer updated and resubmitted their flight record. Review updated meters and verify payment.'
+      : 'Customer submitted post-flight readings and payment proof. Review meters and verify payment.'
+
+    const nextStep = isClarification
+      ? 'Awaiting customer response'
+      : 'Verify and approve'
+
+    const badgeTone = isClarification
+      ? ('warning' as const)
+      : isResubmitted
+      ? ('info' as const)
+      : ('warning' as const)
+
     return {
       key: `post-flight-${booking.id}`,
       groups: ['rental'] as WorkflowFilter[],
       badge: 'Rental' as const,
-      badgeTone: 'info' as const,
-      title: 'Post-flight review required',
-      description: 'Admin review is pending for the submitted flight record.',
+      badgeTone,
+      title,
+      description,
       customerLabel,
       customerEmail: profile?.email ?? null,
       customerPhone: formatCustomerPhone(profile),
       customerHref: booking.booking_owner_user_id ? `/admin/users/${booking.booking_owner_user_id}` : null,
       referenceLabel: booking.booking_reference ?? booking.id.slice(0, 8).toUpperCase(),
-      referenceHref: `/admin/bookings/requests/${booking.id}`,
+      referenceHref: `/admin/bookings/post-flight/${booking.id}`,
       aircraftLabel: aircraft?.registration ?? null,
       aircraftHref: aircraft?.id ? `/admin/aircraft/${aircraft.id}` : null,
       scheduleLabel: formatScheduleRange(booking.scheduled_start, booking.scheduled_end),
       receivedAt: booking.updated_at || booking.created_at,
-      nextStep: 'Review and complete',
-      href: `/admin/bookings/requests/${booking.id}`,
+      nextStep,
+      href: `/admin/bookings/post-flight/${booking.id}`,
     } satisfies ActionItem
   })
 

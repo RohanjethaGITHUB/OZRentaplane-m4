@@ -39,7 +39,7 @@ const STATUS_CFG: Record<string, {
   dispatched:                 { label: 'Airborne',                              sublabel: 'Flight in progress',        color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200',  icon: 'flight'             },
   awaiting_flight_record:     { label: 'Awaiting Record',                       sublabel: 'Please submit flight log',  color: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-200',  icon: 'assignment'         },
   flight_record_overdue:      { label: 'Record Overdue',                        sublabel: 'Flight log required',       color: 'text-red-700',    bg: 'bg-red-50',    border: 'border-red-200',    icon: 'assignment_late'    },
-  pending_post_flight_review: { label: 'Under Review',                          sublabel: 'Post-flight review',        color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200', icon: 'rate_review'        },
+  pending_post_flight_review: { label: 'Payment Verification Required',         sublabel: 'Flight log & payment under review', color: 'text-amber-800',  bg: 'bg-amber-50',  border: 'border-amber-300',  icon: 'verified_user'      },
   needs_clarification:        { label: 'Clarification Needed',                  sublabel: 'Team has a question',       color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200', icon: 'help'               },
   post_flight_approved:       { label: 'Flight Approved',                       sublabel: 'Records accepted',          color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200',  icon: 'verified'           },
   completed:                  { label: 'Completed',                             sublabel: 'Booking closed',            color: 'text-slate-600',  bg: 'bg-slate-50',  border: 'border-slate-200',  icon: 'done_all'           },
@@ -80,8 +80,8 @@ const STAT_ICONS: Record<string, string> = {
   'Upcoming Aircraft Bookings': 'calendar_month',
 }
 
-function StatusBadge({ status, bookingType, checkoutOutcome, isAwaitingManualPayment, pendingReschedule, hasBlockTimePayInvoice, blockTimePayInvoiceKind }: {
-  status: string; bookingType?: string; checkoutOutcome?: string | null; isAwaitingManualPayment?: boolean; pendingReschedule?: boolean; hasBlockTimePayInvoice?: boolean; blockTimePayInvoiceKind?: 'landing_fee' | 'overage' | null
+function StatusBadge({ status, bookingType, checkoutOutcome, isAwaitingManualPayment, pendingReschedule, hasBlockTimePayInvoice, blockTimePayInvoiceKind, flightRecordStatus }: {
+  status: string; bookingType?: string; checkoutOutcome?: string | null; isAwaitingManualPayment?: boolean; pendingReschedule?: boolean; hasBlockTimePayInvoice?: boolean; blockTimePayInvoiceKind?: 'landing_fee' | 'overage' | null; flightRecordStatus?: string | null
 }) {
   let cfg: { label: string; color: string; bg: string; border: string; icon?: string } = STATUS_CFG[status] ?? {
     label:  status.replace(/_/g, ' '),
@@ -97,6 +97,10 @@ function StatusBadge({ status, bookingType, checkoutOutcome, isAwaitingManualPay
     cfg = { label: 'Payment Verification Pending', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', icon: 'hourglass_empty' }
   } else if (status === 'payment_pending' && isAwaitingManualPayment) {
     cfg = { label: 'Payment Verification Pending', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', icon: 'hourglass_empty' }
+  } else if (status === 'pending_post_flight_review' && flightRecordStatus === 'needs_clarification') {
+    cfg = { label: 'Clarification Requested', color: 'text-amber-800', bg: 'bg-amber-50', border: 'border-amber-300', icon: 'warning' }
+  } else if (status === 'pending_post_flight_review' && flightRecordStatus === 'resubmitted') {
+    cfg = { label: 'Resubmitted — Under Review', color: 'text-emerald-800', bg: 'bg-emerald-50', border: 'border-emerald-300', icon: 'refresh' }
   } else if (status === 'payment_pending' && blockTimePayInvoiceKind === 'landing_fee') {
     cfg = { label: 'Landing Fee Pending', color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200', icon: 'payments' }
   } else if (hasBlockTimePayInvoice && (status === 'completed' || status === 'post_flight_approved')) {
@@ -1020,6 +1024,7 @@ export default async function CustomerBookingsPage() {
                                     : null
                                 }
                                 pendingReschedule={!!pendingReschedule}
+                                flightRecordStatus={booking.flight_records?.[0]?.status}
                               />
                             </div>
                             <div>
@@ -1107,6 +1112,8 @@ export default async function CustomerBookingsPage() {
                             pendingRescheduleRequest={pendingReschedule}
                             latestRescheduleRequest={latestReschedule}
                             hasNightVfrRating={profile?.has_night_vfr_rating ?? null}
+                            hasInvoice={Boolean(booking.bookingInvoice || booking.blockTimePayInvoice)}
+                            flightRecordStatus={booking.flight_records?.[0]?.status}
                           />
                         </div>
                       )

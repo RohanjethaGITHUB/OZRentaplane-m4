@@ -94,7 +94,7 @@ export default async function CustomerBillingPage() {
       .select('id, booking_reference, booking_type, scheduled_start, scheduled_end, estimated_hours, status, checkout_lifecycle_status, aircraft ( registration, display_name )')
       .eq('booking_owner_user_id', user.id)
       .order('scheduled_start', { ascending: false }),
-    supabase
+    createAdminClient()
       .from('booking_invoices')
       .select(`
         id, booking_id, customer_id, invoice_number, status, payment_method,
@@ -102,7 +102,7 @@ export default async function CustomerBillingPage() {
         pdf_url, vdo_reading, rate_cents_per_hour, base_amount_cents,
         landing_subtotal_cents, admin_notes, finalised_at, stripe_payment_intent_id
       `)
-      .eq('customer_id', user.id)
+      .or(`customer_id.eq.${user.id}`)
       .order('created_at', { ascending: false }),
     supabase
       .from('checkout_bank_transfer_submissions')
@@ -396,6 +396,8 @@ export default async function CustomerBillingPage() {
     const isSettled = bi.status === 'settled'
     const isPaid = bi.status === 'paid'
     const hasPendingVerification =
+      bi.status === 'payment_verification_required' ||
+      bi.status === 'bank_transfer_pending_review' ||
       pendingBkgSubByInvoice.has(bi.id) ||
       (bi.booking_id ? pendingBkgSubByInvoice.has(bi.booking_id) : false)
 
