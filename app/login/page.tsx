@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import LoginContent from './LoginContent'
@@ -23,5 +24,9 @@ export default async function LoginPage({
     redirect(nextPath)
   }
 
-  return <LoginContent />
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
+  )
 }

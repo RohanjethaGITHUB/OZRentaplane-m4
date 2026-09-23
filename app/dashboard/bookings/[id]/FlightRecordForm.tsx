@@ -26,6 +26,8 @@ type Props = {
   airports?: AirportBillingInfo[]
   activePackage?: ActiveBlockTimeSummary | null
   bookingSlotHours: number
+  scheduledStart?: string | Date | null
+  scheduledEnd?: string | Date | null
   is24HourBooking?: boolean
   customerCreditCents?: number
   defaultHourlyRate?: number
@@ -76,6 +78,8 @@ export default function FlightRecordForm({
   airports = [],
   activePackage = null,
   bookingSlotHours,
+  scheduledStart,
+  scheduledEnd,
   is24HourBooking = false,
   customerCreditCents = 0,
   defaultHourlyRate = 330,
@@ -277,6 +281,8 @@ export default function FlightRecordForm({
     return calculatePostFlightCharges({
       vdoTotal: enteredVdoTotal,
       bookingSlotHours,
+      scheduledStart,
+      scheduledEnd,
       defaultHourlyRate,
       airports,
       landingRows,
@@ -284,7 +290,7 @@ export default function FlightRecordForm({
       customerCreditCents,
       minimumVdoDecision,
     })
-  }, [enteredVdoTotal, bookingSlotHours, defaultHourlyRate, airports, landingRows, activePackage, customerCreditCents, minimumVdoDecision])
+  }, [enteredVdoTotal, bookingSlotHours, scheduledStart, scheduledEnd, defaultHourlyRate, airports, landingRows, activePackage, customerCreditCents, minimumVdoDecision])
 
   const effectiveUpfrontPaidCents = upfrontPaidCents ?? 0
   const grossSettlementCents = Math.max(0, calc.subtotalCents - calc.creditAppliedCents)

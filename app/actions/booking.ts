@@ -617,6 +617,8 @@ export async function submitAndPayPostFlight(
   const calc = calculatePostFlightCharges({
     vdoTotal: input.vdo_total,
     bookingSlotHours,
+    scheduledStart: booking.scheduled_start,
+    scheduledEnd: booking.scheduled_end,
     defaultHourlyRate,
     airports: (airportRows ?? []) as any[],
     landingRows: input.landing_rows ?? [],

@@ -641,6 +641,8 @@ function NextActionCard({
           flightDate={flightDate}
           activePackage={activePackage ?? null}
           bookingSlotHours={bookingSlotHours}
+          scheduledStart={scheduledStart}
+          scheduledEnd={scheduledEnd}
           is24HourBooking={is24HourBooking ?? false}
         />
       </div>
@@ -1881,6 +1883,8 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
                   airports={airports}
                   activePackage={activePackage as ActiveBlockTimePackage | null}
                   bookingSlotHours={bookingSlotHours}
+                  scheduledStart={booking.scheduled_start}
+                  scheduledEnd={booking.scheduled_end}
                   is24HourBooking={is24HourBooking}
                   customerCreditCents={customerCreditCents}
                   defaultHourlyRate={defaultHourlyRate}

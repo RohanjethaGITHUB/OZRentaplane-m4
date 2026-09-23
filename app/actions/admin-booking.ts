@@ -1189,6 +1189,8 @@ export async function requestPostFlightClarification(input: {
     const calc = calculatePostFlightCharges({
       vdoTotal: effectiveVdoTotal,
       bookingSlotHours,
+      scheduledStart: booking.scheduled_start,
+      scheduledEnd: booking.scheduled_end,
       defaultHourlyRate: PAYF_RATE_PER_HOUR,
       airports: (airportRows ?? []) as any[],
       landingRows: input.landing_rows ?? [],
@@ -3643,6 +3645,8 @@ export async function finaliseStandardBookingInvoice(input: {
   const bookingSlotHours = (scheduledEnd.getTime() - scheduledStart.getTime()) / (1000 * 60 * 60)
   const minimumVdoBilling = resolveMinimumVdoBilling({
     bookingSlotHours,
+    scheduledStart: booking.scheduled_start,
+    scheduledEnd: booking.scheduled_end,
     actualVdoHours: vdoReading,
     decision: input.minimumVdoDecision ?? null,
   })

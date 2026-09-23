@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import { buildReadingsFromTotals } from '@/lib/aircraft-flight-log'
 import { calculateAircraftReadingsTotals } from '@/lib/aircraft-readings'
 import {
+  calculateBookingDays,
   resolveMaximumVdoHours,
   resolveMinimumVdoBilling,
   resolveStandardBookingBillingBranch,
@@ -139,4 +140,47 @@ test('maximum VDO hours is 24h for same-day bookings and 24h per day for multi-d
   expect(sameDay.bookingDays).toBe(0)
   expect(sameDay.billedVdoHours).toBe(2)
   expect(2 > resolveMaximumVdoHours(sameDay.bookingDays)).toBe(false)
+})
+
+test('calculateBookingDays correctly resolves unique calendar days across Sydney dates', () => {
+  // 3-day booking: 23 Dec 10:00 AEDT to 25 Dec 02:45 AEDT (40.75h)
+  const threeDay = calculateBookingDays({
+    scheduledStart: '2026-12-23T10:00:00+11:00',
+    scheduledEnd: '2026-12-25T02:45:00+11:00',
+    bookingSlotHours: 40.75,
+  })
+  expect(threeDay).toBe(3)
+
+  const threeDayBilling = resolveMinimumVdoBilling({
+    bookingSlotHours: 40.75,
+    scheduledStart: '2026-12-23T10:00:00+11:00',
+    scheduledEnd: '2026-12-25T02:45:00+11:00',
+    actualVdoHours: 2.0,
+    decision: 'enforce_minimum',
+  })
+  expect(threeDayBilling.bookingDays).toBe(3)
+  expect(threeDayBilling.minimumVdoHours).toBe(12.0)
+  expect(threeDayBilling.billedVdoHours).toBe(12.0)
+
+  // 2-day booking: 23 Dec 10:00 AEDT to 24 Dec 18:00 AEDT (32h)
+  const twoDay = calculateBookingDays({
+    scheduledStart: '2026-12-23T10:00:00+11:00',
+    scheduledEnd: '2026-12-24T18:00:00+11:00',
+    bookingSlotHours: 32,
+  })
+  expect(twoDay).toBe(2)
+
+  // Same-day booking: 23 Dec 10:00 AEDT to 23 Dec 16:00 AEDT (6h)
+  const sameDay = calculateBookingDays({
+    scheduledStart: '2026-12-23T10:00:00+11:00',
+    scheduledEnd: '2026-12-23T16:00:00+11:00',
+    bookingSlotHours: 6,
+  })
+  // Formatted display strings with timezone label
+  const formattedDates = calculateBookingDays({
+    scheduledStart: '23 Dec 2026, 10:00 AM Sydney time (AEDT)',
+    scheduledEnd: '25 Dec 2026, 2:45 AM Sydney time (AEDT)',
+    bookingSlotHours: 40.75,
+  })
+  expect(formattedDates).toBe(3)
 })

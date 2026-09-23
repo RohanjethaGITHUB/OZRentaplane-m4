@@ -28,6 +28,9 @@ export type PostFlightCalculationParams = {
   activeBlockTime?: ActiveBlockTimeSummary | null
   customerCreditCents?: number
   minimumVdoDecision?: 'enforce_minimum' | 'bill_actual' | null
+  scheduledStart?: string | Date | null
+  scheduledEnd?: string | Date | null
+  bookingDays?: number | null
 }
 
 export type CalculatedLandingItem = {
@@ -76,12 +79,18 @@ export function calculatePostFlightCharges(params: PostFlightCalculationParams):
     activeBlockTime = null,
     customerCreditCents = 0,
     minimumVdoDecision = 'enforce_minimum',
+    scheduledStart,
+    scheduledEnd,
+    bookingDays,
   } = params
 
   const minimumVdoBilling = resolveMinimumVdoBilling({
     bookingSlotHours,
     actualVdoHours: vdoTotal,
     decision: minimumVdoDecision ?? 'enforce_minimum',
+    scheduledStart,
+    scheduledEnd,
+    bookingDays,
   })
 
   const billedVdoHours = minimumVdoBilling.billedVdoHours ?? vdoTotal

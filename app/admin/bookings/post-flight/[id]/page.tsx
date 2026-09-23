@@ -5,6 +5,7 @@ import { formatDateTime } from '@/lib/formatDateTime'
 import type { FlightRecordAttachment } from '@/lib/supabase/booking-types'
 import { getAircraftFlightLogStartSuggestions } from '@/lib/aircraft-flight-log'
 import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
+import { calculateBookingDays } from '@/lib/booking/standard-booking-billing'
 import PostFlightVerificationConsole, {
   type EvidenceAttachment,
   type LandingRowItem,
@@ -292,7 +293,11 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
   const bookingSlotHours = scheduledStart && scheduledEnd
     ? Math.max(0, (scheduledEnd.getTime() - scheduledStart.getTime()) / (1000 * 60 * 60))
     : 0
-  const bookingDays = bookingSlotHours && bookingSlotHours >= 24 ? Math.floor(bookingSlotHours / 24) : 0
+  const bookingDays = calculateBookingDays({
+    scheduledStart: booking?.scheduled_start,
+    scheduledEnd: booking?.scheduled_end,
+    bookingSlotHours,
+  })
   const minimumVdoHours = bookingDays * 4
 
   const hasBankTransfer = Boolean(bankSubmission)
@@ -303,6 +308,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
   )
 
   let cardPaidCents = 0
+  let stripeGrossChargedCents = 0
   let bankTransferPaidCents = 0
 
   if (hasStripePayment) {
@@ -315,10 +321,15 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
       .limit(1)
       .maybeSingle()
 
-    if (stripeLedger && stripeLedger.amount_cents > 0) {
-      cardPaidCents = stripeLedger.amount_cents
-    } else if (bookingInvoice?.total_paid_cents && bookingInvoice.total_paid_cents > 0) {
+    stripeGrossChargedCents = stripeLedger?.amount_cents || bookingInvoice?.stripe_gross_amount_cents || 0
+
+    // Priority: bookingInvoice.total_paid_cents represents the net subtotal paid by customer.
+    // stripeLedger.amount_cents is the gross card charge which includes the 1.7% + 30c card surcharge.
+    if (bookingInvoice?.total_paid_cents && bookingInvoice.total_paid_cents > 0) {
       cardPaidCents = bookingInvoice.total_paid_cents
+    } else if (stripeLedger && stripeLedger.amount_cents > 0) {
+      const surchargeCents = bookingInvoice?.online_payment_surcharge_cents ?? 0
+      cardPaidCents = Math.max(0, stripeLedger.amount_cents - surchargeCents)
     }
   }
 
@@ -367,6 +378,8 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
       flightDate={record.date || '—'}
       scheduledStartStr={scheduledStartStr}
       scheduledEndStr={scheduledEndStr}
+      scheduledStartISO={booking?.scheduled_start}
+      scheduledEndISO={booking?.scheduled_end}
       bookingSlotHours={bookingSlotHours}
       upfrontPaidCents={upfrontPaidCents}
       hasBankTransfer={hasBankTransfer}
@@ -374,6 +387,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
       isSplitPayment={isSplitPayment}
       bankTransferPaidCents={bankTransferPaidCents}
       cardPaidCents={cardPaidCents}
+      stripeGrossChargedCents={stripeGrossChargedCents}
       customerNotes={record.customer_notes}
       aircraftReg={aircraft?.registration || 'VH-KZG'}
       aircraftType={aircraft?.aircraft_type || 'Cessna 172'}

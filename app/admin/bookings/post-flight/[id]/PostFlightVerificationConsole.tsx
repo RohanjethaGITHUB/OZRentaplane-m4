@@ -9,6 +9,7 @@ import { LoadingButtonContent } from '@/components/ui/Spinner'
 import { formatDateTime } from '@/lib/formatDateTime'
 import { approvePostFlightReview, requestPostFlightClarification } from '@/app/actions/admin-booking'
 import { CLARIFICATION_CATEGORY_LABELS, type ClarificationCategory } from '@/lib/supabase/booking-types'
+import { calculateBookingDays } from '@/lib/booking/standard-booking-billing'
 import AirportSelect from '@/components/ui/AirportSelect'
 
 export type EvidenceAttachment = {
@@ -47,6 +48,8 @@ type Props = {
   flightDate: string
   scheduledStartStr: string
   scheduledEndStr: string
+  scheduledStartISO?: string | null
+  scheduledEndISO?: string | null
   customerNotes?: string | null
   aircraftReg: string
   aircraftType: string
@@ -92,6 +95,7 @@ type Props = {
   isSplitPayment?: boolean
   bankTransferPaidCents?: number
   cardPaidCents?: number
+  stripeGrossChargedCents?: number
 }
 
 const CATEGORIES = Object.entries(CLARIFICATION_CATEGORY_LABELS) as [ClarificationCategory, string][]
@@ -108,6 +112,8 @@ export default function PostFlightVerificationConsole({
   flightDate,
   scheduledStartStr,
   scheduledEndStr,
+  scheduledStartISO,
+  scheduledEndISO,
   bookingSlotHours,
   upfrontPaidCents,
   hasBankTransfer = false,
@@ -115,6 +121,7 @@ export default function PostFlightVerificationConsole({
   isSplitPayment = false,
   bankTransferPaidCents = 0,
   cardPaidCents = 0,
+  stripeGrossChargedCents = 0,
   customerNotes,
   aircraftReg,
   aircraftType,
@@ -186,7 +193,11 @@ export default function PostFlightVerificationConsole({
   const currentAirSwitchNum = editedAirSwitchTotal ? Number(editedAirSwitchTotal) : (airSwitchTotal ?? null)
 
   // Multi-day booking minimum policy calculations
-  const bookingDays = bookingSlotHours && bookingSlotHours >= 24 ? Math.floor(bookingSlotHours / 24) : 0
+  const bookingDays = calculateBookingDays({
+    scheduledStart: scheduledStartISO || scheduledStartStr,
+    scheduledEnd: scheduledEndISO || scheduledEndStr,
+    bookingSlotHours,
+  })
   const minimumVdoHours = bookingDays * 4
   const isMultiDayBooking = bookingDays > 0
   const isBelowMinimum = isMultiDayBooking && currentVdoNum < minimumVdoHours
@@ -1156,7 +1167,7 @@ export default function PostFlightVerificationConsole({
             )}
           </div>
         ) : (hasStripePayment || (cardPaidCents > 0) || (effectiveUpfrontPaidCents > 0)) ? (
-          <div className="flex items-center justify-between rounded-2xl bg-emerald-50/60 p-4 border border-emerald-200">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-2xl bg-emerald-50/60 p-4 border border-emerald-200 gap-3">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white">
                 <span className="material-symbols-outlined text-xl">credit_card</span>
@@ -1166,6 +1177,11 @@ export default function PostFlightVerificationConsole({
                 <p className="text-[11px] text-slate-500 font-medium">
                   Online Card Payment (Stripe Verified)
                 </p>
+                {stripeGrossChargedCents > 0 && stripeGrossChargedCents > (cardPaidCents > 0 ? cardPaidCents : effectiveUpfrontPaidCents) && (
+                  <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                    Gross Charged: ${(stripeGrossChargedCents / 100).toFixed(2)} (includes ${((stripeGrossChargedCents - (cardPaidCents > 0 ? cardPaidCents : effectiveUpfrontPaidCents)) / 100).toFixed(2)} online card processing surcharge)
+                  </p>
+                )}
               </div>
             </div>
             <div className="text-right">
@@ -1224,11 +1240,19 @@ export default function PostFlightVerificationConsole({
           </div>
 
           {currentLandingSubtotalCents > 0 && (
-            <div className="flex justify-between text-slate-700">
-              <span>Airport Landing Fees Subtotal:</span>
-              <span className="font-semibold text-slate-900 tabular-nums">
-                ${(currentLandingSubtotalCents / 100).toFixed(2)}
-              </span>
+            <div className="space-y-1">
+              <div className="flex justify-between text-slate-700">
+                <span>Airport Landing Fees Subtotal:</span>
+                <span className="font-semibold text-slate-900 tabular-nums">
+                  ${(currentLandingSubtotalCents / 100).toFixed(2)}
+                </span>
+              </div>
+              {calculatedLandings.map((cl, i) => (
+                <div key={i} className="flex justify-between text-[11px] text-slate-500 pl-3">
+                  <span>{cl.icaoCode} &middot; {cl.airportName} (${(cl.rateCents / 100).toFixed(2)} &times; {cl.landingCount})</span>
+                  <span className="tabular-nums font-medium">${(cl.totalCents / 100).toFixed(2)}</span>
+                </div>
+              ))}
             </div>
           )}
 

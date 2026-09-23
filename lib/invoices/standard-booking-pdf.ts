@@ -315,11 +315,11 @@ export async function generateStandardBookingInvoicePdf(params: {
   let splitCardAmount = 0
 
   if (isSplitPayment) {
-    if (stripeLedger && stripeLedger.amount_cents > 0) {
-      splitCardAmount = roundToCents(stripeLedger.amount_cents / 100)
-    } else {
-      splitCardAmount = 0
-    }
+    const cardSurcharge = Number(invoice.online_payment_surcharge_cents || 0)
+    const netCardAmount = (invoice.total_paid_cents && invoice.total_paid_cents > 0 && !hasBankTransfer)
+      ? invoice.total_paid_cents
+      : Math.max(0, (stripeLedger?.amount_cents || 0) - cardSurcharge)
+    splitCardAmount = roundToCents(netCardAmount / 100)
     const invTotal = roundToCents(invoice.subtotal_cents / 100)
     splitBankAmount = roundToCents(Math.max(0, invTotal - splitCardAmount))
   }
