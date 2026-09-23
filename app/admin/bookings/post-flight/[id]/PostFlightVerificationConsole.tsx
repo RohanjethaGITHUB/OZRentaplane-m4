@@ -9,6 +9,7 @@ import { LoadingButtonContent } from '@/components/ui/Spinner'
 import { formatDateTime } from '@/lib/formatDateTime'
 import { approvePostFlightReview, requestPostFlightClarification } from '@/app/actions/admin-booking'
 import { CLARIFICATION_CATEGORY_LABELS, type ClarificationCategory } from '@/lib/supabase/booking-types'
+import AirportSelect from '@/components/ui/AirportSelect'
 
 export type EvidenceAttachment = {
   id: string
@@ -86,6 +87,11 @@ type Props = {
   // Multi-day & Upfront Paid
   bookingSlotHours?: number
   upfrontPaidCents?: number
+  hasBankTransfer?: boolean
+  hasStripePayment?: boolean
+  isSplitPayment?: boolean
+  bankTransferPaidCents?: number
+  cardPaidCents?: number
 }
 
 const CATEGORIES = Object.entries(CLARIFICATION_CATEGORY_LABELS) as [ClarificationCategory, string][]
@@ -104,6 +110,11 @@ export default function PostFlightVerificationConsole({
   scheduledEndStr,
   bookingSlotHours,
   upfrontPaidCents,
+  hasBankTransfer = false,
+  hasStripePayment = false,
+  isSplitPayment = false,
+  bankTransferPaidCents = 0,
+  cardPaidCents = 0,
   customerNotes,
   aircraftReg,
   aircraftType,
@@ -333,9 +344,12 @@ export default function PostFlightVerificationConsole({
         flightRecordId,
         bookingId,
         customerId,
-        category: CLARIFICATION_CATEGORY_LABELS['meter_reading_mismatch'],
+        category: isMultiDayBooking && currentVdoNum === minimumVdoHours
+          ? 'Multi-Day Rental Minimum Billing Policy'
+          : CLARIFICATION_CATEGORY_LABELS['meter_reading_mismatch'],
         message: finalMsg,
         vdo_total: currentVdoNum,
+        preserve_actual_meters: isMultiDayBooking && currentVdoNum === minimumVdoHours,
         air_switch_total: currentAirSwitchNum ?? undefined,
         landing_rows: editedLandings.map((l) => ({ airport_id: l.airportId, landing_count: l.landingCount })),
       })
@@ -801,11 +815,6 @@ export default function PostFlightVerificationConsole({
                   Billed
                 </span>
               </div>
-              {vdoBaseline != null && (
-                <span className="text-[11px] text-slate-500 font-mono">
-                  Start: {Number(vdoBaseline).toFixed(1)}
-                </span>
-              )}
             </div>
 
             <div className="space-y-1.5 pt-1">
@@ -835,11 +844,6 @@ export default function PostFlightVerificationConsole({
                   Flight Log
                 </span>
               </div>
-              {airSwitchBaseline != null && (
-                <span className="text-[11px] text-slate-500 font-mono">
-                  Start: {Number(airSwitchBaseline).toFixed(1)}
-                </span>
-              )}
             </div>
 
             <div className="space-y-1.5 pt-1">
@@ -931,17 +935,11 @@ export default function PostFlightVerificationConsole({
                 </span>
 
                 <div className="flex-1">
-                  <select
+                  <AirportSelect
                     value={row.airportId}
-                    onChange={(e) => handleUpdateLandingAirport(idx, e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs font-semibold text-slate-900 focus:border-[#1a4fd6] focus:outline-none"
-                  >
-                    {availableAirports.map((apt) => (
-                      <option key={apt.id} value={apt.id}>
-                        {apt.icao_code} &mdash; {apt.name} (${((apt.default_landing_fee_cents ?? 2895) / 100).toFixed(2)})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => handleUpdateLandingAirport(idx, val)}
+                    options={availableAirports}
+                  />
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -997,7 +995,112 @@ export default function PostFlightVerificationConsole({
           )}
         </div>
 
-        {paymentMethod === 'bank_transfer' ? (
+        {isSplitPayment ? (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200 gap-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-[#1a4fd6]">
+                  <span className="material-symbols-outlined text-sm">call_split</span>
+                </span>
+                <span className="font-bold text-slate-800 text-xs">
+                  Split Payment Settlement (2 Separate Transactions Verified)
+                </span>
+              </div>
+              <span className="text-xs font-semibold text-slate-600">
+                Total Covered: <strong className="text-emerald-700 font-bold">${((bankTransferPaidCents + cardPaidCents) / 100).toFixed(2)} AUD</strong>
+              </span>
+            </div>
+
+            {/* Transaction 1: Stripe Online Card Payment (Initial Upfront) */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-2xl bg-emerald-50/60 p-4 border border-emerald-200 gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white">
+                  <span className="material-symbols-outlined text-xl">credit_card</span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-bold text-slate-900">1. Stripe Online Card Payment</p>
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                      Initial Upfront Payment
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Online Card Payment (Stripe Verified)
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-base font-bold text-emerald-800 tabular-nums">
+                  ${(cardPaidCents / 100).toFixed(2)}
+                </p>
+                <p className="text-[10px] uppercase font-bold text-emerald-700">Online Paid via Stripe</p>
+              </div>
+            </div>
+
+            {/* Transaction 2: NAB Direct Bank Transfer (Remaining Balance) */}
+            <div className="space-y-3 rounded-2xl bg-blue-50/50 p-4 border border-blue-200/80">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1a4fd6] text-white">
+                    <span className="material-symbols-outlined text-xl">account_balance</span>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-bold text-slate-900">2. NAB Direct Bank Transfer</p>
+                      <span className="text-[10px] font-bold text-blue-700 bg-blue-100/90 px-2 py-0.5 rounded-md">
+                        Remaining Balance Settlement
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 font-mono">
+                      BSB: 085-005 &middot; Acc: 388004197 (JAM Aviation PTY LTD)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <p className="text-base font-bold text-[#1a4fd6] tabular-nums">
+                    ${(bankTransferPaidCents / 100).toFixed(2)}
+                  </p>
+                  <p className="text-[10px] uppercase font-bold text-blue-700">
+                    {isSettled ? 'Verified & Settled' : 'Proof Uploaded (Pending Admin Verification)'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="rounded-xl border border-slate-200/80 bg-white p-3">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Payment Reference</span>
+                  <span className="font-mono font-bold text-slate-900 text-sm">{bankReference || '—'}</span>
+                </div>
+                <div className="rounded-xl border border-slate-200/80 bg-white p-3">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
+                    Submitted Timestamp
+                  </span>
+                  <span className="font-medium text-slate-800">
+                    {bankSubmittedAt ? formatDateTime(bankSubmittedAt) : '—'}
+                  </span>
+                </div>
+              </div>
+
+              {bankReceiptSignedUrl ? (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setBankReceiptViewerOpen(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/80 p-3.5 text-xs font-bold text-[#1a4fd6] transition-all hover:border-[#1a4fd6] hover:bg-blue-100/60"
+                  >
+                    <span className="material-symbols-outlined text-lg">open_in_new</span>
+                    View Uploaded Bank Transfer Receipt Document ({bankReceiptFilename || 'Receipt File'})
+                  </button>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-800">
+                  No bank transfer receipt image file was attached.
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (hasBankTransfer || paymentMethod === 'bank_transfer') ? (
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-2xl bg-blue-50/60 p-4 border border-blue-200/80 gap-3">
               <div className="flex items-center gap-3">
@@ -1013,7 +1116,9 @@ export default function PostFlightVerificationConsole({
               </div>
 
               <div className="text-right">
-                <p className="text-base font-bold text-[#1a4fd6] tabular-nums">{formattedTotal}</p>
+                <p className="text-base font-bold text-[#1a4fd6] tabular-nums">
+                  ${((bankTransferPaidCents > 0 ? bankTransferPaidCents : effectiveUpfrontPaidCents) / 100).toFixed(2)}
+                </p>
                 <p className="text-[10px] uppercase font-bold text-blue-700">Proof Uploaded</p>
               </div>
             </div>
@@ -1050,7 +1155,7 @@ export default function PostFlightVerificationConsole({
               </div>
             )}
           </div>
-        ) : (
+        ) : (hasStripePayment || (cardPaidCents > 0) || (effectiveUpfrontPaidCents > 0)) ? (
           <div className="flex items-center justify-between rounded-2xl bg-emerald-50/60 p-4 border border-emerald-200">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white">
@@ -1058,14 +1163,34 @@ export default function PostFlightVerificationConsole({
               </div>
               <div>
                 <p className="text-xs font-bold text-slate-900">Stripe Online Card Payment</p>
-                <p className="text-[11px] text-slate-500 font-mono">
-                  {stripePaymentIntentId || 'Online Checkout Intent'}
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Online Card Payment (Stripe Verified)
                 </p>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-base font-bold text-emerald-800 tabular-nums">{formattedTotal}</p>
+              <p className="text-base font-bold text-emerald-800 tabular-nums">
+                ${((cardPaidCents > 0 ? cardPaidCents : effectiveUpfrontPaidCents) / 100).toFixed(2)}
+              </p>
               <p className="text-[10px] uppercase font-bold text-emerald-700">Online Paid</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between rounded-2xl bg-amber-50/60 p-4 border border-amber-200">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500 text-white">
+                <span className="material-symbols-outlined text-xl">pending</span>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900">Awaiting Customer Payment</p>
+                <p className="text-[11px] text-amber-700">
+                  Customer selected online payment but checkout has not been completed.
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-base font-bold text-amber-800 tabular-nums">$0.00</p>
+              <p className="text-[10px] uppercase font-bold text-amber-700">Payment Pending</p>
             </div>
           </div>
         )}
@@ -1122,14 +1247,44 @@ export default function PostFlightVerificationConsole({
             <span className="text-lg text-[#1a4fd6] tabular-nums">{formattedTotal}</span>
           </div>
 
-          {effectiveUpfrontPaidCents > 0 && (
+          {isSplitPayment ? (
+            <div className="mt-3 space-y-2.5 rounded-xl bg-slate-50/90 p-4 border border-slate-200 text-xs">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                Payments Received on File Breakdown
+              </span>
+              <div className="flex justify-between items-center text-slate-700 font-medium">
+                <span className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm text-[#1a4fd6]">account_balance</span>
+                  1. Initial NAB Direct Bank Transfer:
+                </span>
+                <span className="font-bold text-blue-700 tabular-nums">
+                  ${(bankTransferPaidCents / 100).toFixed(2)} AUD
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-slate-700 font-medium">
+                <span className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm text-emerald-600">credit_card</span>
+                  2. Stripe Online Card Top-Up:
+                </span>
+                <span className="font-bold text-emerald-700 tabular-nums">
+                  ${(cardPaidCents / 100).toFixed(2)} AUD
+                </span>
+              </div>
+              <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-slate-900 font-bold">
+                <span>Total Upfront &amp; Online Payments:</span>
+                <span className="text-emerald-800 tabular-nums font-bold">
+                  ${(effectiveUpfrontPaidCents / 100).toFixed(2)} AUD
+                </span>
+              </div>
+            </div>
+          ) : effectiveUpfrontPaidCents > 0 ? (
             <div className="flex justify-between items-center text-slate-600 font-medium pt-1">
-              <span>Upfront Customer Payment on File:</span>
+              <span>Customer Payment on File ({hasBankTransfer || paymentMethod === 'bank_transfer' ? 'NAB Bank Transfer' : 'Stripe Card'}):</span>
               <span className="tabular-nums text-emerald-700 font-bold">
-                -${(effectiveUpfrontPaidCents / 100).toFixed(2)}
+                ${(effectiveUpfrontPaidCents / 100).toFixed(2)}
               </span>
             </div>
-          )}
+          ) : null}
 
           {effectiveUpfrontPaidCents > 0 && remainingBalanceCents > 0 && (
             <div className="p-3.5 rounded-xl border flex items-center justify-between font-bold transition-all bg-amber-50/90 border-amber-300 text-amber-950">
@@ -1542,7 +1697,7 @@ export default function PostFlightVerificationConsole({
                     Customer Clarification Notice
                   </p>
                   <p className="text-[11px] leading-relaxed">
-                    Sending this request will update the record status to <strong>Needs Clarification</strong>, dispatch an immediate email with your notes and updated invoice amount ({formattedTotal}) to <strong>{customerEmail}</strong>, and unlock the pilot portal for resubmission or top-up payment.
+                    Sending this request will update the record status to <strong>Needs Clarification</strong>, dispatch an immediate email with your notes and updated invoice amount ({formattedTotal}) to <strong>{customerEmail}</strong>, and unlock the pilot portal for resubmission or remaining payment.
                   </p>
                 </div>
 

@@ -18,7 +18,9 @@ import {
   emitClearanceUpdated,
   emitOpsChanged,
   emitPaymentUpdated,
+  emitFlightRecordUpdated,
 } from "@/lib/realtime/emit";
+import { renderBaseTemplate } from "@/lib/email/templates/base-template";
 
 function logErr(step: string, err: any) {
   console.error(`[webhook] ${step}`, {
@@ -1133,6 +1135,10 @@ export async function POST(req: Request) {
         ? session.payment_intent
         : (session.payment_intent as any)?.id ?? null;
 
+    const isPostFlight =
+      session.metadata?.flow === "post_flight" ||
+      session.metadata?.is_post_flight === "true";
+
     const amountPaid = session.amount_total ?? 0;
 
     console.log("[webhook] Extracted metadata", {
@@ -1140,16 +1146,18 @@ export async function POST(req: Request) {
       bookingId,
       customerId,
       invoiceType,
+      isPostFlight,
       sessionId: session.id,
       paymentIntentId,
       amountPaid,
     });
 
-    if (!invoiceId || !bookingId || !customerId) {
+    if ((!isPostFlight && !invoiceId) || !bookingId || !customerId) {
       console.error("[webhook] Missing required metadata - aborting", {
         invoiceId,
         bookingId,
         customerId,
+        isPostFlight,
       });
       return NextResponse.json({ received: true });
     }
@@ -1165,6 +1173,296 @@ export async function POST(req: Request) {
     const supabase = createClient(supabaseUrl, serviceKey);
 
     if (invoiceType === "standard") {
+      const [{ data: bookingRecord }, { data: invRecord }] = await Promise.all([
+        supabase
+          .from("bookings")
+          .select("id, status, booking_reference, scheduled_start, aircraft_id, aircraft:aircraft_id(registration, aircraft_type), flight_records(id, status)")
+          .eq("id", bookingId)
+          .maybeSingle(),
+        invoiceId
+          ? supabase
+              .from("booking_invoices")
+              .select("id, invoice_number, subtotal_cents, total_paid_cents, status")
+              .eq("id", invoiceId)
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null } as any),
+      ]);
+
+      const isPostFlightBooking =
+        isPostFlight ||
+        bookingRecord?.status === "pending_post_flight_review" ||
+        Boolean(
+          bookingRecord?.flight_records &&
+          (Array.isArray(bookingRecord.flight_records)
+            ? bookingRecord.flight_records
+            : [bookingRecord.flight_records]
+          ).some((fr: any) =>
+            ["submitted", "resubmitted", "needs_clarification", "draft"].includes(fr.status)
+          )
+        );
+
+      if (isPostFlightBooking) {
+        console.log("[webhook] Standard invoice post-flight payment received via Stripe - recording payment and holding for admin verification", {
+          invoiceId,
+          bookingId,
+          amountPaid,
+        });
+
+        await markEventProcessed(supabase, event);
+
+        // Authoritative total paid: subtotal_cents is fully covered now (including upfront + remaining balance)
+        let targetInvoiceId = invoiceId;
+        if (!targetInvoiceId) {
+          const { data: existingInv } = await supabase
+            .from("booking_invoices")
+            .select("id, invoice_number, subtotal_cents, total_paid_cents")
+            .eq("booking_id", bookingId)
+            .maybeSingle();
+
+          if (existingInv) {
+            targetInvoiceId = existingInv.id;
+          }
+        }
+
+        const sessionTotal = session.amount_total ?? amountPaid;
+        const baseAmountCents = Number(session.metadata?.base_amount_paid_cents) || (invRecord?.subtotal_cents ?? 0);
+        const webhookSurchargeCents = Math.max(0, sessionTotal - baseAmountCents);
+        const effectiveSubtotal = Number(session.metadata?.subtotal_cents) || baseAmountCents || (invRecord?.subtotal_cents ?? 0);
+        const totalPaidCents = effectiveSubtotal > 0
+          ? effectiveSubtotal
+          : ((invRecord?.total_paid_cents || 0) + amountPaid);
+
+        if (!targetInvoiceId) {
+          const invoiceNumber = `BKINV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${new Date().toTimeString().slice(0, 8).replace(/:/g, '')}-${bookingId.slice(0, 6).toUpperCase()}`;
+          const { data: newInv } = await supabase
+            .from("booking_invoices")
+            .insert({
+              booking_id: bookingId,
+              customer_id: customerId,
+              invoice_number: invoiceNumber,
+              status: "payment_verification_required",
+              currency: "aud",
+              vdo_reading: Number(session.metadata?.billed_vdo_hours) || null,
+              rate_cents_per_hour: Number(session.metadata?.rate_cents_per_hour) || 33000,
+              base_amount_cents: Number(session.metadata?.flight_base_cents) || 0,
+              landing_subtotal_cents: Number(session.metadata?.landing_subtotal_cents) || 0,
+              subtotal_cents: effectiveSubtotal,
+              advance_applied_cents: Number(session.metadata?.credit_applied_cents) || 0,
+              stripe_amount_due_cents: 0,
+              total_paid_cents: totalPaidCents,
+              payment_method: "card",
+              stripe_payment_intent_id: paymentIntentId,
+              stripe_checkout_session_id: session.id,
+              online_payment_surcharge_cents: webhookSurchargeCents > 0 ? webhookSurchargeCents : undefined,
+              stripe_gross_amount_cents: sessionTotal > 0 ? sessionTotal : undefined,
+              paid_at: new Date().toISOString(),
+              finalised_by: customerId,
+              finalised_at: new Date().toISOString(),
+              admin_notes: session.metadata?.customer_notes || null,
+            })
+            .select("id")
+            .single();
+
+          if (newInv?.id) {
+            targetInvoiceId = newInv.id;
+          }
+
+          if (session.metadata?.landing_items && targetInvoiceId) {
+            try {
+              const landingItems = JSON.parse(session.metadata.landing_items);
+              if (Array.isArray(landingItems) && landingItems.length > 0) {
+                await supabase.from("booking_landing_charges").delete().eq("booking_invoice_id", targetInvoiceId);
+                await supabase.from("booking_landing_charges").insert(
+                  landingItems.map((item: any) => ({
+                    booking_invoice_id: targetInvoiceId,
+                    booking_id: bookingId,
+                    airport_id: item.airportId,
+                    landing_count: item.landingCount,
+                    unit_amount_cents: item.unitAmountCents,
+                    total_amount_cents: item.totalAmountCents,
+                  }))
+                );
+              }
+            } catch (e) {
+              console.warn("[webhook] Landing items metadata parse error (non-critical):", e);
+            }
+          }
+        } else {
+          await supabase
+            .from("booking_invoices")
+            .update({
+              payment_method: "card",
+              stripe_payment_intent_id: paymentIntentId,
+              stripe_checkout_session_id: session.id,
+              total_paid_cents: totalPaidCents,
+              online_payment_surcharge_cents: webhookSurchargeCents > 0 ? webhookSurchargeCents : undefined,
+              stripe_gross_amount_cents: sessionTotal > 0 ? sessionTotal : undefined,
+              stripe_amount_due_cents: 0,
+              paid_at: new Date().toISOString(),
+              status: "payment_verification_required",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", targetInvoiceId);
+        }
+
+        await supabase
+          .from("bookings")
+          .update({
+            status: "pending_post_flight_review",
+            payment_status: "final_pending",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", bookingId);
+
+        const flightRecordsList = Array.isArray(bookingRecord?.flight_records)
+          ? bookingRecord.flight_records
+          : (bookingRecord?.flight_records ? [bookingRecord.flight_records] : []);
+        const clarificationFr = flightRecordsList.find((fr: any) => fr.status === "needs_clarification");
+        if (clarificationFr) {
+          await supabase
+            .from("flight_records")
+            .update({
+              status: "resubmitted",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", clarificationFr.id);
+
+          await supabase
+            .from("flight_record_clarifications")
+            .update({ is_resolved: true, resolved_at: new Date().toISOString() })
+            .or(`flight_record_id.eq.${clarificationFr.id},booking_id.eq.${bookingId}`);
+        }
+
+        const draftFr = flightRecordsList.find((fr: any) => fr.status === "draft");
+        if (draftFr) {
+          await supabase
+            .from("flight_records")
+            .update({
+              status: "pending_review",
+              submitted_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", draftFr.id);
+        }
+
+        void requestPdfGeneration({
+          type: "standard_booking",
+          invoiceId: targetInvoiceId,
+        });
+
+        await supabase.from("customer_payment_ledger").insert({
+          customer_id: customerId,
+          booking_id: bookingId,
+          invoice_id: targetInvoiceId,
+          invoice_source_type: "booking",
+          amount_cents: amountPaid,
+          currency: "aud",
+          entry_type: "stripe_payment",
+          payment_method: "card",
+          note: "Post-flight card payment received via Stripe (awaiting admin review)",
+          stripe_payment_intent_id: paymentIntentId,
+          stripe_checkout_session_id: session.id,
+        }).then(({ error: e }) => {
+          if (e) console.warn("[webhook] post-flight payment ledger insert (non-critical)", e.message);
+        });
+
+        await supabase
+          .from("booking_status_history")
+          .insert({
+            booking_id: bookingId,
+            old_status: bookingRecord?.status ?? "pending_post_flight_review",
+            new_status: "pending_post_flight_review",
+            note: `Post-flight card payment of $${(amountPaid / 100).toFixed(2)} AUD received via Stripe. Awaiting admin flight verification and approval.`,
+            changed_by_user_id: null,
+          })
+          .then(({ error: e }) => {
+            if (e) console.warn("[webhook] post-flight status_history insert FAILED (non-critical)", e.message);
+          });
+
+        await supabase.from("verification_events").insert({
+          user_id: customerId,
+          actor_role: "system",
+          event_type: "submitted",
+          title: "Flight payment received - pending admin review",
+          body: "Your post-flight card payment has been received via Stripe. Your flight record is now awaiting admin review and verification.",
+          is_read: false,
+          email_status: "skipped",
+        });
+
+        const [{ data: custProfile }] = await Promise.all([
+          supabase.from("profiles").select("email, full_name").eq("id", customerId).maybeSingle(),
+        ]);
+
+        const aircraftData = Array.isArray(bookingRecord?.aircraft) ? bookingRecord.aircraft[0] : bookingRecord?.aircraft;
+        const reg = aircraftData?.registration ?? "Aircraft";
+        const bookingRef = bookingRecord?.booking_reference ?? bookingId.slice(0, 8).toUpperCase();
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+
+        if (ADMIN_EMAIL) {
+          try {
+            await sendEmail({
+              to: ADMIN_EMAIL,
+              subject: `[Admin Action Required] Post-Flight Card Payment Received: ${custProfile?.full_name ?? "Pilot"} — ${reg} (${bookingRef})`,
+              html: renderBaseTemplate({
+                headline: "Post-Flight Card Payment Received",
+                message: `The customer has settled the remaining balance of $${(amountPaid / 100).toFixed(2)} AUD online via Stripe card payment. The flight record and payment are ready for your review and final approval.`,
+                details: [
+                  { label: "Customer", value: custProfile?.full_name ?? "Pilot" },
+                  { label: "Email", value: custProfile?.email ?? "" },
+                  { label: "Booking Ref", value: bookingRef },
+                  { label: "Aircraft", value: reg },
+                  { label: "Amount Paid", value: `$${(amountPaid / 100).toFixed(2)} AUD` },
+                  { label: "Payment Method", value: "Stripe Online Card" },
+                  { label: "Status", value: "Pending Post-Flight Review" },
+                ],
+                ctaLabel: "Review & Settle Flight",
+                ctaUrl: `${appUrl}/admin/bookings/post-flight/${bookingId}`,
+              }),
+              eventType: "admin_payment_settled",
+              entityType: "booking",
+              entityId: bookingId,
+            });
+          } catch (emailErr) {
+            console.warn("[webhook] Admin post-flight payment notification email failed (non-fatal):", emailErr);
+          }
+        }
+
+        if (custProfile?.email) {
+          try {
+            await sendEmail({
+              to: custProfile.email,
+              subject: `Payment Received — Flight Record Under Review (${bookingRef})`,
+              html: renderBaseTemplate({
+                headline: "Flight Payment Received",
+                message: `Thank you. Your card payment of $${(amountPaid / 100).toFixed(2)} AUD has been received and recorded. Your flight record and meter readings are currently being reviewed and verified by our operations team. You will receive your finalized receipt once approved.`,
+                details: [
+                  { label: "Booking Ref", value: bookingRef },
+                  { label: "Aircraft", value: reg },
+                  { label: "Amount Paid", value: `$${(amountPaid / 100).toFixed(2)} AUD` },
+                  { label: "Payment Method", value: "Card (Stripe Online)" },
+                  { label: "Status", value: "Under Review by Operations" },
+                ],
+                ctaLabel: "View Booking Details",
+                ctaUrl: `${appUrl}/dashboard/bookings/${bookingId}`,
+              }),
+              eventType: "post_flight_payment_received",
+              entityType: "booking",
+              entityId: bookingId,
+            });
+          } catch (emailErr) {
+            console.warn("[webhook] Customer post-flight payment confirmation email failed (non-fatal):", emailErr);
+          }
+        }
+
+        void emitPaymentUpdated({ userId: customerId, bookingId, invoiceId: targetInvoiceId });
+        void emitBookingChanged({ bookingId, userId: customerId });
+        void emitOpsChanged();
+        void emitFlightRecordUpdated({ bookingId, userId: customerId });
+
+        console.log("[webhook] post-flight online payment successfully recorded and queued for admin review ✓", { invoiceId: targetInvoiceId, bookingId });
+        return NextResponse.json({ received: true });
+      }
+
       console.log("[webhook] Calling mark_booking_invoice_paid_atomic", { invoiceId });
 
       const { error: rpcErr } = await supabase.rpc("mark_booking_invoice_paid_atomic", {
@@ -1195,7 +1493,7 @@ export async function POST(req: Request) {
         invoice_source_type: "booking",
         amount_cents: amountPaid,
         currency: "aud",
-        entry_type: "stripe_charge",
+        entry_type: "stripe_payment",
         payment_method: "card",
         note: "Paid online via Stripe",
         stripe_payment_intent_id: paymentIntentId,

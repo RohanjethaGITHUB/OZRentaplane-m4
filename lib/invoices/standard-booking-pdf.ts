@@ -76,6 +76,7 @@ export async function generateStandardBookingInvoicePdf(params: {
     { data: profile, error: profileErr },
     { data: landingCharges, error: landingErr },
     { data: flightLog },
+    { data: bankSub },
   ] = await Promise.all([
     supabase
       .from('bookings')
@@ -96,6 +97,13 @@ export async function generateStandardBookingInvoicePdf(params: {
       .from('aircraft_flight_logs')
       .select('vdo_start, vdo_stop, vdo_total, tacho_start, tacho_stop, tacho_total, air_switch_start, air_switch_stop, air_switch_total, flight_time_hours, landings')
       .eq('related_booking_id', invoice.booking_id)
+      .maybeSingle(),
+    supabase
+      .from('booking_bank_transfer_submissions')
+      .select('id, reference, submitted_at, status')
+      .or(`invoice_id.eq.${invoice.id},booking_id.eq.${invoice.booking_id}`)
+      .order('submitted_at', { ascending: false })
+      .limit(1)
       .maybeSingle(),
   ])
 
@@ -245,21 +253,49 @@ export async function generateStandardBookingInvoicePdf(params: {
     }),
   ]
 
+  // Check if customer made a stripe payment (ledger or invoice)
+  const { data: stripeLedger } = await supabase
+    .from('customer_payment_ledger')
+    .select('amount_cents, payment_method, entry_type')
+    .or(`invoice_id.eq.${invoice.id},booking_id.eq.${invoice.booking_id}`)
+    .in('entry_type', ['stripe_payment', 'stripe_charge'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const hasBankTransfer = Boolean(bankSub)
+  const hasStripePayment = Boolean(
+    stripeLedger ||
+    (invoice.stripe_payment_intent_id && !invoice.stripe_payment_intent_id.startsWith('manual-')) ||
+    (invoice.payment_method === 'card' || invoice.payment_method === 'stripe' || invoice.payment_method === 'stripe_card')
+  )
+  const isSplitPayment = hasBankTransfer && hasStripePayment && Boolean(stripeLedger) && Boolean(bankSub)
+
   // Online Card Payment Surcharge (if paid online via Stripe or surcharge applied)
   const isOnlinePayment =
-    invoice.payment_method === 'stripe' ||
-    invoice.payment_method === 'card' ||
-    (Boolean(invoice.stripe_payment_intent_id) && !invoice.stripe_payment_intent_id?.startsWith('manual-'))
+    !hasBankTransfer &&
+    (invoice.payment_method === 'stripe' ||
+      invoice.payment_method === 'card' ||
+      invoice.payment_method === 'stripe_card' ||
+      (Boolean(invoice.stripe_payment_intent_id) && !invoice.stripe_payment_intent_id?.startsWith('manual-')) ||
+      Boolean(invoice.stripe_checkout_session_id) ||
+      Boolean(stripeLedger))
 
-  const surchargeCents = Number(
-    invoice.online_payment_surcharge_cents ||
-    (isPaid && isOnlinePayment && invoice.total_paid_cents > invoice.subtotal_cents
-      ? invoice.total_paid_cents - invoice.subtotal_cents
-      : 0)
-  )
+  let surchargeCents = Number(invoice.online_payment_surcharge_cents || 0)
+  if (surchargeCents <= 0) {
+    if (stripeLedger?.amount_cents && stripeLedger.amount_cents > invoice.subtotal_cents) {
+      surchargeCents = stripeLedger.amount_cents - invoice.subtotal_cents
+    } else if (invoice.stripe_gross_amount_cents && invoice.stripe_gross_amount_cents > invoice.subtotal_cents) {
+      surchargeCents = invoice.stripe_gross_amount_cents - invoice.subtotal_cents
+    } else if (isPaid && invoice.total_paid_cents > invoice.subtotal_cents) {
+      surchargeCents = invoice.total_paid_cents - invoice.subtotal_cents
+    } else if (isOnlinePayment && invoice.subtotal_cents > 0) {
+      surchargeCents = Math.round(invoice.subtotal_cents * 0.0175 + 30)
+    }
+  }
 
   const surchargeDollars = roundToCents(surchargeCents / 100)
-  if (surchargeDollars > 0 && (isPaid || isOnlinePayment)) {
+  if (surchargeDollars > 0 && isOnlinePayment) {
     lineItems.push({
       description: 'Online Payment Surcharge (Card 1.7% + 30¢)',
       quantity: 1,
@@ -275,8 +311,23 @@ export async function generateStandardBookingInvoicePdf(params: {
   const gstAmount = roundToCents(displayTotal - subtotal)
   const amountPaid = isPaid ? displayTotal : 0
 
+  let splitBankAmount = 0
+  let splitCardAmount = 0
+
+  if (isSplitPayment) {
+    if (stripeLedger && stripeLedger.amount_cents > 0) {
+      splitCardAmount = roundToCents(stripeLedger.amount_cents / 100)
+    } else {
+      splitCardAmount = 0
+    }
+    const invTotal = roundToCents(invoice.subtotal_cents / 100)
+    splitBankAmount = roundToCents(Math.max(0, invTotal - splitCardAmount))
+  }
+
   const resolvedMethodLabel = isWaived
     ? 'Waived (No payment required)'
+    : isSplitPayment
+    ? `Split: NAB Bank Transfer ($${splitBankAmount.toFixed(2)}) + Card Online ($${splitCardAmount.toFixed(2)})`
     : resolvedPaymentMethod === 'bank_transfer' || invoice.payment_method === 'bank_transfer'
     ? 'Direct Deposit (NAB Bank Transfer)'
     : resolvedPaymentMethod === 'card' || invoice.payment_method === 'stripe' || invoice.payment_method === 'stripe_card'
@@ -286,11 +337,17 @@ export async function generateStandardBookingInvoicePdf(params: {
     : formatPaymentMethodLabel(resolvedPaymentMethod || invoice.payment_method) || (isPaid ? 'Card (Online)' : '—')
 
   const footerNote = isPaid
-    ? 'This receipt confirms full payment for your aircraft rental booking. All prices include GST.'
+    ? isSplitPayment
+      ? `This receipt confirms full payment for your aircraft rental booking ($${splitBankAmount.toFixed(2)} via NAB Direct Bank Transfer and $${splitCardAmount.toFixed(2)} via Stripe Online Card). All prices include GST.`
+      : 'This receipt confirms full payment for your aircraft rental booking. All prices include GST.'
     : isWaived
       ? 'This invoice has been waived by operations management. No payment is required.'
       : isVerificationRequired
-      ? 'Payment proof received. This invoice is under operations review and verification. All prices include GST.'
+      ? isSplitPayment
+        ? `Payment received via Split Payment: $${splitBankAmount.toFixed(2)} via NAB Direct Bank Transfer and $${splitCardAmount.toFixed(2)} via Stripe Online Card. Under operations review and verification. All prices include GST.`
+        : 'Payment proof received. This invoice is under operations review and verification. All prices include GST.'
+      : isSplitPayment
+      ? `Split Payment: $${splitBankAmount.toFixed(2)} via NAB Direct Bank Transfer and $${splitCardAmount.toFixed(2)} via Stripe Online Card. All prices include GST.`
       : 'All prices include GST. Payment is required by the due date shown above.'
 
   const pdfBuffer = await generateInvoicePdf({

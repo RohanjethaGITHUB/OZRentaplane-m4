@@ -401,6 +401,16 @@ export default async function CustomerBillingPage() {
       pendingBkgSubByInvoice.has(bi.id) ||
       (bi.booking_id ? pendingBkgSubByInvoice.has(bi.booking_id) : false)
 
+    // Skip abandoned draft / premature invoices from abandoned Stripe checkouts
+    if (
+      bi.status === 'payment_required' &&
+      Number(bi.total_paid_cents || 0) === 0 &&
+      !hasPendingVerification &&
+      (!b || ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record', 'flight_record_overdue'].includes(b.status))
+    ) {
+      continue
+    }
+
     let status: PaymentStatus = 'PENDING'
     if (isWaived) status = 'WAIVED'
     else if (isSettled) status = 'SETTLED'

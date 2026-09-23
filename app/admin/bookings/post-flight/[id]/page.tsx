@@ -232,13 +232,26 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
   }
 
   // Fetch active clarification if any
-  const { data: clarData } = await adminSupabase
-    .from('flight_record_clarifications')
-    .select('category, message')
-    .or(`flight_record_id.eq.${record.id},booking_id.eq.${bookingId}`)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  let clarData: { category: string; message: string } | null = null
+  try {
+    const res = await adminSupabase
+      .from('flight_record_clarifications')
+      .select('category, message')
+      .or(`flight_record_id.eq.${record.id},booking_id.eq.${bookingId}`)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    clarData = res.data
+  } catch {
+    clarData = null
+  }
+
+  if (!clarData && record.admin_notes) {
+    clarData = {
+      category: record.correction_reason || 'Clarification Requested by Admin',
+      message: record.admin_notes,
+    }
+  }
 
   const flightLogStartSuggestions = record.aircraft_id
     ? (await getAircraftFlightLogStartSuggestions(record.aircraft_id)).suggestedStarts
@@ -274,16 +287,72 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
   const gstCents = Math.round(subtotalCents - (subtotalCents / 1.1))
   const totalAmountCents = bookingInvoice?.stripe_amount_due_cents ?? subtotalCents
 
-  const paymentMethod = bookingInvoice?.payment_method ?? (bankSubmission ? 'bank_transfer' : 'stripe_card')
-
   const scheduledStart = booking?.scheduled_start ? new Date(booking.scheduled_start) : null
   const scheduledEnd = booking?.scheduled_end ? new Date(booking.scheduled_end) : null
   const bookingSlotHours = scheduledStart && scheduledEnd
     ? Math.max(0, (scheduledEnd.getTime() - scheduledStart.getTime()) / (1000 * 60 * 60))
     : 0
-  const upfrontPaidCents = (bookingInvoice?.total_paid_cents && bookingInvoice.total_paid_cents > 0)
-    ? bookingInvoice.total_paid_cents
-    : (bookingInvoice?.subtotal_cents ?? subtotalCents)
+  const bookingDays = bookingSlotHours && bookingSlotHours >= 24 ? Math.floor(bookingSlotHours / 24) : 0
+  const minimumVdoHours = bookingDays * 4
+
+  const hasBankTransfer = Boolean(bankSubmission)
+  const hasStripePayment = Boolean(
+    bookingInvoice?.stripe_payment_intent_id &&
+    !bookingInvoice.stripe_payment_intent_id.startsWith('manual-') &&
+    (bookingInvoice?.paid_at || (bookingInvoice?.total_paid_cents && bookingInvoice.total_paid_cents > 0))
+  )
+
+  let cardPaidCents = 0
+  let bankTransferPaidCents = 0
+
+  if (hasStripePayment) {
+    const { data: stripeLedger } = await adminSupabase
+      .from('customer_payment_ledger')
+      .select('amount_cents')
+      .eq('booking_id', bookingId)
+      .in('entry_type', ['stripe_payment', 'stripe_charge'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (stripeLedger && stripeLedger.amount_cents > 0) {
+      cardPaidCents = stripeLedger.amount_cents
+    } else if (bookingInvoice?.total_paid_cents && bookingInvoice.total_paid_cents > 0) {
+      cardPaidCents = bookingInvoice.total_paid_cents
+    }
+  }
+
+  if (hasBankTransfer) {
+    if (hasStripePayment && cardPaidCents > 0) {
+      bankTransferPaidCents = Math.max(0, subtotalCents - cardPaidCents)
+    } else {
+      bankTransferPaidCents = (bookingInvoice?.total_paid_cents && bookingInvoice.total_paid_cents > 0)
+        ? bookingInvoice.total_paid_cents
+        : (bookingInvoice?.subtotal_cents ?? subtotalCents)
+    }
+  }
+
+  const isSplitPayment = hasBankTransfer && hasStripePayment && cardPaidCents > 0 && bankTransferPaidCents > 0
+  const upfrontPaidCents = isSplitPayment
+    ? (cardPaidCents + bankTransferPaidCents)
+    : hasBankTransfer
+    ? bankTransferPaidCents
+    : cardPaidCents
+
+  // For multi-day bookings where flight_records.vdo_total may have been adjusted to minimum policy hours,
+  // recover the actual flown hours from the initial card payment if available so both buttons don't show identical hours
+  let actualFlownVdo = vdoTotal
+  if (bookingDays > 0 && actualFlownVdo === minimumVdoHours && cardPaidCents > 0) {
+    const paidFlightCents = Math.max(0, cardPaidCents - landingSubtotalCents)
+    const paidHours = Number((paidFlightCents / (hourlyRate * 100)).toFixed(1))
+    if (paidHours > 0 && paidHours < actualFlownVdo) {
+      actualFlownVdo = paidHours
+    }
+  }
+
+  const paymentMethod = isSplitPayment
+    ? 'split'
+    : (bookingInvoice?.payment_method ?? (bankSubmission ? 'bank_transfer' : 'stripe_card'))
 
   return (
     <PostFlightVerificationConsole
@@ -300,13 +369,18 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
       scheduledEndStr={scheduledEndStr}
       bookingSlotHours={bookingSlotHours}
       upfrontPaidCents={upfrontPaidCents}
+      hasBankTransfer={hasBankTransfer}
+      hasStripePayment={hasStripePayment}
+      isSplitPayment={isSplitPayment}
+      bankTransferPaidCents={bankTransferPaidCents}
+      cardPaidCents={cardPaidCents}
       customerNotes={record.customer_notes}
       aircraftReg={aircraft?.registration || 'VH-KZG'}
       aircraftType={aircraft?.aircraft_type || 'Cessna 172'}
       currentStatus={record.status}
       vdoStart={vdoStart}
       vdoStop={vdoStop}
-      vdoTotal={vdoTotal}
+      vdoTotal={actualFlownVdo}
       vdoBaseline={flightLogStartSuggestions.vdo_start}
       airSwitchStart={airSwitchStart}
       airSwitchStop={airSwitchStop}

@@ -218,16 +218,20 @@ export async function generateCheckoutBookingInvoicePdf(params: {
   }
 
   // Online Card Payment Surcharge (if paid online via Stripe or surcharge applied)
-  const isOnlinePayment = chkInvoice.payment_method === 'stripe' || chkInvoice.payment_method === 'card'
-  const surchargeCents = Number(
+  const isOnlinePayment = chkInvoice.payment_method === 'stripe' || chkInvoice.payment_method === 'card' || Boolean(chkInvoice.stripe_payment_intent_id)
+  let surchargeCents = Number(
     chkInvoice.online_payment_surcharge_cents ||
     (isPaid && isOnlinePayment && chkInvoice.total_paid_cents > chkInvoice.subtotal_cents
       ? chkInvoice.total_paid_cents - chkInvoice.subtotal_cents
       : 0)
   )
 
+  if (surchargeCents <= 0 && isOnlinePayment && (chkInvoice.subtotal_cents ?? 0) > 0) {
+    surchargeCents = Math.round(chkInvoice.subtotal_cents * 0.0175 + 30)
+  }
+
   const surchargeDollars = roundToCents(surchargeCents / 100)
-  if (surchargeDollars > 0 && (isPaid || isOnlinePayment)) {
+  if (surchargeDollars > 0 && isOnlinePayment) {
     lineItems.push({
       description: 'Online Payment Surcharge (Card 1.7% + 30¢)',
       quantity: 1,

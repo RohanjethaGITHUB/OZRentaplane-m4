@@ -1064,6 +1064,7 @@ export async function requestPostFlightClarification(input: {
   vdo_total?:     number | null
   air_switch_total?: number | null
   landing_rows?:  Array<{ airport_id: string; landing_count: number | string }>
+  preserve_actual_meters?: boolean
 }): Promise<void> {
   const { supabase, adminId } = await requireAdmin()
   const adminSupabase = createAdminClient()
@@ -1122,17 +1123,21 @@ export async function requestPostFlightClarification(input: {
 
     const recordUpdates: Record<string, any> = {
       status: 'needs_clarification',
+      admin_notes: input.message,
+      correction_reason: input.category,
       updated_at: now,
     }
     // Note: vdo_total and air_switch_total are GENERATED ALWAYS STORED columns in Postgres.
-    // Setting start and stop automatically updates the generated total.
-    if (effectiveVdoTotal != null) {
-      if (vdoStart != null) recordUpdates.vdo_start = vdoStart
-      if (vdoStop != null) recordUpdates.vdo_stop = vdoStop
-    }
-    if (effectiveAirSwitchTotal != null) {
-      if (airSwitchStart != null) recordUpdates.air_switch_start = airSwitchStart
-      if (airSwitchStop != null) recordUpdates.air_switch_stop = airSwitchStop
+    // When enforcing minimum billing policy, preserve the physical meter readings on flight_records.
+    if (!input.preserve_actual_meters) {
+      if (effectiveVdoTotal != null) {
+        if (vdoStart != null) recordUpdates.vdo_start = vdoStart
+        if (vdoStop != null) recordUpdates.vdo_stop = vdoStop
+      }
+      if (effectiveAirSwitchTotal != null) {
+        if (airSwitchStart != null) recordUpdates.air_switch_start = airSwitchStart
+        if (airSwitchStop != null) recordUpdates.air_switch_stop = airSwitchStop
+      }
     }
 
     const { error: frUpdateErr } = await adminSupabase
@@ -1196,20 +1201,24 @@ export async function requestPostFlightClarification(input: {
     // Update booking_invoices
     const { data: inv } = await supabase
       .from('booking_invoices')
-      .select('id')
+      .select('id, total_paid_cents')
       .eq('booking_id', input.bookingId)
       .maybeSingle()
 
     if (inv) {
+      const upfrontPaid = inv.total_paid_cents || 0
+      const remainingDue = Math.max(0, calc.subtotalCents - calc.creditAppliedCents - upfrontPaid)
+
       await supabase
         .from('booking_invoices')
         .update({
+          vdo_reading: effectiveVdoTotal,
           rate_cents_per_hour: Math.round(calc.hourlyRate * 100),
           base_amount_cents: calc.flightBaseCents,
           landing_subtotal_cents: calc.landingSubtotalCents,
           subtotal_cents: calc.subtotalCents,
           advance_applied_cents: calc.creditAppliedCents,
-          stripe_amount_due_cents: calc.stripeGrossAmountCents,
+          stripe_amount_due_cents: remainingDue,
           total_amount_cents: calc.stripeGrossAmountCents,
           status: 'payment_verification_required',
           updated_at: now,
@@ -1234,7 +1243,12 @@ export async function requestPostFlightClarification(input: {
     // Just update status to needs_clarification
     const { error: frUpdateErr } = await adminSupabase
       .from('flight_records')
-      .update({ status: 'needs_clarification', updated_at: now })
+      .update({
+        status: 'needs_clarification',
+        admin_notes: input.message,
+        correction_reason: input.category,
+        updated_at: now,
+      })
       .eq('id', input.flightRecordId)
 
     if (frUpdateErr) {
@@ -1243,21 +1257,27 @@ export async function requestPostFlightClarification(input: {
     }
   }
 
-  // 2. Insert structured clarification record
-  const { error: clarErr } = await supabase
-    .from('flight_record_clarifications')
-    .insert({
-      flight_record_id: input.flightRecordId,
-      booking_id:       input.bookingId,
-      requested_by:     adminId,
-      category:         input.category,
-      message:          input.message,
-      is_resolved:      false,
-    })
+  // 2. Insert structured clarification record if table exists
+  try {
+    const { error: clarErr } = await supabase
+      .from('flight_record_clarifications')
+      .insert({
+        flight_record_id: input.flightRecordId,
+        booking_id:       input.bookingId,
+        requested_by:     adminId,
+        category:         input.category,
+        message:          input.message,
+        is_resolved:      false,
+      })
 
-  if (clarErr) {
-    console.error('[requestPostFlightClarification] Failed to insert clarification row:', clarErr)
-    // Non-fatal: status update already succeeded; log and continue.
+    if (clarErr) {
+      // If table does not exist in schema cache, note it without failing since flight_records.admin_notes is authoritative
+      if (clarErr.code !== 'PGRST205') {
+        console.warn('[requestPostFlightClarification] Clarification table note:', clarErr.message)
+      }
+    }
+  } catch (err: unknown) {
+    // Non-fatal: flight_records.admin_notes holds authoritative clarification text
   }
 
   // 3. Post to verification_events so it appears in customer's message inbox

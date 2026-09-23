@@ -1226,7 +1226,9 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
   let standardBankTransferSub: { id: string; status: string } | null = null
   let standardBankDetails: { bankName?: string; accountName: string; bsb: string; accountNumber: string } | null = null
 
-  if (status === 'payment_pending') {
+  const isInvoiceEligibleStatus = ['payment_pending', 'pending_post_flight_review', 'needs_clarification', 'awaiting_flight_record', 'completed', 'post_flight_approved', 'confirmed', 'ready_for_dispatch', 'dispatched'].includes(status)
+
+  if (isInvoiceEligibleStatus) {
     const { data: bInv } = await supabase
       .from('booking_invoices')
       .select('id, invoice_number, vdo_reading, rate_cents_per_hour, base_amount_cents, landing_subtotal_cents, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, total_paid_cents, paid_at, status, payment_method')
@@ -1564,23 +1566,69 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
         }),
       )
 
-      const [{ data: clarData }, { data: landData }] = await Promise.all([
-        supabase
+      let clarData: any = null
+      try {
+        const res = await supabase
           .from('flight_record_clarifications')
           .select('*')
           .eq('is_resolved', false)
           .or(`flight_record_id.eq.${postFlightRecord.id},booking_id.eq.${booking.id}`)
           .order('created_at', { ascending: false })
           .limit(1)
-          .maybeSingle(),
-        supabase
-          .from('flight_record_landings')
-          .select('airport_id, landing_count, airports(icao_code, name)')
-          .eq('flight_record_id', postFlightRecord.id),
-      ])
+          .maybeSingle()
+        clarData = res.data
+      } catch {
+        clarData = null
+      }
+
+      const { data: landData } = await supabase
+        .from('flight_record_landings')
+        .select('airport_id, landing_count, airports(icao_code, name)')
+        .eq('flight_record_id', postFlightRecord.id)
 
       postFlightClarification = (clarData ?? null) as FlightRecordClarification | null
       postFlightLandings = (landData ?? []) as any
+
+      // Fallback: if postFlightClarification is null and record is under clarification, check admin_notes and verification_events
+      if (!postFlightClarification && (postFlightRecord.status === 'needs_clarification' || postFlightRecord.admin_notes)) {
+        let msg = postFlightRecord.admin_notes || null
+        let cat = postFlightRecord.correction_reason || 'Clarification Requested by Admin'
+
+        if (!msg) {
+          const { data: vEvent } = await supabase
+            .from('verification_events')
+            .select('body')
+            .eq('user_id', user.id)
+            .eq('request_kind', 'clarification_request')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          if (vEvent?.body) {
+            const match = vEvent.body.match(/^\[(.*?)\]\s*([\s\S]*)$/)
+            if (match) {
+              cat = match[1]
+              msg = match[2]
+            } else {
+              msg = vEvent.body
+            }
+          }
+        }
+
+        if (msg) {
+          postFlightClarification = {
+            id: 'fr-clar-' + postFlightRecord.id,
+            flight_record_id: postFlightRecord.id,
+            booking_id: booking.id,
+            requested_by: '',
+            category: cat,
+            message: msg,
+            is_resolved: postFlightRecord.status === 'resubmitted' || postFlightRecord.status === 'approved',
+            resolved_at: null,
+            created_at: postFlightRecord.updated_at,
+          } as FlightRecordClarification
+        }
+      }
     }
   }
 
@@ -1842,6 +1890,7 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
                     air_switch_total: postFlightRecord.air_switch_total,
                     customer_notes: postFlightRecord.customer_notes,
                   } : null}
+                  initialRecordStatus={postFlightRecord?.status ?? null}
                   initialLandings={postFlightLandings.length > 0 ? postFlightLandings.map(l => ({
                     airportId: l.airport_id,
                     icaoCode: (l.airports as any)?.icao_code ?? null,
@@ -1852,12 +1901,19 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
                     file_name: a.file_name,
                     signedUrl: a.signedUrl,
                   }))}
+                  upfrontPaidCents={
+                    (bookingInvoice?.total_paid_cents && bookingInvoice.total_paid_cents > 0)
+                      ? bookingInvoice.total_paid_cents
+                      : (bookingInvoice?.status === 'paid' && bookingInvoice?.paid_at)
+                      ? (bookingInvoice?.subtotal_cents ?? 0)
+                      : 0
+                  }
                   clarification={postFlightClarification ? {
                     category: postFlightClarification.category,
                     message: postFlightClarification.message,
                   } : (postFlightRecord?.status === 'needs_clarification' || status === 'needs_clarification' ? {
-                    category: 'Clarification Required',
-                    message: clarificationQuestion || 'Operations requested clarification on your submitted post-flight readings or evidence photos. Please update your details and resubmit.',
+                    category: postFlightRecord?.correction_reason || 'Clarification Requested by Admin',
+                    message: postFlightRecord?.admin_notes || clarificationQuestion || 'Clarification requested by admin on your submitted post-flight readings and payment.',
                   } : null)}
                 />
               </div>

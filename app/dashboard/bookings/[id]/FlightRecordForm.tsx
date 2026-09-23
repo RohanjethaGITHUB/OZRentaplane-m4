@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   submitAndPayPostFlight,
@@ -11,6 +11,7 @@ import TotalOnlyReadingsForm from '@/components/aircraft/TotalOnlyReadingsForm'
 import { type TotalOnlyFormValues, validateTotalOnlyReadings } from '@/lib/aircraft-readings'
 import { calculatePostFlightCharges, type AirportBillingInfo, type ActiveBlockTimeSummary } from '@/lib/booking/live-booking-calculator'
 import { LoadingButtonContent } from '@/components/ui/Spinner'
+import AirportSelect from '@/components/ui/AirportSelect'
 
 type LandingRow = {
   airport_id: string
@@ -53,6 +54,8 @@ type Props = {
     category: string
     message: string
   } | null
+  upfrontPaidCents?: number
+  initialRecordStatus?: string | null
 }
 
 type UploadedFile = { file: File; preview: string }
@@ -78,9 +81,11 @@ export default function FlightRecordForm({
   defaultHourlyRate = 330,
   bankDetails,
   initialRecord,
+  initialRecordStatus,
   initialLandings,
   initialAttachments,
   clarification,
+  upfrontPaidCents = 0,
 }: Props) {
   const router = useRouter()
 
@@ -119,12 +124,11 @@ export default function FlightRecordForm({
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const isResubmission = Boolean(initialRecord || clarification)
+  const isDraft = initialRecordStatus === 'draft'
+  const isResubmission = Boolean(clarification || (initialRecord && !isDraft))
 
   // Payment method state: stripe | bank_transfer | previous_payment
-  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'bank_transfer' | 'previous_payment'>(() => {
-    return isResubmission ? 'previous_payment' : 'stripe'
-  })
+  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'bank_transfer' | 'previous_payment'>('stripe')
   const [bankReceiptFile, setBankReceiptFile] = useState<File | null>(null)
   const [bankReceiptPreview, setBankReceiptPreview] = useState<string | null>(null)
   const [bankReceiptError, setBankReceiptError] = useState<string | null>(null)
@@ -282,15 +286,36 @@ export default function FlightRecordForm({
     })
   }, [enteredVdoTotal, bookingSlotHours, defaultHourlyRate, airports, landingRows, activePackage, customerCreditCents, minimumVdoDecision])
 
+  const effectiveUpfrontPaidCents = upfrontPaidCents ?? 0
+  const grossSettlementCents = Math.max(0, calc.subtotalCents - calc.creditAppliedCents)
+  const netPayableDueCents = Math.max(0, grossSettlementCents - effectiveUpfrontPaidCents)
+  const hasEvidencePhotos = files.length > 0 || (initialAttachments != null && initialAttachments.length > 0)
+
+  const stripeSurchargeRemainingCents = netPayableDueCents > 0
+    ? Math.round(netPayableDueCents * 0.0175 + 30)
+    : 0
+  const totalCardChargeRemainingCents = netPayableDueCents + stripeSurchargeRemainingCents
+
+  // Sync payment method: if no balance is due on resubmission, keep previous payment; otherwise default to stripe
+  useEffect(() => {
+    if (netPayableDueCents === 0 && isResubmission) {
+      setPaymentMethod('previous_payment')
+    } else if (netPayableDueCents > 0 && paymentMethod === 'previous_payment') {
+      setPaymentMethod('stripe')
+    }
+  }, [netPayableDueCents, isResubmission, paymentMethod])
+
   const isSubmitBlocked =
     loading ||
     !declaration ||
+    !hasEvidencePhotos ||
     hasLandingErrors ||
     !allLandingsFilled ||
     enteredVdoTotal == null ||
     enteredVdoTotal <= 0 ||
     calc.validationError !== null ||
-    (calc.amountDueCents > 0 && paymentMethod === 'bank_transfer' && !bankReceiptFile)
+    (netPayableDueCents > 0 && paymentMethod === 'bank_transfer' && !bankReceiptFile) ||
+    (netPayableDueCents > 0 && paymentMethod === 'previous_payment')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -299,6 +324,10 @@ export default function FlightRecordForm({
 
     if (!declaration) {
       setError('Please check the declaration box before submitting.')
+      return
+    }
+    if (!hasEvidencePhotos) {
+      setError('Please upload at least one evidence photo of your cockpit meter readings.')
       return
     }
     if (landingRows.length === 0) {
@@ -337,8 +366,8 @@ export default function FlightRecordForm({
       return
     }
 
-    if (calc.amountDueCents > 0 && paymentMethod === 'bank_transfer' && !bankReceiptFile) {
-      setError('Please upload your bank transfer payment receipt.')
+    if (netPayableDueCents > 0 && paymentMethod === 'bank_transfer' && !bankReceiptFile) {
+      setError('Please upload your bank transfer payment receipt for the remaining balance.')
       return
     }
 
@@ -347,7 +376,7 @@ export default function FlightRecordForm({
 
       // 1. If bank transfer, upload receipt storage path first
       let bankReceiptPath: string | null = null
-      if (calc.amountDueCents > 0 && paymentMethod === 'bank_transfer' && bankReceiptFile) {
+      if (netPayableDueCents > 0 && paymentMethod === 'bank_transfer' && bankReceiptFile) {
         const receiptFd = new FormData()
         receiptFd.set('receipt', bankReceiptFile)
         receiptFd.set('bookingId', bookingId)
@@ -356,7 +385,7 @@ export default function FlightRecordForm({
       }
 
       // 2. Submit flight record & generate invoice
-      const effectivePaymentMethod = calc.amountDueCents === 0 ? 'credit_or_block_time' : paymentMethod
+      const effectivePaymentMethod = netPayableDueCents === 0 ? 'credit_or_block_time' : paymentMethod
 
       const result = await submitAndPayPostFlight({
         booking_id: bookingId,
@@ -475,9 +504,9 @@ export default function FlightRecordForm({
             </span>
             <div className="flex-1">
               <h3 className="text-sm font-bold text-amber-900 uppercase tracking-wide">
-                Clarification Requested by Operations
+                Clarification Requested by Admin
               </h3>
-              <p className="text-xs text-amber-700">Please review the note from operations below, adjust readings or evidence photos, and resubmit.</p>
+              <p className="text-xs text-amber-700">Please review the note from admin below, adjust readings or evidence photos, and complete the remaining settlement.</p>
             </div>
             {clarification.category && (
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-200/80 text-amber-900 border border-amber-300">
@@ -486,8 +515,8 @@ export default function FlightRecordForm({
             )}
           </div>
           <div className="p-3.5 bg-white rounded-xl border border-amber-200 text-xs text-slate-800 font-medium leading-relaxed shadow-sm">
-            <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block mb-1">Message from Operations:</span>
-            &ldquo;{clarification.message}&rdquo;
+            <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block mb-1">Message from Admin:</span>
+            <span className="whitespace-pre-line">&ldquo;{clarification.message}&rdquo;</span>
           </div>
         </div>
       )}
@@ -551,19 +580,13 @@ export default function FlightRecordForm({
           {landingRows.map((row, idx) => (
             <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3.5 rounded-xl bg-[#f8fbff] border border-[#dbe7f4]">
               <div className="flex-1 w-full">
-                <select
+                <AirportSelect
                   value={row.airport_id}
-                  onChange={(e) => updateLandingAirport(idx, e.target.value)}
+                  onChange={(val) => updateLandingAirport(idx, val)}
+                  options={airportOptions}
                   disabled={loading}
-                  className="w-full rounded-lg border border-[#dbe7f4] bg-white px-3 py-2 text-sm text-[#152d5a] focus:border-[#1a4fd6] focus:outline-none"
-                >
-                  <option value="" disabled>Select airport…</option>
-                  {airportOptions.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.icao_code} — {a.name} (${money(a.default_landing_fee_cents ?? 2895)})
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Select airport…"
+                />
               </div>
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <input
@@ -599,8 +622,10 @@ export default function FlightRecordForm({
         <div className="flex items-center gap-3">
           <span className="material-symbols-outlined text-[#1a4fd6] text-xl">photo_camera</span>
           <div>
-            <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6]">Evidence Upload</h3>
-            <p className="text-xs text-[#4b6390]">Upload photos of meter readings (Hobbs / VDO / Tacho / Fuel)</p>
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6]">
+              Evidence Upload <span className="text-rose-500 font-bold">*</span>
+            </h3>
+            <p className="text-xs text-[#4b6390]">Upload photos of meter readings (Hobbs / VDO / Tacho / Fuel) — at least 1 required</p>
           </div>
         </div>
 
@@ -638,7 +663,11 @@ export default function FlightRecordForm({
           }}
           onClick={() => fileInputRef.current?.click()}
           className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-colors ${
-            dragOver ? 'border-[#1a4fd6] bg-blue-50/50' : 'border-[#dbe7f4] hover:border-[#1a4fd6]/60 bg-[#f8fbff]'
+            !hasEvidencePhotos && submitAttempted
+              ? 'border-rose-400 bg-rose-50/50 ring-2 ring-rose-300'
+              : dragOver
+              ? 'border-[#1a4fd6] bg-blue-50/50'
+              : 'border-[#dbe7f4] hover:border-[#1a4fd6]/60 bg-[#f8fbff]'
           }`}
         >
           <input
@@ -655,9 +684,16 @@ export default function FlightRecordForm({
           <div className="flex flex-col items-center gap-2">
             <span className="material-symbols-outlined text-3xl text-[#1a4fd6]">cloud_upload</span>
             <p className="text-sm font-medium text-[#152d5a]">Drag and drop photos here, or click to browse</p>
-            <p className="text-xs text-[#4b6390]">JPEG or PNG only • Up to 10 MB each</p>
+            <p className="text-xs text-[#4b6390]">JPEG or PNG only • Up to 10 MB each • Required</p>
           </div>
         </div>
+
+        {!hasEvidencePhotos && submitAttempted && (
+          <p className="text-xs text-rose-600 font-semibold flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-sm">error</span>
+            At least one evidence photo of cockpit meter readings is required.
+          </p>
+        )}
 
         {uploadErrors.length > 0 && (
           <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1">
@@ -722,23 +758,72 @@ export default function FlightRecordForm({
               </div>
             </div>
 
-            <div className="space-y-1.5 pt-1">
+            <div className="space-y-2 pt-1">
               <label className="text-[11px] font-bold uppercase tracking-wider text-amber-900 block">
-                Billing Decision
+                Select Billing Policy Option
               </label>
-              <select
-                value={minimumVdoDecision}
-                onChange={(e) => setMinimumVdoDecision(e.target.value as 'enforce_minimum' | 'bill_actual')}
-                className="w-full rounded-xl border border-amber-300 bg-white p-3 text-xs font-semibold text-[#152d5a] focus:border-[#1a4fd6] focus:outline-none shadow-xs"
-              >
-                <option value="enforce_minimum">
-                  Enforce minimum billing ({calc.minimumVdoBilling.minimumVdoHours.toFixed(1)}h minimum)
-                </option>
-                <option value="bill_actual">
-                  Bill actual hours ({enteredVdoTotal?.toFixed(1)}h flown)
-                </option>
-              </select>
-              <p className="text-[11px] text-amber-700/90 leading-relaxed pt-0.5">
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Option 1: Enforce Minimum */}
+                <button
+                  type="button"
+                  onClick={() => setMinimumVdoDecision('enforce_minimum')}
+                  className={`flex flex-col text-left p-3.5 rounded-xl border-2 transition-all relative cursor-pointer ${
+                    minimumVdoDecision === 'enforce_minimum'
+                      ? 'border-[#1a4fd6] bg-white shadow-sm ring-2 ring-blue-500/20'
+                      : 'border-amber-200/80 bg-white/70 hover:bg-white hover:border-amber-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5 w-full">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-[#1a4fd6] border border-blue-200">
+                      <span className="material-symbols-outlined text-xs">balance</span>
+                      Rental Policy Minimum
+                    </span>
+                    <span className={`material-symbols-outlined text-lg ${
+                      minimumVdoDecision === 'enforce_minimum' ? 'text-[#1a4fd6]' : 'text-slate-300'
+                    }`}>
+                      {minimumVdoDecision === 'enforce_minimum' ? 'check_circle' : 'radio_button_unchecked'}
+                    </span>
+                  </div>
+                  <span className="text-xs font-bold text-[#152d5a]">
+                    Enforce Minimum ({calc.minimumVdoBilling.minimumVdoHours.toFixed(1)}h minimum)
+                  </span>
+                  <span className="text-[11px] text-[#4b6390] mt-1 leading-snug">
+                    Standard 4h/day multi-day hire policy applied to settlement.
+                  </span>
+                </button>
+
+                {/* Option 2: Bill Actual Flown */}
+                <button
+                  type="button"
+                  onClick={() => setMinimumVdoDecision('bill_actual')}
+                  className={`flex flex-col text-left p-3.5 rounded-xl border-2 transition-all relative cursor-pointer ${
+                    minimumVdoDecision === 'bill_actual'
+                      ? 'border-[#1a4fd6] bg-white shadow-sm ring-2 ring-blue-500/20'
+                      : 'border-amber-200/80 bg-white/70 hover:bg-white hover:border-amber-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5 w-full">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-200">
+                      <span className="material-symbols-outlined text-xs">speed</span>
+                      Actual Meter
+                    </span>
+                    <span className={`material-symbols-outlined text-lg ${
+                      minimumVdoDecision === 'bill_actual' ? 'text-[#1a4fd6]' : 'text-slate-300'
+                    }`}>
+                      {minimumVdoDecision === 'bill_actual' ? 'check_circle' : 'radio_button_unchecked'}
+                    </span>
+                  </div>
+                  <span className="text-xs font-bold text-[#152d5a]">
+                    Bill Actual Hours ({enteredVdoTotal?.toFixed(1)}h flown)
+                  </span>
+                  <span className="text-[11px] text-[#4b6390] mt-1 leading-snug">
+                    Request review by operations team based on actual logged flight meters.
+                  </span>
+                </button>
+              </div>
+
+              <p className="text-[11px] text-amber-700/90 leading-relaxed pt-1">
                 {minimumVdoDecision === 'bill_actual'
                   ? `You have elected to bill for actual hours flown (${enteredVdoTotal?.toFixed(1)}h). Operations will verify this during post-flight review.`
                   : `Multi-day rental policy applies a 4h/day minimum (${calc.minimumVdoBilling.minimumVdoHours.toFixed(1)}h total minimum).`}
@@ -823,132 +908,138 @@ export default function FlightRecordForm({
               </div>
             )}
 
+            {/* Upfront Payment on File */}
+            {effectiveUpfrontPaidCents > 0 && (
+              <div className="flex justify-between text-emerald-700 font-medium">
+                <span>Upfront Payment on File</span>
+                <span className="tabular-nums">-${money(effectiveUpfrontPaidCents)}</span>
+              </div>
+            )}
+
             {/* Net Amount Due */}
             <div className="flex justify-between items-baseline border-t-2 border-[#1a4fd6]/30 pt-3 text-[#1a4fd6]">
               <div>
                 <span className="text-base font-bold">Net Amount Due</span>
-                {calc.isFullyCovered && (
+                {netPayableDueCents === 0 && (
                   <span className="block text-[11px] text-emerald-600 font-medium mt-0.5">
-                    100% covered by package / credit balance
+                    {calc.isFullyCovered
+                      ? '100% covered by package / credit balance'
+                      : 'Fully covered by upfront payment'}
                   </span>
                 )}
               </div>
-              <span className="text-2xl font-black tabular-nums">${money(calc.amountDueCents)}</span>
+              <span className="text-2xl font-black tabular-nums">${money(netPayableDueCents)}</span>
             </div>
           </div>
         )}
 
         {/* ── PAYMENT METHOD SELECTION ────────────────────────────────────── */}
-        {calc.amountDueCents > 0 && (
+        {netPayableDueCents === 0 && isResubmission && (
           <div className="border-t border-[#dbe7f4] pt-6 space-y-5">
-            {isResubmission && (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 sm:p-5 text-xs space-y-3 shadow-sm">
-                <div className="flex items-center gap-2 text-emerald-800 font-bold uppercase tracking-wider">
-                  <span className="material-symbols-outlined text-lg text-emerald-600" style={{ fontVariationSettings: "'FILL' 1" }}>
-                    verified
-                  </span>
-                  Payment Already Submitted / Recorded
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 sm:p-5 text-xs space-y-3 shadow-sm">
+              <div className="flex items-center gap-2 text-emerald-800 font-bold uppercase tracking-wider">
+                <span className="material-symbols-outlined text-lg text-emerald-600" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  verified
+                </span>
+                Payment Already Covered / Recorded
+              </div>
+              <p className="text-emerald-700 leading-relaxed">
+                Your flight charges are fully covered by your upfront payment on file (${money(effectiveUpfrontPaidCents)}) or package credits. No additional payment is required.
+              </p>
+              <div className="flex flex-wrap gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('previous_payment')}
+                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400"
+                >
+                  <span className="material-symbols-outlined text-sm">check_circle</span>
+                  Keep Previous Payment (No Payment Required)
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {netPayableDueCents > 0 && (
+          <div className="border-t border-[#dbe7f4] pt-6 space-y-5">
+            {effectiveUpfrontPaidCents > 0 && (
+              <div className="rounded-2xl border border-amber-300 bg-amber-50/80 p-4 sm:p-5 text-xs space-y-2 shadow-sm">
+                <div className="flex items-center gap-2 text-amber-900 font-bold uppercase tracking-wider">
+                  <span className="material-symbols-outlined text-lg text-amber-600">payments</span>
+                  Remaining Balance Due: ${money(netPayableDueCents)}
                 </div>
-                <p className="text-emerald-700 leading-relaxed">
-                  Your previous payment has already been recorded and is on file with operations. You do not need to pay again unless you wish to upload a new bank receipt or pay online.
+                <p className="text-amber-800 leading-relaxed">
+                  Your upfront payment of <strong>${money(effectiveUpfrontPaidCents)}</strong> is on file. Please select a payment method below to settle the remaining requested balance of <strong>${money(netPayableDueCents)}</strong>.
                 </p>
-                <div className="flex flex-wrap gap-2.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('previous_payment')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
-                      paymentMethod === 'previous_payment'
-                        ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400'
-                        : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-100/60'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-sm">check_circle</span>
-                    Keep Previous Payment (No Payment Required)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('stripe')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
-                      paymentMethod !== 'previous_payment'
-                        ? 'bg-[#1a4fd6] text-white shadow-sm ring-2 ring-[#1a4fd6]/20'
-                        : 'bg-white text-[#4b6390] border border-[#dbe7f4] hover:bg-[#f0f6ff]'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-sm">payment</span>
-                    Update Payment Method / Proof
-                  </button>
-                </div>
               </div>
             )}
 
-            {(!isResubmission || paymentMethod !== 'previous_payment') && (
-              <>
-                <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] block mb-3">
-                    Select Payment Method <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('stripe')}
-                      className={`p-4 rounded-2xl border-2 flex items-center gap-3 transition-all ${
-                        paymentMethod === 'stripe'
-                          ? 'border-[#1a4fd6] bg-blue-50/70 text-[#152d5a] shadow-sm ring-2 ring-[#1a4fd6]/20'
-                          : 'border-[#dbe7f4] bg-[#f8fbff] text-[#4b6390] hover:border-[#1a4fd6]/40'
-                      }`}
-                    >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                        paymentMethod === 'stripe' ? 'bg-[#1a4fd6] text-white' : 'bg-white text-[#4b6390] border border-[#dbe7f4]'
-                      }`}>
-                        <span className="material-symbols-outlined text-xl">credit_card</span>
-                      </div>
-                      <div className="text-left">
-                        <p className="text-xs font-bold uppercase tracking-wider text-[#152d5a]">Pay Online (Card)</p>
-                        <p className="text-[11px] text-[#4b6390]">Immediate Visa / Mastercard / Apple Pay</p>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('bank_transfer')}
-                      className={`p-4 rounded-2xl border-2 flex items-center gap-3 transition-all ${
-                        paymentMethod === 'bank_transfer'
-                          ? 'border-[#1a4fd6] bg-blue-50/70 text-[#152d5a] shadow-sm ring-2 ring-[#1a4fd6]/20'
-                          : 'border-[#dbe7f4] bg-[#f8fbff] text-[#4b6390] hover:border-[#1a4fd6]/40'
-                      }`}
-                    >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                        paymentMethod === 'bank_transfer' ? 'bg-[#1a4fd6] text-white' : 'bg-white text-[#4b6390] border border-[#dbe7f4]'
-                      }`}>
-                        <span className="material-symbols-outlined text-xl">account_balance</span>
-                      </div>
-                      <div className="text-left">
-                        <p className="text-xs font-bold uppercase tracking-wider text-[#152d5a]">Bank Transfer</p>
-                        <p className="text-[11px] text-[#4b6390]">Transfer via NAB & upload receipt</p>
-                      </div>
-                    </button>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] block mb-3">
+                {effectiveUpfrontPaidCents > 0 ? 'Select Payment Method for Remaining Balance' : 'Select Payment Method'} <span className="text-rose-500">*</span>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('stripe')}
+                  className={`p-4 rounded-2xl border-2 flex items-center gap-3 transition-all ${
+                    paymentMethod === 'stripe'
+                      ? 'border-[#1a4fd6] bg-blue-50/70 text-[#152d5a] shadow-sm ring-2 ring-[#1a4fd6]/20'
+                      : 'border-[#dbe7f4] bg-[#f8fbff] text-[#4b6390] hover:border-[#1a4fd6]/40'
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                    paymentMethod === 'stripe' ? 'bg-[#1a4fd6] text-white' : 'bg-white text-[#4b6390] border border-[#dbe7f4]'
+                  }`}>
+                    <span className="material-symbols-outlined text-xl">credit_card</span>
                   </div>
-                </div>
+                  <div className="text-left">
+                    <p className="text-xs font-bold uppercase tracking-wider text-[#152d5a]">Pay Online (Card)</p>
+                    <p className="text-[11px] text-[#4b6390]">Immediate Visa / Mastercard / Apple Pay</p>
+                  </div>
+                </button>
 
-                {/* Payment Sub-panel: Card Details Summary */}
-                {paymentMethod === 'stripe' && (
-                  <div className="rounded-xl bg-[#f0f6ff] border border-[#dbe7f4] p-4 text-xs space-y-2">
-                    <div className="flex justify-between text-[#4b6390]">
-                      <span>Base Invoice Amount</span>
-                      <span className="font-semibold tabular-nums text-[#152d5a]">${money(calc.amountDueCents)}</span>
-                    </div>
-                    {calc.stripeSurchargeCents > 0 && (
-                      <div className="flex justify-between text-[#4b6390]">
-                        <span>Card Processing Fee (1.7% + 30c)</span>
-                        <span className="font-medium tabular-nums">${money(calc.stripeSurchargeCents)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between text-[#152d5a] font-bold border-t border-[#dbe7f4] pt-2 text-sm">
-                      <span>Total Card Charge</span>
-                      <span className="tabular-nums text-[#1a4fd6]">${money(calc.stripeGrossAmountCents)}</span>
-                    </div>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('bank_transfer')}
+                  className={`p-4 rounded-2xl border-2 flex items-center gap-3 transition-all ${
+                    paymentMethod === 'bank_transfer'
+                      ? 'border-[#1a4fd6] bg-blue-50/70 text-[#152d5a] shadow-sm ring-2 ring-[#1a4fd6]/20'
+                      : 'border-[#dbe7f4] bg-[#f8fbff] text-[#4b6390] hover:border-[#1a4fd6]/40'
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                    paymentMethod === 'bank_transfer' ? 'bg-[#1a4fd6] text-white' : 'bg-white text-[#4b6390] border border-[#dbe7f4]'
+                  }`}>
+                    <span className="material-symbols-outlined text-xl">account_balance</span>
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs font-bold uppercase tracking-wider text-[#152d5a]">Bank Transfer</p>
+                    <p className="text-[11px] text-[#4b6390]">Transfer via NAB & upload receipt</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Payment Sub-panel: Card Details Summary */}
+            {paymentMethod === 'stripe' && (
+              <div className="rounded-xl bg-[#f0f6ff] border border-[#dbe7f4] p-4 text-xs space-y-2">
+                <div className="flex justify-between text-[#4b6390]">
+                  <span>Remaining Base Amount</span>
+                  <span className="font-semibold tabular-nums text-[#152d5a]">${money(netPayableDueCents)}</span>
+                </div>
+                {stripeSurchargeRemainingCents > 0 && (
+                  <div className="flex justify-between text-[#4b6390]">
+                    <span>Card Processing Fee (1.7% + 30c)</span>
+                    <span className="font-medium tabular-nums">${money(stripeSurchargeRemainingCents)}</span>
                   </div>
                 )}
+                <div className="flex justify-between text-[#152d5a] font-bold border-t border-[#dbe7f4] pt-2 text-sm">
+                  <span>Total Card Charge</span>
+                  <span className="tabular-nums text-[#1a4fd6]">${money(totalCardChargeRemainingCents)}</span>
+                </div>
+              </div>
+            )}
 
                 {/* Payment Sub-panel: Bank Transfer Details & Upload */}
                 {paymentMethod === 'bank_transfer' && (
@@ -1033,8 +1124,6 @@ export default function FlightRecordForm({
                     </div>
                   </div>
                 )}
-              </>
-            )}
           </div>
         )}
       </div>
@@ -1068,7 +1157,7 @@ export default function FlightRecordForm({
               ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
               : paymentMethod === 'previous_payment'
               ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-[0_4px_16px_rgba(5,150,105,0.3)]'
-              : calc.amountDueCents > 0 && paymentMethod === 'stripe'
+              : netPayableDueCents > 0 && paymentMethod === 'stripe'
               ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-[0_4px_16px_rgba(249,115,22,0.3)]'
               : 'bg-[#1a4fd6] hover:bg-[#152d5a] text-white shadow-[0_4px_16px_rgba(26,79,214,0.3)]'
           }`}
@@ -1077,19 +1166,17 @@ export default function FlightRecordForm({
             <span className="material-symbols-outlined text-lg">
               {paymentMethod === 'previous_payment'
                 ? 'refresh'
-                : calc.amountDueCents > 0 && paymentMethod === 'stripe'
+                : netPayableDueCents > 0 && paymentMethod === 'stripe'
                 ? 'credit_card'
-                : calc.amountDueCents > 0 && paymentMethod === 'bank_transfer'
+                : netPayableDueCents > 0 && paymentMethod === 'bank_transfer'
                 ? 'account_balance'
                 : 'check_circle'}
             </span>
-            {paymentMethod === 'previous_payment'
-              ? 'Resubmit Updated Flight Record'
-              : calc.amountDueCents > 0
-              ? paymentMethod === 'stripe'
-                ? `Pay $${money(calc.stripeGrossAmountCents)} & Submit Flight Record`
-                : `Submit Flight Record & Bank Transfer Proof ($${money(calc.amountDueCents)})`
-              : 'Submit Flight Record ($0.00 Due)'}
+            {paymentMethod === 'previous_payment' || netPayableDueCents === 0
+              ? (isResubmission ? 'Resubmit Flight Record ($0.00 Due)' : 'Submit Flight Record ($0.00 Due)')
+              : paymentMethod === 'stripe'
+              ? `Pay $${money(totalCardChargeRemainingCents)} & Submit Flight Record`
+              : `Submit Flight Record & Bank Transfer Proof ($${money(netPayableDueCents)})`}
           </LoadingButtonContent>
         </button>
       </div>

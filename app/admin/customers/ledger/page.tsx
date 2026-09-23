@@ -292,6 +292,17 @@ export default async function CustomerBillingPage({
     const submission = submissionByInvoice.get(inv.id) || (inv.booking_id ? submissionByInvoice.get(inv.booking_id) : null)
     const pendingSubmission = latestPendingReviewByInvoice.get(inv.id) || (inv.booking_id ? latestPendingReviewByInvoice.get(inv.booking_id) : null)
 
+    // Skip abandoned draft / premature invoices from abandoned Stripe checkouts
+    if (
+      inv.status === 'payment_required' &&
+      Number(inv.total_paid_cents || 0) === 0 &&
+      !pendingSubmission &&
+      !submission &&
+      (!bkg || ['confirmed', 'ready_for_dispatch', 'dispatched', 'awaiting_flight_record', 'flight_record_overdue'].includes(bkg.status))
+    ) {
+      continue
+    }
+
     const effectiveStatus = pendingSubmission ? 'manual_review' : inv.status
     const receiptUrl = submission?.receipt_storage_path ? receiptUrlMap.get(submission.receipt_storage_path) ?? null : null
 

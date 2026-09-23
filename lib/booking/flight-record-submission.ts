@@ -47,7 +47,9 @@ export async function createFlightRecordForBooking(
   booking: FlightRecordSubmissionBooking,
   input: SubmitFlightRecordInput,
   actor: FlightRecordSubmissionActor,
+  options?: { isDraft?: boolean },
 ): Promise<{ flightRecordId: string }> {
+  const isDraft = options?.isDraft ?? false
   const scheduledHours =
     (new Date(booking.scheduled_end).getTime() - new Date(booking.scheduled_start).getTime()) /
     (1000 * 60 * 60)
@@ -126,8 +128,8 @@ export async function createFlightRecordForBooking(
       signature_type:          input.signature_type     ?? 'none',
       signature_value:         input.signature_value    ?? null,
       submitted_by_user_id:    actor.userId,
-      submitted_at:            now,
-      status:                  'pending_review',
+      submitted_at:            isDraft ? null : now,
+      status:                  isDraft ? 'draft' : 'pending_review',
       review_flags:            flags.length > 0 ? flags : null,
     })
     .select('id')
@@ -185,10 +187,14 @@ export async function createFlightRecordForBooking(
     }
   }
 
-  // Advance booking status
+  // Advance booking status (if draft, keep in current booking status)
+  const targetBookingStatus = isDraft ? booking.status : 'pending_post_flight_review'
   const { error: bookingUpdateError } = await supabase
     .from('bookings')
-    .update({ status: 'pending_post_flight_review' })
+    .update({
+      status: targetBookingStatus,
+      payment_status: isDraft ? 'final_pending' : undefined,
+    })
     .eq('id', input.booking_id)
 
   if (bookingUpdateError) {
@@ -197,7 +203,9 @@ export async function createFlightRecordForBooking(
   }
 
   // Audit event
-  const submittedBySummary = actor.role === 'admin'
+  const submittedBySummary = isDraft
+    ? `Customer created flight record draft pending online payment completion.`
+    : actor.role === 'admin'
     ? `Admin submitted flight record on behalf of the customer. ${flags.length} review flag(s) generated.`
     : `Customer submitted flight record. ${flags.length} review flag(s) generated.`
 
@@ -210,13 +218,14 @@ export async function createFlightRecordForBooking(
       related_record_id:   flightRecord.id,
       actor_user_id:       actor.userId,
       actor_role:          actor.role,
-      event_type:          'flight_record_submitted',
+      event_type:          isDraft ? 'flight_record_drafted' : 'flight_record_submitted',
       event_summary:       submittedBySummary,
       new_value: {
         flight_record_id:   flightRecord.id,
-        booking_status:     'pending_post_flight_review',
+        booking_status:     targetBookingStatus,
         review_flag_count:  flags.length,
         has_errors:         flags.some(f => f.severity === 'error'),
+        is_draft:           isDraft,
       },
     })
 
@@ -227,10 +236,8 @@ export async function createFlightRecordForBooking(
   void emitBookingChanged({ bookingId: input.booking_id, userId: booking.booking_owner_user_id })
   void emitOpsChanged()
 
-  // Confirmation email is sent when the customer submits their record self-serve.
-  // When an admin submits on the customer's behalf, billing finalisation immediately
-  // follows and sends the appropriate invoice/settlement email.
-  if (actor.role !== 'admin') {
+  // Confirmation email is sent only when the customer submits their record self-serve AND payment is not pending.
+  if (!isDraft && actor.role !== 'admin') {
     const [{ data: ownerProfile }, { data: aircraft }] = await Promise.all([
       supabase.from('profiles').select('full_name, email').eq('id', booking.booking_owner_user_id).single(),
       supabase.from('aircraft').select('registration, model').eq('id', booking.aircraft_id).single(),
