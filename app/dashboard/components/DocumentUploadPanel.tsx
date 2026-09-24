@@ -15,6 +15,7 @@ import { formatDateFromISO } from '@/lib/formatDateTime'
 import DocumentProgressCard, { type DocumentProgressStepStatus } from '@/components/DocumentProgressCard'
 import DocumentViewerModal from '@/components/ui/DocumentViewerModal'
 import type { DocumentFile } from '@/components/ui/DocumentViewerModal'
+import ModalPortal from '@/components/ModalPortal'
 import {
   TERMS_END_TEXT, TERMS_LAST_UPDATED, TERMS_MODAL_SUBTITLE,
   TERMS_MODAL_TITLE, TERMS_NOTICE, TERMS_SECTIONS,
@@ -194,6 +195,138 @@ function Section({ num, title, desc, status, error, badge, children }: {
   )
 }
 
+// ─── Custom Select Component ──────────────────────────────────────────────────
+
+type SelectOption = {
+  value: string
+  label: string
+  badge?: string
+}
+
+function CustomSelect({
+  label,
+  required,
+  value,
+  onChange,
+  options,
+  placeholder = 'Select an option',
+}: {
+  label: string
+  required?: boolean
+  value: string
+  onChange: (val: string) => void
+  options: SelectOption[]
+  placeholder?: string
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setIsOpen(false)
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleKeyDown)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen])
+
+  const selected = options.find((o) => o.value === value)
+
+  return (
+    <div ref={containerRef} className="relative space-y-1.5">
+      <label className="block text-[13px] font-semibold text-[#152d5a]">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        className={`w-full h-11 bg-white border rounded-xl px-3.5 flex items-center justify-between gap-2 text-left transition-all shadow-sm focus:outline-none ${
+          isOpen
+            ? 'border-[#1a4fd6] ring-2 ring-[#1a4fd6]/15'
+            : 'border-[#152d5a]/15 hover:border-[#1a4fd6]/50'
+        }`}
+      >
+        {selected ? (
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {selected.badge && (
+              <span className="px-2 py-0.5 rounded-md bg-[#f0f6ff] text-[#1a4fd6] text-[11px] font-bold border border-[#1a4fd6]/20 shrink-0">
+                {selected.badge}
+              </span>
+            )}
+            <span className="text-xs sm:text-sm font-semibold text-[#152d5a] truncate">
+              {selected.label}
+            </span>
+          </div>
+        ) : (
+          <span className="text-xs sm:text-sm text-[#94a3b8]">{placeholder}</span>
+        )}
+        <span
+          className={`material-symbols-outlined text-[20px] text-[#4b6390] transition-transform duration-200 shrink-0 ${
+            isOpen ? 'rotate-180 text-[#1a4fd6]' : ''
+          }`}
+        >
+          expand_more
+        </span>
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-white border border-[#152d5a]/15 rounded-xl shadow-xl overflow-hidden py-1 max-h-60 overflow-y-auto animate-in fade-in-50 zoom-in-95 duration-150">
+          {options.map((opt) => {
+            const isSelected = opt.value === value
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value)
+                  setIsOpen(false)
+                }}
+                className={`w-full flex items-center justify-between gap-2.5 px-3.5 py-2.5 text-left transition-colors ${
+                  isSelected
+                    ? 'bg-[#f0f6ff] text-[#1a4fd6] font-semibold'
+                    : 'text-[#152d5a] hover:bg-[#f8fbff] hover:text-[#1a4fd6]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  {opt.badge && (
+                    <span
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-bold shrink-0 border ${
+                        isSelected
+                          ? 'bg-white text-[#1a4fd6] border-[#1a4fd6]/30'
+                          : 'bg-[#f0f6ff] text-[#1a4fd6] border-[#1a4fd6]/15'
+                      }`}
+                    >
+                      {opt.badge}
+                    </span>
+                  )}
+                  <span className="text-xs sm:text-sm truncate">{opt.label}</span>
+                </div>
+                {isSelected && (
+                  <span className="material-symbols-outlined text-[18px] text-[#1a4fd6] shrink-0">
+                    check
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Upload Modal ─────────────────────────────────────────────────────────────
 
 export function UploadModal({ docType, existingDoc, onClose, onSuccess }: {
@@ -273,124 +406,132 @@ export function UploadModal({ docType, existingDoc, onClose, onSuccess }: {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#152d5a]/08">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#f0f6ff] flex items-center justify-center flex-shrink-0 border border-[#152d5a]/10">
-              <span className="material-symbols-outlined text-[#1a4fd6] text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>{def.icon}</span>
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[calc(100dvh-1.5rem)] sm:max-h-[88vh] flex flex-col overflow-hidden">
+          <div className="shrink-0 flex items-center justify-between px-4 sm:px-5 pt-4 sm:pt-5 pb-3 sm:pb-4 border-b border-[#152d5a]/08 bg-white">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-[#f0f6ff] flex items-center justify-center flex-shrink-0 border border-[#152d5a]/10">
+                <span className="material-symbols-outlined text-[#1a4fd6] text-[18px]" style={{ fontVariationSettings: "'wght' 300" }}>{def.icon}</span>
+              </div>
+              <div>
+                <p className="text-[11px] text-[#94a3b8] font-medium uppercase tracking-wide">Upload</p>
+                <p className="text-[15px] font-semibold text-[#152d5a]">{def.label}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-[11px] text-[#94a3b8] font-medium uppercase tracking-wide">Upload</p>
-              <p className="text-[15px] font-semibold text-[#152d5a]">{def.label}</p>
-            </div>
+            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f0f6ff] text-[#4b6390] transition-colors">
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
           </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f0f6ff] text-[#4b6390]">
-            <span className="material-symbols-outlined text-[18px]">close</span>
-          </button>
-        </div>
-        <div className="px-5 py-5 space-y-4">
-          <div>
-            <label className="block text-[13px] font-semibold text-[#152d5a] mb-2">Document file <span className="text-red-500">*</span></label>
-            <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange}
-              className="block w-full text-sm text-[#4b6390] file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#f0f6ff] file:text-[#1a4fd6] hover:file:bg-[#dbeafe] cursor-pointer" />
-            {form.file.length > 0 && (
-              <ul className="mt-2 space-y-1">
-                {form.file.map((f, i) => (
-                  <li key={i} className="flex items-center gap-2 text-[12px] text-[#1a4fd6]">
-                    <span className="material-symbols-outlined text-[14px]">attach_file</span>
-                    <span className="truncate max-w-[260px]">{f.name}</span>
-                    <span className="text-[#94a3b8]">({(f.size / 1024).toFixed(0)} KB)</span>
-                  </li>
-                ))}
-              </ul>
+          <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 sm:py-5 space-y-4 min-h-0">
+            <div>
+              <label className="block text-[13px] font-semibold text-[#152d5a] mb-2">Document file <span className="text-red-500">*</span></label>
+              <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileChange}
+                className="block w-full text-xs sm:text-sm text-[#4b6390] file:mr-2.5 sm:file:mr-3 file:py-1.5 sm:file:py-2 file:px-3 sm:file:px-4 file:rounded-lg file:border-0 file:text-xs sm:file:text-sm file:font-semibold file:bg-[#f0f6ff] file:text-[#1a4fd6] hover:file:bg-[#dbeafe] cursor-pointer max-w-full" />
+              {form.file.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {form.file.map((f, i) => (
+                    <li key={i} className="flex items-center gap-2 text-[12px] text-[#1a4fd6]">
+                      <span className="material-symbols-outlined text-[14px]">attach_file</span>
+                      <span className="truncate max-w-[220px] sm:max-w-[260px]">{f.name}</span>
+                      <span className="text-[#94a3b8]">({(f.size / 1024).toFixed(0)} KB)</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="text-[12px] text-[#94a3b8] mt-1">PDF, JPG, PNG — max 10 MB</p>
+              {fileError && <p className="text-[12px] text-red-500 mt-1 flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">error</span>{fileError}</p>}
+            </div>
+            {docType === 'pilot_licence' && (<>
+              <CustomSelect
+                label="Licence type"
+                required
+                value={form.licenceType}
+                onChange={val => set('licenceType', val)}
+                placeholder="Select licence type"
+                options={[
+                  { value: 'RPL', badge: 'RPL', label: 'Recreational Pilot Licence' },
+                  { value: 'PPL', badge: 'PPL', label: 'Private Pilot Licence' },
+                  { value: 'CPL', badge: 'CPL', label: 'Commercial Pilot Licence' },
+                  { value: 'Other', badge: 'Other', label: 'Other' },
+                ]}
+              />
+              <div>
+                <label className="block text-[13px] font-semibold text-[#152d5a] mb-2">Licence number / ARN <span className="text-red-500">*</span></label>
+                <input type="text" value={form.licenceNumber} onChange={e => set('licenceNumber', e.target.value)}
+                  placeholder="e.g. 123456" className="w-full h-10 border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] bg-white focus:outline-none focus:border-blue-500/60" />
+              </div>
+            </>)}
+            {docType === 'medical_certificate' && (<>
+              <CustomSelect
+                label="Medical class"
+                required
+                value={form.medicalClass}
+                onChange={val => set('medicalClass', val)}
+                placeholder="Select class"
+                options={[
+                  { value: 'Class 1', badge: 'Class 1', label: 'Class 1 Medical' },
+                  { value: 'Class 2', badge: 'Class 2', label: 'Class 2 Medical' },
+                  { value: 'Basic Class 2', badge: 'Basic', label: 'Basic Class 2 Medical' },
+                  { value: 'Other', badge: 'Other', label: 'Other' },
+                ]}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[13px] font-semibold text-[#152d5a] mb-2">Date of issue <span className="text-red-500">*</span></label>
+                  <CalendarDateField value={form.issueDate} onChange={val => set('issueDate', val)}
+                    minYear={currentYear - 10} maxYear={currentYear} maxDate={today} placeholder="Select date"
+                    className="w-full h-10 bg-white border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] focus:outline-none focus:border-blue-500/60 text-left flex items-center justify-between" />
+                </div>
+                <div>
+                  <label className="block text-[13px] font-semibold text-[#152d5a] mb-2">Expiry date <span className="text-red-500">*</span></label>
+                  <CalendarDateField value={form.expiryDate} onChange={val => set('expiryDate', val)}
+                    minYear={currentYear} maxYear={currentYear + 10} minDate={today} placeholder="Select date"
+                    className="w-full h-10 bg-white border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] focus:outline-none focus:border-blue-500/60 text-left flex items-center justify-between" />
+                </div>
+              </div>
+            </>)}
+            {docType === 'photo_id' && (<>
+              <CustomSelect
+                label="ID type"
+                required
+                value={form.idType}
+                onChange={val => set('idType', val)}
+                placeholder="Select ID type"
+                options={[
+                  { value: 'Passport', badge: 'Passport', label: 'Passport' },
+                  { value: 'Driver Licence', badge: 'Licence', label: 'Driver Licence' },
+                  { value: 'Other', badge: 'Other', label: 'Other' },
+                ]}
+              />
+              <div>
+                <label className="block text-[13px] font-semibold text-[#152d5a] mb-2">Document number <span className="text-red-500">*</span></label>
+                <input type="text" value={form.documentNumber} onChange={e => set('documentNumber', e.target.value)}
+                  placeholder="e.g. PA1234567" className="w-full h-10 border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] bg-white focus:outline-none focus:border-blue-500/60" />
+              </div>
+            </>)}
+            {docType === 'night_vfr_evidence' && (
+              <p className="text-[13px] text-[#4b6390] bg-[#f8fbff] border border-[#152d5a]/08 rounded-xl px-3 py-2">
+                Upload any document that confirms your Night VFR endorsement (e.g. logbook page, CASA certificate).
+              </p>
             )}
-            <p className="text-[12px] text-[#94a3b8] mt-1">PDF, JPG, PNG — max 10 MB</p>
-            {fileError && <p className="text-[12px] text-red-500 mt-1 flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">error</span>{fileError}</p>}
+            {formError && (
+              <p className="text-[13px] text-red-600 flex items-center gap-1.5 bg-red-500/5 border border-red-500/15 rounded-xl px-3 py-2.5">
+                <span className="material-symbols-outlined text-[14px] flex-shrink-0">error</span>{formError}
+              </p>
+            )}
           </div>
-          {docType === 'pilot_licence' && (<>
-            <div>
-              <label className="block text-[13px] font-semibold text-[#152d5a] mb-2">Licence type <span className="text-red-500">*</span></label>
-              <select value={form.licenceType} onChange={e => set('licenceType', e.target.value)}
-                className="w-full h-10 border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] bg-white focus:outline-none focus:border-blue-500/60">
-                <option value="">Select licence type</option>
-                <option value="RPL">RPL — Recreational Pilot Licence</option>
-                <option value="PPL">PPL — Private Pilot Licence</option>
-                <option value="CPL">CPL — Commercial Pilot Licence</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[13px] font-semibold text-[#152d5a] mb-2">Licence number / ARN <span className="text-red-500">*</span></label>
-              <input type="text" value={form.licenceNumber} onChange={e => set('licenceNumber', e.target.value)}
-                placeholder="e.g. 123456" className="w-full h-10 border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] bg-white focus:outline-none focus:border-blue-500/60" />
-            </div>
-          </>)}
-          {docType === 'medical_certificate' && (<>
-            <div>
-              <label className="block text-[13px] font-semibold text-[#152d5a] mb-2">Medical class <span className="text-red-500">*</span></label>
-              <select value={form.medicalClass} onChange={e => set('medicalClass', e.target.value)}
-                className="w-full h-10 border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] bg-white focus:outline-none focus:border-blue-500/60">
-                <option value="">Select class</option>
-                <option value="Class 1">Class 1</option>
-                <option value="Class 2">Class 2</option>
-                <option value="Basic Class 2">Basic Class 2</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[13px] font-semibold text-[#152d5a] mb-2">Date of issue <span className="text-red-500">*</span></label>
-                <CalendarDateField value={form.issueDate} onChange={val => set('issueDate', val)}
-                  minYear={currentYear - 10} maxYear={currentYear} maxDate={today} placeholder="Select date"
-                  className="w-full h-10 bg-white border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] focus:outline-none focus:border-blue-500/60 text-left flex items-center justify-between" />
-              </div>
-              <div>
-                <label className="block text-[13px] font-semibold text-[#152d5a] mb-2">Expiry date <span className="text-red-500">*</span></label>
-                <CalendarDateField value={form.expiryDate} onChange={val => set('expiryDate', val)}
-                  minYear={currentYear} maxYear={currentYear + 10} minDate={today} placeholder="Select date"
-                  className="w-full h-10 bg-white border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] focus:outline-none focus:border-blue-500/60 text-left flex items-center justify-between" />
-              </div>
-            </div>
-          </>)}
-          {docType === 'photo_id' && (<>
-            <div>
-              <label className="block text-[13px] font-semibold text-[#152d5a] mb-2">ID type <span className="text-red-500">*</span></label>
-              <select value={form.idType} onChange={e => set('idType', e.target.value)}
-                className="w-full h-10 border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] bg-white focus:outline-none focus:border-blue-500/60">
-                <option value="">Select ID type</option>
-                <option value="Passport">Passport</option>
-                <option value="Driver Licence">Driver Licence</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[13px] font-semibold text-[#152d5a] mb-2">Document number <span className="text-red-500">*</span></label>
-              <input type="text" value={form.documentNumber} onChange={e => set('documentNumber', e.target.value)}
-                placeholder="e.g. PA1234567" className="w-full h-10 border border-[#152d5a]/15 rounded-xl px-3 text-sm text-[#152d5a] bg-white focus:outline-none focus:border-blue-500/60" />
-            </div>
-          </>)}
-          {docType === 'night_vfr_evidence' && (
-            <p className="text-[13px] text-[#4b6390] bg-[#f8fbff] border border-[#152d5a]/08 rounded-xl px-3 py-2">
-              Upload any document that confirms your Night VFR endorsement (e.g. logbook page, CASA certificate).
-            </p>
-          )}
-          {formError && (
-            <p className="text-[13px] text-red-600 flex items-center gap-1.5 bg-red-500/5 border border-red-500/15 rounded-xl px-3 py-2.5">
-              <span className="material-symbols-outlined text-[14px] flex-shrink-0">error</span>{formError}
-            </p>
-          )}
-        </div>
-        <div className="px-5 pb-5 flex items-center justify-end gap-3 border-t border-[#152d5a]/08 pt-4">
-          <button onClick={onClose} className="px-5 py-2.5 rounded-xl border border-[#152d5a]/20 text-[#4b6390] text-sm font-semibold hover:bg-[#f0f6ff] transition-colors">Cancel</button>
-          <button onClick={handleUpload} disabled={uploading}
-            className="px-5 py-2.5 rounded-xl bg-[#1a4fd6] hover:bg-[#1540b8] text-white text-sm font-semibold disabled:opacity-50 flex items-center gap-2 transition-colors">
-            {uploading && <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>}
-            {uploading ? 'Uploading…' : 'Upload Document'}
-          </button>
+          <div className="shrink-0 px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-end gap-2.5 sm:gap-3 border-t border-[#152d5a]/08 bg-white">
+            <button onClick={onClose} className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl border border-[#152d5a]/20 text-[#4b6390] text-xs sm:text-sm font-semibold hover:bg-[#f0f6ff] transition-colors">Cancel</button>
+            <button onClick={handleUpload} disabled={uploading}
+              className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-[#1a4fd6] hover:bg-[#1540b8] text-white text-xs sm:text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
+              {uploading && <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>}
+              {uploading ? 'Uploading…' : 'Upload Document'}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </ModalPortal>
   )
 }
 

@@ -104,14 +104,14 @@ export function calculatePostFlightCharges(params: PostFlightCalculationParams):
 
   const billedVdoHours = minimumVdoBilling.billedVdoHours ?? vdoTotal
 
-  // Expiry check against flight date (scheduledStart) or current time, or status active
+  // Expiry check against flight date (scheduledStart) or current time, or status active/exhausted
   const flightTimestamp = scheduledStart ? new Date(scheduledStart).getTime() : Date.now()
   const isBlockTime = Boolean(
     activeBlockTime &&
-    activeBlockTime.hours_remaining > 0 &&
     (
       !activeBlockTime.expires_at ||
       activeBlockTime.status === 'active' ||
+      activeBlockTime.status === 'exhausted' ||
       new Date(activeBlockTime.expires_at).getTime() >= flightTimestamp ||
       new Date(activeBlockTime.expires_at).getTime() >= Date.now()
     ),
@@ -130,18 +130,22 @@ export function calculatePostFlightCharges(params: PostFlightCalculationParams):
     ? activeBlockTime.rate_per_hour
     : defaultHourlyRate
 
+  if (isBlockTime && activeBlockTime) {
+    blockPackageId = activeBlockTime.id
+    const basePkgName = activeBlockTime.package_name ?? 'Starter Block'
+    const hrsPurchased = Number(activeBlockTime.hours_purchased ?? 0)
+    blockPackageName = (hrsPurchased > 0 && !basePkgName.toLowerCase().includes('hr'))
+      ? `${basePkgName} (${hrsPurchased}hr package)`
+      : basePkgName
+    blockHoursBefore = Math.round(Number(activeBlockTime.hours_remaining ?? 0) * 100) / 100
+    blockHoursRemaining = blockHoursBefore
+    blockHoursRemainingAfter = blockHoursBefore
+  }
+
   if (billedVdoHours != null && billedVdoHours > 0) {
     if (isBlockTime && activeBlockTime) {
-      blockPackageId = activeBlockTime.id
-      const basePkgName = activeBlockTime.package_name ?? 'Starter Block'
-      const hrsPurchased = Number(activeBlockTime.hours_purchased ?? 0)
-      blockPackageName = (hrsPurchased > 0 && !basePkgName.toLowerCase().includes('hr'))
-        ? `${basePkgName} (${hrsPurchased}hr package)`
-        : basePkgName
-      blockHoursBefore = Math.round(activeBlockTime.hours_remaining * 100) / 100
-      blockHoursRemaining = blockHoursBefore
-      blockHoursDeducted = Math.round(Math.min(activeBlockTime.hours_remaining, billedVdoHours) * 100) / 100
-      blockHoursRemainingAfter = Math.max(0, Math.round((blockHoursBefore - blockHoursDeducted) * 100) / 100)
+      blockHoursDeducted = Math.round(Math.min(Number(activeBlockTime.hours_remaining ?? 0), billedVdoHours) * 100) / 100
+      blockHoursRemainingAfter = Math.max(0, Math.round(((blockHoursBefore ?? 0) - blockHoursDeducted) * 100) / 100)
       blockOverageHours = Math.max(0, Math.round((billedVdoHours - blockHoursDeducted) * 100) / 100)
       // Case 1: Overage is billed at standard aircraft hire rate (defaultHourlyRate), not package rate
       blockOverageAmountCents = Math.round(blockOverageHours * defaultHourlyRate * 100)

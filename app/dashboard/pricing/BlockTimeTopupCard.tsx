@@ -17,6 +17,7 @@ type Props = {
   ratePerHour: number
   expiresAt: string
   validityDays: number
+  isModal?: boolean
 }
 
 function formatAud(value: number): string {
@@ -35,6 +36,7 @@ export default function BlockTimeTopupCard({
   ratePerHour,
   expiresAt,
   validityDays,
+  isModal = false,
 }: Props) {
   const minHours = blockTimeTopupMinimumHours(hoursPurchased)
   const extensionDays = blockTimeTopupExtensionDays(validityDays)
@@ -71,27 +73,35 @@ export default function BlockTimeTopupCard({
 
   return (
     <div
-      id="top-up"
-      className="mt-6 scroll-mt-24 rounded-xl border border-[#1a4fd6]/15 bg-[#f8fbff]/70 p-5 md:p-6"
+      id={isModal ? undefined : "top-up"}
+      className={
+        isModal
+          ? "w-full"
+          : "mt-6 scroll-mt-24 rounded-xl border border-[#1a4fd6]/15 bg-[#f8fbff]/70 p-5 md:p-6"
+      }
     >
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3
-          className="text-[22px] font-normal leading-tight text-[#152d5a]"
-          style={{ fontFamily: 'Newsreader, Georgia, serif' }}
-        >
-          Top up {packageName}
-        </h3>
-        <p className="text-[12px] font-semibold text-[#1a4fd6]">
-          ${ratePerHour.toFixed(0)}/hr — your locked-in rate
-        </p>
-      </div>
-      <p className="mt-1 text-[13px] leading-relaxed text-[#4b6390]">
-        Add hours to your existing package at the rate you originally locked in. Each top-up also
-        extends your expiry by {extensionDays} days. Minimum top-up: {minHours} hours.
-      </p>
+      {!isModal && (
+        <>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3
+              className="text-[22px] font-normal leading-tight text-[#152d5a]"
+              style={{ fontFamily: 'Newsreader, Georgia, serif' }}
+            >
+              Top up {packageName}
+            </h3>
+            <p className="text-[12px] font-semibold text-[#1a4fd6]">
+              ${ratePerHour.toFixed(0)}/hr — your locked-in rate
+            </p>
+          </div>
+          <p className="mt-1 text-[13px] leading-relaxed text-[#4b6390]">
+            Add hours to your existing package at the rate you originally locked in. Each top-up also
+            extends your expiry by {extensionDays} days. Minimum top-up: {minHours} hours.
+          </p>
+        </>
+      )}
 
-      <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start">
-        <div className="md:w-[220px]">
+      <div className={isModal ? "flex flex-col gap-4 sm:flex-row sm:items-start" : "mt-4 flex flex-col gap-4 md:flex-row md:items-start"}>
+        <div className={isModal ? "sm:w-[180px]" : "md:w-[220px]"}>
           <label htmlFor="topup-hours" className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6]">
             Hours to add
           </label>
@@ -103,18 +113,34 @@ export default function BlockTimeTopupCard({
             step={0.5}
             value={hoursInput}
             onChange={(e) => setHoursInput(e.target.value)}
-            className="mt-1.5 w-full rounded-xl border border-[#152d5a]/15 bg-white px-4 py-3 text-[18px] font-semibold text-[#152d5a] outline-none transition-colors focus:border-[#1a4fd6]"
+            className="mt-1.5 w-full rounded-xl border border-[#152d5a]/15 bg-white px-3.5 py-2.5 text-[17px] font-semibold text-[#152d5a] outline-none transition-colors focus:border-[#1a4fd6]"
           />
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {[minHours, minHours + 2, minHours + 5, minHours + 10].filter((v, i, arr) => arr.indexOf(v) === i).map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setHoursInput(String(preset))}
+                className={`rounded-lg border px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+                  hoursInput === String(preset)
+                    ? 'border-[#1a4fd6] bg-[#f0f6ff] text-[#1a4fd6]'
+                    : 'border-[#152d5a]/10 bg-white text-[#4b6390] hover:bg-[#f8fafc]'
+                }`}
+              >
+                +{preset}h
+              </button>
+            ))}
+          </div>
           {belowMinimum ? (
-            <p className="mt-1.5 text-[12px] font-medium text-amber-700">
-              Minimum top-up is {minHours} hours (10% of your {hoursPurchased.toFixed(0)}h package).
+            <p className="mt-1.5 text-[11px] font-medium text-amber-700">
+              Minimum top-up is {minHours}h (10% of package).
             </p>
           ) : null}
         </div>
 
-        <div className="flex-1 rounded-xl border border-[#152d5a]/10 bg-white p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6]">Preview</p>
-          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-[13px] sm:grid-cols-4">
+        <div className="flex-1 rounded-xl border border-[#152d5a]/10 bg-[#f8fbff]/70 p-3.5 sm:p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6]">Live Breakdown</p>
+          <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-[12px] sm:text-[13px] sm:grid-cols-4">
             <div>
               <dt className="text-[#4b6390]">Hours added</dt>
               <dd className="mt-0.5 font-semibold text-[#152d5a]">
@@ -123,7 +149,7 @@ export default function BlockTimeTopupCard({
             </div>
             <div>
               <dt className="text-[#4b6390]">Cost</dt>
-              <dd className="mt-0.5 font-semibold text-[#152d5a]">
+              <dd className="mt-0.5 font-semibold text-[#1a4fd6]">
                 {cost !== null ? formatAud(cost) : '—'}
               </dd>
             </div>
@@ -137,14 +163,14 @@ export default function BlockTimeTopupCard({
               <dt className="text-[#4b6390]">New expiry</dt>
               <dd className="mt-0.5 font-semibold text-[#152d5a]">
                 {formatDate(newExpiry)}
-                <span className="ml-1 rounded-full border border-[#1a4fd6]/15 bg-[#f0f6ff] px-1.5 py-0.5 text-[10px] font-bold text-[#1a4fd6]">
+                <span className="ml-1 rounded-full border border-[#1a4fd6]/15 bg-[#f0f6ff] px-1 py-0.2 text-[9px] font-bold text-[#1a4fd6]">
                   +{extensionDays}d
                 </span>
               </dd>
             </div>
           </dl>
           <p className="mt-2 text-[11px] text-[#4b6390]/80">
-            Currently expires {formatDate(currentExpiry)} — topping up extends this by {extensionDays} days.
+            Current expiry {formatDate(currentExpiry)} · extended by {extensionDays} days upon payment.
           </p>
         </div>
       </div>
@@ -155,7 +181,7 @@ export default function BlockTimeTopupCard({
           onClick={handleTopup}
           disabled={!canSubmit}
           aria-busy={isPending || undefined}
-          className="rounded-xl bg-[#f59e0b] px-6 py-3 text-[12px] font-bold uppercase tracking-[0.12em] text-white transition-colors hover:bg-[#e08c00] disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
+          className="w-full sm:w-auto rounded-xl bg-[#f59e0b] px-6 py-3 text-[12px] font-bold uppercase tracking-[0.12em] text-white transition-colors hover:bg-[#e08c00] disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2 text-center"
         >
           <LoadingButtonContent loading={isPending} loadingLabel="Starting…">
             {hours !== null && cost !== null && !belowMinimum

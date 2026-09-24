@@ -32,6 +32,7 @@ export default function PostFlightHero({
         label: statusLabel,
         color: 'amber',
       }}
+      compact={true}
     />
   )
 }

@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import PortalPageHero from '@/components/PortalPageHero'
 import { formatDateFromISO } from '@/lib/formatDateTime'
-import { createBlockTimeOveragePaymentSession } from '@/app/actions/payment'
+import { createBlockTimeOveragePaymentSession, cancelPendingBlockTimePurchase } from '@/app/actions/payment'
 import { PAYMENT_CONFIG } from '@/lib/payments/config'
 import BlockTimeTopupCard from '../pricing/BlockTimeTopupCard'
 
@@ -112,7 +113,25 @@ export default async function PurchaseHistoryPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: profile }, { data: packageRows }, { data: purchaseRows }, { data: usageRows }, { data: overageRows }, { data: landingInvoiceRows }] = await Promise.all([
+  if (searchParams?.block_time_purchase === 'cancelled' || searchParams?.block_time_topup === 'cancelled') {
+    const admin = createAdminClient()
+    await admin
+      .from('pilot_block_time_purchases')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('status', 'pending')
+  }
+
+  const [
+    { data: profile },
+    { data: packageRows },
+    { data: purchaseRows },
+    { data: usageRows },
+    { data: overageRows },
+    { data: landingInvoiceRows },
+    { data: topupRows },
+    { data: packageInvoiceRows },
+  ] = await Promise.all([
     supabase
       .from('profiles')
       .select('pilot_clearance_status')
@@ -175,6 +194,30 @@ export default async function PurchaseHistoryPage({
       .eq('is_block_time_overage', false)
       .eq('status', 'awaiting')
       .order('created_at', { ascending: true }),
+    createAdminClient()
+      .from('block_time_topups')
+      .select(`
+        id,
+        purchase_id,
+        hours_added,
+        rate_per_hour,
+        amount_paid,
+        validity_extension_days,
+        invoice_id,
+        created_at,
+        purchase:pilot_block_time_purchases(
+          id,
+          package:block_time_packages(name)
+        ),
+        invoice:invoices(id, invoice_number, pdf_url, status)
+      `)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('invoices')
+      .select('id, invoice_number, total, created_at, pdf_url, block_time_purchase_id')
+      .eq('user_id', user.id)
+      .eq('type', 'block_time_purchase'),
   ])
 
   const isCleared = profile?.pilot_clearance_status === 'cleared_to_fly'
@@ -210,6 +253,15 @@ export default async function PurchaseHistoryPage({
         }
       : null
 
+  const packageInvoicesByPurchaseId = new Map<string, { id: string; invoice_number: string; pdf_url: string | null }>()
+  for (const inv of (packageInvoiceRows ?? []) as any[]) {
+    if (inv.block_time_purchase_id) {
+      packageInvoicesByPurchaseId.set(inv.block_time_purchase_id, inv)
+    }
+  }
+
+  const topups = (topupRows ?? []) as any[]
+
   const activePurchases = purchases
     .filter((p) => p.status === 'active')
     .sort((a, b) => {
@@ -220,7 +272,14 @@ export default async function PurchaseHistoryPage({
     })
 
   const pendingPurchases = purchases.filter((p) => p.status === 'pending')
+  const completedPurchases = purchases.filter((p) => p.status !== 'pending')
   const hasActivePackage = activePurchases.length > 0
+  const topupEligiblePurchase =
+    activePurchases[0] ??
+    purchases.find(
+      (p) => (p.status === 'active' || p.status === 'exhausted') && new Date(p.expires_at).getTime() > Date.now()
+    ) ?? null
+
   const totalHoursRemaining = activePurchases.reduce((sum, p) => sum + Number(p.hours_remaining || 0), 0)
   const earliestExpiry = activePurchases
     .map((p) => p.expires_at)
@@ -243,17 +302,27 @@ export default async function PurchaseHistoryPage({
         }
       />
 
-      <div className="mx-auto max-w-[1320px] space-y-8 pb-16 pt-2">
+      <div className="mx-auto max-w-[1320px] space-y-6 sm:space-y-8 pb-24 sm:pb-16 pt-2">
         {topupOutcome === 'success' ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
-            <p className="text-[14px] font-semibold text-emerald-800">Top-up payment received</p>
-            <p className="mt-0.5 text-[13px] leading-relaxed text-emerald-700">
-              Your hours are being added now — the new balance and expiry will appear here within a minute or two of
-              Stripe confirming the payment. A tax invoice is on its way to your inbox.
-            </p>
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 sm:px-5 py-3.5 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p className="text-[14px] font-semibold text-emerald-800">Top-up payment received</p>
+              <p className="mt-0.5 text-[13px] leading-relaxed text-emerald-700">
+                Your hours have been added — your new balance and extended expiry are reflected below. A tax invoice has also been generated.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                href="/dashboard/billing"
+                className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3.5 py-2 text-[12px] font-bold text-white transition-colors hover:bg-emerald-700 shadow-sm"
+              >
+                <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+                View Tax Invoices
+              </Link>
+            </div>
           </div>
         ) : topupOutcome === 'cancelled' ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 sm:px-5 py-3.5 sm:py-4">
             <p className="text-[14px] font-semibold text-amber-900">Top-up cancelled</p>
             <p className="mt-0.5 text-[13px] leading-relaxed text-amber-800">
               No payment was taken. Your package is unchanged — you can start a new top-up whenever you are ready.
@@ -262,7 +331,7 @@ export default async function PurchaseHistoryPage({
         ) : null}
 
       {overageOutcome === 'success' ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 sm:px-5 py-3.5 sm:py-4">
           <p className="text-[14px] font-semibold text-emerald-800">Overage payment received</p>
           <p className="mt-0.5 text-[13px] leading-relaxed text-emerald-700">
             Thank you — your overage invoice is being marked paid now. Bookings, block time purchases, and top-ups will be
@@ -270,7 +339,7 @@ export default async function PurchaseHistoryPage({
           </p>
         </div>
       ) : overageOutcome === 'cancelled' ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 sm:px-5 py-3.5 sm:py-4">
           <p className="text-[14px] font-semibold text-amber-900">Overage payment cancelled</p>
           <p className="mt-0.5 text-[13px] leading-relaxed text-amber-800">
             No payment was taken. The overage invoice remains outstanding — new bookings and block time purchases stay
@@ -280,7 +349,7 @@ export default async function PurchaseHistoryPage({
       ) : null}
 
       {outstandingOverages.length > 0 && (
-        <section className="rounded-2xl border border-rose-200 bg-rose-50 px-6 py-5">
+        <section className="rounded-2xl border border-rose-200 bg-rose-50 px-4 sm:px-6 py-4 sm:py-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-600">Action required</p>
@@ -322,7 +391,7 @@ export default async function PurchaseHistoryPage({
                 <form action={createBlockTimeOveragePaymentSession.bind(null, invoice.id)}>
                   <button
                     type="submit"
-                    className="inline-flex items-center justify-center rounded-full bg-rose-600 px-5 py-2.5 text-[12px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-rose-500"
+                    className="inline-flex items-center justify-center rounded-full bg-rose-600 px-5 py-2.5 text-[12px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-rose-500 w-full sm:w-auto"
                   >
                     Pay ${Number(invoice.total).toFixed(2)} now
                   </button>
@@ -334,7 +403,7 @@ export default async function PurchaseHistoryPage({
       )}
 
       {outstandingLandingInvoices.length > 0 && (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 px-6 py-5">
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 sm:px-6 py-4 sm:py-5">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-700">Payment required</p>
             <h2 className="mt-1 text-[18px] font-semibold text-amber-900">Landing fee {outstandingLandingInvoices.length === 1 ? 'invoice' : 'invoices'}</h2>
@@ -388,7 +457,7 @@ export default async function PurchaseHistoryPage({
                   invoice.booking_id ? (
                     <Link
                       href={`/dashboard/bookings/${invoice.booking_id}#payment`}
-                      className="inline-flex items-center justify-center rounded-full bg-[#1a4fd6] px-5 py-2.5 text-[12px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#1540a8]"
+                      className="inline-flex items-center justify-center rounded-full bg-[#1a4fd6] px-5 py-2.5 text-[12px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#1540a8] w-full sm:w-auto"
                     >
                       Pay ${Number(invoice.total).toFixed(2)} now
                     </Link>
@@ -396,7 +465,7 @@ export default async function PurchaseHistoryPage({
                     <form action={createBlockTimeOveragePaymentSession.bind(null, invoice.id)}>
                       <button
                         type="submit"
-                        className="inline-flex items-center justify-center rounded-full bg-[#1a4fd6] px-5 py-2.5 text-[12px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#1540a8]"
+                        className="inline-flex items-center justify-center rounded-full bg-[#1a4fd6] px-5 py-2.5 text-[12px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#1540a8] w-full sm:w-auto"
                       >
                         Pay ${Number(invoice.total).toFixed(2)} now
                       </button>
@@ -411,7 +480,7 @@ export default async function PurchaseHistoryPage({
 
       <section
         id="top-up"
-        className="rounded-2xl border border-[#152d5a]/10 bg-white p-6 md:p-8"
+        className="rounded-2xl border border-[#152d5a]/10 bg-white p-4 sm:p-6 md:p-8"
         style={{ boxShadow: '0 4px 40px rgba(2,10,22,0.08)' }}
       >
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
@@ -437,14 +506,23 @@ export default async function PurchaseHistoryPage({
               )}
             </p>
           </div>
-          {hasActivePackage ? (
-            <Link
-              href="#top-up"
-              className="inline-flex items-center gap-1 self-start rounded-full border border-[#1a4fd6]/10 bg-[#f0f6ff] px-3.5 py-1.5 text-[12px] font-bold text-[#1a4fd6] transition-colors hover:bg-[#e0eeff] hover:text-[#153eb2]"
-            >
-              Top up your package
-              <span className="material-symbols-outlined text-[14px]">add</span>
-            </Link>
+          {topupEligiblePurchase ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="#top-up"
+                className="inline-flex items-center gap-1 self-start rounded-full border border-[#1a4fd6]/10 bg-[#f0f6ff] px-3.5 py-1.5 text-[12px] font-bold text-[#1a4fd6] transition-colors hover:bg-[#e0eeff] hover:text-[#153eb2]"
+              >
+                Top up {packageName(topupEligiblePurchase)}
+                <span className="material-symbols-outlined text-[14px]">add</span>
+              </Link>
+              <Link
+                href="/dashboard/pricing"
+                className="inline-flex items-center gap-1 self-start rounded-full border border-[#152d5a]/10 bg-white px-3.5 py-1.5 text-[12px] font-bold text-[#4b6390] transition-colors hover:text-[#152d5a]"
+              >
+                Browse packages
+                <span className="material-symbols-outlined text-[14px]">sell</span>
+              </Link>
+            </div>
           ) : (
             <Link
               href="/dashboard/pricing"
@@ -496,15 +574,15 @@ export default async function PurchaseHistoryPage({
           </div>
         ) : null}
 
-        {hasActivePackage ? (
+        {topupEligiblePurchase ? (
           <BlockTimeTopupCard
-            purchaseId={activePurchases[0].id}
-            packageName={packageName(activePurchases[0])}
-            hoursPurchased={Number(activePurchases[0].hours_purchased)}
-            hoursRemaining={Number(activePurchases[0].hours_remaining)}
-            ratePerHour={Number(activePurchases[0].rate_per_hour)}
-            expiresAt={activePurchases[0].expires_at}
-            validityDays={Number(one(activePurchases[0].package)?.validity_days ?? 0)}
+            purchaseId={topupEligiblePurchase.id}
+            packageName={packageName(topupEligiblePurchase)}
+            hoursPurchased={Number(topupEligiblePurchase.hours_purchased)}
+            hoursRemaining={Number(topupEligiblePurchase.hours_remaining)}
+            ratePerHour={Number(topupEligiblePurchase.rate_per_hour)}
+            expiresAt={topupEligiblePurchase.expires_at}
+            validityDays={Number(one(topupEligiblePurchase.package)?.validity_days ?? 0)}
           />
         ) : null}
       </section>
@@ -528,47 +606,121 @@ export default async function PurchaseHistoryPage({
                     {formatDateFromISO(purchase.purchased_at)}
                   </p>
                 </div>
-                <p className="max-w-[420px] text-[12px] leading-relaxed text-amber-800">
-                  Payment for this purchase was never completed. If you paid, it will activate automatically once the payment
-                  is confirmed — otherwise simply start a new purchase below.
-                </p>
+                <div className="flex flex-col items-start gap-2 sm:items-end">
+                  <p className="max-w-[420px] text-[12px] leading-relaxed text-amber-800">
+                    Payment for this purchase was not completed.
+                  </p>
+                  <form
+                    action={async () => {
+                      'use server'
+                      await cancelPendingBlockTimePurchase(purchase.id)
+                    }}
+                  >
+                    <button
+                      type="submit"
+                      className="inline-flex items-center justify-center rounded-full border border-amber-300 bg-white px-3 py-1 text-[11px] font-semibold text-amber-800 transition-colors hover:bg-amber-100"
+                    >
+                      Discard reservation
+                    </button>
+                  </form>
+                </div>
               </div>
             ))}
           </div>
         </section>
       ) : null}
 
-      {purchases.length > 0 ? (
+      {(completedPurchases.length > 0 || topups.length > 0) ? (
         <section>
           <SectionHeading icon="receipt_long" label="Purchase history" />
           <div className="overflow-hidden rounded-2xl border border-[#152d5a]/10 bg-white">
-            {purchases.map((purchase, idx) => (
-              <div
-                key={purchase.id}
-                className={`flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between ${
-                  idx > 0 ? 'border-t border-[#152d5a]/[0.07]' : ''
-                }`}
-              >
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-[14px] font-semibold text-[#152d5a]">{packageName(purchase)}</p>
-                    <StatusPill status={purchase.status} />
-                  </div>
-                  <p className="mt-0.5 text-[12px] text-[#4b6390]">
-                    {Number(purchase.hours_purchased).toFixed(0)} hours at ${Number(purchase.rate_per_hour).toFixed(0)}/hr ·
-                    purchased {formatDateFromISO(purchase.purchased_at)}
-                    {purchase.status === 'active' ? <> · expires {formatDateFromISO(purchase.expires_at)}</> : null}
-                  </p>
-                  {purchase.status === 'refunded' && purchase.refunded_at ? (
-                    <p className="mt-0.5 text-[12px] font-medium text-red-600">
-                      Refunded {formatAud(Number(purchase.refund_amount ?? purchase.amount_paid))} on{' '}
-                      {formatDateFromISO(purchase.refunded_at)}
+            {completedPurchases.map((purchase, idx) => {
+              const inv = packageInvoicesByPurchaseId.get(purchase.id)
+              const invoiceUrl = inv?.pdf_url || `/dashboard/purchases/${purchase.id}/invoice`
+
+              return (
+                <div
+                  key={purchase.id}
+                  className={`flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between ${
+                    idx > 0 ? 'border-t border-[#152d5a]/[0.07]' : ''
+                  }`}
+                >
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-[14px] font-semibold text-[#152d5a]">{packageName(purchase)}</p>
+                      <StatusPill status={purchase.status} />
+                    </div>
+                    <p className="mt-0.5 text-[12px] text-[#4b6390]">
+                      {Number(purchase.hours_purchased).toFixed(0)} hours at ${Number(purchase.rate_per_hour).toFixed(0)}/hr ·
+                      purchased {formatDateFromISO(purchase.purchased_at)}
+                      {purchase.status === 'active' ? <> · expires {formatDateFromISO(purchase.expires_at)}</> : null}
                     </p>
-                  ) : null}
+                    {purchase.status === 'refunded' && purchase.refunded_at ? (
+                      <p className="mt-0.5 text-[12px] font-medium text-red-600">
+                        Refunded {formatAud(Number(purchase.refund_amount ?? purchase.amount_paid))} on{' '}
+                        {formatDateFromISO(purchase.refunded_at)}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 sm:text-right">
+                    <p className="text-[14px] font-semibold text-[#152d5a]">{formatAud(Number(purchase.amount_paid))}</p>
+                    <a
+                      href={invoiceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded-xl border border-[#152d5a]/15 bg-white px-3 py-1.5 text-[11px] font-semibold text-[#152d5a] transition-colors hover:bg-[#f0f6ff] hover:text-[#1a4fd6]"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">download</span>
+                      Download Invoice
+                    </a>
+                  </div>
                 </div>
-                <p className="text-[14px] font-semibold text-[#152d5a]">{formatAud(Number(purchase.amount_paid))}</p>
-              </div>
-            ))}
+              )
+            })}
+
+            {topups.map((topup, idx) => {
+              const pkg = one(topup.purchase?.package)
+              const pkgName = pkg?.name || 'Block Time'
+              const inv = one(topup.invoice)
+              const invoiceUrl = inv?.pdf_url || `/dashboard/purchases/${topup.id}/invoice`
+
+              return (
+                <div
+                  key={topup.id}
+                  className={`flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between ${
+                    (completedPurchases.length > 0 || idx > 0) ? 'border-t border-[#152d5a]/[0.07]' : ''
+                  }`}
+                >
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-[14px] font-semibold text-[#152d5a]">
+                        {pkgName} (+{Number(topup.hours_added)}h Top-up)
+                      </p>
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        Top-up added
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[12px] text-[#4b6390]">
+                      +{Number(topup.hours_added)} hours at ${Number(topup.rate_per_hour).toFixed(0)}/hr ·
+                      added {formatDateFromISO(topup.created_at)} · extended validity by {topup.validity_extension_days} days
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 sm:text-right">
+                    <p className="text-[14px] font-semibold text-[#152d5a]">{formatAud(Number(topup.amount_paid))}</p>
+                    <a
+                      href={invoiceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded-xl border border-[#152d5a]/15 bg-white px-3 py-1.5 text-[11px] font-semibold text-[#152d5a] transition-colors hover:bg-[#f0f6ff] hover:text-[#1a4fd6]"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">download</span>
+                      Download Invoice
+                    </a>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </section>
       ) : null}
@@ -611,7 +763,7 @@ export default async function PurchaseHistoryPage({
                       {' · '}balance after: {Number(row.hours_after).toFixed(1)}h
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     {invoice?.pdf_url ? (
                       <a
                         href={invoice.pdf_url}

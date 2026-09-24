@@ -454,10 +454,10 @@ export default function PostFlightVerificationConsole({
   }
 
   return (
-    <div className="max-w-[1320px] mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="max-w-[1320px] mx-auto p-3 sm:p-6 lg:p-8 pt-16 sm:pt-16 lg:pt-8 space-y-4 sm:space-y-6">
       {/* ── Top Hero matching customer billing dark navy aesthetic ────────────── */}
       <section
-        className="relative overflow-hidden rounded-2xl md:rounded-3xl bg-[#0d1b3e] p-6 sm:p-8 text-white shadow-xl border border-blue-900/40"
+        className="relative overflow-hidden rounded-2xl md:rounded-3xl bg-[#0d1b3e] p-4 sm:p-6 md:p-8 text-white shadow-xl border border-blue-900/40"
         style={{
           backgroundImage: 'url(/optimized/pricing-hero-1400.jpg)',
           backgroundSize: 'cover',
@@ -467,9 +467,9 @@ export default function PostFlightVerificationConsole({
         {/* Subtle dark gradient overlay to keep text ultra-sharp */}
         <div className="absolute inset-0 bg-gradient-to-r from-[#0a1633]/95 via-[#0d1b3e]/85 to-[#152d5a]/90" />
 
-        <div className="relative z-10 space-y-5">
+        <div className="relative z-10 space-y-4 sm:space-y-5">
           {/* Top navigation row */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
             <Link
               href="/admin/bookings"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white text-xs font-medium transition-colors border border-white/15"
@@ -478,14 +478,14 @@ export default function PostFlightVerificationConsole({
               Back to Bookings
             </Link>
 
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-xs font-semibold text-blue-200 bg-white/10 px-3 py-1.5 rounded-xl border border-white/15">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-xs font-semibold text-blue-200 bg-white/10 px-2.5 sm:px-3 py-1.5 rounded-xl border border-white/15">
                 Ref: {bookingRef}
               </span>
               {customerId && (
                 <Link
                   href={`/admin/users/${customerId}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors border border-white/15"
+                  className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors border border-white/15"
                 >
                   <span className="material-symbols-outlined text-[14px]">person</span>
                   Customer Profile
@@ -501,7 +501,7 @@ export default function PostFlightVerificationConsole({
                 Post-Flight Review &amp; Verification
               </div>
               <h1
-                className="text-2xl sm:text-3xl md:text-4xl font-bold text-white tracking-tight"
+                className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-white tracking-tight break-words"
                 style={{ fontFamily: 'Newsreader, Georgia, serif' }}
               >
                 Flight &amp; Payment Review &mdash; {aircraftReg}
@@ -512,24 +512,24 @@ export default function PostFlightVerificationConsole({
             </div>
 
             {/* Status Pill */}
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 self-start md:self-auto">
               {isSettled ? (
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-emerald-400/50 bg-emerald-400/20 text-emerald-200 text-xs font-bold uppercase tracking-wider shadow-sm">
+                <div className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-emerald-400/50 bg-emerald-400/20 text-emerald-200 text-xs font-bold uppercase tracking-wider shadow-sm">
                   <span className="h-2 w-2 rounded-full bg-emerald-400" />
                   Approved &amp; Settled
                 </div>
               ) : isAwaitingCustomer ? (
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-amber-400/50 bg-amber-400/20 text-amber-200 text-xs font-bold uppercase tracking-wider shadow-sm">
+                <div className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-amber-400/50 bg-amber-400/20 text-amber-200 text-xs font-bold uppercase tracking-wider shadow-sm">
                   <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
                   Clarification Requested
                 </div>
               ) : currentStatus === 'resubmitted' ? (
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-emerald-400/50 bg-emerald-400/20 text-emerald-200 text-xs font-bold uppercase tracking-wider shadow-sm">
+                <div className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-emerald-400/50 bg-emerald-400/20 text-emerald-200 text-xs font-bold uppercase tracking-wider shadow-sm">
                   <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
                   Resubmitted &mdash; Under Review
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-amber-400/50 bg-amber-400/20 text-amber-200 text-xs font-bold uppercase tracking-wider shadow-sm">
+                <div className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-amber-400/50 bg-amber-400/20 text-amber-200 text-xs font-bold uppercase tracking-wider shadow-sm">
                   <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
                   Payment Verification Required
                 </div>
@@ -538,26 +538,26 @@ export default function PostFlightVerificationConsole({
           </div>
 
           {/* Quick Metrics Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-white/10 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-3 border-t border-white/10 text-xs">
             <div>
               <span className="text-[10px] text-blue-200 uppercase font-semibold block">Aircraft</span>
-              <span className="font-bold text-white text-sm">
+              <span className="font-bold text-white text-xs sm:text-sm break-words">
                 {aircraftReg} ({aircraftType})
               </span>
             </div>
             <div>
               <span className="text-[10px] text-blue-200 uppercase font-semibold block">Pilot in Command</span>
-              <span className="font-bold text-white text-sm">{customerName}</span>
+              <span className="font-bold text-white text-xs sm:text-sm break-words">{customerName}</span>
             </div>
             <div>
               <span className="text-[10px] text-blue-200 uppercase font-semibold block">Flight Hours</span>
-              <span className="font-bold text-white text-sm">
+              <span className="font-bold text-white text-xs sm:text-sm">
                 {currentVdoNum ? `${currentVdoNum.toFixed(1)} hrs` : '0.0 hrs'}
               </span>
             </div>
             <div>
               <span className="text-[10px] text-blue-200 uppercase font-semibold block">Total Settlement</span>
-              <span className="font-bold text-emerald-300 text-sm">{formattedTotal}</span>
+              <span className="font-bold text-emerald-300 text-xs sm:text-sm">{formattedTotal}</span>
             </div>
           </div>
         </div>
@@ -611,23 +611,23 @@ export default function PostFlightVerificationConsole({
       )}
 
       {/* ── Section 1: Flight & Pilot Overview ──────────────────────────────── */}
-      <div className="rounded-2xl md:rounded-3xl border border-[var(--admin-border)] bg-white p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-5">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+      <div className="rounded-2xl md:rounded-3xl border border-[var(--admin-border)] bg-white p-4 sm:p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4 sm:space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-4">
           <div className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-[#1a4fd6]">
               <span className="material-symbols-outlined text-lg">flight_takeoff</span>
             </span>
             <h2 className="text-base font-bold text-slate-900">Flight &amp; Pilot Overview</h2>
           </div>
-          <span className="text-xs font-mono font-medium text-slate-500 bg-slate-50 px-3 py-1 rounded-lg border border-slate-200/80">
+          <span className="text-xs font-mono font-medium text-slate-500 bg-slate-50 px-3 py-1 rounded-lg border border-slate-200/80 self-start sm:self-auto">
             Flight Date: {flightDate}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5 text-xs">
           <div>
             <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Pilot in Command</p>
-            <p className="font-bold text-slate-900 text-sm">{customerName}</p>
+            <p className="font-bold text-slate-900 text-sm break-words">{customerName}</p>
             {picArn && <p className="text-[11px] font-mono text-slate-500 mt-0.5">ARN: {picArn}</p>}
           </div>
 
@@ -640,7 +640,7 @@ export default function PostFlightVerificationConsole({
                     href={`mailto:${customerEmail}`}
                     title={`Email ${customerName} (${customerEmail})`}
                     aria-label={`Email ${customerName} at ${customerEmail}`}
-                    className="group/email inline-flex max-w-full items-center gap-1.5 text-xs text-slate-700 transition-colors hover:text-[#1a4fd6]"
+                    className="group/email inline-flex max-w-full items-center gap-1.5 text-xs text-slate-700 transition-colors hover:text-[#1a4fd6] break-all"
                   >
                     <Mail className="h-3.5 w-3.5 shrink-0 text-[#D97706] transition-colors group-hover/email:text-[#b45309]" />
                     <span className="truncate underline decoration-slate-300 underline-offset-2 group-hover/email:decoration-current font-medium">
@@ -673,7 +673,7 @@ export default function PostFlightVerificationConsole({
 
           <div>
             <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Aircraft &amp; Rate</p>
-            <p className="font-bold text-slate-900 text-sm">{aircraftReg}</p>
+            <p className="font-bold text-slate-900 text-sm break-words">{aircraftReg}</p>
             <p className="text-slate-500 mt-0.5">
               {aircraftType} &middot; {formattedHourlyRate}/hr
             </p>
@@ -681,13 +681,13 @@ export default function PostFlightVerificationConsole({
 
           <div>
             <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Scheduled Window</p>
-            <p className="font-medium text-slate-900 font-mono">{scheduledStartStr}</p>
-            <p className="text-slate-500 font-mono mt-0.5">to {scheduledEndStr}</p>
+            <p className="font-medium text-slate-900 font-mono text-[11px] sm:text-xs break-words">{scheduledStartStr}</p>
+            <p className="text-slate-500 font-mono text-[11px] sm:text-xs break-words mt-0.5">to {scheduledEndStr}</p>
           </div>
         </div>
 
         {customerNotes && (
-          <div className="rounded-xl bg-slate-50 p-4 border border-slate-200/70">
+          <div className="rounded-xl bg-slate-50 p-3.5 sm:p-4 border border-slate-200/70">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Pilot Remarks</p>
             <p className="text-xs text-slate-800 italic">&ldquo;{customerNotes}&rdquo;</p>
           </div>
@@ -695,7 +695,7 @@ export default function PostFlightVerificationConsole({
       </div>
 
       {/* ── Section 2: Interactive Flight Meter Readings (Always Editable) ──────── */}
-      <div className="rounded-2xl md:rounded-3xl border border-[var(--admin-border)] bg-white p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-5">
+      <div className="rounded-2xl md:rounded-3xl border border-[var(--admin-border)] bg-white p-4 sm:p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4 sm:space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
           <div className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-[#1a4fd6]">
@@ -735,7 +735,7 @@ export default function PostFlightVerificationConsole({
         {/* ── Multi-Day Rental Minimum Billing Decision ──────────────────────── */}
         {isMultiDayBooking && (
           <div
-            className={`rounded-2xl border p-4 sm:p-5 transition-all ${
+            className={`rounded-2xl border p-3.5 sm:p-5 transition-all ${
               isBelowMinimum
                 ? 'border-amber-300 bg-amber-50/80 text-amber-950'
                 : 'border-blue-200 bg-blue-50/50 text-blue-950'
@@ -786,7 +786,7 @@ export default function PostFlightVerificationConsole({
               </div>
 
               {/* Action Buttons for Admin Decision */}
-              <div className="flex flex-wrap sm:flex-col gap-2 shrink-0">
+              <div className="flex flex-col sm:flex-col gap-2 shrink-0 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setEditedVdoTotal(minimumVdoHours.toFixed(1))}
@@ -846,7 +846,7 @@ export default function PostFlightVerificationConsole({
                       )} was paid upfront, the remaining balance of ${formattedDifference} is now due. Please settle via the pilot portal or direct bank transfer.`
                     )
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shrink-0 shadow-sm"
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shrink-0 shadow-sm w-full sm:w-auto"
                 >
                   <span className="material-symbols-outlined text-sm">forward_to_inbox</span>
                   Request Remaining Payment ({formattedDifference}) via Clarification
@@ -949,8 +949,8 @@ export default function PostFlightVerificationConsole({
       </div>
 
       {/* ── Section 3: Declared Airport Landings (Always Editable & Parallel) ───── */}
-      <div className="rounded-2xl md:rounded-3xl border border-[var(--admin-border)] bg-white p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-4">
+      <div className="rounded-2xl md:rounded-3xl border border-[var(--admin-border)] bg-white p-4 sm:p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
           <div className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-[#1a4fd6]">
               <span className="material-symbols-outlined text-lg">connecting_airports</span>
@@ -960,7 +960,7 @@ export default function PostFlightVerificationConsole({
               <p className="text-[11px] text-slate-500">Airports and landing counts declared by renter</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
             <button
               type="button"
               onClick={handleAddLandingRow}
@@ -980,35 +980,39 @@ export default function PostFlightVerificationConsole({
             editedLandings.map((row, idx) => (
               <div
                 key={idx}
-                className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-slate-50 p-3.5 border border-slate-200 text-xs"
+                className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3 rounded-xl bg-slate-50 p-3 sm:p-3.5 border border-slate-200 text-xs"
               >
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold flex-shrink-0">
-                  {idx + 1}
-                </span>
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold flex-shrink-0">
+                    {idx + 1}
+                  </span>
 
-                <div className="flex-1">
-                  <AirportSelect
-                    value={row.airportId}
-                    onChange={(val) => handleUpdateLandingAirport(idx, val)}
-                    options={availableAirports}
-                  />
+                  <div className="flex-1 min-w-0">
+                    <AirportSelect
+                      value={row.airportId}
+                      onChange={(val) => handleUpdateLandingAirport(idx, val)}
+                      options={availableAirports}
+                    />
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="1"
-                    max="50"
-                    value={row.landingCount}
-                    onChange={(e) => handleUpdateLandingCount(idx, e.target.value)}
-                    className="w-20 rounded-xl border border-slate-300 bg-white p-2.5 text-xs font-bold text-slate-900 text-center focus:border-[#1a4fd6] focus:outline-none"
-                  />
-                  <span className="text-slate-500 text-xs">landings</span>
+                <div className="flex items-center justify-between sm:justify-start gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 sm:border-transparent pl-8 sm:pl-0">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
+                      value={row.landingCount}
+                      onChange={(e) => handleUpdateLandingCount(idx, e.target.value)}
+                      className="w-16 sm:w-20 rounded-xl border border-slate-300 bg-white p-2 sm:p-2.5 text-xs font-bold text-slate-900 text-center focus:border-[#1a4fd6] focus:outline-none"
+                    />
+                    <span className="text-slate-500 text-xs">landings</span>
+                  </div>
 
                   <button
                     type="button"
                     onClick={() => handleRemoveLandingRow(idx)}
-                    className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
+                    className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors ml-auto sm:ml-0"
                     title="Remove Airport Landing Row"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -1023,8 +1027,8 @@ export default function PostFlightVerificationConsole({
       </div>
 
       {/* ── Section 4: Payment Verification Proof ──────────────────────────── */}
-      <div className="rounded-2xl md:rounded-3xl border border-[var(--admin-border)] bg-white p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-5">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+      <div className="rounded-2xl md:rounded-3xl border border-[var(--admin-border)] bg-white p-4 sm:p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4 sm:space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-4">
           <div className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
               <span className="material-symbols-outlined text-lg">receipt_long</span>
@@ -1035,12 +1039,12 @@ export default function PostFlightVerificationConsole({
             </div>
           </div>
           {isSettled ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3.5 py-1 text-xs font-bold text-emerald-800">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3.5 py-1 text-xs font-bold text-emerald-800 self-start sm:self-auto">
               <span className="material-symbols-outlined text-sm text-emerald-600">check_circle</span>
               Payment Verified &amp; Settled
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3.5 py-1 text-xs font-bold text-amber-800">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3.5 py-1 text-xs font-bold text-amber-800 self-start sm:self-auto">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
               Payment Verification Required
             </span>
@@ -1066,11 +1070,11 @@ export default function PostFlightVerificationConsole({
             {/* Transaction 1: Stripe Online Card Payment (Initial Upfront) */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-2xl bg-emerald-50/60 p-4 border border-emerald-200 gap-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shrink-0">
                   <span className="material-symbols-outlined text-xl">credit_card</span>
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <p className="text-xs font-bold text-slate-900">1. Stripe Online Card Payment</p>
                     <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
                       Initial Upfront Payment
@@ -1081,7 +1085,7 @@ export default function PostFlightVerificationConsole({
                   </p>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="text-left sm:text-right pt-2 sm:pt-0 border-t sm:border-t-0 border-emerald-200/60 sm:border-transparent">
                 <p className="text-base font-bold text-emerald-800 tabular-nums">
                   ${(cardPaidCents / 100).toFixed(2)}
                 </p>
@@ -1093,23 +1097,23 @@ export default function PostFlightVerificationConsole({
             <div className="space-y-3 rounded-2xl bg-blue-50/50 p-4 border border-blue-200/80">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1a4fd6] text-white">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1a4fd6] text-white shrink-0">
                     <span className="material-symbols-outlined text-xl">account_balance</span>
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <p className="text-xs font-bold text-slate-900">2. NAB Direct Bank Transfer</p>
                       <span className="text-[10px] font-bold text-blue-700 bg-blue-100/90 px-2 py-0.5 rounded-md">
                         Remaining Balance Settlement
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-600 font-mono">
+                    <p className="text-[11px] text-slate-600 font-mono break-all sm:break-normal">
                       BSB: 085-005 &middot; Acc: 388004197 (JAM Aviation PTY LTD)
                     </p>
                   </div>
                 </div>
 
-                <div className="text-right">
+                <div className="text-left sm:text-right pt-2 sm:pt-0 border-t sm:border-t-0 border-blue-200/60 sm:border-transparent">
                   <p className="text-base font-bold text-[#1a4fd6] tabular-nums">
                     ${(bankTransferPaidCents / 100).toFixed(2)}
                   </p>
@@ -1122,13 +1126,13 @@ export default function PostFlightVerificationConsole({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div className="rounded-xl border border-slate-200/80 bg-white p-3">
                   <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Payment Reference</span>
-                  <span className="font-mono font-bold text-slate-900 text-sm">{bankReference || '—'}</span>
+                  <span className="font-mono font-bold text-slate-900 text-sm break-all">{bankReference || '—'}</span>
                 </div>
                 <div className="rounded-xl border border-slate-200/80 bg-white p-3">
                   <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
                     Submitted Timestamp
                   </span>
-                  <span className="font-medium text-slate-800">
+                  <span className="font-medium text-slate-800 break-words">
                     {bankSubmittedAt ? formatDateTime(bankSubmittedAt) : '—'}
                   </span>
                 </div>
@@ -1139,7 +1143,7 @@ export default function PostFlightVerificationConsole({
                   <button
                     type="button"
                     onClick={() => setBankReceiptViewerOpen(true)}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/80 p-3.5 text-xs font-bold text-[#1a4fd6] transition-all hover:border-[#1a4fd6] hover:bg-blue-100/60"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/80 p-3.5 text-xs font-bold text-[#1a4fd6] transition-all hover:border-[#1a4fd6] hover:bg-blue-100/60 text-center"
                   >
                     <span className="material-symbols-outlined text-lg">open_in_new</span>
                     View Uploaded Bank Transfer Receipt Document ({bankReceiptFilename || 'Receipt File'})
@@ -1156,18 +1160,18 @@ export default function PostFlightVerificationConsole({
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-2xl bg-blue-50/60 p-4 border border-blue-200/80 gap-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1a4fd6] text-white">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1a4fd6] text-white shrink-0">
                   <span className="material-symbols-outlined text-xl">account_balance</span>
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900">NAB Direct Bank Transfer</p>
-                  <p className="text-[11px] text-slate-600 font-mono">
+                  <p className="text-[11px] text-slate-600 font-mono break-all sm:break-normal">
                     BSB: 082-057 &middot; Acc: 12-345-6789 (Rent-A-Plane Pty Ltd)
                   </p>
                 </div>
               </div>
 
-              <div className="text-right">
+              <div className="text-left sm:text-right pt-2 sm:pt-0 border-t sm:border-t-0 border-blue-200/60 sm:border-transparent">
                 <p className="text-base font-bold text-[#1a4fd6] tabular-nums">
                   ${((bankTransferPaidCents > 0 ? bankTransferPaidCents : effectiveUpfrontPaidCents) / 100).toFixed(2)}
                 </p>
@@ -1178,13 +1182,13 @@ export default function PostFlightVerificationConsole({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="rounded-xl border border-slate-200/80 bg-slate-50 p-3.5">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Bank Reference</span>
-                <span className="font-mono font-bold text-slate-900 text-sm">{bankReference || '—'}</span>
+                <span className="font-mono font-bold text-slate-900 text-sm break-all">{bankReference || '—'}</span>
               </div>
               <div className="rounded-xl border border-slate-200/80 bg-slate-50 p-3.5">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
                   Submitted Timestamp
                 </span>
-                <span className="font-medium text-slate-800">
+                <span className="font-medium text-slate-800 break-words">
                   {bankSubmittedAt ? formatDateTime(bankSubmittedAt) : '—'}
                 </span>
               </div>
@@ -1195,7 +1199,7 @@ export default function PostFlightVerificationConsole({
                 <button
                   type="button"
                   onClick={() => setBankReceiptViewerOpen(true)}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/50 p-4 text-xs font-bold text-[#1a4fd6] transition-all hover:border-[#1a4fd6] hover:bg-blue-50"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/50 p-4 text-xs font-bold text-[#1a4fd6] transition-all hover:border-[#1a4fd6] hover:bg-blue-50 text-center"
                 >
                   <span className="material-symbols-outlined text-xl">open_in_new</span>
                   View Uploaded Bank Transfer Receipt Document ({bankReceiptFilename || 'Receipt File'})
@@ -1210,7 +1214,7 @@ export default function PostFlightVerificationConsole({
         ) : (hasStripePayment || (cardPaidCents > 0) || (effectiveUpfrontPaidCents > 0)) ? (
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-2xl bg-emerald-50/60 p-4 border border-emerald-200 gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shrink-0">
                 <span className="material-symbols-outlined text-xl">credit_card</span>
               </div>
               <div>
@@ -1225,7 +1229,7 @@ export default function PostFlightVerificationConsole({
                 )}
               </div>
             </div>
-            <div className="text-right">
+            <div className="text-left sm:text-right pt-2 sm:pt-0 border-t sm:border-t-0 border-emerald-200/60 sm:border-transparent">
               <p className="text-base font-bold text-emerald-800 tabular-nums">
                 ${((cardPaidCents > 0 ? cardPaidCents : effectiveUpfrontPaidCents) / 100).toFixed(2)}
               </p>
@@ -1233,9 +1237,9 @@ export default function PostFlightVerificationConsole({
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-between rounded-2xl bg-amber-50/60 p-4 border border-amber-200">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-2xl bg-amber-50/60 p-4 border border-amber-200 gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500 text-white">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500 text-white shrink-0">
                 <span className="material-symbols-outlined text-xl">pending</span>
               </div>
               <div>
@@ -1245,7 +1249,7 @@ export default function PostFlightVerificationConsole({
                 </p>
               </div>
             </div>
-            <div className="text-right">
+            <div className="text-left sm:text-right pt-2 sm:pt-0 border-t sm:border-t-0 border-amber-200/60 sm:border-transparent">
               <p className="text-base font-bold text-amber-800 tabular-nums">$0.00</p>
               <p className="text-[10px] uppercase font-bold text-amber-700">Payment Pending</p>
             </div>
@@ -1254,8 +1258,8 @@ export default function PostFlightVerificationConsole({
       </div>
 
       {/* ── Section 5: Itemized Invoice Breakdown ──────────────────────────── */}
-      <div className="rounded-2xl md:rounded-3xl border border-[var(--admin-border)] bg-white p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+      <div className="rounded-2xl md:rounded-3xl border border-[var(--admin-border)] bg-white p-4 sm:p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-4">
           <div className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-[#1a4fd6]">
               <span className="material-symbols-outlined text-lg">calculate</span>
@@ -1265,7 +1269,7 @@ export default function PostFlightVerificationConsole({
               <p className="text-[11px] text-slate-500 font-mono">{invoiceNumber || 'INV-PENDING'}</p>
             </div>
           </div>
-          <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-full">
+          <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-full self-start sm:self-auto">
             AUD Currency
           </span>
         </div>
@@ -1340,16 +1344,16 @@ export default function PostFlightVerificationConsole({
             </div>
           )}
 
-          <div className="pt-3 border-t-2 border-slate-900 flex justify-between items-center text-sm font-bold text-slate-900">
+          <div className="pt-3 border-t-2 border-slate-900 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1.5 sm:gap-2 text-sm font-bold text-slate-900">
             <div className="flex items-baseline gap-2">
               <span>Calculated Total Settlement:</span>
               <span className="text-[11px] text-slate-500 font-normal">(Included all GST)</span>
             </div>
-            <span className="text-lg text-[#1a4fd6] tabular-nums">{formattedTotal}</span>
+            <span className="text-xl sm:text-lg text-[#1a4fd6] tabular-nums">{formattedTotal}</span>
           </div>
 
           {isSplitPayment ? (
-            <div className="mt-3 space-y-2.5 rounded-xl bg-slate-50/90 p-4 border border-slate-200 text-xs">
+            <div className="mt-3 space-y-2.5 rounded-xl bg-slate-50/90 p-3.5 sm:p-4 border border-slate-200 text-xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                 Payments Received on File Breakdown
               </span>
@@ -1398,7 +1402,7 @@ export default function PostFlightVerificationConsole({
           )}
 
           {effectiveUpfrontPaidCents > 0 && remainingBalanceCents > 0 && (
-            <div className="p-3.5 rounded-xl border flex items-center justify-between font-bold transition-all bg-amber-50/90 border-amber-300 text-amber-950">
+            <div className="p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 font-bold transition-all bg-amber-50/90 border-amber-300 text-amber-950">
               <div>
                 <span className="text-xs uppercase tracking-wider block font-extrabold">
                   Remaining Balance Required
@@ -1407,7 +1411,7 @@ export default function PostFlightVerificationConsole({
                   Admin can request this difference via clarification or override &amp; settle if received
                 </span>
               </div>
-              <span className="text-base font-extrabold tabular-nums text-amber-800">
+              <span className="text-base sm:text-base font-extrabold tabular-nums text-amber-800 self-start sm:self-auto">
                 {formattedDifference}
               </span>
             </div>
@@ -1416,7 +1420,7 @@ export default function PostFlightVerificationConsole({
       </div>
 
       {/* ── Section 6: Admin Review Decision Console ────────────────────────── */}
-      <div className="rounded-2xl md:rounded-3xl border border-[var(--admin-border)] bg-white p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-6">
+      <div className="rounded-2xl md:rounded-3xl border border-[var(--admin-border)] bg-white p-4 sm:p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4 sm:space-y-6">
         {isSettled ? (
           <div className="space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
@@ -1424,13 +1428,13 @@ export default function PostFlightVerificationConsole({
                 <h2 className="text-base font-bold text-slate-900">Post-Flight Record Verified &amp; Settled</h2>
                 <p className="text-xs text-slate-500">Official meter readings committed and invoice paid in full</p>
               </div>
-              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-800 text-xs font-bold">
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-800 text-xs font-bold self-start sm:self-auto">
                 <span className="material-symbols-outlined text-sm">check_circle</span>
                 {currentStatus === 'approved_with_correction' ? 'Approved with Correction' : 'Standard Settled'}
               </span>
             </div>
 
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 space-y-3">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 sm:p-5 space-y-3">
               <div className="flex items-start gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm flex-shrink-0 mt-0.5">
                   <span className="material-symbols-outlined text-xl">verified</span>
@@ -1444,7 +1448,7 @@ export default function PostFlightVerificationConsole({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 pt-2">
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 pt-2">
               <Link
                 href="/admin/bookings"
                 className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 px-4 py-2.5 text-xs font-bold text-white transition-all shadow-sm"
@@ -1465,7 +1469,7 @@ export default function PostFlightVerificationConsole({
           </div>
         ) : (
           <>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-b border-slate-100 pb-4">
               <div>
                 <h2 className="text-base font-bold text-slate-900">Admin Review Decision</h2>
                 <p className="text-xs text-slate-500">
@@ -1474,11 +1478,11 @@ export default function PostFlightVerificationConsole({
               </div>
 
               {/* Decision Mode Toggle */}
-              <div className="flex items-center gap-2 p-1 rounded-xl bg-slate-100 border border-slate-200">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 sm:gap-2 p-1 rounded-xl bg-slate-100 border border-slate-200 w-full lg:w-auto">
                 <button
                   type="button"
                   onClick={() => setActiveDecision('approve')}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                  className={`flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs font-bold transition-all text-center ${
                     activeDecision === 'approve'
                       ? !isAwaitingCustomer && remainingBalanceCents > 0
                         ? 'bg-amber-600 text-white shadow-sm'
@@ -1493,24 +1497,26 @@ export default function PostFlightVerificationConsole({
                       ? 'forward_to_inbox'
                       : 'check_circle'}
                   </span>
-                  {isAwaitingCustomer
-                    ? 'Override & Settle'
-                    : remainingBalanceCents > 0
-                    ? 'Enforce & Request Payment'
-                    : 'Approve & Settle'}
+                  <span>
+                    {isAwaitingCustomer
+                      ? 'Override & Settle'
+                      : remainingBalanceCents > 0
+                      ? 'Enforce & Request Payment'
+                      : 'Approve & Settle'}
+                  </span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setActiveDecision('clarify')}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                  className={`flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs font-bold transition-all text-center ${
                     activeDecision === 'clarify'
                       ? 'bg-amber-500 text-white shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   <span className="material-symbols-outlined text-base">edit_note</span>
-                  Decline / Request Fix
+                  <span>Decline / Request Fix</span>
                 </button>
               </div>
             </div>
@@ -1750,7 +1756,7 @@ export default function PostFlightVerificationConsole({
                           )} was paid upfront, the remaining balance of ${formattedDifference} is now due. Please settle via the pilot portal or direct bank transfer.`
                         )
                       }}
-                      className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] shadow-sm transition-all"
+                      className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] shadow-sm transition-all w-full sm:w-auto text-center"
                     >
                       Insert Pre-Filled Minimum Payment Message
                     </button>

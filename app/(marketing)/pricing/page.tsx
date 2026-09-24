@@ -572,7 +572,7 @@ export default function PricingPage() {
                           icon: 'receipt_long',
                           feature: 'Billing',
                           payf: 'Billed after each flight',
-                          block: 'Billed upfront for selected block',
+                          block: 'Landing and parking fee will be billed after each flight activity.',
                         },
                         {
                           icon: 'add_circle',

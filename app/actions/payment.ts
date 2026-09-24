@@ -227,56 +227,12 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
 
   const amountCents = Math.round(Number(pkg.total_price) * 100);
   const placeholderExpiry = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-  type ExistingActivePurchase = {
-    id: string
-    package_id: string
-    purchased_at: string
-    status: 'active'
-  }
-  type ExistingPendingPurchase = {
-    id: string
-    package_id: string
-    purchased_at: string
-    status: 'pending'
-  }
-
-  const { data: existingActivePurchaseRaw, error: existingActiveErr } = await supabase
+  // Clean up any uncompleted pending block time purchase reservations for this user
+  await supabase
     .from("pilot_block_time_purchases")
-    .select("id, package_id, purchased_at, status")
+    .delete()
     .eq("user_id", user.id)
-    .eq("status", "active")
-    .order("purchased_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const existingActivePurchase = existingActivePurchaseRaw as ExistingActivePurchase | null;
-
-  if (existingActiveErr) {
-    throw new Error(existingActiveErr.message || "Failed to check for existing block time purchases.");
-  }
-
-  if (existingActivePurchase) {
-    throw new Error("You already have an active block time package. Top up your existing package instead of buying a new one.");
-  }
-
-  const { data: existingPendingPurchaseRaw, error: existingPendingErr } = await supabase
-    .from("pilot_block_time_purchases")
-    .select("id, package_id, purchased_at, status")
-    .eq("user_id", user.id)
-    .eq("status", "pending")
-    .order("purchased_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const existingPendingPurchase = existingPendingPurchaseRaw as ExistingPendingPurchase | null;
-
-  if (existingPendingErr) {
-    throw new Error(existingPendingErr.message || "Failed to check for existing block time purchases.");
-  }
-
-  if (existingPendingPurchase) {
-    throw new Error("You already have a pending block time purchase. Please complete or cancel it before starting another.");
-  }
+    .eq("status", "pending");
 
   const { data: purchase, error: purchaseErr } = await supabase
     .from("pilot_block_time_purchases")
@@ -435,7 +391,7 @@ export async function createBlockTimeTopupIntent(purchaseId: string, hoursReques
     `)
     .eq("id", purchaseId)
     .eq("user_id", user.id)
-    .eq("status", "active")
+    .in("status", ["active", "exhausted"])
     .maybeSingle();
 
   if (purchaseErr) {
@@ -444,7 +400,7 @@ export async function createBlockTimeTopupIntent(purchaseId: string, hoursReques
 
   const purchase = purchaseRaw as TopupPurchaseRow | null;
   if (!purchase) {
-    throw new Error("No active block time package found to top up.");
+    throw new Error("No eligible block time package found to top up.");
   }
 
   if (new Date(purchase.expires_at).getTime() <= Date.now()) {
@@ -1939,6 +1895,29 @@ export async function adminSettleBlockTimeInvoice(input: {
   void emitPaymentUpdated({ userId: invoice.user_id, bookingId: invoice.booking_id ?? undefined, invoiceId: invoice.id });
   void emitBlockTimeUpdated(invoice.user_id);
   void emitOpsChanged();
+
+  return { success: true };
+}
+
+export async function cancelPendingBlockTimePurchase(purchaseId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authErr,
+  } = await supabase.auth.getUser();
+
+  if (authErr || !user) throw new Error("Unauthorized");
+
+  await supabase
+    .from("pilot_block_time_purchases")
+    .delete()
+    .eq("id", purchaseId)
+    .eq("user_id", user.id)
+    .eq("status", "pending");
+
+  revalidatePath("/dashboard/purchases");
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/billing");
 
   return { success: true };
 }

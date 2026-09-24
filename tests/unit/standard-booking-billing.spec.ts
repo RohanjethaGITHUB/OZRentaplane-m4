@@ -298,3 +298,40 @@ test('block time zero balance flow: 100% covered by package with 0 landings', ()
   expect(res.isFullyCovered).toBe(true)
 })
 
+test('block time Case 3: exhausted package (0h remaining) is recognized and bills all flight time as overage at standard rate', () => {
+  const res = calculatePostFlightCharges({
+    vdoTotal: 3.0,
+    bookingSlotHours: 3.0,
+    defaultHourlyRate: 330,
+    airports: [
+      { id: 'ap-1', icao_code: 'YSBK', name: 'Bankstown Airport', default_landing_fee_cents: 2895 },
+    ],
+    landingRows: [
+      { airport_id: 'ap-1', landing_count: 1 },
+    ],
+    activeBlockTime: {
+      id: 'pkg-1',
+      package_name: 'Starter Block',
+      hours_purchased: 10,
+      hours_remaining: 0,
+      rate_per_hour: 320,
+      status: 'exhausted',
+      expires_at: '2026-10-23T09:54:56.631Z',
+    },
+  })
+
+  expect(res.isBlockTime).toBe(true)
+  expect(res.blockPackageName).toBe('Starter Block (10hr package)')
+  expect(res.blockHoursBefore).toBe(0)
+  expect(res.blockHoursDeducted).toBe(0)
+  expect(res.blockHoursRemainingAfter).toBe(0)
+  expect(res.blockOverageHours).toBe(3.0)
+  expect(res.blockOverageAmountCents).toBe(99000) // 3h * $330 = $990.00
+  expect(res.flightBaseCents).toBe(99000)
+  expect(res.landingSubtotalCents).toBe(2895)
+  expect(res.subtotalCents).toBe(101895)
+  expect(res.amountDueCents).toBe(101895)
+  expect(res.hourlyRate).toBe(320)
+  expect(res.standardHourlyRate).toBe(330)
+})
+

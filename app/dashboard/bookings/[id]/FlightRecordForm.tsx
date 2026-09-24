@@ -12,6 +12,7 @@ import { type TotalOnlyFormValues, validateTotalOnlyReadings } from '@/lib/aircr
 import { calculatePostFlightCharges, type AirportBillingInfo, type ActiveBlockTimeSummary } from '@/lib/booking/live-booking-calculator'
 import { LoadingButtonContent } from '@/components/ui/Spinner'
 import AirportSelect from '@/components/ui/AirportSelect'
+import BlockTimeTopupCard from '@/app/dashboard/pricing/BlockTimeTopupCard'
 
 type LandingRow = {
   airport_id: string
@@ -112,6 +113,7 @@ export default function FlightRecordForm({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
+  const [showTopupModal, setShowTopupModal] = useState(false)
   const [declaration, setDeclaration] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [files, setFiles] = useState<UploadedFile[]>([])
@@ -508,33 +510,36 @@ export default function FlightRecordForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <>
+      <form onSubmit={handleSubmit} className="space-y-6">
       {/* Clarification Alert Banner */}
       {clarification && (
-        <div className="bg-amber-50 border-2 border-amber-300 rounded-[1.5rem] p-6 shadow-sm space-y-3">
-          <div className="flex items-center gap-2.5">
-            <span className="material-symbols-outlined text-amber-600 text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-              warning
-            </span>
-            <div className="flex-1">
-              <h3 className="text-sm font-bold text-amber-900 uppercase tracking-wide">
-                Clarification Requested by Admin
-              </h3>
-              <p className="text-xs text-amber-700">Please review the note from admin below, adjust readings or evidence photos, and complete the remaining settlement.</p>
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl sm:rounded-[1.5rem] p-4 sm:p-6 shadow-sm space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3">
+            <div className="flex items-center gap-2.5 flex-1 min-w-0">
+              <span className="material-symbols-outlined text-amber-600 text-2xl shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
+                warning
+              </span>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-bold text-amber-900 uppercase tracking-wide">
+                  Clarification Requested by Admin
+                </h3>
+                <p className="text-xs text-amber-700">Please review the note from admin below, adjust readings or evidence photos, and complete the remaining settlement.</p>
+              </div>
             </div>
             {clarification.category && (
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-200/80 text-amber-900 border border-amber-300">
+              <span className="self-start sm:self-auto px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-200/80 text-amber-900 border border-amber-300 shrink-0">
                 {clarification.category}
               </span>
             )}
           </div>
-          <div className="p-3.5 bg-white rounded-xl border border-amber-200 text-xs text-slate-800 font-medium leading-relaxed shadow-sm">
+          <div className="p-3 sm:p-3.5 bg-white rounded-xl border border-amber-200 text-xs text-slate-800 font-medium leading-relaxed shadow-sm">
             <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block mb-1">Message from Admin:</span>
             <span className="whitespace-pre-line">&ldquo;{clarification.message}&rdquo;</span>
           </div>
 
           {meterAdjustment && (
-            <div className="p-4 bg-white rounded-xl border border-blue-200 shadow-sm flex items-start gap-3 text-xs">
+            <div className="p-3.5 sm:p-4 bg-white rounded-xl border border-blue-200 shadow-sm flex items-start gap-3 text-xs">
               <span className="material-symbols-outlined text-[#1a4fd6] text-xl flex-shrink-0 mt-0.5">
                 tune
               </span>
@@ -552,9 +557,9 @@ export default function FlightRecordForm({
       )}
 
       {/* Meter readings section */}
-      <div className="bg-white border border-[#dbe7f4] rounded-[1.5rem] p-6 sm:p-8 shadow-[0_8px_24px_rgba(21,45,90,0.06)] space-y-6">
+      <div className="bg-white border border-[#dbe7f4] rounded-2xl sm:rounded-[1.5rem] p-4 sm:p-6 md:p-8 shadow-[0_8px_24px_rgba(21,45,90,0.06)] space-y-5 sm:space-y-6">
         <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-[#1a4fd6] text-xl">speed</span>
+          <span className="material-symbols-outlined text-[#1a4fd6] text-xl shrink-0">speed</span>
           <div>
             <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6]">Aircraft Readings</h3>
             <p className="text-xs text-[#4b6390]">Enter total meter readings from the cockpit</p>
@@ -563,7 +568,7 @@ export default function FlightRecordForm({
 
         {meterAdjustment && (
           <div className="flex items-center gap-2.5 p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-950 font-medium">
-            <span className="material-symbols-outlined text-[#1a4fd6] text-base">info</span>
+            <span className="material-symbols-outlined text-[#1a4fd6] text-base shrink-0">info</span>
             <span>
               Previously submitted: <strong>{meterAdjustment.previous_vdo} hrs</strong> &rarr; Operations updated to: <strong className="text-[#1a4fd6]">{meterAdjustment.adjusted_vdo} hrs</strong>
             </span>
@@ -593,10 +598,10 @@ export default function FlightRecordForm({
       </div>
 
       {/* Landing Details Section */}
-      <div className="bg-white border border-[#dbe7f4] rounded-[1.5rem] p-6 sm:p-8 shadow-[0_8px_24px_rgba(21,45,90,0.06)] space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-[#1a4fd6] text-xl">flight_land</span>
+      <div className="bg-white border border-[#dbe7f4] rounded-2xl sm:rounded-[1.5rem] p-4 sm:p-6 md:p-8 shadow-[0_8px_24px_rgba(21,45,90,0.06)] space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <span className="material-symbols-outlined text-[#1a4fd6] text-xl shrink-0">flight_land</span>
             <div>
               <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6]">
                 Landing Details <span className="text-rose-500">*</span>
@@ -608,7 +613,7 @@ export default function FlightRecordForm({
             type="button"
             onClick={addLandingRow}
             disabled={loading}
-            className="inline-flex items-center gap-1 text-xs font-bold text-[#1a4fd6] hover:text-[#152d5a] bg-blue-50 hover:bg-blue-100/80 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors"
+            className="inline-flex items-center gap-1 text-xs font-bold text-[#1a4fd6] hover:text-[#152d5a] bg-blue-50 hover:bg-blue-100/80 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors self-start sm:self-auto shrink-0"
           >
             <span className="material-symbols-outlined text-sm">add</span>
             Add Airport
@@ -617,8 +622,8 @@ export default function FlightRecordForm({
 
         <div className="space-y-3">
           {landingRows.map((row, idx) => (
-            <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3.5 rounded-xl bg-[#f8fbff] border border-[#dbe7f4]">
-              <div className="flex-1 w-full">
+            <div key={idx} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 p-3 sm:p-3.5 rounded-xl bg-[#f8fbff] border border-[#dbe7f4]">
+              <div className="flex-1 w-full min-w-0">
                 <AirportSelect
                   value={row.airport_id}
                   onChange={(val) => updateLandingAirport(idx, val)}
@@ -627,24 +632,26 @@ export default function FlightRecordForm({
                   placeholder="Select airport…"
                 />
               </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={row.landing_count}
-                  onChange={(e) => updateLandingCount(idx, e.target.value)}
-                  disabled={loading}
-                  placeholder="Count"
-                  className="w-24 rounded-lg border border-[#dbe7f4] bg-white px-3 py-2 text-sm text-center font-bold text-[#152d5a] focus:border-[#1a4fd6] focus:outline-none"
-                />
-                <span className="text-xs text-[#4b6390] shrink-0">landings</span>
+              <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={row.landing_count}
+                    onChange={(e) => updateLandingCount(idx, e.target.value)}
+                    disabled={loading}
+                    placeholder="Count"
+                    className="w-20 sm:w-24 rounded-lg border border-[#dbe7f4] bg-white px-2.5 sm:px-3 py-2 text-sm text-center font-bold text-[#152d5a] focus:border-[#1a4fd6] focus:outline-none"
+                  />
+                  <span className="text-xs text-[#4b6390] shrink-0">landings</span>
+                </div>
                 {landingRows.length > 1 && (
                   <button
                     type="button"
                     onClick={() => removeLandingRow(idx)}
                     disabled={loading}
-                    className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors ml-auto sm:ml-0"
+                    className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors ml-auto sm:ml-0 shrink-0"
                     title="Remove airport"
                   >
                     <span className="material-symbols-outlined text-lg">delete</span>
@@ -657,9 +664,9 @@ export default function FlightRecordForm({
       </div>
 
       {/* Evidence Photos Upload */}
-      <div className="bg-white border border-[#dbe7f4] rounded-[1.5rem] p-6 sm:p-8 shadow-[0_8px_24px_rgba(21,45,90,0.06)] space-y-4">
+      <div className="bg-white border border-[#dbe7f4] rounded-2xl sm:rounded-[1.5rem] p-4 sm:p-6 md:p-8 shadow-[0_8px_24px_rgba(21,45,90,0.06)] space-y-4">
         <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-[#1a4fd6] text-xl">photo_camera</span>
+          <span className="material-symbols-outlined text-[#1a4fd6] text-xl shrink-0">photo_camera</span>
           <div>
             <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6]">
               Evidence Upload <span className="text-rose-500 font-bold">*</span>
@@ -762,17 +769,17 @@ export default function FlightRecordForm({
       </div>
 
       {/* ── LIVE CALCULATION & INVOICE BREAKDOWN ────────────────────────────── */}
-      <div className="bg-white border-2 border-[#1a4fd6]/20 rounded-[1.5rem] p-6 sm:p-8 shadow-[0_8px_24px_rgba(21,45,90,0.08)] space-y-6">
-        <div className="flex items-center justify-between gap-4 border-b border-[#dbe7f4] pb-4">
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-[#1a4fd6] text-2xl">receipt_long</span>
+      <div id="payment" className="bg-white border-2 border-[#1a4fd6]/20 rounded-2xl sm:rounded-[1.5rem] p-4 sm:p-6 md:p-8 shadow-[0_8px_24px_rgba(21,45,90,0.08)] space-y-5 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#dbe7f4] pb-4">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <span className="material-symbols-outlined text-[#1a4fd6] text-2xl shrink-0">receipt_long</span>
             <div>
               <h3 className="text-sm font-bold uppercase tracking-wider text-[#152d5a]">Flight Invoice & Live Breakdown</h3>
               <p className="text-xs text-[#4b6390]">Immediate calculation based on your meter readings</p>
             </div>
           </div>
           {enteredVdoTotal != null && enteredVdoTotal > 0 && (
-            <span className="px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-xs font-bold text-[#1a4fd6] tabular-nums">
+            <span className="self-start sm:self-auto px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-xs font-bold text-[#1a4fd6] tabular-nums whitespace-nowrap shrink-0">
               {enteredVdoTotal.toFixed(1)} hrs VDO
             </span>
           )}
@@ -780,7 +787,7 @@ export default function FlightRecordForm({
 
         {/* Multi-Day Minimum VDO Decision Selector (Image 3 behavior for customers) */}
         {calc.minimumVdoBilling.isBelowMinimum && (
-          <div className="rounded-2xl border border-amber-300 bg-amber-50/90 p-5 space-y-3.5 shadow-xs">
+          <div className="rounded-2xl border border-amber-300 bg-amber-50/90 p-4 sm:p-5 space-y-3.5 shadow-xs">
             <div className="flex items-start gap-2.5">
               <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-200 text-amber-900 shrink-0 mt-0.5">
                 <span className="material-symbols-outlined text-base">schedule</span>
@@ -872,14 +879,14 @@ export default function FlightRecordForm({
         )}
 
         {calc.validationError ? (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 font-medium">
+          <div className="p-3.5 sm:p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 font-medium">
             {calc.validationError}
           </div>
         ) : (
           <div className="space-y-4 text-sm">
             {/* Block Time Package Drawdown Summary Card */}
             {calc.isBlockTime && (
-              <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 sm:p-5 space-y-3">
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-3.5 sm:p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-[#1a4fd6] text-lg">inventory_2</span>
@@ -887,44 +894,67 @@ export default function FlightRecordForm({
                       {calc.blockPackageName}
                     </span>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-[#1a4fd6] border border-blue-200">
-                    Active Package
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                    (calc.blockHoursBefore ?? 0) <= 0
+                      ? 'bg-amber-100 text-amber-800 border-amber-200'
+                      : 'bg-blue-100 text-[#1a4fd6] border-blue-200'
+                  }`}>
+                    {(calc.blockHoursBefore ?? 0) <= 0 ? 'Exhausted' : 'Active Package'}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-center pt-1">
-                  <div className="bg-white rounded-xl p-2.5 border border-blue-100 shadow-xs">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#4b6390] block mb-0.5">Package Balance</span>
-                    <span className="text-sm font-bold text-[#152d5a] tabular-nums">{calc.blockHoursBefore?.toFixed(1) ?? '—'}h</span>
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2 text-center pt-1">
+                  <div className="bg-white rounded-xl p-2 sm:p-2.5 border border-blue-100 shadow-xs">
+                    <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-[#4b6390] block mb-0.5 truncate">Balance</span>
+                    <span className="text-xs sm:text-sm font-bold text-[#152d5a] tabular-nums">{calc.blockHoursBefore?.toFixed(1) ?? '0.0'}h</span>
                   </div>
-                  <div className="bg-white rounded-xl p-2.5 border border-blue-100 shadow-xs">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700 block mb-0.5">Hours Deducted</span>
-                    <span className="text-sm font-bold text-emerald-600 tabular-nums">-{calc.blockHoursDeducted.toFixed(1)}h</span>
+                  <div className="bg-white rounded-xl p-2 sm:p-2.5 border border-blue-100 shadow-xs">
+                    <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-emerald-700 block mb-0.5 truncate">Deducted</span>
+                    <span className="text-xs sm:text-sm font-bold text-emerald-600 tabular-nums">-{calc.blockHoursDeducted.toFixed(1)}h</span>
                   </div>
-                  <div className="bg-white rounded-xl p-2.5 border border-blue-100 shadow-xs">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#4b6390] block mb-0.5">Remaining Balance</span>
-                    <span className="text-sm font-bold text-[#152d5a] tabular-nums">{calc.blockHoursRemainingAfter?.toFixed(1) ?? '0.0'}h</span>
+                  <div className="bg-white rounded-xl p-2 sm:p-2.5 border border-blue-100 shadow-xs">
+                    <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-[#4b6390] block mb-0.5 truncate">Remaining</span>
+                    <span className="text-xs sm:text-sm font-bold text-[#152d5a] tabular-nums">{calc.blockHoursRemainingAfter?.toFixed(1) ?? '0.0'}h</span>
                   </div>
                 </div>
 
-                {calc.blockOverageHours > 0 && (
-                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs space-y-1">
+                {(calc.blockOverageHours > 0 || (calc.blockHoursBefore ?? 0) <= 0) && (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 sm:p-3.5 text-xs space-y-1.5">
                     <div className="flex items-center gap-1.5 font-bold text-amber-900">
                       <span className="material-symbols-outlined text-sm text-amber-600">warning</span>
-                      <span>Package Hours Depleted ({calc.blockOverageHours.toFixed(1)}h Overage)</span>
+                      <span>
+                        {(calc.blockHoursBefore ?? 0) <= 0 && calc.blockOverageHours === 0
+                          ? 'Package Hours Exhausted (0.0h Remaining)'
+                          : `Package Hours Depleted (${calc.blockOverageHours.toFixed(1)}h Overage)`}
+                      </span>
                     </div>
                     <p className="text-amber-800 text-[11px] leading-relaxed">
-                      Your package covers {calc.blockHoursDeducted.toFixed(1)}h ($0.00). The remaining {calc.blockOverageHours.toFixed(1)}h is billed at the standard aircraft hire rate of ${money(calc.standardHourlyRate * 100)}/hr (${money(calc.blockOverageAmountCents)}).
+                      {calc.blockHoursDeducted > 0
+                        ? `Your package covers ${calc.blockHoursDeducted.toFixed(1)}h ($0.00). The remaining ${calc.blockOverageHours.toFixed(1)}h is billed at the standard aircraft hire rate of $${money(calc.standardHourlyRate * 100)}/hr ($${money(calc.blockOverageAmountCents)}).`
+                        : (calc.blockOverageHours > 0
+                          ? `Your package currently has 0.0h remaining. The full flight time (${calc.blockOverageHours.toFixed(1)}h) is billed at the standard aircraft hire rate of $${money(calc.standardHourlyRate * 100)}/hr ($${money(calc.blockOverageAmountCents)}).`
+                          : `Your package currently has 0.0h remaining. Flight hours will be billed at the standard aircraft hire rate of $${money(calc.standardHourlyRate * 100)}/hr unless topped up.`
+                        )}
                     </p>
-                    <div className="pt-1">
+                    <div className="pt-1 flex flex-wrap items-center gap-2">
+                      {activePackage && (
+                        <button
+                          type="button"
+                          onClick={() => setShowTopupModal(true)}
+                          className="inline-flex items-center gap-1.5 text-[11px] font-bold text-white bg-[#1a4fd6] hover:bg-[#153eb2] px-3 py-1.5 rounded-lg shadow-sm transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-sm">add_circle</span>
+                          Add Hours to {activePackage.package_name?.split('(')[0]?.trim() || 'Package'} (Top up at ${activePackage.rate_per_hour ?? 320}/hr)
+                        </button>
+                      )}
                       <a
-                        href="/dashboard/purchases"
+                        href="/dashboard/purchases#top-up"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-[#1a4fd6] hover:underline"
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#1a4fd6] hover:underline"
                       >
-                        <span className="material-symbols-outlined text-xs">add_shopping_cart</span>
-                        Top up block hours before submitting to avoid standard hire rates
+                        <span className="material-symbols-outlined text-xs">open_in_new</span>
+                        Open Top-Up in new tab
                       </a>
                     </div>
                   </div>
@@ -935,7 +965,7 @@ export default function FlightRecordForm({
             {/* VDO Hours / Block Time line */}
             <div className="flex items-start justify-between gap-4 text-[#152d5a]">
               <div>
-                <p className="font-semibold">
+                <p className="font-semibold text-xs sm:text-sm">
                   {calc.isBlockTime ? `Flight Hours (${calc.blockPackageName || 'Block Time Package'})` : 'Flight Charge (VDO Hours)'}
                 </p>
                 <p className="text-xs text-[#4b6390] mt-0.5">
@@ -943,7 +973,10 @@ export default function FlightRecordForm({
                     calc.isBlockTime ? (
                       calc.blockOverageHours > 0 ? (
                         <>
-                          {calc.blockHoursDeducted.toFixed(1)}h covered via package + {calc.blockOverageHours.toFixed(1)}h overage (${money(calc.standardHourlyRate * 100)}/hr)
+                          {calc.blockHoursDeducted > 0
+                            ? `${calc.blockHoursDeducted.toFixed(1)}h covered via package + ${calc.blockOverageHours.toFixed(1)}h overage ($${money(calc.standardHourlyRate * 100)}/hr)`
+                            : `0.0h covered via package + ${calc.blockOverageHours.toFixed(1)}h overage ($${money(calc.standardHourlyRate * 100)}/hr)`
+                          }
                         </>
                       ) : (
                         <>{calc.blockHoursDeducted.toFixed(1)}h deducted from block time balance</>
@@ -964,7 +997,7 @@ export default function FlightRecordForm({
                 )}
               </div>
               <div className="text-right shrink-0">
-                <p className="font-bold tabular-nums">
+                <p className="font-bold tabular-nums text-xs sm:text-sm">
                   {calc.isBlockTime && calc.blockOverageHours === 0
                     ? 'Covered'
                     : `$${money(calc.flightBaseCents)}`}
@@ -976,27 +1009,27 @@ export default function FlightRecordForm({
             {calc.landingItems.length > 0 && (
               <div className="border-t border-[#dbe7f4] pt-3 space-y-1.5">
                 <div className="flex items-center justify-between text-[#152d5a]">
-                  <p className="font-semibold">Landing Fees</p>
-                  <p className="font-bold tabular-nums">${money(calc.landingSubtotalCents)}</p>
+                  <p className="font-semibold text-xs sm:text-sm">Landing Fees</p>
+                  <p className="font-bold tabular-nums text-xs sm:text-sm">${money(calc.landingSubtotalCents)}</p>
                 </div>
                 {calc.landingItems.map((item, i) => (
-                  <div key={i} className="flex justify-between text-xs text-[#4b6390] pl-2">
-                    <span>{item.icaoCode} · {item.airportName} (${money(item.unitAmountCents)} × {item.landingCount})</span>
-                    <span className="tabular-nums font-medium">${money(item.totalAmountCents)}</span>
+                  <div key={i} className="flex justify-between gap-2 text-xs text-[#4b6390] pl-2">
+                    <span className="min-w-0">{item.icaoCode} · {item.airportName} (${money(item.unitAmountCents)} × {item.landingCount})</span>
+                    <span className="tabular-nums font-medium shrink-0">${money(item.totalAmountCents)}</span>
                   </div>
                 ))}
               </div>
             )}
 
             {/* Subtotal */}
-            <div className="flex justify-between border-t border-[#dbe7f4] pt-3 font-semibold text-[#152d5a]">
+            <div className="flex justify-between border-t border-[#dbe7f4] pt-3 font-semibold text-[#152d5a] text-xs sm:text-sm">
               <span>Subtotal</span>
               <span className="tabular-nums">${money(calc.subtotalCents)}</span>
             </div>
 
             {/* Customer credit */}
             {calc.creditAppliedCents > 0 && (
-              <div className="flex justify-between text-emerald-600 font-medium">
+              <div className="flex justify-between text-emerald-600 font-medium text-xs sm:text-sm">
                 <span>Account Credit Applied</span>
                 <span className="tabular-nums">-${money(calc.creditAppliedCents)}</span>
               </div>
@@ -1004,7 +1037,7 @@ export default function FlightRecordForm({
 
             {/* Upfront Payment on File */}
             {effectiveUpfrontPaidCents > 0 && (
-              <div className="flex justify-between text-emerald-700 font-medium">
+              <div className="flex justify-between text-emerald-700 font-medium text-xs sm:text-sm">
                 <span>Upfront Payment on File</span>
                 <span className="tabular-nums">-${money(effectiveUpfrontPaidCents)}</span>
               </div>
@@ -1013,7 +1046,7 @@ export default function FlightRecordForm({
             {/* Net Amount Due */}
             <div className="flex justify-between items-baseline border-t-2 border-[#1a4fd6]/30 pt-3 text-[#1a4fd6]">
               <div>
-                <span className="text-base font-bold">Net Amount Due</span>
+                <span className="text-sm sm:text-base font-bold">Net Amount Due</span>
                 {netPayableDueCents === 0 && (
                   <span className="block text-[11px] text-emerald-600 font-medium mt-0.5">
                     {calc.isBlockTime
@@ -1024,7 +1057,7 @@ export default function FlightRecordForm({
                   </span>
                 )}
               </div>
-              <span className="text-2xl font-black tabular-nums">${money(netPayableDueCents)}</span>
+              <span className="text-xl sm:text-2xl font-black tabular-nums">${money(netPayableDueCents)}</span>
             </div>
           </div>
         )}
@@ -1067,9 +1100,9 @@ export default function FlightRecordForm({
         )}
 
         {netPayableDueCents > 0 && (
-          <div className="border-t border-[#dbe7f4] pt-6 space-y-5">
+          <div className="border-t border-[#dbe7f4] pt-5 sm:pt-6 space-y-4 sm:space-y-5">
             {effectiveUpfrontPaidCents > 0 ? (
-              <div className="rounded-2xl border border-amber-300 bg-amber-50/80 p-4 sm:p-5 text-xs space-y-2 shadow-sm">
+              <div className="rounded-2xl border border-amber-300 bg-amber-50/80 p-3.5 sm:p-5 text-xs space-y-2 shadow-sm">
                 <div className="flex items-center gap-2 text-amber-900 font-bold uppercase tracking-wider">
                   <span className="material-symbols-outlined text-lg text-amber-600">payments</span>
                   Remaining Balance Due: ${money(netPayableDueCents)}
@@ -1079,7 +1112,7 @@ export default function FlightRecordForm({
                 </p>
               </div>
             ) : calc.isBlockTime ? (
-              <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-4 sm:p-5 text-xs space-y-2 shadow-sm">
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-3.5 sm:p-5 text-xs space-y-2 shadow-sm">
                 <div className="flex items-center gap-2 text-[#152d5a] font-bold uppercase tracking-wider">
                   <span className="material-symbols-outlined text-lg text-[#1a4fd6]">payments</span>
                   Amount Due for Settlement: ${money(netPayableDueCents)}
@@ -1101,47 +1134,47 @@ export default function FlightRecordForm({
             ) : null}
 
             <div>
-              <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] block mb-3">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] block mb-2.5 sm:mb-3">
                 {effectiveUpfrontPaidCents > 0 ? 'Select Payment Method for Remaining Balance' : 'Select Payment Method'} <span className="text-rose-500">*</span>
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('stripe')}
-                  className={`p-4 rounded-2xl border-2 flex items-center gap-3 transition-all ${
+                  className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 flex items-center gap-3 transition-all ${
                     paymentMethod === 'stripe'
                       ? 'border-[#1a4fd6] bg-blue-50/70 text-[#152d5a] shadow-sm ring-2 ring-[#1a4fd6]/20'
                       : 'border-[#dbe7f4] bg-[#f8fbff] text-[#4b6390] hover:border-[#1a4fd6]/40'
                   }`}
                 >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                  <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 ${
                     paymentMethod === 'stripe' ? 'bg-[#1a4fd6] text-white' : 'bg-white text-[#4b6390] border border-[#dbe7f4]'
                   }`}>
-                    <span className="material-symbols-outlined text-xl">credit_card</span>
+                    <span className="material-symbols-outlined text-lg sm:text-xl">credit_card</span>
                   </div>
-                  <div className="text-left">
+                  <div className="text-left min-w-0">
                     <p className="text-xs font-bold uppercase tracking-wider text-[#152d5a]">Pay Online (Card)</p>
-                    <p className="text-[11px] text-[#4b6390]">Immediate Visa / Mastercard / Apple Pay</p>
+                    <p className="text-[10px] sm:text-[11px] text-[#4b6390] truncate">Immediate Visa / Mastercard / Apple Pay</p>
                   </div>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('bank_transfer')}
-                  className={`p-4 rounded-2xl border-2 flex items-center gap-3 transition-all ${
+                  className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 flex items-center gap-3 transition-all ${
                     paymentMethod === 'bank_transfer'
                       ? 'border-[#1a4fd6] bg-blue-50/70 text-[#152d5a] shadow-sm ring-2 ring-[#1a4fd6]/20'
                       : 'border-[#dbe7f4] bg-[#f8fbff] text-[#4b6390] hover:border-[#1a4fd6]/40'
                   }`}
                 >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                  <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 ${
                     paymentMethod === 'bank_transfer' ? 'bg-[#1a4fd6] text-white' : 'bg-white text-[#4b6390] border border-[#dbe7f4]'
                   }`}>
-                    <span className="material-symbols-outlined text-xl">account_balance</span>
+                    <span className="material-symbols-outlined text-lg sm:text-xl">account_balance</span>
                   </div>
-                  <div className="text-left">
+                  <div className="text-left min-w-0">
                     <p className="text-xs font-bold uppercase tracking-wider text-[#152d5a]">Bank Transfer</p>
-                    <p className="text-[11px] text-[#4b6390]">Bank transfer & upload receipt</p>
+                    <p className="text-[10px] sm:text-[11px] text-[#4b6390] truncate">Bank transfer & upload receipt</p>
                   </div>
                 </button>
               </div>
@@ -1149,7 +1182,7 @@ export default function FlightRecordForm({
 
             {/* Payment Sub-panel: Card Details Summary */}
             {paymentMethod === 'stripe' && (
-              <div className="rounded-xl bg-[#f0f6ff] border border-[#dbe7f4] p-4 text-xs space-y-2">
+              <div className="rounded-xl bg-[#f0f6ff] border border-[#dbe7f4] p-3.5 sm:p-4 text-xs space-y-2">
                 <div className="flex justify-between text-[#4b6390]">
                   <span>Remaining Base Amount</span>
                   <span className="font-semibold tabular-nums text-[#152d5a]">${money(netPayableDueCents)}</span>
@@ -1160,109 +1193,109 @@ export default function FlightRecordForm({
                     <span className="font-medium tabular-nums">${money(stripeSurchargeRemainingCents)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-[#152d5a] font-bold border-t border-[#dbe7f4] pt-2 text-sm">
+                <div className="flex justify-between text-[#152d5a] font-bold border-t border-[#dbe7f4] pt-2 text-xs sm:text-sm">
                   <span>Total Card Charge</span>
                   <span className="tabular-nums text-[#1a4fd6]">${money(totalCardChargeRemainingCents)}</span>
                 </div>
               </div>
             )}
 
-                {/* Payment Sub-panel: Bank Transfer Details & Upload */}
-                {paymentMethod === 'bank_transfer' && (
-                  <div className="space-y-4">
-                    <div className="rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] p-5 space-y-3 text-xs">
-                      <div className="flex items-center gap-2 text-[#1a4fd6] font-bold uppercase tracking-wider">
-                        <span className="material-symbols-outlined text-base">account_balance</span>
-                        Bank Account Details for Transfer
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 text-sm pt-1">
-                        <div>
-                          <p className="text-[10px] uppercase tracking-wider text-[#4b6390]">Bank</p>
-                          <p className="font-semibold text-[#152d5a]">{bankDetails?.bankName || 'National Australia Bank (NAB)'}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] uppercase tracking-wider text-[#4b6390]">Account Name</p>
-                          <p className="font-semibold text-[#152d5a]">{bankDetails?.accountName || 'JAM Aviation PTY LTD'}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] uppercase tracking-wider text-[#4b6390]">BSB</p>
-                          <p className="font-mono font-bold text-[#152d5a]">{bankDetails?.bsb || '085-005'}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] uppercase tracking-wider text-[#4b6390]">Account Number</p>
-                          <p className="font-mono font-bold text-[#152d5a]">{bankDetails?.accountNumber || '12345678'}</p>
-                        </div>
-                      </div>
-                      <div className="pt-2 border-t border-[#dbe7f4]">
-                        <label className="text-[10px] font-semibold uppercase tracking-wider text-[#4b6390] block mb-1">
-                          Payment Reference Used
-                        </label>
-                        <input
-                          type="text"
-                          value={bankReference}
-                          onChange={(e) => setBankReference(e.target.value)}
-                          placeholder="e.g. Flight YSBK or your Name"
-                          className="w-full rounded-lg border border-[#dbe7f4] bg-white px-3 py-2 text-sm text-[#152d5a] focus:border-[#1a4fd6] focus:outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Upload receipt */}
+            {/* Payment Sub-panel: Bank Transfer Details & Upload */}
+            {paymentMethod === 'bank_transfer' && (
+              <div className="space-y-4">
+                <div className="rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] p-4 sm:p-5 space-y-3 text-xs">
+                  <div className="flex items-center gap-2 text-[#1a4fd6] font-bold uppercase tracking-wider">
+                    <span className="material-symbols-outlined text-base">account_balance</span>
+                    Bank Account Details for Transfer
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 text-sm pt-1">
                     <div>
-                      <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] block mb-2">
-                        Upload Bank Transfer Proof / Receipt <span className="text-rose-500">*</span>
-                      </label>
-                      <div
-                        onClick={() => bankReceiptInputRef.current?.click()}
-                        className="border-2 border-dashed border-[#dbe7f4] hover:border-[#1a4fd6] rounded-xl p-4 text-center cursor-pointer bg-[#f8fbff] transition-colors"
-                      >
-                        <input
-                          ref={bankReceiptInputRef}
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp,application/pdf"
-                          onChange={(e) => {
-                            handleBankReceiptChange(e.target.files?.[0] ?? null)
-                            e.target.value = ''
-                          }}
-                          className="hidden"
-                        />
-                        {bankReceiptFile ? (
-                          <div className="flex items-center justify-between gap-3 text-left">
-                            <div className="flex items-center gap-2.5">
-                              <span className="material-symbols-outlined text-emerald-500 text-2xl">check_circle</span>
-                              <div>
-                                <p className="text-xs font-bold text-[#152d5a]">{bankReceiptFile.name}</p>
-                                <p className="text-[10px] text-[#4b6390]">{(bankReceiptFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                              </div>
-                            </div>
-                            <span className="text-xs text-[#1a4fd6] font-semibold">Change File</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center gap-2 text-xs text-[#4b6390]">
-                            <span className="material-symbols-outlined text-[#1a4fd6]">receipt_long</span>
-                            <span>Click to attach payment receipt / screenshot (JPEG, PNG, PDF)</span>
-                          </div>
-                        )}
-                      </div>
-                      {bankReceiptError && (
-                        <p className="text-xs text-rose-600 mt-1">{bankReceiptError}</p>
-                      )}
+                      <p className="text-[10px] uppercase tracking-wider text-[#4b6390]">Bank</p>
+                      <p className="font-semibold text-[#152d5a]">{bankDetails?.bankName || 'National Australia Bank (NAB)'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-[#4b6390]">Account Name</p>
+                      <p className="font-semibold text-[#152d5a]">{bankDetails?.accountName || 'JAM Aviation PTY LTD'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-[#4b6390]">BSB</p>
+                      <p className="font-mono font-bold text-[#152d5a]">{bankDetails?.bsb || '085-005'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-[#4b6390]">Account Number</p>
+                      <p className="font-mono font-bold text-[#152d5a]">{bankDetails?.accountNumber || '12345678'}</p>
                     </div>
                   </div>
-                )}
+                  <div className="pt-2 border-t border-[#dbe7f4]">
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[#4b6390] block mb-1">
+                      Payment Reference Used
+                    </label>
+                    <input
+                      type="text"
+                      value={bankReference}
+                      onChange={(e) => setBankReference(e.target.value)}
+                      placeholder="e.g. Flight YSBK or your Name"
+                      className="w-full rounded-lg border border-[#dbe7f4] bg-white px-3 py-2 text-sm text-[#152d5a] focus:border-[#1a4fd6] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Upload receipt */}
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] block mb-2">
+                    Upload Bank Transfer Proof / Receipt <span className="text-rose-500">*</span>
+                  </label>
+                  <div
+                    onClick={() => bankReceiptInputRef.current?.click()}
+                    className="border-2 border-dashed border-[#dbe7f4] hover:border-[#1a4fd6] rounded-xl p-3.5 sm:p-4 text-center cursor-pointer bg-[#f8fbff] transition-colors"
+                  >
+                    <input
+                      ref={bankReceiptInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      onChange={(e) => {
+                        handleBankReceiptChange(e.target.files?.[0] ?? null)
+                        e.target.value = ''
+                      }}
+                      className="hidden"
+                    />
+                    {bankReceiptFile ? (
+                      <div className="flex items-center justify-between gap-3 text-left">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="material-symbols-outlined text-emerald-500 text-2xl shrink-0">check_circle</span>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-[#152d5a] truncate">{bankReceiptFile.name}</p>
+                            <p className="text-[10px] text-[#4b6390]">{(bankReceiptFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                          </div>
+                        </div>
+                        <span className="text-xs text-[#1a4fd6] font-semibold shrink-0">Change File</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2 text-xs text-[#4b6390]">
+                        <span className="material-symbols-outlined text-[#1a4fd6] shrink-0">receipt_long</span>
+                        <span>Click to attach payment receipt / screenshot (JPEG, PNG, PDF)</span>
+                      </div>
+                    )}
+                  </div>
+                  {bankReceiptError && (
+                    <p className="text-xs text-rose-600 mt-1">{bankReceiptError}</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* ── Declaration & Actions ───────────────────────────────────────────── */}
-      <div className="bg-white border border-[#dbe7f4] rounded-[1.5rem] p-6 sm:p-8 shadow-[0_8px_24px_rgba(21,45,90,0.06)] space-y-6">
+      <div className="bg-white border border-[#dbe7f4] rounded-2xl sm:rounded-[1.5rem] p-4 sm:p-6 md:p-8 shadow-[0_8px_24px_rgba(21,45,90,0.06)] space-y-5 sm:space-y-6">
         <label className="flex items-start gap-3 cursor-pointer">
           <input
             type="checkbox"
             checked={declaration}
             onChange={(e) => setDeclaration(e.target.checked)}
             disabled={loading}
-            className="mt-0.5 w-4 h-4 rounded border-[#dbe7f4] text-[#1a4fd6] focus:ring-[#1a4fd6] cursor-pointer"
+            className="mt-0.5 w-4 h-4 rounded border-[#dbe7f4] text-[#1a4fd6] focus:ring-[#1a4fd6] cursor-pointer shrink-0"
           />
           <span className="text-xs text-[#4b6390] leading-relaxed select-none">
             I declare that the meter readings, landings, and details provided are accurate and correspond to the completed flight.
@@ -1270,7 +1303,7 @@ export default function FlightRecordForm({
         </label>
 
         {error && (
-          <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium">
+          <div className="p-3.5 sm:p-4 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium">
             {error}
           </div>
         )}
@@ -1278,7 +1311,7 @@ export default function FlightRecordForm({
         <button
           type="submit"
           disabled={isSubmitBlocked}
-          className={`w-full py-4 rounded-xl text-sm font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm ${
+          className={`w-full py-3.5 sm:py-4 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-wider sm:tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm ${
             isSubmitBlocked
               ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
               : paymentMethod === 'previous_payment'
@@ -1289,7 +1322,7 @@ export default function FlightRecordForm({
           }`}
         >
           <LoadingButtonContent loading={loading} loadingLabel="Processing Submission…">
-            <span className="material-symbols-outlined text-lg">
+            <span className="material-symbols-outlined text-base sm:text-lg shrink-0">
               {paymentMethod === 'previous_payment'
                 ? 'refresh'
                 : netPayableDueCents > 0 && paymentMethod === 'stripe'
@@ -1298,18 +1331,74 @@ export default function FlightRecordForm({
                 ? 'account_balance'
                 : 'check_circle'}
             </span>
-            {paymentMethod === 'previous_payment' || netPayableDueCents === 0
-              ? (calc.isBlockTime
-                  ? `Submit Flight Record (Covered by ${calc.blockPackageName || 'Package'})`
-                  : isResubmission
-                  ? 'Resubmit Flight Record ($0.00 Due)'
-                  : 'Submit Flight Record ($0.00 Due)')
-              : paymentMethod === 'stripe'
-              ? `Pay $${money(totalCardChargeRemainingCents)} & Submit Flight Record`
-              : `Submit Flight Record & Bank Transfer Proof ($${money(netPayableDueCents)})`}
+            <span className="truncate text-center">
+              {paymentMethod === 'previous_payment' || netPayableDueCents === 0
+                ? (calc.isBlockTime
+                    ? `Submit Flight Record (Covered by ${calc.blockPackageName || 'Package'})`
+                    : isResubmission
+                    ? 'Resubmit Flight Record ($0.00 Due)'
+                    : 'Submit Flight Record ($0.00 Due)')
+                : paymentMethod === 'stripe'
+                ? `Pay $${money(totalCardChargeRemainingCents)} & Submit Flight Record`
+                : `Submit Flight Record & Bank Transfer Proof ($${money(netPayableDueCents)})`}
+            </span>
           </LoadingButtonContent>
         </button>
       </div>
     </form>
+
+      {/* ─── MODAL: TOP UP PACKAGE ────────────────────────────────────────── */}
+      {showTopupModal && activePackage && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-2 sm:p-4 md:p-6"
+          onClick={() => setShowTopupModal(false)}
+        >
+          <div
+            className="relative flex flex-col w-full max-w-xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[90vh] rounded-2xl sm:rounded-3xl border border-[#152d5a]/10 bg-white shadow-[0_24px_90px_rgba(2,10,22,0.32)] overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-7 sm:py-5 border-b border-[#152d5a]/10 bg-white shrink-0">
+              <div className="min-w-0 pr-1">
+                <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-[#1a4fd6] font-sans">
+                  TOP UP PACKAGE
+                </p>
+                <h2
+                  className="mt-0.5 text-[18px] sm:text-[23px] font-normal leading-tight text-[#152d5a] truncate sm:whitespace-normal"
+                  style={{ fontFamily: 'Newsreader, Georgia, serif' }}
+                >
+                  Add Hours to {activePackage.package_name || 'Block Time'}
+                </h2>
+                <p className="mt-0.5 text-[11px] sm:text-[13px] text-[#4b6390] font-sans">
+                  Locked-in rate: ${activePackage.rate_per_hour?.toFixed(0) ?? 320}/hr · Fuel & GST included
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTopupModal(false)}
+                className="inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full border border-[#152d5a]/10 bg-[#f8fafc] text-[#4b6390] transition-colors hover:bg-[#eef4fb] hover:text-[#152d5a] shrink-0"
+                aria-label="Close"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {/* Scrollable Body with isModal={true} */}
+            <div className="flex-1 overflow-y-auto px-4 py-3.5 sm:px-7 sm:py-5">
+              <BlockTimeTopupCard
+                purchaseId={activePackage.id}
+                packageName={activePackage.package_name || 'Block Time'}
+                hoursPurchased={activePackage.hours_purchased || 10}
+                hoursRemaining={activePackage.hours_remaining ?? 0}
+                ratePerHour={activePackage.rate_per_hour ?? 320}
+                expiresAt={activePackage.expires_at ?? new Date().toISOString()}
+                validityDays={30}
+                isModal={true}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

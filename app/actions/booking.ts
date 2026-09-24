@@ -630,6 +630,26 @@ export async function submitAndPayPostFlight(
     activeBlockTimeRow = fallbackBlockTime
   }
 
+  // Also check for exhausted or 0-hour unexpired packages
+  if (!activeBlockTimeRow) {
+    const { data: candidatePurchases } = await supabase
+      .from('pilot_block_time_purchases')
+      .select('id, hours_remaining, rate_per_hour, expires_at, hours_purchased, status, package:block_time_packages(name)')
+      .eq('user_id', userId)
+      .in('status', ['active', 'exhausted'])
+      .order('activated_at', { ascending: false })
+      .limit(10)
+
+    const validCandidate = candidatePurchases?.find((p) => {
+      if (!p.expires_at) return true
+      const expiry = new Date(p.expires_at).getTime()
+      return expiry >= Date.now() || (booking.scheduled_start && expiry >= new Date(booking.scheduled_start).getTime())
+    })
+    if (validCandidate) {
+      activeBlockTimeRow = validCandidate
+    }
+  }
+
   const activeBlockTimeSummary = activeBlockTimeRow ? {
     id: activeBlockTimeRow.id,
     hours_remaining: Number(activeBlockTimeRow.hours_remaining),

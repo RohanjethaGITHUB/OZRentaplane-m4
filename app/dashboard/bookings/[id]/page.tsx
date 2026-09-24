@@ -169,27 +169,57 @@ function BlockTimeInfoBanner({
   const balanceText = `${activePackage.hours_remaining.toFixed(1)}h`
   const rateText = `$${activePackage.rate_per_hour.toFixed(2)}/hr`
   const standardRateText = `$${standardHourlyRate.toFixed(2)}/hr`
+  const isExhausted = activePackage.hours_remaining <= 0
 
   return (
     <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6 sm:p-8 shadow-[0_4px_30px_rgba(2,10,22,0.08)]">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="material-symbols-outlined text-[#1a4fd6] text-lg">info</span>
-        <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#4b6390]">Block Time Balance</h3>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-[#1a4fd6] text-lg">info</span>
+          <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#4b6390]">Block Time Package</h3>
+        </div>
+        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+          isExhausted
+            ? 'bg-amber-100 text-amber-800 border-amber-200'
+            : 'bg-blue-100 text-[#1a4fd6] border-blue-200'
+        }`}>
+          {isExhausted ? 'Exhausted (Top-Up Eligible)' : 'Active Package'}
+        </span>
       </div>
       <div className="space-y-3">
         <div className="flex items-start gap-3 rounded-xl bg-[#f8fbff] border border-[#dbe7f4] p-3.5">
           <span className="material-symbols-outlined text-[#1a4fd6] text-[14px] mt-0.5 flex-shrink-0">info</span>
           <p className="text-[13px] text-[#4b6390] leading-relaxed">
-            Your actual VDO hours will be deducted from your Block Time balance after you submit your post-flight reading.
+            Current balance: <span className="font-semibold text-[#152d5a]">{balanceText} remaining</span> (expires {formattedExpiry}). Locked-in package rate: <span className="font-semibold text-[#152d5a]">{rateText}</span>.
           </p>
         </div>
-        <div className="flex items-start gap-3 rounded-xl bg-[#f8fbff] border border-[#dbe7f4] p-3.5">
-          <span className="material-symbols-outlined text-[#1a4fd6] text-[14px] mt-0.5 flex-shrink-0">info</span>
-          <p className="text-[13px] text-[#4b6390] leading-relaxed">
-            Current balance: {balanceText} remaining (expires {formattedExpiry}).
-          </p>
-        </div>
-        {is24HourBooking && (
+        {isExhausted ? (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3.5">
+            <div className="flex items-start gap-2">
+              <span className="material-symbols-outlined text-amber-500 text-[18px] mt-0.5 flex-shrink-0">warning</span>
+              <p className="text-[13px] text-amber-900 leading-relaxed">
+                Your package hours are currently exhausted. Flights will be billed at the standard rate of {standardRateText} unless you add hours to your package.
+              </p>
+            </div>
+            <a
+              href="/dashboard/purchases#top-up"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-[12px] font-bold text-white bg-[#1a4fd6] hover:bg-[#153eb2] px-4 py-2 rounded-xl whitespace-nowrap shadow-sm transition-colors self-start sm:self-center shrink-0"
+            >
+              <span className="material-symbols-outlined text-sm">add_circle</span>
+              Add Hours at {rateText}
+            </a>
+          </div>
+        ) : (
+          <div className="flex items-start gap-3 rounded-xl bg-[#f8fbff] border border-[#dbe7f4] p-3.5">
+            <span className="material-symbols-outlined text-[#1a4fd6] text-[14px] mt-0.5 flex-shrink-0">info</span>
+            <p className="text-[13px] text-[#4b6390] leading-relaxed">
+              Your actual VDO hours will be deducted from your Block Time balance after you submit your post-flight reading.
+            </p>
+          </div>
+        )}
+        {is24HourBooking && !isExhausted && (
           <div className="flex items-start gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3.5">
             <span className="material-symbols-outlined text-amber-400 text-[14px] mt-0.5 flex-shrink-0">warning</span>
             <p className="text-[13px] text-amber-600/80 leading-relaxed">
@@ -197,7 +227,7 @@ function BlockTimeInfoBanner({
             </p>
           </div>
         )}
-        {activePackage.hours_remaining < bookingSlotHours && (
+        {!isExhausted && activePackage.hours_remaining < bookingSlotHours && (
           <div className="flex items-start gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3.5">
             <span className="material-symbols-outlined text-amber-400 text-[14px] mt-0.5 flex-shrink-0">warning</span>
             <p className="text-[13px] text-amber-600/80 leading-relaxed">
@@ -205,7 +235,7 @@ function BlockTimeInfoBanner({
             </p>
           </div>
         )}
-        {activePackage.hours_remaining < 4 && is24HourBooking && (
+        {!isExhausted && activePackage.hours_remaining < 4 && is24HourBooking && (
           <div className="flex items-start gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3.5">
             <span className="material-symbols-outlined text-amber-400 text-[14px] mt-0.5 flex-shrink-0">warning</span>
             <p className="text-[13px] text-amber-600/80 leading-relaxed">
@@ -1137,6 +1167,34 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
     activePackage = fallbackPackage
   }
 
+  // Also check for exhausted or 0-hour packages that are not expired, so pilot can top up and see package details
+  if (!activePackage) {
+    const { data: exhaustedCandidates } = await supabase
+      .from('pilot_block_time_purchases')
+      .select(`
+      id,
+      hours_remaining,
+      rate_per_hour,
+      expires_at,
+      hours_purchased,
+      status,
+      package:block_time_packages(name, hours)
+    `)
+      .eq('user_id', user.id)
+      .in('status', ['active', 'exhausted'])
+      .order('activated_at', { ascending: false })
+      .limit(10)
+
+    const validCandidate = exhaustedCandidates?.find((p) => {
+      if (!p.expires_at) return true
+      const expiry = new Date(p.expires_at).getTime()
+      return expiry >= Date.now() || (booking.scheduled_start && expiry >= new Date(booking.scheduled_start).getTime())
+    })
+    if (validCandidate) {
+      activePackage = validCandidate
+    }
+  }
+
   const activeBlockTimeSummary = activePackage ? {
     id: activePackage.id,
     hours_remaining: Number(activePackage.hours_remaining),
@@ -1779,7 +1837,7 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
           />
 
           {activePackage && (
-            <div className="max-w-[1280px] mx-auto px-4 sm:px-6 md:px-8 xl:px-12 mt-6">
+            <div className="max-w-[1280px] mx-auto px-0 sm:px-6 md:px-8 xl:px-12 mt-3 sm:mt-6">
               <BlockTimeInfoBanner
                 activePackage={activePackage as ActiveBlockTimePackage | null}
                 bookingSlotHours={bookingSlotHours}
@@ -1791,34 +1849,34 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
           )}
 
           {/* Content grid — same container as dashboard content section */}
-          <div className="max-w-[1280px] mx-auto px-4 sm:px-6 md:px-8 xl:px-12 pt-8 pb-16">
+          <div className="max-w-[1280px] mx-auto px-0 sm:px-6 md:px-8 xl:px-12 pt-3 sm:pt-6 pb-32 sm:pb-20">
             <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 items-start">
 
               {/* ── Left column ─────────────────────────────────────────── */}
-              <div className="space-y-4 lg:sticky lg:top-6">
+              <div className="space-y-4 lg:sticky lg:top-6 order-2 lg:order-1">
 
                 {/* Flight Details */}
-                <div className="bg-white border border-[#dbe7f4] rounded-[1.5rem] p-6 shadow-[0_8px_24px_rgba(21,45,90,0.06)]">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] mb-5">
+                <div className="bg-white border border-[#dbe7f4] rounded-2xl sm:rounded-[1.5rem] p-4 sm:p-6 shadow-[0_8px_24px_rgba(21,45,90,0.06)]">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] mb-4 sm:mb-5">
                     Flight Details
                   </h3>
                   <div className="space-y-3">
-                    <div className="rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] p-3.5">
+                    <div className="rounded-xl sm:rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] p-3 sm:p-3.5">
                       <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#4b6390] block mb-1">Aircraft</span>
                       <span className="text-sm text-[#152d5a] font-medium">
                         {aircraft?.registration ?? '—'}
                         {aircraftTypeShort ? ` (${aircraftTypeShort})` : ''}
                       </span>
                     </div>
-                    <div className="rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] p-3.5">
+                    <div className="rounded-xl sm:rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] p-3 sm:p-3.5">
                       <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#4b6390] block mb-1">Pilot In Command</span>
                       <span className="text-sm text-[#152d5a]">{booking.pic_name ?? '—'}</span>
                     </div>
-                    <div className="rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] p-3.5">
+                    <div className="rounded-xl sm:rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] p-3 sm:p-3.5">
                       <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#4b6390] block mb-1">ARN</span>
                       <span className="text-sm text-[#152d5a] font-mono">{booking.pic_arn ?? '—'}</span>
                     </div>
-                    <div className="rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] p-3.5">
+                    <div className="rounded-xl sm:rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] p-3 sm:p-3.5">
                       <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#4b6390] block mb-1">Date</span>
                       <span className="text-sm text-[#152d5a]">
                         {formatDateFromISO(booking.scheduled_start)}
@@ -1828,8 +1886,8 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
                 </div>
 
                 {/* Status Journey */}
-                <div className="bg-white border border-[#dbe7f4] rounded-[1.5rem] p-6 shadow-[0_8px_24px_rgba(21,45,90,0.06)]">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] mb-5">
+                <div className="bg-white border border-[#dbe7f4] rounded-2xl sm:rounded-[1.5rem] p-4 sm:p-6 shadow-[0_8px_24px_rgba(21,45,90,0.06)]">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] mb-4 sm:mb-5">
                     Status Journey
                   </h3>
                   <ol className="space-y-0">
@@ -1880,8 +1938,8 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
                 </div>
 
                 {/* Next Steps */}
-                <div className="bg-white border border-[#dbe7f4] rounded-[1.5rem] p-6 shadow-[0_8px_24px_rgba(21,45,90,0.06)]">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] mb-4">
+                <div className="bg-white border border-[#dbe7f4] rounded-2xl sm:rounded-[1.5rem] p-4 sm:p-6 shadow-[0_8px_24px_rgba(21,45,90,0.06)]">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] mb-3 sm:mb-4">
                     Next Steps
                   </h3>
                   <ul className="space-y-3">
@@ -1890,20 +1948,20 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
                       'Discrepancies may delay the finalization of the flight record.',
                       'Final billing will be processed upon approval.',
                     ].map((item, i) => (
-                      <li key={i} className="flex items-start gap-2.5 rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] px-3 py-2.5">
+                      <li key={i} className="flex items-start gap-2.5 rounded-xl sm:rounded-2xl bg-[#f8fbff] border border-[#dbe7f4] px-3 py-2.5">
                         <span className="material-symbols-outlined text-[#1a4fd6]/50 text-sm mt-0.5 flex-shrink-0">
                           chevron_right
                         </span>
-                        <span className="text-sm text-[#4b6390] leading-relaxed">{item}</span>
+                        <span className="text-xs sm:text-sm text-[#4b6390] leading-relaxed">{item}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
 
                 {/* Operations & Support Contact */}
-                <div className="bg-white border border-[#dbe7f4] rounded-[1.5rem] p-6 shadow-[0_8px_24px_rgba(21,45,90,0.06)] space-y-3.5">
+                <div className="bg-white border border-[#dbe7f4] rounded-2xl sm:rounded-[1.5rem] p-4 sm:p-6 shadow-[0_8px_24px_rgba(21,45,90,0.06)] space-y-3.5">
                   <div className="flex items-center gap-2.5">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-[#1a4fd6]">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-[#1a4fd6] shrink-0">
                       <span className="material-symbols-outlined text-lg">support_agent</span>
                     </span>
                     <div>
@@ -1919,15 +1977,15 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
                       title="Call Operations (+61 474 576 085)"
                       className="flex items-center gap-2.5 text-xs font-semibold text-[#152d5a] hover:text-[#1a4fd6] p-2.5 rounded-xl bg-[#f8fbff] border border-[#dbe7f4] transition-colors group"
                     >
-                      <span className="material-symbols-outlined text-base text-[#1a4fd6] group-hover:scale-110 transition-transform">call</span>
-                      <span>+61 474 576 085</span>
+                      <span className="material-symbols-outlined text-base text-[#1a4fd6] group-hover:scale-110 transition-transform shrink-0">call</span>
+                      <span className="truncate">+61 474 576 085</span>
                     </a>
                     <a
                       href="mailto:ozrentaplane@gmail.com"
                       title="Email Operations (ozrentaplane@gmail.com)"
                       className="flex items-center gap-2.5 text-xs font-semibold text-[#152d5a] hover:text-[#1a4fd6] p-2.5 rounded-xl bg-[#f8fbff] border border-[#dbe7f4] transition-colors group"
                     >
-                      <span className="material-symbols-outlined text-base text-[#1a4fd6] group-hover:scale-110 transition-transform">mail</span>
+                      <span className="material-symbols-outlined text-base text-[#1a4fd6] group-hover:scale-110 transition-transform shrink-0">mail</span>
                       <span className="truncate">ozrentaplane@gmail.com</span>
                     </a>
                   </div>
@@ -1936,7 +1994,7 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
               </div>
 
               {/* ── Right column — form ──────────────────────────────────── */}
-              <div className="lg:pt-0">
+              <div className="lg:pt-0 order-1 lg:order-2">
                 <FlightRecordForm
                   bookingId={booking.id}
                   picName={booking.pic_name}

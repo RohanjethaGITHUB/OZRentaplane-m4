@@ -85,7 +85,7 @@ export default function AirportSelect({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`w-full flex items-center justify-between gap-2.5 rounded-xl border bg-white px-3.5 py-2.5 text-left text-xs font-medium transition-all shadow-sm focus:outline-none ${
+        className={`w-full flex items-center justify-between gap-1.5 sm:gap-2.5 rounded-xl border bg-white px-2.5 sm:px-3.5 py-2 sm:py-2.5 text-left text-xs font-medium transition-all shadow-sm focus:outline-none ${
           disabled
             ? 'opacity-60 cursor-not-allowed bg-slate-50 border-slate-200'
             : isOpen
@@ -94,14 +94,14 @@ export default function AirportSelect({
         }`}
       >
         {selectedAirport ? (
-          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <span className="flex-shrink-0 px-2 py-0.5 rounded-md bg-blue-100/80 text-[#1a4fd6] font-mono font-bold text-[11px] tracking-wide border border-blue-200">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
+            <span className="flex-shrink-0 px-1.5 sm:px-2 py-0.5 rounded-md bg-blue-100/80 text-[#1a4fd6] font-mono font-bold text-[10px] sm:text-[11px] tracking-wide border border-blue-200">
               {selectedAirport.icao_code}
             </span>
             <span className="truncate text-slate-900 font-semibold text-xs">
               {selectedAirport.name}
             </span>
-            <span className="ml-auto flex-shrink-0 text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+            <span className="ml-auto flex-shrink-0 text-[10px] sm:text-[11px] font-bold text-slate-600 bg-slate-100 px-1.5 sm:px-2 py-0.5 rounded-md">
               {formatFee(selectedAirport.default_landing_fee_cents)}
             </span>
           </div>

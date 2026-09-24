@@ -39,6 +39,7 @@ export default async function CustomerBillingPage() {
     { data: bkgBankTransferSubs },
     { data: customerLedgerRows },
     { data: packageInvoiceRows },
+    { data: topupRows },
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -122,9 +123,28 @@ export default async function CustomerBillingPage() {
       .order('created_at', { ascending: false }),
     supabase
       .from('invoices')
-      .select('id, invoice_number, total, created_at, pdf_url, status, payment_method, block_time_purchase_id')
+      .select('id, invoice_number, total, created_at, pdf_url, status, payment_method, block_time_purchase_id, type')
       .eq('user_id', user.id)
-      .eq('type', 'block_time_purchase')
+      .in('type', ['block_time_purchase', 'block_time_topup'])
+      .order('created_at', { ascending: false }),
+    createAdminClient()
+      .from('block_time_topups')
+      .select(`
+        id,
+        purchase_id,
+        hours_added,
+        rate_per_hour,
+        amount_paid,
+        validity_extension_days,
+        invoice_id,
+        created_at,
+        purchase:pilot_block_time_purchases(
+          id,
+          package:block_time_packages(name)
+        ),
+        invoice:invoices(id, invoice_number, pdf_url, status)
+      `)
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false }),
   ])
 
@@ -571,6 +591,7 @@ export default async function CustomerBillingPage() {
 
   // C. Block-time package purchase invoices
   for (const p of purchaseRows ?? []) {
+    if (p.status === 'pending') continue
     const pkg = one((p as any).package)
     const amount = Number(p.amount_paid || 0)
     const isPaid = p.status === 'active' || p.status === 'exhausted'
@@ -624,6 +645,123 @@ export default async function CustomerBillingPage() {
         },
       ],
     })
+  }
+
+  // D. Block-time package top-up invoices
+  const seenTopupInvoiceIds = new Set<string>()
+
+  for (const topup of (topupRows ?? []) as any[]) {
+    const pkg = one(topup.purchase?.package)
+    const pkgName = pkg?.name || 'Block Time'
+    const inv = one(topup.invoice)
+    if (inv?.id) seenTopupInvoiceIds.add(inv.id)
+    if (topup.invoice_id) seenTopupInvoiceIds.add(topup.invoice_id)
+
+    const amount = Number(topup.amount_paid || 0)
+    const subtotal = Math.round((amount / 1.1) * 100) / 100
+    const gst = Math.round((amount - subtotal) * 100) / 100
+    const invoiceNumber = inv?.invoice_number || `TOP-${topup.id.slice(0, 8).toUpperCase()}`
+
+    allInvoices.push({
+      id: inv?.id || topup.id,
+      invoiceNumber,
+      serviceName: `${pkgName} (+${Number(topup.hours_added)}h top-up)`,
+      serviceType: 'package',
+      date: topup.created_at,
+      amount,
+      paidAmount: amount,
+      outstandingAmount: 0,
+      currency: 'AUD',
+      status: 'PAID',
+      settlementType: 'CUSTOMER_PAYMENT',
+      paymentMethod: 'card',
+      card: { brand: 'visa', last4: '4242' },
+      pdfUrl: inv?.pdf_url || `/dashboard/purchases/${topup.id}/invoice`,
+      items: [
+        {
+          description: `${pkgName} top-up (+${Number(topup.hours_added)} flight hours)`,
+          amount,
+        },
+      ],
+      subtotal,
+      gst,
+      total: amount,
+      payments: [
+        {
+          id: `pmt-topup-${topup.id}`,
+          amount,
+          method: 'card',
+          settlementType: 'CUSTOMER_PAYMENT',
+          status: 'PAID',
+          paidAt: topup.created_at,
+          card: { brand: 'visa', last4: '4242' },
+        },
+      ],
+      timeline: [
+        {
+          id: `tl-topup-${topup.id}`,
+          title: 'Top-up confirmed',
+          description: `+${Number(topup.hours_added)} hours added to package balance`,
+          timestamp: formatDateFromISO(topup.created_at),
+          type: 'payment',
+        },
+        {
+          id: `tl-topup-inv-${topup.id}`,
+          title: 'Invoice issued',
+          description: invoiceNumber,
+          timestamp: formatDashboardTimestamp(topup.created_at),
+          type: 'invoice' as const,
+        },
+      ],
+    })
+  }
+
+  // Catch any block_time_topup invoices not already included via topupRows
+  for (const inv of (packageInvoiceRows ?? []) as any[]) {
+    if (inv.type === 'block_time_topup' && !seenTopupInvoiceIds.has(inv.id)) {
+      seenTopupInvoiceIds.add(inv.id)
+      const amount = Number(inv.total || 0)
+      const subtotal = Math.round((amount / 1.1) * 100) / 100
+      const gst = Math.round((amount - subtotal) * 100) / 100
+
+      allInvoices.push({
+        id: inv.id,
+        invoiceNumber: inv.invoice_number,
+        serviceName: 'Block Time Top-up',
+        serviceType: 'package',
+        date: inv.created_at,
+        amount,
+        paidAmount: inv.status === 'paid' ? amount : 0,
+        outstandingAmount: inv.status === 'paid' ? 0 : amount,
+        currency: 'AUD',
+        status: inv.status === 'paid' ? 'PAID' : 'PENDING',
+        settlementType: 'CUSTOMER_PAYMENT',
+        paymentMethod: inv.payment_method === 'bank_transfer' ? 'bank_transfer' : 'card',
+        card: { brand: 'visa', last4: '4242' },
+        pdfUrl: inv.pdf_url || `/dashboard/purchases/${inv.id}/invoice`,
+        items: [{ description: 'Block Time Top-up', amount }],
+        subtotal,
+        gst,
+        total: amount,
+        payments: inv.status === 'paid' ? [{
+          id: `pmt-${inv.id}`,
+          amount,
+          method: 'card',
+          settlementType: 'CUSTOMER_PAYMENT',
+          status: 'PAID',
+          paidAt: inv.created_at,
+        }] : [],
+        timeline: [
+          {
+            id: `tl-${inv.id}`,
+            title: 'Invoice issued',
+            description: inv.invoice_number,
+            timestamp: formatDashboardTimestamp(inv.created_at),
+            type: 'invoice' as const,
+          },
+        ],
+      })
+    }
   }
 
   // E. Landing Fee Invoices

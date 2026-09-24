@@ -36,6 +36,8 @@ type BlockTimePackageRef = {
 
 type BlockTimePurchaseRow = {
   id: string
+  package_id?: string
+  rate_per_hour?: number
   status: 'pending' | 'active' | 'exhausted' | 'expired' | 'refunded'
   hours_purchased: number
   hours_remaining: number
@@ -51,10 +53,17 @@ type BlockTimeSummary = {
   pendingPurchaseCount: number
   earliestExpiry: string | null
   latestPurchase: {
+    id: string
+    packageId?: string
     packageName: string
     hoursPurchased: number
+    hoursRemaining: number
+    ratePerHour: number
+    expiresAt: string
+    validityDays: number
     purchasedAt: string
     status: BlockTimePurchaseRow['status']
+    canTopup: boolean
   } | null
 }
 
@@ -289,6 +298,8 @@ export default async function DashboardPage({
         .from('pilot_block_time_purchases')
         .select(`
         id,
+        package_id,
+        rate_per_hour,
         status,
         hours_purchased,
         hours_remaining,
@@ -748,9 +759,23 @@ export default async function DashboardPage({
   const earliestExpiry = activeBlockTimePurchases
     .map((purchase) => purchase.expires_at)
     .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0] ?? null
+  if (searchParams?.block_time_purchase === 'cancelled') {
+    const admin = createAdminClient()
+    await admin
+      .from('pilot_block_time_purchases')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('status', 'pending')
+  }
+
   const latestPurchase = blockTimePurchases[0] ?? null
   const latestPurchasePackageName = latestPurchase?.package?.name ?? 'Block Time'
   const latestPurchaseHours = latestPurchase?.package?.hours ?? Number(latestPurchase?.hours_purchased ?? 0)
+  const isTopupEligible = Boolean(
+    latestPurchase &&
+    (latestPurchase.status === 'active' || latestPurchase.status === 'exhausted') &&
+    new Date(latestPurchase.expires_at).getTime() > Date.now()
+  )
   const showBlockTimeSummary = blockTimePurchases.length > 0
   const blockTimeSummary: BlockTimeSummary | null = showBlockTimeSummary
     ? {
@@ -760,19 +785,19 @@ export default async function DashboardPage({
       earliestExpiry,
       latestPurchase: latestPurchase
         ? {
+          id: latestPurchase.id,
+          packageId: latestPurchase.package_id,
           packageName: latestPurchasePackageName,
           hoursPurchased: latestPurchaseHours,
+          hoursRemaining: Number(latestPurchase.hours_remaining ?? 0),
+          ratePerHour: Number(latestPurchase.rate_per_hour ?? 0),
+          expiresAt: latestPurchase.expires_at,
+          validityDays: Number(latestPurchase.package?.validity_days ?? 30),
           purchasedAt: latestPurchase.purchased_at,
           status: latestPurchase.status,
+          canTopup: isTopupEligible,
         }
         : null,
-    }
-    : null
-
-  const purchaseSelectedBlockTime = selectedBlockTimePackage
-    ? async () => {
-      'use server'
-      await createBlockTimePurchaseIntent(selectedBlockTimePackage.id)
     }
     : null
 
@@ -782,47 +807,6 @@ export default async function DashboardPage({
 
   return (
     <>
-      {selectedBlockTimePackage ? (
-        <section className="mx-auto mb-8 max-w-7xl px-4 pt-4 md:mb-10 md:px-6">
-          <div className="rounded-2xl border border-[#d8e5fb] bg-white p-5 shadow-[0_12px_38px_rgba(16,38,74,0.08)] md:p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="max-w-3xl">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6]">
-                  Block Time Purchase
-                </p>
-                <h2 className="mt-2 font-serif text-3xl leading-tight text-[#152d5a] md:text-4xl">
-                  {selectedBlockTimePackage.name} selected
-                </h2>
-                <p className="mt-3 font-sans text-[0.95rem] leading-relaxed text-[#4b6390]">
-                  {selectedBlockTimePackage.hours} hours at ${selectedBlockTimePackage.rate_per_hour.toFixed(0)}/hr. Hours must be used within {Math.round(selectedBlockTimePackage.validity_days / 30) === 1 ? 'one month' : `${Math.round(selectedBlockTimePackage.validity_days / 30)} months`}. Landing fees are always billed separately.
-                </p>
-              </div>
-
-              {effectiveClearanceStatus === 'cleared_to_fly' ? (
-                <form action={purchaseSelectedBlockTime ?? undefined} className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <button
-                    type="submit"
-                    className="inline-flex items-center justify-center rounded-xl bg-[#f59e0b] px-5 py-3.5 font-sans text-[0.8rem] font-bold uppercase tracking-[0.16em] text-white transition-colors hover:bg-[#e08f00]"
-                  >
-                    Purchase Block Time
-                  </button>
-                  <p className="max-w-[260px] font-sans text-[0.78rem] leading-relaxed text-[#64748b]">
-                    You will be sent to Stripe checkout to complete payment securely.
-                  </p>
-                </form>
-              ) : (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
-                  <p className="font-sans text-sm font-semibold">Checkout clearance required</p>
-                  <p className="mt-1 font-sans text-sm leading-relaxed">
-                    Block Time can be purchased once your checkout is cleared. Your selected package has been preserved for later.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-      ) : null}
-
       <DashboardContent
         user={user}
         profile={profile ? { ...(profile as Profile), pilot_clearance_status: effectiveClearanceStatus } : null}
@@ -839,6 +823,7 @@ export default async function DashboardPage({
         bookingReadiness={bookingReadiness}
         blockTimeSummary={blockTimeSummary}
         allBlockTimePackages={blockTimePackageRows ?? []}
+        initialPackageSlug={selectedBlockTimePackageSlug}
         newlyPurchasedInvoicePdfUrl={newlyPurchasedInvoicePdfUrl}
         flashNotice={
           searchParams?.block_time_purchase === 'success'

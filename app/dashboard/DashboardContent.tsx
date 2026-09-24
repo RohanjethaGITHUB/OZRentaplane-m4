@@ -19,6 +19,8 @@ import { formatDashboardDate, formatDashboardTimestamp, formatDateFromISO, forma
 import { formatSydTime } from '@/lib/utils/sydney-time'
 import DashboardNextActionPanel from '@/components/customer/dashboard/DashboardNextActionPanel'
 import SuccessModal from '@/components/ui/SuccessModal'
+import BlockTimeTopupCard from './pricing/BlockTimeTopupCard'
+import { createBlockTimePurchaseIntent } from '@/app/actions/payment'
 
 // ── Exported types ────────────────────────────────────────────────────────────
 
@@ -50,10 +52,17 @@ export type BlockTimeSummary = {
   pendingPurchaseCount: number
   earliestExpiry: string | null
   latestPurchase: {
+    id: string
+    packageId?: string
     packageName: string
     hoursPurchased: number
+    hoursRemaining?: number
+    ratePerHour?: number
+    expiresAt?: string
+    validityDays?: number
     purchasedAt: string
     status: 'pending' | 'active' | 'exhausted' | 'expired' | 'refunded'
+    canTopup?: boolean
   } | null
 }
 
@@ -75,6 +84,7 @@ type Props = {
   bookingReadiness?: BookingReadinessDecision | null
   blockTimeSummary?: BlockTimeSummary | null
   allBlockTimePackages?: BlockTimePackage[]
+  initialPackageSlug?: string | null
   flashNotice?: { kind: 'success'; title: string; message: string; actionLabel?: string; actionUrl?: string } | null
   newlyPurchasedInvoicePdfUrl?: string | null
 }
@@ -403,13 +413,24 @@ export default function DashboardContent({
   bookingReadiness,
   blockTimeSummary,
   allBlockTimePackages = [],
+  initialPackageSlug,
   flashNotice,
   newlyPurchasedInvoicePdfUrl,
 }: Props) {
   const router = useRouter()
   const [successModalOpen, setSuccessModalOpen] = useState(Boolean(flashNotice) || passwordUpdated)
-  const [showPackageModal, setShowPackageModal] = useState(false)
+  const [showPackageModal, setShowPackageModal] = useState(Boolean(initialPackageSlug))
+  const [showTopupModal, setShowTopupModal] = useState(false)
+  const [selectedPackage, setSelectedPackage] = useState<BlockTimePackage | null>(() => {
+    if (!initialPackageSlug) return null
+    return (
+      allBlockTimePackages.find(
+        (p) => p.name.toLowerCase().replace(/\s+/g, '-') === initialPackageSlug.toLowerCase()
+      ) ?? null
+    )
+  })
   const [purchasing, setPurchasing] = useState(false)
+  const [purchaseError, setPurchaseError] = useState('')
   const toastNotice =
     flashNotice ??
     (passwordUpdated
@@ -682,13 +703,34 @@ export default function DashboardContent({
                 </span>
               )}
 
+              {/* Add Hours to Existing Package CTA */}
+              {blockTimeSummary.latestPurchase?.canTopup && (
+                <button
+                  type="button"
+                  onClick={() => setShowTopupModal(true)}
+                  className="inline-flex items-center gap-1 text-[12px] font-bold text-white bg-[#1a4fd6] hover:bg-[#153eb2] px-3.5 py-1.5 rounded-full shadow-sm transition-colors"
+                >
+                  Add Hours to {blockTimeSummary.latestPurchase.packageName}
+                  <span className="material-symbols-outlined text-[14px]">add</span>
+                </button>
+              )}
+
+              {/* Buy New Package CTA */}
               <button
                 type="button"
-                onClick={() => setShowPackageModal(true)}
-                className="inline-flex items-center gap-1 text-[12px] font-bold text-[#1a4fd6] hover:text-[#153eb2] px-3.5 py-1.5 bg-[#f0f6ff] hover:bg-[#e0eeff] rounded-full border border-[#1a4fd6]/10 transition-colors ml-1"
+                onClick={() => {
+                  setSelectedPackage(null)
+                  setPurchaseError('')
+                  setShowPackageModal(true)
+                }}
+                className={`inline-flex items-center gap-1 text-[12px] font-bold px-3.5 py-1.5 rounded-full border transition-colors ${
+                  blockTimeSummary.latestPurchase?.canTopup
+                    ? 'text-[#1a4fd6] bg-[#f0f6ff] hover:bg-[#e0eeff] border-[#1a4fd6]/15'
+                    : 'text-white bg-[#1a4fd6] hover:bg-[#153eb2] border-transparent shadow-sm'
+                }`}
               >
-                {blockTimeSummary.activePurchaseCount > 0 ? 'Buy More Hours' : 'Get Started with Block Time'}
-                <span className="material-symbols-outlined text-[14px]">add</span>
+                {blockTimeSummary.latestPurchase ? 'Buy Another Package' : 'Get Started with Block Time'}
+                <span className="material-symbols-outlined text-[14px]">sell</span>
               </button>
 
               <Link
@@ -714,6 +756,18 @@ export default function DashboardContent({
                 <p className="text-[12px] text-[#4b6390] mt-0.5">
                   {blockTimeSummary.latestPurchase.hoursPurchased} hours bought on{' '}
                   {formatDateFromISO(blockTimeSummary.latestPurchase.purchasedAt)}.
+                  {blockTimeSummary.latestPurchase.canTopup && (
+                    <>
+                      {' · '}
+                      <button
+                        type="button"
+                        onClick={() => setShowTopupModal(true)}
+                        className="text-[#1a4fd6] font-semibold underline underline-offset-2 hover:text-[#153eb2]"
+                      >
+                        Add hours to this package →
+                      </button>
+                    </>
+                  )}
                 </p>
               </div>
 
@@ -742,114 +796,315 @@ export default function DashboardContent({
         </section>
       )}
 
-      {showPackageModal ? (
+      {/* ─── MODAL: TOP UP CURRENT PACKAGE ──────────────────────────────────── */}
+      {showTopupModal && blockTimeSummary?.latestPurchase && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6"
-          onClick={() => setShowPackageModal(false)}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-2 sm:p-4 md:p-6"
+          onClick={() => setShowTopupModal(false)}
         >
           <div
-            className="w-full max-w-2xl rounded-2xl border border-[#152d5a]/10 bg-white p-6 shadow-[0_24px_90px_rgba(2,10,22,0.32)] md:p-8"
+            className="relative flex flex-col w-full max-w-xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[90vh] rounded-2xl sm:rounded-3xl border border-[#152d5a]/10 bg-white shadow-[0_24px_90px_rgba(2,10,22,0.32)] overflow-hidden"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-7 sm:py-5 border-b border-[#152d5a]/10 bg-white shrink-0">
+              <div className="min-w-0 pr-1">
                 <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-[#1a4fd6] font-sans">
-                  BLOCK TIME
+                  TOP UP PACKAGE
                 </p>
                 <h2
-                  className="mt-2 text-[30px] font-normal leading-tight text-[#152d5a]"
+                  className="mt-0.5 text-[18px] sm:text-[23px] font-normal leading-tight text-[#152d5a] truncate sm:whitespace-normal"
                   style={{ fontFamily: 'Newsreader, Georgia, serif' }}
                 >
-                  Block Time Packages
+                  Add Hours to {blockTimeSummary.latestPurchase.packageName}
                 </h2>
-                <p className="mt-2 text-[14px] text-[#4b6390] font-sans">
-                  Lock in your hourly rate and save on every flight.
+                <p className="mt-0.5 text-[11px] sm:text-[13px] text-[#4b6390] font-sans">
+                  Locked-in rate: ${blockTimeSummary.latestPurchase.ratePerHour?.toFixed(0) ?? 320}/hr · Fuel & GST included
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setShowPackageModal(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#152d5a]/10 bg-[#f8fafc] text-[#4b6390] transition-colors hover:bg-[#eef4fb] hover:text-[#152d5a]"
-                aria-label="Close block time packages"
+                onClick={() => setShowTopupModal(false)}
+                className="inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full border border-[#152d5a]/10 bg-[#f8fafc] text-[#4b6390] transition-colors hover:bg-[#eef4fb] hover:text-[#152d5a] shrink-0"
+                aria-label="Close"
               >
                 <span className="material-symbols-outlined text-[18px]">close</span>
               </button>
             </div>
 
-            <div className="mt-6">
-              {allBlockTimePackages.length > 0 ? (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  {allBlockTimePackages.map((pkg) => {
-                    const savings = 330 - Number(pkg.rate_per_hour)
-                    const packageSlug = pkg.name.toLowerCase().replace(/\s+/g, '-')
-                    return (
-                      <div
-                        key={pkg.id}
-                        className="flex h-full flex-col rounded-2xl border border-[#152d5a]/10 bg-[#f8fbff] p-5 shadow-[0_4px_24px_rgba(2,10,22,0.05)]"
-                      >
-                        <div>
-                          <h3
-                            className="text-[22px] font-normal text-[#152d5a]"
-                            style={{ fontFamily: 'Newsreader, Georgia, serif' }}
-                          >
-                            {pkg.name}
-                          </h3>
-                          <p className="mt-2 text-[13px] text-[#4b6390] font-sans">
-                            {pkg.hours} hours
-                          </p>
-                          <p className="mt-1 text-[13px] text-[#4b6390] font-sans">
-                            {pkg.rate_per_hour.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 })}/hr
-                          </p>
-                          <p className="mt-1 text-[13px] text-[#4b6390] font-sans">
-                            {pkg.total_price.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 })}
-                          </p>
-                          <p className="mt-1 text-[13px] text-[#4b6390] font-sans">
-                            {Math.round(pkg.validity_days / 30) === 1
-                              ? 'Hours must be used within one month'
-                              : `Hours must be used within ${Math.round(pkg.validity_days / 30)} months`}
-                          </p>
-                          <p className="mt-2 text-[13px] font-medium text-[#1a4fd6] font-sans">
-                            {savings > 0
-                              ? `(Save ${savings.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 })}/hr vs Pay As You Fly)`
-                              : '(No savings vs Pay As You Fly)'}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={purchasing}
-                          onClick={() => {
-                            setPurchasing(true)
-                            setShowPackageModal(false)
-                            window.location.href =
-                              '/dashboard?block_time_package=' + encodeURIComponent(packageSlug)
-                          }}
-                          className="mt-5 inline-flex items-center justify-center rounded-xl bg-[#f59e0b] px-4 py-3 text-[13px] font-semibold text-white transition-colors hover:bg-[#e08c00] disabled:cursor-not-allowed disabled:opacity-70"
+            {/* Scrollable Body with isModal={true} */}
+            <div className="flex-1 overflow-y-auto px-4 py-3.5 sm:px-7 sm:py-5">
+              <BlockTimeTopupCard
+                purchaseId={blockTimeSummary.latestPurchase.id}
+                packageName={blockTimeSummary.latestPurchase.packageName}
+                hoursPurchased={blockTimeSummary.latestPurchase.hoursPurchased}
+                hoursRemaining={blockTimeSummary.latestPurchase.hoursRemaining ?? 0}
+                ratePerHour={blockTimeSummary.latestPurchase.ratePerHour ?? 320}
+                expiresAt={blockTimeSummary.latestPurchase.expiresAt ?? new Date().toISOString()}
+                validityDays={blockTimeSummary.latestPurchase.validityDays ?? 30}
+                isModal={true}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: BLOCK TIME PACKAGES (SELECT & CHECKOUT) ───────────────────── */}
+      {showPackageModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4 md:p-6"
+          onClick={() => {
+            setShowPackageModal(false)
+            setSelectedPackage(null)
+          }}
+        >
+          <div
+            className="relative flex flex-col w-full max-w-5xl max-h-[90vh] rounded-2xl sm:rounded-3xl border border-[#152d5a]/10 bg-white shadow-[0_24px_90px_rgba(2,10,22,0.32)] overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between gap-4 px-5 py-4 sm:px-7 sm:py-5 border-b border-[#152d5a]/10 bg-white shrink-0">
+              <div>
+                <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-[#1a4fd6] font-sans">
+                  BLOCK TIME
+                </p>
+                <h2
+                  className="mt-0.5 text-[22px] sm:text-[26px] font-normal leading-tight text-[#152d5a]"
+                  style={{ fontFamily: 'Newsreader, Georgia, serif' }}
+                >
+                  {selectedPackage ? selectedPackage.name : 'Block Time Packages'}
+                </h2>
+                <p className="mt-0.5 text-[12px] sm:text-[13px] text-[#4b6390] font-sans">
+                  {selectedPackage
+                    ? 'Review package details and proceed to Stripe checkout.'
+                    : 'Lock in your hourly rate and save on every flight. Fuel & GST included.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPackageModal(false)
+                  setSelectedPackage(null)
+                }}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#152d5a]/10 bg-[#f8fafc] text-[#4b6390] transition-colors hover:bg-[#eef4fb] hover:text-[#152d5a] shrink-0"
+                aria-label="Close"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-7 sm:py-5">
+              {selectedPackage ? (
+                /* Subview: Confirmation & Stripe checkout */
+                <div className="max-w-2xl mx-auto py-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPackage(null)
+                      setPurchaseError('')
+                    }}
+                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#1a4fd6] hover:text-[#153eb2] mb-3"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+                    Choose a different package
+                  </button>
+
+                  <div className="rounded-2xl border border-[#1a4fd6]/15 bg-[#f8fbff] p-5 sm:p-6 shadow-xs">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2 pb-3 border-b border-[#152d5a]/10">
+                      <div>
+                        <h3
+                          className="text-[24px] sm:text-[28px] font-normal text-[#152d5a]"
+                          style={{ fontFamily: 'Newsreader, Georgia, serif' }}
                         >
-                          Select
-                        </button>
+                          {selectedPackage.name}
+                        </h3>
+                        <p className="text-[13px] text-[#4b6390] mt-0.5">
+                          {selectedPackage.hours} flight hours package
+                        </p>
                       </div>
-                    )
-                  })}
+                      <div className="text-right">
+                        <p className="text-[26px] font-bold text-[#1a4fd6]">
+                          ${Number(selectedPackage.total_price).toLocaleString('en-AU')}
+                        </p>
+                        <p className="text-[11px] text-[#64748b]">Total (GST included)</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-left font-sans">
+                      <div className="rounded-xl border border-[#152d5a]/10 bg-white p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4b6390]">Hourly Rate</p>
+                        <p className="mt-1 text-[18px] font-bold text-[#152d5a]">${Number(selectedPackage.rate_per_hour).toFixed(0)}/hr</p>
+                      </div>
+                      <div className="rounded-xl border border-[#152d5a]/10 bg-white p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4b6390]">Validity Period</p>
+                        <p className="mt-1 text-[14px] font-semibold text-[#152d5a]">
+                          {Math.round(selectedPackage.validity_days / 30) === 1
+                            ? '1 month'
+                            : `${Math.round(selectedPackage.validity_days / 30)} months`}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-[#152d5a]/10 bg-white p-3 col-span-2 sm:col-span-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#4b6390]">Savings vs $330/hr</p>
+                        <p className="mt-1 text-[14px] font-bold text-emerald-600">
+                          {330 - Number(selectedPackage.rate_per_hour) > 0
+                            ? `Save $${(330 - Number(selectedPackage.rate_per_hour)).toFixed(0)}/hr`
+                            : 'Standard Rate'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="mt-3 text-[12px] text-[#4b6390] font-sans">
+                      All packages include fuel and GST. Landing fees are billed separately.
+                    </p>
+                  </div>
+
+                  {purchaseError && (
+                    <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-[13px] text-red-700">
+                      {purchaseError}
+                    </div>
+                  )}
+
+                  <div className="mt-5 flex flex-col gap-2.5 font-sans">
+                    {isClearedToFly ? (
+                      <button
+                        type="button"
+                        disabled={purchasing}
+                        onClick={async () => {
+                          try {
+                            setPurchasing(true)
+                            setPurchaseError('')
+                            await createBlockTimePurchaseIntent(selectedPackage.id)
+                          } catch (err: any) {
+                            setPurchasing(false)
+                            setPurchaseError(err?.message || 'Failed to start Stripe checkout.')
+                          }
+                        }}
+                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#f59e0b] px-6 py-3.5 text-[13px] font-bold uppercase tracking-[0.14em] text-white shadow-sm transition-all hover:bg-[#e08c00] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {purchasing ? (
+                          <>
+                            <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+                            <span>Opening Stripe Checkout...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-[18px]">lock</span>
+                            <span>Proceed to Stripe Checkout (${Number(selectedPackage.total_price).toLocaleString('en-AU')})</span>
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+                        <p className="font-semibold text-[13px]">Checkout clearance required</p>
+                        <p className="text-[12px] mt-1 leading-relaxed">
+                          Block Time can be purchased once your checkout flight is cleared by an instructor.
+                        </p>
+                      </div>
+                    )}
+                    <p className="text-center text-[12px] text-[#64748b]">
+                      You will be sent to Stripe checkout to complete payment securely.
+                    </p>
+                  </div>
                 </div>
               ) : (
-                <div className="rounded-2xl border border-dashed border-[#152d5a]/15 bg-[#f8fbff] px-5 py-8 text-center">
-                  <p className="text-[14px] font-medium text-[#152d5a] font-sans">
-                    No block time packages are available right now.
-                  </p>
+                /* Subview: 4-Column on Desktop, 2-Column on Tablet, 1-Column on Mobile */
+                <div>
+                  {allBlockTimePackages.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                      {allBlockTimePackages.map((pkg) => {
+                        const savings = 330 - Number(pkg.rate_per_hour)
+                        const validityText =
+                          Math.round(pkg.validity_days / 30) === 1
+                            ? '1 month validity'
+                            : `${Math.round(pkg.validity_days / 30)} months validity`
+
+                        return (
+                          <div
+                            key={pkg.id}
+                            className="flex flex-col justify-between rounded-xl sm:rounded-2xl border border-[#152d5a]/10 bg-[#f8fbff] p-4 sm:p-5 shadow-[0_2px_12px_rgba(2,10,22,0.04)] hover:border-[#1a4fd6]/40 hover:shadow-[0_4px_20px_rgba(26,79,214,0.1)] transition-all group"
+                          >
+                            <div>
+                              <div className="flex items-center justify-between gap-1.5">
+                                <h3
+                                  className="text-[19px] sm:text-[21px] font-normal text-[#152d5a] group-hover:text-[#1a4fd6] transition-colors"
+                                  style={{ fontFamily: 'Newsreader, Georgia, serif' }}
+                                >
+                                  {pkg.name}
+                                </h3>
+                                <span className="inline-flex rounded-full bg-[#1a4fd6]/10 px-2 py-0.5 text-[10px] font-bold text-[#1a4fd6]">
+                                  {pkg.hours}h
+                                </span>
+                              </div>
+
+                              <div className="mt-2.5 flex items-baseline gap-1">
+                                <span className="text-[26px] font-bold text-[#152d5a]">
+                                  ${Number(pkg.rate_per_hour).toFixed(0)}
+                                </span>
+                                <span className="text-[12px] font-medium text-[#64748b]">/hr</span>
+                              </div>
+
+                              <p className="mt-0.5 text-[13px] font-semibold text-[#1a4fd6]">
+                                ${Number(pkg.total_price).toLocaleString('en-AU')} total
+                              </p>
+
+                              <div className="mt-3 pt-3 border-t border-[#152d5a]/10 space-y-1.5 text-[11px] sm:text-[12px]">
+                                <p className="text-[#4b6390] flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-[14px] text-[#1a4fd6]">schedule</span>
+                                  {validityText}
+                                </p>
+                                {savings > 0 ? (
+                                  <p className="font-semibold text-emerald-600 flex items-center gap-1.5">
+                                    <span className="material-symbols-outlined text-[14px]">trending_down</span>
+                                    Save ${savings}/hr
+                                  </p>
+                                ) : (
+                                  <p className="text-[#64748b] flex items-center gap-1.5">
+                                    <span className="material-symbols-outlined text-[14px]">check</span>
+                                    Standard rate
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedPackage(pkg)
+                                setPurchaseError('')
+                              }}
+                              className="mt-4 w-full rounded-xl bg-[#f59e0b] px-3.5 py-2.5 text-[12px] sm:text-[13px] font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#e08c00] shadow-sm flex items-center justify-center gap-1.5"
+                            >
+                              <span>Select</span>
+                              <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-[#152d5a]/15 bg-[#f8fbff] px-5 py-8 text-center">
+                      <p className="text-[14px] font-medium text-[#152d5a] font-sans">
+                        No block time packages are available right now.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            <div className="mt-6 flex flex-col gap-4 border-t border-[#152d5a]/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-[12px] text-[#4b6390] font-sans">
-                All packages include GST and fuel. Landing fees charged separately.
-              </p>
+            {/* Modal Fixed Footer */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-3 sm:px-7 sm:py-3.5 border-t border-[#152d5a]/10 bg-[#f8fafc] shrink-0 text-[12px] text-[#4b6390] font-sans">
+              <p>All packages include GST and fuel. Landing fees charged separately.</p>
               <button
                 type="button"
-                onClick={() => setShowPackageModal(false)}
-                className="inline-flex items-center justify-center rounded-xl border border-[#152d5a]/10 bg-white px-4 py-2.5 text-[13px] font-semibold text-[#152d5a] transition-colors hover:bg-[#f8fafc]"
+                onClick={() => {
+                  setShowPackageModal(false)
+                  setSelectedPackage(null)
+                }}
+                className="inline-flex items-center justify-center rounded-xl border border-[#152d5a]/10 bg-white px-3.5 py-1.5 text-[12px] font-semibold text-[#152d5a] transition-colors hover:bg-[#f1f5f9] self-start sm:self-auto"
               >
-                Maybe later
+                Close
               </button>
             </div>
           </div>

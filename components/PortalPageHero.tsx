@@ -57,16 +57,15 @@ export default function PortalPageHero({ eyebrow, title, subtitle, note, backgro
   const isLight = variant === 'light'
   const hasPhotoBackground = Boolean(backgroundImage)
   const useLightText = isLight && !hasPhotoBackground
-  const minHeight = hasPhotoBackground
-    ? (compact ? '240px' : '460px')
+  const minHeightClass = hasPhotoBackground
+    ? (compact ? 'min-h-[150px] sm:min-h-[200px] md:min-h-[240px]' : 'min-h-[200px] sm:min-h-[300px] md:min-h-[460px]')
     : isLight
-      ? (compact ? '180px' : '360px')
-      : (compact ? undefined : '460px')
+      ? (compact ? 'min-h-[130px] sm:min-h-[160px] md:min-h-[180px]' : 'min-h-[180px] sm:min-h-[260px] md:min-h-[360px]')
+      : (compact ? '' : 'min-h-[200px] sm:min-h-[300px] md:min-h-[460px]')
   return (
     <section
-      className="relative overflow-hidden -mt-6"
+      className={`relative overflow-hidden -mt-6 ${minHeightClass}`}
       style={{
-        ...(minHeight ? { minHeight } : {}),
         marginLeft: 'calc(-50vw + 50%)',
         marginRight: 'calc(-50vw + 50%)',
         width: '100vw',
@@ -132,8 +131,8 @@ export default function PortalPageHero({ eyebrow, title, subtitle, note, backgro
 
       <div className={`relative z-10 max-w-[1440px] mx-auto px-4 md:px-5 lg:px-6 ${
         compact
-          ? (isLight ? 'py-6 md:py-8' : 'py-6 md:py-8')
-          : (isLight ? 'py-12 md:py-16' : 'py-16 md:py-20')
+          ? (isLight ? 'py-4 sm:py-6 md:py-8' : 'py-4 sm:py-6 md:py-8')
+          : (isLight ? 'py-8 sm:py-12 md:py-16' : 'py-8 sm:py-14 md:py-20')
       }`}>
         {backHref && (
           <Link

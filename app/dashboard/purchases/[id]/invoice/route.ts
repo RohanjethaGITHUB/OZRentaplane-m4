@@ -59,11 +59,98 @@ export async function GET(request: Request, { params }: { params: { id: string }
   }
 
   if (!purchase) {
+    // Check if params.id is a topup id
+    const { data: topupById } = await admin
+      .from('block_time_topups')
+      .select(`
+        id, user_id, purchase_id, hours_added, rate_per_hour, amount_paid, invoice_id, created_at,
+        invoice:invoices(id, invoice_number, pdf_url, status)
+      `)
+      .eq('id', params.id)
+      .maybeSingle()
+
+    if (topupById) {
+      if (!isAdmin && topupById.user_id !== user.id) {
+        return NextResponse.json({ error: 'Unauthorized.' }, { status: 403 })
+      }
+      const inv = Array.isArray(topupById.invoice) ? topupById.invoice[0] : topupById.invoice
+      if (inv?.invoice_number) {
+        const storagePath = `${topupById.user_id}/${inv.invoice_number}.pdf`
+        const { data: storageFile, error: storageErr } = await admin.storage
+          .from('invoice_pdfs')
+          .download(storagePath)
+
+        if (!storageErr && storageFile) {
+          const buffer = Buffer.from(await storageFile.arrayBuffer())
+          return new NextResponse(new Uint8Array(buffer), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/pdf',
+              'Content-Disposition': `inline; filename="${inv.invoice_number}.pdf"`,
+              'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+            },
+          })
+        }
+      }
+      if (inv?.pdf_url) {
+        return NextResponse.redirect(`${inv.pdf_url}?v=${Date.now()}`)
+      }
+      if (topupById.invoice_id) {
+        const { data: invRow } = await admin
+          .from('invoices')
+          .select('id, invoice_number, pdf_url')
+          .eq('id', topupById.invoice_id)
+          .maybeSingle()
+        if (invRow?.pdf_url) {
+          return NextResponse.redirect(`${invRow.pdf_url}?v=${Date.now()}`)
+        }
+      }
+    }
+
+    // Check if params.id is directly an invoice for topup
+    const { data: topupInv } = await admin
+      .from('invoices')
+      .select('id, invoice_number, pdf_url, user_id, type')
+      .or(`id.eq.${params.id},invoice_number.eq.${params.id}`)
+      .eq('type', 'block_time_topup')
+      .maybeSingle()
+
+    if (topupInv) {
+      if (!isAdmin && topupInv.user_id !== user.id) {
+        return NextResponse.json({ error: 'Unauthorized.' }, { status: 403 })
+      }
+      if (topupInv.invoice_number) {
+        const storagePath = `${topupInv.user_id}/${topupInv.invoice_number}.pdf`
+        const { data: storageFile, error: storageErr } = await admin.storage
+          .from('invoice_pdfs')
+          .download(storagePath)
+
+        if (!storageErr && storageFile) {
+          const buffer = Buffer.from(await storageFile.arrayBuffer())
+          return new NextResponse(new Uint8Array(buffer), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/pdf',
+              'Content-Disposition': `inline; filename="${topupInv.invoice_number}.pdf"`,
+              'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+            },
+          })
+        }
+      }
+      if (topupInv.pdf_url) {
+        return NextResponse.redirect(`${topupInv.pdf_url}?v=${Date.now()}`)
+      }
+    }
+
     return NextResponse.json({ error: 'Purchase record not found.' }, { status: 404 })
   }
 
   if (!isAdmin && purchase.user_id !== user.id) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 403 })
+  }
+
+  if (purchase.status === 'pending') {
+    return NextResponse.json({ error: 'Invoice is only available after payment has been completed.' }, { status: 400 })
   }
 
   // 2. Check for existing invoice record
