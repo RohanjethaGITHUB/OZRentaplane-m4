@@ -20,6 +20,7 @@ import CustomerBookingActions from './CustomerBookingActions'
 import CheckoutChangeActions from '@/app/dashboard/checkout/CheckoutChangeActions'
 import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
 import { getStandardBookingPaymentDisplayState } from '@/lib/booking/standard-booking-payment-state'
+import type { ActiveBlockTimeSummary } from '@/lib/booking/live-booking-calculator'
 import { BookingRealtimeListener } from '@/components/realtime/BookingRealtimeListener'
 import {
   CHECKOUT_OUTCOME_AUDIT_EVENT_TYPES,
@@ -251,6 +252,58 @@ function BlockTimeInfoBanner({
             </p>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function ExpiredBlockTimeBanner({
+  expiredPackage,
+  standardHourlyRate = 330,
+}: {
+  expiredPackage: ActiveBlockTimeSummary
+  standardHourlyRate?: number
+}) {
+  const formattedExpiry = formatDateFromISO(expiredPackage.expires_at)
+  const remainingHours = expiredPackage.hours_remaining.toFixed(1)
+  const rateText = `$${expiredPackage.rate_per_hour.toFixed(2)}/hr`
+  const standardRateText = `$${standardHourlyRate.toFixed(2)}/hr`
+  const hourlySavings = Math.max(0, standardHourlyRate - expiredPackage.rate_per_hour)
+
+  return (
+    <div className="bg-white border border-amber-200/90 rounded-[1.25rem] p-6 sm:p-8 shadow-[0_4px_30px_rgba(2,10,22,0.06)]">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-amber-600 text-lg">history_toggle_off</span>
+          <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#4b6390]">
+            Block Time Package Expired
+          </h3>
+        </div>
+        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-amber-50 text-amber-800 border-amber-200">
+          Expired {formattedExpiry}
+        </span>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-xl bg-amber-50/80 border border-amber-200/80 p-4">
+          <div className="space-y-1">
+            <p className="text-[13px] font-medium text-amber-950">
+              Your previous package <strong>{expiredPackage.package_name}</strong> had <strong>{remainingHours}h remaining</strong> when it expired on {formattedExpiry}.
+            </p>
+            <p className="text-[12px] text-amber-800">
+              This flight is being billed at the standard aircraft hire rate of <strong>{standardRateText}</strong> instead of your locked-in rate of <strong>{rateText}</strong>. Purchasing a new package saves you <strong>${hourlySavings.toFixed(2)}/hr</strong> on all flights.
+            </p>
+          </div>
+          <a
+            href="/dashboard/pricing"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-[12px] font-bold text-white bg-[#1a4fd6] hover:bg-[#153eb2] px-4 py-2.5 rounded-xl whitespace-nowrap shadow-sm transition-colors self-start sm:self-center shrink-0"
+          >
+            <span className="material-symbols-outlined text-sm">sell</span>
+            Purchase a Package (Save ${hourlySavings.toFixed(0)}/hr)
+          </a>
+        </div>
       </div>
     </div>
   )
@@ -1206,14 +1259,56 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
         ? activePackage.package[0]
         : (activePackage.package as any)
       const baseName = rawPkg?.name ?? 'Starter Block'
-      const hrs = Number((activePackage as any).hours_purchased ?? (rawPkg as any)?.hours ?? 0)
-      if (hrs > 0 && !baseName.toLowerCase().includes('hr')) {
-        return `${baseName} (${hrs}hr package)`
+      const baseHours = Number((rawPkg as any)?.hours ?? 0)
+      const standardHours = baseHours > 0 ? baseHours : ([100, 50, 25, 10].find(h => Number((activePackage as any).hours_purchased ?? 0) >= h) ?? 10)
+      if (standardHours > 0 && !baseName.toLowerCase().includes('hr')) {
+        return `${baseName} (${standardHours}hr package)`
       }
       return baseName
     })(),
-    hours_purchased: Number((activePackage as any).hours_purchased ?? (Array.isArray(activePackage.package) ? (activePackage.package[0] as any)?.hours : (activePackage.package as any)?.hours) ?? 0),
   } : null
+
+  let expiredBlockTimeSummary: (ActiveBlockTimeSummary & { status: 'expired' }) | null = null
+  if (!activePackage) {
+    const { data: expiredCandidate } = await supabase
+      .from('pilot_block_time_purchases')
+      .select(`
+        id,
+        hours_remaining,
+        rate_per_hour,
+        expires_at,
+        hours_purchased,
+        status,
+        package:block_time_packages(name, hours)
+      `)
+      .eq('user_id', user.id)
+      .eq('status', 'expired')
+      .order('expires_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (expiredCandidate) {
+      const rawPkg = Array.isArray(expiredCandidate.package)
+        ? expiredCandidate.package[0]
+        : (expiredCandidate.package as any)
+      const baseName = rawPkg?.name ?? 'Starter Block'
+      const baseHours = Number((rawPkg as any)?.hours ?? 0)
+      const standardHours = baseHours > 0 ? baseHours : ([100, 50, 25, 10].find(h => Number((expiredCandidate as any).hours_purchased ?? 0) >= h) ?? 10)
+      const pkgName = (standardHours > 0 && !baseName.toLowerCase().includes('hr'))
+        ? `${baseName} (${standardHours}hr package)`
+        : baseName
+
+      expiredBlockTimeSummary = {
+        id: expiredCandidate.id,
+        hours_remaining: Number(expiredCandidate.hours_remaining),
+        rate_per_hour: Number(expiredCandidate.rate_per_hour),
+        expires_at: expiredCandidate.expires_at,
+        status: 'expired',
+        package_name: pkgName,
+        hours_purchased: standardHours,
+      }
+    }
+  }
 
   const pendingRescheduleRequest =
     latestRescheduleRequest?.status === 'pending'
@@ -1836,7 +1931,7 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
             aircraftReg={aircraft?.registration ?? undefined}
           />
 
-          {activePackage && (
+          {activePackage ? (
             <div className="max-w-[1280px] mx-auto px-0 sm:px-6 md:px-8 xl:px-12 mt-3 sm:mt-6">
               <BlockTimeInfoBanner
                 activePackage={activePackage as ActiveBlockTimePackage | null}
@@ -1846,7 +1941,14 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
                 standardHourlyRate={defaultHourlyRate}
               />
             </div>
-          )}
+          ) : expiredBlockTimeSummary ? (
+            <div className="max-w-[1280px] mx-auto px-0 sm:px-6 md:px-8 xl:px-12 mt-3 sm:mt-6">
+              <ExpiredBlockTimeBanner
+                expiredPackage={expiredBlockTimeSummary}
+                standardHourlyRate={defaultHourlyRate}
+              />
+            </div>
+          ) : null}
 
           {/* Content grid — same container as dashboard content section */}
           <div className="max-w-[1280px] mx-auto px-0 sm:px-6 md:px-8 xl:px-12 pt-3 sm:pt-6 pb-32 sm:pb-20">
@@ -2002,6 +2104,7 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
                   flightDate={flightDate}
                   airports={airports}
                   activePackage={activeBlockTimeSummary}
+                  expiredPackage={expiredBlockTimeSummary}
                   bookingSlotHours={bookingSlotHours}
                   scheduledStart={booking.scheduled_start}
                   scheduledEnd={booking.scheduled_end}
@@ -2105,7 +2208,7 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
             : undefined}
         />
 
-        {activePackage && (
+        {activePackage ? (
           <div className="max-w-[1280px] mx-auto px-4 sm:px-6 md:px-8 xl:px-12 mt-6">
             <BlockTimeInfoBanner
               activePackage={activePackage as ActiveBlockTimePackage | null}
@@ -2115,7 +2218,14 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
               standardHourlyRate={Number((aircraft as any)?.default_hourly_rate ?? 330)}
             />
           </div>
-        )}
+        ) : expiredBlockTimeSummary ? (
+          <div className="max-w-[1280px] mx-auto px-4 sm:px-6 md:px-8 xl:px-12 mt-6">
+            <ExpiredBlockTimeBanner
+              expiredPackage={expiredBlockTimeSummary}
+              standardHourlyRate={Number((aircraft as any)?.default_hourly_rate ?? 330)}
+            />
+          </div>
+        ) : null}
 
         {/* ─── Middle row: Journey · Flight Details · Booking Status ──────── */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[2.1fr_1.75fr_1.55fr] gap-4 items-stretch mb-6 mt-6">

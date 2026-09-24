@@ -133,9 +133,11 @@ export function calculatePostFlightCharges(params: PostFlightCalculationParams):
   if (isBlockTime && activeBlockTime) {
     blockPackageId = activeBlockTime.id
     const basePkgName = activeBlockTime.package_name ?? 'Starter Block'
+    const standardTiers = [100, 50, 25, 10]
     const hrsPurchased = Number(activeBlockTime.hours_purchased ?? 0)
-    blockPackageName = (hrsPurchased > 0 && !basePkgName.toLowerCase().includes('hr'))
-      ? `${basePkgName} (${hrsPurchased}hr package)`
+    const tierHours = standardTiers.find((t) => hrsPurchased >= t) ?? 10
+    blockPackageName = (tierHours > 0 && !basePkgName.toLowerCase().includes('hr'))
+      ? `${basePkgName} (${tierHours}hr package)`
       : basePkgName
     blockHoursBefore = Math.round(Number(activeBlockTime.hours_remaining ?? 0) * 100) / 100
     blockHoursRemaining = blockHoursBefore

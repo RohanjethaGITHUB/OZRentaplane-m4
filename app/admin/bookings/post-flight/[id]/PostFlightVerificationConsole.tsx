@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Mail, Phone, Plus, Trash2, CheckCircle2 } from 'lucide-react'
@@ -11,6 +11,16 @@ import { approvePostFlightReview, requestPostFlightClarification } from '@/app/a
 import { CLARIFICATION_CATEGORY_LABELS, type ClarificationCategory } from '@/lib/supabase/booking-types'
 import { calculateBookingDays } from '@/lib/booking/standard-booking-billing'
 import AirportSelect from '@/components/ui/AirportSelect'
+
+const CATEGORY_ICONS: Record<string, string> = {
+  missing_evidence: 'photo_camera',
+  unreadable_image: 'image_not_supported',
+  meter_reading_mismatch: 'speed',
+  missing_field_values: 'edit_note',
+  fuel_or_oil_detail_unclear: 'local_gas_station',
+  landings_unclear: 'flight_land',
+  other: 'help_outline',
+}
 
 export type EvidenceAttachment = {
   id: string
@@ -196,6 +206,22 @@ export default function PostFlightVerificationConsole({
   // Clarification form state
   const [clarifyCategory, setClarifyCategory] = useState<ClarificationCategory | ''>('')
   const [clarifyMessage, setClarifyMessage] = useState('')
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false)
+  const categoryDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target as Node)) {
+        setCategoryDropdownOpen(false)
+      }
+    }
+    if (categoryDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [categoryDropdownOpen])
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -421,24 +447,16 @@ export default function PostFlightVerificationConsole({
     setError(null)
     setSuccess(null)
 
-    if (!clarifyCategory) {
-      setError('Please select a clarification category.')
-      setLoading(false)
-      return
-    }
-    if (!clarifyMessage.trim()) {
-      setError('Please explain clearly what the customer needs to correct.')
-      setLoading(false)
-      return
-    }
-
     try {
+      const resolvedCategory = clarifyCategory ? CLARIFICATION_CATEGORY_LABELS[clarifyCategory] : 'General Clarification'
+      const resolvedMessage = clarifyMessage.trim() || 'Please review your post-flight record and update any necessary details.'
+
       await requestPostFlightClarification({
         flightRecordId,
         bookingId,
         customerId,
-        category: CLARIFICATION_CATEGORY_LABELS[clarifyCategory],
-        message: clarifyMessage.trim(),
+        category: resolvedCategory,
+        message: resolvedMessage,
         vdo_total: currentVdoNum,
         air_switch_total: currentAirSwitchNum ?? undefined,
         landing_rows: editedLandings.map((l) => ({ airport_id: l.airportId, landing_count: l.landingCount })),
@@ -1764,35 +1782,116 @@ export default function PostFlightVerificationConsole({
                 )}
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-700 block">
-                    Reason / Category <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    value={clarifyCategory}
-                    onChange={(e) => setClarifyCategory(e.target.value as ClarificationCategory)}
-                    required
-                    className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-900 focus:border-amber-500 focus:outline-none"
-                  >
-                    <option value="">Select reason category...</option>
-                    {CATEGORIES.map(([key, label]) => (
-                      <option key={key} value={key}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 block">
+                      Reason / Category <span className="text-[11px] font-normal text-slate-500">(Optional)</span>
+                    </label>
+                    {clarifyCategory && (
+                      <button
+                        type="button"
+                        onClick={() => setClarifyCategory('')}
+                        className="text-[11px] text-amber-700 hover:text-amber-900 font-semibold"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="relative" ref={categoryDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setCategoryDropdownOpen((prev) => !prev)}
+                      className={`w-full flex items-center justify-between rounded-xl border bg-white p-3 text-xs text-left transition-all ${
+                        categoryDropdownOpen
+                          ? 'border-amber-500 ring-2 ring-amber-500/20 shadow-sm'
+                          : 'border-slate-200 hover:border-slate-300 shadow-sm'
+                      }`}
+                    >
+                      {clarifyCategory ? (
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="material-symbols-outlined text-amber-600 text-base shrink-0">
+                            {CATEGORY_ICONS[clarifyCategory] || 'help_outline'}
+                          </span>
+                          <span className="font-semibold text-slate-900 truncate">
+                            {CLARIFICATION_CATEGORY_LABELS[clarifyCategory]}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">Select reason category (optional)...</span>
+                      )}
+                      <span className={`material-symbols-outlined text-slate-400 transition-transform duration-200 ${categoryDropdownOpen ? 'rotate-180 text-amber-600' : ''}`}>
+                        keyboard_arrow_down
+                      </span>
+                    </button>
+
+                    {categoryDropdownOpen && (
+                      <div className="absolute z-30 left-0 right-0 mt-1.5 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl space-y-0.5 max-h-60 overflow-y-auto">
+                        {CATEGORIES.map(([key, label]) => {
+                          const isSelected = clarifyCategory === key
+                          const icon = CATEGORY_ICONS[key] || 'help_outline'
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => {
+                                setClarifyCategory(key)
+                                setCategoryDropdownOpen(false)
+                              }}
+                              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs transition-colors text-left ${
+                                isSelected
+                                  ? 'bg-amber-50 font-bold text-amber-950 border border-amber-200/80'
+                                  : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className={`material-symbols-outlined text-base ${isSelected ? 'text-amber-700' : 'text-slate-400'}`}>
+                                  {icon}
+                                </span>
+                                <span className="truncate">{label}</span>
+                              </div>
+                              {isSelected && (
+                                <span className="material-symbols-outlined text-amber-600 text-sm shrink-0">check</span>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick Select Chips */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <span className="text-[11px] text-slate-400 font-medium mr-0.5">Quick select:</span>
+                    {CATEGORIES.map(([key, label]) => {
+                      const isSelected = clarifyCategory === key
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setClarifyCategory(isSelected ? '' : key)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] transition-all ${
+                            isSelected
+                              ? 'bg-amber-100 text-amber-950 border border-amber-300 font-bold shadow-xs'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 border border-slate-200'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-700 block">
-                    Instructions for Pilot <span className="text-rose-500">*</span>
+                    Instructions for Pilot <span className="text-[11px] font-normal text-slate-500">(Optional)</span>
                   </label>
                   <textarea
                     value={clarifyMessage}
                     onChange={(e) => setClarifyMessage(e.target.value)}
-                    required
                     rows={3}
                     placeholder="Explain clearly what needs correction (e.g. Please check landing count, flight meter hours, or settle outstanding payment)..."
-                    className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none"
+                    className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none shadow-sm"
                   />
                 </div>
 

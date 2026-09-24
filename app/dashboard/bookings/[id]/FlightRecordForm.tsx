@@ -13,6 +13,7 @@ import { calculatePostFlightCharges, type AirportBillingInfo, type ActiveBlockTi
 import { LoadingButtonContent } from '@/components/ui/Spinner'
 import AirportSelect from '@/components/ui/AirportSelect'
 import BlockTimeTopupCard from '@/app/dashboard/pricing/BlockTimeTopupCard'
+import { formatDateFromISO } from '@/lib/formatDateTime'
 
 type LandingRow = {
   airport_id: string
@@ -26,6 +27,7 @@ type Props = {
   flightDate: string
   airports?: AirportBillingInfo[]
   activePackage?: ActiveBlockTimeSummary | null
+  expiredPackage?: ActiveBlockTimeSummary | null
   bookingSlotHours: number
   scheduledStart?: string | Date | null
   scheduledEnd?: string | Date | null
@@ -83,6 +85,7 @@ export default function FlightRecordForm({
   flightDate,
   airports = [],
   activePackage = null,
+  expiredPackage = null,
   bookingSlotHours,
   scheduledStart,
   scheduledEnd,
@@ -114,6 +117,7 @@ export default function FlightRecordForm({
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const [showTopupModal, setShowTopupModal] = useState(false)
+  const [isExpiredNoticeCollapsed, setIsExpiredNoticeCollapsed] = useState(false)
   const [declaration, setDeclaration] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [files, setFiles] = useState<UploadedFile[]>([])
@@ -958,6 +962,88 @@ export default function FlightRecordForm({
                       </a>
                     </div>
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* Expired Block Time Package Notice & Price Difference */}
+            {!calc.isBlockTime && expiredPackage && (
+              <div className={`rounded-2xl border border-amber-300 bg-amber-50/80 transition-all ${isExpiredNoticeCollapsed ? 'p-3 sm:p-4' : 'p-3.5 sm:p-5 space-y-3.5'}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="material-symbols-outlined text-amber-700 text-lg shrink-0">event_busy</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-950 truncate">
+                      Previous Package Expired · {expiredPackage.package_name || 'Block Time'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-amber-100 text-amber-800 border-amber-300">
+                      Expired {formatDateFromISO(expiredPackage.expires_at)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsExpiredNoticeCollapsed((prev) => !prev)}
+                      className="inline-flex items-center justify-center w-7 h-7 rounded-full text-amber-800 hover:text-amber-950 hover:bg-amber-200/60 transition-colors"
+                      title={isExpiredNoticeCollapsed ? "Show details" : "Hide/collapse"}
+                      aria-label="Toggle expired package notice"
+                    >
+                      <span className={`material-symbols-outlined text-[20px] transition-transform duration-200 ${isExpiredNoticeCollapsed ? '' : 'rotate-180'}`}>
+                        keyboard_arrow_down
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {!isExpiredNoticeCollapsed && (
+                  <>
+                    <p className="text-xs text-amber-900 leading-relaxed">
+                      You previously had <strong>{expiredPackage.hours_remaining.toFixed(1)}h remaining</strong> on your <strong>{expiredPackage.package_name || 'Block Time package'}</strong>, which expired on <strong>{formatDateFromISO(expiredPackage.expires_at)}</strong>. Because it is expired, this flight is being billed at the standard aircraft hire rate.
+                    </p>
+
+                    {/* Price Difference Breakdown */}
+                    <div className="rounded-xl border border-amber-200/90 bg-white p-3.5 space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[#4b6390]">Standard Aircraft Hire Rate:</span>
+                        <span className="font-semibold text-[#152d5a] tabular-nums">${money(calc.standardHourlyRate * 100)}/hr</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[#4b6390]">
+                          Block-Time Rate ({expiredPackage.package_name ? expiredPackage.package_name.replace(/\s*\([^)]*\)$/, '') : 'Package'}):
+                        </span>
+                        <span className="font-semibold text-emerald-700 tabular-nums">${money(expiredPackage.rate_per_hour * 100)}/hr</span>
+                      </div>
+                      <div className="border-t border-slate-100 pt-2 flex items-center justify-between font-bold">
+                        <span className="text-emerald-700">Rate Savings with Package:</span>
+                        <span className="text-emerald-700 tabular-nums">Save ${money((calc.standardHourlyRate - expiredPackage.rate_per_hour) * 100)}/hr</span>
+                      </div>
+
+                      {calc.billedVdoHours != null && calc.billedVdoHours > 0 && (
+                        <div className="mt-2 rounded-lg bg-emerald-50 border border-emerald-200 p-2.5 text-xs text-emerald-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+                          <span>
+                            Flight cost for {calc.billedVdoHours.toFixed(1)}h: <strong className="text-[#152d5a]">${money(calc.billedVdoHours * calc.standardHourlyRate * 100)}</strong> standard vs <strong className="text-emerald-700">${money(calc.billedVdoHours * expiredPackage.rate_per_hour * 100)}</strong> with package
+                          </span>
+                          <span className="font-bold text-emerald-700 whitespace-nowrap bg-emerald-100/70 px-2 py-0.5 rounded">
+                            Save ${money(calc.billedVdoHours * (calc.standardHourlyRate - expiredPackage.rate_per_hour) * 100)}!
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-1 flex flex-wrap items-center gap-2">
+                      <a
+                        href="/dashboard/pricing"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[#1a4fd6] hover:bg-[#153eb2] px-4 py-2 rounded-xl shadow-sm transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-sm">sell</span>
+                        Purchase a Package &amp; Save ${money((calc.standardHourlyRate - expiredPackage.rate_per_hour) * 100)}/hr
+                      </a>
+                      <span className="text-[11px] text-amber-800">
+                        Lock in discounted rates for future flights
+                      </span>
+                    </div>
+                  </>
                 )}
               </div>
             )}

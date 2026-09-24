@@ -762,9 +762,13 @@ export async function submitAndPayPostFlight(
 
     const now = new Date().toISOString()
 
+    const isClarificationFlow =
+      existingActiveRecord.status === 'needs_clarification' ||
+      existingActiveRecord.status === 'resubmitted'
+
     const targetFrStatus = isOnlineStripePaymentPending
-      ? (existingActiveRecord.status === 'draft' ? 'draft' : 'needs_clarification')
-      : 'resubmitted'
+      ? (isClarificationFlow ? 'needs_clarification' : 'draft')
+      : (isClarificationFlow ? 'resubmitted' : 'pending_review')
 
     const { error: frUpdateErr } = await adminSupabase
       .from('flight_records')
@@ -789,6 +793,7 @@ export async function submitAndPayPostFlight(
         declaration_accepted_at: input.declaration_accepted ? now : null,
         signature_type: input.signature_type ?? 'none',
         signature_value: input.signature_value ?? null,
+        submitted_at: targetFrStatus === 'draft' ? null : (existingActiveRecord.submitted_at || now),
         status: targetFrStatus,
         review_flags: flags.length > 0 ? flags : null,
         updated_at: now,
@@ -798,6 +803,14 @@ export async function submitAndPayPostFlight(
     if (frUpdateErr) {
       console.error('[submitAndPayPostFlight] flight_records update failed:', frUpdateErr)
       throw new Error(`Failed to update flight record: ${frUpdateErr.message}`)
+    }
+
+    // If clarification was resolved, mark clarification resolved
+    if (isClarificationFlow && targetFrStatus === 'resubmitted') {
+      await adminSupabase
+        .from('flight_record_clarifications')
+        .update({ is_resolved: true, resolved_at: now })
+        .or(`flight_record_id.eq.${flightRecordId},booking_id.eq.${input.booking_id}`)
     }
 
     const { data: snapshotProfile } = await supabase
@@ -875,10 +888,14 @@ export async function submitAndPayPostFlight(
         related_record_id: flightRecordId,
         actor_user_id: userId,
         actor_role: 'customer',
-        event_type: isOnlineStripePaymentPending ? 'flight_record_drafted' : 'flight_record_resubmitted',
+        event_type: isOnlineStripePaymentPending
+          ? 'flight_record_drafted'
+          : (isClarificationFlow ? 'flight_record_resubmitted' : 'flight_record_submitted'),
         event_summary: isOnlineStripePaymentPending
           ? 'Customer updated flight record draft pending online payment completion.'
-          : `Customer resubmitted updated flight record following clarification request. ${flags.length} review flag(s) generated.`,
+          : (isClarificationFlow
+              ? `Customer resubmitted updated flight record following clarification request. ${flags.length} review flag(s) generated.`
+              : `Customer submitted post-flight record. ${flags.length} review flag(s) generated.`),
         new_value: {
           flight_record_id: flightRecordId,
           booking_status: targetBookingStatus,
@@ -888,7 +905,7 @@ export async function submitAndPayPostFlight(
         },
       })
 
-    // Resubmission notification to operations (only if payment is not pending)
+    // Submission / Resubmission notification to operations (only if payment is not pending)
     if (!isOnlineStripePaymentPending) {
       const [{ data: ownerProfile }, { data: aircraft }] = await Promise.all([
         supabase.from('profiles').select('full_name, email').eq('id', booking.booking_owner_user_id).single(),
@@ -902,14 +919,25 @@ export async function submitAndPayPostFlight(
 
       const bookingRecordWithRef = booking as { booking_reference?: string | null; scheduled_start: string }
 
-      await notifyFlightRecordResubmitted({
-        bookingId: input.booking_id,
-        bookingReference: bookingRecordWithRef.booking_reference ?? input.booking_id.slice(0, 8).toUpperCase(),
-        customerEmail: ownerProfile?.email ?? '',
-        customerName: ownerProfile?.full_name ?? 'Pilot',
-        aircraft: aircraftLabel,
-        bookingDate: new Date(booking.scheduled_start).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'full' }),
-      }).catch((error) => console.error('[submitAndPayPostFlight] resubmission notification failed:', error))
+      if (isClarificationFlow) {
+        await notifyFlightRecordResubmitted({
+          bookingId: input.booking_id,
+          bookingReference: bookingRecordWithRef.booking_reference ?? input.booking_id.slice(0, 8).toUpperCase(),
+          customerEmail: ownerProfile?.email ?? '',
+          customerName: ownerProfile?.full_name ?? 'Pilot',
+          aircraft: aircraftLabel,
+          bookingDate: new Date(booking.scheduled_start).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'full' }),
+        }).catch((error) => console.error('[submitAndPayPostFlight] resubmission notification failed:', error))
+      } else {
+        await notifyFlightRecordSubmitted({
+          bookingId: input.booking_id,
+          bookingReference: bookingRecordWithRef.booking_reference ?? input.booking_id.slice(0, 8).toUpperCase(),
+          customerEmail: ownerProfile?.email ?? '',
+          customerName: ownerProfile?.full_name ?? 'Pilot',
+          aircraft: aircraftLabel,
+          bookingDate: new Date(booking.scheduled_start).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'full' }),
+        }).catch((error) => console.error('[submitAndPayPostFlight] submission notification failed:', error))
+      }
     }
   } else {
     const submissionResult = await createFlightRecordForBooking(

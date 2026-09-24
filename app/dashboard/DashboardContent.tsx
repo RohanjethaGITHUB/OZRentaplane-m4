@@ -677,31 +677,72 @@ export default function DashboardContent({
                 className="text-[32px] md:text-[38px] font-normal leading-tight text-[#152d5a] mt-2"
                 style={{ fontFamily: 'Newsreader, Georgia, serif' }}
               >
-                {blockTimeSummary.totalActiveHoursRemaining.toFixed(1)} hours remaining
+                {blockTimeSummary.activePurchaseCount > 0 ? (
+                  `${blockTimeSummary.totalActiveHoursRemaining.toFixed(1)} hours remaining`
+                ) : blockTimeSummary.latestPurchase?.status === 'expired' && (blockTimeSummary.latestPurchase.hoursRemaining ?? 0) > 0 ? (
+                  <>
+                    {(blockTimeSummary.latestPurchase.hoursRemaining ?? 0).toFixed(1)} hours left
+                    <span className="ml-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-sans font-semibold text-slate-600 bg-slate-100 border border-slate-300 align-middle">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                      Expired
+                    </span>
+                  </>
+                ) : (
+                  `${blockTimeSummary.totalActiveHoursRemaining.toFixed(1)} hours remaining`
+                )}
               </h2>
               <p className="text-[14px] text-[#4b6390] mt-1.5 font-sans">
-                You have {blockTimeSummary.totalActiveHoursRemaining.toFixed(1)} hours available across{' '}
-                <span className="font-semibold text-[#152d5a]">
-                  {blockTimeSummary.activePurchaseCount} active{' '}
-                  {blockTimeSummary.activePurchaseCount === 1 ? 'package' : 'packages'}
-                </span>
-                .
+                {blockTimeSummary.activePurchaseCount > 0 ? (
+                  <>
+                    You have {blockTimeSummary.totalActiveHoursRemaining.toFixed(1)} hours available across{' '}
+                    <span className="font-semibold text-[#152d5a]">
+                      {blockTimeSummary.activePurchaseCount} active{' '}
+                      {blockTimeSummary.activePurchaseCount === 1 ? 'package' : 'packages'}
+                    </span>
+                    .
+                  </>
+                ) : blockTimeSummary.latestPurchase?.status === 'expired' ? (
+                  <>
+                    You had {(blockTimeSummary.latestPurchase.hoursRemaining ?? 0).toFixed(1)} hours remaining on{' '}
+                    <span className="font-semibold text-[#152d5a]">{blockTimeSummary.latestPurchase.packageName}</span>, which expired on {formatDateFromISO(blockTimeSummary.latestPurchase.expiresAt)}.
+                  </>
+                ) : (
+                  <>
+                    You have 0.0 hours available across 0 active packages.
+                  </>
+                )}
               </p>
             </div>
 
             {/* Badges and Buy More CTA */}
             <div className="flex flex-wrap items-center gap-2 md:mt-2 font-sans">
-              <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 shadow-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                {blockTimeSummary.activePurchaseCount} active
-              </span>
+              {blockTimeSummary.activePurchaseCount > 0 ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 shadow-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  {blockTimeSummary.activePurchaseCount} active
+                </span>
+              ) : blockTimeSummary.latestPurchase?.status === 'expired' ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 shadow-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                  Expired
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 shadow-sm">
+                  0 active
+                </span>
+              )}
 
-              {blockTimeSummary.earliestExpiry && (
+              {blockTimeSummary.activePurchaseCount > 0 && blockTimeSummary.earliestExpiry ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold text-[#4b6390] bg-[#f8fafc] border border-[#152d5a]/10 shadow-sm">
                   <span className="material-symbols-outlined text-[13px]">event</span>
                   Earliest expiry {formatDateFromISO(blockTimeSummary.earliestExpiry)}
                 </span>
-              )}
+              ) : blockTimeSummary.latestPurchase?.status === 'expired' && blockTimeSummary.latestPurchase.expiresAt ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold text-slate-600 bg-[#f8fafc] border border-[#152d5a]/10 shadow-sm">
+                  <span className="material-symbols-outlined text-[13px]">event_busy</span>
+                  Expired {formatDateFromISO(blockTimeSummary.latestPurchase.expiresAt)}
+                </span>
+              ) : null}
 
               {/* Add Hours to Existing Package CTA */}
               {blockTimeSummary.latestPurchase?.canTopup && (
@@ -754,8 +795,9 @@ export default function DashboardContent({
                   {blockTimeSummary.latestPurchase.packageName}
                 </h3>
                 <p className="text-[12px] text-[#4b6390] mt-0.5">
-                  {blockTimeSummary.latestPurchase.hoursPurchased} hours bought on{' '}
-                  {formatDateFromISO(blockTimeSummary.latestPurchase.purchasedAt)}.
+                  {blockTimeSummary.latestPurchase.status === 'expired'
+                    ? `${(blockTimeSummary.latestPurchase.hoursRemaining ?? 0).toFixed(1)}h remaining of ${blockTimeSummary.latestPurchase.hoursPurchased}h · Expired ${formatDateFromISO(blockTimeSummary.latestPurchase.expiresAt)}`
+                    : `${blockTimeSummary.latestPurchase.hoursPurchased} hours bought on ${formatDateFromISO(blockTimeSummary.latestPurchase.purchasedAt)}.`}
                 </p>
               </div>
 

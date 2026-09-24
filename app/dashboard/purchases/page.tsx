@@ -280,6 +280,9 @@ export default async function PurchaseHistoryPage({
       (p) => (p.status === 'active' || p.status === 'exhausted') && new Date(p.expires_at).getTime() > Date.now()
     ) ?? null
 
+  const latestExpiredPurchase = purchases.find((p) => p.status === 'expired') ?? null
+  const expiredHoursRemaining = Number(latestExpiredPurchase?.hours_remaining ?? 0)
+
   const totalHoursRemaining = activePurchases.reduce((sum, p) => sum + Number(p.hours_remaining || 0), 0)
   const earliestExpiry = activePurchases
     .map((p) => p.expires_at)
@@ -298,6 +301,8 @@ export default async function PurchaseHistoryPage({
         statusPill={
           activePurchases.length > 0
             ? { label: `${totalHoursRemaining.toFixed(1)}h remaining`, color: 'green', pulse: true }
+            : latestExpiredPurchase && expiredHoursRemaining > 0
+            ? { label: `${expiredHoursRemaining.toFixed(1)}h remaining (expired)`, color: 'slate' }
             : { label: purchases.length > 0 ? 'Purchase history' : 'No active package', color: 'slate' }
         }
       />
@@ -490,7 +495,19 @@ export default async function PurchaseHistoryPage({
               className="mt-2 text-[32px] font-normal leading-tight text-[#152d5a] md:text-[38px]"
               style={{ fontFamily: 'Newsreader, Georgia, serif' }}
             >
-              {totalHoursRemaining.toFixed(1)} hours remaining
+              {hasActivePackage ? (
+                `${totalHoursRemaining.toFixed(1)} hours remaining`
+              ) : latestExpiredPurchase && expiredHoursRemaining > 0 ? (
+                <>
+                  {expiredHoursRemaining.toFixed(1)} hours left
+                  <span className="ml-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] font-sans font-semibold text-slate-600 bg-slate-100 border border-slate-300 align-middle">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                    Expired
+                  </span>
+                </>
+              ) : (
+                `${totalHoursRemaining.toFixed(1)} hours remaining`
+              )}
             </h2>
             <p className="mt-1.5 text-[14px] text-[#4b6390]">
               {hasActivePackage ? (
@@ -500,6 +517,11 @@ export default async function PurchaseHistoryPage({
                     {activePurchases.length} active {activePurchases.length === 1 ? 'package' : 'packages'}
                   </span>
                   {earliestExpiry ? <> · earliest expiry {formatDateFromISO(earliestExpiry)}</> : null}
+                </>
+              ) : latestExpiredPurchase && expiredHoursRemaining > 0 ? (
+                <>
+                  You have {expiredHoursRemaining.toFixed(1)} hours unspent from your{' '}
+                  <span className="font-semibold text-[#152d5a]">{packageName(latestExpiredPurchase)}</span>, which expired on {formatDateFromISO(latestExpiredPurchase.expires_at)}. To reactivate block-time savings, purchase a new package.
                 </>
               ) : (
                 'You have no active block time package. Purchase one below to lock in a lower hourly rate.'
@@ -571,6 +593,37 @@ export default async function PurchaseHistoryPage({
                 </div>
               )
             })}
+          </div>
+        ) : latestExpiredPurchase && expiredHoursRemaining > 0 ? (
+          <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-[16px] font-semibold text-[#152d5a]">{packageName(latestExpiredPurchase)}</h3>
+                  <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                    Expired
+                  </span>
+                </div>
+                <p className="mt-0.5 text-[12px] text-[#4b6390]">
+                  ${Number(latestExpiredPurchase.rate_per_hour).toFixed(0)}/hr · expired {formatDateFromISO(latestExpiredPurchase.expires_at)}
+                </p>
+              </div>
+              <p className="text-[14px] font-semibold text-slate-700">
+                {expiredHoursRemaining.toFixed(1)}h
+                <span className="font-normal text-[#4b6390]"> of {Number(latestExpiredPurchase.hours_purchased).toFixed(0)}h left</span>
+              </p>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-full rounded-full bg-slate-400"
+                style={{ width: `${Math.min(100, (expiredHoursRemaining / Number(latestExpiredPurchase.hours_purchased)) * 100)}%` }}
+              />
+            </div>
+            {Number(latestExpiredPurchase.hours_purchased) - expiredHoursRemaining > 0 ? (
+              <p className="mt-1.5 text-[11px] text-[#4b6390]">
+                {(Number(latestExpiredPurchase.hours_purchased) - expiredHoursRemaining).toFixed(1)}h flown so far · {expiredHoursRemaining.toFixed(1)}h expired
+              </p>
+            ) : null}
           </div>
         ) : null}
 
@@ -651,9 +704,16 @@ export default async function PurchaseHistoryPage({
                       <StatusPill status={purchase.status} />
                     </div>
                     <p className="mt-0.5 text-[12px] text-[#4b6390]">
+                      {Number(purchase.hours_remaining) > 0 ? (
+                        <span className="font-semibold text-[#152d5a]">{Number(purchase.hours_remaining).toFixed(1)}h remaining of </span>
+                      ) : null}
                       {Number(purchase.hours_purchased).toFixed(0)} hours at ${Number(purchase.rate_per_hour).toFixed(0)}/hr ·
                       purchased {formatDateFromISO(purchase.purchased_at)}
-                      {purchase.status === 'active' ? <> · expires {formatDateFromISO(purchase.expires_at)}</> : null}
+                      {purchase.status === 'active' ? (
+                        <> · expires {formatDateFromISO(purchase.expires_at)}</>
+                      ) : purchase.status === 'expired' ? (
+                        <> · expired {formatDateFromISO(purchase.expires_at)}</>
+                      ) : null}
                     </p>
                     {purchase.status === 'refunded' && purchase.refunded_at ? (
                       <p className="mt-0.5 text-[12px] font-medium text-red-600">

@@ -1282,8 +1282,8 @@ export async function requestPostFlightClarification(input: {
   flightRecordId: string
   bookingId:      string
   customerId:     string
-  category:       string
-  message:        string
+  category?:      string | null
+  message?:       string | null
   vdo_total?:     number | null
   air_switch_total?: number | null
   landing_rows?:  Array<{ airport_id: string; landing_count: number | string }>
@@ -1292,8 +1292,8 @@ export async function requestPostFlightClarification(input: {
   const { supabase, adminId } = await requireAdmin()
   const adminSupabase = createAdminClient()
 
-  if (!input.category.trim()) throw new Error('VALIDATION: A clarification category is required.')
-  if (!input.message.trim())  throw new Error('VALIDATION: A clarification message is required.')
+  const category = input.category?.trim() || 'General Clarification'
+  const message  = input.message?.trim()  || 'Please review your post-flight record and update any necessary details.'
 
   // Verify flight record state (support lookup by record ID or booking ID)
   let { data: fr, error: frErr } = await adminSupabase
@@ -1371,8 +1371,8 @@ export async function requestPostFlightClarification(input: {
 
     const recordUpdates: Record<string, any> = {
       status: 'needs_clarification',
-      admin_notes: input.message,
-      correction_reason: input.category,
+      admin_notes: message,
+      correction_reason: category,
       updated_at: now,
     }
     // Note: vdo_total and air_switch_total are GENERATED ALWAYS STORED columns in Postgres.
@@ -1548,8 +1548,8 @@ export async function requestPostFlightClarification(input: {
       .from('flight_records')
       .update({
         status: 'needs_clarification',
-        admin_notes: input.message,
-        correction_reason: input.category,
+        admin_notes: message,
+        correction_reason: category,
         updated_at: now,
       })
       .eq('id', input.flightRecordId)
@@ -1568,8 +1568,8 @@ export async function requestPostFlightClarification(input: {
         flight_record_id: input.flightRecordId,
         booking_id:       input.bookingId,
         requested_by:     adminId,
-        category:         input.category,
-        message:          input.message,
+        category:         category,
+        message:          message,
         is_resolved:      false,
       })
 
@@ -1584,7 +1584,7 @@ export async function requestPostFlightClarification(input: {
   }
 
   // 3. Post to verification_events so it appears in customer's message inbox
-  let noteBody = `[${input.category}] ${input.message}`
+  let noteBody = `[${category}] ${message}`
   if (meterAdjustment) {
     noteBody += `\n\n(Meter Reading Adjusted: Previously submitted ${meterAdjustment.previous_vdo} hrs VDO → Operations adjusted to ${meterAdjustment.adjusted_vdo} hrs VDO)`
   }
@@ -1609,11 +1609,11 @@ export async function requestPostFlightClarification(input: {
     actor_user_id:       adminId,
     actor_role:          'admin',
     event_type:          'post_flight_clarification_requested',
-    event_summary:       `Admin requested post-flight clarification. Category: ${input.category}`,
+    event_summary:       `Admin requested post-flight clarification. Category: ${category}`,
     new_value: {
       flight_record_status: 'needs_clarification',
-      category:             input.category,
-      message:              input.message,
+      category:             category,
+      message:              message,
       updated_amount_cents: updatedAmountPayableCents,
     },
   })
@@ -1630,8 +1630,8 @@ export async function requestPostFlightClarification(input: {
       customerEmail: prof.email,
       customerName:  prof.full_name ?? 'Pilot',
       ref:           booking.booking_reference ?? input.bookingId.slice(0, 8).toUpperCase(),
-      category:      input.category,
-      message:       input.message,
+      category:      category,
+      message:       message,
       bookingId:     input.bookingId,
       updatedAmountPayableCents,
       vdoHours:      effectiveVdoHours,
