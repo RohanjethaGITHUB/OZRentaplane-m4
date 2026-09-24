@@ -92,9 +92,26 @@ export async function GET(request: Request, { params }: { params: { id: string }
           })
         }
       }
+
       if (inv?.pdf_url) {
-        return NextResponse.redirect(`${inv.pdf_url}?v=${Date.now()}`)
+        try {
+          const res = await fetch(inv.pdf_url)
+          if (res.ok) {
+            const buffer = Buffer.from(await res.arrayBuffer())
+            return new NextResponse(new Uint8Array(buffer), {
+              status: 200,
+              headers: {
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': `inline; filename="${inv.invoice_number || 'invoice'}.pdf"`,
+                'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+              },
+            })
+          }
+        } catch (fetchErr) {
+          console.warn('[invoice route] fetch fallback failed', fetchErr)
+        }
       }
+
       if (topupById.invoice_id) {
         const { data: invRow } = await admin
           .from('invoices')
@@ -102,7 +119,22 @@ export async function GET(request: Request, { params }: { params: { id: string }
           .eq('id', topupById.invoice_id)
           .maybeSingle()
         if (invRow?.pdf_url) {
-          return NextResponse.redirect(`${invRow.pdf_url}?v=${Date.now()}`)
+          try {
+            const res = await fetch(invRow.pdf_url)
+            if (res.ok) {
+              const buffer = Buffer.from(await res.arrayBuffer())
+              return new NextResponse(new Uint8Array(buffer), {
+                status: 200,
+                headers: {
+                  'Content-Type': 'application/pdf',
+                  'Content-Disposition': `inline; filename="${invRow.invoice_number || 'invoice'}.pdf"`,
+                  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+                },
+              })
+            }
+          } catch (fetchErr) {
+            console.warn('[invoice route] fetch fallback failed', fetchErr)
+          }
         }
       }
     }
@@ -138,7 +170,22 @@ export async function GET(request: Request, { params }: { params: { id: string }
         }
       }
       if (topupInv.pdf_url) {
-        return NextResponse.redirect(`${topupInv.pdf_url}?v=${Date.now()}`)
+        try {
+          const res = await fetch(topupInv.pdf_url)
+          if (res.ok) {
+            const buffer = Buffer.from(await res.arrayBuffer())
+            return new NextResponse(new Uint8Array(buffer), {
+              status: 200,
+              headers: {
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': `inline; filename="${topupInv.invoice_number}.pdf"`,
+                'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+              },
+            })
+          }
+        } catch (fetchErr) {
+          console.warn('[invoice route] fetch fallback failed', fetchErr)
+        }
       }
     }
 
@@ -181,7 +228,22 @@ export async function GET(request: Request, { params }: { params: { id: string }
     }
 
     if (existingInv.pdf_url) {
-      return NextResponse.redirect(`${existingInv.pdf_url}?v=${Date.now()}`)
+      try {
+        const res = await fetch(existingInv.pdf_url)
+        if (res.ok) {
+          const buffer = Buffer.from(await res.arrayBuffer())
+          return new NextResponse(new Uint8Array(buffer), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/pdf',
+              'Content-Disposition': `inline; filename="${existingInv.invoice_number}.pdf"`,
+              'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+            },
+          })
+        }
+      } catch (fetchErr) {
+        console.warn('[invoice route] fetch fallback failed', fetchErr)
+      }
     }
   }
 

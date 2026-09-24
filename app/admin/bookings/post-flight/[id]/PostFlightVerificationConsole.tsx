@@ -1166,7 +1166,7 @@ export default function PostFlightVerificationConsole({
                 <div>
                   <p className="text-xs font-bold text-slate-900">NAB Direct Bank Transfer</p>
                   <p className="text-[11px] text-slate-600 font-mono break-all sm:break-normal">
-                    BSB: 082-057 &middot; Acc: 12-345-6789 (Rent-A-Plane Pty Ltd)
+                    BSB: 085-005 &middot; Acc: 388004197 (JAM Aviation PTY LTD)
                   </p>
                 </div>
               </div>

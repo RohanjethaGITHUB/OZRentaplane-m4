@@ -636,7 +636,7 @@ export default async function PurchaseHistoryPage({
           <div className="overflow-hidden rounded-2xl border border-[#152d5a]/10 bg-white">
             {completedPurchases.map((purchase, idx) => {
               const inv = packageInvoicesByPurchaseId.get(purchase.id)
-              const invoiceUrl = inv?.pdf_url || `/dashboard/purchases/${purchase.id}/invoice`
+              const invoiceUrl = `/dashboard/purchases/${inv?.invoice_number || purchase.id}/invoice`
 
               return (
                 <div
@@ -682,7 +682,7 @@ export default async function PurchaseHistoryPage({
               const pkg = one(topup.purchase?.package)
               const pkgName = pkg?.name || 'Block Time'
               const inv = one(topup.invoice)
-              const invoiceUrl = inv?.pdf_url || `/dashboard/purchases/${topup.id}/invoice`
+              const invoiceUrl = `/dashboard/purchases/${inv?.invoice_number || topup.id}/invoice`
 
               return (
                 <div

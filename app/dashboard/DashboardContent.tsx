@@ -677,7 +677,7 @@ export default function DashboardContent({
                 className="text-[32px] md:text-[38px] font-normal leading-tight text-[#152d5a] mt-2"
                 style={{ fontFamily: 'Newsreader, Georgia, serif' }}
               >
-                {blockTimeSummary.totalActiveHoursRemaining.toFixed(0)} hours remaining
+                {blockTimeSummary.totalActiveHoursRemaining.toFixed(1)} hours remaining
               </h2>
               <p className="text-[14px] text-[#4b6390] mt-1.5 font-sans">
                 You have {blockTimeSummary.totalActiveHoursRemaining.toFixed(1)} hours available across{' '}
@@ -756,18 +756,6 @@ export default function DashboardContent({
                 <p className="text-[12px] text-[#4b6390] mt-0.5">
                   {blockTimeSummary.latestPurchase.hoursPurchased} hours bought on{' '}
                   {formatDateFromISO(blockTimeSummary.latestPurchase.purchasedAt)}.
-                  {blockTimeSummary.latestPurchase.canTopup && (
-                    <>
-                      {' · '}
-                      <button
-                        type="button"
-                        onClick={() => setShowTopupModal(true)}
-                        className="text-[#1a4fd6] font-semibold underline underline-offset-2 hover:text-[#153eb2]"
-                      >
-                        Add hours to this package →
-                      </button>
-                    </>
-                  )}
                 </p>
               </div>
 

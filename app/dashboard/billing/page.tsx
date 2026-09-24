@@ -614,7 +614,7 @@ export default async function CustomerBillingPage() {
       settlementType: isRefunded ? 'REFUND' : 'CUSTOMER_PAYMENT',
       paymentMethod: 'card',
       card: { brand: 'visa', last4: '4242' },
-      pdfUrl: pkgInv?.pdf_url || `/dashboard/purchases/${p.id}/invoice`,
+      pdfUrl: `/dashboard/purchases/${pkgInv?.invoice_number || p.id}/invoice`,
       items: [
         {
           description: `${pkg?.name ?? 'Block Time Package'} (${p.hours_purchased} flight hours)`,
@@ -676,7 +676,7 @@ export default async function CustomerBillingPage() {
       settlementType: 'CUSTOMER_PAYMENT',
       paymentMethod: 'card',
       card: { brand: 'visa', last4: '4242' },
-      pdfUrl: inv?.pdf_url || `/dashboard/purchases/${topup.id}/invoice`,
+      pdfUrl: `/dashboard/purchases/${invoiceNumber}/invoice`,
       items: [
         {
           description: `${pkgName} top-up (+${Number(topup.hours_added)} flight hours)`,
@@ -738,7 +738,7 @@ export default async function CustomerBillingPage() {
         settlementType: 'CUSTOMER_PAYMENT',
         paymentMethod: inv.payment_method === 'bank_transfer' ? 'bank_transfer' : 'card',
         card: { brand: 'visa', last4: '4242' },
-        pdfUrl: inv.pdf_url || `/dashboard/purchases/${inv.id}/invoice`,
+        pdfUrl: `/dashboard/purchases/${inv.invoice_number || inv.id}/invoice`,
         items: [{ description: 'Block Time Top-up', amount }],
         subtotal,
         gst,

@@ -854,7 +854,7 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
                      <div class="metric-texts">
                        <span class="m-header">VDO FLIGHT HOURS</span>
                        <span class="m-main">${metrics?.vdoHours != null ? `${metrics.vdoHours.toFixed(1)} hrs` : '—'}</span>
-                       <span class="m-sub">${metrics?.vdoStart != null && metrics?.vdoEnd != null ? `${metrics.vdoStart.toFixed(1)} → ${metrics.vdoEnd.toFixed(1)}` : 'Recorded total'}</span>
+                       <span class="m-sub">Recorded total</span>
                      </div>
                    </div>
 
