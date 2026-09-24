@@ -36,6 +36,17 @@ export type AvailableAirport = {
   default_landing_fee_cents?: number
 }
 
+export type BlockTimeBookingDetails = {
+  packageId: string
+  packageName: string
+  hoursBefore: number
+  hoursDeducted: number
+  hoursRemaining: number
+  overageHours: number
+  overageAmountCents: number
+  hoursPurchased?: number
+}
+
 type Props = {
   flightRecordId: string
   bookingId: string
@@ -64,6 +75,7 @@ type Props = {
   airSwitchTotal?: number | null
   airSwitchBaseline?: number | null
   hourlyRate: number
+  standardHourlyRate?: number
   // Landings & Airports
   availableAirports?: AvailableAirport[]
   landingItems: LandingRowItem[]
@@ -96,6 +108,8 @@ type Props = {
   bankTransferPaidCents?: number
   cardPaidCents?: number
   stripeGrossChargedCents?: number
+  // Block Time
+  blockTimeDetails?: BlockTimeBookingDetails | null
 }
 
 const CATEGORIES = Object.entries(CLARIFICATION_CATEGORY_LABELS) as [ClarificationCategory, string][]
@@ -135,6 +149,7 @@ export default function PostFlightVerificationConsole({
   airSwitchTotal,
   airSwitchBaseline,
   hourlyRate,
+  standardHourlyRate,
   availableAirports = [],
   landingItems,
   creditAppliedCents,
@@ -148,6 +163,7 @@ export default function PostFlightVerificationConsole({
   evidenceAttachments,
   clarificationCategory,
   clarificationMessage,
+  blockTimeDetails = null,
 }: Props) {
   const router = useRouter()
   const [evidenceViewerOpen, setEvidenceViewerOpen] = useState(false)
@@ -220,7 +236,32 @@ export default function PostFlightVerificationConsole({
     })
     .filter((cl) => cl.landingCount > 0)
 
-  const currentFlightChargeCents = Math.round(currentVdoNum * hourlyRate * 100)
+  const isBlockTime = Boolean(blockTimeDetails)
+  const initialPackageHours = blockTimeDetails
+    ? (blockTimeDetails.hoursBefore > 0
+        ? blockTimeDetails.hoursBefore
+        : (blockTimeDetails.hoursDeducted + blockTimeDetails.hoursRemaining))
+    : 0
+
+  const effectiveStandardRate = standardHourlyRate && standardHourlyRate >= 290 ? standardHourlyRate : 330
+  const formattedStandardHourlyRate = `$${effectiveStandardRate.toFixed(2)} AUD/hr`
+
+  const blockHoursDeducted = isBlockTime
+    ? Math.min(currentVdoNum, initialPackageHours)
+    : 0
+  const blockHoursRemainingAfter = isBlockTime
+    ? Math.max(0, Math.round((initialPackageHours - blockHoursDeducted) * 10) / 10)
+    : 0
+  const blockOverageHours = isBlockTime
+    ? Math.max(0, Math.round((currentVdoNum - initialPackageHours) * 10) / 10)
+    : 0
+  const blockOverageAmountCents = isBlockTime
+    ? Math.round(blockOverageHours * effectiveStandardRate * 100)
+    : 0
+
+  const currentFlightChargeCents = isBlockTime
+    ? blockOverageAmountCents
+    : Math.round(currentVdoNum * hourlyRate * 100)
   const currentLandingSubtotalCents = calculatedLandings.reduce((sum, item) => sum + item.totalCents, 0)
   const currentSubtotalCents = currentFlightChargeCents + currentLandingSubtotalCents - creditAppliedCents
   const currentTotalAmountCents = Math.max(0, currentSubtotalCents)
@@ -1230,14 +1271,50 @@ export default function PostFlightVerificationConsole({
         </div>
 
         <div className="space-y-3 text-xs">
-          <div className="flex justify-between text-slate-700">
-            <span>
-              Flight Time ({currentVdoNum ? currentVdoNum.toFixed(1) : 0} hrs &times; {formattedHourlyRate}):
-            </span>
-            <span className="font-semibold text-slate-900 tabular-nums">
-              ${(currentFlightChargeCents / 100).toFixed(2)}
-            </span>
-          </div>
+          {isBlockTime ? (
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-slate-700 bg-blue-50/70 p-3 rounded-xl border border-blue-100">
+                <div className="space-y-0.5">
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
+                    <span className="material-symbols-outlined text-sm text-[#1a4fd6]">inventory_2</span>
+                    Block Time Drawdown &mdash; {blockTimeDetails?.packageName || 'Starter Block'}
+                  </span>
+                  <span className="text-[11px] text-slate-600 block">
+                    {blockHoursDeducted.toFixed(1)}h deducted &middot; Balance: {blockHoursRemainingAfter.toFixed(1)}h remaining
+                  </span>
+                </div>
+                <span className="font-bold text-slate-900 tabular-nums text-xs">
+                  $0.00 AUD
+                </span>
+              </div>
+
+              {blockOverageHours > 0 && (
+                <div className="flex justify-between items-center text-amber-950 bg-amber-50/80 p-3 rounded-xl border border-amber-200">
+                  <div className="space-y-0.5">
+                    <span className="font-bold flex items-center gap-1.5 text-xs text-amber-900">
+                      <span className="material-symbols-outlined text-sm text-amber-600">warning</span>
+                      Flight Time Overage ({blockOverageHours.toFixed(1)} hrs &times; {formattedStandardHourlyRate})
+                    </span>
+                    <span className="text-[11px] text-amber-700 block">
+                      Flown hours exceeding package balance billed at standard rate
+                    </span>
+                  </div>
+                  <span className="font-bold tabular-nums text-xs text-amber-900">
+                    ${(blockOverageAmountCents / 100).toFixed(2)} AUD
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex justify-between text-slate-700">
+              <span>
+                Flight Time ({currentVdoNum ? currentVdoNum.toFixed(1) : 0} hrs &times; {formattedHourlyRate}):
+              </span>
+              <span className="font-semibold text-slate-900 tabular-nums">
+                ${(currentFlightChargeCents / 100).toFixed(2)}
+              </span>
+            </div>
+          )}
 
           {currentLandingSubtotalCents > 0 && (
             <div className="space-y-1">
@@ -1309,6 +1386,16 @@ export default function PostFlightVerificationConsole({
               </span>
             </div>
           ) : null}
+
+          {effectiveUpfrontPaidCents > 0 && remainingBalanceCents === 0 && (
+            <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/80 flex items-center justify-between text-emerald-950 font-medium">
+              <span className="flex items-center gap-2 text-xs">
+                <span className="material-symbols-outlined text-emerald-600 text-base">check_circle</span>
+                <span>Payment Settled in Full &mdash; No outstanding balance required</span>
+              </span>
+              <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Settled</span>
+            </div>
+          )}
 
           {effectiveUpfrontPaidCents > 0 && remainingBalanceCents > 0 && (
             <div className="p-3.5 rounded-xl border flex items-center justify-between font-bold transition-all bg-amber-50/90 border-amber-300 text-amber-950">

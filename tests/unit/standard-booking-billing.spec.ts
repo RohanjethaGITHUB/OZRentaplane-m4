@@ -7,6 +7,7 @@ import {
   resolveMinimumVdoBilling,
   resolveStandardBookingBillingBranch,
 } from '@/lib/booking/standard-booking-billing'
+import { calculatePostFlightCharges } from '@/lib/booking/live-booking-calculator'
 
 test('hidden continuity baseline is preserved when reconstructing full readings from totals', () => {
   const baseline = {
@@ -184,3 +185,116 @@ test('calculateBookingDays correctly resolves unique calendar days across Sydney
   })
   expect(formattedDates).toBe(3)
 })
+
+test('block time base flow: hours deducted from package, customer pays only landing charges', () => {
+  const res = calculatePostFlightCharges({
+    vdoTotal: 2.0,
+    bookingSlotHours: 2.0,
+    defaultHourlyRate: 330,
+    airports: [
+      { id: 'ap-1', icao_code: 'YSBK', name: 'Bankstown Airport', default_landing_fee_cents: 2895 },
+    ],
+    landingRows: [
+      { airport_id: 'ap-1', landing_count: 2 },
+    ],
+    activeBlockTime: {
+      id: 'pkg-1',
+      package_name: '10h Block Time Package',
+      hours_remaining: 10.0,
+      rate_per_hour: 300,
+      expires_at: '2026-12-31T23:59:59Z',
+    },
+  })
+
+  expect(res.isBlockTime).toBe(true)
+  expect(res.blockPackageName).toBe('10h Block Time Package')
+  expect(res.blockHoursBefore).toBe(10.0)
+  expect(res.blockHoursDeducted).toBe(2.0)
+  expect(res.blockHoursRemainingAfter).toBe(8.0)
+  expect(res.blockOverageHours).toBe(0)
+  expect(res.flightBaseCents).toBe(0)
+  expect(res.landingSubtotalCents).toBe(5790)
+  expect(res.amountDueCents).toBe(5790) // Only landing fees!
+})
+
+test('block time Case 1: partial hours remaining bills overage at standard aircraft rate ($330/hr)', () => {
+  const res = calculatePostFlightCharges({
+    vdoTotal: 6.0,
+    bookingSlotHours: 6.0,
+    defaultHourlyRate: 330,
+    airports: [
+      { id: 'ap-1', icao_code: 'YSBK', name: 'Bankstown Airport', default_landing_fee_cents: 2895 },
+    ],
+    landingRows: [
+      { airport_id: 'ap-1', landing_count: 1 },
+    ],
+    activeBlockTime: {
+      id: 'pkg-1',
+      package_name: '50h Block Time Package',
+      hours_remaining: 5.0, // Only 5h left
+      rate_per_hour: 290,  // Package rate is $290, but overage must be $330 standard rate
+      expires_at: '2026-12-31T23:59:59Z',
+    },
+  })
+
+  expect(res.isBlockTime).toBe(true)
+  expect(res.blockHoursBefore).toBe(5.0)
+  expect(res.blockHoursDeducted).toBe(5.0)
+  expect(res.blockHoursRemainingAfter).toBe(0)
+  expect(res.blockOverageHours).toBe(1.0)
+  expect(res.blockOverageAmountCents).toBe(33000) // 1h * $330 = $330.00
+  expect(res.flightBaseCents).toBe(33000)
+  expect(res.landingSubtotalCents).toBe(2895) // 1 landing * $28.95
+  expect(res.hourlyRate).toBe(290)
+  expect(res.standardHourlyRate).toBe(330)
+  expect(res.amountDueCents).toBe(35895)
+})
+
+test('block time Case 2: flight before expiry is honored even if record submitted after package expiry', () => {
+  const res = calculatePostFlightCharges({
+    vdoTotal: 3.0,
+    bookingSlotHours: 3.0,
+    defaultHourlyRate: 330,
+    scheduledStart: '2026-09-24T10:00:00Z', // Flight was on 24 Sep
+    airports: [],
+    landingRows: [],
+    activeBlockTime: {
+      id: 'pkg-1',
+      package_name: '10h Package',
+      hours_remaining: 5.0,
+      rate_per_hour: 300,
+      expires_at: '2026-09-25T23:59:59Z', // Package expired on 25 Sep
+    },
+  })
+
+  // Since scheduledStart (24 Sep) <= expires_at (25 Sep), package is recognized
+  expect(res.isBlockTime).toBe(true)
+  expect(res.blockHoursDeducted).toBe(3.0)
+  expect(res.blockHoursRemainingAfter).toBe(2.0)
+  expect(res.amountDueCents).toBe(0)
+  expect(res.isFullyCovered).toBe(true)
+})
+
+test('block time zero balance flow: 100% covered by package with 0 landings', () => {
+  const res = calculatePostFlightCharges({
+    vdoTotal: 4.0,
+    bookingSlotHours: 4.0,
+    defaultHourlyRate: 330,
+    airports: [],
+    landingRows: [],
+    activeBlockTime: {
+      id: 'pkg-1',
+      package_name: '20h Block Time Package',
+      hours_remaining: 10.0,
+      rate_per_hour: 300,
+      expires_at: '2026-12-31T23:59:59Z',
+    },
+  })
+
+  expect(res.isBlockTime).toBe(true)
+  expect(res.blockHoursDeducted).toBe(4.0)
+  expect(res.blockHoursRemainingAfter).toBe(6.0)
+  expect(res.amountDueCents).toBe(0)
+  expect(res.isFullyCovered).toBe(true)
+})
+

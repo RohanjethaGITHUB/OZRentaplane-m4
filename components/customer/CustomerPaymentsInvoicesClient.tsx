@@ -210,16 +210,19 @@ export default function CustomerPaymentsInvoicesClient({
     async (inv: CustomerInvoice) => {
       setDownloadingId(inv.id)
       try {
-        const downloadUrl = inv.bookingId
+        const downloadUrl = inv.pdfUrl
+          ? inv.pdfUrl
+          : inv.bookingId
           ? `/dashboard/bookings/${inv.bookingId}/invoice`
-          : inv.pdfUrl ?? null
+          : (inv.serviceType === 'package' || inv.invoiceNumber.startsWith('PKG-'))
+          ? `/dashboard/purchases/${inv.id}/invoice`
+          : null
 
         if (downloadUrl) {
           window.open(downloadUrl, '_blank')
           showToast(`Invoice ${inv.invoiceNumber} downloaded successfully.`)
         } else {
-          // Fallback trigger print
-          window.print()
+          showToast(`Invoice ${inv.invoiceNumber} PDF is not available yet.`, 'error')
         }
       } catch (err) {
         showToast('Unable to download invoice. Please try again.', 'error')

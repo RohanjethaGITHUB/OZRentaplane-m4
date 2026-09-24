@@ -67,7 +67,7 @@ export async function generateStandardBookingInvoicePdf(params: {
 
   const { data: invoice, error: invoiceErr } = await supabase
     .from('booking_invoices')
-    .select('id, invoice_number, booking_id, customer_id, status, created_at, paid_at, payment_method, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, total_paid_cents, rate_cents_per_hour, base_amount_cents, landing_subtotal_cents, vdo_reading, online_payment_surcharge_cents, stripe_gross_amount_cents, stripe_payment_intent_id')
+    .select('id, invoice_number, booking_id, customer_id, status, created_at, paid_at, payment_method, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, total_paid_cents, rate_cents_per_hour, base_amount_cents, landing_subtotal_cents, vdo_reading, online_payment_surcharge_cents, stripe_gross_amount_cents, stripe_payment_intent_id, admin_notes')
     .eq('id', invoiceId)
     .single()
 
@@ -76,11 +76,13 @@ export async function generateStandardBookingInvoicePdf(params: {
     { data: profile, error: profileErr },
     { data: landingCharges, error: landingErr },
     { data: flightLog },
+    { data: flightRecordRow },
     { data: bankSub },
+    { data: btUsage },
   ] = await Promise.all([
     supabase
       .from('bookings')
-      .select('booking_reference, booking_owner_user_id, scheduled_start, aircraft(registration, display_name, aircraft_type)')
+      .select('booking_reference, booking_owner_user_id, scheduled_start, aircraft(registration, display_name, aircraft_type, default_hourly_rate)')
       .eq('id', invoice.booking_id)
       .single(),
     supabase
@@ -99,10 +101,24 @@ export async function generateStandardBookingInvoicePdf(params: {
       .eq('related_booking_id', invoice.booking_id)
       .maybeSingle(),
     supabase
+      .from('flight_records')
+      .select('vdo_start, vdo_stop, vdo_total, tacho_start, tacho_stop, tacho_total, air_switch_start, air_switch_stop, air_switch_total, landings')
+      .eq('booking_id', invoice.booking_id)
+      .order('submitted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
       .from('booking_bank_transfer_submissions')
       .select('id, reference, submitted_at, status')
       .or(`invoice_id.eq.${invoice.id},booking_id.eq.${invoice.booking_id}`)
       .order('submitted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('pilot_block_time_usage')
+      .select('hours_deducted, overflow_hours, overflow_amount, hours_before, hours_after, purchase:pilot_block_time_purchases(hours_purchased, package:block_time_packages(name, hours))')
+      .or(`booking_id.eq.${invoice.booking_id},invoice_id.eq.${invoice.id}`)
+      .order('deducted_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
   ])
@@ -152,6 +168,7 @@ export async function generateStandardBookingInvoicePdf(params: {
                    (aircraftObj as { registration?: string; display_name?: string; aircraft_type?: string } | null)?.display_name ||
                    'Cessna 172N'
   const aircraftModel = cleanAircraftModel(rawModel, aircraftReg)
+  const aircraftDefaultRate = Number((aircraftObj as any)?.default_hourly_rate ?? 330)
 
   let resolvedPaymentMethod = invoice.payment_method
   if (!resolvedPaymentMethod || resolvedPaymentMethod === 'card') {
@@ -197,29 +214,163 @@ export async function generateStandardBookingInvoicePdf(params: {
         : invoice.status === 'payment_required'
           ? 'PAYMENT REQUIRED'
           : String(invoice.status).toUpperCase()
-  const billingModeLabel = 'Standard Aircraft Rental'
+  let blockTimeSnapshot: {
+    package_id?: string
+    package_name?: string
+    hours_purchased?: number
+    hours_before?: number
+    hours_deducted?: number
+    hours_remaining?: number
+    overage_hours?: number
+    overage_amount_cents?: number
+  } | null = null
+
+  if (invoice.admin_notes) {
+    try {
+      const parsed = JSON.parse(invoice.admin_notes)
+      if (parsed?.block_time) {
+        blockTimeSnapshot = parsed.block_time
+      }
+    } catch {
+      // Not JSON, plain text admin notes
+    }
+  }
+
+  let packageHoursPurchased = Number(blockTimeSnapshot?.hours_purchased ?? 0)
+
+  if (!blockTimeSnapshot && btUsage) {
+    const rawPurchase = btUsage.purchase as any
+    const rawPkg = Array.isArray(rawPurchase?.package) ? rawPurchase?.package[0] : rawPurchase?.package
+    const pkgName = rawPkg?.name || 'Block Time Package'
+    packageHoursPurchased = Number(rawPurchase?.hours_purchased || rawPkg?.hours || 0)
+    blockTimeSnapshot = {
+      package_name: pkgName,
+      hours_purchased: packageHoursPurchased,
+      hours_before: Number(btUsage.hours_before ?? 0),
+      hours_deducted: Number(btUsage.hours_deducted ?? 0),
+      hours_remaining: Number(btUsage.hours_after ?? 0),
+      overage_hours: Number(btUsage.overflow_hours ?? 0),
+      overage_amount_cents: Math.round(Number(btUsage.overflow_amount ?? 0) * 100),
+    }
+  }
+
+  if (packageHoursPurchased <= 0 && btUsage?.purchase) {
+    const rawPurchase = btUsage.purchase as any
+    const rawPkg = Array.isArray(rawPurchase?.package) ? rawPurchase?.package[0] : rawPurchase?.package
+    packageHoursPurchased = Number(rawPurchase?.hours_purchased || rawPkg?.hours || 0)
+  }
+
+  if (packageHoursPurchased <= 0 && blockTimeSnapshot?.package_id) {
+    const { data: pRow } = await supabase
+      .from('pilot_block_time_purchases')
+      .select('hours_purchased, package:block_time_packages(name, hours)')
+      .eq('id', blockTimeSnapshot.package_id)
+      .maybeSingle()
+    if (pRow) {
+      const pPkg = Array.isArray(pRow.package) ? pRow.package[0] : pRow.package
+      packageHoursPurchased = Number(pRow.hours_purchased || pPkg?.hours || 0)
+    }
+  }
+
+  if (packageHoursPurchased <= 0 && invoice.customer_id) {
+    const { data: pRow } = await supabase
+      .from('pilot_block_time_purchases')
+      .select('hours_purchased, package:block_time_packages(name, hours)')
+      .eq('user_id', invoice.customer_id)
+      .order('activated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (pRow) {
+      const pPkg = Array.isArray(pRow.package) ? pRow.package[0] : pRow.package
+      packageHoursPurchased = Number(pRow.hours_purchased || pPkg?.hours || 0)
+    }
+  }
+
+  if (packageHoursPurchased <= 0 && blockTimeSnapshot?.package_name) {
+    const match = blockTimeSnapshot.package_name.match(/(\d+(?:\.\d+)?)\s*(?:hrs?|hours?)/i)
+    if (match) {
+      packageHoursPurchased = Number(match[1])
+    }
+  }
+
+  const isBlockTimeBooking = Boolean(
+    (blockTimeSnapshot && (Number(blockTimeSnapshot.hours_deducted) > 0 || blockTimeSnapshot.package_id)) ||
+    btUsage
+  )
+  const billingModeLabel = isBlockTimeBooking
+    ? (packageHoursPurchased > 0 ? `Block Time Package Rental (${packageHoursPurchased}hr)` : 'Block Time Package Rental')
+    : 'Standard Aircraft Rental'
   const bookingRefLabel = booking.booking_reference ? `Booking Ref: ${booking.booking_reference}` : null
   const billToName = getFullName(profile ?? null)
   const billToEmail = profile?.email ?? '—'
   const billToPhone = getPhoneDisplay(profile ?? null)
-  const vdoQuantity = invoice.vdo_reading ?? (invoice.rate_cents_per_hour > 0
+
+  const vdoStart = flightLog?.vdo_start != null
+    ? Number(flightLog.vdo_start)
+    : flightRecordRow?.vdo_start != null
+    ? Number(flightRecordRow.vdo_start)
+    : null
+
+  const vdoEnd = flightLog?.vdo_stop != null
+    ? Number(flightLog.vdo_stop)
+    : flightRecordRow?.vdo_stop != null
+    ? Number(flightRecordRow.vdo_stop)
+    : null
+
+  const computedVdoFromMeters = (vdoStart != null && vdoEnd != null && vdoEnd >= vdoStart)
+    ? roundToCents(vdoEnd - vdoStart)
+    : null
+
+  const vdoQuantity = (invoice.vdo_reading != null && Number(invoice.vdo_reading) > 0)
+    ? Number(invoice.vdo_reading)
+    : (blockTimeSnapshot && Number(blockTimeSnapshot.hours_deducted) > 0)
+    ? Number(blockTimeSnapshot.hours_deducted)
+    : computedVdoFromMeters != null && computedVdoFromMeters > 0
+    ? computedVdoFromMeters
+    : (flightRecordRow?.vdo_total != null && Number(flightRecordRow.vdo_total) > 0)
+    ? Number(flightRecordRow.vdo_total)
+    : (flightLog?.vdo_total != null && Number(flightLog.vdo_total) > 0)
+    ? Number(flightLog.vdo_total)
+    : (invoice.rate_cents_per_hour > 0 && invoice.base_amount_cents > 0
     ? roundToCents((invoice.base_amount_cents / invoice.rate_cents_per_hour) * 10) / 10
     : 0)
 
-  const vdoStart = flightLog?.vdo_start != null ? Number(flightLog.vdo_start) : null
-  const vdoEnd = flightLog?.vdo_stop != null ? Number(flightLog.vdo_stop) : null
-  const airswitchStart = flightLog?.air_switch_start != null ? Number(flightLog.air_switch_start) : null
-  const airswitchEnd = flightLog?.air_switch_stop != null ? Number(flightLog.air_switch_stop) : null
+  const airswitchStart = flightLog?.air_switch_start != null
+    ? Number(flightLog.air_switch_start)
+    : flightRecordRow?.air_switch_start != null
+    ? Number(flightRecordRow.air_switch_start)
+    : null
+
+  const airswitchEnd = flightLog?.air_switch_stop != null
+    ? Number(flightLog.air_switch_stop)
+    : flightRecordRow?.air_switch_stop != null
+    ? Number(flightRecordRow.air_switch_stop)
+    : null
+
   const airswitchHours = flightLog?.air_switch_total != null
     ? Number(flightLog.air_switch_total)
+    : flightRecordRow?.air_switch_total != null
+    ? Number(flightRecordRow.air_switch_total)
     : airswitchStart != null && airswitchEnd != null && airswitchEnd >= airswitchStart
     ? roundToCents(airswitchEnd - airswitchStart)
     : null
 
-  const tachStart = flightLog?.tacho_start != null ? Number(flightLog.tacho_start) : null
-  const tachEnd = flightLog?.tacho_stop != null ? Number(flightLog.tacho_stop) : null
+  const tachStart = flightLog?.tacho_start != null
+    ? Number(flightLog.tacho_start)
+    : flightRecordRow?.tacho_start != null
+    ? Number(flightRecordRow.tacho_start)
+    : null
+
+  const tachEnd = flightLog?.tacho_stop != null
+    ? Number(flightLog.tacho_stop)
+    : flightRecordRow?.tacho_stop != null
+    ? Number(flightRecordRow.tacho_stop)
+    : null
+
   const tachHours = flightLog?.tacho_total != null
     ? Number(flightLog.tacho_total)
+    : flightRecordRow?.tacho_total != null
+    ? Number(flightRecordRow.tacho_total)
     : tachStart != null && tachEnd != null && tachEnd >= tachStart
     ? roundToCents(tachEnd - tachStart)
     : null
@@ -229,29 +380,64 @@ export async function generateStandardBookingInvoicePdf(params: {
     totalLandingsCount += Number(charge.landing_count || 1)
   }
 
-  const vdoSuffix = vdoStart != null && vdoEnd != null ? ` (VDO ${vdoStart.toFixed(1)} → ${vdoEnd.toFixed(1)})` : ''
-  const lineItems = [
-    {
-      description: `Flight Rental Hours — ${aircraftReg} (${aircraftModel})${vdoSuffix}`,
+  const rawPkgName = blockTimeSnapshot?.package_name || 'Starter Block'
+  let displayPkgName = rawPkgName
+  if (packageHoursPurchased > 0 && !displayPkgName.toLowerCase().includes('hr')) {
+    displayPkgName = `${displayPkgName} (${packageHoursPurchased}hr package)`
+  }
+
+  const lineItems: Array<{
+    description: string
+    quantity: number
+    unitPrice: number
+    amount: number
+  }> = []
+
+  if (isBlockTimeBooking && blockTimeSnapshot) {
+    const deducted = Number(blockTimeSnapshot.hours_deducted) > 0
+      ? Number(blockTimeSnapshot.hours_deducted)
+      : vdoQuantity > 0 ? vdoQuantity : 0
+    const remaining = Number(blockTimeSnapshot.hours_remaining ?? 0)
+    const overage = Number(blockTimeSnapshot.overage_hours ?? 0)
+    const overageCents = Number(blockTimeSnapshot.overage_amount_cents ?? 0)
+
+    lineItems.push({
+      description: `Block Time Drawdown — ${displayPkgName} (${deducted.toFixed(1)}h deducted · Balance: ${remaining.toFixed(1)}h remaining)`,
+      quantity: deducted,
+      unitPrice: 0,
+      amount: 0,
+    })
+
+    if (overage > 0) {
+      const overageRate = (overageCents > 0 && overage > 0)
+        ? roundToCents(overageCents / (overage * 100))
+        : (aircraftDefaultRate >= 290 ? aircraftDefaultRate : 330)
+      lineItems.push({
+        description: `Block Time Overage (${overage.toFixed(1)}h × $${overageRate.toFixed(2)}/hr)`,
+        quantity: overage,
+        unitPrice: overageRate,
+        amount: roundToCents(overageCents / 100) || roundToCents(overage * overageRate),
+      })
+    }
+  } else {
+    lineItems.push({
+      description: `Flight Rental Hours — ${aircraftReg} (${aircraftModel})`,
       quantity: vdoQuantity,
       unitPrice: roundToCents(invoice.rate_cents_per_hour / 100),
       amount: roundToCents(invoice.base_amount_cents / 100),
-    },
-    ...resolvedLandingCharges.map((charge: {
-      landing_count: number
-      unit_amount_cents: number
-      total_amount_cents: number
-      airports?: { icao_code?: string | null; name?: string | null } | { icao_code?: string | null; name?: string | null }[] | null
-    }, index: number) => {
-      const airport = Array.isArray(charge.airports) ? charge.airports[0] : charge.airports
-      return {
-        description: `Landing Fee — ${getAirportLabel(airport ?? null, index)}`,
-        quantity: Number(charge.landing_count),
-        unitPrice: roundToCents(charge.unit_amount_cents / 100),
-        amount: roundToCents(charge.total_amount_cents / 100),
-      }
-    }),
-  ]
+    })
+  }
+
+  for (let index = 0; index < resolvedLandingCharges.length; index++) {
+    const charge = resolvedLandingCharges[index]
+    const airport = Array.isArray(charge.airports) ? charge.airports[0] : charge.airports
+    lineItems.push({
+      description: `Landing Fee — ${getAirportLabel(airport ?? null, index)}`,
+      quantity: Number(charge.landing_count),
+      unitPrice: roundToCents(charge.unit_amount_cents / 100),
+      amount: roundToCents(charge.total_amount_cents / 100),
+    })
+  }
 
   // Check if customer made a stripe payment (ledger or invoice)
   const { data: stripeLedger } = await supabase
@@ -327,9 +513,11 @@ export async function generateStandardBookingInvoicePdf(params: {
   const resolvedMethodLabel = isWaived
     ? 'Waived (No payment required)'
     : isSplitPayment
-    ? `Split: NAB Bank Transfer ($${splitBankAmount.toFixed(2)}) + Card Online ($${splitCardAmount.toFixed(2)})`
+    ? `Split: Bank Transfer ($${splitBankAmount.toFixed(2)}) + Card Online ($${splitCardAmount.toFixed(2)})`
+    : isBlockTimeBooking && (invoice.subtotal_cents === 0 || resolvedPaymentMethod === 'account_credit' || resolvedPaymentMethod === 'credit_or_block_time')
+    ? `Block Time Package (${displayPkgName || 'Active Package'})`
     : resolvedPaymentMethod === 'bank_transfer' || invoice.payment_method === 'bank_transfer'
-    ? 'Direct Deposit (NAB Bank Transfer)'
+    ? 'Direct Deposit (Bank Transfer)'
     : resolvedPaymentMethod === 'card' || invoice.payment_method === 'stripe' || invoice.payment_method === 'stripe_card'
     ? 'Card (Online)'
     : resolvedPaymentMethod === 'account_credit'
@@ -338,16 +526,24 @@ export async function generateStandardBookingInvoicePdf(params: {
 
   const footerNote = isPaid
     ? isSplitPayment
-      ? `This receipt confirms full payment for your aircraft rental booking ($${splitBankAmount.toFixed(2)} via NAB Direct Bank Transfer and $${splitCardAmount.toFixed(2)} via Stripe Online Card). All prices include GST.`
+      ? `This receipt confirms full payment for your aircraft rental booking ($${splitBankAmount.toFixed(2)} via Direct Bank Transfer and $${splitCardAmount.toFixed(2)} via Stripe Online Card). All prices include GST.`
+      : isBlockTimeBooking
+      ? (blockTimeSnapshot?.overage_hours && blockTimeSnapshot.overage_hours > 0
+          ? `This receipt confirms flight hours deducted from your block time package (${displayPkgName}) and payment settled for flight overage hours and charges. All prices include GST.`
+          : `This receipt confirms flight hours deducted from your block time package (${displayPkgName}). All prices include GST.`)
       : 'This receipt confirms full payment for your aircraft rental booking. All prices include GST.'
     : isWaived
       ? 'This invoice has been waived by operations management. No payment is required.'
       : isVerificationRequired
       ? isSplitPayment
-        ? `Payment received via Split Payment: $${splitBankAmount.toFixed(2)} via NAB Direct Bank Transfer and $${splitCardAmount.toFixed(2)} via Stripe Online Card. Under operations review and verification. All prices include GST.`
+        ? `Payment received via Split Payment: $${splitBankAmount.toFixed(2)} via Direct Bank Transfer and $${splitCardAmount.toFixed(2)} via Stripe Online Card. Under operations review and verification. All prices include GST.`
+        : isBlockTimeBooking
+        ? (blockTimeSnapshot?.overage_hours && blockTimeSnapshot.overage_hours > 0
+            ? `Flight record received. Hours deducted from block time package (${displayPkgName}). Payment verification required for overage hours and charges. All prices include GST.`
+            : `Flight record received. Hours deducted from block time package (${displayPkgName}). Payment verification under operations review. All prices include GST.`)
         : 'Payment proof received. This invoice is under operations review and verification. All prices include GST.'
       : isSplitPayment
-      ? `Split Payment: $${splitBankAmount.toFixed(2)} via NAB Direct Bank Transfer and $${splitCardAmount.toFixed(2)} via Stripe Online Card. All prices include GST.`
+      ? `Split Payment: $${splitBankAmount.toFixed(2)} via Direct Bank Transfer and $${splitCardAmount.toFixed(2)} via Stripe Online Card. All prices include GST.`
       : 'All prices include GST. Payment is required by the due date shown above.'
 
   const pdfBuffer = await generateInvoicePdf({

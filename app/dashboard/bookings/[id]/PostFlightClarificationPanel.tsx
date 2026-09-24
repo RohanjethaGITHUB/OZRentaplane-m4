@@ -12,10 +12,11 @@ type Props = {
   flightRecord:        FlightRecord
   bookingId:           string
   existingAttachments: AttachmentWithUrl[]
+  meterAdjustment?:    { previous_vdo: number; adjusted_vdo: number; difference: number } | null
 }
 
 export default function PostFlightClarificationPanel({
-  clarification, flightRecord, bookingId, existingAttachments,
+  clarification, flightRecord, bookingId, existingAttachments, meterAdjustment,
 }: Props) {
   const [showForm, setShowForm] = useState(false)
 
@@ -47,6 +48,23 @@ export default function PostFlightClarificationPanel({
             {clarification.category}
           </span>
         </div>
+
+        {/* Meter Adjustment Banner if Operations corrected readings */}
+        {meterAdjustment && (
+          <div className="p-4 bg-blue-50/80 rounded-xl border border-blue-200 shadow-sm flex items-start gap-3 text-xs mb-4">
+            <span className="material-symbols-outlined text-[#1a4fd6] text-xl flex-shrink-0 mt-0.5">
+              tune
+            </span>
+            <div className="space-y-1">
+              <span className="font-bold text-slate-900 block text-xs">Meter Reading Correction by Operations</span>
+              <p className="text-slate-700 leading-relaxed text-xs">
+                Previously submitted VDO reading: <strong className="text-slate-900">{meterAdjustment.previous_vdo} hrs</strong> &rarr; Operations verified: <strong className="text-[#1a4fd6]">{meterAdjustment.adjusted_vdo} hrs</strong>
+                {meterAdjustment.difference > 0 ? ` (+${meterAdjustment.difference} hrs)` : ` (${meterAdjustment.difference} hrs)`}.
+                The readings have been updated to reflect the verified hours.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Admin message */}
         <div className="bg-[#f8fbff] border border-[#dbe7f4] rounded-xl p-4 mb-5">
@@ -135,6 +153,7 @@ export default function PostFlightClarificationPanel({
         <FlightRecordResubmitForm
           flightRecord={flightRecord}
           bookingId={bookingId}
+          meterAdjustment={meterAdjustment}
           onSuccess={() => setShowForm(false)}
         />
       )}

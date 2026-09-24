@@ -177,20 +177,42 @@ export async function approvePostFlightReview(
   input: ApproveFlightRecordInput,
 ): Promise<void> {
   const { supabase, adminId } = await requireAdmin()
+  const adminSupabase = createAdminClient()
   const now = new Date().toISOString()
 
-  // Fetch flight record with its meter readings
-  const { data: flightRecord, error: frError } = await supabase
+  // Fetch flight record with its meter readings (support lookup by record ID or booking ID)
+  let { data: flightRecord, error: frError } = await adminSupabase
     .from('flight_records')
     .select(`
-      id, booking_id, aircraft_id, status,
+      id, booking_id, aircraft_id, submitted_by_user_id, status,
       tacho_start, tacho_stop, tacho_total,
       vdo_start, vdo_stop, vdo_total,
       air_switch_start, air_switch_stop, air_switch_total,
       add_to_mr
     `)
     .eq('id', input.flight_record_id)
-    .single()
+    .maybeSingle()
+
+  if (!flightRecord) {
+    const { data: frByBooking } = await adminSupabase
+      .from('flight_records')
+      .select(`
+        id, booking_id, aircraft_id, submitted_by_user_id, status,
+        tacho_start, tacho_stop, tacho_total,
+        vdo_start, vdo_stop, vdo_total,
+        air_switch_start, air_switch_stop, air_switch_total,
+        add_to_mr
+      `)
+      .eq('booking_id', input.flight_record_id)
+      .order('submitted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (frByBooking) {
+      flightRecord = frByBooking
+      frError = null
+    }
+  }
 
   if (frError || !flightRecord) {
     throw new Error('Flight record not found.')
@@ -276,24 +298,159 @@ export async function approvePostFlightReview(
     ? Number(aircraft.default_hourly_rate)
     : PAYF_RATE_PER_HOUR
 
-  // Placeholder billing calculation based on billing_meter_type
-  const meterType = aircraft.billing_meter_type as MeterType
-  let billedHours: number | null = null
+  // Fetch existing booking invoice early to inspect block time & billing details
+  const { data: bookingInvoice, error: invFetchErr } = await supabase
+    .from('booking_invoices')
+    .select('*')
+    .eq('booking_id', flightRecord.booking_id)
+    .maybeSingle()
 
-  if (meterType === 'tacho' && flightRecord.tacho_total != null) {
-    billedHours = Number(flightRecord.tacho_total)
-  } else if (meterType === 'vdo' && flightRecord.vdo_total != null) {
-    billedHours = Number(flightRecord.vdo_total)
-  } else if (meterType === 'air_switch' && flightRecord.air_switch_total != null) {
-    billedHours = Number(flightRecord.air_switch_total)
-  } else if (meterType === 'add_to_mr' && flightRecord.add_to_mr != null) {
-    billedHours = Number(flightRecord.add_to_mr)
+  if (invFetchErr) {
+    console.error('[approvePostFlightReview] Error fetching booking invoice:', invFetchErr)
   }
 
-  const finalAmount =
-    billedHours != null
-      ? Math.round(billedHours * effectiveRate * 100) / 100
-      : null
+  // Detect if this booking drew down from a Block Time package
+  let isBlockTimeBooking = false
+  let blockInfo: {
+    package_id?: string
+    package_name?: string
+    hours_before?: number
+    hours_deducted?: number
+    hours_remaining?: number
+    overage_hours?: number
+    overage_amount_cents?: number
+  } | null = null
+
+  if (bookingInvoice?.admin_notes) {
+    try {
+      const parsedNotes = typeof bookingInvoice.admin_notes === 'string'
+        ? JSON.parse(bookingInvoice.admin_notes)
+        : bookingInvoice.admin_notes
+      if (parsedNotes?.block_time) {
+        isBlockTimeBooking = true
+        blockInfo = parsedNotes.block_time
+      }
+    } catch {}
+  }
+
+  if (!isBlockTimeBooking) {
+    const { data: usageRow } = await supabase
+      .from('pilot_block_time_usage')
+      .select('purchase_id, hours_deducted, overflow_hours, overflow_amount, hours_before, hours_after')
+      .eq('booking_id', flightRecord.booking_id)
+      .limit(1)
+      .maybeSingle()
+
+    if (usageRow) {
+      isBlockTimeBooking = true
+      blockInfo = {
+        package_id: usageRow.purchase_id,
+        hours_before: Number(usageRow.hours_before ?? 0),
+        hours_deducted: Number(usageRow.hours_deducted ?? 0),
+        hours_remaining: Number(usageRow.hours_after ?? 0),
+        overage_hours: Number(usageRow.overflow_hours ?? 0),
+        overage_amount_cents: Math.round(Number(usageRow.overflow_amount ?? 0) * 100),
+      }
+    }
+  }
+
+  // Fetch package rate if this is a block time booking
+  let packageRate: number | null = null
+  if (isBlockTimeBooking && blockInfo?.package_id) {
+    const { data: purchaseRow } = await supabase
+      .from('pilot_block_time_purchases')
+      .select('rate_per_hour, hours_remaining, hours_purchased')
+      .eq('id', blockInfo.package_id)
+      .maybeSingle()
+    if (purchaseRow?.rate_per_hour) {
+      packageRate = Number(purchaseRow.rate_per_hour)
+    }
+  }
+
+  // Meter billing calculation:
+  // In OZRentaplane, flight records and verification console manage VDO flight hours.
+  // Prioritize verified input.vdo_total if provided by admin, then flightRecord.vdo_total.
+  let billedHours: number | null = null
+  if (input.vdo_total != null && Number(input.vdo_total) >= 0) {
+    billedHours = Number(input.vdo_total)
+  } else if (flightRecord.vdo_total != null && Number(flightRecord.vdo_total) > 0) {
+    billedHours = Number(flightRecord.vdo_total)
+  } else {
+    const meterType = aircraft.billing_meter_type as MeterType
+    if (meterType === 'tacho' && flightRecord.tacho_total != null && Number(flightRecord.tacho_total) > 0) {
+      billedHours = Number(flightRecord.tacho_total)
+    } else if (meterType === 'air_switch' && flightRecord.air_switch_total != null && Number(flightRecord.air_switch_total) > 0) {
+      billedHours = Number(flightRecord.air_switch_total)
+    } else if (meterType === 'add_to_mr' && flightRecord.add_to_mr != null && Number(flightRecord.add_to_mr) > 0) {
+      billedHours = Number(flightRecord.add_to_mr)
+    } else {
+      billedHours = Number(flightRecord.vdo_total ?? flightRecord.tacho_total ?? 0)
+    }
+  }
+
+  // Fetch landing charges for booking
+  const { data: currentLandings } = await supabase
+    .from('booking_landing_charges')
+    .select('total_amount_cents')
+    .eq('booking_id', flightRecord.booking_id)
+
+  const landingSubtotalCents = currentLandings && currentLandings.length > 0
+    ? currentLandings.reduce((sum, l) => sum + (l.total_amount_cents || 0), 0)
+    : (bookingInvoice?.landing_subtotal_cents ?? 0)
+
+  let finalAmount: number | null = null
+  let subtotalCents = 0
+  let newHoursDeducted = 0
+  let newHoursRemaining = 0
+  let newOverageHours = 0
+  let newOverageCents = 0
+  let flightBaseCents = 0
+  let initialAvailableHours = 0
+
+  if (isBlockTimeBooking) {
+    const hoursFlown = billedHours ?? 0
+    initialAvailableHours = blockInfo
+      ? (Number(blockInfo.hours_before) > 0
+          ? Number(blockInfo.hours_before)
+          : (Number(blockInfo.hours_deducted || 0) + Number(blockInfo.hours_remaining || 0)))
+      : 0
+
+    if (initialAvailableHours <= 0 && blockInfo?.package_id) {
+      const { data: pRow } = await supabase
+        .from('pilot_block_time_purchases')
+        .select('hours_remaining, hours_purchased, rate_per_hour')
+        .eq('id', blockInfo.package_id)
+        .maybeSingle()
+      if (pRow) {
+        const { data: uRow } = await supabase
+          .from('pilot_block_time_usage')
+          .select('hours_deducted')
+          .eq('booking_id', flightRecord.booking_id)
+          .maybeSingle()
+        const prevDeducted = Number(uRow?.hours_deducted || blockInfo.hours_deducted || 0)
+        initialAvailableHours = Number(pRow.hours_remaining || 0) + prevDeducted
+        if (initialAvailableHours <= 0) {
+          initialAvailableHours = Number(pRow.hours_purchased || 0)
+        }
+        if (!packageRate && pRow.rate_per_hour) {
+          packageRate = Number(pRow.rate_per_hour)
+        }
+      }
+    }
+
+    newHoursDeducted = Math.min(hoursFlown, initialAvailableHours)
+    newHoursRemaining = Math.max(0, Math.round((initialAvailableHours - newHoursDeducted) * 10) / 10)
+    newOverageHours = Math.max(0, Math.round((hoursFlown - initialAvailableHours) * 10) / 10)
+    newOverageCents = Math.round(newOverageHours * effectiveRate * 100)
+    flightBaseCents = newOverageCents
+
+    subtotalCents = flightBaseCents + landingSubtotalCents - (bookingInvoice?.advance_applied_cents || 0)
+    finalAmount = Math.round(subtotalCents) / 100
+  } else {
+    flightBaseCents = billedHours != null ? Math.round(billedHours * effectiveRate * 100) : 0
+    subtotalCents = flightBaseCents + landingSubtotalCents - (bookingInvoice?.advance_applied_cents || 0)
+    finalAmount = Math.round(subtotalCents) / 100
+  }
 
   // 1. Approve flight record
   const newFlightStatus = (input.with_correction || input.allow_override) ? 'approved_with_correction' : 'approved'
@@ -314,9 +471,56 @@ export async function approvePostFlightReview(
     throw new Error('Failed to approve flight record.')
   }
 
+  // If block time booking, sync updated hours with pilot_block_time_purchases and pilot_block_time_usage
+  if (isBlockTimeBooking && blockInfo?.package_id) {
+    await supabase
+      .from('pilot_block_time_purchases')
+      .update({
+        hours_remaining: newHoursRemaining,
+        status: newHoursRemaining <= 0 ? 'exhausted' : 'active',
+        updated_at: now,
+      })
+      .eq('id', blockInfo.package_id)
+
+    const { data: existingUsage } = await supabase
+      .from('pilot_block_time_usage')
+      .select('id')
+      .eq('booking_id', flightRecord.booking_id)
+      .maybeSingle()
+
+    const targetUserId = bookingInvoice?.customer_id || (flightRecord as any).user_id
+    if (targetUserId) {
+      if (existingUsage) {
+        await supabase
+          .from('pilot_block_time_usage')
+          .update({
+            hours_deducted: newHoursDeducted,
+            overflow_hours: newOverageHours,
+            overflow_amount: Math.round(newOverageCents / 100),
+            hours_after: newHoursRemaining,
+          })
+          .eq('id', existingUsage.id)
+      } else {
+        await supabase
+          .from('pilot_block_time_usage')
+          .insert({
+            purchase_id: blockInfo.package_id,
+            user_id: targetUserId,
+            booking_id: flightRecord.booking_id,
+            invoice_id: null,
+            hours_deducted: newHoursDeducted,
+            overflow_hours: newOverageHours,
+            overflow_amount: Math.round(newOverageCents / 100),
+            hours_before: initialAvailableHours,
+            hours_after: newHoursRemaining,
+          })
+      }
+
+      void emitBlockTimeUpdated(targetUserId)
+    }
+  }
+
   // 2. Update booking & apply credit atomically / mark completed
-  // 2. Update booking & apply credit atomically / mark completed
-  const subtotalCents = finalAmount != null ? Math.round(finalAmount * 100) : 0
   try {
     await supabase.rpc('apply_credit_to_standard_booking_atomic', {
       p_booking_id: flightRecord.booking_id,
@@ -340,31 +544,50 @@ export async function approvePostFlightReview(
     })
     .eq('id', flightRecord.booking_id)
 
-  // Settle booking invoice to paid
-  const { data: bookingInvoice, error: invFetchErr } = await supabase
-    .from('booking_invoices')
-    .select('id, status, customer_id, invoice_number, subtotal_cents, total_paid_cents, pdf_url')
-    .eq('booking_id', flightRecord.booking_id)
-    .maybeSingle()
-
-  if (invFetchErr) {
-    console.error('[approvePostFlightReview] Error fetching booking invoice:', invFetchErr)
-  }
-
   let finalPdfResult: any = null
-  const paidAmountCents = bookingInvoice?.subtotal_cents || subtotalCents || bookingInvoice?.total_paid_cents || 0
+  const paidAmountCents = bookingInvoice?.total_paid_cents && bookingInvoice.total_paid_cents > 0
+    ? bookingInvoice.total_paid_cents
+    : subtotalCents
 
   if (bookingInvoice) {
+    let parsedNotes = typeof bookingInvoice.admin_notes === 'string'
+      ? (() => { try { return JSON.parse(bookingInvoice.admin_notes) } catch { return {} } })()
+      : (bookingInvoice.admin_notes || {})
+
+    if (isBlockTimeBooking && blockInfo) {
+      parsedNotes.block_time = {
+        ...blockInfo,
+        hours_deducted: newHoursDeducted,
+        hours_remaining: newHoursRemaining,
+        overage_hours: newOverageHours,
+        overage_amount_cents: newOverageCents,
+      }
+    }
+
+    const invUpdates: Record<string, any> = {
+      status: 'paid',
+      paid_at: bookingInvoice.paid_at || now,
+      total_paid_cents: paidAmountCents,
+      finalised_at: now,
+      finalised_by: adminId,
+      updated_at: now,
+      admin_notes: typeof parsedNotes === 'object' ? JSON.stringify(parsedNotes) : parsedNotes,
+    }
+
+    if (isBlockTimeBooking) {
+      invUpdates.vdo_reading = billedHours
+      invUpdates.base_amount_cents = flightBaseCents
+      invUpdates.landing_subtotal_cents = landingSubtotalCents
+      invUpdates.subtotal_cents = subtotalCents
+      invUpdates.total_paid_cents = subtotalCents
+      if (packageRate && packageRate > 0) {
+        invUpdates.rate_cents_per_hour = Math.round(packageRate * 100)
+      }
+    }
+
     const { error: invUpdateErr } = await supabase
       .from('booking_invoices')
-      .update({
-        status: 'paid',
-        paid_at: now,
-        total_paid_cents: paidAmountCents,
-        finalised_at: now,
-        finalised_by: adminId,
-        updated_at: now,
-      })
+      .update(invUpdates)
       .eq('id', bookingInvoice.id)
 
     if (invUpdateErr) {
@@ -1072,12 +1295,27 @@ export async function requestPostFlightClarification(input: {
   if (!input.category.trim()) throw new Error('VALIDATION: A clarification category is required.')
   if (!input.message.trim())  throw new Error('VALIDATION: A clarification message is required.')
 
-  // Verify flight record state
-  const { data: fr, error: frErr } = await adminSupabase
+  // Verify flight record state (support lookup by record ID or booking ID)
+  let { data: fr, error: frErr } = await adminSupabase
     .from('flight_records')
     .select('id, status, booking_id, aircraft_id, vdo_total, vdo_start, vdo_stop, air_switch_total, air_switch_start, air_switch_stop')
     .eq('id', input.flightRecordId)
-    .single()
+    .maybeSingle()
+
+  if (!fr) {
+    const { data: frByBooking } = await adminSupabase
+      .from('flight_records')
+      .select('id, status, booking_id, aircraft_id, vdo_total, vdo_start, vdo_stop, air_switch_total, air_switch_start, air_switch_stop')
+      .eq('booking_id', input.flightRecordId)
+      .order('submitted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (frByBooking) {
+      fr = frByBooking
+      frErr = null
+    }
+  }
 
   if (frErr || !fr) throw new Error('Flight record not found.')
   if (fr.booking_id !== input.bookingId) throw new Error('Flight record does not belong to this booking.')
@@ -1108,6 +1346,16 @@ export async function requestPostFlightClarification(input: {
   // 1. If admin adjusted meters or landings, compute readings & recalculate invoice
   let updatedAmountPayableCents: number | null = null
   let effectiveVdoHours: number | null = fr.vdo_total != null ? Number(fr.vdo_total) : null
+  const previousVdo = fr.vdo_total != null ? Number(fr.vdo_total) : null
+  const isVdoAdjusted = input.vdo_total != null && previousVdo != null && Math.abs(Number(input.vdo_total) - previousVdo) > 0.05
+  let meterAdjustment: { previous_vdo: number; adjusted_vdo: number; difference: number } | null = null
+  if (isVdoAdjusted && input.vdo_total != null && previousVdo != null) {
+    meterAdjustment = {
+      previous_vdo: previousVdo,
+      adjusted_vdo: Number(input.vdo_total),
+      difference: Number((Number(input.vdo_total) - previousVdo).toFixed(1)),
+    }
+  }
 
   if (input.vdo_total != null || input.air_switch_total != null || input.landing_rows != null) {
     const { suggestedStarts } = await getAircraftFlightLogStartSuggestions(fr.aircraft_id)
@@ -1172,7 +1420,7 @@ export async function requestPostFlightClarification(input: {
     const scheduledEnd = new Date(booking.scheduled_end)
     const bookingSlotHours = Math.max(0, (scheduledEnd.getTime() - scheduledStart.getTime()) / (1000 * 60 * 60))
 
-    const [{ data: airportRows }, { data: creditRow }, { data: activeBlockTimeRow }] = await Promise.all([
+    const [{ data: airportRows }, { data: creditRow }, { data: activeBlockTimeRow }, { data: inv }] = await Promise.all([
       supabase.from('airports').select('id, icao_code, name, default_landing_fee_cents').eq('is_active', true),
       supabase.from('customer_credit_balances').select('balance_cents').eq('customer_id', input.customerId).maybeSingle(),
       supabase.from('pilot_block_time_purchases')
@@ -1184,7 +1432,33 @@ export async function requestPostFlightClarification(input: {
         .order('activated_at', { ascending: true })
         .limit(1)
         .maybeSingle(),
+      supabase.from('booking_invoices')
+        .select('id, total_paid_cents, admin_notes')
+        .eq('booking_id', input.bookingId)
+        .maybeSingle(),
     ])
+
+    let blockNotes: any = null
+    if (inv?.admin_notes) {
+      try {
+        const parsed = typeof inv.admin_notes === 'string' ? JSON.parse(inv.admin_notes) : inv.admin_notes
+        if (parsed?.block_time) blockNotes = parsed.block_time
+      } catch {}
+    }
+
+    let effectiveBlockTime: any = activeBlockTimeRow
+    if (blockNotes) {
+      const hoursBefore = Number(blockNotes.hours_before ?? 0)
+      const hoursDeducted = Number(blockNotes.hours_deducted ?? 0)
+      const restoredHours = hoursBefore > 0 ? hoursBefore : ((activeBlockTimeRow?.hours_remaining ?? 0) + hoursDeducted)
+      effectiveBlockTime = {
+        id: blockNotes.package_id || activeBlockTimeRow?.id || '',
+        hours_remaining: restoredHours,
+        rate_per_hour: activeBlockTimeRow?.rate_per_hour ?? 320,
+        expires_at: activeBlockTimeRow?.expires_at ?? new Date(Date.now() + 86400000000).toISOString(),
+        package_name: blockNotes.package_name,
+      }
+    }
 
     const calc = calculatePostFlightCharges({
       vdoTotal: effectiveVdoTotal,
@@ -1194,22 +1468,48 @@ export async function requestPostFlightClarification(input: {
       defaultHourlyRate: PAYF_RATE_PER_HOUR,
       airports: (airportRows ?? []) as any[],
       landingRows: input.landing_rows ?? [],
-      activeBlockTime: activeBlockTimeRow ?? null,
+      activeBlockTime: effectiveBlockTime ?? null,
       customerCreditCents: creditRow?.balance_cents ?? 0,
     })
 
     updatedAmountPayableCents = calc.stripeGrossAmountCents
 
-    // Update booking_invoices
-    const { data: inv } = await supabase
-      .from('booking_invoices')
-      .select('id, total_paid_cents')
-      .eq('booking_id', input.bookingId)
-      .maybeSingle()
-
     if (inv) {
       const upfrontPaid = inv.total_paid_cents || 0
       const remainingDue = Math.max(0, calc.subtotalCents - calc.creditAppliedCents - upfrontPaid)
+
+      let updatedAdminNotes = inv.admin_notes
+      if (calc.isBlockTime && calc.blockPackageId) {
+        let parsed = typeof inv.admin_notes === 'string'
+          ? (() => { try { return JSON.parse(inv.admin_notes) } catch { return {} } })()
+          : (inv.admin_notes || {})
+        const matchHrs = (calc.blockPackageName || parsed.block_time?.package_name)?.match(/(\d+(?:\.\d+)?)\s*(?:hrs?|hours?)/i)
+        const hrsPurchased = matchHrs ? Number(matchHrs[1]) : (parsed.block_time?.hours_purchased || undefined)
+        let finalPkgName = calc.blockPackageName || parsed.block_time?.package_name || 'Starter Block'
+        if (hrsPurchased && !finalPkgName.toLowerCase().includes('hr')) {
+          finalPkgName = `${finalPkgName} (${hrsPurchased}hr package)`
+        }
+        parsed.block_time = {
+          package_id: calc.blockPackageId,
+          package_name: finalPkgName,
+          hours_purchased: hrsPurchased,
+          hours_before: calc.blockHoursBefore ?? 0,
+          hours_deducted: calc.blockHoursDeducted,
+          hours_remaining: calc.blockHoursRemainingAfter ?? 0,
+          overage_hours: calc.blockOverageHours,
+          overage_amount_cents: calc.blockOverageAmountCents,
+        }
+        if (meterAdjustment) {
+          parsed.meter_adjustment = meterAdjustment
+        }
+        updatedAdminNotes = JSON.stringify(parsed)
+      } else if (meterAdjustment) {
+        let parsed = typeof inv.admin_notes === 'string'
+          ? (() => { try { return JSON.parse(inv.admin_notes) } catch { return {} } })()
+          : (inv.admin_notes || {})
+        parsed.meter_adjustment = meterAdjustment
+        updatedAdminNotes = JSON.stringify(parsed)
+      }
 
       await supabase
         .from('booking_invoices')
@@ -1223,6 +1523,7 @@ export async function requestPostFlightClarification(input: {
           stripe_amount_due_cents: remainingDue,
           total_amount_cents: calc.stripeGrossAmountCents,
           status: 'payment_verification_required',
+          admin_notes: updatedAdminNotes,
           updated_at: now,
         })
         .eq('id', inv.id)
@@ -1283,6 +1584,11 @@ export async function requestPostFlightClarification(input: {
   }
 
   // 3. Post to verification_events so it appears in customer's message inbox
+  let noteBody = `[${input.category}] ${input.message}`
+  if (meterAdjustment) {
+    noteBody += `\n\n(Meter Reading Adjusted: Previously submitted ${meterAdjustment.previous_vdo} hrs VDO → Operations adjusted to ${meterAdjustment.adjusted_vdo} hrs VDO)`
+  }
+
   await supabase.from('verification_events').insert({
     user_id:       input.customerId,
     actor_user_id: adminId,
@@ -1290,7 +1596,7 @@ export async function requestPostFlightClarification(input: {
     event_type:    'message',
     request_kind:  'clarification_request',
     title:         'Post-flight clarification needed',
-    body:          `[${input.category}] ${input.message}`,
+    body:          noteBody,
     is_read:       false,
   })
 

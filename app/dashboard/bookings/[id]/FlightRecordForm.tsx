@@ -56,6 +56,11 @@ type Props = {
     category: string
     message: string
   } | null
+  meterAdjustment?: {
+    previous_vdo: number
+    adjusted_vdo: number
+    difference: number
+  } | null
   upfrontPaidCents?: number
   initialRecordStatus?: string | null
 }
@@ -89,6 +94,7 @@ export default function FlightRecordForm({
   initialLandings,
   initialAttachments,
   clarification,
+  meterAdjustment = null,
   upfrontPaidCents = 0,
 }: Props) {
   const router = useRouter()
@@ -140,7 +146,9 @@ export default function FlightRecordForm({
   const bankReceiptInputRef = useRef<HTMLInputElement>(null)
 
   const [readings, setReadings] = useState<TotalOnlyFormValues>({
-    vdo_total: initialRecord?.vdo_total != null ? String(initialRecord.vdo_total) : '',
+    vdo_total: meterAdjustment?.adjusted_vdo != null
+      ? String(meterAdjustment.adjusted_vdo)
+      : (initialRecord?.vdo_total != null ? String(initialRecord.vdo_total) : ''),
     air_switch_total: initialRecord?.air_switch_total != null ? String(initialRecord.air_switch_total) : '',
   })
   const [notes, setNotes] = useState(initialRecord?.customer_notes ?? '')
@@ -524,6 +532,22 @@ export default function FlightRecordForm({
             <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block mb-1">Message from Admin:</span>
             <span className="whitespace-pre-line">&ldquo;{clarification.message}&rdquo;</span>
           </div>
+
+          {meterAdjustment && (
+            <div className="p-4 bg-white rounded-xl border border-blue-200 shadow-sm flex items-start gap-3 text-xs">
+              <span className="material-symbols-outlined text-[#1a4fd6] text-xl flex-shrink-0 mt-0.5">
+                tune
+              </span>
+              <div className="space-y-1">
+                <span className="font-bold text-slate-900 block">Meter Reading Correction by Operations</span>
+                <p className="text-slate-600 leading-relaxed">
+                  Previously submitted VDO reading: <strong>{meterAdjustment.previous_vdo} hrs</strong> &rarr; Operations verified: <strong className="text-[#1a4fd6]">{meterAdjustment.adjusted_vdo} hrs</strong>
+                  {meterAdjustment.difference > 0 ? ` (+${meterAdjustment.difference} hrs)` : ` (${meterAdjustment.difference} hrs)`}.
+                  The readings below have been updated to reflect the verified hours.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -536,6 +560,15 @@ export default function FlightRecordForm({
             <p className="text-xs text-[#4b6390]">Enter total meter readings from the cockpit</p>
           </div>
         </div>
+
+        {meterAdjustment && (
+          <div className="flex items-center gap-2.5 p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-950 font-medium">
+            <span className="material-symbols-outlined text-[#1a4fd6] text-base">info</span>
+            <span>
+              Previously submitted: <strong>{meterAdjustment.previous_vdo} hrs</strong> &rarr; Operations updated to: <strong className="text-[#1a4fd6]">{meterAdjustment.adjusted_vdo} hrs</strong>
+            </span>
+          </div>
+        )}
 
         <TotalOnlyReadingsForm
           values={readings}
@@ -843,19 +876,74 @@ export default function FlightRecordForm({
             {calc.validationError}
           </div>
         ) : (
-          <div className="space-y-3.5 text-sm">
+          <div className="space-y-4 text-sm">
+            {/* Block Time Package Drawdown Summary Card */}
+            {calc.isBlockTime && (
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 sm:p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[#1a4fd6] text-lg">inventory_2</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#152d5a]">
+                      {calc.blockPackageName}
+                    </span>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-[#1a4fd6] border border-blue-200">
+                    Active Package
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                  <div className="bg-white rounded-xl p-2.5 border border-blue-100 shadow-xs">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#4b6390] block mb-0.5">Package Balance</span>
+                    <span className="text-sm font-bold text-[#152d5a] tabular-nums">{calc.blockHoursBefore?.toFixed(1) ?? '—'}h</span>
+                  </div>
+                  <div className="bg-white rounded-xl p-2.5 border border-blue-100 shadow-xs">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700 block mb-0.5">Hours Deducted</span>
+                    <span className="text-sm font-bold text-emerald-600 tabular-nums">-{calc.blockHoursDeducted.toFixed(1)}h</span>
+                  </div>
+                  <div className="bg-white rounded-xl p-2.5 border border-blue-100 shadow-xs">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#4b6390] block mb-0.5">Remaining Balance</span>
+                    <span className="text-sm font-bold text-[#152d5a] tabular-nums">{calc.blockHoursRemainingAfter?.toFixed(1) ?? '0.0'}h</span>
+                  </div>
+                </div>
+
+                {calc.blockOverageHours > 0 && (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                      <span className="material-symbols-outlined text-sm text-amber-600">warning</span>
+                      <span>Package Hours Depleted ({calc.blockOverageHours.toFixed(1)}h Overage)</span>
+                    </div>
+                    <p className="text-amber-800 text-[11px] leading-relaxed">
+                      Your package covers {calc.blockHoursDeducted.toFixed(1)}h ($0.00). The remaining {calc.blockOverageHours.toFixed(1)}h is billed at the standard aircraft hire rate of ${money(calc.standardHourlyRate * 100)}/hr (${money(calc.blockOverageAmountCents)}).
+                    </p>
+                    <div className="pt-1">
+                      <a
+                        href="/dashboard/purchases"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-[#1a4fd6] hover:underline"
+                      >
+                        <span className="material-symbols-outlined text-xs">add_shopping_cart</span>
+                        Top up block hours before submitting to avoid standard hire rates
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* VDO Hours / Block Time line */}
             <div className="flex items-start justify-between gap-4 text-[#152d5a]">
               <div>
                 <p className="font-semibold">
-                  {calc.isBlockTime ? 'Flight Hours (Block Time Package)' : 'Flight Charge (VDO Hours)'}
+                  {calc.isBlockTime ? `Flight Hours (${calc.blockPackageName || 'Block Time Package'})` : 'Flight Charge (VDO Hours)'}
                 </p>
                 <p className="text-xs text-[#4b6390] mt-0.5">
                   {calc.billedVdoHours != null && calc.billedVdoHours > 0 ? (
                     calc.isBlockTime ? (
                       calc.blockOverageHours > 0 ? (
                         <>
-                          {calc.blockHoursDeducted.toFixed(1)}h covered via package + {calc.blockOverageHours.toFixed(1)}h overage (${money(calc.hourlyRate * 100)}/hr)
+                          {calc.blockHoursDeducted.toFixed(1)}h covered via package + {calc.blockOverageHours.toFixed(1)}h overage (${money(calc.standardHourlyRate * 100)}/hr)
                         </>
                       ) : (
                         <>{calc.blockHoursDeducted.toFixed(1)}h deducted from block time balance</>
@@ -928,7 +1016,9 @@ export default function FlightRecordForm({
                 <span className="text-base font-bold">Net Amount Due</span>
                 {netPayableDueCents === 0 && (
                   <span className="block text-[11px] text-emerald-600 font-medium mt-0.5">
-                    {calc.isFullyCovered
+                    {calc.isBlockTime
+                      ? 'Covered by Block Time Package ($0.00 due)'
+                      : calc.isFullyCovered
                       ? '100% covered by package / credit balance'
                       : 'Fully covered by upfront payment'}
                   </span>
@@ -940,35 +1030,45 @@ export default function FlightRecordForm({
         )}
 
         {/* ── PAYMENT METHOD SELECTION ────────────────────────────────────── */}
-        {netPayableDueCents === 0 && isResubmission && (
+        {netPayableDueCents === 0 && (
           <div className="border-t border-[#dbe7f4] pt-6 space-y-5">
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 sm:p-5 text-xs space-y-3 shadow-sm">
               <div className="flex items-center gap-2 text-emerald-800 font-bold uppercase tracking-wider">
                 <span className="material-symbols-outlined text-lg text-emerald-600" style={{ fontVariationSettings: "'FILL' 1" }}>
                   verified
                 </span>
-                Payment Already Covered / Recorded
+                {calc.isBlockTime
+                  ? 'Covered by Block Time Package'
+                  : isResubmission
+                  ? 'Payment Already Covered / Recorded'
+                  : 'Zero Balance Due'}
               </div>
               <p className="text-emerald-700 leading-relaxed">
-                Your flight charges are fully covered by your upfront payment on file (${money(effectiveUpfrontPaidCents)}) or package credits. No additional payment is required.
+                {calc.isBlockTime
+                  ? `Your flight hours are fully covered by your active package (${calc.blockPackageName}). Net balance due is $0.00. No card or bank transfer payment is required.`
+                  : effectiveUpfrontPaidCents > 0
+                  ? `Your flight charges are fully covered by your upfront payment on file (${money(effectiveUpfrontPaidCents)}) or package credits. No additional payment is required.`
+                  : 'Total net amount due is $0.00. No payment is required.'}
               </p>
-              <div className="flex flex-wrap gap-2.5 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('previous_payment')}
-                  className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400"
-                >
-                  <span className="material-symbols-outlined text-sm">check_circle</span>
-                  Keep Previous Payment (No Payment Required)
-                </button>
-              </div>
+              {isResubmission && (
+                <div className="flex flex-wrap gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('previous_payment')}
+                    className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400"
+                  >
+                    <span className="material-symbols-outlined text-sm">check_circle</span>
+                    Keep Previous Payment (No Payment Required)
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {netPayableDueCents > 0 && (
           <div className="border-t border-[#dbe7f4] pt-6 space-y-5">
-            {effectiveUpfrontPaidCents > 0 && (
+            {effectiveUpfrontPaidCents > 0 ? (
               <div className="rounded-2xl border border-amber-300 bg-amber-50/80 p-4 sm:p-5 text-xs space-y-2 shadow-sm">
                 <div className="flex items-center gap-2 text-amber-900 font-bold uppercase tracking-wider">
                   <span className="material-symbols-outlined text-lg text-amber-600">payments</span>
@@ -978,7 +1078,27 @@ export default function FlightRecordForm({
                   Your upfront payment of <strong>${money(effectiveUpfrontPaidCents)}</strong> is on file. Please select a payment method below to settle the remaining requested balance of <strong>${money(netPayableDueCents)}</strong>.
                 </p>
               </div>
-            )}
+            ) : calc.isBlockTime ? (
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-4 sm:p-5 text-xs space-y-2 shadow-sm">
+                <div className="flex items-center gap-2 text-[#152d5a] font-bold uppercase tracking-wider">
+                  <span className="material-symbols-outlined text-lg text-[#1a4fd6]">payments</span>
+                  Amount Due for Settlement: ${money(netPayableDueCents)}
+                </div>
+                <p className="text-[#4b6390] leading-relaxed">
+                  Flight hours ({calc.blockHoursDeducted.toFixed(1)}h) will be deducted from your {calc.blockPackageName}.
+                  Please select a payment method below to settle{' '}
+                  <span className="font-semibold text-[#152d5a]">
+                    {calc.blockOverageHours > 0
+                      ? `${calc.blockOverageHours.toFixed(1)}h overage ($${money(calc.blockOverageAmountCents)})`
+                      : ''}
+                    {calc.blockOverageHours > 0 && calc.landingSubtotalCents > 0 ? ' and ' : ''}
+                    {calc.landingSubtotalCents > 0
+                      ? `landing charges ($${money(calc.landingSubtotalCents)})`
+                      : ''}
+                  </span>.
+                </p>
+              </div>
+            ) : null}
 
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] block mb-3">
@@ -1021,7 +1141,7 @@ export default function FlightRecordForm({
                   </div>
                   <div className="text-left">
                     <p className="text-xs font-bold uppercase tracking-wider text-[#152d5a]">Bank Transfer</p>
-                    <p className="text-[11px] text-[#4b6390]">Transfer via NAB & upload receipt</p>
+                    <p className="text-[11px] text-[#4b6390]">Bank transfer & upload receipt</p>
                   </div>
                 </button>
               </div>
@@ -1179,7 +1299,11 @@ export default function FlightRecordForm({
                 : 'check_circle'}
             </span>
             {paymentMethod === 'previous_payment' || netPayableDueCents === 0
-              ? (isResubmission ? 'Resubmit Flight Record ($0.00 Due)' : 'Submit Flight Record ($0.00 Due)')
+              ? (calc.isBlockTime
+                  ? `Submit Flight Record (Covered by ${calc.blockPackageName || 'Package'})`
+                  : isResubmission
+                  ? 'Resubmit Flight Record ($0.00 Due)'
+                  : 'Submit Flight Record ($0.00 Due)')
               : paymentMethod === 'stripe'
               ? `Pay $${money(totalCardChargeRemainingCents)} & Submit Flight Record`
               : `Submit Flight Record & Bank Transfer Proof ($${money(netPayableDueCents)})`}

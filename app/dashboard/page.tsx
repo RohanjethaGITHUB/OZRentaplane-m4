@@ -306,14 +306,16 @@ export default async function DashboardPage({
         .order('purchased_at', { ascending: false })
         .limit(10),
       searchParams?.block_time_purchase === 'success'
-        ? supabase
-          .from('invoices')
-          .select('pdf_url')
-          .eq('user_id', user.id)
-          .eq('type', 'block_time_purchase')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
+        ? Promise.resolve(
+            supabase
+              .from('invoices')
+              .select('pdf_url')
+              .eq('user_id', user.id)
+              .eq('type', 'block_time_purchase')
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle(),
+          ).catch(() => ({ data: null }))
         : Promise.resolve({ data: null }),
     ]),
     (result) => ({

@@ -41,7 +41,9 @@ import {
   emitBookingChanged,
   emitOpsChanged,
   emitFlightRecordUpdated,
+  emitBlockTimeUpdated,
 } from '@/lib/realtime/emit'
+import { requestPdfGeneration } from '@/lib/invoices/request-pdf'
 import type {
   CreateBookingInput,
   SubmitFlightRecordInput,
@@ -600,19 +602,45 @@ export async function submitAndPayPostFlight(
   const rawHourlyRate = aircraftData?.default_hourly_rate ? Number(aircraftData.default_hourly_rate) : 330
   const defaultHourlyRate = rawHourlyRate >= 290 ? rawHourlyRate : 330
 
-  const [{ data: airportRows }, { data: creditRow }, { data: activeBlockTimeRow }] = await Promise.all([
+  const [{ data: airportRows }, { data: creditRow }, { data: primaryBlockTime }] = await Promise.all([
     supabase.from('airports').select('id, icao_code, name, default_landing_fee_cents').eq('is_active', true),
     supabase.from('customer_credit_balances').select('balance_cents').eq('customer_id', userId).maybeSingle(),
     supabase.from('pilot_block_time_purchases')
-      .select('id, hours_remaining, rate_per_hour, expires_at')
+      .select('id, hours_remaining, rate_per_hour, expires_at, hours_purchased, status, package:block_time_packages(name)')
       .eq('user_id', userId)
       .eq('status', 'active')
-      .gt('expires_at', new Date().toISOString())
       .gt('hours_remaining', 0)
       .order('activated_at', { ascending: true })
       .limit(1)
       .maybeSingle(),
   ])
+
+  let activeBlockTimeRow = primaryBlockTime
+  if (!activeBlockTimeRow) {
+    const { data: fallbackBlockTime } = await supabase
+      .from('pilot_block_time_purchases')
+      .select('id, hours_remaining, rate_per_hour, expires_at, hours_purchased, status, package:block_time_packages(name)')
+      .eq('user_id', userId)
+      .in('status', ['active', 'expired'])
+      .gte('expires_at', booking.scheduled_start)
+      .gt('hours_remaining', 0)
+      .order('activated_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    activeBlockTimeRow = fallbackBlockTime
+  }
+
+  const activeBlockTimeSummary = activeBlockTimeRow ? {
+    id: activeBlockTimeRow.id,
+    hours_remaining: Number(activeBlockTimeRow.hours_remaining),
+    rate_per_hour: Number(activeBlockTimeRow.rate_per_hour),
+    expires_at: activeBlockTimeRow.expires_at,
+    status: (activeBlockTimeRow as any).status ?? 'active',
+    package_name: (Array.isArray((activeBlockTimeRow as any).package)
+      ? (activeBlockTimeRow as any).package[0]?.name
+      : (activeBlockTimeRow as any).package?.name) ?? `${(activeBlockTimeRow as any).hours_purchased ?? ''}h Block Time Package`,
+    hours_purchased: Number((activeBlockTimeRow as any).hours_purchased ?? 0),
+  } : null
 
   const calc = calculatePostFlightCharges({
     vdoTotal: input.vdo_total,
@@ -622,7 +650,7 @@ export async function submitAndPayPostFlight(
     defaultHourlyRate,
     airports: (airportRows ?? []) as any[],
     landingRows: input.landing_rows ?? [],
-    activeBlockTime: activeBlockTimeRow ?? null,
+    activeBlockTime: activeBlockTimeSummary,
     customerCreditCents: creditRow?.balance_cents ?? 0,
     minimumVdoDecision: input.minimum_vdo_decision,
   })
@@ -895,6 +923,14 @@ export async function submitAndPayPostFlight(
       const { data: userProfile } = await supabase.from('profiles').select('email, full_name').eq('id', userId).single()
       const displayRef = booking.booking_reference ?? input.booking_id.slice(0, 8).toUpperCase()
 
+      const compactLandingItems = (calc.landingItems ?? []).map((item) => ({
+        id: item.airportId,
+        c: item.landingCount,
+        u: item.unitAmountCents,
+        t: item.totalAmountCents,
+      }))
+      const serializedLandings = JSON.stringify(compactLandingItems)
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         mode: 'payment',
@@ -927,8 +963,16 @@ export async function submitAndPayPostFlight(
           amount_due_cents: String(remainingPayableCents),
           surcharge_cents: String(surchargeCents),
           total_card_charge_cents: String(stripeUnitAmount),
-          customer_notes: input.customer_notes ?? '',
-          landing_items: JSON.stringify(calc.landingItems),
+          customer_notes: (input.customer_notes ?? '').slice(0, 480),
+          landing_items: serializedLandings.length <= 480 ? serializedLandings : '',
+          is_block_time: calc.isBlockTime ? 'true' : 'false',
+          block_package_id: calc.blockPackageId ?? '',
+          block_package_name: (calc.blockPackageName ?? '').slice(0, 100),
+          block_hours_before: calc.blockHoursBefore != null ? String(calc.blockHoursBefore) : '',
+          block_hours_deducted: String(calc.blockHoursDeducted),
+          block_hours_remaining_after: calc.blockHoursRemainingAfter != null ? String(calc.blockHoursRemainingAfter) : '',
+          block_overage_hours: String(calc.blockOverageHours),
+          block_overage_amount_cents: String(calc.blockOverageAmountCents),
         },
         success_url: `${appUrl}/dashboard/bookings/${input.booking_id}?payment=success`,
         cancel_url: `${appUrl}/dashboard/bookings/${input.booking_id}?payment=cancelled`,
@@ -947,17 +991,37 @@ export async function submitAndPayPostFlight(
     invoiceId = existingInvoice?.id || ''
     invoiceNumber = existingInvoice?.invoice_number || ''
 
+    const isZeroBalance = netPayableDueCents === 0
     const invoiceStatus = input.payment_method === 'previous_payment'
       ? (existingInvoice?.status ?? 'bank_transfer_pending_review')
       : input.payment_method === 'bank_transfer'
       ? 'bank_transfer_pending_review'
-      : (calc.amountDueCents === 0 ? 'paid' : 'payment_verification_required')
+      : (isZeroBalance ? 'paid' : 'payment_verification_required')
 
     const dbPaymentMethod = input.payment_method === 'previous_payment'
       ? (existingInvoice?.payment_method ?? 'card')
       : input.payment_method === 'stripe'
       ? 'card'
-      : (input.payment_method === 'credit_or_block_time' ? 'account_credit' : input.payment_method)
+      : ((input.payment_method === 'credit_or_block_time' || isZeroBalance) ? 'account_credit' : input.payment_method)
+
+    const matchHrs = calc.blockPackageName?.match(/(\d+(?:\.\d+)?)\s*(?:hrs?|hours?)/i)
+    const blockTimeSnapshot = calc.isBlockTime ? {
+      package_id: calc.blockPackageId,
+      package_name: calc.blockPackageName,
+      hours_purchased: matchHrs ? Number(matchHrs[1]) : undefined,
+      hours_before: calc.blockHoursBefore,
+      hours_deducted: calc.blockHoursDeducted,
+      hours_remaining: calc.blockHoursRemainingAfter,
+      overage_hours: calc.blockOverageHours,
+      overage_amount_cents: calc.blockOverageAmountCents,
+    } : null
+
+    const adminNotesPayload = blockTimeSnapshot
+      ? JSON.stringify({
+          block_time: blockTimeSnapshot,
+          customer_notes: input.customer_notes || null,
+        })
+      : input.customer_notes ?? null
 
     if (!invoiceId) {
       invoiceNumber = `BKINV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${new Date().toTimeString().slice(0, 8).replace(/:/g, '')}-${input.booking_id.slice(0, 6).toUpperCase()}`
@@ -977,12 +1041,12 @@ export async function submitAndPayPostFlight(
           subtotal_cents: calc.subtotalCents,
           advance_applied_cents: calc.creditAppliedCents,
           stripe_amount_due_cents: netPayableDueCents,
-          total_paid_cents: (input.payment_method === 'credit_or_block_time' && calc.amountDueCents === 0) ? calc.subtotalCents : 0,
+          total_paid_cents: isZeroBalance ? calc.subtotalCents : 0,
           payment_method: dbPaymentMethod,
-          paid_at: (input.payment_method === 'credit_or_block_time' && calc.amountDueCents === 0) ? now : null,
+          paid_at: isZeroBalance ? now : null,
           finalised_by: userId,
           finalised_at: now,
-          admin_notes: input.customer_notes ?? null,
+          admin_notes: adminNotesPayload,
         })
         .select('id, invoice_number')
         .single()
@@ -1018,12 +1082,16 @@ export async function submitAndPayPostFlight(
         subtotal_cents: calc.subtotalCents,
         advance_applied_cents: calc.creditAppliedCents,
         stripe_amount_due_cents: netPayableDueCents,
-        admin_notes: input.customer_notes ?? null,
+        admin_notes: adminNotesPayload,
         updated_at: now,
       }
       if (input.payment_method !== 'previous_payment') {
         updatePayload.payment_method = dbPaymentMethod
         updatePayload.status = invoiceStatus
+      }
+      if (isZeroBalance) {
+        updatePayload.total_paid_cents = calc.subtotalCents
+        updatePayload.paid_at = now
       }
       await adminSupabase.from('booking_invoices').update(updatePayload).eq('id', invoiceId)
 
@@ -1042,6 +1110,42 @@ export async function submitAndPayPostFlight(
           )
         }
       }
+    }
+
+    // Deduct block time hours for non-Stripe payment paths (isZeroBalance or bank_transfer)
+    if (calc.isBlockTime && calc.blockPackageId && calc.blockHoursDeducted > 0) {
+      const hoursAfter = calc.blockHoursRemainingAfter ?? 0
+      await adminSupabase
+        .from('pilot_block_time_purchases')
+        .update({
+          hours_remaining: hoursAfter,
+          status: hoursAfter <= 0 ? 'exhausted' : 'active',
+          updated_at: now,
+        })
+        .eq('id', calc.blockPackageId)
+
+      await adminSupabase
+        .from('pilot_block_time_usage')
+        .insert({
+          purchase_id: calc.blockPackageId,
+          user_id: userId,
+          booking_id: input.booking_id,
+          invoice_id: null,
+          hours_deducted: calc.blockHoursDeducted,
+          overflow_hours: calc.blockOverageHours,
+          overflow_amount: Math.round(calc.blockOverageAmountCents / 100),
+          hours_before: calc.blockHoursBefore ?? 0,
+          hours_after: hoursAfter,
+        })
+
+      void emitBlockTimeUpdated(userId)
+    }
+
+    if (invoiceId) {
+      void requestPdfGeneration({
+        type: 'standard_booking',
+        invoiceId,
+      })
     }
 
     if (input.payment_method === 'bank_transfer' && input.bank_transfer_receipt_path && invoiceId) {

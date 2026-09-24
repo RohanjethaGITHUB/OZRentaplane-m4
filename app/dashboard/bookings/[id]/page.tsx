@@ -139,6 +139,7 @@ type StandardBookingInvoicePreview = {
   paid_at: string | null
   status: string
   payment_method: string | null
+  admin_notes?: string | null
 }
 
 type InvoiceLandingChargePreview = {
@@ -154,17 +155,20 @@ function BlockTimeInfoBanner({
   bookingSlotHours,
   is24HourBooking,
   daysUntilExpiry,
+  standardHourlyRate = 330,
 }: {
   activePackage: ActiveBlockTimePackage | null
   bookingSlotHours: number
   is24HourBooking: boolean
   daysUntilExpiry: number | null
+  standardHourlyRate?: number
 }) {
   if (!activePackage) return null
 
   const formattedExpiry = formatDateFromISO(activePackage.expires_at)
   const balanceText = `${activePackage.hours_remaining.toFixed(1)}h`
   const rateText = `$${activePackage.rate_per_hour.toFixed(2)}/hr`
+  const standardRateText = `$${standardHourlyRate.toFixed(2)}/hr`
 
   return (
     <div className="bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6 sm:p-8 shadow-[0_4px_30px_rgba(2,10,22,0.08)]">
@@ -197,7 +201,7 @@ function BlockTimeInfoBanner({
           <div className="flex items-start gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3.5">
             <span className="material-symbols-outlined text-amber-400 text-[14px] mt-0.5 flex-shrink-0">warning</span>
             <p className="text-[13px] text-amber-600/80 leading-relaxed">
-              Your current balance of {activePackage.hours_remaining.toFixed(1)}h is less than this booking slot of {bookingSlotHours.toFixed(1)}h. Any overflow will be charged at your block rate of {rateText}.
+              Your current balance of {activePackage.hours_remaining.toFixed(1)}h is less than this booking slot of {bookingSlotHours.toFixed(1)}h. Any overflow will be charged at the standard rate of {standardRateText}.
             </p>
           </div>
         )}
@@ -649,15 +653,28 @@ function NextActionCard({
     )
   }
 
-  if (status === 'pending_post_flight_review') {
+  if (status === 'pending_post_flight_review' || status === 'needs_clarification') {
     // If the flight record needs clarification, show the full clarification panel
     if (postFlightClarification && flightRecord) {
+      const meterAdjustment = (() => {
+        if (bookingInvoice?.admin_notes) {
+          try {
+            const parsed = typeof bookingInvoice.admin_notes === 'string'
+              ? JSON.parse(bookingInvoice.admin_notes)
+              : bookingInvoice.admin_notes
+            if (parsed?.meter_adjustment) return parsed.meter_adjustment
+          } catch {}
+        }
+        return null
+      })()
+
       return (
         <PostFlightClarificationPanel
           clarification={postFlightClarification}
           flightRecord={flightRecord}
           bookingId={bookingId}
           existingAttachments={postFlightAttachments ?? []}
+          meterAdjustment={meterAdjustment}
         />
       )
     }
@@ -1053,7 +1070,7 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
   if (!booking) notFound()
 
   const [
-    { data: activePackage },
+    { data: primaryActivePackage },
     { data: latestRescheduleRequest },
     { data: rawHistory },
     { data: termsAcceptanceRow },
@@ -1066,11 +1083,12 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
       rate_per_hour,
       expires_at,
       hours_purchased,
-      package:block_time_packages(name)
+      status,
+      package:block_time_packages(name, hours)
     `)
       .eq('user_id', user.id)
       .eq('status', 'active')
-      .gt('expires_at', new Date().toISOString())
+      .gt('hours_remaining', 0)
       .order('activated_at', { ascending: true })
       .limit(1)
       .maybeSingle(),
@@ -1095,6 +1113,49 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
       .limit(1)
       .maybeSingle(),
   ])
+
+  let activePackage = primaryActivePackage
+  if (!activePackage) {
+    const { data: fallbackPackage } = await supabase
+      .from('pilot_block_time_purchases')
+      .select(`
+      id,
+      hours_remaining,
+      rate_per_hour,
+      expires_at,
+      hours_purchased,
+      status,
+      package:block_time_packages(name, hours)
+    `)
+      .eq('user_id', user.id)
+      .in('status', ['active', 'expired'])
+      .gte('expires_at', booking.scheduled_start)
+      .gt('hours_remaining', 0)
+      .order('activated_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    activePackage = fallbackPackage
+  }
+
+  const activeBlockTimeSummary = activePackage ? {
+    id: activePackage.id,
+    hours_remaining: Number(activePackage.hours_remaining),
+    rate_per_hour: Number(activePackage.rate_per_hour),
+    expires_at: activePackage.expires_at,
+    status: (activePackage as any).status ?? 'active',
+    package_name: (() => {
+      const rawPkg = Array.isArray(activePackage.package)
+        ? activePackage.package[0]
+        : (activePackage.package as any)
+      const baseName = rawPkg?.name ?? 'Starter Block'
+      const hrs = Number((activePackage as any).hours_purchased ?? (rawPkg as any)?.hours ?? 0)
+      if (hrs > 0 && !baseName.toLowerCase().includes('hr')) {
+        return `${baseName} (${hrs}hr package)`
+      }
+      return baseName
+    })(),
+    hours_purchased: Number((activePackage as any).hours_purchased ?? (Array.isArray(activePackage.package) ? (activePackage.package[0] as any)?.hours : (activePackage.package as any)?.hours) ?? 0),
+  } : null
 
   const pendingRescheduleRequest =
     latestRescheduleRequest?.status === 'pending'
@@ -1233,7 +1294,7 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
   if (isInvoiceEligibleStatus) {
     const { data: bInv } = await supabase
       .from('booking_invoices')
-      .select('id, invoice_number, vdo_reading, rate_cents_per_hour, base_amount_cents, landing_subtotal_cents, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, total_paid_cents, paid_at, status, payment_method')
+      .select('id, invoice_number, vdo_reading, rate_cents_per_hour, base_amount_cents, landing_subtotal_cents, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, total_paid_cents, paid_at, status, payment_method, admin_notes')
       .eq('booking_id', booking.id)
       .maybeSingle()
     bookingInvoice = bInv as StandardBookingInvoicePreview | null
@@ -1724,6 +1785,7 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
                 bookingSlotHours={bookingSlotHours}
                 is24HourBooking={is24HourBooking}
                 daysUntilExpiry={daysUntilExpiry}
+                standardHourlyRate={defaultHourlyRate}
               />
             </div>
           )}
@@ -1881,7 +1943,7 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
                   picArn={booking.pic_arn}
                   flightDate={flightDate}
                   airports={airports}
-                  activePackage={activePackage as ActiveBlockTimePackage | null}
+                  activePackage={activeBlockTimeSummary}
                   bookingSlotHours={bookingSlotHours}
                   scheduledStart={booking.scheduled_start}
                   scheduledEnd={booking.scheduled_end}
@@ -1912,6 +1974,17 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
                       ? (bookingInvoice?.subtotal_cents ?? 0)
                       : 0
                   }
+                  meterAdjustment={(() => {
+                    if (bookingInvoice?.admin_notes) {
+                      try {
+                        const parsed = typeof bookingInvoice.admin_notes === 'string'
+                          ? JSON.parse(bookingInvoice.admin_notes)
+                          : bookingInvoice.admin_notes
+                        if (parsed?.meter_adjustment) return parsed.meter_adjustment
+                      } catch {}
+                    }
+                    return null
+                  })()}
                   clarification={postFlightClarification ? {
                     category: postFlightClarification.category,
                     message: postFlightClarification.message,
@@ -1981,6 +2054,7 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
               bookingSlotHours={bookingSlotHours}
               is24HourBooking={is24HourBooking}
               daysUntilExpiry={daysUntilExpiry}
+              standardHourlyRate={Number((aircraft as any)?.default_hourly_rate ?? 330)}
             />
           </div>
         )}

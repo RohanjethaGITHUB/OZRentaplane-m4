@@ -1232,6 +1232,35 @@ export async function POST(req: Request) {
           ? effectiveSubtotal
           : ((invRecord?.total_paid_cents || 0) + amountPaid);
 
+        const isBlockTime = session.metadata?.is_block_time === "true";
+        const blockPackageId = session.metadata?.block_package_id || null;
+        const blockHoursDeducted = Number(session.metadata?.block_hours_deducted) || 0;
+        const blockHoursRemainingAfter = session.metadata?.block_hours_remaining_after != null && session.metadata?.block_hours_remaining_after !== ''
+          ? Number(session.metadata?.block_hours_remaining_after)
+          : null;
+        const blockHoursBefore = session.metadata?.block_hours_before != null && session.metadata?.block_hours_before !== ''
+          ? Number(session.metadata?.block_hours_before)
+          : null;
+        const blockOverageHours = Number(session.metadata?.block_overage_hours) || 0;
+        const blockOverageAmountCents = Number(session.metadata?.block_overage_amount_cents) || 0;
+        const blockPackageName = session.metadata?.block_package_name || "Block Time Package";
+
+        let adminNotesPayload = session.metadata?.customer_notes || null;
+        if (isBlockTime && blockPackageId) {
+          adminNotesPayload = JSON.stringify({
+            block_time: {
+              package_id: blockPackageId,
+              package_name: blockPackageName,
+              hours_before: blockHoursBefore,
+              hours_deducted: blockHoursDeducted,
+              hours_remaining: blockHoursRemainingAfter,
+              overage_hours: blockOverageHours,
+              overage_amount_cents: blockOverageAmountCents,
+            },
+            customer_notes: session.metadata?.customer_notes || null,
+          });
+        }
+
         if (!targetInvoiceId) {
           const invoiceNumber = `BKINV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${new Date().toTimeString().slice(0, 8).replace(/:/g, '')}-${bookingId.slice(0, 6).toUpperCase()}`;
           const { data: newInv } = await supabase
@@ -1258,7 +1287,7 @@ export async function POST(req: Request) {
               paid_at: new Date().toISOString(),
               finalised_by: customerId,
               finalised_at: new Date().toISOString(),
-              admin_notes: session.metadata?.customer_notes || null,
+              admin_notes: adminNotesPayload,
             })
             .select("id")
             .single();
@@ -1267,24 +1296,52 @@ export async function POST(req: Request) {
             targetInvoiceId = newInv.id;
           }
 
-          if (session.metadata?.landing_items && targetInvoiceId) {
-            try {
-              const landingItems = JSON.parse(session.metadata.landing_items);
-              if (Array.isArray(landingItems) && landingItems.length > 0) {
+          if (targetInvoiceId) {
+            let landingItems: any[] = [];
+            if (session.metadata?.landing_items) {
+              try {
+                landingItems = JSON.parse(session.metadata.landing_items);
+              } catch (e) {
+                console.warn("[webhook] Landing items metadata parse error (non-critical):", e);
+              }
+            }
+
+            if (Array.isArray(landingItems) && landingItems.length > 0) {
+              await supabase.from("booking_landing_charges").delete().eq("booking_invoice_id", targetInvoiceId);
+              await supabase.from("booking_landing_charges").insert(
+                landingItems.map((item: any) => ({
+                  booking_invoice_id: targetInvoiceId,
+                  booking_id: bookingId,
+                  airport_id: item.airportId || item.id,
+                  landing_count: Number(item.landingCount ?? item.c ?? 1),
+                  unit_amount_cents: Number(item.unitAmountCents ?? item.u ?? 2895),
+                  total_amount_cents: Number(item.totalAmountCents ?? item.t ?? 2895),
+                }))
+              );
+            } else if (session.metadata?.flight_record_id) {
+              // Fallback to flight_record_landings in database
+              const { data: frLandings } = await supabase
+                .from("flight_record_landings")
+                .select("airport_id, landing_count, airports(default_landing_fee_cents)")
+                .eq("flight_record_id", session.metadata.flight_record_id);
+
+              if (frLandings && frLandings.length > 0) {
                 await supabase.from("booking_landing_charges").delete().eq("booking_invoice_id", targetInvoiceId);
                 await supabase.from("booking_landing_charges").insert(
-                  landingItems.map((item: any) => ({
-                    booking_invoice_id: targetInvoiceId,
-                    booking_id: bookingId,
-                    airport_id: item.airportId,
-                    landing_count: item.landingCount,
-                    unit_amount_cents: item.unitAmountCents,
-                    total_amount_cents: item.totalAmountCents,
-                  }))
+                  frLandings.map((l: any) => {
+                    const unit = Number(l.airports?.default_landing_fee_cents || 2895);
+                    const count = Number(l.landing_count || 1);
+                    return {
+                      booking_invoice_id: targetInvoiceId,
+                      booking_id: bookingId,
+                      airport_id: l.airport_id,
+                      landing_count: count,
+                      unit_amount_cents: unit,
+                      total_amount_cents: count * unit,
+                    };
+                  })
                 );
               }
-            } catch (e) {
-              console.warn("[webhook] Landing items metadata parse error (non-critical):", e);
             }
           }
         } else {
@@ -1300,9 +1357,39 @@ export async function POST(req: Request) {
               stripe_amount_due_cents: 0,
               paid_at: new Date().toISOString(),
               status: "payment_verification_required",
+              admin_notes: adminNotesPayload,
               updated_at: new Date().toISOString(),
             })
             .eq("id", targetInvoiceId);
+        }
+
+        // Deduct block time hours if booking utilized a block time package
+        if (isBlockTime && blockPackageId && blockHoursDeducted > 0) {
+          const hoursAfter = blockHoursRemainingAfter != null ? blockHoursRemainingAfter : 0;
+          await supabase
+            .from("pilot_block_time_purchases")
+            .update({
+              hours_remaining: hoursAfter,
+              status: hoursAfter <= 0 ? "exhausted" : "active",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", blockPackageId);
+
+          await supabase
+            .from("pilot_block_time_usage")
+            .insert({
+              purchase_id: blockPackageId,
+              user_id: customerId,
+              booking_id: bookingId,
+              invoice_id: null,
+              hours_deducted: blockHoursDeducted,
+              overflow_hours: blockOverageHours,
+              overflow_amount: Math.round(blockOverageAmountCents / 100),
+              hours_before: blockHoursBefore ?? 0,
+              hours_after: hoursAfter,
+            });
+
+          void emitBlockTimeUpdated(customerId);
         }
 
         await supabase

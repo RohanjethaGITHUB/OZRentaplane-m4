@@ -21,10 +21,11 @@ const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png'])
 type Props = {
   flightRecord: FlightRecord
   bookingId: string
+  meterAdjustment?: { previous_vdo: number; adjusted_vdo: number; difference: number } | null
   onSuccess?: () => void
 }
 
-export default function FlightRecordResubmitForm({ flightRecord, bookingId, onSuccess }: Props) {
+export default function FlightRecordResubmitForm({ flightRecord, bookingId, meterAdjustment, onSuccess }: Props) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -39,9 +40,11 @@ export default function FlightRecordResubmitForm({ flightRecord, bookingId, onSu
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const [notes,           setNotes]           = useState(flightRecord.customer_notes ?? '')
 
-  // Pre-populate from the stored totals (generated columns from start/stop)
+  // Pre-populate from the stored totals or adjusted readings from operations
   const [readings, setReadings] = useState<TotalOnlyFormValues>({
-    vdo_total:        numberInputValue(flightRecord.vdo_total),
+    vdo_total:        meterAdjustment?.adjusted_vdo != null
+      ? String(meterAdjustment.adjusted_vdo)
+      : numberInputValue(flightRecord.vdo_total),
     air_switch_total: numberInputValue(flightRecord.air_switch_total),
   })
 
@@ -179,7 +182,14 @@ export default function FlightRecordResubmitForm({ flightRecord, bookingId, onSu
 
       <div className="px-7 py-6 space-y-8">
         <section>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6] mb-4">Aircraft Readings</p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1a4fd6]">Aircraft Readings</p>
+            {meterAdjustment && (
+              <span className="text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full">
+                Adjusted by Operations: {meterAdjustment.previous_vdo}h &rarr; {meterAdjustment.adjusted_vdo}h
+              </span>
+            )}
+          </div>
           <TotalOnlyReadingsForm
             values={readings}
             onChange={(field, value) => setReadings(prev => ({ ...prev, [field]: value }))}

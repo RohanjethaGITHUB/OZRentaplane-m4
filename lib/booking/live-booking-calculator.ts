@@ -12,6 +12,9 @@ export type ActiveBlockTimeSummary = {
   hours_remaining: number
   rate_per_hour: number
   expires_at: string
+  status?: string | null
+  package_name?: string
+  hours_purchased?: number
 }
 
 export type LandingInputRow = {
@@ -48,10 +51,16 @@ export type PostFlightCalculationResult = {
   minimumVdoBilling: MinimumVdoBilling
   billedVdoHours: number | null
   isBlockTime: boolean
+  blockPackageId?: string | null
+  blockPackageName?: string | null
+  blockHoursBefore?: number | null
   blockHoursRemaining: number | null
   blockHoursDeducted: number
+  blockHoursRemainingAfter?: number | null
   blockOverageHours: number
+  blockOverageAmountCents: number
   hourlyRate: number
+  standardHourlyRate: number
   flightBaseCents: number
   landingItems: CalculatedLandingItem[]
   landingSubtotalCents: number
@@ -94,24 +103,49 @@ export function calculatePostFlightCharges(params: PostFlightCalculationParams):
   })
 
   const billedVdoHours = minimumVdoBilling.billedVdoHours ?? vdoTotal
+
+  // Expiry check against flight date (scheduledStart) or current time, or status active
+  const flightTimestamp = scheduledStart ? new Date(scheduledStart).getTime() : Date.now()
   const isBlockTime = Boolean(
     activeBlockTime &&
     activeBlockTime.hours_remaining > 0 &&
-    new Date(activeBlockTime.expires_at).getTime() > Date.now(),
+    (
+      !activeBlockTime.expires_at ||
+      activeBlockTime.status === 'active' ||
+      new Date(activeBlockTime.expires_at).getTime() >= flightTimestamp ||
+      new Date(activeBlockTime.expires_at).getTime() >= Date.now()
+    ),
   )
 
+  let blockPackageId: string | null = null
+  let blockPackageName: string | null = null
+  let blockHoursBefore: number | null = null
   let blockHoursRemaining: number | null = null
   let blockHoursDeducted = 0
+  let blockHoursRemainingAfter: number | null = null
   let blockOverageHours = 0
+  let blockOverageAmountCents = 0
   let flightBaseCents = 0
-  const rateToUse = isBlockTime && activeBlockTime ? activeBlockTime.rate_per_hour : defaultHourlyRate
+  const rateToUse = isBlockTime && activeBlockTime?.rate_per_hour
+    ? activeBlockTime.rate_per_hour
+    : defaultHourlyRate
 
   if (billedVdoHours != null && billedVdoHours > 0) {
     if (isBlockTime && activeBlockTime) {
-      blockHoursRemaining = activeBlockTime.hours_remaining
-      blockHoursDeducted = Math.min(activeBlockTime.hours_remaining, billedVdoHours)
-      blockOverageHours = Math.max(0, billedVdoHours - activeBlockTime.hours_remaining)
-      flightBaseCents = Math.round(blockOverageHours * rateToUse * 100)
+      blockPackageId = activeBlockTime.id
+      const basePkgName = activeBlockTime.package_name ?? 'Starter Block'
+      const hrsPurchased = Number(activeBlockTime.hours_purchased ?? 0)
+      blockPackageName = (hrsPurchased > 0 && !basePkgName.toLowerCase().includes('hr'))
+        ? `${basePkgName} (${hrsPurchased}hr package)`
+        : basePkgName
+      blockHoursBefore = Math.round(activeBlockTime.hours_remaining * 100) / 100
+      blockHoursRemaining = blockHoursBefore
+      blockHoursDeducted = Math.round(Math.min(activeBlockTime.hours_remaining, billedVdoHours) * 100) / 100
+      blockHoursRemainingAfter = Math.max(0, Math.round((blockHoursBefore - blockHoursDeducted) * 100) / 100)
+      blockOverageHours = Math.max(0, Math.round((billedVdoHours - blockHoursDeducted) * 100) / 100)
+      // Case 1: Overage is billed at standard aircraft hire rate (defaultHourlyRate), not package rate
+      blockOverageAmountCents = Math.round(blockOverageHours * defaultHourlyRate * 100)
+      flightBaseCents = blockOverageAmountCents
     } else {
       flightBaseCents = Math.round(billedVdoHours * rateToUse * 100)
     }
@@ -176,10 +210,16 @@ export function calculatePostFlightCharges(params: PostFlightCalculationParams):
     minimumVdoBilling,
     billedVdoHours,
     isBlockTime,
+    blockPackageId,
+    blockPackageName,
+    blockHoursBefore,
     blockHoursRemaining,
     blockHoursDeducted,
+    blockHoursRemainingAfter,
     blockOverageHours,
+    blockOverageAmountCents,
     hourlyRate: rateToUse,
+    standardHourlyRate: defaultHourlyRate,
     flightBaseCents,
     landingItems,
     landingSubtotalCents,

@@ -281,12 +281,150 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
     ? Number(record.air_switch_stop) 
     : (airSwitchStart != null && airSwitchTotal != null ? Number((Number(airSwitchStart) + airSwitchTotal).toFixed(1)) : null)
 
-  const flightChargeCents = bookingInvoice?.base_amount_cents ?? (Number(vdoTotal ?? 0) * hourlyRate * 100)
+  let blockTimeDetails: {
+    packageId: string
+    packageName: string
+    hoursBefore: number
+    hoursDeducted: number
+    hoursRemaining: number
+    overageHours: number
+    overageAmountCents: number
+    hoursPurchased?: number
+  } | null = null
+
+  if (bookingInvoice?.admin_notes) {
+    try {
+      const parsedNotes = typeof bookingInvoice.admin_notes === 'string'
+        ? JSON.parse(bookingInvoice.admin_notes)
+        : bookingInvoice.admin_notes
+      if (parsedNotes?.block_time) {
+        blockTimeDetails = {
+          packageId: parsedNotes.block_time.package_id,
+          packageName: parsedNotes.block_time.package_name || 'Block Time Package',
+          hoursBefore: Number(parsedNotes.block_time.hours_before ?? 0),
+          hoursDeducted: Number(parsedNotes.block_time.hours_deducted ?? 0),
+          hoursRemaining: Number(parsedNotes.block_time.hours_remaining ?? 0),
+          overageHours: Number(parsedNotes.block_time.overage_hours ?? 0),
+          overageAmountCents: Number(parsedNotes.block_time.overage_amount_cents ?? 0),
+          hoursPurchased: Number(parsedNotes.block_time.hours_purchased ?? 0),
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!blockTimeDetails) {
+    const { data: usageRow } = await adminSupabase
+      .from('pilot_block_time_usage')
+      .select(`
+        purchase_id, hours_deducted, overflow_hours, overflow_amount, hours_before, hours_after,
+        purchase:pilot_block_time_purchases (
+          id, hours_purchased, rate_per_hour,
+          package:block_time_packages ( name, hours )
+        )
+      `)
+      .eq('booking_id', bookingId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (usageRow) {
+      const pPurchase = (usageRow as any).purchase
+      const pkg = Array.isArray(pPurchase?.package)
+        ? pPurchase?.package[0]
+        : pPurchase?.package
+      const hrsPurchased = Number(pPurchase?.hours_purchased || pkg?.hours || 0)
+      blockTimeDetails = {
+        packageId: usageRow.purchase_id,
+        packageName: pkg?.name || 'Block Time Package',
+        hoursBefore: Number(usageRow.hours_before ?? 0),
+        hoursDeducted: Number(usageRow.hours_deducted ?? 0),
+        hoursRemaining: Number(usageRow.hours_after ?? 0),
+        overageHours: Number(usageRow.overflow_hours ?? 0),
+        overageAmountCents: Math.round(Number(usageRow.overflow_amount ?? 0) * 100),
+        hoursPurchased: hrsPurchased,
+      }
+    }
+  }
+
+  if (!blockTimeDetails && customerId) {
+    const { data: activePurchase } = await adminSupabase
+      .from('pilot_block_time_purchases')
+      .select(`
+        id, hours_remaining, hours_purchased, rate_per_hour, expires_at, status,
+        package:block_time_packages ( name, hours )
+      `)
+      .eq('user_id', customerId)
+      .gt('hours_remaining', 0)
+      .order('activated_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (activePurchase && bookingInvoice?.base_amount_cents === 0 && (Number(record.vdo_total ?? 0) > 0 || (bookingInvoice?.total_paid_cents ?? 0) > 0)) {
+      const pkg = Array.isArray((activePurchase as any).package)
+        ? (activePurchase as any).package[0]
+        : (activePurchase as any).package
+      const vdoNum = Number(record.vdo_total ?? 0)
+      const hrsRem = Number(activePurchase.hours_remaining ?? 0)
+      const hrsPurchased = Number(activePurchase.hours_purchased || pkg?.hours || 0)
+      blockTimeDetails = {
+        packageId: activePurchase.id,
+        packageName: pkg?.name || 'Block Time Package',
+        hoursBefore: hrsRem + vdoNum,
+        hoursDeducted: vdoNum,
+        hoursRemaining: hrsRem,
+        overageHours: 0,
+        overageAmountCents: 0,
+        hoursPurchased: hrsPurchased,
+      }
+    }
+  }
+
+  // Ensure blockTimeDetails has the purchased hours reflected in packageName
+  if (blockTimeDetails) {
+    let hrsPurchased = blockTimeDetails.hoursPurchased || 0
+    if (!hrsPurchased && blockTimeDetails.packageId) {
+      const { data: pRow } = await adminSupabase
+        .from('pilot_block_time_purchases')
+        .select('hours_purchased, package:block_time_packages(name, hours)')
+        .eq('id', blockTimeDetails.packageId)
+        .maybeSingle()
+      if (pRow) {
+        const pkg = Array.isArray(pRow.package) ? pRow.package[0] : pRow.package
+        hrsPurchased = Number(pRow.hours_purchased || pkg?.hours || 0)
+        blockTimeDetails.hoursPurchased = hrsPurchased
+      }
+    }
+    if (!hrsPurchased && customerId) {
+      const { data: pRow } = await adminSupabase
+        .from('pilot_block_time_purchases')
+        .select('hours_purchased, package:block_time_packages(name, hours)')
+        .eq('user_id', customerId)
+        .order('activated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (pRow) {
+        const pkg = Array.isArray(pRow.package) ? pRow.package[0] : pRow.package
+        hrsPurchased = Number(pRow.hours_purchased || pkg?.hours || 0)
+        blockTimeDetails.hoursPurchased = hrsPurchased
+      }
+    }
+    let baseName = blockTimeDetails.packageName || 'Starter Block'
+    if (hrsPurchased > 0 && !baseName.toLowerCase().includes('hr')) {
+      baseName = `${baseName} (${hrsPurchased}hr package)`
+    }
+    blockTimeDetails.packageName = baseName
+  }
+
+  const flightChargeCents = blockTimeDetails
+    ? blockTimeDetails.overageAmountCents
+    : (bookingInvoice?.base_amount_cents ?? (Number(vdoTotal ?? 0) * hourlyRate * 100))
   const landingSubtotalCents = bookingInvoice?.landing_subtotal_cents ?? landingItems.reduce((sum, item) => sum + item.totalCents, 0)
   const creditAppliedCents = bookingInvoice?.advance_applied_cents ?? 0
-  const subtotalCents = bookingInvoice?.subtotal_cents ?? (flightChargeCents + landingSubtotalCents)
+  const subtotalCents = bookingInvoice?.subtotal_cents ?? (flightChargeCents + landingSubtotalCents - creditAppliedCents)
   const gstCents = Math.round(subtotalCents - (subtotalCents / 1.1))
-  const totalAmountCents = bookingInvoice?.stripe_amount_due_cents ?? subtotalCents
+  const totalAmountCents = Math.max(0, subtotalCents)
 
   const scheduledStart = booking?.scheduled_start ? new Date(booking.scheduled_start) : null
   const scheduledEnd = booking?.scheduled_end ? new Date(booking.scheduled_end) : null
@@ -401,6 +539,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
       airSwitchTotal={airSwitchTotal}
       airSwitchBaseline={flightLogStartSuggestions.air_switch_start}
       hourlyRate={hourlyRate}
+      standardHourlyRate={Number(aircraft?.default_hourly_rate ?? PAYF_RATE_PER_HOUR)}
       availableAirports={(allAirports ?? []) as any}
       landingItems={landingItems}
       flightChargeCents={flightChargeCents}
@@ -419,6 +558,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
       evidenceAttachments={evidenceAttachments}
       clarificationCategory={clarData?.category}
       clarificationMessage={clarData?.message}
+      blockTimeDetails={blockTimeDetails}
     />
   )
 }

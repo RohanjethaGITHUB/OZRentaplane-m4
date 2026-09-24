@@ -38,6 +38,7 @@ export default async function CustomerBillingPage() {
     { data: chkBankTransferSubs },
     { data: bkgBankTransferSubs },
     { data: customerLedgerRows },
+    { data: packageInvoiceRows },
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -119,7 +120,20 @@ export default async function CustomerBillingPage() {
       .select('invoice_id, booking_id, payment_method, entry_type, stripe_payment_intent_id, created_at')
       .eq('customer_id', user.id)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('invoices')
+      .select('id, invoice_number, total, created_at, pdf_url, status, payment_method, block_time_purchase_id')
+      .eq('user_id', user.id)
+      .eq('type', 'block_time_purchase')
+      .order('created_at', { ascending: false }),
   ])
+
+  const packageInvoicesByPurchaseId = new Map<string, { id: string; invoice_number: string; pdf_url: string | null }>()
+  for (const inv of (packageInvoiceRows ?? []) as any[]) {
+    if (inv.block_time_purchase_id) {
+      packageInvoicesByPurchaseId.set(inv.block_time_purchase_id, inv)
+    }
+  }
 
   // Fetch checkout_invoices via customer_id or user's booking_ids
   const userBookingIds = (customerBookings ?? []).map((b) => b.id)
@@ -563,6 +577,7 @@ export default async function CustomerBillingPage() {
     const isRefunded = p.status === 'refunded'
     const subtotal = Math.round((amount / 1.1) * 100) / 100
     const gst = Math.round((amount - subtotal) * 100) / 100
+    const pkgInv = packageInvoicesByPurchaseId.get(p.id)
 
     allInvoices.push({
       id: p.id,
@@ -578,6 +593,7 @@ export default async function CustomerBillingPage() {
       settlementType: isRefunded ? 'REFUND' : 'CUSTOMER_PAYMENT',
       paymentMethod: 'card',
       card: { brand: 'visa', last4: '4242' },
+      pdfUrl: pkgInv?.pdf_url || `/dashboard/purchases/${p.id}/invoice`,
       items: [
         {
           description: `${pkg?.name ?? 'Block Time Package'} (${p.hours_purchased} flight hours)`,
