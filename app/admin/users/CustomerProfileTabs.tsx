@@ -305,6 +305,9 @@ export default function CustomerProfileTabs({
       : 'overview'
 
   const initials = customerProfile.full_name?.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() ?? '??'
+  const pendingRefundBookings = standardBookings.filter((b) => b.has_pending_refund)
+  const pendingRefundCount = pendingRefundBookings.length
+  const firstPendingRefundBooking = pendingRefundBookings[0] ?? null
   const hasNightVfrEvidence = documents.some((d) => d.document_type === 'night_vfr_evidence')
   const activeDocTypes: UserDocument['document_type'][] = [
     ...REQUIRED_DOC_TYPES,
@@ -599,10 +602,19 @@ export default function CustomerProfileTabs({
         </StatCard>
         <StatCard
           label="Bookings"
-          tone="blue"
+          tone={pendingRefundCount > 0 ? 'amber' : 'blue'}
           hrefTab="bookings"
-          className="border-l-blue-400 bg-slate-50 border-slate-200"
-          subtext={bookingSummary}
+          className={pendingRefundCount > 0 ? 'border-l-amber-500 bg-amber-50/70 border-amber-300' : 'border-l-blue-400 bg-slate-50 border-slate-200'}
+          subtext={
+            pendingRefundCount > 0 ? (
+              <span className="text-amber-800 font-semibold flex items-center gap-1">
+                <span className="material-symbols-outlined text-xs text-amber-700">currency_exchange</span>
+                {pendingRefundCount === 1 ? '1 refund review pending' : `${pendingRefundCount} refund reviews pending`}
+              </span>
+            ) : (
+              bookingSummary
+            )
+          }
         >
           <span className={totalBookingCount > 0 ? 'text-[#0C2340] font-medium' : 'text-slate-400 font-medium'}>
             {totalBookingCount}
@@ -723,10 +735,20 @@ export default function CustomerProfileTabs({
                   <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: account.bg, color: account.text }}>{account.label}</span>
                   <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: clearance.bg, color: clearance.text }}>{clearance.label}</span>
                 </div>
-                <div className="mt-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold ${activeBookingBadge.tone}`}>
                     {activeBookingBadge.label}
                   </span>
+                  {pendingRefundCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setTab('bookings')}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/50 bg-amber-500/25 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-300 hover:bg-amber-500/35 transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[13px] text-amber-300">currency_exchange</span>
+                      {pendingRefundCount === 1 ? '1 Refund Pending' : `${pendingRefundCount} Refunds Pending`}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -798,10 +820,20 @@ export default function CustomerProfileTabs({
                 <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: account.bg, color: account.text }}>{account.label}</span>
                 <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold" style={{ background: clearance.bg, color: clearance.text }}>{clearance.label}</span>
               </div>
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold ${activeBookingBadge.tone}`}>
                   {activeBookingBadge.label}
                 </span>
+                {pendingRefundCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setTab('bookings')}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/50 bg-amber-500/25 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-300 hover:bg-amber-500/35 transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[13px] text-amber-300">currency_exchange</span>
+                    {pendingRefundCount === 1 ? '1 Refund Pending' : `${pendingRefundCount} Refunds Pending`}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -873,13 +905,19 @@ export default function CustomerProfileTabs({
               <button
                 key={tab.key}
                 onClick={() => setTab(tab.key)}
-                className={`relative px-5 py-4 text-sm font-semibold tracking-wide transition-all duration-150 whitespace-nowrap ${
+                className={`relative px-5 py-4 text-sm font-semibold tracking-wide transition-all duration-150 whitespace-nowrap inline-flex items-center gap-2 ${
                   activeTab === tab.key
                     ? 'text-[#152d5a] border-b-2 border-[#152d5a] bg-white'
                     : 'text-slate-400 border-b-2 border-transparent hover:text-slate-700 hover:border-slate-300'
                 }`}
               >
-                {tab.label}
+                <span>{tab.label}</span>
+                {tab.key === 'bookings' && pendingRefundCount > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300/80 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+                    <span className="material-symbols-outlined text-[12px] text-amber-700">currency_exchange</span>
+                    <span>{pendingRefundCount} Refund Pending</span>
+                  </span>
+                )}
                 {tab.key === 'messages' && activeTab !== 'messages' && unreadMessages > 0 && (
                   <span className="absolute top-2.5 right-2 w-2 h-2 rounded-full bg-red-500" />
                 )}
@@ -916,6 +954,37 @@ export default function CustomerProfileTabs({
 
       {activeTab === 'bookings' && (
         <section className="space-y-4">
+          {pendingRefundCount > 0 && (
+            <div className="rounded-2xl border border-amber-300 bg-amber-50/90 p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-amber-950">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-800 border border-amber-300 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
+                  <span className="material-symbols-outlined text-xl">currency_exchange</span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-amber-900">
+                      {pendingRefundCount === 1 ? '1 Refund Review Pending' : `${pendingRefundCount} Refund Reviews Pending`}
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-200 border border-amber-300 text-[10px] uppercase font-extrabold tracking-wider text-amber-900">
+                      Action Required
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-800/90 mt-0.5">
+                    Customer has requested an actual flown hours refund review. You can review flight data and decide payout now.
+                  </p>
+                </div>
+              </div>
+              {firstPendingRefundBooking && (
+                <Link
+                  href={`/admin/bookings/post-flight/${firstPendingRefundBooking.id}`}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-sm transition-all shrink-0 self-start sm:self-auto active:scale-[0.98]"
+                >
+                  <span className="material-symbols-outlined text-base">rate_review</span>
+                  <span>Review &amp; Settle Refund</span>
+                </Link>
+              )}
+            </div>
+          )}
           <AdminActionsPanel
             customerId={customerId}
             currentStatus={clearanceStatus}
