@@ -7,8 +7,8 @@ import { Mail, Phone, Plus, Trash2, CheckCircle2 } from 'lucide-react'
 import DocumentViewerModal, { type DocumentFile } from '@/components/ui/DocumentViewerModal'
 import { LoadingButtonContent } from '@/components/ui/Spinner'
 import { formatDateTime } from '@/lib/formatDateTime'
-import { approvePostFlightReview, requestPostFlightClarification } from '@/app/actions/admin-booking'
-import { CLARIFICATION_CATEGORY_LABELS, type ClarificationCategory } from '@/lib/supabase/booking-types'
+import { approvePostFlightReview, requestPostFlightClarification, uploadAdminRefundReceipt } from '@/app/actions/admin-booking'
+import { CLARIFICATION_CATEGORY_LABELS, type ClarificationCategory, type ActualHoursRefundRequestPayload } from '@/lib/supabase/booking-types'
 import { calculateBookingDays } from '@/lib/booking/standard-booking-billing'
 import AirportSelect from '@/components/ui/AirportSelect'
 
@@ -120,6 +120,8 @@ type Props = {
   stripeGrossChargedCents?: number
   // Block Time
   blockTimeDetails?: BlockTimeBookingDetails | null
+  // Actual Hours Refund Request
+  actualHoursRefundRequest?: ActualHoursRefundRequestPayload | null
 }
 
 const CATEGORIES = Object.entries(CLARIFICATION_CATEGORY_LABELS) as [ClarificationCategory, string][]
@@ -174,6 +176,7 @@ export default function PostFlightVerificationConsole({
   clarificationCategory,
   clarificationMessage,
   blockTimeDetails = null,
+  actualHoursRefundRequest = null,
 }: Props) {
   const router = useRouter()
   const [evidenceViewerOpen, setEvidenceViewerOpen] = useState(false)
@@ -183,10 +186,24 @@ export default function PostFlightVerificationConsole({
   const [correctionReason, setCorrectionReason] = useState('')
   const [overrideConfirmed, setOverrideConfirmed] = useState(false)
 
+  // Multi-day booking minimum policy calculations (computed early for default state)
+  const bookingDays = calculateBookingDays({
+    scheduledStart: scheduledStartISO || scheduledStartStr,
+    scheduledEnd: scheduledEndISO || scheduledEndStr,
+    bookingSlotHours,
+  })
+  const minimumVdoHours = bookingDays * 4
+  const isMultiDayBooking = bookingDays > 0
+
   // Interactive Meter & Landing Editing state (Always directly editable)
-  const [editedVdoTotal, setEditedVdoTotal] = useState<string>(
-    vdoTotal != null ? String(vdoTotal) : ''
-  )
+  // Per business rule, on multi-day rentals where flight hours are below policy minimum,
+  // enforce minimum hours (e.g. 12.0h) is selected by default on load.
+  const [editedVdoTotal, setEditedVdoTotal] = useState<string>(() => {
+    if (vdoTotal != null && isMultiDayBooking && Number(vdoTotal) < minimumVdoHours) {
+      return minimumVdoHours.toFixed(1)
+    }
+    return vdoTotal != null ? String(vdoTotal) : ''
+  })
   const [editedAirSwitchTotal, setEditedAirSwitchTotal] = useState<string>(
     airSwitchTotal != null ? String(airSwitchTotal) : ''
   )
@@ -202,6 +219,39 @@ export default function PostFlightVerificationConsole({
       ? [{ airportId: availableAirports[0].id, landingCount: 1 }]
       : []
   )
+
+  // Actual Hours Refund Review state
+  const [refundDecision, setRefundDecision] = useState<'accepted' | 'declined' | null>(() => {
+    if (actualHoursRefundRequest?.status === 'accepted') return 'accepted'
+    if (actualHoursRefundRequest?.status === 'declined') return 'declined'
+    return null
+  })
+  const [refundAmount, setRefundAmount] = useState<string>(() => {
+    if (actualHoursRefundRequest?.refund_amount_cents != null) {
+      return (actualHoursRefundRequest.refund_amount_cents / 100).toFixed(2)
+    }
+    if (actualHoursRefundRequest?.difference_amount_cents != null) {
+      return (actualHoursRefundRequest.difference_amount_cents / 100).toFixed(2)
+    }
+    return ''
+  })
+  const [refundReference, setRefundReference] = useState<string>(
+    actualHoursRefundRequest?.refund_reference || ''
+  )
+  const [refundAdminNotes, setRefundAdminNotes] = useState<string>(
+    actualHoursRefundRequest?.admin_notes || ''
+  )
+
+  // Optional Refund Payment Receipt Upload
+  const [refundReceiptFile, setRefundReceiptFile] = useState<File | null>(null)
+  const [refundReceiptPreview, setRefundReceiptPreview] = useState<string | null>(null)
+  const refundReceiptInputRef = useRef<HTMLInputElement>(null)
+
+  // Collapse toggle for Admin Review Decision Card
+  const [isReviewDecisionCollapsed, setIsReviewDecisionCollapsed] = useState(false)
+
+  // Collapse toggle for Customer Refund Request Card
+  const [isRefundRequestCollapsed, setIsRefundRequestCollapsed] = useState(false)
 
   // Clarification form state
   const [clarifyCategory, setClarifyCategory] = useState<ClarificationCategory | ''>('')
@@ -234,14 +284,6 @@ export default function PostFlightVerificationConsole({
   const currentVdoNum = editedVdoTotal ? Number(editedVdoTotal) : (vdoTotal ?? 0)
   const currentAirSwitchNum = editedAirSwitchTotal ? Number(editedAirSwitchTotal) : (airSwitchTotal ?? null)
 
-  // Multi-day booking minimum policy calculations
-  const bookingDays = calculateBookingDays({
-    scheduledStart: scheduledStartISO || scheduledStartStr,
-    scheduledEnd: scheduledEndISO || scheduledEndStr,
-    bookingSlotHours,
-  })
-  const minimumVdoHours = bookingDays * 4
-  const isMultiDayBooking = bookingDays > 0
   const isBelowMinimum = isMultiDayBooking && currentVdoNum < minimumVdoHours
   const effectiveUpfrontPaidCents = upfrontPaidCents ?? 0
 
@@ -358,6 +400,13 @@ export default function PostFlightVerificationConsole({
     setError(null)
     setSuccess(null)
 
+    // User requirement: If customer submitted a refund request, admin must choose an option (Yes or No) before settling
+    if (actualHoursRefundRequest?.requested && refundDecision === null) {
+      setError('Please choose whether to accept or decline the customer refund request before finalizing settlement.')
+      setLoading(false)
+      return
+    }
+
     const isCorrection = approvalMode === 'correction' || isModifiedFromInitial || isAwaitingCustomer || overrideConfirmed
 
     if (isCorrection && approvalMode === 'correction' && !correctionReason.trim() && !isAwaitingCustomer && !overrideConfirmed) {
@@ -367,6 +416,33 @@ export default function PostFlightVerificationConsole({
     }
 
     try {
+      let uploadedReceiptPath: string | null = actualHoursRefundRequest?.refund_receipt_path || null
+
+      if (refundDecision === 'accepted' && refundReceiptFile) {
+        try {
+          const fd = new FormData()
+          fd.append('file', refundReceiptFile)
+          fd.append('bookingId', bookingId)
+          const res = await uploadAdminRefundReceipt(fd)
+          uploadedReceiptPath = res.storagePath
+        } catch (uploadErr) {
+          console.error('[handleApprove] uploadAdminRefundReceipt failed:', uploadErr)
+          setError(uploadErr instanceof Error ? uploadErr.message : 'Failed to upload refund payment receipt.')
+          setLoading(false)
+          return
+        }
+      }
+
+      const refundReviewPayload = actualHoursRefundRequest?.requested || refundDecision !== null
+        ? {
+            status: refundDecision || 'accepted',
+            refund_amount_cents: refundDecision === 'accepted' ? Math.round(Number(refundAmount || 0) * 100) : 0,
+            refund_reference: refundDecision === 'accepted' ? refundReference.trim() || null : null,
+            refund_receipt_path: uploadedReceiptPath,
+            admin_notes: refundAdminNotes.trim() || null,
+          }
+        : null
+
       await approvePostFlightReview({
         flight_record_id: flightRecordId,
         with_correction: isCorrection,
@@ -383,6 +459,7 @@ export default function PostFlightVerificationConsole({
         vdo_total: currentVdoNum,
         air_switch_total: currentAirSwitchNum ?? undefined,
         landing_rows: editedLandings.map((l) => ({ airport_id: l.airportId, landing_count: l.landingCount })),
+        actual_hours_refund_review: refundReviewPayload,
       })
       setSuccess('Post-flight readings, invoice settlement, and payment verified successfully.')
       setLoading(false)
@@ -828,7 +905,12 @@ export default function PostFlightVerificationConsole({
                   }`}
                 >
                   <span className="material-symbols-outlined text-sm">speed</span>
-                  Bill Actual Flown ({vdoTotal != null ? Number(vdoTotal).toFixed(1) : currentVdoNum.toFixed(1)} hrs)
+                  <span>Bill Actual Flown ({vdoTotal != null ? Number(vdoTotal).toFixed(1) : currentVdoNum.toFixed(1)} hrs)</span>
+                  {actualHoursRefundRequest?.requested && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300 shadow-xs">
+                      User Requested
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
@@ -870,6 +952,346 @@ export default function PostFlightVerificationConsole({
                   Request Remaining Payment ({formattedDifference}) via Clarification
                 </button>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Customer Actual Hours Waiver & Refund Request Card ──────────────── */}
+        {(actualHoursRefundRequest?.requested || (isMultiDayBooking && isBelowMinimum)) && (
+          <div className={`relative rounded-2xl border-2 border-indigo-200 bg-white p-4 sm:p-6 shadow-md transition-all ${
+            isRefundRequestCollapsed ? '' : 'space-y-4'
+          }`}>
+            {/* Top-right corner collapse toggle arrow */}
+            <button
+              type="button"
+              onClick={() => setIsRefundRequestCollapsed((prev) => !prev)}
+              className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-700 hover:bg-indigo-50 transition-colors z-10"
+              title={isRefundRequestCollapsed ? 'Expand Customer Refund Request' : 'Hide / Collapse Customer Refund Request'}
+              aria-label={isRefundRequestCollapsed ? 'Expand Customer Refund Request' : 'Hide / Collapse Customer Refund Request'}
+            >
+              <span
+                className={`material-symbols-outlined text-2xl transition-transform duration-200 text-slate-500 ${
+                  isRefundRequestCollapsed ? 'rotate-180' : ''
+                }`}
+              >
+                keyboard_arrow_down
+              </span>
+            </button>
+
+            <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pr-9 sm:pr-11 ${
+              isRefundRequestCollapsed ? '' : 'pb-3 border-b border-slate-100'
+            }`}>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-700 shrink-0">
+                  <span className="material-symbols-outlined text-xl">account_balance</span>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-slate-900 flex flex-wrap items-center gap-2">
+                    <span>Customer Refund Request for Actual Hours Flown</span>
+                    {actualHoursRefundRequest?.requested ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-200">
+                        Requested by Customer
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
+                        Available Option
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Customer paid full {minimumVdoHours.toFixed(1)}h minimum invoice upfront and is requesting refund for actual flown hours
+                  </p>
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div className="shrink-0">
+                {refundDecision === 'accepted' ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <span className="material-symbols-outlined text-sm">check_circle</span>
+                    Request Accepted (Refund Recorded)
+                  </span>
+                ) : refundDecision === 'declined' ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                    <span className="material-symbols-outlined text-sm">cancel</span>
+                    Request Declined (Minimum Enforced)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                    <span className="material-symbols-outlined text-sm">hourglass_top</span>
+                    Pending Admin Decision
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {!isRefundRequestCollapsed && (
+              <>
+                {/* Flight Hours & Value Comparison Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">Actual Flown</span>
+                    <span className="text-sm font-bold text-slate-900 tabular-nums">
+                      {(actualHoursRefundRequest?.actual_vdo_hours ?? (vdoTotal ?? currentVdoNum)).toFixed(1)} hrs
+                    </span>
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">Policy Minimum</span>
+                    <span className="text-sm font-bold text-slate-900 tabular-nums">
+                      {(actualHoursRefundRequest?.enforced_minimum_hours ?? minimumVdoHours).toFixed(1)} hrs
+                    </span>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <span className="text-[10px] uppercase font-bold text-amber-800 block mb-0.5">Difference Hours</span>
+                    <span className="text-sm font-bold text-amber-700 tabular-nums">
+                      {(actualHoursRefundRequest?.difference_hours ?? Math.max(0, Math.round((minimumVdoHours - currentVdoNum) * 10) / 10)).toFixed(1)} hrs
+                    </span>
+                  </div>
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                    <span className="text-[10px] uppercase font-bold text-emerald-800 block mb-0.5">Refundable Difference</span>
+                    <span className="text-sm font-bold text-emerald-700 tabular-nums">
+                      ${((actualHoursRefundRequest?.difference_amount_cents ?? Math.round(Math.max(0, Math.round((minimumVdoHours - currentVdoNum) * 10) / 10) * hourlyRate * 100)) / 100).toFixed(2)} AUD
+                    </span>
+                  </div>
+                </div>
+
+                {/* Clear Request Message / Summary Banner (Image 2) */}
+                <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-3.5 text-xs space-y-2">
+                  <div className="flex items-center gap-1.5 font-bold text-[#152d5a]">
+                    <span className="material-symbols-outlined text-sm text-[#1a4fd6]">info</span>
+                    <span>Customer Refund Request Message</span>
+                  </div>
+                  <p className="text-slate-700 leading-relaxed">
+                    Customer paid full <strong>{(actualHoursRefundRequest?.enforced_minimum_hours ?? minimumVdoHours).toFixed(1)}h</strong> minimum policy upfront and logged <strong>{(actualHoursRefundRequest?.actual_vdo_hours ?? (vdoTotal ?? currentVdoNum)).toFixed(1)}h</strong> actual flight time. Customer has formally requested a refund of the <strong>{(actualHoursRefundRequest?.difference_hours ?? Math.max(0, Math.round((minimumVdoHours - currentVdoNum) * 10) / 10)).toFixed(1)}h</strong> difference ({`$${((actualHoursRefundRequest?.difference_amount_cents ?? Math.round(Math.max(0, Math.round((minimumVdoHours - currentVdoNum) * 10) / 10) * hourlyRate * 100)) / 100).toFixed(2)} AUD`}).
+                  </p>
+                  {actualHoursRefundRequest?.reason && (
+                    <div className="pt-2 border-t border-blue-200/60">
+                      <span className="font-semibold text-blue-950 block mb-0.5">Pilot Stated Reason:</span>
+                      <p className="text-slate-800 italic bg-white/80 p-2.5 rounded-lg border border-blue-100">
+                        &ldquo;{actualHoursRefundRequest.reason}&rdquo;
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Customer Bank Account Details */}
+                {actualHoursRefundRequest?.bsb ? (
+                  <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-3.5 space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
+                      <span className="material-symbols-outlined text-sm text-amber-700">account_balance</span>
+                      Customer Submitted Bank Account for Refund
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Account Name</span>
+                        <span className="font-semibold text-slate-900">{actualHoursRefundRequest.account_name}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">BSB</span>
+                        <span className="font-mono font-semibold text-slate-900">{actualHoursRefundRequest.bsb}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Account Number</span>
+                        <span className="font-mono font-semibold text-slate-900">{actualHoursRefundRequest.account_number}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Bank Name</span>
+                        <span className="font-semibold text-slate-900">{actualHoursRefundRequest.bank_name || '—'}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Admin Decision: Yes or No */}
+                <div className="space-y-3 pt-2">
+                  <label className="block text-xs font-bold text-slate-800">
+                    Accept customer request and refund the actual hours difference?
+                  </label>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRefundDecision('accepted')
+                        if (!refundAmount) {
+                          const diffCents = actualHoursRefundRequest?.difference_amount_cents ?? Math.round(Math.max(0, Math.round((minimumVdoHours - currentVdoNum) * 10) / 10) * hourlyRate * 100)
+                          setRefundAmount((diffCents / 100).toFixed(2))
+                        }
+                      }}
+                      className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                        refundDecision === 'accepted'
+                          ? 'bg-emerald-600 text-white ring-2 ring-emerald-400'
+                          : 'bg-white text-slate-700 border border-slate-300 hover:bg-emerald-50 hover:text-emerald-700'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-base">check</span>
+                      Yes, Accept Request &amp; Refund
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRefundDecision('declined')
+                        setEditedVdoTotal(minimumVdoHours.toFixed(1))
+                      }}
+                      className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                        refundDecision === 'declined'
+                          ? 'bg-rose-600 text-white ring-2 ring-rose-400'
+                          : 'bg-white text-slate-700 border border-slate-300 hover:bg-rose-50 hover:text-rose-700'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-base">close</span>
+                      No, Decline (Keep Minimum Policy)
+                    </button>
+                  </div>
+
+                  {/* If Accepted: Show Refund recording inputs (Image 4) */}
+                  {refundDecision === 'accepted' && (
+                    <div className="mt-3 p-4 rounded-xl border border-emerald-300 bg-emerald-50/50 space-y-3">
+                      <div className="text-xs text-emerald-950 font-medium">
+                        Please transfer the refund money to the customer&apos;s bank account above. Once transferred, enter the refund details below so we can keep track in the system:
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Amount Refunded ($ AUD) <span className="text-rose-500">*</span>
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2 text-xs font-bold text-slate-500">$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={refundAmount}
+                              onChange={(e) => setRefundAmount(e.target.value)}
+                              placeholder="0.00"
+                              className="w-full pl-7 pr-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-900 focus:border-emerald-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Refund Reference / Transaction ID <span className="text-slate-400 font-normal">(Optional)</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={refundReference}
+                            onChange={(e) => setRefundReference(e.target.value)}
+                            placeholder="e.g. EFT-982137 or Bank Ref (optional)"
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-900 font-mono focus:border-emerald-500 focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Admin Note / Memo (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={refundAdminNotes}
+                            onChange={(e) => setRefundAdminNotes(e.target.value)}
+                            placeholder="e.g. Refunded difference via CBA online"
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:border-emerald-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Screenshot / Proof of Refunded Payment (Optional) */}
+                      <div className="pt-2 border-t border-emerald-200/60">
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                          Screenshot of Refunded Payment <span className="text-slate-400 font-normal">(Optional)</span>
+                        </label>
+                        <input
+                          type="file"
+                          ref={refundReceiptInputRef}
+                          accept="image/*,application/pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              setRefundReceiptFile(file)
+                              if (file.type.startsWith('image/')) {
+                                const reader = new FileReader()
+                                reader.onload = () => setRefundReceiptPreview(reader.result as string)
+                                reader.readAsDataURL(file)
+                              } else {
+                                setRefundReceiptPreview(null)
+                              }
+                            }
+                          }}
+                        />
+
+                        {!refundReceiptFile ? (
+                          <button
+                            type="button"
+                            onClick={() => refundReceiptInputRef.current?.click()}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-emerald-400 bg-white hover:bg-emerald-100/40 text-xs font-semibold text-emerald-800 transition-colors shadow-2xs"
+                          >
+                            <span className="material-symbols-outlined text-base text-emerald-600">add_photo_alternate</span>
+                            <span>Upload Screenshot / Receipt of Refund (Optional)</span>
+                          </button>
+                        ) : (
+                          <div className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-300 bg-white text-xs shadow-2xs">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {refundReceiptPreview ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={refundReceiptPreview}
+                                  alt="Refund Receipt Preview"
+                                  className="h-10 w-10 object-cover rounded-lg border border-emerald-200 shrink-0"
+                                />
+                              ) : (
+                                <div className="h-10 w-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-800 font-bold text-[10px] shrink-0">
+                                  PDF
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-800 truncate max-w-[200px] sm:max-w-xs">{refundReceiptFile.name}</p>
+                                <p className="text-[10px] text-slate-400">{(refundReceiptFile.size / 1024).toFixed(0)} KB &middot; Ready to attach upon approval</p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRefundReceiptFile(null)
+                                setRefundReceiptPreview(null)
+                                if (refundReceiptInputRef.current) refundReceiptInputRef.current.value = ''
+                              }}
+                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg transition-colors"
+                              title="Remove file"
+                            >
+                              <span className="material-symbols-outlined text-base">close</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* If Declined: Show notes */}
+                  {refundDecision === 'declined' && (
+                    <div className="mt-3 p-3.5 rounded-xl border border-rose-200 bg-rose-50/50 space-y-2 text-xs">
+                      <div className="font-bold text-rose-900">
+                        The 4h/day multi-day rental minimum policy ({minimumVdoHours.toFixed(1)}h total) remains enforced.
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Decline Reason / Internal Note (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={refundAdminNotes}
+                          onChange={(e) => setRefundAdminNotes(e.target.value)}
+                          placeholder="e.g. Flight hours did not meet waiver criteria"
+                          className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:border-rose-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
         )}
@@ -1488,446 +1910,487 @@ export default function PostFlightVerificationConsole({
         ) : (
           <>
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-b border-slate-100 pb-4">
-              <div>
+              <div className="flex-1">
                 <h2 className="text-base font-bold text-slate-900">Admin Review Decision</h2>
                 <p className="text-xs text-slate-500">
                   Verify flight meters and payment to finalize this booking or request corrections
                 </p>
               </div>
 
-              {/* Decision Mode Toggle */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 sm:gap-2 p-1 rounded-xl bg-slate-100 border border-slate-200 w-full lg:w-auto">
-                <button
-                  type="button"
-                  onClick={() => setActiveDecision('approve')}
-                  className={`flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs font-bold transition-all text-center ${
-                    activeDecision === 'approve'
-                      ? !isAwaitingCustomer && remainingBalanceCents > 0
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'bg-emerald-600 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-base">
-                    {isAwaitingCustomer
-                      ? 'bolt'
-                      : remainingBalanceCents > 0
-                      ? 'forward_to_inbox'
-                      : 'check_circle'}
-                  </span>
-                  <span>
-                    {isAwaitingCustomer
-                      ? 'Override & Settle'
-                      : remainingBalanceCents > 0
-                      ? 'Enforce & Request Payment'
-                      : 'Approve & Settle'}
-                  </span>
-                </button>
+              <div className="flex items-center gap-2 w-full lg:w-auto justify-between lg:justify-end">
+                {/* Decision Mode Toggle */}
+                <div className="flex flex-row items-center gap-1.5 p-1 rounded-xl bg-slate-100 border border-slate-200 flex-1 sm:flex-none">
+                  <button
+                    type="button"
+                    onClick={() => setActiveDecision('approve')}
+                    className={`flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all text-center flex-1 sm:flex-none ${
+                      activeDecision === 'approve'
+                        ? !isAwaitingCustomer && remainingBalanceCents > 0
+                          ? 'bg-amber-600 text-white shadow-sm'
+                          : 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-base">
+                      {isAwaitingCustomer
+                        ? 'bolt'
+                        : remainingBalanceCents > 0
+                        ? 'forward_to_inbox'
+                        : 'check_circle'}
+                    </span>
+                    <span>
+                      {isAwaitingCustomer
+                        ? 'Override & Settle'
+                        : remainingBalanceCents > 0
+                        ? 'Enforce & Request Payment'
+                        : 'Approve & Settle'}
+                    </span>
+                  </button>
 
+                  <button
+                    type="button"
+                    onClick={() => setActiveDecision('clarify')}
+                    className={`flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all text-center flex-1 sm:flex-none ${
+                      activeDecision === 'clarify'
+                        ? 'bg-amber-500 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-base">edit_note</span>
+                    <span>Decline / Request Fix</span>
+                  </button>
+                </div>
+
+                {/* Dropdown toggle arrow to hide/collapse Admin Review Decision (Image 3) */}
                 <button
                   type="button"
-                  onClick={() => setActiveDecision('clarify')}
-                  className={`flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-2 rounded-lg text-xs font-bold transition-all text-center ${
-                    activeDecision === 'clarify'
-                      ? 'bg-amber-500 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                  onClick={() => setIsReviewDecisionCollapsed((prev) => !prev)}
+                  className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0 shadow-2xs"
+                  title={isReviewDecisionCollapsed ? 'Expand Admin Review Decision' : 'Hide / Collapse Admin Review Decision'}
+                  aria-label={isReviewDecisionCollapsed ? 'Expand Admin Review Decision' : 'Hide / Collapse Admin Review Decision'}
                 >
-                  <span className="material-symbols-outlined text-base">edit_note</span>
-                  <span>Decline / Request Fix</span>
+                  <span
+                    className={`material-symbols-outlined text-xl transition-transform duration-200 block ${
+                      isReviewDecisionCollapsed ? 'rotate-180' : ''
+                    }`}
+                  >
+                    keyboard_arrow_down
+                  </span>
                 </button>
               </div>
             </div>
 
-            {/* ── Approve / Enforce Settlement View ─────────────────────────────────────────── */}
-            {activeDecision === 'approve' && (
-              <form
-                onSubmit={
-                  isAwaitingCustomer
-                    ? handleApprove
-                    : remainingBalanceCents > 0
-                    ? handleEnforceAndRequestPayment
-                    : handleApprove
-                }
-                className="space-y-6"
-              >
-                {/* CASE 1: Currently Awaiting Customer Clarification */}
-                {isAwaitingCustomer ? (
-                  <div className="space-y-4">
-                    <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-950 space-y-1">
-                      <p className="font-bold flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-base text-amber-600">hourglass_empty</span>
-                        Record is currently awaiting pilot response
-                      </p>
-                      <p className="text-[11px] leading-relaxed text-amber-900">
-                        A clarification request has already been sent to the pilot. If the customer has now settled the remaining balance directly (via phone or direct bank transfer) or operations approves waiving this difference, check the box below to override and approve immediately.
-                      </p>
-                    </div>
+            {!isReviewDecisionCollapsed && (
+              <>
+                {/* ── Approve / Enforce Settlement View ─────────────────────────────────────────── */}
+                {activeDecision === 'approve' && (
+                  <form
+                    onSubmit={
+                      isAwaitingCustomer
+                        ? handleApprove
+                        : remainingBalanceCents > 0
+                        ? handleEnforceAndRequestPayment
+                        : handleApprove
+                    }
+                    className="space-y-6"
+                  >
+                    {/* CASE 1: Currently Awaiting Customer Clarification */}
+                    {isAwaitingCustomer ? (
+                      <div className="space-y-4">
+                        <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-950 space-y-1">
+                          <p className="font-bold flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-base text-amber-600">hourglass_empty</span>
+                            Record is currently awaiting pilot response
+                          </p>
+                          <p className="text-[11px] leading-relaxed text-amber-900">
+                            A clarification request has already been sent to the pilot. If the customer has now settled the remaining balance directly (via phone or direct bank transfer) or operations approves waiving this difference, check the box below to override and approve immediately.
+                          </p>
+                        </div>
 
-                    {/* Override Checkbox: ONLY visible in this clarification flow */}
-                    <label className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                      overrideConfirmed
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-950 shadow-sm'
-                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100/70 text-slate-700'
-                    }`}>
-                      <input
-                        type="checkbox"
-                        checked={overrideConfirmed}
-                        onChange={(e) => setOverrideConfirmed(e.target.checked)}
-                        className="mt-0.5 h-4 w-4 rounded border-emerald-400 text-emerald-600 accent-emerald-600 focus:ring-emerald-500"
-                      />
-                      <div className="text-xs">
-                        <span className="font-bold block">Override &amp; Settle Immediately</span>
-                        <span className="text-[11px] leading-relaxed opacity-90">
-                          Check this box to override and approve all readings and settle the booking immediately (customer settled via phone/bank transfer or difference waived).
-                        </span>
-                      </div>
-                    </label>
-
-                    {/* Submit Button */}
-                    <button
-                      type="submit"
-                      disabled={loading || !overrideConfirmed}
-                      className={`w-full flex items-center justify-center gap-2 rounded-xl px-6 py-4 text-sm font-bold text-white shadow-md transition-all disabled:opacity-50 ${
-                        overrideConfirmed
-                          ? 'bg-emerald-700 hover:bg-emerald-800 ring-2 ring-emerald-400'
-                          : 'bg-slate-400 cursor-not-allowed'
-                      }`}
-                    >
-                      <LoadingButtonContent
-                        loading={loading}
-                        loadingLabel="Overriding & Settling..."
-                      >
-                        <span className="material-symbols-outlined text-lg">bolt</span>
-                        {overrideConfirmed
-                          ? `Override, Approve & Settle (${formattedTotal})`
-                          : 'Check Override Box Above to Settle'}
-                      </LoadingButtonContent>
-                    </button>
-                  </div>
-                ) : remainingBalanceCents > 0 ? (
-                  /* CASE 2: Enforce Minimum Billing / Outstanding Balance Required (Not yet asked clarification) */
-                  <div className="space-y-4">
-                    <div className="rounded-xl border border-amber-300 bg-amber-50/90 p-5 text-xs text-amber-950 space-y-3">
-                      <div className="flex items-center gap-2 font-bold text-amber-900 text-sm">
-                        <span className="material-symbols-outlined text-xl text-amber-600">payments</span>
-                        <span>Remaining Balance Required: {formattedDifference}</span>
-                      </div>
-                      <p className="text-xs leading-relaxed opacity-95">
-                        You have selected <strong>{currentVdoNum.toFixed(1)} hrs</strong>{' '}
-                        {isMultiDayBooking && currentVdoNum === minimumVdoHours ? '(4h/day minimum policy enforced)' : ''}. The recalculated total settlement is{' '}
-                        <strong>{formattedTotal}</strong>. The customer paid{' '}
-                        <strong>{(effectiveUpfrontPaidCents / 100).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' })}</strong> upfront.
-                      </p>
-                      <p className="text-[11px] text-amber-900 leading-relaxed font-semibold">
-                        Clicking the button below will change the record status to <strong>Needs Clarification</strong>, update the invoice to <strong>{formattedTotal}</strong>, and automatically email the customer with payment details for the remaining <strong>{formattedDifference}</strong>.
-                      </p>
-                      <div className="pt-1">
-                        <label className="text-[11px] font-bold text-amber-900 block mb-1">
-                          Additional Instructions for Pilot (Optional):
+                        {/* Override Checkbox: ONLY visible in this clarification flow */}
+                        <label className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                          overrideConfirmed
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-950 shadow-sm'
+                            : 'border-slate-200 bg-slate-50 hover:bg-slate-100/70 text-slate-700'
+                        }`}>
+                          <input
+                            type="checkbox"
+                            checked={overrideConfirmed}
+                            onChange={(e) => setOverrideConfirmed(e.target.checked)}
+                            className="mt-0.5 h-4 w-4 rounded border-emerald-400 text-emerald-600 accent-emerald-600 focus:ring-emerald-500"
+                          />
+                          <div className="text-xs">
+                            <span className="font-bold block">Override &amp; Settle Immediately</span>
+                            <span className="text-[11px] leading-relaxed opacity-90">
+                              Check this box to override and approve all readings and settle the booking immediately (customer settled via phone/bank transfer or difference waived).
+                            </span>
+                          </div>
                         </label>
-                        <textarea
-                          value={correctionReason}
-                          onChange={(e) => setCorrectionReason(e.target.value)}
-                          rows={2}
-                          placeholder="Optional extra message to append to the customer notification..."
-                          className="w-full rounded-lg border border-amber-300 bg-white p-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none"
-                        />
-                      </div>
-                    </div>
 
-                    {/* Submit Button for Requesting Remaining Payment */}
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 px-6 py-4 text-sm font-bold text-white shadow-md transition-all disabled:opacity-50"
-                    >
-                      <LoadingButtonContent
-                        loading={loading}
-                        loadingLabel="Requesting Payment & Notifying Customer..."
-                      >
-                        <span className="material-symbols-outlined text-lg">forward_to_inbox</span>
-                        {isMultiDayBooking && currentVdoNum === minimumVdoHours
-                          ? `Enforce Minimum & Request Payment (${formattedDifference})`
-                          : `Request Remaining Payment (${formattedDifference})`}
-                      </LoadingButtonContent>
-                    </button>
-
-                    {vdoTotal != null && Number(vdoTotal) !== currentVdoNum && (
-                      <div className="text-center pt-1">
+                        {/* Submit Button */}
                         <button
-                          type="button"
-                          onClick={() => setEditedVdoTotal(String(vdoTotal))}
-                          className="text-xs text-slate-500 hover:text-slate-800 underline font-medium"
+                          type="submit"
+                          disabled={loading || !overrideConfirmed || Boolean(actualHoursRefundRequest?.requested && refundDecision === null)}
+                          className={`w-full flex items-center justify-center gap-2 rounded-xl px-6 py-4 text-sm font-bold text-white shadow-md transition-all disabled:opacity-50 ${
+                            overrideConfirmed && !(actualHoursRefundRequest?.requested && refundDecision === null)
+                              ? 'bg-emerald-700 hover:bg-emerald-800 ring-2 ring-emerald-400'
+                              : 'bg-slate-400 cursor-not-allowed'
+                          }`}
                         >
-                          Prefer to bill actual hours ({Number(vdoTotal).toFixed(1)} hrs) and approve directly?
+                          <LoadingButtonContent
+                            loading={loading}
+                            loadingLabel="Overriding & Settling..."
+                          >
+                            <span className="material-symbols-outlined text-lg">bolt</span>
+                            {actualHoursRefundRequest?.requested && refundDecision === null
+                              ? 'Choose Refund Decision (Above) to Enable Settlement'
+                              : overrideConfirmed
+                              ? `Override, Approve & Settle (${formattedTotal})`
+                              : 'Check Override Box Above to Settle'}
+                          </LoadingButtonContent>
+                        </button>
+                      </div>
+                    ) : remainingBalanceCents > 0 ? (
+                      /* CASE 2: Enforce Minimum Billing / Outstanding Balance Required (Not yet asked clarification) */
+                      <div className="space-y-4">
+                        <div className="rounded-xl border border-amber-300 bg-amber-50/90 p-5 text-xs text-amber-950 space-y-3">
+                          <div className="flex items-center gap-2 font-bold text-amber-900 text-sm">
+                            <span className="material-symbols-outlined text-xl text-amber-600">payments</span>
+                            <span>Remaining Balance Required: {formattedDifference}</span>
+                          </div>
+                          <p className="text-xs leading-relaxed opacity-95">
+                            You have selected <strong>{currentVdoNum.toFixed(1)} hrs</strong>{' '}
+                            {isMultiDayBooking && currentVdoNum === minimumVdoHours ? '(4h/day minimum policy enforced)' : ''}. The recalculated total settlement is{' '}
+                            <strong>{formattedTotal}</strong>. The customer paid{' '}
+                            <strong>{(effectiveUpfrontPaidCents / 100).toLocaleString('en-AU', { style: 'currency', currency: 'AUD' })}</strong> upfront.
+                          </p>
+                          <p className="text-[11px] text-amber-900 leading-relaxed font-semibold">
+                            Clicking the button below will change the record status to <strong>Needs Clarification</strong>, update the invoice to <strong>{formattedTotal}</strong>, and automatically email the customer with payment details for the remaining <strong>{formattedDifference}</strong>.
+                          </p>
+                          <div className="pt-1">
+                            <label className="text-[11px] font-bold text-amber-900 block mb-1">
+                              Additional Instructions for Pilot (Optional):
+                            </label>
+                            <textarea
+                              value={correctionReason}
+                              onChange={(e) => setCorrectionReason(e.target.value)}
+                              rows={2}
+                              placeholder="Optional extra message to append to the customer notification..."
+                              className="w-full rounded-lg border border-amber-300 bg-white p-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Submit Button for Requesting Remaining Payment */}
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 px-6 py-4 text-sm font-bold text-white shadow-md transition-all disabled:opacity-50"
+                        >
+                          <LoadingButtonContent
+                            loading={loading}
+                            loadingLabel="Requesting Payment & Notifying Customer..."
+                          >
+                            <span className="material-symbols-outlined text-lg">forward_to_inbox</span>
+                            {isMultiDayBooking && currentVdoNum === minimumVdoHours
+                              ? `Enforce Minimum & Request Payment (${formattedDifference})`
+                              : `Request Remaining Payment (${formattedDifference})`}
+                          </LoadingButtonContent>
+                        </button>
+
+                        {vdoTotal != null && Number(vdoTotal) !== currentVdoNum && (
+                          <div className="text-center pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setEditedVdoTotal(String(vdoTotal))}
+                              className="text-xs text-slate-500 hover:text-slate-800 underline font-medium"
+                            >
+                              Prefer to bill actual hours ({Number(vdoTotal).toFixed(1)} hrs) and approve directly?
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* CASE 3: Fully Paid / Bill Actual Flown (remainingBalanceCents === 0) */
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <label
+                            className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                              approvalMode === 'standard'
+                                ? 'border-emerald-500 bg-emerald-50/40 text-emerald-950'
+                                : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="approvalMode"
+                              value="standard"
+                              checked={approvalMode === 'standard'}
+                              onChange={() => setApprovalMode('standard')}
+                              className="accent-emerald-600"
+                            />
+                            <div>
+                              <p className="text-xs font-bold">Standard Settlement</p>
+                              <p className="text-[11px] text-slate-500">
+                                Confirm submitted readings &amp; mark invoice paid as calculated
+                              </p>
+                            </div>
+                          </label>
+
+                          <label
+                            className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                              approvalMode === 'correction'
+                                ? 'border-amber-500 bg-amber-50/40 text-amber-950'
+                                : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="approvalMode"
+                              value="correction"
+                              checked={approvalMode === 'correction'}
+                              onChange={() => setApprovalMode('correction')}
+                              className="accent-amber-600"
+                            />
+                            <div>
+                              <p className="text-xs font-bold">Approve with Correction</p>
+                              <p className="text-[11px] text-slate-500">
+                                Override readings with an admin note for official record
+                              </p>
+                            </div>
+                          </label>
+                        </div>
+
+                        {/* Correction Reason: ONLY displayed when "Approve with Correction" is chosen (Image 3) */}
+                        {approvalMode === 'correction' && (
+                          <div className="space-y-2 p-4 rounded-xl border border-amber-200 bg-amber-50/60">
+                            <label className="text-xs font-bold text-amber-900 block">
+                              Correction Reason <span className="text-rose-500">*</span>
+                            </label>
+                            <textarea
+                              value={correctionReason}
+                              onChange={(e) => setCorrectionReason(e.target.value)}
+                              rows={2}
+                              placeholder="Explain why an admin correction was made to the flight readings or landings..."
+                              className="w-full rounded-lg border border-amber-300 bg-white p-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none"
+                            />
+                          </div>
+                        )}
+
+                        {/* Required Selection: If Customer Refund Request is pending, require admin decision first (Image 3) */}
+                        {actualHoursRefundRequest?.requested && refundDecision === null && (
+                          <div className="rounded-xl border-2 border-amber-400 bg-amber-50 p-4 text-xs text-amber-950 flex items-start gap-3 shadow-xs">
+                            <span className="material-symbols-outlined text-amber-600 text-lg shrink-0 mt-0.5">warning</span>
+                            <div className="space-y-1">
+                              <p className="font-bold text-amber-900">Action Required: Customer Refund Request Pending</p>
+                              <p className="text-amber-900 leading-relaxed">
+                                The customer requested a refund for actual flown hours. You must select either <strong>&quot;Yes, Accept Request &amp; Refund&quot;</strong> or <strong>&quot;No, Decline (Keep Minimum Policy)&quot;</strong> in the Customer Refund Request section above before approving this settlement.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Submit Button for Standard Approval */}
+                        <button
+                          type="submit"
+                          disabled={loading || Boolean(actualHoursRefundRequest?.requested && refundDecision === null)}
+                          className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-6 py-4 text-sm font-bold text-white shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <LoadingButtonContent
+                            loading={loading}
+                            loadingLabel="Approving & Settling..."
+                          >
+                            <span className="material-symbols-outlined text-lg">verified</span>
+                            {actualHoursRefundRequest?.requested && refundDecision === null
+                              ? 'Choose Refund Decision (Above) to Enable Settlement'
+                              : `Approve Post-Flight & Settle (${formattedTotal})`}
+                          </LoadingButtonContent>
                         </button>
                       </div>
                     )}
-                  </div>
-                ) : (
-                  /* CASE 3: Fully Paid / Bill Actual Flown (remainingBalanceCents === 0) */
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <label
-                        className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                          approvalMode === 'standard'
-                            ? 'border-emerald-500 bg-emerald-50/40 text-emerald-950'
-                            : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="approvalMode"
-                          value="standard"
-                          checked={approvalMode === 'standard'}
-                          onChange={() => setApprovalMode('standard')}
-                          className="accent-emerald-600"
-                        />
-                        <div>
-                          <p className="text-xs font-bold">Standard Settlement</p>
-                          <p className="text-[11px] text-slate-500">
-                            Confirm submitted readings &amp; mark invoice paid as calculated
-                          </p>
-                        </div>
-                      </label>
+                  </form>
+                )}
 
-                      <label
-                        className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                          approvalMode === 'correction'
-                            ? 'border-amber-500 bg-amber-50/40 text-amber-950'
-                            : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="approvalMode"
-                          value="correction"
-                          checked={approvalMode === 'correction'}
-                          onChange={() => setApprovalMode('correction')}
-                          className="accent-amber-600"
-                        />
-                        <div>
-                          <p className="text-xs font-bold">Approve with Correction</p>
-                          <p className="text-[11px] text-slate-500">
-                            Override readings with an admin note for official record
-                          </p>
+                {/* ── Decline / Request Fix View ────────────────────────────────────── */}
+                {activeDecision === 'clarify' && (
+                  <form onSubmit={handleClarify} className="space-y-6">
+                    {/* Pre-fill Quick Button for Multi-Day Minimum Difference */}
+                    {isMultiDayBooking && remainingBalanceCents > 0 && (
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 p-3.5 rounded-xl bg-amber-100/80 border border-amber-300 text-xs text-amber-950">
+                        <div className="flex items-center gap-2 font-bold">
+                          <span className="material-symbols-outlined text-base text-amber-700">auto_fix_high</span>
+                          <span>Multi-Day Minimum Difference: {formattedDifference}</span>
                         </div>
-                      </label>
-                    </div>
-
-                    {(approvalMode === 'correction' || isModifiedFromInitial) && (
-                      <div className="space-y-2 p-4 rounded-xl border border-amber-200 bg-amber-50/60">
-                        <label className="text-xs font-bold text-amber-900 block">
-                          Correction Reason (Optional / Recommended)
-                        </label>
-                        <textarea
-                          value={correctionReason}
-                          onChange={(e) => setCorrectionReason(e.target.value)}
-                          rows={2}
-                          placeholder="Explain why an admin correction was made to the flight readings or landings..."
-                          className="w-full rounded-lg border border-amber-300 bg-white p-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setClarifyCategory('meter_reading_mismatch')
+                            setClarifyMessage(
+                              `Under our multi-day booking policy (4h/day minimum), this ${bookingDays}-day rental requires a minimum of ${minimumVdoHours.toFixed(
+                                1
+                              )} VDO flight hours. Your flight record has been updated to ${minimumVdoHours.toFixed(
+                                1
+                              )} hours (${formattedTotal}). As $${(effectiveUpfrontPaidCents / 100).toFixed(
+                                2
+                              )} was paid upfront, the remaining balance of ${formattedDifference} is now due. Please settle via the pilot portal or direct bank transfer.`
+                            )
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] shadow-sm transition-all w-full sm:w-auto text-center"
+                        >
+                          Insert Pre-Filled Minimum Payment Message
+                        </button>
                       </div>
                     )}
 
-                    {/* Submit Button for Standard Approval */}
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-6 py-4 text-sm font-bold text-white shadow-md transition-all disabled:opacity-50"
-                    >
-                      <LoadingButtonContent
-                        loading={loading}
-                        loadingLabel="Approving & Settling..."
-                      >
-                        <span className="material-symbols-outlined text-lg">verified</span>
-                        Approve Post-Flight &amp; Settle ({formattedTotal})
-                      </LoadingButtonContent>
-                    </button>
-                  </div>
-                )}
-              </form>
-            )}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-700 block">
+                          Reason / Category <span className="text-[11px] font-normal text-slate-500">(Optional)</span>
+                        </label>
+                        {clarifyCategory && (
+                          <button
+                            type="button"
+                            onClick={() => setClarifyCategory('')}
+                            className="text-[11px] text-amber-700 hover:text-amber-900 font-semibold"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
 
-            {/* ── Decline / Request Fix View ────────────────────────────────────── */}
-            {activeDecision === 'clarify' && (
-              <form onSubmit={handleClarify} className="space-y-6">
-                {/* Pre-fill Quick Button for Multi-Day Minimum Difference */}
-                {isMultiDayBooking && remainingBalanceCents > 0 && (
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 p-3.5 rounded-xl bg-amber-100/80 border border-amber-300 text-xs text-amber-950">
-                    <div className="flex items-center gap-2 font-bold">
-                      <span className="material-symbols-outlined text-base text-amber-700">auto_fix_high</span>
-                      <span>Multi-Day Minimum Difference: {formattedDifference}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setClarifyCategory('meter_reading_mismatch')
-                        setClarifyMessage(
-                          `Under our multi-day booking policy (4h/day minimum), this ${bookingDays}-day rental requires a minimum of ${minimumVdoHours.toFixed(
-                            1
-                          )} VDO flight hours. Your flight record has been updated to ${minimumVdoHours.toFixed(
-                            1
-                          )} hours (${formattedTotal}). As $${(effectiveUpfrontPaidCents / 100).toFixed(
-                            2
-                          )} was paid upfront, the remaining balance of ${formattedDifference} is now due. Please settle via the pilot portal or direct bank transfer.`
-                        )
-                      }}
-                      className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] shadow-sm transition-all w-full sm:w-auto text-center"
-                    >
-                      Insert Pre-Filled Minimum Payment Message
-                    </button>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-700 block">
-                      Reason / Category <span className="text-[11px] font-normal text-slate-500">(Optional)</span>
-                    </label>
-                    {clarifyCategory && (
-                      <button
-                        type="button"
-                        onClick={() => setClarifyCategory('')}
-                        className="text-[11px] text-amber-700 hover:text-amber-900 font-semibold"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="relative" ref={categoryDropdownRef}>
-                    <button
-                      type="button"
-                      onClick={() => setCategoryDropdownOpen((prev) => !prev)}
-                      className={`w-full flex items-center justify-between rounded-xl border bg-white p-3 text-xs text-left transition-all ${
-                        categoryDropdownOpen
-                          ? 'border-amber-500 ring-2 ring-amber-500/20 shadow-sm'
-                          : 'border-slate-200 hover:border-slate-300 shadow-sm'
-                      }`}
-                    >
-                      {clarifyCategory ? (
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="material-symbols-outlined text-amber-600 text-base shrink-0">
-                            {CATEGORY_ICONS[clarifyCategory] || 'help_outline'}
+                      <div className="relative" ref={categoryDropdownRef}>
+                        <button
+                          type="button"
+                          onClick={() => setCategoryDropdownOpen((prev) => !prev)}
+                          className={`w-full flex items-center justify-between rounded-xl border bg-white p-3 text-xs text-left transition-all ${
+                            categoryDropdownOpen
+                              ? 'border-amber-500 ring-2 ring-amber-500/20 shadow-sm'
+                              : 'border-slate-200 hover:border-slate-300 shadow-sm'
+                          }`}
+                        >
+                          {clarifyCategory ? (
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="material-symbols-outlined text-amber-600 text-base shrink-0">
+                                {CATEGORY_ICONS[clarifyCategory] || 'help_outline'}
+                              </span>
+                              <span className="font-semibold text-slate-900 truncate">
+                                {CLARIFICATION_CATEGORY_LABELS[clarifyCategory]}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">Select reason category (optional)...</span>
+                          )}
+                          <span className={`material-symbols-outlined text-slate-400 transition-transform duration-200 ${categoryDropdownOpen ? 'rotate-180 text-amber-600' : ''}`}>
+                            keyboard_arrow_down
                           </span>
-                          <span className="font-semibold text-slate-900 truncate">
-                            {CLARIFICATION_CATEGORY_LABELS[clarifyCategory]}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-slate-400">Select reason category (optional)...</span>
-                      )}
-                      <span className={`material-symbols-outlined text-slate-400 transition-transform duration-200 ${categoryDropdownOpen ? 'rotate-180 text-amber-600' : ''}`}>
-                        keyboard_arrow_down
-                      </span>
-                    </button>
+                        </button>
 
-                    {categoryDropdownOpen && (
-                      <div className="absolute z-30 left-0 right-0 mt-1.5 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl space-y-0.5 max-h-60 overflow-y-auto">
+                        {categoryDropdownOpen && (
+                          <div className="absolute z-30 left-0 right-0 mt-1.5 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl space-y-0.5 max-h-60 overflow-y-auto">
+                            {CATEGORIES.map(([key, label]) => {
+                              const isSelected = clarifyCategory === key
+                              const icon = CATEGORY_ICONS[key] || 'help_outline'
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() => {
+                                    setClarifyCategory(key)
+                                    setCategoryDropdownOpen(false)
+                                  }}
+                                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs transition-colors text-left ${
+                                    isSelected
+                                      ? 'bg-amber-50 font-bold text-amber-950 border border-amber-200/80'
+                                      : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <span className={`material-symbols-outlined text-base ${isSelected ? 'text-amber-700' : 'text-slate-400'}`}>
+                                      {icon}
+                                    </span>
+                                    <span className="truncate">{label}</span>
+                                  </div>
+                                  {isSelected && (
+                                    <span className="material-symbols-outlined text-amber-600 text-sm shrink-0">check</span>
+                                  )}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Quick Select Chips */}
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                        <span className="text-[11px] text-slate-400 font-medium mr-0.5">Quick select:</span>
                         {CATEGORIES.map(([key, label]) => {
                           const isSelected = clarifyCategory === key
-                          const icon = CATEGORY_ICONS[key] || 'help_outline'
                           return (
                             <button
                               key={key}
                               type="button"
-                              onClick={() => {
-                                setClarifyCategory(key)
-                                setCategoryDropdownOpen(false)
-                              }}
-                              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs transition-colors text-left ${
+                              onClick={() => setClarifyCategory(isSelected ? '' : key)}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] transition-all ${
                                 isSelected
-                                  ? 'bg-amber-50 font-bold text-amber-950 border border-amber-200/80'
-                                  : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                                  ? 'bg-amber-100 text-amber-950 border border-amber-300 font-bold shadow-xs'
+                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 border border-slate-200'
                               }`}
                             >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <span className={`material-symbols-outlined text-base ${isSelected ? 'text-amber-700' : 'text-slate-400'}`}>
-                                  {icon}
-                                </span>
-                                <span className="truncate">{label}</span>
-                              </div>
-                              {isSelected && (
-                                <span className="material-symbols-outlined text-amber-600 text-sm shrink-0">check</span>
-                              )}
+                              {label}
                             </button>
                           )
                         })}
                       </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-700 block">
+                        Instructions for Pilot <span className="text-[11px] font-normal text-slate-500">(Optional)</span>
+                      </label>
+                      <textarea
+                        value={clarifyMessage}
+                        onChange={(e) => setClarifyMessage(e.target.value)}
+                        rows={3}
+                        placeholder="Explain clearly what needs correction (e.g. Please check landing count, flight meter hours, or settle outstanding payment)..."
+                        className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none shadow-sm"
+                      />
+                    </div>
+
+                    {isModifiedFromInitial && (
+                      <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 text-xs text-blue-900 space-y-1">
+                        <p className="font-bold flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-base text-blue-600">tune</span>
+                          Adjusted Readings will be Saved
+                        </p>
+                        <p className="text-[11px] text-blue-800 leading-relaxed">
+                          Your updated meter readings and recalculated total ({formattedTotal}) will be saved to the invoice and notified to the customer in their email and pilot portal.
+                        </p>
+                      </div>
                     )}
-                  </div>
 
-                  {/* Quick Select Chips */}
-                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                    <span className="text-[11px] text-slate-400 font-medium mr-0.5">Quick select:</span>
-                    {CATEGORIES.map(([key, label]) => {
-                      const isSelected = clarifyCategory === key
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setClarifyCategory(isSelected ? '' : key)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] transition-all ${
-                            isSelected
-                              ? 'bg-amber-100 text-amber-950 border border-amber-300 font-bold shadow-xs'
-                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 border border-slate-200'
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 text-xs text-amber-800 space-y-1">
+                      <p className="font-bold flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-base">info</span>
+                        Customer Clarification Notice
+                      </p>
+                      <p className="text-[11px] leading-relaxed">
+                        Sending this request will update the record status to <strong>Needs Clarification</strong>, dispatch an immediate email with your notes and updated invoice amount ({formattedTotal}) to <strong>{customerEmail}</strong>, and unlock the pilot portal for resubmission or remaining payment.
+                      </p>
+                    </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-700 block">
-                    Instructions for Pilot <span className="text-[11px] font-normal text-slate-500">(Optional)</span>
-                  </label>
-                  <textarea
-                    value={clarifyMessage}
-                    onChange={(e) => setClarifyMessage(e.target.value)}
-                    rows={3}
-                    placeholder="Explain clearly what needs correction (e.g. Please check landing count, flight meter hours, or settle outstanding payment)..."
-                    className="w-full rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none shadow-sm"
-                  />
-                </div>
-
-                {isModifiedFromInitial && (
-                  <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 text-xs text-blue-900 space-y-1">
-                    <p className="font-bold flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-base text-blue-600">tune</span>
-                      Adjusted Readings will be Saved
-                    </p>
-                    <p className="text-[11px] text-blue-800 leading-relaxed">
-                      Your updated meter readings and recalculated total ({formattedTotal}) will be saved to the invoice and notified to the customer in their email and pilot portal.
-                    </p>
-                  </div>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-600 px-6 py-4 text-sm font-bold text-white shadow-md transition-all disabled:opacity-50"
+                    >
+                      <LoadingButtonContent loading={loading} loadingLabel="Sending Clarification Request...">
+                        <span className="material-symbols-outlined text-lg">forward_to_inbox</span>
+                        Send Clarification Request / Decline ({formattedTotal})
+                      </LoadingButtonContent>
+                    </button>
+                  </form>
                 )}
-
-                <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 text-xs text-amber-800 space-y-1">
-                  <p className="font-bold flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-base">info</span>
-                    Customer Clarification Notice
-                  </p>
-                  <p className="text-[11px] leading-relaxed">
-                    Sending this request will update the record status to <strong>Needs Clarification</strong>, dispatch an immediate email with your notes and updated invoice amount ({formattedTotal}) to <strong>{customerEmail}</strong>, and unlock the pilot portal for resubmission or remaining payment.
-                  </p>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-600 px-6 py-4 text-sm font-bold text-white shadow-md transition-all disabled:opacity-50"
-                >
-                  <LoadingButtonContent loading={loading} loadingLabel="Sending Clarification Request...">
-                    <span className="material-symbols-outlined text-lg">forward_to_inbox</span>
-                    Send Clarification Request / Decline ({formattedTotal})
-                  </LoadingButtonContent>
-                </button>
-              </form>
+              </>
             )}
           </>
         )}

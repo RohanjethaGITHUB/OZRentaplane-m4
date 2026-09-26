@@ -1245,21 +1245,37 @@ export async function POST(req: Request) {
         const blockOverageAmountCents = Number(session.metadata?.block_overage_amount_cents) || 0;
         const blockPackageName = session.metadata?.block_package_name || "Block Time Package";
 
-        let adminNotesPayload = session.metadata?.customer_notes || null;
-        if (isBlockTime && blockPackageId) {
-          adminNotesPayload = JSON.stringify({
-            block_time: {
-              package_id: blockPackageId,
-              package_name: blockPackageName,
-              hours_before: blockHoursBefore,
-              hours_deducted: blockHoursDeducted,
-              hours_remaining: blockHoursRemainingAfter,
-              overage_hours: blockOverageHours,
-              overage_amount_cents: blockOverageAmountCents,
-            },
-            customer_notes: session.metadata?.customer_notes || null,
-          });
+        let actualHoursRefundRequest: any = null;
+        if (session.metadata?.actual_hours_refund_request) {
+          try {
+            actualHoursRefundRequest = JSON.parse(session.metadata.actual_hours_refund_request);
+          } catch (e) {
+            console.warn("[webhook] actual_hours_refund_request parse error:", e);
+          }
         }
+
+        const notesObj: Record<string, any> = {};
+        if (isBlockTime && blockPackageId) {
+          notesObj.block_time = {
+            package_id: blockPackageId,
+            package_name: blockPackageName,
+            hours_before: blockHoursBefore,
+            hours_deducted: blockHoursDeducted,
+            hours_remaining: blockHoursRemainingAfter,
+            overage_hours: blockOverageHours,
+            overage_amount_cents: blockOverageAmountCents,
+          };
+        }
+        if (session.metadata?.customer_notes) {
+          notesObj.customer_notes = session.metadata.customer_notes;
+        }
+        if (actualHoursRefundRequest) {
+          notesObj.actual_hours_refund_request = actualHoursRefundRequest;
+        }
+
+        const adminNotesPayload = Object.keys(notesObj).length > 0
+          ? JSON.stringify(notesObj)
+          : (session.metadata?.customer_notes || null);
 
         if (!targetInvoiceId) {
           const invoiceNumber = `BKINV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${new Date().toTimeString().slice(0, 8).replace(/:/g, '')}-${bookingId.slice(0, 6).toUpperCase()}`;

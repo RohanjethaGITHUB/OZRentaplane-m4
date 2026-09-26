@@ -118,6 +118,7 @@ export default function FlightRecordForm({
   const [done, setDone] = useState(false)
   const [showTopupModal, setShowTopupModal] = useState(false)
   const [isExpiredNoticeCollapsed, setIsExpiredNoticeCollapsed] = useState(false)
+  const [isMinimumVdoNoticeCollapsed, setIsMinimumVdoNoticeCollapsed] = useState(false)
   const [declaration, setDeclaration] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [files, setFiles] = useState<UploadedFile[]>([])
@@ -159,6 +160,12 @@ export default function FlightRecordForm({
   })
   const [notes, setNotes] = useState(initialRecord?.customer_notes ?? '')
   const [minimumVdoDecision, setMinimumVdoDecision] = useState<'enforce_minimum' | 'bill_actual'>('enforce_minimum')
+  const [requestActualHoursRefund, setRequestActualHoursRefund] = useState(false)
+  const [refundAccountName, setRefundAccountName] = useState(picName || '')
+  const [refundBsb, setRefundBsb] = useState('')
+  const [refundAccountNumber, setRefundAccountNumber] = useState('')
+  const [refundBankName, setRefundBankName] = useState('')
+  const [refundReason, setRefundReason] = useState('')
 
   // Landing row helpers
   function updateLandingAirport(idx: number, airportId: string) {
@@ -391,6 +398,33 @@ export default function FlightRecordForm({
       return
     }
 
+    if (calc.minimumVdoBilling.isBelowMinimum && requestActualHoursRefund) {
+      if (!refundAccountName.trim() || !refundBsb.trim() || !refundAccountNumber.trim()) {
+        setError('Please enter your Account Name, BSB, and Account Number for the refund.')
+        return
+      }
+    }
+
+    const actualHoursRefundRequestPayload = (calc.minimumVdoBilling.isBelowMinimum && requestActualHoursRefund)
+      ? {
+          requested: true,
+          account_name: refundAccountName.trim(),
+          bsb: refundBsb.trim(),
+          account_number: refundAccountNumber.trim(),
+          bank_name: refundBankName.trim() || null,
+          reason: refundReason.trim() || null,
+          actual_vdo_hours: totalReadings.vdo_total,
+          enforced_minimum_hours: calc.minimumVdoBilling.minimumVdoHours,
+          difference_hours: Math.max(0, Math.round((calc.minimumVdoBilling.minimumVdoHours - totalReadings.vdo_total) * 10) / 10),
+          difference_amount_cents: Math.round(
+            Math.max(0, Math.round((calc.minimumVdoBilling.minimumVdoHours - totalReadings.vdo_total) * 10) / 10) *
+              calc.standardHourlyRate *
+              100,
+          ),
+          status: 'pending' as const,
+        }
+      : null
+
     try {
       setLoading(true)
 
@@ -417,7 +451,8 @@ export default function FlightRecordForm({
         landings: totalLandings,
         landing_rows: landingRowsParsed,
         customer_notes: notes || null,
-        minimum_vdo_decision: minimumVdoDecision,
+        minimum_vdo_decision: 'enforce_minimum',
+        actual_hours_refund_request: actualHoursRefundRequestPayload,
         declaration_accepted: true,
         signature_type: 'typed',
         signature_value: picName || null,
@@ -791,94 +826,154 @@ export default function FlightRecordForm({
 
         {/* Multi-Day Minimum VDO Decision Selector (Image 3 behavior for customers) */}
         {calc.minimumVdoBilling.isBelowMinimum && (
-          <div className="rounded-2xl border border-amber-300 bg-amber-50/90 p-4 sm:p-5 space-y-3.5 shadow-xs">
-            <div className="flex items-start gap-2.5">
-              <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-200 text-amber-900 shrink-0 mt-0.5">
-                <span className="material-symbols-outlined text-base">schedule</span>
-              </span>
-              <div className="space-y-1">
-                <p className="text-xs font-bold text-amber-950">
-                  VDO hours are below the minimum for this booking.
-                </p>
-                <p className="text-xs text-amber-800 leading-relaxed">
-                  VDO hours flown: <span className="font-mono font-bold">{enteredVdoTotal?.toFixed(1)} h</span>
-                  {' '}| Minimum for this booking ({calc.minimumVdoBilling.bookingDays} day{calc.minimumVdoBilling.bookingDays === 1 ? '' : 's'} booked &times; 4h/day):{' '}
-                  <span className="font-mono font-bold">{calc.minimumVdoBilling.minimumVdoHours.toFixed(1)} h</span>
-                </p>
+          <div className={`rounded-2xl border border-amber-300 bg-amber-50/90 transition-all shadow-xs ${isMinimumVdoNoticeCollapsed ? 'p-3.5 sm:p-4' : 'p-4 sm:p-5 space-y-3.5'}`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-start gap-2.5 min-w-0">
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-200 text-amber-900 shrink-0 mt-0.5">
+                  <span className="material-symbols-outlined text-base">schedule</span>
+                </span>
+                <div className="space-y-0.5 min-w-0">
+                  <p className="text-xs font-bold text-amber-950 truncate sm:whitespace-normal">
+                    VDO hours are below the minimum for this booking.
+                  </p>
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    VDO hours flown: <span className="font-mono font-bold">{enteredVdoTotal?.toFixed(1)} h</span>
+                    {' '}| Minimum for this booking ({calc.minimumVdoBilling.bookingDays} day{calc.minimumVdoBilling.bookingDays === 1 ? '' : 's'} booked &times; 4h/day):{' '}
+                    <span className="font-mono font-bold">{calc.minimumVdoBilling.minimumVdoHours.toFixed(1)} h</span>
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-2 pt-1">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-amber-900 block">
-                Select Billing Policy Option
-              </label>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Option 1: Enforce Minimum */}
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setMinimumVdoDecision('enforce_minimum')}
-                  className={`flex flex-col text-left p-3.5 rounded-xl border-2 transition-all relative cursor-pointer ${
-                    minimumVdoDecision === 'enforce_minimum'
-                      ? 'border-[#1a4fd6] bg-white shadow-sm ring-2 ring-blue-500/20'
-                      : 'border-amber-200/80 bg-white/70 hover:bg-white hover:border-amber-300'
-                  }`}
+                  onClick={() => setIsMinimumVdoNoticeCollapsed((prev) => !prev)}
+                  className="inline-flex items-center justify-center w-7 h-7 rounded-full text-amber-800 hover:text-amber-950 hover:bg-amber-200/60 transition-colors"
+                  title={isMinimumVdoNoticeCollapsed ? "Show details" : "Hide/collapse"}
+                  aria-label="Toggle minimum VDO notice"
                 >
-                  <div className="flex items-center justify-between mb-1.5 w-full">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-[#1a4fd6] border border-blue-200">
-                      <span className="material-symbols-outlined text-xs">balance</span>
-                      Rental Policy Minimum
-                    </span>
-                    <span className={`material-symbols-outlined text-lg ${
-                      minimumVdoDecision === 'enforce_minimum' ? 'text-[#1a4fd6]' : 'text-slate-300'
-                    }`}>
-                      {minimumVdoDecision === 'enforce_minimum' ? 'check_circle' : 'radio_button_unchecked'}
-                    </span>
-                  </div>
-                  <span className="text-xs font-bold text-[#152d5a]">
-                    Enforce Minimum ({calc.minimumVdoBilling.minimumVdoHours.toFixed(1)}h minimum)
-                  </span>
-                  <span className="text-[11px] text-[#4b6390] mt-1 leading-snug">
-                    Standard 4h/day multi-day hire policy applied to settlement.
-                  </span>
-                </button>
-
-                {/* Option 2: Bill Actual Flown */}
-                <button
-                  type="button"
-                  onClick={() => setMinimumVdoDecision('bill_actual')}
-                  className={`flex flex-col text-left p-3.5 rounded-xl border-2 transition-all relative cursor-pointer ${
-                    minimumVdoDecision === 'bill_actual'
-                      ? 'border-[#1a4fd6] bg-white shadow-sm ring-2 ring-blue-500/20'
-                      : 'border-amber-200/80 bg-white/70 hover:bg-white hover:border-amber-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5 w-full">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-200">
-                      <span className="material-symbols-outlined text-xs">speed</span>
-                      Actual Meter
-                    </span>
-                    <span className={`material-symbols-outlined text-lg ${
-                      minimumVdoDecision === 'bill_actual' ? 'text-[#1a4fd6]' : 'text-slate-300'
-                    }`}>
-                      {minimumVdoDecision === 'bill_actual' ? 'check_circle' : 'radio_button_unchecked'}
-                    </span>
-                  </div>
-                  <span className="text-xs font-bold text-[#152d5a]">
-                    Bill Actual Hours ({enteredVdoTotal?.toFixed(1)}h flown)
-                  </span>
-                  <span className="text-[11px] text-[#4b6390] mt-1 leading-snug">
-                    Request review by operations team based on actual logged flight meters.
+                  <span className={`material-symbols-outlined text-[20px] transition-transform duration-200 ${isMinimumVdoNoticeCollapsed ? '' : 'rotate-180'}`}>
+                    keyboard_arrow_down
                   </span>
                 </button>
               </div>
-
-              <p className="text-[11px] text-amber-700/90 leading-relaxed pt-1">
-                {minimumVdoDecision === 'bill_actual'
-                  ? `You have elected to bill for actual hours flown (${enteredVdoTotal?.toFixed(1)}h). Operations will verify this during post-flight review.`
-                  : `Multi-day rental policy applies a 4h/day minimum (${calc.minimumVdoBilling.minimumVdoHours.toFixed(1)}h total minimum).`}
-              </p>
             </div>
+
+            {!isMinimumVdoNoticeCollapsed && (
+              <div className="space-y-3 pt-1">
+              {/* Enforced Minimum Notice Card */}
+              <div className="flex flex-col text-left p-3.5 rounded-xl border-2 border-[#1a4fd6] bg-white shadow-sm ring-2 ring-blue-500/20">
+                <div className="flex items-center justify-between mb-1.5 w-full">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-[#1a4fd6] border border-blue-200">
+                    <span className="material-symbols-outlined text-xs">balance</span>
+                    Rental Policy Minimum Enforced
+                  </span>
+                  <span className="material-symbols-outlined text-lg text-[#1a4fd6]">
+                    check_circle
+                  </span>
+                </div>
+                <span className="text-xs font-bold text-[#152d5a]">
+                  Enforce Minimum ({calc.minimumVdoBilling.minimumVdoHours.toFixed(1)}h minimum)
+                </span>
+                <span className="text-[11px] text-[#4b6390] mt-1 leading-snug">
+                  Multi-day rental policy applies a 4h/day minimum ({calc.minimumVdoBilling.minimumVdoHours.toFixed(1)}h total). This minimum is applied to your live bill settlement.
+                </span>
+              </div>
+
+              {/* Request Waiver / Refund for Actual Hours Checkbox */}
+              <div className="rounded-xl border border-amber-300 bg-white p-3.5 sm:p-4 space-y-3 shadow-xs">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={requestActualHoursRefund}
+                    onChange={(e) => setRequestActualHoursRefund(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-amber-400 text-[#1a4fd6] focus:ring-[#1a4fd6] accent-[#1a4fd6]"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-[#152d5a] block">
+                      Request review &amp; refund for actual hours flown ({enteredVdoTotal?.toFixed(1)}h flown vs {calc.minimumVdoBilling.minimumVdoHours.toFixed(1)}h minimum)
+                    </span>
+                    <span className="text-[11px] text-[#4b6390] leading-relaxed block mt-0.5">
+                      You will pay the standard minimum invoice amount now. Operations will review your actual flown hours and can refund the difference ({Math.max(0, Math.round((calc.minimumVdoBilling.minimumVdoHours - (enteredVdoTotal ?? 0)) * 10) / 10).toFixed(1)}h = ${money(Math.max(0, Math.round((calc.minimumVdoBilling.minimumVdoHours - (enteredVdoTotal ?? 0)) * 10) / 10) * calc.standardHourlyRate * 100)}) directly to your bank account upon approval.
+                    </span>
+                  </div>
+                </label>
+
+                {requestActualHoursRefund && (
+                  <div className="pt-3 border-t border-slate-100 space-y-3">
+                    <div className="flex items-center gap-1.5 text-amber-900 font-bold text-[11px] uppercase tracking-wider">
+                      <span className="material-symbols-outlined text-sm text-amber-700">account_balance</span>
+                      Your Bank Account Details for Refund
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-700 mb-1">
+                          Account Name <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={refundAccountName}
+                          onChange={(e) => setRefundAccountName(e.target.value)}
+                          placeholder="e.g. John Doe"
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-amber-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-700 mb-1">
+                          Bank Name (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={refundBankName}
+                          onChange={(e) => setRefundBankName(e.target.value)}
+                          placeholder="e.g. Commonwealth Bank, NAB"
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-amber-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-700 mb-1">
+                          BSB <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={refundBsb}
+                          onChange={(e) => setRefundBsb(e.target.value)}
+                          placeholder="000-000"
+                          maxLength={7}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 font-mono focus:bg-white focus:border-amber-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-700 mb-1">
+                          Account Number <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={refundAccountNumber}
+                          onChange={(e) => setRefundAccountNumber(e.target.value)}
+                          placeholder="12345678"
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 font-mono focus:bg-white focus:border-amber-500 focus:outline-none"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-medium text-slate-700 mb-1">
+                          Reason / Notes for Waiver Request (Optional)
+                        </label>
+                        <textarea
+                          value={refundReason}
+                          onChange={(e) => setRefundReason(e.target.value)}
+                          rows={2}
+                          placeholder="Explain why you are requesting billing on actual hours (e.g. weather diversion, mechanical hold)..."
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-amber-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            )}
           </div>
         )}
 

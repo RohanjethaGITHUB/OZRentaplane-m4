@@ -564,6 +564,20 @@ export async function approvePostFlightReview(
       }
     }
 
+    if (input.actual_hours_refund_review) {
+      const existingRefundReq = parsedNotes.actual_hours_refund_request || {}
+      parsedNotes.actual_hours_refund_request = {
+        ...existingRefundReq,
+        status: input.actual_hours_refund_review.status,
+        refund_amount_cents: input.actual_hours_refund_review.refund_amount_cents ?? existingRefundReq.difference_amount_cents ?? 0,
+        refund_reference: input.actual_hours_refund_review.refund_reference ?? null,
+        refund_receipt_path: input.actual_hours_refund_review.refund_receipt_path ?? existingRefundReq.refund_receipt_path ?? null,
+        admin_notes: input.actual_hours_refund_review.admin_notes ?? null,
+        reviewed_at: now,
+        reviewed_by_user_id: adminId,
+      }
+    }
+
     const invUpdates: Record<string, any> = {
       status: 'paid',
       paid_at: bookingInvoice.paid_at || now,
@@ -618,6 +632,20 @@ export async function approvePostFlightReview(
       if (ledgerInsertErr) {
         console.warn('[approvePostFlightReview] ledger insert note:', ledgerInsertErr)
       }
+    }
+
+    if (input.actual_hours_refund_review) {
+      await supabase.from('booking_audit_events').insert({
+        booking_id: flightRecord.booking_id,
+        aircraft_id: flightRecord.aircraft_id,
+        actor_user_id: adminId,
+        actor_role: 'admin',
+        event_type: 'actual_hours_refund_reviewed',
+        event_summary: input.actual_hours_refund_review.status === 'accepted'
+          ? `Admin accepted actual hours refund request ($${(((input.actual_hours_refund_review.refund_amount_cents ?? 0) / 100).toFixed(2))}, Ref: ${input.actual_hours_refund_review.refund_reference || 'N/A'}).`
+          : 'Admin declined actual hours refund request. Minimum policy enforced.',
+        new_value: input.actual_hours_refund_review as any,
+      })
     }
 
     // Generate updated PAID tax invoice / receipt PDF
@@ -5406,4 +5434,46 @@ export async function assignSelfAsInstructor(bookingId: string): Promise<void> {
 
   void emitBookingChanged({ bookingId, userId: booking.booking_owner_user_id })
   void emitOpsChanged()
+}
+
+export async function uploadAdminRefundReceipt(
+  formData: FormData,
+): Promise<{ storagePath: string }> {
+  const { adminId } = await requireAdmin()
+  const file = formData.get('file') as File | null
+  const bookingId = formData.get('bookingId') as string | null
+
+  if (!file || !bookingId) {
+    throw new Error('VALIDATION: Missing receipt file or booking ID.')
+  }
+
+  const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+  if (!validTypes.includes(file.type)) {
+    throw new Error('VALIDATION: Invalid file type. Please upload JPEG, PNG, WebP, or PDF.')
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error('VALIDATION: File is too large. Maximum size is 10MB.')
+  }
+
+  const fileExt = file.name.split('.').pop() || 'png'
+  const filePath = `refunds/${bookingId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+  const adminSupabase = createAdminClient()
+
+  let uploadError = (await adminSupabase.storage
+    .from('bank_transfer_receipts')
+    .upload(filePath, file, { contentType: file.type, upsert: false })).error
+
+  if (uploadError) {
+    const fallbackRes = await adminSupabase.storage
+      .from('flight_record_evidence')
+      .upload(filePath, file, { contentType: file.type, upsert: false })
+    uploadError = fallbackRes.error
+  }
+
+  if (uploadError) {
+    console.error('[uploadAdminRefundReceipt] upload error:', uploadError)
+    throw new Error('Failed to upload refund payment receipt. Please try again.')
+  }
+
+  return { storagePath: filePath }
 }

@@ -292,11 +292,16 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
     hoursPurchased?: number
   } | null = null
 
+  let actualHoursRefundRequest: any = null
+
   if (bookingInvoice?.admin_notes) {
     try {
       const parsedNotes = typeof bookingInvoice.admin_notes === 'string'
         ? JSON.parse(bookingInvoice.admin_notes)
         : bookingInvoice.admin_notes
+      if (parsedNotes?.actual_hours_refund_request) {
+        actualHoursRefundRequest = parsedNotes.actual_hours_refund_request
+      }
       if (parsedNotes?.block_time) {
         blockTimeDetails = {
           packageId: parsedNotes.block_time.package_id,
@@ -311,6 +316,20 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
       }
     } catch {
       // ignore
+    }
+  }
+
+  if (!actualHoursRefundRequest && bookingId) {
+    const { data: refundEvent } = await adminSupabase
+      .from('booking_audit_events')
+      .select('new_value')
+      .eq('booking_id', bookingId)
+      .eq('event_type', 'actual_hours_refund_requested')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (refundEvent?.new_value) {
+      actualHoursRefundRequest = refundEvent.new_value
     }
   }
 
@@ -559,6 +578,7 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
       clarificationCategory={clarData?.category}
       clarificationMessage={clarData?.message}
       blockTimeDetails={blockTimeDetails}
+      actualHoursRefundRequest={actualHoursRefundRequest}
     />
   )
 }

@@ -1021,6 +1021,9 @@ export async function submitAndPayPostFlight(
           block_hours_remaining_after: calc.blockHoursRemainingAfter != null ? String(calc.blockHoursRemainingAfter) : '',
           block_overage_hours: String(calc.blockOverageHours),
           block_overage_amount_cents: String(calc.blockOverageAmountCents),
+          actual_hours_refund_request: input.actual_hours_refund_request
+            ? JSON.stringify(input.actual_hours_refund_request).slice(0, 480)
+            : '',
         },
         success_url: `${appUrl}/dashboard/bookings/${input.booking_id}?payment=success`,
         cancel_url: `${appUrl}/dashboard/bookings/${input.booking_id}?payment=cancelled`,
@@ -1064,12 +1067,14 @@ export async function submitAndPayPostFlight(
       overage_amount_cents: calc.blockOverageAmountCents,
     } : null
 
-    const adminNotesPayload = blockTimeSnapshot
-      ? JSON.stringify({
-          block_time: blockTimeSnapshot,
-          customer_notes: input.customer_notes || null,
-        })
-      : input.customer_notes ?? null
+    const combinedNotesObj: Record<string, any> = {}
+    if (blockTimeSnapshot) combinedNotesObj.block_time = blockTimeSnapshot
+    if (input.customer_notes) combinedNotesObj.customer_notes = input.customer_notes
+    if (input.actual_hours_refund_request) combinedNotesObj.actual_hours_refund_request = input.actual_hours_refund_request
+
+    const adminNotesPayload = Object.keys(combinedNotesObj).length > 0
+      ? JSON.stringify(combinedNotesObj)
+      : (input.customer_notes ?? null)
 
     if (!invoiceId) {
       invoiceNumber = `BKINV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${new Date().toTimeString().slice(0, 8).replace(/:/g, '')}-${input.booking_id.slice(0, 6).toUpperCase()}`
@@ -1206,6 +1211,19 @@ export async function submitAndPayPostFlight(
         status: 'pending_review',
       })
     }
+  }
+
+  // Audit actual hours refund request if requested by pilot
+  if (input.actual_hours_refund_request?.requested) {
+    await adminSupabase.from('booking_audit_events').insert({
+      booking_id: input.booking_id,
+      aircraft_id: booking.aircraft_id,
+      actor_user_id: userId,
+      actor_role: 'customer',
+      event_type: 'actual_hours_refund_requested',
+      event_summary: `Customer requested actual hours refund (${input.actual_hours_refund_request.actual_vdo_hours}h flown vs ${input.actual_hours_refund_request.enforced_minimum_hours}h minimum, difference $${(input.actual_hours_refund_request.difference_amount_cents / 100).toFixed(2)}).`,
+      new_value: input.actual_hours_refund_request as any,
+    })
   }
 
   // 5. Send notification email to admin and customer (only if online payment is NOT pending)

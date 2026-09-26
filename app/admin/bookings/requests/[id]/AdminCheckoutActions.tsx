@@ -16,6 +16,7 @@ import {
 import { CHECKOUT_RATE_PER_HOUR } from '@/lib/pricing-constants'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { LoadingButtonContent } from '@/components/ui/Spinner'
+import AirportSelect from '@/components/ui/AirportSelect'
 
 type CheckoutStatus =
   | 'checkout_confirmed'
@@ -611,19 +612,14 @@ export default function AdminCheckoutActions({
                           <div key={row.id} className="mb-2.5 rounded-lg border border-gray-100 bg-gray-50/70 p-2 sm:border-0 sm:bg-transparent sm:p-0 sm:mb-2">
                             <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                               <div className="min-w-0 flex-1">
-                                <select
+                                <AirportSelect
                                   value={row.airportId}
-                                  onChange={e => handleLandingChange(row.id, 'airportId', e.target.value)}
+                                  onChange={newId => handleLandingChange(row.id, 'airportId', newId)}
+                                  options={airports}
                                   disabled={isPending}
-                                  className="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-xs sm:text-sm text-gray-900 focus:outline-none focus:border-[#152d5a]/40"
-                                >
-                                  <option value="">Select airport</option>
-                                  {airports.map(airport => (
-                                    <option key={airport.id} value={airport.id}>
-                                      {airport.icao_code} — {airport.name}
-                                    </option>
-                                  ))}
-                                </select>
+                                  placeholder="Select airport..."
+                                  className="w-full"
+                                />
                               </div>
                               <div className="flex items-center justify-between gap-1 sm:justify-end sm:gap-2">
                                 <div className="flex items-center gap-1">

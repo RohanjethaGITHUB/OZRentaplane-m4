@@ -442,9 +442,38 @@ export type SubmitFlightRecordInput = {
   landing_rows?: FlightRecordLandingRow[]
   customer_notes?: string | null
   minimum_vdo_decision?: 'enforce_minimum' | 'bill_actual' | null
+  actual_hours_refund_request?: ActualHoursRefundRequestPayload | null
   declaration_accepted?: boolean
   signature_type?: SignatureType
   signature_value?: string | null
+}
+
+export type ActualHoursRefundRequestPayload = {
+  requested: boolean
+  account_name: string
+  bsb: string
+  account_number: string
+  bank_name?: string | null
+  reason?: string | null
+  actual_vdo_hours: number
+  enforced_minimum_hours: number
+  difference_hours: number
+  difference_amount_cents: number
+  status: 'pending' | 'accepted' | 'declined'
+  refund_amount_cents?: number | null
+  refund_reference?: string | null
+  refund_receipt_path?: string | null
+  admin_notes?: string | null
+  reviewed_at?: string | null
+  reviewed_by_user_id?: string | null
+}
+
+export type ActualHoursRefundReviewInput = {
+  status: 'accepted' | 'declined'
+  refund_amount_cents?: number | null
+  refund_reference?: string | null
+  refund_receipt_path?: string | null
+  admin_notes?: string | null
 }
 
 export type CreateAdminBlockInput = {
@@ -476,6 +505,7 @@ export type ApproveFlightRecordInput = {
   vdo_total?: number | null
   air_switch_total?: number | null
   landing_rows?: Array<{ airport_id: string; landing_count: number | string }>
+  actual_hours_refund_review?: ActualHoursRefundReviewInput | null
 }
 
 export type ResubmitFlightRecordInput = {
