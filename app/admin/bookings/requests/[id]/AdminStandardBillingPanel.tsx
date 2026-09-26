@@ -12,6 +12,7 @@ import {
 } from '@/lib/aircraft-readings'
 import { PAYF_RATE_PER_HOUR } from '@/lib/pricing-constants'
 import DocumentViewerModal from '@/components/ui/DocumentViewerModal'
+import AirportSelect from '@/components/ui/AirportSelect'
 import {
   resolveStandardBookingBillingBranch,
   resolveMinimumVdoBilling,
@@ -300,7 +301,7 @@ export default function AdminStandardBillingPanel({
   }
 
   return (
-    <div className="rounded-2xl border border-[var(--admin-border)] bg-white p-6 md:p-8 space-y-8 shadow-[var(--admin-shadow-panel)]">
+    <div className="rounded-2xl border border-[var(--admin-border)] bg-white p-3.5 sm:p-6 md:p-8 space-y-6 sm:space-y-8 shadow-[var(--admin-shadow-panel)]">
       <div>
         <h2 className="text-base font-semibold text-[var(--admin-text)] mb-1">Flight Billing</h2>
         <p className="text-sm text-[var(--admin-text-muted)] leading-relaxed">
@@ -324,7 +325,7 @@ export default function AdminStandardBillingPanel({
                 )}
               </div>
               {hasEvidence ? (
-                <div className="rounded-xl border border-[#dbe7f4] bg-[#f8fbff] p-3.5 flex items-center justify-between gap-3 shadow-[0_1px_0_rgba(255,255,255,0.8)]">
+                <div className="rounded-xl border border-[#dbe7f4] bg-[#f8fbff] p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-[0_1px_0_rgba(255,255,255,0.8)]">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-[#1a4fd6] flex-shrink-0">
                       <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -438,7 +439,7 @@ export default function AdminStandardBillingPanel({
                 </span>
               )}
             </label>
-            <div className="relative max-w-xs">
+            <div className="relative w-full sm:max-w-xs">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--admin-text-muted)]">$</span>
               <input
                 type="number"
@@ -474,7 +475,7 @@ export default function AdminStandardBillingPanel({
               </button>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {landingRows.map((row, index) => {
                 const rowError = landingRowErrors[index]
                 const count = Number(row.landingCount)
@@ -483,43 +484,44 @@ export default function AdminStandardBillingPanel({
                   : 0
 
                 return (
-                  <div key={row.id} className="space-y-0.5">
-                    <div className="flex gap-2 items-start">
-                      <select
-                        value={row.airportId}
-                        onChange={(e) => handleLandingChange(row.id, 'airportId', e.target.value)}
-                        disabled={submitState !== 'idle'}
-                        className="flex-1 bg-white border border-[var(--admin-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)] min-w-0 min-h-[40px]"
-                      >
-                        <option value="">Select airport…</option>
-                        {airports.map((airport) => (
-                          <option key={airport.id} value={airport.id}>
-                            {airport.icao_code} — {airport.name}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={row.landingCount}
-                        onChange={(e) => handleLandingChange(row.id, 'landingCount', e.target.value)}
-                        disabled={submitState !== 'idle'}
-                        className="w-16 bg-white border border-[var(--admin-border)] rounded-lg px-2 py-2.5 text-sm text-[var(--admin-text)] text-center focus:outline-none focus:border-[rgba(26,79,214,0.35)] min-h-[40px]"
-                      />
-                      <div className="w-16 text-right flex-shrink-0 py-2.5">
-                        <span className="text-sm font-mono text-[var(--admin-text-muted)]">
-                          {rowTotal > 0 ? `$${(rowTotal / 100).toFixed(2)}` : '—'}
-                        </span>
+                  <div key={row.id} className="space-y-1 rounded-xl border border-slate-200/70 bg-slate-50/60 p-2 sm:border-0 sm:bg-transparent sm:p-0">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+                      <div className="min-w-0 flex-1">
+                        <AirportSelect
+                          value={row.airportId}
+                          onChange={(newId) => handleLandingChange(row.id, 'airportId', newId)}
+                          options={airports}
+                          disabled={submitState !== 'idle'}
+                          placeholder="Select airport…"
+                          className="w-full"
+                        />
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => removeLandingRow(row.id)}
-                        disabled={submitState !== 'idle' || landingRows.length <= 1}
-                        className="flex-shrink-0 p-2 text-[var(--admin-text-muted)] hover:text-rose-500 transition-colors disabled:opacity-30"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">remove_circle</span>
-                      </button>
+                      <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] text-[var(--admin-text-muted)] sm:hidden font-medium">Qty:</span>
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={row.landingCount}
+                            onChange={(e) => handleLandingChange(row.id, 'landingCount', e.target.value)}
+                            disabled={submitState !== 'idle'}
+                            className="w-14 sm:w-16 bg-white border border-[var(--admin-border)] rounded-lg px-2 py-2 text-sm text-[var(--admin-text)] text-center focus:outline-none focus:border-[rgba(26,79,214,0.35)] min-h-[38px]"
+                          />
+                        </div>
+                        <div className="text-right text-xs sm:text-sm font-mono text-[var(--admin-text-muted)] min-w-[55px]">
+                          {rowTotal > 0 ? `$${(rowTotal / 100).toFixed(2)}` : '—'}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeLandingRow(row.id)}
+                          disabled={submitState !== 'idle' || landingRows.length <= 1}
+                          className="p-1.5 text-[var(--admin-text-muted)] hover:text-rose-500 transition-colors disabled:opacity-30 rounded-lg hover:bg-rose-50 shrink-0"
+                          title="Remove landing"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">remove_circle</span>
+                        </button>
+                      </div>
                     </div>
                     {rowError && (
                       <p className="text-xs text-rose-500/80 pl-1">{rowError}</p>
@@ -567,11 +569,11 @@ export default function AdminStandardBillingPanel({
                   Billing preview: {billedVdoConfirmation}
                 </div>
               )}
-              <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] px-5 py-4 space-y-3">
-                <div className="flex items-center">
-                  <span className="text-sm text-[var(--admin-text-muted)]">Submitted VDO total</span>
-                  <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
-                  <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
+              <div className="rounded-xl border border-[var(--admin-border)] bg-[#f7f9fc] p-3 sm:px-5 sm:py-4 space-y-3">
+                <div className="flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1">
+                  <span className="text-xs sm:text-sm text-[var(--admin-text-muted)]">Submitted VDO total</span>
+                  <span className="hidden sm:inline flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                  <span className="text-xs sm:text-sm font-mono tabular-nums text-[var(--admin-text)] font-semibold sm:font-normal">
                     {billedVdoSummary}
                   </span>
                 </div>
@@ -579,76 +581,76 @@ export default function AdminStandardBillingPanel({
                   <>
                     <div className="pl-3.5 border-l-2 border-[var(--admin-border)]/60 space-y-1.5 my-1.5">
                       <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--admin-text-muted)] mb-1">Block time balance</div>
-                      <div className="flex items-center">
-                        <span className="text-sm text-[var(--admin-text-muted)]">Available before this flight</span>
-                        <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
-                        <span className="text-sm font-mono tabular-nums text-[var(--admin-text-muted)]">
+                      <div className="flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1">
+                        <span className="text-xs sm:text-sm text-[var(--admin-text-muted)]">Available before this flight</span>
+                        <span className="hidden sm:inline flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                        <span className="text-xs sm:text-sm font-mono tabular-nums text-[var(--admin-text-muted)]">
                           {activeBlockTime.hoursRemaining.toFixed(1)}h
                         </span>
                       </div>
-                      <div className="flex items-center">
-                        <span className="text-sm text-[var(--admin-text-muted)]">Used this flight</span>
-                        <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
-                        <span className="text-sm font-mono tabular-nums text-[var(--admin-text-muted)]">
-                          {packageDeductionHours.toFixed(1)}h <span className="ml-4">$0.00</span>
+                      <div className="flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1">
+                        <span className="text-xs sm:text-sm text-[var(--admin-text-muted)]">Used this flight</span>
+                        <span className="hidden sm:inline flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                        <span className="text-xs sm:text-sm font-mono tabular-nums text-[var(--admin-text-muted)]">
+                          {packageDeductionHours.toFixed(1)}h <span className="ml-2 sm:ml-4">$0.00</span>
                         </span>
                       </div>
-                      <div className="flex items-center">
-                        <span className="text-sm text-[var(--admin-text-muted)]">Remaining after</span>
-                        <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
-                        <span className="text-sm font-mono tabular-nums text-[var(--admin-text-muted)] font-medium">
+                      <div className="flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1">
+                        <span className="text-xs sm:text-sm text-[var(--admin-text-muted)]">Remaining after</span>
+                        <span className="hidden sm:inline flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                        <span className="text-xs sm:text-sm font-mono tabular-nums text-[var(--admin-text-muted)] font-medium">
                           {(activeBlockTime.hoursRemaining - packageDeductionHours).toFixed(1)}h
                         </span>
                       </div>
                     </div>
                     {overageHours > 0 && (
-                      <div className="flex items-center">
-                        <span className="text-sm text-amber-700">Overage ({overageHours.toFixed(1)}h x ${activeBlockTime.ratePerHour.toFixed(2)}/hr)</span>
-                        <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
-                        <span className="text-sm font-mono tabular-nums text-amber-700">
+                      <div className="flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1">
+                        <span className="text-xs sm:text-sm text-amber-700">Overage ({overageHours.toFixed(1)}h x ${activeBlockTime.ratePerHour.toFixed(2)}/hr)</span>
+                        <span className="hidden sm:inline flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                        <span className="text-xs sm:text-sm font-mono tabular-nums text-amber-700 font-semibold sm:font-normal">
                           ${(overageCents / 100).toFixed(2)}
                         </span>
                       </div>
                     )}
                   </>
                 ) : (
-                  <div className="flex items-center">
-                    <span className="text-sm text-[var(--admin-text-muted)]">Aircraft hire ({finalVdoHours.toFixed(1)}h x ${hourlyRateNum.toFixed(2)}/hr)</span>
-                    <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
-                    <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
+                  <div className="flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1">
+                    <span className="text-xs sm:text-sm text-[var(--admin-text-muted)]">Aircraft hire ({finalVdoHours.toFixed(1)}h x ${hourlyRateNum.toFixed(2)}/hr)</span>
+                    <span className="hidden sm:inline flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                    <span className="text-xs sm:text-sm font-mono tabular-nums text-[var(--admin-text)] font-semibold sm:font-normal">
                       ${(vdoBaseCents / 100).toFixed(2)}
                     </span>
                   </div>
                 )}
                 {landingSubtotalCents > 0 && (
-                  <div className="flex items-center">
-                    <span className="text-sm text-[var(--admin-text-muted)]">Landing charges ({validLandingCharges.reduce((sum, row) => sum + row.landingCount, 0)} x ${(LANDING_FEE_CENTS / 100).toFixed(2)})</span>
-                    <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
-                    <span className="text-sm font-mono tabular-nums text-[var(--admin-text)]">
+                  <div className="flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1">
+                    <span className="text-xs sm:text-sm text-[var(--admin-text-muted)]">Landing charges ({validLandingCharges.reduce((sum, row) => sum + row.landingCount, 0)} x ${(LANDING_FEE_CENTS / 100).toFixed(2)})</span>
+                    <span className="hidden sm:inline flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                    <span className="text-xs sm:text-sm font-mono tabular-nums text-[var(--admin-text)] font-semibold sm:font-normal">
                       ${(landingSubtotalCents / 100).toFixed(2)}
                     </span>
                   </div>
                 )}
-                <div className="border-t border-[var(--admin-border)] pt-3 flex items-center">
-                  <span className="text-sm font-medium text-[var(--admin-text)]">Invoice total</span>
-                  <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
-                  <span className="text-base font-bold font-mono tabular-nums text-[#1a4fd6]">
+                <div className="border-t border-[var(--admin-border)] pt-3 flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1">
+                  <span className="text-xs sm:text-sm font-medium text-[var(--admin-text)]">Invoice total</span>
+                  <span className="hidden sm:inline flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                  <span className="text-sm sm:text-base font-bold font-mono tabular-nums text-[#1a4fd6]">
                     ${(subtotalCents / 100).toFixed(2)}
                   </span>
                 </div>
                 {creditApplicable > 0 && (
-                  <div className="flex items-center">
-                    <span className="text-sm text-[var(--admin-text-muted)]">Credit applied</span>
-                    <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
-                    <span className="text-sm font-mono tabular-nums text-emerald-600">
+                  <div className="flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1">
+                    <span className="text-xs sm:text-sm text-[var(--admin-text-muted)]">Credit applied</span>
+                    <span className="hidden sm:inline flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                    <span className="text-xs sm:text-sm font-mono tabular-nums text-emerald-600 font-semibold sm:font-normal">
                       ${(creditApplicable / 100).toFixed(2)}
                     </span>
                   </div>
                 )}
-                <div className="flex items-center">
-                  <span className="text-sm font-semibold text-[var(--admin-text)]">Final amount due</span>
-                  <span className="flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
-                  <span className="text-lg font-bold font-mono tabular-nums text-[#152d5a]">
+                <div className="flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1">
+                  <span className="text-xs sm:text-sm font-semibold text-[var(--admin-text)]">Final amount due</span>
+                  <span className="hidden sm:inline flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                  <span className="text-base sm:text-lg font-bold font-mono tabular-nums text-[#152d5a]">
                     ${(estimatedAmountDue / 100).toFixed(2)}
                   </span>
                 </div>

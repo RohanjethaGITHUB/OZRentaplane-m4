@@ -637,9 +637,10 @@ export default function CustomerBillingInteractive({
                   </tr>
                 ) : (
                   filteredRows.map((r) => {
-                    const invoiceDownloadUrl = r.bookingId
-                      ? `/dashboard/bookings/${r.bookingId}/invoice`
-                      : r.pdf_url ?? null
+                    const isSettled = ['paid', 'settled', 'waived'].includes(r.status)
+                    const invoiceDownloadUrl = isSettled
+                      ? (r.bookingId ? `/dashboard/bookings/${r.bookingId}/invoice` : r.pdf_url ?? null)
+                      : null
 
                     const paidAtDisplay =
                       r.status === 'paid'
@@ -777,9 +778,10 @@ export default function CustomerBillingInteractive({
               </div>
             ) : (
               filteredRows.map((r) => {
-                const invoiceDownloadUrl = r.bookingId
-                  ? `/dashboard/bookings/${r.bookingId}/invoice`
-                  : r.pdf_url ?? null
+                const isSettled = ['paid', 'settled', 'waived'].includes(r.status)
+                const invoiceDownloadUrl = isSettled
+                  ? (r.bookingId ? `/dashboard/bookings/${r.bookingId}/invoice` : r.pdf_url ?? null)
+                  : null
 
                 const paidAtDisplay =
                   r.status === 'paid'
@@ -1154,9 +1156,10 @@ export default function CustomerBillingInteractive({
                 ) : (
                   <div className="space-y-3">
                     {selectedCustomerPayments.map((p) => {
-                      const invoiceUrl = p.bookingId
-                        ? `/dashboard/bookings/${p.bookingId}/invoice`
-                        : p.pdf_url ?? null
+                      const isItemSettled = ['paid', 'settled', 'waived'].includes(p.status)
+                      const invoiceUrl = isItemSettled
+                        ? (p.bookingId ? `/dashboard/bookings/${p.bookingId}/invoice` : p.pdf_url ?? null)
+                        : null
 
                       const pDate = p.paid_at
                         ? formatDateFromISO(p.paid_at)

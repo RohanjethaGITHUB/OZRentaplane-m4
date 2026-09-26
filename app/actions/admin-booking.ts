@@ -2336,7 +2336,10 @@ export async function markCheckoutOutcome(input: {
         entityType: 'checkout',
         entityId: input.bookingId,
         metadata: { outcome: input.outcome, finalBookingStatus, finalClearanceStatus },
-        attachments: checkoutPdfResult?.attachment ? [checkoutPdfResult.attachment] : undefined,
+        attachments:
+          emailEventType === 'checkout_payment_required'
+            ? undefined
+            : (checkoutPdfResult?.attachment ? [checkoutPdfResult.attachment] : undefined),
       }).catch((error) => console.error('[markCheckoutOutcome] email failed:', error))
     }
   }
@@ -4966,7 +4969,10 @@ export async function finaliseStandardBookingInvoice(input: {
       eventType,
       entityType: 'booking',
       entityId: input.bookingId,
-      attachments: standardPdfResult ? [standardPdfResult.attachment] : undefined,
+      attachments:
+        eventType === 'post_flight_payment_required'
+          ? undefined
+          : (standardPdfResult ? [standardPdfResult.attachment] : undefined),
     }).catch((error) => console.error('[finaliseStandardBookingInvoice] email failed:', error))
   }
 

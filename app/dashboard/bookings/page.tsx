@@ -1112,7 +1112,10 @@ export default async function CustomerBookingsPage() {
                             pendingRescheduleRequest={pendingReschedule}
                             latestRescheduleRequest={latestReschedule}
                             hasNightVfrRating={profile?.has_night_vfr_rating ?? null}
-                            hasInvoice={Boolean(booking.bookingInvoice || booking.blockTimePayInvoice)}
+                            hasInvoice={Boolean(
+                              (booking.bookingInvoice && ['paid', 'settled', 'waived'].includes(booking.bookingInvoice.status)) ||
+                              (booking.blockTimePayInvoice && ['paid', 'settled', 'waived'].includes((booking.blockTimePayInvoice as any).status))
+                            )}
                             flightRecordStatus={booking.flight_records?.[0]?.status}
                           />
                         </div>
@@ -1286,7 +1289,7 @@ export default async function CustomerBookingsPage() {
                             VIEW DETAILS
                             <span className="material-symbols-outlined text-[16px] ml-2">chevron_right</span>
                           </Link>
-                          {Boolean(bookingInvoice && bookingInvoice.status !== 'cancelled') && (
+                          {Boolean(bookingInvoice && ['paid', 'settled', 'waived'].includes(bookingInvoice.status)) && (
                             <a
                               href={`/dashboard/bookings/${booking.id}/invoice`}
                               target="_blank"

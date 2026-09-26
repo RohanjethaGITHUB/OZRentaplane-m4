@@ -22,7 +22,7 @@ export function paymentConfirmedEmail(message: string, pdfUrl?: string) {
 }
 
 /** Block-time flight finalised with an unpaid landing-fee invoice (send invoice path). */
-export function landingFeeInvoiceReadyEmail(message: string, pdfUrl?: string) {
+export function landingFeeInvoiceReadyEmail(message: string, _pdfUrl?: string) {
   return {
     subject: 'Landing fee invoice ready — payment required',
     html: renderBaseTemplate({
@@ -30,7 +30,6 @@ export function landingFeeInvoiceReadyEmail(message: string, pdfUrl?: string) {
       message,
       ctaLabel: 'Pay Landing Fee',
       ctaUrl: `${appUrl}/dashboard/purchases`,
-      extraHtml: invoicePdfExtraHtml(pdfUrl),
     }),
   }
 }
@@ -63,7 +62,6 @@ export function standardBookingInvoicePaymentRequiredEmail(details: {
       ],
       ctaLabel: 'Pay Now',
       ctaUrl: `${appUrl}/dashboard/bookings/${details.bookingId}#payment`,
-      extraHtml: invoicePdfExtraHtml(details.pdfUrl ?? undefined),
     }),
   }
 }

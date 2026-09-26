@@ -1344,7 +1344,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const pageContent = (
       <>
       <div className="min-h-screen bg-gray-100">
-        <div className="max-w-[1400px] mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-8 pb-24">
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-6 lg:px-8 pt-16 sm:pt-20 lg:pt-8 pb-24">
 
         <div className="mb-6">
           <div className="flex items-center gap-2 text-sm text-gray-400 mb-4">
@@ -1996,7 +1996,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                         <span className="text-[11px] font-medium text-deep-ink text-right ml-3">{line.value}</span>
                       </div>
                     ))}
-                  {bookingType === 'standard' && standardInvoice && standardInvoice.status !== 'cancelled' && (
+                  {bookingType === 'standard' && standardInvoice && Boolean(standardInvoice.status && ['paid', 'settled', 'waived'].includes(standardInvoice.status)) && (
                     <div className="pt-3">
                       <a
                         href={`/dashboard/bookings/${booking.id}/invoice`}

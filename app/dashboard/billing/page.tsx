@@ -338,7 +338,7 @@ export default async function CustomerBillingPage() {
       card: paymentMethod === 'card' ? { brand: 'mastercard', last4: '7763' } : null,
       transactionId: ci.stripe_payment_intent_id || (isPaid ? `txn_${ci.id.slice(0, 10)}` : null),
       provider: paymentMethod === 'card' ? 'Stripe' : undefined,
-      pdfUrl: ci.booking_id ? `/dashboard/bookings/${ci.booking_id}/invoice` : null,
+      pdfUrl: (isPaid || isSettled || isWaived) ? (ci.booking_id ? `/dashboard/bookings/${ci.booking_id}/invoice` : null) : null,
       payUrl: `/dashboard/bookings/${ci.booking_id}#payment`,
       items: [
         {
@@ -539,7 +539,7 @@ export default async function CustomerBillingPage() {
       card: paymentMethod === 'card' ? { brand: 'mastercard', last4: '7763' } : null,
       transactionId: bi.stripe_payment_intent_id || (isPaid ? `txn_${bi.id.slice(0, 10)}` : null),
       provider: paymentMethod === 'card' ? 'Stripe' : undefined,
-      pdfUrl: bi.booking_id ? `/dashboard/bookings/${bi.booking_id}/invoice` : bi.pdf_url ?? null,
+      pdfUrl: (isPaid || isSettled || isWaived) ? (bi.booking_id ? `/dashboard/bookings/${bi.booking_id}/invoice` : bi.pdf_url ?? null) : null,
       payUrl: `/dashboard/bookings/${bi.booking_id}#payment`,
       items: [
         {

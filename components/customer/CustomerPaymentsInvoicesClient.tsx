@@ -208,6 +208,11 @@ export default function CustomerPaymentsInvoicesClient({
 
   const handleDownloadInvoice = useCallback(
     async (inv: CustomerInvoice) => {
+      if (!['PAID', 'SETTLED', 'WAIVED'].includes(inv.status)) {
+        showToast('Tax invoice PDF is only available once payment is settled.', 'error')
+        return
+      }
+
       setDownloadingId(inv.id)
       try {
         const downloadUrl = inv.pdfUrl

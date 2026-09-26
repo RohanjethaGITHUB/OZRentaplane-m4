@@ -205,19 +205,22 @@ export default function InvoiceTable({
                     {/* Actions */}
                     <td className="px-6 py-4 text-center">
                       <div className="inline-flex items-center justify-center">
-                        {/* Direct Download Button */}
-                        <button
-                          type="button"
-                          disabled={isDownloading}
-                          onClick={() => onDownloadInvoice(inv)}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1a4fd6] border border-blue-200/80 text-xs font-semibold transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
-                          aria-label={`Download invoice ${inv.invoiceNumber}`}
-                        >
-                          <span className="material-symbols-outlined text-[15px]">
-                            {isDownloading ? 'hourglass_top' : 'download'}
-                          </span>
-                          {isDownloading ? 'Downloading...' : 'Download Invoice'}
-                        </button>
+                        {['PAID', 'SETTLED', 'WAIVED'].includes(inv.status) ? (
+                          <button
+                            type="button"
+                            disabled={isDownloading}
+                            onClick={() => onDownloadInvoice(inv)}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1a4fd6] border border-blue-200/80 text-xs font-semibold transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+                            aria-label={`Download invoice ${inv.invoiceNumber}`}
+                          >
+                            <span className="material-symbols-outlined text-[15px]">
+                              {isDownloading ? 'hourglass_top' : 'download'}
+                            </span>
+                            {isDownloading ? 'Downloading...' : 'Download Invoice'}
+                          </button>
+                        ) : (
+                          <span className="text-slate-400 text-xs font-medium">—</span>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -335,19 +338,21 @@ export default function InvoiceTable({
                   </div>
                 </div>
 
-                <div className="pt-1">
-                  <button
-                    type="button"
-                    disabled={downloadingId === inv.id}
-                    onClick={() => onDownloadInvoice(inv)}
-                    className="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1a4fd6] border border-blue-200/60 font-semibold text-xs transition-colors disabled:opacity-50"
-                  >
-                    <span className="material-symbols-outlined text-[15px]">
-                      {downloadingId === inv.id ? 'hourglass_top' : 'download'}
-                    </span>
-                    {downloadingId === inv.id ? 'Downloading...' : 'Download Invoice'}
-                  </button>
-                </div>
+                {['PAID', 'SETTLED', 'WAIVED'].includes(inv.status) && (
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      disabled={downloadingId === inv.id}
+                      onClick={() => onDownloadInvoice(inv)}
+                      className="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1a4fd6] border border-blue-200/60 font-semibold text-xs transition-colors disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">
+                        {downloadingId === inv.id ? 'hourglass_top' : 'download'}
+                      </span>
+                      {downloadingId === inv.id ? 'Downloading...' : 'Download Invoice'}
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })

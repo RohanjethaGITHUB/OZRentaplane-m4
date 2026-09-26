@@ -779,17 +779,6 @@ function NextActionCard({
               <p className="text-[11px] text-[#4b6390] mt-0.5">Flight log & payment proof submitted</p>
             </div>
           </div>
-          {bookingInvoice && (
-            <a
-              href={`/dashboard/bookings/${bookingId}/invoice`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap bg-white hover:bg-[#f0f6ff] text-[#152d5a] border border-[#152d5a]/20 text-[11px] font-bold tracking-[0.04em] px-3.5 py-2 rounded-xl transition-colors shadow-sm self-start sm:self-auto"
-            >
-              <span className="material-symbols-outlined text-[15px] text-[#1a4fd6]">download</span>
-              Download Invoice
-            </a>
-          )}
         </div>
         <p className="text-sm text-[#4b6390] leading-relaxed">
           {isResubmitted

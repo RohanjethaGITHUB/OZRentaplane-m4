@@ -50,6 +50,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
     .maybeSingle()
 
   if (stdInvoice) {
+    if (!['paid', 'settled', 'waived'].includes(stdInvoice.status)) {
+      return NextResponse.json(
+        { error: 'Tax Invoice PDF is only available once payment is settled.' },
+        { status: 403 }
+      )
+    }
+
     try {
       const pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId: stdInvoice.id })
       if (pdfResult?.pdfBuffer) {
@@ -89,6 +96,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
   if (chkInvoice) {
     if (chkInvoice.status === 'cancelled') {
       return NextResponse.json({ error: 'No PDF available for this cancelled checkout.' }, { status: 404 })
+    }
+
+    if (!['paid', 'settled', 'waived'].includes(chkInvoice.status)) {
+      return NextResponse.json(
+        { error: 'Tax Invoice PDF is only available once payment is settled.' },
+        { status: 403 }
+      )
     }
 
     const { generateCheckoutBookingInvoicePdf } = await import('@/lib/invoices/checkout-booking-pdf')
