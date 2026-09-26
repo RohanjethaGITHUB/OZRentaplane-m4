@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient, getCachedUser } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import CustomerProfileTabs from '../CustomerProfileTabs'
 import type { UserDocument, VerificationEvent } from '@/lib/supabase/types'
 import { formatDateTime } from '@/lib/formatDateTime'
@@ -124,6 +125,7 @@ export default async function AdminUserPage({
     { data: blockTimePurchaseRows },
     { data: blockTimeTopupRows },
     { data: blockTimeFlightInvoiceRows },
+    { data: customerBookingInvoices },
   ] = await Promise.all([
     supabase
       .from('user_documents')
@@ -215,6 +217,10 @@ export default async function AdminUserPage({
       .eq('billing_mode', 'block_time')
       .order('created_at', { ascending: false })
       .limit(50),
+    createAdminClient()
+      .from('booking_invoices')
+      .select('id, booking_id, admin_notes, status')
+      .eq('customer_id', params.id),
   ])
 
   const blockTimePurchases = (blockTimePurchaseRows ?? []).map((row: any) => {
@@ -299,7 +305,23 @@ export default async function AdminUserPage({
   const clearanceStatus = (customerProfile.pilot_clearance_status ?? 'checkout_required') as PilotClearanceStatus
 
   const checkoutBookings  = checkoutBookingsRaw ?? []
-  const standardBookings  = standardBookingsRaw ?? []
+  const standardBookings  = (standardBookingsRaw ?? []).map((b: any) => {
+    const inv = (customerBookingInvoices ?? []).find((i: any) => i.booking_id === b.id)
+    let hasPendingRefund = false
+    if (inv?.admin_notes) {
+      try {
+        const parsed = typeof inv.admin_notes === 'string' ? JSON.parse(inv.admin_notes) : inv.admin_notes
+        const refundReq = parsed?.actual_hours_refund_request
+        if (refundReq?.requested && refundReq.status === 'pending') {
+          hasPendingRefund = true
+        }
+      } catch {}
+    }
+    return {
+      ...b,
+      has_pending_refund: hasPendingRefund,
+    }
+  })
   const activeBookingRows = [
     ...checkoutBookings.filter((booking: any) => hasActiveCheckoutBooking(booking)),
     ...standardBookings.filter((booking: any) => ACTIVE_STANDARD_BOOKING_STATUSES.includes(booking.status)),

@@ -161,10 +161,6 @@ export default function FlightRecordForm({
   const [notes, setNotes] = useState(initialRecord?.customer_notes ?? '')
   const [minimumVdoDecision, setMinimumVdoDecision] = useState<'enforce_minimum' | 'bill_actual'>('enforce_minimum')
   const [requestActualHoursRefund, setRequestActualHoursRefund] = useState(false)
-  const [refundAccountName, setRefundAccountName] = useState(picName || '')
-  const [refundBsb, setRefundBsb] = useState('')
-  const [refundAccountNumber, setRefundAccountNumber] = useState('')
-  const [refundBankName, setRefundBankName] = useState('')
   const [refundReason, setRefundReason] = useState('')
 
   // Landing row helpers
@@ -398,20 +394,13 @@ export default function FlightRecordForm({
       return
     }
 
-    if (calc.minimumVdoBilling.isBelowMinimum && requestActualHoursRefund) {
-      if (!refundAccountName.trim() || !refundBsb.trim() || !refundAccountNumber.trim()) {
-        setError('Please enter your Account Name, BSB, and Account Number for the refund.')
-        return
-      }
-    }
-
     const actualHoursRefundRequestPayload = (calc.minimumVdoBilling.isBelowMinimum && requestActualHoursRefund)
       ? {
           requested: true,
-          account_name: refundAccountName.trim(),
-          bsb: refundBsb.trim(),
-          account_number: refundAccountNumber.trim(),
-          bank_name: refundBankName.trim() || null,
+          account_name: null,
+          bsb: null,
+          account_number: null,
+          bank_name: null,
           reason: refundReason.trim() || null,
           actual_vdo_hours: totalReadings.vdo_total,
           enforced_minimum_hours: calc.minimumVdoBilling.minimumVdoHours,
@@ -894,80 +883,24 @@ export default function FlightRecordForm({
                       Request review &amp; refund for actual hours flown ({enteredVdoTotal?.toFixed(1)}h flown vs {calc.minimumVdoBilling.minimumVdoHours.toFixed(1)}h minimum)
                     </span>
                     <span className="text-[11px] text-[#4b6390] leading-relaxed block mt-0.5">
-                      You will pay the standard minimum invoice amount now. Operations will review your actual flown hours and can refund the difference ({Math.max(0, Math.round((calc.minimumVdoBilling.minimumVdoHours - (enteredVdoTotal ?? 0)) * 10) / 10).toFixed(1)}h = ${money(Math.max(0, Math.round((calc.minimumVdoBilling.minimumVdoHours - (enteredVdoTotal ?? 0)) * 10) / 10) * calc.standardHourlyRate * 100)}) directly to your bank account upon approval.
+                      You will pay the standard minimum invoice amount now. Operations will review your actual flown hours and can refund the difference ({Math.max(0, Math.round((calc.minimumVdoBilling.minimumVdoHours - (enteredVdoTotal ?? 0)) * 10) / 10).toFixed(1)}h = ${money(Math.max(0, Math.round((calc.minimumVdoBilling.minimumVdoHours - (enteredVdoTotal ?? 0)) * 10) / 10) * calc.standardHourlyRate * 100)}) upon approval.
                     </span>
                   </div>
                 </label>
 
                 {requestActualHoursRefund && (
-                  <div className="pt-3 border-t border-slate-100 space-y-3">
-                    <div className="flex items-center gap-1.5 text-amber-900 font-bold text-[11px] uppercase tracking-wider">
-                      <span className="material-symbols-outlined text-sm text-amber-700">account_balance</span>
-                      Your Bank Account Details for Refund
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                      <div>
-                        <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                          Account Name <span className="text-rose-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={refundAccountName}
-                          onChange={(e) => setRefundAccountName(e.target.value)}
-                          placeholder="e.g. John Doe"
-                          className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-amber-500 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                          Bank Name (Optional)
-                        </label>
-                        <input
-                          type="text"
-                          value={refundBankName}
-                          onChange={(e) => setRefundBankName(e.target.value)}
-                          placeholder="e.g. Commonwealth Bank, NAB"
-                          className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-amber-500 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                          BSB <span className="text-rose-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={refundBsb}
-                          onChange={(e) => setRefundBsb(e.target.value)}
-                          placeholder="000-000"
-                          maxLength={7}
-                          className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 font-mono focus:bg-white focus:border-amber-500 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                          Account Number <span className="text-rose-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={refundAccountNumber}
-                          onChange={(e) => setRefundAccountNumber(e.target.value)}
-                          placeholder="12345678"
-                          className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 font-mono focus:bg-white focus:border-amber-500 focus:outline-none"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                          Reason / Notes for Waiver Request (Optional)
-                        </label>
-                        <textarea
-                          value={refundReason}
-                          onChange={(e) => setRefundReason(e.target.value)}
-                          rows={2}
-                          placeholder="Explain why you are requesting billing on actual hours (e.g. weather diversion, mechanical hold)..."
-                          className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-amber-500 focus:outline-none"
-                        />
-                      </div>
+                  <div className="pt-3 border-t border-slate-100">
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-700 mb-1">
+                        Reason / Notes for Waiver Request (Optional)
+                      </label>
+                      <textarea
+                        value={refundReason}
+                        onChange={(e) => setRefundReason(e.target.value)}
+                        rows={2}
+                        placeholder="Explain why you are requesting billing on actual hours (e.g. weather diversion, mechanical hold)..."
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-amber-500 focus:outline-none"
+                      />
                     </div>
                   </div>
                 )}

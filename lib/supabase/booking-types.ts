@@ -450,9 +450,9 @@ export type SubmitFlightRecordInput = {
 
 export type ActualHoursRefundRequestPayload = {
   requested: boolean
-  account_name: string
-  bsb: string
-  account_number: string
+  account_name?: string | null
+  bsb?: string | null
+  account_number?: string | null
   bank_name?: string | null
   reason?: string | null
   actual_vdo_hours: number

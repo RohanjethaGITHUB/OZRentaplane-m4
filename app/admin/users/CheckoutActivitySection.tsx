@@ -11,6 +11,7 @@ type BookingSummary = {
   scheduled_end: string | null
   payment_status: string
   aircraft: { id: string; registration: string } | { id: string; registration: string }[] | null
+  has_pending_refund?: boolean
 }
 
 type ActiveBlockTimeSummary = {
@@ -136,9 +137,18 @@ function BookingRow({
     : 'Current package status; may change before flight finalization.'
   const checkoutLifecycleLabel = getCheckoutLifecycleLabel(booking)
 
+  // Navigate to post-flight review/refund console if pending refund exists or post-flight settled
+  const rowHref =
+    booking.has_pending_refund ||
+    booking.status === 'pending_post_flight_review' ||
+    booking.status === 'completed' ||
+    booking.status === 'post_flight_approved'
+      ? `/admin/bookings/post-flight/${booking.id}`
+      : `/admin/bookings/requests/${booking.id}`
+
   return (
     <Link
-      href={`/admin/bookings/requests/${booking.id}`}
+      href={rowHref}
       className="group block py-4 px-2 -mx-2 rounded-lg border-b border-[#152d5a]/8 last:border-0 hover:bg-[#f0f6ff] transition-colors"
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -150,6 +160,12 @@ function BookingRow({
             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border flex-shrink-0 ${statusCfg.cls}`}>
               {statusCfg.label}
             </span>
+            {booking.has_pending_refund && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100 text-amber-900 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide shadow-2xs">
+                <span className="material-symbols-outlined text-[12px] text-amber-700">currency_exchange</span>
+                Pending for Refund
+              </span>
+            )}
             <span className="inline-flex items-center rounded-full border border-[#1a4fd6]/15 bg-[#f0f6ff] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#1a4fd6]">
               {timingLabel}
             </span>
@@ -191,6 +207,10 @@ function BookingRow({
             {checkoutLifecycleLabel ? (
               <p className="mt-1 text-[11px] text-[#4b6390]">
                 Checkout lifecycle: {checkoutLifecycleLabel}
+              </p>
+            ) : booking.has_pending_refund ? (
+              <p className="mt-1 text-[11px] font-semibold text-amber-700">
+                Action: Refund Pending
               </p>
             ) : (
               <p className="mt-1 text-[11px] text-[#4b6390]">

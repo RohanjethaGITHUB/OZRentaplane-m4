@@ -5477,3 +5477,106 @@ export async function uploadAdminRefundReceipt(
 
   return { storagePath: filePath }
 }
+
+export async function saveActualHoursRefundDecision(input: {
+  booking_id: string
+  flight_record_id: string
+  review: {
+    status: 'accepted' | 'declined'
+    refund_amount_cents?: number | null
+    refund_reference?: string | null
+    refund_receipt_path?: string | null
+    admin_notes?: string | null
+  }
+}): Promise<void> {
+  const { adminId } = await requireAdmin()
+  const supabase = createAdminClient()
+  const now = new Date().toISOString()
+
+  // Fetch the invoice for this booking
+  const { data: bookingInvoice, error: invFetchErr } = await supabase
+    .from('booking_invoices')
+    .select('id, admin_notes, customer_id, booking_id')
+    .eq('booking_id', input.booking_id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (invFetchErr || !bookingInvoice) {
+    console.error('[saveActualHoursRefundDecision] Error fetching booking invoice:', invFetchErr)
+    throw new Error('Could not find booking invoice to record refund decision.')
+  }
+
+  let parsedNotes: Record<string, any> = {}
+  try {
+    if (typeof bookingInvoice.admin_notes === 'string') {
+      parsedNotes = JSON.parse(bookingInvoice.admin_notes)
+    } else if (bookingInvoice.admin_notes && typeof bookingInvoice.admin_notes === 'object') {
+      parsedNotes = { ...bookingInvoice.admin_notes }
+    }
+  } catch {
+    parsedNotes = {}
+  }
+
+  const existingRefundReq = parsedNotes.actual_hours_refund_request || {}
+  parsedNotes.actual_hours_refund_request = {
+    ...existingRefundReq,
+    status: input.review.status,
+    refund_amount_cents: input.review.refund_amount_cents ?? existingRefundReq.difference_amount_cents ?? 0,
+    refund_reference: input.review.refund_reference ?? null,
+    refund_receipt_path: input.review.refund_receipt_path ?? existingRefundReq.refund_receipt_path ?? null,
+    admin_notes: input.review.admin_notes ?? null,
+    reviewed_at: now,
+    reviewed_by_user_id: adminId,
+  }
+
+  const { error: invUpdateErr } = await supabase
+    .from('booking_invoices')
+    .update({
+      admin_notes: JSON.stringify(parsedNotes),
+      updated_at: now,
+    })
+    .eq('id', bookingInvoice.id)
+
+  if (invUpdateErr) {
+    console.error('[saveActualHoursRefundDecision] Failed to update booking invoice admin_notes:', invUpdateErr)
+    throw new Error('Failed to save refund decision to invoice.')
+  }
+
+  // Also record in booking_audit_events
+  await supabase.from('booking_audit_events').insert({
+    booking_id: input.booking_id,
+    actor_user_id: adminId,
+    actor_role: 'admin',
+    event_type: 'actual_hours_refund_reviewed',
+    event_summary: input.review.status === 'accepted'
+      ? `Admin accepted actual hours refund request ($${(((input.review.refund_amount_cents ?? 0) / 100).toFixed(2))}, Ref: ${input.review.refund_reference || 'N/A'}).`
+      : 'Admin declined actual hours refund request. Minimum policy enforced.',
+    new_value: input.review as any,
+  })
+
+  // If refund is accepted, record in customer_payment_ledger as a refund entry
+  if (input.review.status === 'accepted' && (input.review.refund_amount_cents ?? 0) > 0 && bookingInvoice.customer_id) {
+    try {
+      await supabase.from('customer_payment_ledger').insert({
+        customer_id: bookingInvoice.customer_id,
+        booking_id: input.booking_id,
+        invoice_id: bookingInvoice.id,
+        invoice_source_type: 'booking',
+        amount_cents: input.review.refund_amount_cents,
+        entry_type: 'refund',
+        payment_method: 'bank_transfer',
+        note: `Actual hours refund ($${(((input.review.refund_amount_cents ?? 0) / 100).toFixed(2))}) - Ref: ${input.review.refund_reference || 'N/A'}`,
+        created_by: adminId,
+      })
+    } catch (ledgerErr) {
+      console.warn('[saveActualHoursRefundDecision] ledger insert note:', ledgerErr)
+    }
+  }
+
+  revalidatePath(`/admin/bookings/post-flight/${input.booking_id}`)
+  revalidatePath(`/admin/bookings/post-flight/${input.flight_record_id}`)
+  revalidatePath('/admin/bookings')
+  revalidatePath('/dashboard/billing')
+}
+

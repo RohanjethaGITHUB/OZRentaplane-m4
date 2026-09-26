@@ -33,6 +33,7 @@ type BookingRow = {
   scheduled_end: string | null
   payment_status: string
   aircraft: { id: string; registration: string } | { id: string; registration: string }[] | null
+  has_pending_refund?: boolean
 }
 
 type HistoricalCheckoutRow = {

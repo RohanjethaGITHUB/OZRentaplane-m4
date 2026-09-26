@@ -21,6 +21,8 @@ export type PaymentRow = {
   flight_date?: string | null
   paid_at?: string | null
   amount_cents: number
+  refund_cents?: number | null
+  net_amount_cents?: number | null
   status: string
   method: string
   created?: string | null
@@ -708,8 +710,20 @@ export default function CustomerBillingInteractive({
                         </td>
 
                         {/* Amount */}
-                        <td className="px-5 py-4 font-bold text-xs sm:text-sm text-[#152d5a]">
-                          {formatCurrency(r.amount_cents)}
+                        <td className="px-5 py-4 text-xs sm:text-sm">
+                          {r.refund_cents && r.refund_cents > 0 ? (
+                            <div className="flex flex-col">
+                              <span className="font-bold text-[#152d5a]">{formatCurrency(r.net_amount_cents ?? (r.amount_cents - r.refund_cents))}</span>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[11px] line-through text-slate-400 font-normal">{formatCurrency(r.amount_cents)}</span>
+                                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.2 rounded whitespace-nowrap">
+                                  (-{formatCurrency(r.refund_cents)} refund)
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="font-bold text-[#152d5a]">{formatCurrency(r.amount_cents)}</span>
+                          )}
                         </td>
 
                         {/* Payment Status */}
@@ -831,9 +845,25 @@ export default function CustomerBillingInteractive({
                       </div>
                       <div className="text-right shrink-0">
                         <span className="text-[10px] font-bold uppercase text-slate-400 block">Amount</span>
-                        <span className="font-extrabold text-sm text-[#152d5a] block">
-                          {formatCurrency(r.amount_cents)}
-                        </span>
+                        {r.refund_cents && r.refund_cents > 0 ? (
+                          <div className="flex flex-col items-end">
+                            <span className="font-extrabold text-sm text-[#152d5a] block">
+                              {formatCurrency(r.net_amount_cents ?? (r.amount_cents - r.refund_cents))}
+                            </span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-[11px] line-through text-slate-400">
+                                {formatCurrency(r.amount_cents)}
+                              </span>
+                              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1 py-0.2 rounded">
+                                (-{formatCurrency(r.refund_cents)} refund)
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="font-extrabold text-sm text-[#152d5a] block">
+                            {formatCurrency(r.amount_cents)}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -1166,9 +1196,25 @@ export default function CustomerBillingInteractive({
                             </div>
 
                             <div className="text-right shrink-0">
-                              <span className="font-bold text-sm text-[#152d5a] block">
-                                {formatCurrency(p.amount_cents)}
-                              </span>
+                              {p.refund_cents && p.refund_cents > 0 ? (
+                                <div className="flex flex-col items-end">
+                                  <span className="font-bold text-sm text-[#152d5a] block">
+                                    {formatCurrency(p.net_amount_cents ?? (p.amount_cents - p.refund_cents))}
+                                  </span>
+                                  <div className="flex items-center gap-1 mt-0.5">
+                                    <span className="text-[10px] line-through text-slate-400 font-normal">
+                                      {formatCurrency(p.amount_cents)}
+                                    </span>
+                                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded">
+                                      (-{formatCurrency(p.refund_cents)} refund)
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="font-bold text-sm text-[#152d5a] block">
+                                  {formatCurrency(p.amount_cents)}
+                                </span>
+                              )}
                               <div className="mt-0.5">
                                 <LedgerStatusBadge status={p.status} href={p.href} />
                               </div>

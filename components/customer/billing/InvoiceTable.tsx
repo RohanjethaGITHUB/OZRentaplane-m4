@@ -164,8 +164,18 @@ export default function InvoiceTable({
                     </td>
 
                     {/* Amount */}
-                    <td className="px-6 py-4 text-center font-bold text-xs sm:text-sm text-[#152d5a]">
-                      {formatAud(inv.amount)}
+                    <td className="px-6 py-4 text-center text-xs sm:text-sm">
+                      {inv.refunds && inv.refunds.length > 0 ? (
+                        <div className="flex flex-col items-center">
+                          <span className="font-bold text-[#152d5a]">{formatAud(inv.paidAmount)}</span>
+                          <span className="text-[11px] line-through text-slate-400 font-normal">{formatAud(inv.amount)}</span>
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded mt-0.5 whitespace-nowrap">
+                            (-{formatAud(inv.refunds.reduce((s, r) => s + r.amount, 0))} refund)
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="font-bold text-[#152d5a]">{formatAud(inv.amount)}</span>
+                      )}
                     </td>
 
                     {/* Payment Method / Pay Button */}
@@ -283,9 +293,25 @@ export default function InvoiceTable({
                   </div>
                   <div className="text-right">
                     <span className="text-slate-400 text-[10px] block uppercase">Amount</span>
-                    <span className="text-[#152d5a] font-bold text-sm">
-                      {formatAud(inv.amount)}
-                    </span>
+                    {inv.refunds && inv.refunds.length > 0 ? (
+                      <div className="flex flex-col items-end">
+                        <span className="text-[#152d5a] font-bold text-sm">
+                          {formatAud(inv.paidAmount)}
+                        </span>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className="text-[11px] line-through text-slate-400">
+                            {formatAud(inv.amount)}
+                          </span>
+                          <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded">
+                            (-{formatAud(inv.refunds.reduce((s, r) => s + r.amount, 0))} refund)
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-[#152d5a] font-bold text-sm">
+                        {formatAud(inv.amount)}
+                      </span>
+                    )}
                   </div>
                   <div className="col-span-2">
                     <span className="text-slate-400 text-[10px] block uppercase mb-1">

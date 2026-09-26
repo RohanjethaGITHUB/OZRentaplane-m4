@@ -457,11 +457,23 @@ export default async function CustomerBillingPage() {
     if (isWaived) settlementType = 'ADMIN_WAIVER'
     else if (isSettled) settlementType = 'ADMIN_SETTLEMENT'
 
+    const adminNotesObj = (() => {
+      try {
+        return typeof bi.admin_notes === 'string' ? JSON.parse(bi.admin_notes) : bi.admin_notes
+      } catch {
+        return null
+      }
+    })()
+    const refundReq = adminNotesObj?.actual_hours_refund_request
+    const isRefundAccepted = refundReq?.status === 'accepted' && (refundReq.refund_amount_cents ?? 0) > 0
+    const refundAmount = isRefundAccepted ? ((refundReq.refund_amount_cents ?? 0) / 100) : 0
+
     const totalCents = Number(bi.subtotal_cents || 0)
     const paidCents = isPaid ? totalCents : Number(bi.total_paid_cents || 0)
     const amount = totalCents / 100
-    const paidAmount = paidCents / 100
-    const outstandingAmount = isWaived ? 0 : hasPendingVerification ? 0 : Math.max(0, amount - paidAmount)
+    const rawPaidAmount = paidCents / 100
+    const paidAmount = isPaid ? Math.max(0, rawPaidAmount - refundAmount) : rawPaidAmount
+    const outstandingAmount = isWaived ? 0 : hasPendingVerification ? 0 : Math.max(0, amount - rawPaidAmount)
 
     const vdoHours = Number(bi.vdo_reading || 1.5)
     const landingFee = Number(bi.landing_subtotal_cents || 0) / 100
@@ -546,11 +558,21 @@ export default async function CustomerBillingPage() {
       settledBy: isSettled ? 'Admin Management' : undefined,
       settledAt: isSettled ? bi.paid_at || bi.created_at : undefined,
       settlementReason: isSettled ? bi.admin_notes || 'Manually settled' : undefined,
+      refunds: isRefundAccepted
+        ? [
+            {
+              amount: refundAmount,
+              refundDate: refundReq.reviewed_at || bi.finalised_at || bi.paid_at || bi.created_at,
+              reference: refundReq.refund_reference || 'Actual Hours Refund',
+              reason: refundReq.admin_notes || refundReq.reason || 'Actual flown hours difference adjustment',
+            },
+          ]
+        : undefined,
       payments: isPaid
         ? [
             {
               id: `pmt-${bi.id}`,
-              amount,
+              amount: amount,
               method: paymentMethod,
               settlementType,
               status: 'PAID',
@@ -558,9 +580,34 @@ export default async function CustomerBillingPage() {
               transactionId: bi.stripe_payment_intent_id || `txn_${bi.id.slice(0, 10)}`,
               card: paymentMethod === 'card' ? { brand: 'mastercard', last4: '7763' } : null,
             },
+            ...(isRefundAccepted
+              ? [
+                  {
+                    id: `ref-${bi.id}`,
+                    amount: -refundAmount,
+                    method: 'bank_transfer' as const,
+                    settlementType: 'REFUND' as const,
+                    status: 'REFUNDED' as const,
+                    paidAt: refundReq.reviewed_at || bi.finalised_at || bi.paid_at || bi.created_at,
+                    bankReference: refundReq.refund_reference || undefined,
+                    note: `Flown vs minimum hours refund (-$${refundAmount.toFixed(2)})`,
+                  },
+                ]
+              : []),
           ]
         : [],
       timeline: [
+        ...(isRefundAccepted
+          ? [
+              {
+                id: `tl-ref-${bi.id}`,
+                title: 'Refund processed',
+                description: `$${refundAmount.toFixed(2)} refunded for actual flown hours difference · Ref: ${refundReq.refund_reference || 'Bank Transfer'}`,
+                timestamp: formatDashboardTimestamp(refundReq.reviewed_at || bi.paid_at || bi.created_at),
+                type: 'refund' as const,
+              },
+            ]
+          : []),
         ...(isPaid
           ? [
               {
@@ -842,6 +889,20 @@ export default async function CustomerBillingPage() {
   // Build Recent Activity Feed
   const recentActivities: RecentActivityItem[] = []
   for (const inv of allInvoices.slice(0, 5)) {
+    if (inv.refunds && inv.refunds.length > 0) {
+      for (const r of inv.refunds) {
+        recentActivities.push({
+          id: `act-ref-${inv.id}-${r.reference}`,
+          title: 'Refund processed',
+          description: `$${r.amount.toFixed(2)} refunded for actual hours flown on ${inv.invoiceNumber}${r.reference ? ` (${r.reference})` : ''}`,
+          timestamp: formatDashboardTimestamp(r.refundDate || inv.date),
+          type: 'refund',
+          invoiceNumber: inv.invoiceNumber,
+          amount: r.amount,
+        })
+      }
+    }
+
     if (inv.status === 'PAID') {
       recentActivities.push({
         id: `act-paid-${inv.id}`,
@@ -935,7 +996,7 @@ export default async function CustomerBillingPage() {
   // Financial Totals
   const totalSpent = allInvoices
     .filter((i) => i.status === 'PAID')
-    .reduce((sum, i) => sum + i.amount, 0)
+    .reduce((sum, i) => sum + (typeof i.paidAmount === 'number' ? i.paidAmount : i.amount), 0)
 
   const outstandingBalance = allInvoices
     .filter((i) => i.status === 'PENDING')

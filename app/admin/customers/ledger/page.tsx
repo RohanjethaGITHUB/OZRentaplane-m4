@@ -29,6 +29,7 @@ type BookingInvoiceRow = {
   paid_at: string | null
   pdf_url?: string | null
   stripe_payment_intent_id?: string | null
+  admin_notes?: string | any | null
 }
 
 type CheckoutInvoiceRow = {
@@ -116,7 +117,7 @@ export default async function CustomerBillingPage({
     supabase
       .from('booking_invoices')
       .select(
-        'id, booking_id, customer_id, invoice_number, status, payment_method, subtotal_cents, stripe_amount_due_cents, total_paid_cents, created_at, updated_at, paid_at, pdf_url, stripe_payment_intent_id',
+        'id, booking_id, customer_id, invoice_number, status, payment_method, subtotal_cents, stripe_amount_due_cents, total_paid_cents, created_at, updated_at, paid_at, pdf_url, stripe_payment_intent_id, admin_notes',
       )
       .order('updated_at', { ascending: false }),
     supabase
@@ -171,6 +172,19 @@ export default async function CustomerBillingPage({
     created_at?: string | null
     amount_cents?: number | null
   }>
+
+  const refundCentsByInvoiceId = new Map<string, number>()
+  const refundCentsByBookingId = new Map<string, number>()
+  for (const row of allLedgerRows) {
+    if (row.entry_type === 'refund' && (row.amount_cents ?? 0) > 0) {
+      if (row.invoice_id) {
+        refundCentsByInvoiceId.set(row.invoice_id, (refundCentsByInvoiceId.get(row.invoice_id) ?? 0) + (row.amount_cents ?? 0))
+      }
+      if (row.booking_id) {
+        refundCentsByBookingId.set(row.booking_id, (refundCentsByBookingId.get(row.booking_id) ?? 0) + (row.amount_cents ?? 0))
+      }
+    }
+  }
 
   const stdInvoiceRows = (standardInvoices ?? []) as BookingInvoiceRow[]
   const chkInvoiceRows = (checkoutInvoices ?? []) as CheckoutInvoiceRow[]
@@ -341,6 +355,22 @@ export default async function CustomerBillingPage({
       method = ledgerMethod || inv.payment_method || 'card'
     }
 
+    const adminNotesObj = (() => {
+      try {
+        return typeof inv.admin_notes === 'string' ? JSON.parse(inv.admin_notes) : inv.admin_notes
+      } catch {
+        return null
+      }
+    })()
+    const refundReq = adminNotesObj?.actual_hours_refund_request
+    const isRefundAccepted = refundReq?.status === 'accepted' && (refundReq.refund_amount_cents ?? 0) > 0
+    const refundCents = isRefundAccepted ? Number(refundReq.refund_amount_cents ?? 0) : 0
+    const ledgerRefundCents = (inv.id ? refundCentsByInvoiceId.get(inv.id) : null) || (inv.booking_id ? refundCentsByBookingId.get(inv.booking_id) : null) || 0
+    const totalRefundCents = Math.max(refundCents, ledgerRefundCents)
+
+    const originalAmountCents = inv.subtotal_cents ?? inv.stripe_amount_due_cents ?? inv.total_paid_cents ?? 0
+    const netAmountCents = totalRefundCents > 0 ? Math.max(0, originalAmountCents - totalRefundCents) : originalAmountCents
+
     paymentRows.push({
       id: inv.id,
       invoiceId: inv.invoice_number ?? inv.id,
@@ -354,7 +384,9 @@ export default async function CustomerBillingPage({
       is_checkout: false,
       flight_date: bkg?.flight_date ?? null,
       paid_at: inv.paid_at || (inv.status === 'paid' ? inv.updated_at || inv.created_at : null),
-      amount_cents: inv.subtotal_cents ?? inv.stripe_amount_due_cents ?? inv.total_paid_cents ?? 0,
+      amount_cents: originalAmountCents,
+      refund_cents: totalRefundCents > 0 ? totalRefundCents : undefined,
+      net_amount_cents: totalRefundCents > 0 ? netAmountCents : undefined,
       status: effectiveStatus,
       method,
       created: inv.created_at,
@@ -424,6 +456,8 @@ export default async function CustomerBillingPage({
       method = ledgerMethod || inv.payment_method || 'card'
     }
 
+    const chkRefundCents = (inv.id ? refundCentsByInvoiceId.get(inv.id) : null) || (inv.booking_id ? refundCentsByBookingId.get(inv.booking_id) : null) || 0
+
     paymentRows.push({
       id: inv.id,
       invoiceId: inv.invoice_number ?? inv.id,
@@ -438,6 +472,8 @@ export default async function CustomerBillingPage({
       flight_date: bkg?.flight_date ?? null,
       paid_at: inv.paid_at || (inv.status === 'paid' ? inv.created_at : null),
       amount_cents: amountCents,
+      refund_cents: chkRefundCents > 0 ? chkRefundCents : undefined,
+      net_amount_cents: chkRefundCents > 0 ? Math.max(0, amountCents - chkRefundCents) : undefined,
       status: effectiveStatus,
       method,
       created: inv.created_at,
@@ -462,6 +498,9 @@ export default async function CustomerBillingPage({
     const profile = custId ? profilesById.get(custId) : null
     const bkg = inv.booking_id ? bookingsById.get(inv.booking_id) : null
 
+    const genRefundCents = (inv.id ? refundCentsByInvoiceId.get(inv.id) : null) || (inv.booking_id ? refundCentsByBookingId.get(inv.booking_id) : null) || 0
+    const genTotalCents = Math.round(Number(inv.total || 0) * 100)
+
     paymentRows.push({
       id: inv.id,
       invoiceId: inv.invoice_number || `INV-${inv.id.slice(0, 8).toUpperCase()}`,
@@ -475,7 +514,9 @@ export default async function CustomerBillingPage({
       is_checkout: false,
       flight_date: inv.created_at,
       paid_at: inv.status === 'paid' ? inv.created_at : null,
-      amount_cents: Math.round(Number(inv.total || 0) * 100),
+      amount_cents: genTotalCents,
+      refund_cents: genRefundCents > 0 ? genRefundCents : undefined,
+      net_amount_cents: genRefundCents > 0 ? Math.max(0, genTotalCents - genRefundCents) : undefined,
       status: inv.status,
       method: inv.payment_method || 'card',
       created: inv.created_at,
@@ -516,17 +557,25 @@ export default async function CustomerBillingPage({
   const totalPaidByCustomer = new Map<string, number>()
   for (const row of revenueRows ?? []) {
     if (!row.customer_id) continue
-    totalPaidByCustomer.set(
-      row.customer_id,
-      (totalPaidByCustomer.get(row.customer_id) ?? 0) + (row.amount_cents ?? 0),
-    )
+    if (row.entry_type === 'refund') {
+      totalPaidByCustomer.set(
+        row.customer_id,
+        (totalPaidByCustomer.get(row.customer_id) ?? 0) - (row.amount_cents ?? 0),
+      )
+    } else {
+      totalPaidByCustomer.set(
+        row.customer_id,
+        (totalPaidByCustomer.get(row.customer_id) ?? 0) + (row.amount_cents ?? 0),
+      )
+    }
   }
 
   for (const r of paymentRows) {
     if (r.status === 'paid' && r.ownerId) {
       const current = totalPaidByCustomer.get(r.ownerId) ?? 0
-      if (current < r.amount_cents) {
-        totalPaidByCustomer.set(r.ownerId, current + r.amount_cents)
+      const paidCents = r.net_amount_cents ?? r.amount_cents
+      if (current < paidCents) {
+        totalPaidByCustomer.set(r.ownerId, current + paidCents)
       }
     }
   }
@@ -563,7 +612,7 @@ export default async function CustomerBillingPage({
   // Calculate high-level KPIs
   const totalCollected = paymentRows
     .filter((r) => r.status === 'paid')
-    .reduce((sum, r) => sum + r.amount_cents, 0)
+    .reduce((sum, r) => sum + (r.net_amount_cents ?? r.amount_cents), 0)
 
   const outstanding = paymentRows
     .filter(

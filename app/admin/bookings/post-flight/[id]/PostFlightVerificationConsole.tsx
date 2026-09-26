@@ -7,7 +7,7 @@ import { Mail, Phone, Plus, Trash2, CheckCircle2 } from 'lucide-react'
 import DocumentViewerModal, { type DocumentFile } from '@/components/ui/DocumentViewerModal'
 import { LoadingButtonContent } from '@/components/ui/Spinner'
 import { formatDateTime } from '@/lib/formatDateTime'
-import { approvePostFlightReview, requestPostFlightClarification, uploadAdminRefundReceipt } from '@/app/actions/admin-booking'
+import { approvePostFlightReview, requestPostFlightClarification, uploadAdminRefundReceipt, saveActualHoursRefundDecision } from '@/app/actions/admin-booking'
 import { CLARIFICATION_CATEGORY_LABELS, type ClarificationCategory, type ActualHoursRefundRequestPayload } from '@/lib/supabase/booking-types'
 import { calculateBookingDays } from '@/lib/booking/standard-booking-billing'
 import AirportSelect from '@/components/ui/AirportSelect'
@@ -246,6 +246,8 @@ export default function PostFlightVerificationConsole({
   const [refundReceiptFile, setRefundReceiptFile] = useState<File | null>(null)
   const [refundReceiptPreview, setRefundReceiptPreview] = useState<string | null>(null)
   const refundReceiptInputRef = useRef<HTMLInputElement>(null)
+  const [deferRefundDecision, setDeferRefundDecision] = useState(false)
+  const [isSavingRefundOnly, setIsSavingRefundOnly] = useState(false)
 
   // Collapse toggle for Admin Review Decision Card
   const [isReviewDecisionCollapsed, setIsReviewDecisionCollapsed] = useState(false)
@@ -400,9 +402,9 @@ export default function PostFlightVerificationConsole({
     setError(null)
     setSuccess(null)
 
-    // User requirement: If customer submitted a refund request, admin must choose an option (Yes or No) before settling
-    if (actualHoursRefundRequest?.requested && refundDecision === null) {
-      setError('Please choose whether to accept or decline the customer refund request before finalizing settlement.')
+    // User requirement: If customer submitted a refund request, admin must choose an option (Yes or No) or check defer box before settling
+    if (actualHoursRefundRequest?.requested && refundDecision === null && !deferRefundDecision) {
+      setError('Please choose whether to accept or decline the customer refund request, or check the box to settle now and decide on refund later.')
       setLoading(false)
       return
     }
@@ -433,9 +435,9 @@ export default function PostFlightVerificationConsole({
         }
       }
 
-      const refundReviewPayload = actualHoursRefundRequest?.requested || refundDecision !== null
+      const refundReviewPayload = (refundDecision !== null)
         ? {
-            status: refundDecision || 'accepted',
+            status: refundDecision,
             refund_amount_cents: refundDecision === 'accepted' ? Math.round(Number(refundAmount || 0) * 100) : 0,
             refund_reference: refundDecision === 'accepted' ? refundReference.trim() || null : null,
             refund_receipt_path: uploadedReceiptPath,
@@ -468,6 +470,61 @@ export default function PostFlightVerificationConsole({
       console.error(err)
       setError(err instanceof Error ? err.message.replace(/^VALIDATION: /, '') : 'Failed to approve review.')
       setLoading(false)
+    }
+  }
+
+  async function handleSaveRefundDecisionOnly() {
+    if (refundDecision === null) {
+      setError('Please select whether to accept or decline the customer refund request.')
+      return
+    }
+    setIsSavingRefundOnly(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      let uploadedReceiptPath: string | null = actualHoursRefundRequest?.refund_receipt_path || null
+
+      if (refundDecision === 'accepted' && refundReceiptFile) {
+        try {
+          const fd = new FormData()
+          fd.append('file', refundReceiptFile)
+          fd.append('bookingId', bookingId)
+          const res = await uploadAdminRefundReceipt(fd)
+          uploadedReceiptPath = res.storagePath
+        } catch (uploadErr) {
+          console.error('[handleSaveRefundDecisionOnly] uploadAdminRefundReceipt failed:', uploadErr)
+          setError(uploadErr instanceof Error ? uploadErr.message : 'Failed to upload refund payment receipt.')
+          setIsSavingRefundOnly(false)
+          return
+        }
+      }
+
+      const refundReviewPayload = {
+        status: refundDecision,
+        refund_amount_cents: refundDecision === 'accepted' ? Math.round(Number(refundAmount || 0) * 100) : 0,
+        refund_reference: refundDecision === 'accepted' ? refundReference.trim() || null : null,
+        refund_receipt_path: uploadedReceiptPath,
+        admin_notes: refundAdminNotes.trim() || null,
+      }
+
+      await saveActualHoursRefundDecision({
+        booking_id: bookingId,
+        flight_record_id: flightRecordId,
+        review: refundReviewPayload,
+      })
+
+      setSuccess(
+        refundDecision === 'accepted'
+          ? `Customer refund of $${refundAmount} recorded successfully.`
+          : 'Refund request declined. Multi-day rental minimum policy maintained.'
+      )
+      setIsSavingRefundOnly(false)
+      router.refresh()
+    } catch (err: unknown) {
+      console.error(err)
+      setError(err instanceof Error ? err.message.replace(/^VALIDATION: /, '') : 'Failed to save refund decision.')
+      setIsSavingRefundOnly(false)
     }
   }
 
@@ -1290,6 +1347,26 @@ export default function PostFlightVerificationConsole({
                       </div>
                     </div>
                   )}
+
+                  {/* When booking is already settled, allow saving / updating refund decision directly */}
+                  {isSettled && (
+                    <div className="pt-3.5 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <p className="text-[11px] text-slate-500">
+                        This booking has already been settled. You can record or modify the refund decision here at any time.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleSaveRefundDecisionOnly}
+                        disabled={isSavingRefundOnly || refundDecision === null}
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#1a4fd6] hover:bg-[#153eb5] text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50 cursor-pointer"
+                      >
+                        <LoadingButtonContent loading={isSavingRefundOnly} loadingLabel="Saving Decision...">
+                          <span className="material-symbols-outlined text-base">save</span>
+                          {refundDecision === 'accepted' ? 'Save & Record Refund' : 'Confirm Keep Minimum Policy'}
+                        </LoadingButtonContent>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -1792,6 +1869,26 @@ export default function PostFlightVerificationConsole({
             <span className="text-xl sm:text-lg text-[#1a4fd6] tabular-nums">{formattedTotal}</span>
           </div>
 
+          {refundDecision === 'accepted' && Number(refundAmount || 0) > 0 && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 space-y-1.5">
+              <div className="flex justify-between items-center text-xs font-semibold text-emerald-800">
+                <span className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm text-emerald-600">currency_exchange</span>
+                  Actual Hours Refund Approved:
+                </span>
+                <span className="font-bold tabular-nums text-emerald-700">
+                  -${Number(refundAmount).toFixed(2)} AUD
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs font-bold text-slate-900 pt-1 border-t border-emerald-200/60">
+                <span>Net Actual Paid (After Refund):</span>
+                <span className="text-sm font-extrabold text-[#152d5a] tabular-nums">
+                  ${Math.max(0, (currentTotalAmountCents - Math.round(Number(refundAmount) * 100)) / 100).toFixed(2)} AUD
+                </span>
+              </div>
+            </div>
+          )}
+
           {isSplitPayment ? (
             <div className="mt-3 space-y-2.5 rounded-xl bg-slate-50/90 p-3.5 sm:p-4 border border-slate-200 text-xs">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
@@ -1884,6 +1981,12 @@ export default function PostFlightVerificationConsole({
                   <p className="text-xs text-emerald-800/90 leading-relaxed">
                     This post-flight record has been officially verified and settled. The submitted meters are committed to the aircraft flight log history, the customer invoice has been marked as <strong>Paid</strong>, and schedule locks have been released.
                   </p>
+                  {refundDecision === 'accepted' && Number(refundAmount || 0) > 0 && (
+                    <div className="mt-2.5 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-100 border border-emerald-300 text-xs font-bold text-emerald-900">
+                      <span className="material-symbols-outlined text-sm text-emerald-700">currency_exchange</span>
+                      Refund Approved &amp; Recorded: ${Number(refundAmount).toFixed(2)} AUD &middot; Net Paid: ${Math.max(0, (currentTotalAmountCents - Math.round(Number(refundAmount) * 100)) / 100).toFixed(2)} AUD
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -2027,12 +2130,34 @@ export default function PostFlightVerificationConsole({
                           </div>
                         </label>
 
+                        {/* Optional defer refund decision when overriding settlement */}
+                        {actualHoursRefundRequest?.requested && refundDecision === null && (
+                          <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3.5 sm:p-4 text-xs">
+                            <label className="flex items-start gap-2.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={deferRefundDecision}
+                                onChange={(e) => setDeferRefundDecision(e.target.checked)}
+                                className="mt-0.5 h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500 accent-amber-600"
+                              />
+                              <div className="space-y-0.5">
+                                <span className="font-bold text-amber-950 block">
+                                  Settle booking now and review/process refund request later
+                                </span>
+                                <span className="text-amber-800 leading-relaxed block text-[11px]">
+                                  Customer requested a refund for actual flown hours. You can settle the booking immediately now; the refund request will remain marked as <strong>Pending for Refund</strong> so you can review and process it later.
+                                </span>
+                              </div>
+                            </label>
+                          </div>
+                        )}
+
                         {/* Submit Button */}
                         <button
                           type="submit"
-                          disabled={loading || !overrideConfirmed || Boolean(actualHoursRefundRequest?.requested && refundDecision === null)}
+                          disabled={loading || !overrideConfirmed || Boolean(actualHoursRefundRequest?.requested && refundDecision === null && !deferRefundDecision)}
                           className={`w-full flex items-center justify-center gap-2 rounded-xl px-6 py-4 text-sm font-bold text-white shadow-md transition-all disabled:opacity-50 ${
-                            overrideConfirmed && !(actualHoursRefundRequest?.requested && refundDecision === null)
+                            overrideConfirmed && !(actualHoursRefundRequest?.requested && refundDecision === null && !deferRefundDecision)
                               ? 'bg-emerald-700 hover:bg-emerald-800 ring-2 ring-emerald-400'
                               : 'bg-slate-400 cursor-not-allowed'
                           }`}
@@ -2042,8 +2167,8 @@ export default function PostFlightVerificationConsole({
                             loadingLabel="Overriding & Settling..."
                           >
                             <span className="material-symbols-outlined text-lg">bolt</span>
-                            {actualHoursRefundRequest?.requested && refundDecision === null
-                              ? 'Choose Refund Decision (Above) to Enable Settlement'
+                            {actualHoursRefundRequest?.requested && refundDecision === null && !deferRefundDecision
+                              ? 'Choose Refund Decision (Above) or Check Settle Later'
                               : overrideConfirmed
                               ? `Override, Approve & Settle (${formattedTotal})`
                               : 'Check Override Box Above to Settle'}
@@ -2177,32 +2302,41 @@ export default function PostFlightVerificationConsole({
                           </div>
                         )}
 
-                        {/* Required Selection: If Customer Refund Request is pending, require admin decision first (Image 3) */}
+                        {/* Settle Now & Decide Refund Later Checkbox (Image 1) */}
                         {actualHoursRefundRequest?.requested && refundDecision === null && (
-                          <div className="rounded-xl border-2 border-amber-400 bg-amber-50 p-4 text-xs text-amber-950 flex items-start gap-3 shadow-xs">
-                            <span className="material-symbols-outlined text-amber-600 text-lg shrink-0 mt-0.5">warning</span>
-                            <div className="space-y-1">
-                              <p className="font-bold text-amber-900">Action Required: Customer Refund Request Pending</p>
-                              <p className="text-amber-900 leading-relaxed">
-                                The customer requested a refund for actual flown hours. You must select either <strong>&quot;Yes, Accept Request &amp; Refund&quot;</strong> or <strong>&quot;No, Decline (Keep Minimum Policy)&quot;</strong> in the Customer Refund Request section above before approving this settlement.
-                              </p>
-                            </div>
+                          <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3.5 sm:p-4 text-xs">
+                            <label className="flex items-start gap-2.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={deferRefundDecision}
+                                onChange={(e) => setDeferRefundDecision(e.target.checked)}
+                                className="mt-0.5 h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500 accent-amber-600"
+                              />
+                              <div className="space-y-0.5">
+                                <span className="font-bold text-amber-950 block">
+                                  Settle booking now and review/process refund request later
+                                </span>
+                                <span className="text-amber-800 leading-relaxed block text-[11px]">
+                                  Customer requested a refund for actual flown hours. You can settle the booking immediately now; the refund request will remain marked as <strong>Pending for Refund</strong> so you can review and process it later.
+                                </span>
+                              </div>
+                            </label>
                           </div>
                         )}
 
                         {/* Submit Button for Standard Approval */}
                         <button
                           type="submit"
-                          disabled={loading || Boolean(actualHoursRefundRequest?.requested && refundDecision === null)}
-                          className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-6 py-4 text-sm font-bold text-white shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={loading || Boolean(actualHoursRefundRequest?.requested && refundDecision === null && !deferRefundDecision)}
+                          className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-6 py-4 text-sm font-bold text-white shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                         >
                           <LoadingButtonContent
                             loading={loading}
                             loadingLabel="Approving & Settling..."
                           >
                             <span className="material-symbols-outlined text-lg">verified</span>
-                            {actualHoursRefundRequest?.requested && refundDecision === null
-                              ? 'Choose Refund Decision (Above) to Enable Settlement'
+                            {actualHoursRefundRequest?.requested && refundDecision === null && !deferRefundDecision
+                              ? 'Choose Refund Decision (Above) or Check Settle Later'
                               : `Approve Post-Flight & Settle (${formattedTotal})`}
                           </LoadingButtonContent>
                         </button>
