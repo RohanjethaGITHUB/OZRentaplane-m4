@@ -27,6 +27,7 @@ export default function AirportSelect({
   className = '',
 }: AirportSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [openUpward, setOpenUpward] = useState(false)
   const [search, setSearch] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -48,9 +49,20 @@ export default function AirportSelect({
     }
   }, [isOpen])
 
-  // Focus search input when opening
+  // Focus search input when opening & determine upward/downward flip based on available viewport space
   useEffect(() => {
     if (isOpen) {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        const spaceBelow = window.innerHeight - rect.bottom
+        const spaceAbove = rect.top
+        // Dropdown needs ~280px; if space below is limited and space above is greater, flip upward
+        if (spaceBelow < 280 && spaceAbove > spaceBelow) {
+          setOpenUpward(true)
+        } else {
+          setOpenUpward(false)
+        }
+      }
       setTimeout(() => {
         searchInputRef.current?.focus()
       }, 50)
@@ -79,7 +91,10 @@ export default function AirportSelect({
   }
 
   return (
-    <div ref={containerRef} className={`relative w-full ${className}`}>
+    <div
+      ref={containerRef}
+      className={`relative w-full ${isOpen ? 'z-50' : 'z-auto'} ${className}`}
+    >
       {/* Trigger Button */}
       <button
         type="button"
@@ -101,7 +116,7 @@ export default function AirportSelect({
             <span className="truncate text-slate-900 font-semibold text-xs">
               {selectedAirport.name}
             </span>
-            <span className="ml-auto flex-shrink-0 text-[10px] sm:text-[11px] font-bold text-slate-600 bg-slate-100 px-1.5 sm:px-2 py-0.5 rounded-md">
+            <span className="hidden min-[380px]:inline-flex ml-auto flex-shrink-0 text-[10px] sm:text-[11px] font-bold text-slate-600 bg-slate-100 px-1.5 sm:px-2 py-0.5 rounded-md">
               {formatFee(selectedAirport.default_landing_fee_cents)}
             </span>
           </div>
@@ -120,9 +135,15 @@ export default function AirportSelect({
 
       {/* Popover Dropdown Menu */}
       {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-2xl border border-blue-100 bg-white shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-150">
+        <div
+          className={`absolute left-0 w-full sm:w-auto sm:min-w-[340px] sm:max-w-md z-50 rounded-2xl border border-blue-100 bg-white shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-150 ${
+            openUpward
+              ? 'bottom-full mb-1.5 origin-bottom'
+              : 'top-full mt-1.5 origin-top'
+          }`}
+        >
           {/* Search Header */}
-          <div className="p-2.5 border-b border-slate-100 bg-slate-50/70">
+          <div className="p-2 sm:p-2.5 border-b border-slate-100 bg-slate-50/70">
             <div className="relative flex items-center">
               <span className="material-symbols-outlined absolute left-2.5 text-slate-400 text-base pointer-events-none">
                 search
@@ -132,7 +153,7 @@ export default function AirportSelect({
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search ICAO code or airport name..."
+                placeholder="Search airport or ICAO..."
                 className="w-full rounded-xl border border-slate-200 bg-white pl-8 pr-7 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#1a4fd6] focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
               />
               {search && (
@@ -148,7 +169,7 @@ export default function AirportSelect({
           </div>
 
           {/* List of Options */}
-          <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5 divide-y divide-slate-50">
+          <div className="max-h-60 overflow-y-auto p-1 sm:p-1.5 space-y-0.5 divide-y divide-slate-50">
             {filteredOptions.length > 0 ? (
               filteredOptions.map((opt) => {
                 const isSelected = opt.id === value
@@ -157,15 +178,15 @@ export default function AirportSelect({
                     key={opt.id}
                     type="button"
                     onClick={() => handleSelect(opt.id)}
-                    className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-left text-xs transition-all ${
+                    className={`w-full flex items-center justify-between gap-1.5 sm:gap-3 px-2 sm:px-3 py-2 sm:py-2.5 rounded-xl text-left text-xs transition-all ${
                       isSelected
                         ? 'bg-blue-50/90 text-[#1a4fd6] font-bold ring-1 ring-blue-200'
                         : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
                       <span
-                        className={`flex-shrink-0 px-2 py-0.5 rounded-md font-mono text-[11px] font-bold tracking-wide border ${
+                        className={`flex-shrink-0 px-1.5 sm:px-2 py-0.5 rounded-md font-mono text-[10px] sm:text-[11px] font-bold tracking-wide border ${
                           isSelected
                             ? 'bg-[#1a4fd6] text-white border-[#1a4fd6]'
                             : 'bg-slate-100 text-slate-700 border-slate-200'
@@ -173,12 +194,12 @@ export default function AirportSelect({
                       >
                         {opt.icao_code}
                       </span>
-                      <span className="truncate">{opt.name}</span>
+                      <span className="truncate text-xs">{opt.name}</span>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                       <span
-                        className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                        className={`text-[10px] sm:text-[11px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md ${
                           isSelected
                             ? 'bg-blue-100 text-[#1a4fd6]'
                             : 'bg-slate-100 text-slate-600'
@@ -187,7 +208,7 @@ export default function AirportSelect({
                         {formatFee(opt.default_landing_fee_cents)}
                       </span>
                       {isSelected && (
-                        <span className="material-symbols-outlined text-base text-[#1a4fd6]">
+                        <span className="material-symbols-outlined text-sm sm:text-base text-[#1a4fd6]">
                           check
                         </span>
                       )}

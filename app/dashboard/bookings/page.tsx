@@ -741,8 +741,8 @@ export default async function CustomerBookingsPage() {
       />
 
       <div className="max-w-[1320px] mx-auto pt-0 pb-16">
-        <div className="relative z-10 -mt-16 mb-8 px-0">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        <div className="relative z-10 mt-6 sm:-mt-10 md:-mt-16 mb-8 px-2 sm:px-4 md:px-0">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-3">
               {[
                 {
                   icon: 'person_check',
@@ -778,14 +778,19 @@ export default async function CustomerBookingsPage() {
                   label: 'Total Booked Hours',
                   hint: null as string | null,
                 },
-              ].map((stat) => (
-                <div key={stat.label} className="bg-[#152d5a] rounded-2xl px-4 sm:px-6 py-5 sm:py-6 flex items-center gap-3 sm:gap-4 min-h-[96px]">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-white/20 flex items-center justify-center flex-shrink-0">
-                    <span className="material-symbols-outlined text-[20px] sm:text-[22px] text-white/70">{stat.icon}</span>
+              ].map((stat, idx) => (
+                <div
+                  key={stat.label}
+                  className={`bg-[#152d5a] rounded-2xl px-3.5 sm:px-6 py-4 sm:py-6 flex items-center gap-2.5 sm:gap-4 min-h-[84px] sm:min-h-[96px] ${
+                    idx === 4 ? 'col-span-2 md:col-span-1' : ''
+                  }`}
+                >
+                  <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full border-2 border-white/20 flex items-center justify-center flex-shrink-0">
+                    <span className="material-symbols-outlined text-[18px] sm:text-[22px] text-white/70">{stat.icon}</span>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[28px] sm:text-[36px] font-bold text-white leading-none tracking-tight">{stat.value}</p>
-                    <p className="text-[10px] text-white/50 uppercase tracking-[0.12em] mt-2 leading-snug">{stat.label}</p>
+                    <p className="text-[24px] sm:text-[36px] font-bold text-white leading-none tracking-tight">{stat.value}</p>
+                    <p className="text-[10px] text-white/50 uppercase tracking-[0.12em] mt-1.5 sm:mt-2 leading-snug">{stat.label}</p>
                     {stat.hint ? (
                       <p className="text-[10px] text-white/40 mt-0.5 leading-snug">{stat.hint}</p>
                     ) : null}
@@ -1300,23 +1305,43 @@ export default async function CustomerBookingsPage() {
                               Download Invoice
                             </a>
                           )}
-                          {booking.booking_type !== 'checkout' && bookingInvoice && bookingInvoice.status !== 'waived' && booking.status === 'payment_pending' && (
-                            <Link
-                              href={`/dashboard/bookings/${booking.id}#payment`}
-                              className={`flex items-center justify-center gap-1.5 whitespace-nowrap text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors ${
-                                bookingInvoice.status === 'bank_transfer_pending_review'
-                                  ? 'border border-[#152d5a]/20 bg-white text-[#152d5a] hover:bg-[#f0f6ff]'
-                                  : 'bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e]'
-                              }`}
-                            >
-                              <span className="material-symbols-outlined text-[14px]">
-                                {bookingInvoice.status === 'bank_transfer_pending_review' ? 'hourglass_empty' : 'payments'}
-                              </span>
-                              {bookingInvoice.status === 'bank_transfer_pending_review'
-                                ? 'View Payment'
-                                : 'Pay Invoice'}
-                            </Link>
-                          )}
+                          {(() => {
+                            const isCheckoutPayRequired =
+                              booking.booking_type === 'checkout' &&
+                              booking.status === 'checkout_payment_required' &&
+                              bookingInvoice?.status !== 'waived'
+                            const isCheckoutAwaitingReview =
+                              isCheckoutPayRequired && pendingCheckoutManualPaymentBookingIds.has(booking.id)
+
+                            const isRentalPayRequired =
+                              booking.booking_type !== 'checkout' &&
+                              Boolean(bookingInvoice && bookingInvoice.status !== 'waived' && booking.status === 'payment_pending')
+                            const isRentalAwaitingReview =
+                              isRentalPayRequired && bookingInvoice?.status === 'bank_transfer_pending_review'
+
+                            const showPayInvoice = isCheckoutPayRequired || isRentalPayRequired
+                            if (!showPayInvoice) return null
+
+                            const isPendingReview = isCheckoutAwaitingReview || isRentalAwaitingReview
+
+                            return (
+                              <Link
+                                href={`/dashboard/bookings/${booking.id}#payment`}
+                                className={`flex items-center justify-center gap-1.5 whitespace-nowrap text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors ${
+                                  isPendingReview
+                                    ? 'border border-[#152d5a]/20 bg-white text-[#152d5a] hover:bg-[#f0f6ff]'
+                                    : 'bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e]'
+                                }`}
+                              >
+                                <span className="material-symbols-outlined text-[14px]">
+                                  {isPendingReview ? 'hourglass_empty' : 'payments'}
+                                </span>
+                                {isPendingReview
+                                  ? 'View Payment'
+                                  : 'Pay Invoice'}
+                              </Link>
+                            )
+                          })()}
                           {booking.booking_type !== 'checkout' && blockTimePayInvoice && (
                             <Link
                               href={`/dashboard/bookings/${booking.id}#payment`}

@@ -1999,6 +1999,15 @@ export default function PostFlightVerificationConsole({
                 <span className="material-symbols-outlined text-base">list_alt</span>
                 Go to Booking Directory
               </Link>
+              <a
+                href={`/dashboard/bookings/${bookingId}/invoice`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-50 px-4 py-2.5 text-xs font-bold text-emerald-800 transition-all shadow-2xs"
+              >
+                <span className="material-symbols-outlined text-base text-emerald-600">receipt_long</span>
+                View Paid Invoice / Receipt
+              </a>
               {customerId && (
                 <Link
                   href={`/admin/users/${customerId}`}
@@ -2064,16 +2073,16 @@ export default function PostFlightVerificationConsole({
                   </button>
                 </div>
 
-                {/* Dropdown toggle arrow to hide/collapse Admin Review Decision (Image 3) */}
+                {/* Dropdown toggle arrow to hide/collapse Admin Review Decision — styled like Customer Refund Request arrow */}
                 <button
                   type="button"
                   onClick={() => setIsReviewDecisionCollapsed((prev) => !prev)}
-                  className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0 shadow-2xs"
+                  className="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
                   title={isReviewDecisionCollapsed ? 'Expand Admin Review Decision' : 'Hide / Collapse Admin Review Decision'}
                   aria-label={isReviewDecisionCollapsed ? 'Expand Admin Review Decision' : 'Hide / Collapse Admin Review Decision'}
                 >
                   <span
-                    className={`material-symbols-outlined text-xl transition-transform duration-200 block ${
+                    className={`material-symbols-outlined text-2xl transition-transform duration-200 text-slate-500 block ${
                       isReviewDecisionCollapsed ? 'rotate-180' : ''
                     }`}
                   >

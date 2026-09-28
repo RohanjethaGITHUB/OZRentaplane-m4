@@ -64,7 +64,7 @@ export default function PortalPageHero({ eyebrow, title, subtitle, note, backgro
       : (compact ? '' : 'min-h-[200px] sm:min-h-[300px] md:min-h-[460px]')
   return (
     <section
-      className={`relative overflow-hidden -mt-6 ${minHeightClass}`}
+      className={`relative overflow-hidden mt-0 md:-mt-6 ${minHeightClass}`}
       style={{
         marginLeft: 'calc(-50vw + 50%)',
         marginRight: 'calc(-50vw + 50%)',
@@ -132,7 +132,7 @@ export default function PortalPageHero({ eyebrow, title, subtitle, note, backgro
       <div className={`relative z-10 max-w-[1440px] mx-auto px-4 md:px-5 lg:px-6 ${
         compact
           ? (isLight ? 'py-4 sm:py-6 md:py-8' : 'py-4 sm:py-6 md:py-8')
-          : (isLight ? 'py-8 sm:py-12 md:py-16' : 'py-8 sm:py-14 md:py-20')
+          : (isLight ? 'pt-6 pb-8 sm:py-12 md:py-16' : 'pt-6 pb-8 sm:py-14 md:py-20')
       }`}>
         {backHref && (
           <Link
@@ -144,12 +144,12 @@ export default function PortalPageHero({ eyebrow, title, subtitle, note, backgro
           </Link>
         )}
         {eyebrow && (
-          <div className={`text-[11px] font-semibold tracking-[0.2em] uppercase mb-3 md:mb-4 font-sans ${useLightText ? 'text-[#1a4fd6]' : 'text-white/70'}`}>
+          <div className={`text-[11px] font-semibold tracking-[0.2em] uppercase mb-2 sm:mb-3 md:mb-4 font-sans ${useLightText ? 'text-[#1a4fd6]' : 'text-white/70'}`}>
             {eyebrow}
           </div>
         )}
         <h1
-          className={`${compact ? 'text-3xl md:text-4xl lg:text-5xl' : 'text-4xl md:text-5xl lg:text-6xl'} font-normal leading-tight mb-3 md:mb-4 max-w-2xl ${useLightText ? 'text-[#152d5a]' : 'text-white font-bold'}`}
+          className={`${compact ? 'text-2xl sm:text-3xl md:text-4xl lg:text-5xl' : 'text-3xl sm:text-4xl md:text-5xl lg:text-6xl'} font-normal leading-tight mb-2 sm:mb-3 md:mb-4 max-w-2xl ${useLightText ? 'text-[#152d5a]' : 'text-white font-bold'}`}
           style={{ fontFamily: 'Newsreader, Georgia, serif' }}
         >
           {title}

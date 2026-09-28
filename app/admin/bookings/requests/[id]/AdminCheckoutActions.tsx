@@ -569,14 +569,14 @@ export default function AdminCheckoutActions({
           </div>
 
           <div className="mt-2 border-t border-gray-200 pt-4">
-            <div className="rounded-xl overflow-hidden border border-gray-200 bg-white">
-              <div className="border-b border-gray-200 bg-gray-50 px-4 py-3.5 sm:px-5 sm:py-4">
+            <div className="rounded-xl border border-gray-200 bg-white">
+              <div className="rounded-t-xl border-b border-gray-200 bg-gray-50 px-4 py-3.5 sm:px-5 sm:py-4">
                 <p className="text-sm font-semibold text-gray-900">Finalise charges</p>
                 <p className="mt-0.5 text-xs text-gray-500">Review and confirm billing before finalising the checkout.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2">
-                <div className="px-3.5 py-4 sm:px-5 sm:py-5 md:border-r md:border-gray-200">
+                <div className="relative z-10 px-3.5 py-4 sm:px-5 sm:py-5 md:border-r md:border-gray-200">
                   <div>
                     <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-500">Hourly rate</label>
                     <div className="flex items-center rounded-lg border border-gray-200 bg-white px-3 py-2.5">
@@ -729,7 +729,7 @@ export default function AdminCheckoutActions({
                 <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>
               )}
 
-              <div className="border-t border-gray-200 bg-white px-3.5 py-3 sm:px-5 sm:py-4">
+              <div className="rounded-b-xl border-t border-gray-200 bg-white px-3.5 py-3 sm:px-5 sm:py-4">
                 {submissionConfirmation ? (
                   <div className="rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-3.5 sm:p-4">
                     <p className="text-sm font-semibold text-[#152d5a]">

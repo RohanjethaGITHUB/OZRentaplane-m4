@@ -225,16 +225,36 @@ export async function generateStandardBookingInvoicePdf(params: {
     overage_amount_cents?: number
   } | null = null
 
+  let actualHoursRefundSnapshot: {
+    status?: string
+    refund_amount_cents?: number
+    refund_reference?: string | null
+    refund_receipt_path?: string | null
+    admin_notes?: string | null
+    reviewed_at?: string | null
+    actual_vdo_hours?: number | null
+    enforced_minimum_hours?: number | null
+    difference_amount_cents?: number | null
+  } | null = null
+
   if (invoice.admin_notes) {
     try {
-      const parsed = JSON.parse(invoice.admin_notes)
+      const parsed = typeof invoice.admin_notes === 'string' ? JSON.parse(invoice.admin_notes) : invoice.admin_notes
       if (parsed?.block_time) {
         blockTimeSnapshot = parsed.block_time
+      }
+      if (parsed?.actual_hours_refund_request) {
+        actualHoursRefundSnapshot = parsed.actual_hours_refund_request
       }
     } catch {
       // Not JSON, plain text admin notes
     }
   }
+
+  const isRefundAccepted = actualHoursRefundSnapshot?.status === 'accepted' && (actualHoursRefundSnapshot.refund_amount_cents ?? 0) > 0
+  const refundAmount = isRefundAccepted ? roundToCents((actualHoursRefundSnapshot?.refund_amount_cents ?? 0) / 100) : 0
+  const refundReference = isRefundAccepted ? (actualHoursRefundSnapshot?.refund_reference ?? null) : null
+  const refundReason = isRefundAccepted ? (actualHoursRefundSnapshot?.admin_notes ?? null) : null
 
   let packageHoursPurchased = Number(blockTimeSnapshot?.hours_purchased ?? 0)
 
@@ -490,6 +510,15 @@ export async function generateStandardBookingInvoicePdf(params: {
     })
   }
 
+  if (isRefundAccepted && refundAmount > 0) {
+    lineItems.push({
+      description: `Customer Refund — Actual Hours Flown Adjustment${refundReference ? ` (Ref: ${refundReference})` : ''}`,
+      quantity: 1,
+      unitPrice: -refundAmount,
+      amount: -refundAmount,
+    })
+  }
+
   const itemsTotal = roundToCents(lineItems.reduce((sum, item) => sum + item.amount, 0))
   const originalBaseTotal = roundToCents(invoice.subtotal_cents / 100)
   const displayTotal = isWaived ? originalBaseTotal : itemsTotal
@@ -525,7 +554,9 @@ export async function generateStandardBookingInvoicePdf(params: {
     : formatPaymentMethodLabel(resolvedPaymentMethod || invoice.payment_method) || (isPaid ? 'Card (Online)' : '—')
 
   const footerNote = isPaid
-    ? isSplitPayment
+    ? isRefundAccepted && refundAmount > 0
+      ? `This receipt confirms full payment and recorded customer refund ($${refundAmount.toFixed(2)} AUD refunded${refundReference ? ` · Ref: ${refundReference}` : ''}) for actual flown hours difference. Net amount paid: $${displayTotal.toFixed(2)} AUD. All prices include GST.`
+      : isSplitPayment
       ? `This receipt confirms full payment for your aircraft rental booking ($${splitBankAmount.toFixed(2)} via Direct Bank Transfer and $${splitCardAmount.toFixed(2)} via Stripe Online Card). All prices include GST.`
       : isBlockTimeBooking
       ? (blockTimeSnapshot?.overage_hours && blockTimeSnapshot.overage_hours > 0
@@ -567,6 +598,10 @@ export async function generateStandardBookingInvoicePdf(params: {
     footerNote,
     creditAppliedAmount: advanceAppliedAmount,
     amountPaid,
+    refundAmount: isRefundAccepted ? refundAmount : undefined,
+    refundReference: isRefundAccepted ? refundReference : undefined,
+    refundReason: isRefundAccepted ? refundReason : undefined,
+    originalTotal: isRefundAccepted ? originalBaseTotal : undefined,
     flightMetrics: {
       aircraftRegistration: aircraftReg,
       aircraftModel,

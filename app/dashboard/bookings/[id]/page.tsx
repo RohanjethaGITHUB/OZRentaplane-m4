@@ -332,6 +332,7 @@ function NextActionCard({
   flightRecord,
   postFlightAttachments,
   checkoutInvoice,
+  checkoutLandingCharges,
   bankTransferSubmission,
   bankDetails,
   checkoutOutcome,
@@ -361,7 +362,24 @@ function NextActionCard({
   postFlightClarification?: FlightRecordClarification | null
   flightRecord?:            FlightRecord | null
   postFlightAttachments?:   (FlightRecordAttachment & { signedUrl: string | null })[]
-  checkoutInvoice?:         { id: string; invoice_number: string; subtotal_cents: number; advance_applied_cents: number; stripe_amount_due_cents: number } | null
+  checkoutInvoice?:         {
+    id: string
+    invoice_number: string
+    subtotal_cents: number
+    advance_applied_cents: number
+    stripe_amount_due_cents: number
+    status?: string
+    vdo_reading?: number | null
+    vdo_hours_flown?: number | null
+    vdo_start_reading?: number | null
+    vdo_end_reading?: number | null
+    checkout_duration_hours?: number | null
+    checkout_rate_cents_per_hour?: number | null
+    checkout_calculated_amount_cents?: number | null
+    checkout_landing_subtotal_cents?: number | null
+    checkout_final_amount_cents?: number | null
+  } | null
+  checkoutLandingCharges?:  InvoiceLandingChargePreview[]
   bankTransferSubmission?:  { id: string; status: string } | null
   bankDetails?:             { bankName?: string; accountName: string; bsb: string; accountNumber: string } | null
   checkoutOutcome?:         string | null
@@ -526,6 +544,7 @@ function NextActionCard({
       <CheckoutPaymentCard
         bookingId={bookingId}
         checkoutInvoice={checkoutInvoice}
+        landingCharges={checkoutLandingCharges}
         bankTransferSubmission={bankTransferSubmission}
         bankDetails={bankDetails ?? undefined}
       />
@@ -1392,16 +1411,54 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
 
   // ── Checkout invoice + bank transfer fetch ────────────────────────────────────
   // Must run before activePipeline so isAwaitingManualPayment is available.
-  let checkoutInvoice = null
+  let checkoutInvoice: any = null
+  let checkoutLandingCharges: InvoiceLandingChargePreview[] = []
   let bankTransferSubmission = null
   let bankDetails = null
   if (status === 'checkout_payment_required') {
-    const { data: inv } = await supabase
-      .from('checkout_invoices')
-      .select('id, invoice_number, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, status')
-      .eq('booking_id', booking.id)
-      .single()
+    const [{ data: inv }, { data: chkLandingRows }] = await Promise.all([
+      supabase
+        .from('checkout_invoices')
+        .select(`
+          id, invoice_number, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, status,
+          vdo_reading, vdo_hours_flown, vdo_start_reading, vdo_end_reading,
+          checkout_duration_hours, checkout_rate_cents_per_hour, checkout_calculated_amount_cents,
+          checkout_landing_subtotal_cents, checkout_final_amount_cents
+        `)
+        .eq('booking_id', booking.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('checkout_landing_charges')
+        .select('landing_count, unit_amount_cents, total_amount_cents, airports(icao_code, name)')
+        .eq('booking_id', booking.id)
+        .order('created_at', { ascending: true }),
+    ])
     checkoutInvoice = inv
+
+    if (chkLandingRows && chkLandingRows.length > 0) {
+      checkoutLandingCharges = ((chkLandingRows ?? []) as Array<{
+        landing_count: number
+        unit_amount_cents: number
+        total_amount_cents: number
+        airports?: { icao_code?: string | null; name?: string | null } | { icao_code?: string | null; name?: string | null }[] | null
+      }>).map((row, index) => {
+        const airport = Array.isArray(row.airports) ? row.airports[0] : row.airports
+        const icao = airport?.icao_code?.trim() || null
+        const name = airport?.name?.trim() || null
+        const airportLabel = icao && name
+          ? `${icao} · ${name}`
+          : icao || name || `Airport ${index + 1}`
+        return {
+          airportLabel,
+          icaoCode: icao,
+          landingCount: Number(row.landing_count) || 0,
+          unitAmountCents: Number(row.unit_amount_cents) || 0,
+          totalAmountCents: Number(row.total_amount_cents) || 0,
+        }
+      }).filter((row) => row.landingCount > 0)
+    }
 
     if (inv) {
       const { data: sub } = await supabase
@@ -2533,6 +2590,7 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
           flightRecord={postFlightRecord}
           postFlightAttachments={postFlightAttachments}
           checkoutInvoice={checkoutInvoice}
+          checkoutLandingCharges={checkoutLandingCharges}
           bankTransferSubmission={bankTransferSubmission}
           bankDetails={bankDetails}
           checkoutOutcome={checkoutOutcome}

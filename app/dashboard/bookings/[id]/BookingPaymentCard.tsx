@@ -31,6 +31,7 @@ type Props = {
     status: string
     payment_method: string | null
     is_block_time_overage?: boolean
+    admin_notes?: string | null
   }
   landingCharges?: Array<{
     airportLabel: string
@@ -149,17 +150,59 @@ export default function BookingPaymentCard({
 
   // ── Paid ──────────────────────────────────────────────────────────────────
   if (displayState === 'paid' || displayState === 'waived') {
+    const adminNotesObj = (() => {
+      try {
+        return typeof invoice.admin_notes === 'string' ? JSON.parse(invoice.admin_notes) : invoice.admin_notes
+      } catch {
+        return null
+      }
+    })()
+    const refundReq = adminNotesObj?.actual_hours_refund_request
+    const isRefundAccepted = refundReq?.status === 'accepted' && (refundReq.refund_amount_cents ?? 0) > 0
+    const refundAmount = isRefundAccepted ? ((refundReq.refund_amount_cents ?? 0) / 100).toFixed(2) : null
+    const netPaidAmount = isRefundAccepted
+      ? Math.max(0, (invoice.subtotal_cents - (refundReq.refund_amount_cents ?? 0)) / 100).toFixed(2)
+      : subtotal
+
     return (
-      <div id="payment" className="scroll-mt-28 bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-6">
-        <div className="flex items-center gap-3 mb-3">
-          <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-600">{displayState === 'waived' ? 'Payment Waived' : 'Payment Confirmed'}</h3>
+      <div id="payment" className="scroll-mt-28 bg-white border border-[#152d5a]/10 rounded-[1.25rem] p-4 sm:p-6">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <span className="material-symbols-outlined text-emerald-500 text-lg sm:text-xl">check_circle</span>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-600">
+              {displayState === 'waived' ? 'Payment Waived' : 'Payment Confirmed'}
+            </h3>
+          </div>
+          {displayState === 'paid' && (
+            <a
+              href={`/dashboard/bookings/${bookingId}/invoice`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1a4fd6] border border-blue-200/80 text-xs font-semibold transition-colors shadow-2xs"
+            >
+              <span className="material-symbols-outlined text-sm">download</span>
+              <span>Invoice</span>
+            </a>
+          )}
         </div>
-        <p className="text-sm text-[#4b6390] leading-relaxed">
+        <p className="text-xs sm:text-sm text-[#4b6390] leading-relaxed">
           {displayState === 'waived'
             ? 'No customer payment is required for this booking. The booking is closed.'
             : 'Your flight payment has been confirmed. Your booking is now complete.'}
         </p>
+
+        {isRefundAccepted && refundAmount && (
+          <div className="mt-3.5 p-3 sm:p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-950 space-y-1.5">
+            <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+              <span className="material-symbols-outlined text-base text-emerald-700">currency_exchange</span>
+              <span>Refund Processed for Actual Hours: ${refundAmount} AUD</span>
+            </div>
+            <p className="text-[11px] sm:text-xs text-emerald-800 leading-relaxed">
+              Original flight charges: <strong>${subtotal} AUD</strong> &middot; Refund issued: <strong>-${refundAmount} AUD</strong> &middot; Net paid: <strong>${netPaidAmount} AUD</strong>.
+              {refundReq?.refund_reference ? ` (Ref: ${refundReq.refund_reference})` : ''}
+            </p>
+          </div>
+        )}
       </div>
     )
   }

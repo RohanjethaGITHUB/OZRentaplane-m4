@@ -49,6 +49,10 @@ export type InvoicePdfInput = {
   creditAppliedAmount?: number | null
   amountPaid?: number | null
   flightMetrics?: FlightMeterDetails | null
+  refundAmount?: number | null
+  refundReference?: string | null
+  refundReason?: string | null
+  originalTotal?: number | null
 }
 
 function formatMoney(value: number): string {
@@ -914,10 +918,17 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
                          <svg width="24" height="24" viewBox="0 0 24 24" fill="#16a34a"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
                        </div>
                        <div class="note-status-texts">
-                         <div class="note-status-title paid">PAYMENT COMPLETED</div>
+                         <div class="note-status-title paid">${input.refundAmount && input.refundAmount > 0 ? 'PAYMENT COMPLETED &amp; REFUND RECORDED' : 'PAYMENT COMPLETED'}</div>
                          <p class="note-status-body">
                            This document serves as an official tax receipt confirming full settlement of all flight and landing charges.
                          </p>
+                         ${
+                           input.refundAmount && input.refundAmount > 0
+                             ? `<p class="note-status-body" style="font-weight: 700; color: #b91c1c; margin-top: 2px;">
+                                  Refund of ${formatMoney(input.refundAmount)} processed for actual flown hours${input.refundReference ? ` &middot; Ref: ${escapeHtml(input.refundReference)}` : ''}
+                                </p>`
+                             : ''
+                         }
                          <p class="note-status-body" style="font-weight: 700; color: #15803d; margin-top: 2px;">
                            Settled On: ${escapeHtml(formatDate(input.paidAt || input.createdAt))}
                          </p>
@@ -958,7 +969,28 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
             <!-- Right: Totals Box -->
             <div class="totals-column-block">
               ${
-                input.creditAppliedAmount && input.creditAppliedAmount > 0
+                input.refundAmount && input.refundAmount > 0
+                  ? `<div class="totals-row-item">
+                       <span>Total Charges</span>
+                       <span>${formatMoney(input.originalTotal ?? (input.total + input.refundAmount))}</span>
+                     </div>
+                     ${
+                       input.creditAppliedAmount && input.creditAppliedAmount > 0
+                         ? `<div class="totals-row-item credit">
+                              <span>Advance Credit Applied</span>
+                              <span>-${formatMoney(input.creditAppliedAmount)}</span>
+                            </div>`
+                         : ''
+                     }
+                     <div class="totals-row-item" style="color: #b91c1c; font-weight: 600;">
+                       <span>Refund Processed${input.refundReference ? ` (${escapeHtml(input.refundReference)})` : ''}</span>
+                       <span>-${formatMoney(input.refundAmount)}</span>
+                     </div>
+                     <div class="totals-row-item main">
+                       <span>Net Total (Inc. GST)</span>
+                       <strong>${formatMoney(input.total - (input.creditAppliedAmount ?? 0))}</strong>
+                     </div>`
+                  : input.creditAppliedAmount && input.creditAppliedAmount > 0
                   ? `<div class="totals-row-item">
                        <span>Total Charges</span>
                        <span>${formatMoney(input.total)}</span>
@@ -980,7 +1012,7 @@ function renderInvoiceHtml(input: InvoicePdfInput): string {
               <div class="totals-divider"></div>
 
               <div class="totals-row-item due">
-                <span>${isPaid ? 'Amount Paid' : isWaived ? 'Balance Due' : 'Amount Payable'}</span>
+                <span>${isPaid ? (input.refundAmount && input.refundAmount > 0 ? 'Net Amount Paid' : 'Amount Paid') : isWaived ? 'Balance Due' : 'Amount Payable'}</span>
                 <strong>${formatMoney(isPaid ? (input.amountPaid ?? input.total) : isWaived ? 0 : (input.total - (input.creditAppliedAmount ?? 0)))}</strong>
               </div>
             </div>
