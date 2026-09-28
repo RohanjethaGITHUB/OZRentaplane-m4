@@ -121,10 +121,13 @@ export default function CookiePolicyPage() {
         {/* Legal Links Footnote */}
         <div className="mt-12 pt-8 border-t border-slate-200 flex flex-wrap gap-6 text-xs text-slate-500 font-medium">
           <Link href="/terms-and-conditions" className="hover:text-blue-600 underline">
-            Terms of Use
+            Terms & Conditions
           </Link>
           <Link href="/privacy-policy" className="hover:text-blue-600 underline">
             Privacy Policy
+          </Link>
+          <Link href="/safety-disclaimer" className="hover:text-blue-600 underline">
+            Safety Disclaimer
           </Link>
           <Link href="/contact-us" className="hover:text-blue-600 underline">
             Contact Support

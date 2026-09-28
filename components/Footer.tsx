@@ -86,6 +86,7 @@ export default function Footer({ forceShow = false }: FooterProps) {
             <a href="/terms-and-conditions" className="font-sans text-[0.8rem] text-cloud-muted hover:text-ember-gold transition-colors opacity-70">Terms &amp; Conditions</a>
             <a href="/privacy-policy" className="font-sans text-[0.8rem] text-cloud-muted hover:text-ember-gold transition-colors opacity-70">Privacy Policy</a>
             <a href="/safety-disclaimer" className="font-sans text-[0.8rem] text-cloud-muted hover:text-ember-gold transition-colors opacity-70">Safety Disclaimer</a>
+            <a href="/cookie-policy" className="font-sans text-[0.8rem] text-cloud-muted hover:text-ember-gold transition-colors opacity-70">Cookie Policy</a>
           </div>
 
         </div>
