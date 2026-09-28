@@ -963,11 +963,6 @@ export default function PostFlightVerificationConsole({
                 >
                   <span className="material-symbols-outlined text-sm">speed</span>
                   <span>Bill Actual Flown ({vdoTotal != null ? Number(vdoTotal).toFixed(1) : currentVdoNum.toFixed(1)} hrs)</span>
-                  {actualHoursRefundRequest?.requested && (
-                    <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300 shadow-xs">
-                      User Requested
-                    </span>
-                  )}
                 </button>
               </div>
             </div>
@@ -1045,15 +1040,6 @@ export default function PostFlightVerificationConsole({
                 <div className="min-w-0">
                   <h3 className="text-sm font-bold text-slate-900 flex flex-wrap items-center gap-2">
                     <span>Customer Refund Request for Actual Hours Flown</span>
-                    {actualHoursRefundRequest?.requested ? (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-200">
-                        Requested by Customer
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
-                        Available Option
-                      </span>
-                    )}
                   </h3>
                   <p className="text-xs text-slate-500">
                     Customer paid full {minimumVdoHours.toFixed(1)}h minimum invoice upfront and is requesting refund for actual flown hours

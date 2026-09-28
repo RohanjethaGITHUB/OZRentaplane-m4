@@ -160,8 +160,6 @@ export default function FlightRecordForm({
   })
   const [notes, setNotes] = useState(initialRecord?.customer_notes ?? '')
   const [minimumVdoDecision, setMinimumVdoDecision] = useState<'enforce_minimum' | 'bill_actual'>('enforce_minimum')
-  const [requestActualHoursRefund, setRequestActualHoursRefund] = useState(false)
-  const [refundReason, setRefundReason] = useState('')
 
   // Landing row helpers
   function updateLandingAirport(idx: number, airportId: string) {
@@ -394,14 +392,14 @@ export default function FlightRecordForm({
       return
     }
 
-    const actualHoursRefundRequestPayload = (calc.minimumVdoBilling.isBelowMinimum && requestActualHoursRefund)
+    const actualHoursRefundRequestPayload = calc.minimumVdoBilling.isBelowMinimum
       ? {
           requested: true,
           account_name: null,
           bsb: null,
           account_number: null,
           bank_name: null,
-          reason: refundReason.trim() || null,
+          reason: notes?.trim() || null,
           actual_vdo_hours: totalReadings.vdo_total,
           enforced_minimum_hours: calc.minimumVdoBilling.minimumVdoHours,
           difference_hours: Math.max(0, Math.round((calc.minimumVdoBilling.minimumVdoHours - totalReadings.vdo_total) * 10) / 10),
@@ -867,43 +865,6 @@ export default function FlightRecordForm({
                 <span className="text-[11px] text-[#4b6390] mt-1 leading-snug">
                   Multi-day rental policy applies a 4h/day minimum ({calc.minimumVdoBilling.minimumVdoHours.toFixed(1)}h total). This minimum is applied to your live bill settlement.
                 </span>
-              </div>
-
-              {/* Request Waiver / Refund for Actual Hours Checkbox */}
-              <div className="rounded-xl border border-amber-300 bg-white p-3.5 sm:p-4 space-y-3 shadow-xs">
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={requestActualHoursRefund}
-                    onChange={(e) => setRequestActualHoursRefund(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-amber-400 text-[#1a4fd6] focus:ring-[#1a4fd6] accent-[#1a4fd6]"
-                  />
-                  <div>
-                    <span className="text-xs font-bold text-[#152d5a] block">
-                      Request review &amp; refund for actual hours flown ({enteredVdoTotal?.toFixed(1)}h flown vs {calc.minimumVdoBilling.minimumVdoHours.toFixed(1)}h minimum)
-                    </span>
-                    <span className="text-[11px] text-[#4b6390] leading-relaxed block mt-0.5">
-                      You will pay the standard minimum invoice amount now. Operations will review your actual flown hours and can refund the difference ({Math.max(0, Math.round((calc.minimumVdoBilling.minimumVdoHours - (enteredVdoTotal ?? 0)) * 10) / 10).toFixed(1)}h = ${money(Math.max(0, Math.round((calc.minimumVdoBilling.minimumVdoHours - (enteredVdoTotal ?? 0)) * 10) / 10) * calc.standardHourlyRate * 100)}) upon approval.
-                    </span>
-                  </div>
-                </label>
-
-                {requestActualHoursRefund && (
-                  <div className="pt-3 border-t border-slate-100">
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                        Reason / Notes for Waiver Request (Optional)
-                      </label>
-                      <textarea
-                        value={refundReason}
-                        onChange={(e) => setRefundReason(e.target.value)}
-                        rows={2}
-                        placeholder="Explain why you are requesting billing on actual hours (e.g. weather diversion, mechanical hold)..."
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-amber-500 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
             )}

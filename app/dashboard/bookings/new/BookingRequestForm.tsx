@@ -2600,28 +2600,19 @@ export default function BookingRequestForm({
                     })()}
                     </div>
                   </div>
-                  <div className="flex items-start gap-3 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-4 py-3">
-                    <svg
-                      className="w-4 h-4 text-[#6b7280] flex-shrink-0 mt-0.5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={1.5}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <div className="text-sm text-[#6b7280]">
-                      <div>
-                        Bookings over 24 hours are reserved continuously for
-                        this period.
+                  <div className="flex items-start gap-3 bg-amber-50/80 border border-amber-200/90 rounded-xl px-4 py-3.5">
+                    <span className="material-symbols-outlined text-amber-700 text-lg flex-shrink-0 mt-0.5">
+                      info
+                    </span>
+                    <div className="text-xs sm:text-sm text-amber-950 space-y-1">
+                      <div className="font-bold text-amber-900">
+                        Multi-Day Minimum Billing Policy (4h/day minimum)
                       </div>
-                      <div>
-                        Billing is based on actual VDO hours flown, with a
-                        minimum of 4 VDO hours per 24 hours booked.
+                      <div className="leading-relaxed">
+                        Multi-day bookings require a minimum of <strong>4 VDO hours per day</strong> (e.g. 2 days = 8 hrs, 3 days = 12 hrs).
+                      </div>
+                      <div className="font-semibold text-amber-900 leading-relaxed">
+                        For this {bookingDayCount}-day booking, the minimum policy charge is {multiDayMinimumVdoHours ?? bookingDayCount * 4} VDO hours ({bookingDayCount} days &times; 4h/day = {multiDayMinimumVdoHours ?? bookingDayCount * 4}h bill). If you fly more than this minimum, you will be billed for your actual flown VDO hours.
                       </div>
                     </div>
                   </div>
@@ -2700,13 +2691,18 @@ export default function BookingRequestForm({
                             ? `${multiDayMinimumVdoHours} VDO hours`
                             : "—"}
                         </div>
+                        {bookingDayCount > 0 && (
+                          <div className="text-[11px] text-[#4b6390] mt-0.5 font-medium">
+                            {bookingDayCount} days &times; 4h/day = {multiDayMinimumVdoHours ?? bookingDayCount * 4}h bill
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {multiDayMinimumInfoOpen ? (
                       <div className="absolute left-4 right-4 top-[calc(100%+0.5rem)] z-10 rounded-2xl border border-[#152d5a]/15 bg-white p-4 shadow-[0_16px_40px_rgba(21,45,90,0.16)]">
                         <p className="text-[13px] leading-6 text-[#4b6390]">
-                          Each day of a multi-day booking is billed a minimum of 4 VDO hours, even if you fly less. If you fly more than 4 hours on a given day, you're billed for the actual hours flown that day. This minimum applies per day, not across the whole booking.
+                          Multi-day rentals require a minimum of 4 VDO hours per day (e.g. 2 days = 8 hrs, 3 days = 12 hrs). For {bookingDayCount} days, the minimum bill is {multiDayMinimumVdoHours ?? bookingDayCount * 4} hours. If you fly more than this minimum, you are billed for your actual flown hours.
                         </p>
                       </div>
                     ) : null}
@@ -2724,8 +2720,11 @@ export default function BookingRequestForm({
                         <div className="text-[13px] text-[#6b7280] md:text-sm">
                           Final billing
                         </div>
-                        <div className="text-[15px] font-semibold text-[#152d5a] md:text-base">
-                          Based on actual VDO hours flown
+                        <div className="text-[14px] sm:text-[15px] font-semibold text-[#152d5a] md:text-base leading-tight">
+                          Actual VDO ({multiDayMinimumVdoHours ?? bookingDayCount * 4}.0h policy minimum)
+                        </div>
+                        <div className="text-[11px] text-[#4b6390] mt-0.5 font-medium">
+                          Billed on recorded VDO flight hours (4.0h/day policy minimum applies)
                         </div>
                       </div>
                     </div>
