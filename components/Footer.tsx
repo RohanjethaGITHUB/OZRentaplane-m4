@@ -13,8 +13,8 @@ export default function Footer({ forceShow = false }: FooterProps) {
   return (
     <footer className="bg-[#0a1426] pt-24 pb-12 px-6 md:px-12 lg:px-20" style={{ marginTop: '-2px' }}>
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start gap-16 md:gap-8 mb-24">
-        
-        {/* Left Brand Area */}
+
+        {/* Left Brand Area of footer */}
         <div className="max-w-xs shrink-0">
           <div className="flex items-center gap-3">
             <img
@@ -58,7 +58,7 @@ export default function Footer({ forceShow = false }: FooterProps) {
 
         {/* Right Link Columns */}
         <div className="flex flex-wrap md:flex-nowrap gap-x-16 lg:gap-x-24 gap-y-12">
-          
+
           <div className="flex flex-col gap-[0.85rem]">
             <h4 className="font-sans font-bold text-[0.85rem] text-horizon-border mb-1">Fleet</h4>
             <a href="/fleet" className="font-sans text-[0.8rem] text-cloud-muted hover:text-ember-gold transition-colors opacity-70">Cessna 172</a>
@@ -97,7 +97,7 @@ export default function Footer({ forceShow = false }: FooterProps) {
         <p className="font-sans text-[0.65rem] tracking-widest uppercase text-cloud-muted opacity-50 text-center md:text-left">
           &copy; {new Date().getFullYear()} OZRENTAPLANE RENTALS. EDITORIAL EXCELLENCE IN FLIGHT.
         </p>
-        
+
         {/* Subtle Social/Media Icons */}
         <div className="flex gap-7 items-center text-cloud-muted opacity-60">
           <a href="/login" aria-label="Region" className="hover:opacity-100 hover:text-ember-gold transition-colors">
