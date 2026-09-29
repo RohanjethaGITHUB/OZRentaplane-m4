@@ -23,7 +23,7 @@ export default function InstructorFooter() {
   return (
     <footer className="bg-[#051326] text-white pt-16 pb-8 px-6 sm:px-10 lg:px-16 border-t border-slate-800/80">
       <div className="max-w-[1400px] mx-auto">
-        {/* Main Grid */}
+        {/* Main Grid work */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-8 pb-12">
           
           {/* Brand Column (Left) */}
