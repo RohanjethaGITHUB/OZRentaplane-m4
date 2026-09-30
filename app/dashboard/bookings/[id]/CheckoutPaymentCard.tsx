@@ -61,7 +61,19 @@ export default function CheckoutPaymentCard({
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  if (!checkoutInvoice) return null
+  if (!checkoutInvoice) {
+    return (
+      <div id="payment" className="scroll-mt-28 bg-white border border-amber-200 rounded-[1.25rem] p-4 sm:p-6">
+        <div className="flex items-center gap-2.5 sm:gap-3 mb-2 sm:mb-3">
+          <span className="material-symbols-outlined text-amber-500 text-lg sm:text-xl">payments</span>
+          <h3 className="text-xs font-bold uppercase tracking-widest text-amber-600">Payment Required</h3>
+        </div>
+        <p className="text-xs sm:text-sm text-[#4b6390] leading-relaxed">
+          Your checkout flight invoice is being prepared. Please refresh the page or contact the operations team if it does not appear shortly.
+        </p>
+      </div>
+    )
+  }
 
   // Derive the display state — this is the single source of truth for what to show
   const displayState = getCheckoutPaymentDisplayState(

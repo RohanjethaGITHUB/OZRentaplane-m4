@@ -1421,7 +1421,7 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
         .from('checkout_invoices')
         .select(`
           id, invoice_number, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, status,
-          vdo_reading, vdo_hours_flown, vdo_start_reading, vdo_end_reading,
+          vdo_reading, vdo_start_reading, vdo_end_reading,
           checkout_duration_hours, checkout_rate_cents_per_hour, checkout_calculated_amount_cents,
           checkout_landing_subtotal_cents, checkout_final_amount_cents
         `)
